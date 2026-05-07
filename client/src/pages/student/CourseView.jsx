@@ -1,115 +1,193 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
-  ArrowRight, Play, FileText, BookOpen,
-  Video, Clock, Download, ExternalLink, AlertCircle
+  ArrowRight, Play, FileText, BookOpen, Video, Clock,
+  Download, CheckCircle2, Lock, ChevronRight, AlertCircle,
+  Pause, Volume2, VolumeX, Maximize2, RotateCcw
 } from 'lucide-react';
 import api from '../../lib/api';
 
-function isLocalFile(url) {
-  return url && url.startsWith('/uploads/');
-}
+/* ─── helpers ─────────────────────────────────────────── */
+const fmt = (min) => min >= 60
+  ? `${Math.floor(min / 60)}س ${min % 60}د`
+  : `${min} دقيقة`;
 
-function getYouTubeEmbedUrl(url) {
-  if (!url) return null;
-  const match = url.match(
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/
-  );
-  return match ? `https://www.youtube.com/embed/${match[1]}?rel=0` : null;
-}
-
-function isYouTube(url) {
-  return url && (url.includes('youtube.com') || url.includes('youtu.be'));
-}
-
+/* ─── Custom Video Player ──────────────────────────────── */
 function VideoPlayer({ video }) {
-  if (!video) return null;
-  const url = video.file_path_or_url;
+  const videoRef = useRef(null);
+  const [playing, setPlaying] = useState(false);
+  const [muted, setMuted] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [showControls, setShowControls] = useState(true);
+  const hideTimer = useRef(null);
 
-  if (isLocalFile(url)) {
-    return (
-      <video
-        key={video.id}
-        src={url}
-        controls
-        autoPlay
-        className="w-full h-full object-contain bg-black"
-      />
-    );
-  }
+  useEffect(() => {
+    setPlaying(false);
+    setProgress(0);
+  }, [video?.id]);
 
-  const embedUrl = getYouTubeEmbedUrl(url);
-  if (embedUrl) {
-    return (
-      <iframe
-        key={video.id}
-        src={embedUrl}
-        className="w-full h-full"
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        allowFullScreen
-        title={video.title}
-      />
-    );
-  }
+  const resetHideTimer = () => {
+    setShowControls(true);
+    clearTimeout(hideTimer.current);
+    hideTimer.current = setTimeout(() => playing && setShowControls(false), 3000);
+  };
+
+  const toggle = () => {
+    if (!videoRef.current) return;
+    if (playing) { videoRef.current.pause(); setPlaying(false); }
+    else { videoRef.current.play(); setPlaying(true); }
+  };
+
+  const seek = (e) => {
+    if (!videoRef.current || !duration) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pct = (e.clientX - rect.left) / rect.width;
+    videoRef.current.currentTime = pct * duration;
+  };
+
+  const fmtSec = (s) => {
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return `${m}:${sec.toString().padStart(2, '0')}`;
+  };
+
+  if (!video) return (
+    <div className="w-full h-full flex items-center justify-center bg-gray-900">
+      <div className="text-center text-gray-500">
+        <Video className="w-20 h-20 mx-auto mb-4 opacity-20" />
+        <p className="text-gray-400 font-semibold text-lg">اختر محاضرة للمشاهدة</p>
+      </div>
+    </div>
+  );
 
   return (
-    <div className="w-full h-full flex items-center justify-center bg-gray-900">
-      <div className="text-center text-white p-8">
-        <Play className="w-16 h-16 mx-auto mb-4 opacity-40" />
-        <p className="font-bold text-lg mb-2">{video.title}</p>
-        <p className="text-gray-400 text-sm mb-6">هذا الفيديو متاح عبر رابط خارجي</p>
-        <a
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-bold px-6 py-3 rounded-xl transition-colors"
+    <div
+      className="relative w-full h-full bg-black group"
+      onMouseMove={resetHideTimer}
+      onMouseLeave={() => playing && setShowControls(false)}
+    >
+      <video
+        ref={videoRef}
+        key={video.id}
+        src={video.file_path_or_url}
+        className="w-full h-full object-contain"
+        muted={muted}
+        onTimeUpdate={() => {
+          if (videoRef.current)
+            setProgress(videoRef.current.currentTime / (duration || 1) * 100);
+        }}
+        onLoadedMetadata={() => setDuration(videoRef.current?.duration || 0)}
+        onEnded={() => setPlaying(false)}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onClick={toggle}
+      />
+
+      {/* Big play button overlay when paused */}
+      {!playing && (
+        <button
+          onClick={toggle}
+          className="absolute inset-0 flex items-center justify-center"
         >
-          <ExternalLink className="w-4 h-4" /> مشاهدة الفيديو
-        </a>
+          <div className="w-20 h-20 rounded-full bg-orange-500/90 flex items-center justify-center shadow-2xl hover:bg-orange-500 hover:scale-110 transition-all duration-200">
+            <Play className="w-8 h-8 text-white fill-white mr-[-2px]" />
+          </div>
+        </button>
+      )}
+
+      {/* Controls bar */}
+      <div className={`absolute bottom-0 left-0 right-0 transition-opacity duration-300 ${showControls || !playing ? 'opacity-100' : 'opacity-0'}`}>
+        <div className="bg-gradient-to-t from-black/90 via-black/50 to-transparent px-4 pt-8 pb-4">
+          {/* Progress bar */}
+          <div
+            className="w-full h-1.5 bg-white/20 rounded-full cursor-pointer mb-3 group/bar"
+            onClick={seek}
+          >
+            <div
+              className="h-full bg-orange-500 rounded-full relative transition-all"
+              style={{ width: `${progress}%` }}
+            >
+              <div className="absolute right-[-6px] top-[-4px] w-3.5 h-3.5 bg-orange-500 rounded-full opacity-0 group-hover/bar:opacity-100 transition-opacity shadow-lg" />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button onClick={toggle} className="text-white hover:text-orange-400 transition-colors">
+              {playing
+                ? <Pause className="w-5 h-5 fill-white" />
+                : <Play className="w-5 h-5 fill-white" />
+              }
+            </button>
+            <button onClick={() => { if (videoRef.current) videoRef.current.currentTime -= 10; }}
+              className="text-white hover:text-orange-400 transition-colors">
+              <RotateCcw className="w-4 h-4" />
+            </button>
+            <button onClick={() => setMuted(m => !m)} className="text-white hover:text-orange-400 transition-colors">
+              {muted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+            </button>
+            <span className="text-white/70 text-xs font-mono">
+              {fmtSec(videoRef.current?.currentTime || 0)} / {fmtSec(duration)}
+            </span>
+            <div className="flex-1" />
+            <button
+              onClick={() => videoRef.current?.requestFullscreen()}
+              className="text-white hover:text-orange-400 transition-colors"
+            >
+              <Maximize2 className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
+/* ─── PDF Viewer ───────────────────────────────────────── */
 function PdfViewer({ pdf }) {
-  const [error, setError] = useState(false);
-  if (!pdf) return null;
-  const url = pdf.file_url;
-
-  const isExternal = url && (url.startsWith('http://') || url.startsWith('https://'));
-
-  if (error || (!isLocalFile(url) && !isExternal)) {
-    return (
-      <div className="w-full h-full flex items-center justify-center bg-gray-50">
-        <div className="text-center p-8">
-          <AlertCircle className="w-14 h-14 mx-auto mb-4 text-orange-400" />
-          <p className="font-bold text-gray-700 text-lg mb-2">{pdf.title}</p>
-          <p className="text-gray-400 text-sm mb-6">الملف غير متاح للعرض المباشر</p>
-          <a
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-bold px-5 py-2.5 rounded-xl transition-colors text-sm"
-          >
-            <Download className="w-4 h-4" /> تحميل الملف
-          </a>
-        </div>
+  if (!pdf) return (
+    <div className="w-full h-full flex items-center justify-center bg-gray-50">
+      <div className="text-center text-gray-400">
+        <FileText className="w-20 h-20 mx-auto mb-4 opacity-20" />
+        <p className="font-semibold text-lg">اختر ملفاً للعرض</p>
       </div>
-    );
-  }
+    </div>
+  );
+
+  const isLocal = pdf.file_url?.startsWith('/uploads/');
+
+  if (!isLocal) return (
+    <div className="w-full h-full flex items-center justify-center bg-gray-50">
+      <div className="text-center p-8 max-w-sm">
+        <div className="w-20 h-20 rounded-2xl bg-orange-50 flex items-center justify-center mx-auto mb-5">
+          <FileText className="w-10 h-10 text-orange-500" />
+        </div>
+        <p className="font-black text-gray-800 text-xl mb-2">{pdf.title}</p>
+        <p className="text-gray-400 text-sm mb-6">الملف متاح للتحميل</p>
+        <a
+          href={pdf.file_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-bold px-6 py-3 rounded-xl transition-all hover:shadow-lg active:scale-95"
+        >
+          <Download className="w-4 h-4" /> تحميل الملف
+        </a>
+      </div>
+    </div>
+  );
 
   return (
     <iframe
       key={pdf.id}
-      src={url}
-      className="w-full h-full border-0 bg-white"
+      src={pdf.file_url}
+      className="w-full h-full border-0"
       title={pdf.title}
-      onError={() => setError(true)}
     />
   );
 }
 
+/* ─── Main Page ────────────────────────────────────────── */
 export default function CourseView() {
   const { courseId } = useParams();
   const navigate = useNavigate();
@@ -137,131 +215,67 @@ export default function CourseView() {
   const currentPdf = activePdf || pdfs[0] || null;
 
   const tabs = [
-    { key: 'videos', label: 'الفيديوهات', icon: Video, count: videos.length },
+    { key: 'videos', label: 'المحاضرات', icon: Video, count: videos.length },
     { key: 'pdfs', label: 'الملفات', icon: FileText, count: pdfs.length },
     { key: 'exams', label: 'الاختبارات', icon: BookOpen, count: exams.length },
   ];
 
   return (
-    <div className="flex flex-col h-full -m-4 lg:-m-6">
+    <div className="flex flex-col h-full -m-4 lg:-m-6 bg-gray-950">
 
-      {/* ── Top header bar ── */}
-      <div className="flex-shrink-0 bg-white border-b border-gray-200 px-4 lg:px-6 py-3 shadow-sm z-10">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate('/student/courses')}
-            className="flex items-center gap-1.5 text-sm font-bold text-navy-600 hover:text-orange-500 transition-colors"
-          >
-            <ArrowRight className="w-4 h-4" />
-            <span>كورساتي</span>
-          </button>
-          <span className="text-gray-300">/</span>
-          <h1 className="text-sm font-black text-gray-800 truncate">{course?.name || 'الكورس'}</h1>
-        </div>
+      {/* ── Breadcrumb Header ── */}
+      <div className="flex-shrink-0 bg-gray-900 border-b border-white/10 px-5 py-3 flex items-center gap-3 z-10">
+        <button
+          onClick={() => navigate('/student/courses')}
+          className="flex items-center gap-1.5 text-sm font-bold text-gray-400 hover:text-orange-400 transition-colors"
+        >
+          <ArrowRight className="w-4 h-4" />
+          <span>كورساتي</span>
+        </button>
+        <ChevronRight className="w-4 h-4 text-gray-600" />
+        <span className="text-sm font-black text-white truncate">{course?.name || '…'}</span>
+
+        {course && (
+          <div className="mr-auto flex items-center gap-2">
+            <span className="text-xs text-gray-500 font-medium">
+              {videos.length} محاضرة · {pdfs.length} ملف
+            </span>
+          </div>
+        )}
       </div>
 
-      {/* ── Main body: video area + sidebar ── */}
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+      {/* ── Body ── */}
+      <div className="flex-1 flex overflow-hidden">
 
-        {/* ── Video / PDF / Exams main area ── */}
-        <main className="flex-1 flex flex-col overflow-hidden bg-gray-900 order-1 lg:order-2">
-          {isLoading ? (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
-            </div>
-          ) : activeTab === 'videos' ? (
-            <>
-              <div className="flex-1 overflow-hidden bg-black">
-                {currentVideo ? (
-                  <VideoPlayer video={currentVideo} />
-                ) : (
-                  <div className="h-full flex items-center justify-center">
-                    <div className="text-center text-gray-500">
-                      <Video className="w-16 h-16 mx-auto mb-3 opacity-20" />
-                      <p className="text-gray-400 font-medium">لا توجد فيديوهات في هذا الكورس</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-              {currentVideo && (
-                <div className="flex-shrink-0 bg-gray-800 px-5 py-3">
-                  <p className="text-white font-black text-sm">{currentVideo.title}</p>
-                  {currentVideo.duration_minutes > 0 && (
-                    <p className="text-gray-400 text-xs mt-1 flex items-center gap-1">
-                      <Clock className="w-3 h-3" /> {currentVideo.duration_minutes} دقيقة
-                    </p>
-                  )}
-                </div>
-              )}
-            </>
-          ) : activeTab === 'pdfs' ? (
-            <>
-              <div className="flex-shrink-0 bg-gray-800 px-5 py-3 flex items-center justify-between gap-3">
-                <p className="text-white font-black text-sm truncate">
-                  {currentPdf?.title || 'اختر ملفاً'}
-                </p>
-                {currentPdf && (
-                  <a
-                    href={currentPdf.file_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-shrink-0 flex items-center gap-1.5 text-xs font-bold text-orange-400 hover:text-orange-300 transition-colors"
-                  >
-                    <Download className="w-3.5 h-3.5" /> تحميل
-                  </a>
-                )}
-              </div>
-              <div className="flex-1 overflow-hidden">
-                {currentPdf ? (
-                  <PdfViewer key={currentPdf.id} pdf={currentPdf} />
-                ) : (
-                  <div className="h-full flex items-center justify-center">
-                    <div className="text-center text-gray-400 p-8">
-                      <FileText className="w-16 h-16 mx-auto mb-3 opacity-20" />
-                      <p className="font-medium">لا توجد ملفات في هذا الكورس</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </>
-          ) : (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-center text-gray-400 p-8">
-                <BookOpen className="w-16 h-16 mx-auto mb-4 opacity-20" />
-                <p className="font-bold text-white mb-2">الاختبارات</p>
-                <p className="text-gray-400 text-sm mb-6">
-                  يمكنك الوصول إلى اختبارات هذا الكورس من صفحة الاختبارات
-                </p>
-                <button
-                  onClick={() => navigate('/student/exams')}
-                  className="inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-bold px-6 py-3 rounded-xl transition-colors"
-                >
-                  <BookOpen className="w-4 h-4" /> الذهاب للاختبارات
-                </button>
-              </div>
-            </div>
-          )}
-        </main>
+        {/* ── Sidebar ── */}
+        <aside className="w-80 flex-shrink-0 bg-gray-900 border-l border-white/10 flex flex-col overflow-hidden order-last">
 
-        {/* ── Sidebar: content list ── */}
-        <aside className="w-full lg:w-80 bg-white border-t lg:border-t-0 lg:border-l border-gray-200 flex flex-col order-2 lg:order-1 lg:h-full overflow-hidden">
+          {/* Course info strip */}
+          <div className="flex-shrink-0 px-4 py-4 border-b border-white/10 bg-gradient-to-b from-orange-500/10 to-transparent">
+            <p className="text-white font-black text-sm leading-relaxed line-clamp-2">{course?.name}</p>
+            {course?.target_stage && (
+              <span className="mt-1.5 inline-block text-[10px] font-bold text-orange-400 bg-orange-400/10 px-2 py-0.5 rounded-full">
+                {course.target_stage}
+              </span>
+            )}
+          </div>
 
-          {/* Tab switcher */}
-          <div className="flex flex-shrink-0 border-b border-gray-100">
+          {/* Tabs */}
+          <div className="flex-shrink-0 flex border-b border-white/10">
             {tabs.map(tab => (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`flex-1 flex flex-col items-center gap-0.5 py-3 text-xs font-bold transition-colors border-b-2 ${
+                className={`flex-1 flex flex-col items-center gap-1 py-3 text-[11px] font-bold transition-all border-b-2 ${
                   activeTab === tab.key
-                    ? 'text-orange-500 border-orange-500 bg-orange-50/50'
-                    : 'text-gray-400 border-transparent hover:text-gray-600'
+                    ? 'text-orange-400 border-orange-400 bg-orange-400/5'
+                    : 'text-gray-500 border-transparent hover:text-gray-300'
                 }`}
               >
                 <tab.icon className="w-4 h-4" />
                 {tab.label}
-                <span className={`text-[10px] rounded-full px-1.5 font-black ${
-                  activeTab === tab.key ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-400'
+                <span className={`text-[9px] rounded-full px-1.5 py-0.5 font-black leading-none ${
+                  activeTab === tab.key ? 'bg-orange-400/20 text-orange-300' : 'bg-white/5 text-gray-500'
                 }`}>
                   {tab.count}
                 </span>
@@ -270,114 +284,241 @@ export default function CourseView() {
           </div>
 
           {/* List */}
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto scrollbar-thin">
             {isLoading ? (
               <div className="p-4 space-y-3">
-                {[...Array(4)].map((_, i) => (
-                  <div key={i} className="h-16 rounded-xl bg-gray-100 animate-pulse" />
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="h-16 rounded-xl bg-white/5 animate-pulse" />
                 ))}
               </div>
             ) : activeTab === 'videos' ? (
-              <div className="p-3 space-y-2">
+              <div className="p-3 space-y-1.5">
                 {videos.length === 0 ? (
-                  <div className="text-center py-10 text-gray-400">
-                    <Video className="w-10 h-10 mx-auto mb-2 opacity-40" />
-                    <p className="text-sm font-medium">لا توجد فيديوهات بعد</p>
-                  </div>
+                  <EmptyState icon={Video} text="لا توجد محاضرات بعد" />
                 ) : videos.map((v, i) => {
                   const isActive = currentVideo?.id === v.id;
                   return (
                     <button
                       key={v.id}
                       onClick={() => { setActiveVideo(v); setActiveTab('videos'); }}
-                      className={`w-full text-right flex items-center gap-3 p-3 rounded-xl transition-all ${
+                      className={`w-full text-right flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 ${
                         isActive
-                          ? 'bg-navy-600 text-white shadow-md'
-                          : 'bg-gray-50 hover:bg-gray-100 text-gray-700'
+                          ? 'bg-orange-500 shadow-lg shadow-orange-500/20'
+                          : 'hover:bg-white/5 text-gray-400 hover:text-white'
                       }`}
                     >
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                        isActive ? 'bg-white/20' : 'bg-navy-100'
+                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-black ${
+                        isActive ? 'bg-white/20 text-white' : 'bg-white/5 text-gray-500'
                       }`}>
-                        <Play className={`w-4 h-4 ${isActive ? 'text-white' : 'text-navy-600'}`} />
+                        {isActive
+                          ? <Play className="w-4 h-4 text-white fill-white" />
+                          : <span>{i + 1}</span>
+                        }
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-bold text-sm truncate">{v.title}</p>
+                        <p className={`font-bold text-sm truncate ${isActive ? 'text-white' : 'text-gray-300'}`}>
+                          {v.title}
+                        </p>
                         {v.duration_minutes > 0 && (
-                          <p className={`text-xs flex items-center gap-1 mt-0.5 ${
-                            isActive ? 'text-white/70' : 'text-gray-400'
-                          }`}>
-                            <Clock className="w-3 h-3" /> {v.duration_minutes} دقيقة
+                          <p className={`text-xs mt-0.5 flex items-center gap-1 ${isActive ? 'text-white/60' : 'text-gray-600'}`}>
+                            <Clock className="w-3 h-3" /> {fmt(v.duration_minutes)}
                           </p>
                         )}
                       </div>
-                      <span className={`text-xs font-black w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
-                        isActive ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-500'
-                      }`}>
-                        {i + 1}
-                      </span>
                     </button>
                   );
                 })}
               </div>
             ) : activeTab === 'pdfs' ? (
-              <div className="p-3 space-y-2">
+              <div className="p-3 space-y-1.5">
                 {pdfs.length === 0 ? (
-                  <div className="text-center py-10 text-gray-400">
-                    <FileText className="w-10 h-10 mx-auto mb-2 opacity-40" />
-                    <p className="text-sm font-medium">لا توجد ملفات بعد</p>
-                  </div>
+                  <EmptyState icon={FileText} text="لا توجد ملفات بعد" />
                 ) : pdfs.map(p => {
                   const isActive = (activePdf || pdfs[0])?.id === p.id;
                   return (
                     <button
                       key={p.id}
                       onClick={() => { setActivePdf(p); setActiveTab('pdfs'); }}
-                      className={`w-full text-right flex items-center gap-3 p-3 rounded-xl transition-all ${
+                      className={`w-full text-right flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 ${
                         isActive
-                          ? 'bg-orange-500 text-white shadow-md'
-                          : 'bg-gray-50 hover:bg-gray-100 text-gray-700'
+                          ? 'bg-orange-500 shadow-lg shadow-orange-500/20'
+                          : 'hover:bg-white/5 text-gray-400 hover:text-white'
                       }`}
                     >
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                        isActive ? 'bg-white/20' : 'bg-orange-100'
+                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                        isActive ? 'bg-white/20' : 'bg-white/5'
                       }`}>
-                        <FileText className={`w-4 h-4 ${isActive ? 'text-white' : 'text-orange-600'}`} />
+                        <FileText className={`w-4 h-4 ${isActive ? 'text-white' : 'text-gray-500'}`} />
                       </div>
-                      <p className="flex-1 font-bold text-sm text-right truncate">{p.title}</p>
+                      <p className={`flex-1 font-bold text-sm text-right truncate ${isActive ? 'text-white' : 'text-gray-300'}`}>
+                        {p.title}
+                      </p>
+                      {isActive && <Download className="w-3.5 h-3.5 text-white/60 flex-shrink-0" />}
                     </button>
                   );
                 })}
               </div>
             ) : (
-              <div className="p-3 space-y-2">
+              <div className="p-3 space-y-1.5">
                 {exams.length === 0 ? (
-                  <div className="text-center py-10 text-gray-400">
-                    <BookOpen className="w-10 h-10 mx-auto mb-2 opacity-40" />
-                    <p className="text-sm font-medium">لا توجد اختبارات بعد</p>
-                  </div>
+                  <EmptyState icon={BookOpen} text="لا توجد اختبارات بعد" />
                 ) : exams.map(ex => (
                   <button
                     key={ex.id}
                     onClick={() => navigate('/student/exams')}
-                    className="w-full text-right flex items-center gap-3 p-3 rounded-xl bg-purple-50 hover:bg-purple-100 transition-all"
+                    className="w-full text-right flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-white/5 transition-all group"
                   >
-                    <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
-                      <BookOpen className="w-4 h-4 text-purple-600" />
+                    <div className="w-9 h-9 rounded-lg bg-purple-500/10 flex items-center justify-center flex-shrink-0">
+                      <BookOpen className="w-4 h-4 text-purple-400" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-bold text-sm text-purple-800 truncate">{ex.title}</p>
-                      <p className="text-xs text-purple-500 mt-0.5">
+                      <p className="font-bold text-sm text-gray-300 group-hover:text-white truncate transition-colors">
+                        {ex.title}
+                      </p>
+                      <p className="text-xs text-gray-600 mt-0.5">
                         {ex.total_score} درجة · {ex.duration_minutes} دقيقة
                       </p>
                     </div>
+                    <ChevronRight className="w-4 h-4 text-gray-600 group-hover:text-gray-400 transition-colors flex-shrink-0" />
                   </button>
                 ))}
               </div>
             )}
           </div>
         </aside>
+
+        {/* ── Main content ── */}
+        <main className="flex-1 flex flex-col overflow-hidden">
+          {activeTab === 'videos' ? (
+            <>
+              {/* Video area */}
+              <div className="flex-1 bg-black overflow-hidden">
+                <VideoPlayer video={currentVideo} />
+              </div>
+
+              {/* Video info bar */}
+              {currentVideo && (
+                <div className="flex-shrink-0 bg-gray-900 border-t border-white/10 px-6 py-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h2 className="text-white font-black text-lg leading-tight">
+                        {currentVideo.title}
+                      </h2>
+                      <div className="flex items-center gap-3 mt-1.5">
+                        {currentVideo.duration_minutes > 0 && (
+                          <span className="flex items-center gap-1 text-xs text-gray-500">
+                            <Clock className="w-3.5 h-3.5" />
+                            {fmt(currentVideo.duration_minutes)}
+                          </span>
+                        )}
+                        <span className="text-xs text-gray-600">
+                          محاضرة {(videos.findIndex(v => v.id === currentVideo.id) + 1)} من {videos.length}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Next video button */}
+                    {(() => {
+                      const idx = videos.findIndex(v => v.id === currentVideo.id);
+                      const next = videos[idx + 1];
+                      return next ? (
+                        <button
+                          onClick={() => setActiveVideo(next)}
+                          className="flex-shrink-0 flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-bold px-4 py-2 rounded-xl transition-all text-sm hover:shadow-lg active:scale-95"
+                        >
+                          التالي
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      ) : null;
+                    })()}
+                  </div>
+
+                  {/* Playlist progress mini-strip */}
+                  <div className="flex gap-1 mt-4">
+                    {videos.map((v, i) => (
+                      <button
+                        key={v.id}
+                        onClick={() => setActiveVideo(v)}
+                        title={v.title}
+                        className={`h-1 rounded-full flex-1 transition-all ${
+                          v.id === currentVideo.id
+                            ? 'bg-orange-500'
+                            : 'bg-white/10 hover:bg-white/20'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          ) : activeTab === 'pdfs' ? (
+            <>
+              {currentPdf && (
+                <div className="flex-shrink-0 bg-gray-900 border-b border-white/10 px-5 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-orange-500/20 flex items-center justify-center">
+                      <FileText className="w-4 h-4 text-orange-400" />
+                    </div>
+                    <div>
+                      <p className="text-white font-black text-sm">{currentPdf.title}</p>
+                      <p className="text-gray-500 text-xs">ملف PDF</p>
+                    </div>
+                  </div>
+                  <a
+                    href={currentPdf.file_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 text-xs font-bold text-orange-400 hover:text-orange-300 bg-orange-400/10 hover:bg-orange-400/20 px-3 py-1.5 rounded-lg transition-all"
+                  >
+                    <Download className="w-3.5 h-3.5" /> تحميل
+                  </a>
+                </div>
+              )}
+              <div className="flex-1 overflow-hidden">
+                <PdfViewer key={currentPdf?.id} pdf={currentPdf} />
+              </div>
+            </>
+          ) : (
+            /* Exams tab main area */
+            <div className="flex-1 flex items-center justify-center p-8">
+              <div className="max-w-md text-center">
+                <div className="w-24 h-24 rounded-3xl bg-purple-500/10 flex items-center justify-center mx-auto mb-6">
+                  <BookOpen className="w-12 h-12 text-purple-400" />
+                </div>
+                <h2 className="text-white font-black text-2xl mb-3">الاختبارات</h2>
+                <p className="text-gray-500 text-sm mb-8 leading-relaxed">
+                  يمكنك تأدية اختبارات هذا الكورس من صفحة الاختبارات، حيث ستجد جميع
+                  اختباراتك المتاحة في مكان واحد.
+                </p>
+                <div className="grid grid-cols-2 gap-3 mb-8">
+                  {exams.slice(0, 4).map(ex => (
+                    <div key={ex.id} className="bg-white/5 rounded-xl p-3 text-right">
+                      <p className="text-white font-bold text-xs truncate">{ex.title}</p>
+                      <p className="text-gray-500 text-[10px] mt-1">{ex.duration_minutes} دقيقة</p>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={() => navigate('/student/exams')}
+                  className="inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-black px-8 py-3.5 rounded-2xl transition-all hover:shadow-lg hover:shadow-orange-500/25 active:scale-95"
+                >
+                  <BookOpen className="w-5 h-5" />
+                  ابدأ الاختبارات
+                </button>
+              </div>
+            </div>
+          )}
+        </main>
       </div>
+    </div>
+  );
+}
+
+function EmptyState({ icon: Icon, text }) {
+  return (
+    <div className="text-center py-16 text-gray-600">
+      <Icon className="w-10 h-10 mx-auto mb-3 opacity-30" />
+      <p className="text-sm font-medium">{text}</p>
     </div>
   );
 }
