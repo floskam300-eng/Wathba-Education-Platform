@@ -82,7 +82,7 @@ export default function StudentLayout() {
           </button>
           <span className="text-sm text-gray-700 font-semibold">مرحباً {user?.name} 👋</span>
         </header>
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6"><Outlet /></main>
+        <main className="flex-1 overflow-hidden"><Outlet /></main>
       </div>
     </div>
   );

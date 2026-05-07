@@ -40,6 +40,7 @@ export default function StudentCourses() {
     : courses.filter(c => c.target_stage === stageFilter);
 
   return (
+    <div className="h-full overflow-y-auto p-4 lg:p-6">
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-black text-navy-600 flex items-center gap-2">
@@ -144,6 +145,7 @@ export default function StudentCourses() {
           </div>
         </>
       )}
+    </div>
     </div>
   );
 }

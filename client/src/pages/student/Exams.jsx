@@ -128,6 +128,7 @@ export default function StudentExams() {
   }
 
   return (
+    <div className="h-full overflow-y-auto p-4 lg:p-6">
     <div className="space-y-6">
       <h1 className="text-2xl font-black text-navy-600 flex items-center gap-2">
         <FileText className="w-7 h-7 text-orange-500" /> الاختبارات
@@ -195,6 +196,7 @@ export default function StudentExams() {
           ))}
         </div>
       )}
+    </div>
     </div>
   );
 }

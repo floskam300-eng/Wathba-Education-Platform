@@ -138,3 +138,55 @@
   background: #1A2E4A;
   border-radius: 3px;
 }
+
+/* ── Video player range inputs ── */
+.player-range {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+  width: 100%;
+}
+.player-range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255,255,255,0.2);
+}
+.player-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #FF8C00;
+  margin-top: -5px;
+  transition: transform 0.15s;
+}
+.player-range:hover::-webkit-slider-thumb {
+  transform: scale(1.25);
+}
+.player-range::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255,255,255,0.2);
+}
+.player-range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #FF8C00;
+  border: none;
+}
+.player-range-progress {
+  background: linear-gradient(
+    to left,
+    rgba(255,255,255,0.2) var(--pct, 0%),
+    #FF8C00 var(--pct, 0%)
+  );
+}
+.player-range-volume {
+  background: linear-gradient(
+    to left,
+    rgba(255,255,255,0.2) var(--vol, 100%),
+    #FF8C00 var(--vol, 100%)
+  );
+}

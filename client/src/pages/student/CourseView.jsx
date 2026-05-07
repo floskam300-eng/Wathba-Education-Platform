@@ -16,41 +16,64 @@ const fmt = (min) => min >= 60
 /* ─── Custom Video Player ──────────────────────────────── */
 function VideoPlayer({ video }) {
   const videoRef = useRef(null);
-  const [playing, setPlaying] = useState(false);
-  const [muted, setMuted] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [duration, setDuration] = useState(0);
+  const [playing, setPlaying]         = useState(false);
+  const [progress, setProgress]       = useState(0);   // 0–100
+  const [duration, setDuration]       = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [volume, setVolume]           = useState(1);   // 0–1
+  const [muted, setMuted]             = useState(false);
   const [showControls, setShowControls] = useState(true);
   const hideTimer = useRef(null);
+  const seeking   = useRef(false);
 
   useEffect(() => {
     setPlaying(false);
     setProgress(0);
+    setCurrentTime(0);
   }, [video?.id]);
 
   const resetHideTimer = () => {
     setShowControls(true);
     clearTimeout(hideTimer.current);
-    hideTimer.current = setTimeout(() => playing && setShowControls(false), 3000);
+    hideTimer.current = setTimeout(() => {
+      if (!seeking.current) setShowControls(false);
+    }, 3000);
   };
 
   const toggle = () => {
     if (!videoRef.current) return;
-    if (playing) { videoRef.current.pause(); setPlaying(false); }
-    else { videoRef.current.play(); setPlaying(true); }
-  };
-
-  const seek = (e) => {
-    if (!videoRef.current || !duration) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const pct = (e.clientX - rect.left) / rect.width;
-    videoRef.current.currentTime = pct * duration;
+    if (playing) videoRef.current.pause();
+    else         videoRef.current.play();
   };
 
   const fmtSec = (s) => {
-    const m = Math.floor(s / 60);
+    const m   = Math.floor(s / 60);
     const sec = Math.floor(s % 60);
     return `${m}:${sec.toString().padStart(2, '0')}`;
+  };
+
+  /* ── seek input handlers ── */
+  const onSeekChange = (e) => {
+    const pct = Number(e.target.value);
+    setProgress(pct);
+    if (videoRef.current && duration)
+      videoRef.current.currentTime = (pct / 100) * duration;
+  };
+
+  /* ── volume input handlers ── */
+  const onVolumeChange = (e) => {
+    const v = Number(e.target.value);
+    setVolume(v);
+    setMuted(v === 0);
+    if (videoRef.current) {
+      videoRef.current.volume = v;
+      videoRef.current.muted  = v === 0;
+    }
+  };
+  const toggleMute = () => {
+    const next = !muted;
+    setMuted(next);
+    if (videoRef.current) videoRef.current.muted = next;
   };
 
   if (!video) return (
@@ -62,21 +85,27 @@ function VideoPlayer({ video }) {
     </div>
   );
 
+  const pct  = `${progress}%`;
+  const vol  = `${(muted ? 0 : volume) * 100}%`;
+
   return (
     <div
-      className="relative w-full h-full bg-black group"
+      className="relative w-full h-full bg-black"
       onMouseMove={resetHideTimer}
-      onMouseLeave={() => playing && setShowControls(false)}
+      onMouseLeave={() => { if (!seeking.current && playing) setShowControls(false); }}
     >
       <video
         ref={videoRef}
         key={video.id}
         src={video.file_path_or_url}
-        className="w-full h-full object-contain"
+        className="w-full h-full object-contain cursor-pointer"
         muted={muted}
         onTimeUpdate={() => {
-          if (videoRef.current)
-            setProgress(videoRef.current.currentTime / (duration || 1) * 100);
+          if (!videoRef.current || seeking.current) return;
+          const ct = videoRef.current.currentTime;
+          const d  = duration || 1;
+          setCurrentTime(ct);
+          setProgress(ct / d * 100);
         }}
         onLoadedMetadata={() => setDuration(videoRef.current?.duration || 0)}
         onEnded={() => setPlaying(false)}
@@ -85,55 +114,101 @@ function VideoPlayer({ video }) {
         onClick={toggle}
       />
 
-      {/* Big play button overlay when paused */}
+      {/* Big play overlay */}
       {!playing && (
         <button
           onClick={toggle}
           className="absolute inset-0 flex items-center justify-center"
+          style={{ pointerEvents: 'none' }}
         >
-          <div className="w-20 h-20 rounded-full bg-orange-500/90 flex items-center justify-center shadow-2xl hover:bg-orange-500 hover:scale-110 transition-all duration-200">
+          <div
+            className="w-20 h-20 rounded-full bg-orange-500/90 flex items-center justify-center shadow-2xl hover:bg-orange-500 hover:scale-110 transition-all duration-200"
+            style={{ pointerEvents: 'auto' }}
+            onClick={(e) => { e.stopPropagation(); toggle(); }}
+          >
             <Play className="w-8 h-8 text-white fill-white mr-[-2px]" />
           </div>
         </button>
       )}
 
       {/* Controls bar */}
-      <div className={`absolute bottom-0 left-0 right-0 transition-opacity duration-300 ${showControls || !playing ? 'opacity-100' : 'opacity-0'}`}>
-        <div className="bg-gradient-to-t from-black/90 via-black/50 to-transparent px-4 pt-8 pb-4">
-          {/* Progress bar */}
-          <div
-            className="w-full h-1.5 bg-white/20 rounded-full cursor-pointer mb-3 group/bar"
-            onClick={seek}
-          >
-            <div
-              className="h-full bg-orange-500 rounded-full relative transition-all"
-              style={{ width: `${progress}%` }}
-            >
-              <div className="absolute right-[-6px] top-[-4px] w-3.5 h-3.5 bg-orange-500 rounded-full opacity-0 group-hover/bar:opacity-100 transition-opacity shadow-lg" />
-            </div>
+      <div
+        className={`absolute bottom-0 left-0 right-0 transition-opacity duration-300 ${
+          showControls || !playing ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
+      >
+        <div className="bg-gradient-to-t from-black/95 via-black/60 to-transparent px-4 pt-10 pb-3">
+
+          {/* ── Seek bar ── */}
+          <div className="mb-3">
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="0.1"
+              value={progress}
+              className="player-range player-range-progress"
+              style={{ '--pct': pct }}
+              onMouseDown={() => { seeking.current = true; }}
+              onMouseUp={() => {
+                seeking.current = false;
+                resetHideTimer();
+              }}
+              onChange={onSeekChange}
+            />
           </div>
 
+          {/* ── Bottom controls ── */}
           <div className="flex items-center gap-3">
-            <button onClick={toggle} className="text-white hover:text-orange-400 transition-colors">
+            {/* Play / Pause */}
+            <button onClick={toggle} className="text-white hover:text-orange-400 transition-colors flex-shrink-0">
               {playing
                 ? <Pause className="w-5 h-5 fill-white" />
-                : <Play className="w-5 h-5 fill-white" />
+                : <Play  className="w-5 h-5 fill-white" />
               }
             </button>
-            <button onClick={() => { if (videoRef.current) videoRef.current.currentTime -= 10; }}
-              className="text-white hover:text-orange-400 transition-colors">
+
+            {/* Rewind 10s */}
+            <button
+              onClick={() => { if (videoRef.current) videoRef.current.currentTime -= 10; }}
+              className="text-white hover:text-orange-400 transition-colors flex-shrink-0"
+            >
               <RotateCcw className="w-4 h-4" />
             </button>
-            <button onClick={() => setMuted(m => !m)} className="text-white hover:text-orange-400 transition-colors">
-              {muted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
-            </button>
-            <span className="text-white/70 text-xs font-mono">
-              {fmtSec(videoRef.current?.currentTime || 0)} / {fmtSec(duration)}
+
+            {/* Time */}
+            <span className="text-white/70 text-xs font-mono flex-shrink-0">
+              {fmtSec(currentTime)} / {fmtSec(duration)}
             </span>
+
             <div className="flex-1" />
+
+            {/* Volume icon (mute toggle) */}
+            <button onClick={toggleMute} className="text-white hover:text-orange-400 transition-colors flex-shrink-0">
+              {muted || volume === 0
+                ? <VolumeX className="w-5 h-5" />
+                : <Volume2 className="w-5 h-5" />
+              }
+            </button>
+
+            {/* Volume slider */}
+            <div className="w-20 flex-shrink-0">
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={muted ? 0 : volume}
+                className="player-range player-range-volume"
+                style={{ '--vol': vol }}
+                onChange={onVolumeChange}
+              />
+            </div>
+
+            {/* Fullscreen */}
             <button
               onClick={() => videoRef.current?.requestFullscreen()}
-              className="text-white hover:text-orange-400 transition-colors"
+              className="text-white hover:text-orange-400 transition-colors flex-shrink-0"
             >
               <Maximize2 className="w-4 h-4" />
             </button>
@@ -221,7 +296,7 @@ export default function CourseView() {
   ];
 
   return (
-    <div className="flex flex-col h-full -m-4 lg:-m-6 bg-gray-950">
+    <div className="flex flex-col h-full bg-gray-950">
 
       {/* ── Breadcrumb Header ── */}
       <div className="flex-shrink-0 bg-gray-900 border-b border-white/10 px-5 py-3 flex items-center gap-3 z-10">

@@ -13,6 +13,7 @@ export default function StudentDashboard() {
   });
 
   return (
+    <div className="h-full overflow-y-auto p-4 lg:p-6">
     <div className="space-y-6">
       {/* Profile hero — dark bg, all text is white/light = high contrast ✓ */}
       <div className="card bg-gradient-to-l from-navy-600 to-navy-700 text-white !p-6">
@@ -90,6 +91,7 @@ export default function StudentDashboard() {
           )}
         </div>
       </div>
+    </div>
     </div>
   );
 }
