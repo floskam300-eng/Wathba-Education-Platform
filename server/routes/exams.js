@@ -250,13 +250,15 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
 
     let score = 0, correct = 0, wrong = 0, unanswered = 0;
     const detailedAnswers = questions.map(q => {
-      const studentAnswer = answers[q.id];
+      const rawAnswer    = answers[q.id];
+      const studentAnswer = rawAnswer ? String(rawAnswer).toUpperCase() : null;
+      const correctLetter = q.correct_answer_letter ? q.correct_answer_letter.toUpperCase() : null;
       const qType = q.question_type || 'mcq';
 
       if (qType === 'essay') {
         return {
           question_id: q.id,
-          student_answer: studentAnswer || '',
+          student_answer: rawAnswer || '',
           correct_answer: q.essay_answer_key || '',
           is_correct: null,
           question_type: 'essay'
@@ -266,14 +268,14 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
       let isCorrect = false;
       if (!studentAnswer) {
         unanswered++;
-      } else if (studentAnswer === q.correct_answer_letter) {
+      } else if (studentAnswer === correctLetter) {
         score += q.points;
         correct++;
         isCorrect = true;
       } else {
         wrong++;
       }
-      return { question_id: q.id, student_answer: studentAnswer, correct_answer: q.correct_answer_letter, is_correct: isCorrect, question_type: qType };
+      return { question_id: q.id, student_answer: studentAnswer, correct_answer: correctLetter, is_correct: isCorrect, question_type: qType };
     });
 
     const gradableQuestions = questions.filter(q => (q.question_type || 'mcq') !== 'essay');
@@ -420,39 +422,63 @@ router.get('/results/:resultId/review', authenticate, async (req, res) => {
 
     const questionsRes = await pool.query('SELECT * FROM questions WHERE exam_id=$1 ORDER BY id', [row.exam_id]);
 
+    // ── Parse stored answers — handles two formats: ──────────────────────────
+    // 1. New format (array): [{question_id, student_answer, correct_answer, is_correct}]
+    // 2. Old/seed format (object): {"1":"a","2":"b",...} — keys are 1-based sequence
     let storedAnswers = [];
+    let isOldSeqFormat = false;
     try {
-      storedAnswers = typeof row.answers === 'string'
-        ? JSON.parse(row.answers)
-        : (Array.isArray(row.answers) ? row.answers : []);
+      const raw = typeof row.answers === 'string' ? JSON.parse(row.answers) : row.answers;
+      if (Array.isArray(raw)) {
+        storedAnswers = raw;
+      } else if (raw && typeof raw === 'object') {
+        // Old sequential format — convert to array keyed by position
+        isOldSeqFormat = true;
+        storedAnswers = Object.entries(raw).map(([k, v]) => ({
+          seq: parseInt(k, 10),
+          student_answer: typeof v === 'string' ? v.toUpperCase() : v,
+        }));
+      }
     } catch (_) {}
+
+    // Build lookup map: question_id → answer entry
     const answerMap = {};
-    storedAnswers.forEach(a => { answerMap[String(a.question_id)] = a; });
+    if (isOldSeqFormat) {
+      // Map sequential index → question ID using sorted question list
+      const seqMap = {};
+      storedAnswers.forEach(a => { seqMap[a.seq] = a; });
+      questionsRes.rows.forEach((q, i) => {
+        const entry = seqMap[i + 1];
+        if (entry) answerMap[String(q.id)] = entry;
+      });
+    } else {
+      storedAnswers.forEach(a => { answerMap[String(a.question_id)] = a; });
+    }
 
     const questions = questionsRes.rows.map(q => {
       const stored = answerMap[String(q.id)];
       const qType  = q.question_type || 'mcq';
 
-      // Use ?? null so empty-string essay answers are preserved
-      const studentAnswer = stored?.student_answer ?? null;
-      const correctAnswer = qType === 'essay'
+      // Normalize to uppercase for reliable comparison
+      const rawStudentAnswer = stored?.student_answer ?? null;
+      const studentAnswer    = rawStudentAnswer ? String(rawStudentAnswer).toUpperCase() : null;
+      const correctLetter    = q.correct_answer_letter ? q.correct_answer_letter.toUpperCase() : null;
+      const correctAnswer    = qType === 'essay'
         ? (q.essay_answer_key || null)
-        : q.correct_answer_letter;
+        : correctLetter;
 
-      // Always recompute is_correct from the actual comparison
-      // (never trust the cached JSONB value which may have been wrong)
       let isCorrect;
       if (qType === 'essay') {
-        // Essay answers are graded manually — keep null until graded
         isCorrect = stored ? (stored.is_correct ?? null) : null;
       } else if (!studentAnswer) {
-        isCorrect = false; // unanswered
+        isCorrect = false;
       } else {
-        isCorrect = studentAnswer === q.correct_answer_letter;
+        isCorrect = studentAnswer === correctLetter;
       }
 
       return {
         ...q,
+        correct_answer_letter: correctLetter,
         student_answer: studentAnswer,
         correct_answer: correctAnswer,
         is_correct: isCorrect,
