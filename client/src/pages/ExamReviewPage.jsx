@@ -70,24 +70,35 @@ export default function ExamReviewPage() {
   return (
     <div className="min-h-screen bg-gray-50 font-cairo" dir="rtl">
 
-      {/* ── Top bar ── */}
-      <div className={`sticky top-0 z-30 border-b shadow-sm ${passed ? 'bg-green-700' : 'bg-red-700'}`}>
-        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
-          <button onClick={goBack}
-            className="flex items-center gap-2 text-white/90 hover:text-white text-sm font-bold transition-colors">
-            <ArrowRight className="w-4 h-4" />
-            رجوع
-          </button>
-          <h1 className="text-white font-black text-base truncate flex-1 text-center">
-            {isLoading ? 'تحميل…' : (result?.exam_title || 'مراجعة الاختبار')}
-          </h1>
-          <div className="text-white font-black text-lg w-16 text-left">
-            {result ? `${result.score}/${result.total_score}` : ''}
+      <div className="max-w-3xl mx-auto px-4 pt-6 pb-2">
+        <button onClick={goBack}
+          className="flex items-center gap-2 text-gray-500 hover:text-navy-700 text-sm font-bold transition-colors mb-4">
+          <ArrowRight className="w-4 h-4" />
+          رجوع
+        </button>
+        {!isLoading && result && (
+          <div className={`rounded-2xl p-5 mb-2 flex items-center justify-between gap-4 shadow-sm border-2 ${passed ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-gray-500 mb-1">مراجعة الاختبار</p>
+              <h1 className={`font-black text-lg leading-tight ${passed ? 'text-green-800' : 'text-red-800'}`}>
+                {result.exam_title}
+              </h1>
+            </div>
+            <div className="text-center flex-shrink-0">
+              <div className={`text-3xl font-black ${passed ? 'text-green-700' : 'text-red-600'}`}>
+                {result.score}
+                <span className="text-base font-semibold text-gray-400">/{result.total_score}</span>
+              </div>
+              <span className={`text-xs font-black px-3 py-1 rounded-full ${passed ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-700'}`}>
+                {passed ? '✓ ناجح' : '✗ راسب'}
+              </span>
+            </div>
           </div>
-        </div>
+        )}
+        {isLoading && <div className="h-20 bg-white rounded-2xl animate-pulse mb-2" />}
       </div>
 
-      <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
+      <div className="max-w-3xl mx-auto px-4 pb-6 space-y-6">
 
         {/* Loading */}
         {isLoading && (
@@ -112,54 +123,43 @@ export default function ExamReviewPage() {
         {/* Content */}
         {!isLoading && !isError && result && (
           <>
-            {/* ── Summary card ── */}
-            <div className={`rounded-2xl border-2 p-5 shadow-sm ${passed ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  {result.student_name && user?.role !== 'student' && (
-                    <p className="text-sm text-gray-500 font-medium mb-1">الطالب: <span className="font-bold text-gray-800">{result.student_name}</span></p>
-                  )}
-                  <div className="flex items-center gap-3">
-                    <span className={`text-4xl font-black ${passed ? 'text-green-700' : 'text-red-600'}`}>
-                      {result.score}
-                      <span className="text-lg text-gray-400 font-semibold">/{result.total_score}</span>
-                    </span>
-                    <span className={`text-sm font-black px-3 py-1 rounded-full ${passed ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-700'}`}>
-                      {passed ? '✓ ناجح' : '✗ راسب'}
-                    </span>
-                  </div>
-                  <div className="mt-3 h-2.5 w-64 max-w-full bg-gray-200 rounded-full overflow-hidden">
-                    <div className={`h-2.5 rounded-full ${passed ? 'bg-green-500' : 'bg-red-400'}`}
-                      style={{ width: `${pct}%` }} />
-                  </div>
-                  <p className="text-xs text-gray-500 font-medium mt-1">{pct}% من الدرجة الكاملة</p>
+            {/* ── Stats row ── */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+              {result.student_name && user?.role !== 'student' && (
+                <p className="text-sm text-gray-500 font-medium mb-3 pb-3 border-b border-gray-100">
+                  الطالب: <span className="font-bold text-gray-800">{result.student_name}</span>
+                </p>
+              )}
+              <div className="mb-3">
+                <div className="flex justify-between text-xs text-gray-500 font-medium mb-1.5">
+                  <span>نسبة الإجابات الصحيحة</span>
+                  <span className="font-bold">{pct}%</span>
                 </div>
-
-                <div className="flex flex-wrap gap-3 text-sm font-bold">
-                  <div className="flex flex-col items-center gap-1 bg-green-100 rounded-xl px-4 py-3 min-w-[64px]">
-                    <CheckCircle className="w-5 h-5 text-green-600" />
-                    <span className="text-green-800 text-lg font-black">{correctCount}</span>
-                    <span className="text-green-700 text-xs">صحيح</span>
-                  </div>
-                  <div className="flex flex-col items-center gap-1 bg-red-100 rounded-xl px-4 py-3 min-w-[64px]">
-                    <XCircle className="w-5 h-5 text-red-500" />
-                    <span className="text-red-700 text-lg font-black">{wrongCount}</span>
-                    <span className="text-red-600 text-xs">خاطئ</span>
-                  </div>
-                  {skippedCount > 0 && (
-                    <div className="flex flex-col items-center gap-1 bg-gray-100 rounded-xl px-4 py-3 min-w-[64px]">
-                      <Minus className="w-5 h-5 text-gray-400" />
-                      <span className="text-gray-600 text-lg font-black">{skippedCount}</span>
-                      <span className="text-gray-500 text-xs">متروك</span>
-                    </div>
-                  )}
-                  {result.points_earned > 0 && (
-                    <div className="flex flex-col items-center gap-1 bg-orange-100 rounded-xl px-4 py-3 min-w-[64px]">
-                      <Award className="w-5 h-5 text-orange-500" />
-                      <span className="text-orange-700 text-lg font-black">+{result.points_earned}</span>
-                      <span className="text-orange-600 text-xs">نقطة</span>
-                    </div>
-                  )}
+                <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+                  <div className={`h-3 rounded-full transition-all ${passed ? 'bg-green-500' : 'bg-red-400'}`}
+                    style={{ width: `${pct}%` }} />
+                </div>
+              </div>
+              <div className="grid grid-cols-4 gap-2">
+                <div className="flex flex-col items-center gap-1 bg-green-50 border border-green-100 rounded-xl py-3">
+                  <CheckCircle className="w-5 h-5 text-green-600" />
+                  <span className="text-green-800 text-xl font-black">{correctCount}</span>
+                  <span className="text-green-700 text-xs font-semibold">صحيح</span>
+                </div>
+                <div className="flex flex-col items-center gap-1 bg-red-50 border border-red-100 rounded-xl py-3">
+                  <XCircle className="w-5 h-5 text-red-500" />
+                  <span className="text-red-700 text-xl font-black">{wrongCount}</span>
+                  <span className="text-red-600 text-xs font-semibold">خاطئ</span>
+                </div>
+                <div className="flex flex-col items-center gap-1 bg-gray-50 border border-gray-100 rounded-xl py-3">
+                  <Minus className="w-5 h-5 text-gray-400" />
+                  <span className="text-gray-600 text-xl font-black">{skippedCount}</span>
+                  <span className="text-gray-500 text-xs font-semibold">متروك</span>
+                </div>
+                <div className="flex flex-col items-center gap-1 bg-orange-50 border border-orange-100 rounded-xl py-3">
+                  <Award className="w-5 h-5 text-orange-500" />
+                  <span className="text-orange-700 text-xl font-black">+{result.points_earned || 0}</span>
+                  <span className="text-orange-600 text-xs font-semibold">نقطة</span>
                 </div>
               </div>
             </div>
