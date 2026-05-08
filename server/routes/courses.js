@@ -10,6 +10,12 @@ router.use(authenticate);
 
 const getTeacherId = (req) => req.user.role === 'teacher' ? req.user.id : req.user.teacher_id;
 
+// ── Helper: verify course belongs to teacher ──
+const verifyCoursOwnership = async (courseId, teacherId) => {
+  const r = await pool.query('SELECT id FROM courses WHERE id=$1 AND teacher_id=$2', [courseId, teacherId]);
+  return r.rows.length > 0;
+};
+
 // ── Multer storage ──
 const videoStorage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -49,7 +55,7 @@ const uploadPdf = multer({
   },
 });
 
-// ── Courses CRUD ──
+// ── List courses (scoped to teacher) ──
 router.get('/', requireRole('teacher', 'assistant'), async (req, res) => {
   const teacherId = getTeacherId(req);
   try {
@@ -70,6 +76,7 @@ router.get('/', requireRole('teacher', 'assistant'), async (req, res) => {
   }
 });
 
+// ── Create course ──
 router.post('/', requireRole('teacher'), async (req, res) => {
   const { name, description, price, thumbnail_url, target_stage } = req.body;
   try {
@@ -83,6 +90,7 @@ router.post('/', requireRole('teacher'), async (req, res) => {
   }
 });
 
+// ── Update course (scoped by teacher_id in WHERE) ──
 router.put('/:id', requireRole('teacher'), async (req, res) => {
   const { name, description, price, thumbnail_url, target_stage } = req.body;
   try {
@@ -97,6 +105,7 @@ router.put('/:id', requireRole('teacher'), async (req, res) => {
   }
 });
 
+// ── Delete course (scoped by teacher_id in WHERE) ──
 router.delete('/:id', requireRole('teacher'), async (req, res) => {
   try {
     const result = await pool.query('DELETE FROM courses WHERE id=$1 AND teacher_id=$2 RETURNING id', [req.params.id, req.user.id]);
@@ -107,14 +116,32 @@ router.delete('/:id', requireRole('teacher'), async (req, res) => {
   }
 });
 
-// ── Course content ──
-router.get('/:id/content', async (req, res) => {
+// ── Course content — FIXED: check enrollment for students, ownership for staff ──
+router.get('/:id/content', authenticate, async (req, res) => {
+  const courseId = req.params.id;
   try {
+    if (req.user.role === 'student') {
+      // Student must be enrolled in this course
+      const enrollment = await pool.query(
+        'SELECT id FROM student_course_enrollment WHERE student_id=$1 AND course_id=$2',
+        [req.user.id, courseId]
+      );
+      if (!enrollment.rows.length) {
+        return res.status(403).json({ error: 'Access denied: you are not enrolled in this course' });
+      }
+    } else {
+      // Teacher or assistant must own the course
+      const teacherId = getTeacherId(req);
+      if (!(await verifyCoursOwnership(courseId, teacherId))) {
+        return res.status(403).json({ error: 'Access denied: course not yours' });
+      }
+    }
+
     const [videos, pdfs, exams, sections] = await Promise.all([
-      pool.query('SELECT * FROM videos WHERE course_id=$1 ORDER BY sort_order, id', [req.params.id]),
-      pool.query('SELECT * FROM pdf_files WHERE course_id=$1 ORDER BY id', [req.params.id]),
-      pool.query('SELECT id,title,duration_minutes,total_score,pass_score FROM exams WHERE course_id=$1', [req.params.id]),
-      pool.query('SELECT * FROM sections WHERE course_id=$1 ORDER BY sort_order, id', [req.params.id]),
+      pool.query('SELECT * FROM videos WHERE course_id=$1 ORDER BY sort_order, id', [courseId]),
+      pool.query('SELECT * FROM pdf_files WHERE course_id=$1 ORDER BY id', [courseId]),
+      pool.query('SELECT id,title,duration_minutes,total_score,pass_score FROM exams WHERE course_id=$1', [courseId]),
+      pool.query('SELECT * FROM sections WHERE course_id=$1 ORDER BY sort_order, id', [courseId]),
     ]);
     res.json({ videos: videos.rows, pdfs: pdfs.rows, exams: exams.rows, sections: sections.rows });
   } catch (err) {
@@ -122,11 +149,15 @@ router.get('/:id/content', async (req, res) => {
   }
 });
 
-// ── Sections CRUD ──
+// ── Sections CRUD — FIXED: verify course ownership ──
 router.post('/:id/sections', requireRole('teacher', 'assistant'), async (req, res) => {
+  const teacherId = getTeacherId(req);
   const { title } = req.body;
   if (!title?.trim()) return res.status(400).json({ error: 'Title required' });
   try {
+    if (!(await verifyCoursOwnership(req.params.id, teacherId))) {
+      return res.status(403).json({ error: 'Access denied: course not yours' });
+    }
     const maxOrder = await pool.query('SELECT COALESCE(MAX(sort_order),0) AS m FROM sections WHERE course_id=$1', [req.params.id]);
     const result = await pool.query(
       'INSERT INTO sections (course_id,title,sort_order) VALUES($1,$2,$3) RETURNING *',
@@ -137,8 +168,12 @@ router.post('/:id/sections', requireRole('teacher', 'assistant'), async (req, re
 });
 
 router.put('/:id/sections/:sectionId', requireRole('teacher', 'assistant'), async (req, res) => {
+  const teacherId = getTeacherId(req);
   const { title } = req.body;
   try {
+    if (!(await verifyCoursOwnership(req.params.id, teacherId))) {
+      return res.status(403).json({ error: 'Access denied: course not yours' });
+    }
     const result = await pool.query(
       'UPDATE sections SET title=$1 WHERE id=$2 AND course_id=$3 RETURNING *',
       [title, req.params.sectionId, req.params.id]
@@ -149,7 +184,11 @@ router.put('/:id/sections/:sectionId', requireRole('teacher', 'assistant'), asyn
 });
 
 router.delete('/:id/sections/:sectionId', requireRole('teacher', 'assistant'), async (req, res) => {
+  const teacherId = getTeacherId(req);
   try {
+    if (!(await verifyCoursOwnership(req.params.id, teacherId))) {
+      return res.status(403).json({ error: 'Access denied: course not yours' });
+    }
     await pool.query('UPDATE videos SET section_id=NULL WHERE section_id=$1', [req.params.sectionId]);
     await pool.query('UPDATE pdf_files SET section_id=NULL WHERE section_id=$1', [req.params.sectionId]);
     await pool.query('DELETE FROM sections WHERE id=$1 AND course_id=$2', [req.params.sectionId, req.params.id]);
@@ -157,26 +196,40 @@ router.delete('/:id/sections/:sectionId', requireRole('teacher', 'assistant'), a
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
+// ── Move video/PDF to section — FIXED: verify course ownership ──
 router.put('/:id/videos/:videoId/section', requireRole('teacher', 'assistant'), async (req, res) => {
+  const teacherId = getTeacherId(req);
   const { section_id } = req.body;
   try {
+    if (!(await verifyCoursOwnership(req.params.id, teacherId))) {
+      return res.status(403).json({ error: 'Access denied: course not yours' });
+    }
     await pool.query('UPDATE videos SET section_id=$1 WHERE id=$2 AND course_id=$3', [section_id || null, req.params.videoId, req.params.id]);
     res.json({ message: 'Updated' });
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
 router.put('/:id/pdfs/:pdfId/section', requireRole('teacher', 'assistant'), async (req, res) => {
+  const teacherId = getTeacherId(req);
   const { section_id } = req.body;
   try {
+    if (!(await verifyCoursOwnership(req.params.id, teacherId))) {
+      return res.status(403).json({ error: 'Access denied: course not yours' });
+    }
     await pool.query('UPDATE pdf_files SET section_id=$1 WHERE id=$2 AND course_id=$3', [section_id || null, req.params.pdfId, req.params.id]);
     res.json({ message: 'Updated' });
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
-// ── Video upload (actual file) ──
+// ── Video upload — FIXED: verify course ownership ──
 router.post('/:id/videos/upload', requireRole('teacher', 'assistant'), uploadVideo.single('video'), async (req, res) => {
+  const teacherId = getTeacherId(req);
   try {
     if (!req.file) return res.status(400).json({ error: 'No video file uploaded' });
+    if (!(await verifyCoursOwnership(req.params.id, teacherId))) {
+      fs.unlinkSync(req.file.path);
+      return res.status(403).json({ error: 'Access denied: course not yours' });
+    }
     const { title, duration_minutes, sort_order, section_id } = req.body;
     const filePath = `/uploads/videos/${req.file.filename}`;
     const result = await pool.query(
@@ -190,10 +243,15 @@ router.post('/:id/videos/upload', requireRole('teacher', 'assistant'), uploadVid
   }
 });
 
-// ── PDF upload (actual file) ──
+// ── PDF upload — FIXED: verify course ownership ──
 router.post('/:id/pdfs/upload', requireRole('teacher', 'assistant'), uploadPdf.single('pdf'), async (req, res) => {
+  const teacherId = getTeacherId(req);
   try {
     if (!req.file) return res.status(400).json({ error: 'No PDF file uploaded' });
+    if (!(await verifyCoursOwnership(req.params.id, teacherId))) {
+      fs.unlinkSync(req.file.path);
+      return res.status(403).json({ error: 'Access denied: course not yours' });
+    }
     const { title, section_id } = req.body;
     const filePath = `/uploads/pdfs/${req.file.filename}`;
     const result = await pool.query(
@@ -207,11 +265,16 @@ router.post('/:id/pdfs/upload', requireRole('teacher', 'assistant'), uploadPdf.s
   }
 });
 
-// ── Delete video ──
+// ── Delete video — FIXED: verify video belongs to teacher's course ──
 router.delete('/:id/videos/:videoId', requireRole('teacher', 'assistant'), async (req, res) => {
+  const teacherId = getTeacherId(req);
   try {
-    const v = await pool.query('SELECT file_path_or_url FROM videos WHERE id=$1', [req.params.videoId]);
-    if (v.rows.length && v.rows[0].file_path_or_url?.startsWith('/uploads/')) {
+    if (!(await verifyCoursOwnership(req.params.id, teacherId))) {
+      return res.status(403).json({ error: 'Access denied: course not yours' });
+    }
+    const v = await pool.query('SELECT file_path_or_url FROM videos WHERE id=$1 AND course_id=$2', [req.params.videoId, req.params.id]);
+    if (!v.rows.length) return res.status(404).json({ error: 'Video not found' });
+    if (v.rows[0].file_path_or_url?.startsWith('/uploads/')) {
       const fp = path.join(__dirname, '../../', v.rows[0].file_path_or_url);
       if (fs.existsSync(fp)) fs.unlinkSync(fp);
     }
@@ -222,11 +285,16 @@ router.delete('/:id/videos/:videoId', requireRole('teacher', 'assistant'), async
   }
 });
 
-// ── Delete PDF ──
+// ── Delete PDF — FIXED: verify PDF belongs to teacher's course ──
 router.delete('/:id/pdfs/:pdfId', requireRole('teacher', 'assistant'), async (req, res) => {
+  const teacherId = getTeacherId(req);
   try {
-    const p = await pool.query('SELECT file_url FROM pdf_files WHERE id=$1', [req.params.pdfId]);
-    if (p.rows.length && p.rows[0].file_url?.startsWith('/uploads/')) {
+    if (!(await verifyCoursOwnership(req.params.id, teacherId))) {
+      return res.status(403).json({ error: 'Access denied: course not yours' });
+    }
+    const p = await pool.query('SELECT file_url FROM pdf_files WHERE id=$1 AND course_id=$2', [req.params.pdfId, req.params.id]);
+    if (!p.rows.length) return res.status(404).json({ error: 'PDF not found' });
+    if (p.rows[0].file_url?.startsWith('/uploads/')) {
       const fp = path.join(__dirname, '../../', p.rows[0].file_url);
       if (fs.existsSync(fp)) fs.unlinkSync(fp);
     }
@@ -237,9 +305,17 @@ router.delete('/:id/pdfs/:pdfId', requireRole('teacher', 'assistant'), async (re
   }
 });
 
-// ── Enrollment ──
+// ── Enrollment — FIXED: verify course AND student both belong to teacher ──
 router.post('/:id/enroll/:studentId', requireRole('teacher', 'assistant'), async (req, res) => {
+  const teacherId = getTeacherId(req);
   try {
+    if (!(await verifyCoursOwnership(req.params.id, teacherId))) {
+      return res.status(403).json({ error: 'Access denied: course not yours' });
+    }
+    const studentCheck = await pool.query('SELECT id FROM students WHERE id=$1 AND teacher_id=$2', [req.params.studentId, teacherId]);
+    if (!studentCheck.rows.length) {
+      return res.status(403).json({ error: 'Access denied: student not yours' });
+    }
     await pool.query(
       'INSERT INTO student_course_enrollment (student_id,course_id) VALUES($1,$2) ON CONFLICT DO NOTHING',
       [req.params.studentId, req.params.id]
@@ -250,7 +326,7 @@ router.post('/:id/enroll/:studentId', requireRole('teacher', 'assistant'), async
   }
 });
 
-// ── Student: my courses (filtered by academic stage) ──
+// ── Student: my courses ──
 router.get('/student/my-courses', requireRole('student'), async (req, res) => {
   try {
     const studentRes = await pool.query('SELECT academic_stage FROM students WHERE id=$1', [req.user.id]);

@@ -7,6 +7,22 @@ router.use(authenticate);
 
 const getTeacherId = (req) => req.user.role === 'teacher' ? req.user.id : req.user.teacher_id;
 
+// ── Helper: verify exam belongs to the current teacher/assistant's teacher ──
+const verifyExamOwnership = async (examId, teacherId) => {
+  const r = await pool.query('SELECT id FROM exams WHERE id=$1 AND teacher_id=$2', [examId, teacherId]);
+  return r.rows.length > 0;
+};
+
+// ── Helper: verify a question belongs to an exam owned by teacher ──
+const verifyQuestionOwnership = async (questionId, teacherId) => {
+  const r = await pool.query(
+    'SELECT q.id FROM questions q JOIN exams e ON q.exam_id=e.id WHERE q.id=$1 AND e.teacher_id=$2',
+    [questionId, teacherId]
+  );
+  return r.rows.length > 0;
+};
+
+// ── List exams ──
 router.get('/', requireRole('teacher', 'assistant'), async (req, res) => {
   const teacherId = getTeacherId(req);
   try {
@@ -27,10 +43,16 @@ router.get('/', requireRole('teacher', 'assistant'), async (req, res) => {
   }
 });
 
+// ── Create exam ──
 router.post('/', requireRole('teacher', 'assistant'), async (req, res) => {
   const teacherId = getTeacherId(req);
   const { title, duration_minutes, total_score, course_id, pass_score, badge_name, badge_color } = req.body;
   try {
+    // If course_id provided, verify it belongs to this teacher
+    if (course_id) {
+      const courseCheck = await pool.query('SELECT id FROM courses WHERE id=$1 AND teacher_id=$2', [course_id, teacherId]);
+      if (!courseCheck.rows.length) return res.status(403).json({ error: 'Access denied: course not yours' });
+    }
     const result = await pool.query(
       'INSERT INTO exams (title,duration_minutes,total_score,course_id,teacher_id,pass_score,badge_name,badge_color) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
       [title, duration_minutes || 60, total_score || 100, course_id || null, teacherId, pass_score || 50, badge_name, badge_color || '#FF8C00']
@@ -41,6 +63,7 @@ router.post('/', requireRole('teacher', 'assistant'), async (req, res) => {
   }
 });
 
+// ── Update exam (already scoped by teacher_id) ──
 router.put('/:id', requireRole('teacher', 'assistant'), async (req, res) => {
   const teacherId = getTeacherId(req);
   const { title, duration_minutes, total_score, course_id, pass_score, badge_name, badge_color } = req.body;
@@ -56,6 +79,7 @@ router.put('/:id', requireRole('teacher', 'assistant'), async (req, res) => {
   }
 });
 
+// ── Delete exam (already scoped by teacher_id) ──
 router.delete('/:id', requireRole('teacher', 'assistant'), async (req, res) => {
   const teacherId = getTeacherId(req);
   try {
@@ -67,8 +91,13 @@ router.delete('/:id', requireRole('teacher', 'assistant'), async (req, res) => {
   }
 });
 
+// ── Get questions — FIXED: verify exam ownership ──
 router.get('/:id/questions', requireRole('teacher', 'assistant'), async (req, res) => {
+  const teacherId = getTeacherId(req);
   try {
+    if (!(await verifyExamOwnership(req.params.id, teacherId))) {
+      return res.status(403).json({ error: 'Access denied: exam not yours' });
+    }
     const result = await pool.query('SELECT * FROM questions WHERE exam_id=$1 ORDER BY id', [req.params.id]);
     res.json(result.rows);
   } catch (err) {
@@ -76,9 +105,14 @@ router.get('/:id/questions', requireRole('teacher', 'assistant'), async (req, re
   }
 });
 
+// ── Add question — FIXED: verify exam ownership ──
 router.post('/:id/questions', requireRole('teacher', 'assistant'), async (req, res) => {
+  const teacherId = getTeacherId(req);
   const { question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points } = req.body;
   try {
+    if (!(await verifyExamOwnership(req.params.id, teacherId))) {
+      return res.status(403).json({ error: 'Access denied: exam not yours' });
+    }
     const result = await pool.query(
       'INSERT INTO questions (question_text,question_image_url,option_a,option_b,option_c,option_d,correct_answer_letter,points,exam_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',
       [question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter.toUpperCase(), points || 1, req.params.id]
@@ -89,9 +123,14 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), async (req, r
   }
 });
 
+// ── Update question — FIXED: verify question belongs to teacher's exam ──
 router.put('/questions/:qid', requireRole('teacher', 'assistant'), async (req, res) => {
+  const teacherId = getTeacherId(req);
   const { question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points } = req.body;
   try {
+    if (!(await verifyQuestionOwnership(req.params.qid, teacherId))) {
+      return res.status(403).json({ error: 'Access denied: question not yours' });
+    }
     const result = await pool.query(
       'UPDATE questions SET question_text=$1,question_image_url=$2,option_a=$3,option_b=$4,option_c=$5,option_d=$6,correct_answer_letter=$7,points=$8 WHERE id=$9 RETURNING *',
       [question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter.toUpperCase(), points || 1, req.params.qid]
@@ -102,8 +141,13 @@ router.put('/questions/:qid', requireRole('teacher', 'assistant'), async (req, r
   }
 });
 
+// ── Delete question — FIXED: verify question belongs to teacher's exam ──
 router.delete('/questions/:qid', requireRole('teacher', 'assistant'), async (req, res) => {
+  const teacherId = getTeacherId(req);
   try {
+    if (!(await verifyQuestionOwnership(req.params.qid, teacherId))) {
+      return res.status(403).json({ error: 'Access denied: question not yours' });
+    }
     await pool.query('DELETE FROM questions WHERE id=$1', [req.params.qid]);
     res.json({ message: 'Question deleted' });
   } catch (err) {
@@ -111,6 +155,7 @@ router.delete('/questions/:qid', requireRole('teacher', 'assistant'), async (req
   }
 });
 
+// ── Student: list available exams ──
 router.get('/student/available', requireRole('student'), async (req, res) => {
   try {
     const result = await pool.query(
@@ -130,31 +175,56 @@ router.get('/student/available', requireRole('student'), async (req, res) => {
   }
 });
 
+// ── Student: take exam — FIXED: verify exam belongs to student's teacher + enrollment ──
 router.get('/:id/take', requireRole('student'), async (req, res) => {
+  const studentId = req.user.id;
   try {
-    const exam = await pool.query('SELECT id,title,duration_minutes,total_score,pass_score FROM exams WHERE id=$1', [req.params.id]);
-    if (!exam.rows.length) return res.status(404).json({ error: 'Exam not found' });
+    // Exam must belong to student's teacher, and if course-linked, student must be enrolled
+    const eligibilityCheck = await pool.query(
+      `SELECT e.id, e.title, e.duration_minutes, e.total_score, e.pass_score
+       FROM exams e
+       LEFT JOIN student_course_enrollment sce ON e.course_id = sce.course_id AND sce.student_id = $1
+       WHERE e.id = $2
+         AND e.teacher_id = (SELECT teacher_id FROM students WHERE id = $1)
+         AND (e.course_id IS NULL OR sce.student_id IS NOT NULL)`,
+      [studentId, req.params.id]
+    );
+    if (!eligibilityCheck.rows.length) {
+      return res.status(403).json({ error: 'Access denied: exam not available to you' });
+    }
     const questions = await pool.query(
       'SELECT id,question_text,question_image_url,option_a,option_b,option_c,option_d,points FROM questions WHERE exam_id=$1 ORDER BY id',
       [req.params.id]
     );
-    res.json({ exam: exam.rows[0], questions: questions.rows });
+    res.json({ exam: eligibilityCheck.rows[0], questions: questions.rows });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }
 });
 
+// ── Student: submit exam — FIXED: verify eligibility before accepting submission ──
 router.post('/:id/submit', requireRole('student'), async (req, res) => {
   const studentId = req.user.id;
   const examId = req.params.id;
   const { answers, start_time } = req.body;
 
   try {
-    const questionsRes = await pool.query('SELECT * FROM questions WHERE exam_id=$1', [examId]);
-    const examRes = await pool.query('SELECT * FROM exams WHERE id=$1', [examId]);
-    if (!examRes.rows.length) return res.status(404).json({ error: 'Exam not found' });
+    // Verify student is eligible for this exam
+    const eligibilityCheck = await pool.query(
+      `SELECT e.*
+       FROM exams e
+       LEFT JOIN student_course_enrollment sce ON e.course_id = sce.course_id AND sce.student_id = $1
+       WHERE e.id = $2
+         AND e.teacher_id = (SELECT teacher_id FROM students WHERE id = $1)
+         AND (e.course_id IS NULL OR sce.student_id IS NOT NULL)`,
+      [studentId, examId]
+    );
+    if (!eligibilityCheck.rows.length) {
+      return res.status(403).json({ error: 'Access denied: exam not available to you' });
+    }
 
-    const exam = examRes.rows[0];
+    const exam = eligibilityCheck.rows[0];
+    const questionsRes = await pool.query('SELECT * FROM questions WHERE exam_id=$1', [examId]);
     const questions = questionsRes.rows;
 
     let score = 0, correct = 0, wrong = 0, unanswered = 0;
@@ -173,7 +243,8 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
       return { question_id: q.id, student_answer: studentAnswer, correct_answer: q.correct_answer_letter, is_correct: isCorrect };
     });
 
-    const normalizedScore = Math.round((score / questions.reduce((s, q) => s + q.points, 0)) * exam.total_score);
+    const totalPoints = questions.reduce((s, q) => s + q.points, 0);
+    const normalizedScore = totalPoints > 0 ? Math.round((score / totalPoints) * exam.total_score) : 0;
     const pointsEarned = correct * 10;
 
     const result = await pool.query(
@@ -197,22 +268,37 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
   }
 });
 
+// ── Get result summary — FIXED: ownership check ──
 router.get('/results/:resultId', authenticate, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT er.*, s.name as student_name, e.title as exam_title, e.total_score, e.pass_score
+      `SELECT er.*, s.name as student_name, e.title as exam_title, e.total_score, e.pass_score, e.teacher_id as exam_teacher_id
        FROM exam_results er JOIN students s ON er.student_id=s.id JOIN exams e ON er.exam_id=e.id
        WHERE er.id=$1`,
       [req.params.resultId]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Result not found' });
-    res.json(result.rows[0]);
+    const row = result.rows[0];
+
+    if (req.user.role === 'student') {
+      if (parseInt(row.student_id) !== parseInt(req.user.id)) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+    } else {
+      const teacherId = getTeacherId(req);
+      if (parseInt(row.exam_teacher_id) !== parseInt(teacherId)) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+    }
+
+    const { exam_teacher_id, ...safe } = row;
+    res.json(safe);
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// ── Full exam review: questions + student answers ──
+// ── Full exam review: questions + student answers (already had ownership check) ──
 router.get('/results/:resultId/review', authenticate, async (req, res) => {
   try {
     const resultRes = await pool.query(
@@ -230,7 +316,6 @@ router.get('/results/:resultId/review', authenticate, async (req, res) => {
     if (!resultRes.rows.length) return res.status(404).json({ error: 'Result not found' });
     const row = resultRes.rows[0];
 
-    // Access control: student can only see own results; teacher/assistant must own the exam
     if (req.user.role === 'student') {
       if (parseInt(row.student_id) !== parseInt(req.user.id)) {
         return res.status(403).json({ error: 'Access denied' });
@@ -242,12 +327,8 @@ router.get('/results/:resultId/review', authenticate, async (req, res) => {
       }
     }
 
-    const questionsRes = await pool.query(
-      'SELECT * FROM questions WHERE exam_id=$1 ORDER BY id',
-      [row.exam_id]
-    );
+    const questionsRes = await pool.query('SELECT * FROM questions WHERE exam_id=$1 ORDER BY id', [row.exam_id]);
 
-    // Parse stored answers array
     let storedAnswers = [];
     try {
       storedAnswers = typeof row.answers === 'string'
