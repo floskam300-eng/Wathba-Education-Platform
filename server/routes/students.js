@@ -379,4 +379,98 @@ router.get('/me/dashboard', requireRole('student'), async (req, res) => {
   }
 });
 
+router.get('/me/notifications', requireRole('student'), async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, message, type, is_read, sent_at
+       FROM notification_log
+       WHERE student_id = $1
+       ORDER BY sent_at DESC LIMIT 30`,
+      [req.user.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.patch('/me/notifications/:id/read', requireRole('student'), async (req, res) => {
+  try {
+    await pool.query(
+      'UPDATE notification_log SET is_read=true WHERE id=$1 AND student_id=$2',
+      [req.params.id, req.user.id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.patch('/me/notifications/read-all', requireRole('student'), async (req, res) => {
+  try {
+    await pool.query(
+      'UPDATE notification_log SET is_read=true WHERE student_id=$1',
+      [req.user.id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.get('/attendance/:courseId', requireRole('teacher', 'assistant'), async (req, res) => {
+  const teacherId = getTeacherId(req);
+  const { courseId } = req.params;
+  try {
+    const courseCheck = await pool.query(
+      'SELECT id, name FROM courses WHERE id=$1 AND teacher_id=$2',
+      [courseId, teacherId]
+    );
+    if (!courseCheck.rows.length) return res.status(403).json({ error: 'Access denied' });
+
+    const [students, videos, progress] = await Promise.all([
+      pool.query(
+        `SELECT s.id, s.name, s.academic_stage
+         FROM students s
+         JOIN student_course_enrollment sce ON s.id = sce.student_id
+         WHERE sce.course_id = $1
+         ORDER BY s.name`,
+        [courseId]
+      ),
+      pool.query(
+        `SELECT id, title, duration_minutes, sort_order
+         FROM videos WHERE course_id=$1 ORDER BY sort_order, id`,
+        [courseId]
+      ),
+      pool.query(
+        `SELECT vp.student_id, vp.video_id, vp.progress_percentage, vp.watched_minutes, vp.watch_count
+         FROM video_progress vp
+         JOIN videos v ON vp.video_id = v.id
+         WHERE v.course_id = $1`,
+        [courseId]
+      ),
+    ]);
+
+    const progressMap = {};
+    progress.rows.forEach(p => {
+      if (!progressMap[p.student_id]) progressMap[p.student_id] = {};
+      progressMap[p.student_id][p.video_id] = {
+        progress_percentage: parseFloat(p.progress_percentage),
+        watched_minutes: p.watched_minutes,
+        watch_count: p.watch_count,
+      };
+    });
+
+    res.json({
+      course: courseCheck.rows[0],
+      students: students.rows,
+      videos: videos.rows,
+      progressMap,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;

@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, Users, BookOpen, FileText, UserCog,
   BarChart3, CreditCard, Trophy, LogOut, Menu, MessageCircle,
-  Bell, Database
+  Bell, Database, ClipboardList
 } from 'lucide-react';
 import WathbaLogo from '../assets/wathba_logo.png';
 
@@ -13,6 +13,7 @@ const navItems = [
   { to: '/teacher/students', icon: Users, label: 'الطلاب' },
   { to: '/teacher/courses', icon: BookOpen, label: 'الكورسات' },
   { to: '/teacher/exams', icon: FileText, label: 'الاختبارات' },
+  { to: '/teacher/attendance', icon: ClipboardList, label: 'الحضور والغياب' },
   { to: '/teacher/assistants', icon: UserCog, label: 'المساعدون' },
   { to: '/teacher/analytics', icon: BarChart3, label: 'التحليلات' },
   { to: '/teacher/payments', icon: CreditCard, label: 'المدفوعات' },

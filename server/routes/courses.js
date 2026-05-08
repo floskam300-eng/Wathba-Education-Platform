@@ -10,13 +10,22 @@ router.use(authenticate);
 
 const getTeacherId = (req) => req.user.role === 'teacher' ? req.user.id : req.user.teacher_id;
 
-// ── Helper: verify course belongs to teacher ──
 const verifyCoursOwnership = async (courseId, teacherId) => {
   const r = await pool.query('SELECT id FROM courses WHERE id=$1 AND teacher_id=$2', [courseId, teacherId]);
   return r.rows.length > 0;
 };
 
-// ── Multer storage ──
+const checkManageCoursesPerm = (req, res, next) => {
+  if (req.user.role === 'teacher') return next();
+  pool.query('SELECT can_manage_courses FROM assistants WHERE id=$1', [req.user.id])
+    .then(r => {
+      if (!r.rows.length || !r.rows[0].can_manage_courses)
+        return res.status(403).json({ error: 'Access denied: missing permission' });
+      next();
+    })
+    .catch(() => res.status(500).json({ error: 'Server error' }));
+};
+
 const videoStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     const dir = path.join(__dirname, '../../uploads/videos');
@@ -55,7 +64,6 @@ const uploadPdf = multer({
   },
 });
 
-// ── List courses (scoped to teacher) ──
 router.get('/', requireRole('teacher', 'assistant'), async (req, res) => {
   const teacherId = getTeacherId(req);
   try {
@@ -76,8 +84,7 @@ router.get('/', requireRole('teacher', 'assistant'), async (req, res) => {
   }
 });
 
-// ── Create course ──
-router.post('/', requireRole('teacher', 'assistant'), async (req, res) => {
+router.post('/', requireRole('teacher', 'assistant'), checkManageCoursesPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
   const { name, description, price, thumbnail_url, target_stage } = req.body;
   try {
@@ -91,8 +98,7 @@ router.post('/', requireRole('teacher', 'assistant'), async (req, res) => {
   }
 });
 
-// ── Update course ──
-router.put('/:id', requireRole('teacher', 'assistant'), async (req, res) => {
+router.put('/:id', requireRole('teacher', 'assistant'), checkManageCoursesPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
   const { name, description, price, thumbnail_url, target_stage } = req.body;
   try {
@@ -107,8 +113,7 @@ router.put('/:id', requireRole('teacher', 'assistant'), async (req, res) => {
   }
 });
 
-// ── Delete course ──
-router.delete('/:id', requireRole('teacher', 'assistant'), async (req, res) => {
+router.delete('/:id', requireRole('teacher', 'assistant'), checkManageCoursesPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
   try {
     const result = await pool.query('DELETE FROM courses WHERE id=$1 AND teacher_id=$2 RETURNING id', [req.params.id, teacherId]);
@@ -119,12 +124,10 @@ router.delete('/:id', requireRole('teacher', 'assistant'), async (req, res) => {
   }
 });
 
-// ── Course content — FIXED: check enrollment for students, ownership for staff ──
 router.get('/:id/content', authenticate, async (req, res) => {
   const courseId = req.params.id;
   try {
     if (req.user.role === 'student') {
-      // Student must be enrolled in this course
       const enrollment = await pool.query(
         'SELECT id FROM student_course_enrollment WHERE student_id=$1 AND course_id=$2',
         [req.user.id, courseId]
@@ -133,7 +136,6 @@ router.get('/:id/content', authenticate, async (req, res) => {
         return res.status(403).json({ error: 'Access denied: you are not enrolled in this course' });
       }
     } else {
-      // Teacher or assistant must own the course
       const teacherId = getTeacherId(req);
       if (!(await verifyCoursOwnership(courseId, teacherId))) {
         return res.status(403).json({ error: 'Access denied: course not yours' });
@@ -152,8 +154,7 @@ router.get('/:id/content', authenticate, async (req, res) => {
   }
 });
 
-// ── Sections CRUD — FIXED: verify course ownership ──
-router.post('/:id/sections', requireRole('teacher', 'assistant'), async (req, res) => {
+router.post('/:id/sections', requireRole('teacher', 'assistant'), checkManageCoursesPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
   const { title } = req.body;
   if (!title?.trim()) return res.status(400).json({ error: 'Title required' });
@@ -170,7 +171,7 @@ router.post('/:id/sections', requireRole('teacher', 'assistant'), async (req, re
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
-router.put('/:id/sections/:sectionId', requireRole('teacher', 'assistant'), async (req, res) => {
+router.put('/:id/sections/:sectionId', requireRole('teacher', 'assistant'), checkManageCoursesPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
   const { title } = req.body;
   try {
@@ -186,7 +187,7 @@ router.put('/:id/sections/:sectionId', requireRole('teacher', 'assistant'), asyn
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
-router.delete('/:id/sections/:sectionId', requireRole('teacher', 'assistant'), async (req, res) => {
+router.delete('/:id/sections/:sectionId', requireRole('teacher', 'assistant'), checkManageCoursesPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
   try {
     if (!(await verifyCoursOwnership(req.params.id, teacherId))) {
@@ -199,8 +200,7 @@ router.delete('/:id/sections/:sectionId', requireRole('teacher', 'assistant'), a
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
-// ── Move video/PDF to section — FIXED: verify course ownership ──
-router.put('/:id/videos/:videoId/section', requireRole('teacher', 'assistant'), async (req, res) => {
+router.put('/:id/videos/:videoId/section', requireRole('teacher', 'assistant'), checkManageCoursesPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
   const { section_id } = req.body;
   try {
@@ -212,7 +212,7 @@ router.put('/:id/videos/:videoId/section', requireRole('teacher', 'assistant'), 
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
-router.put('/:id/pdfs/:pdfId/section', requireRole('teacher', 'assistant'), async (req, res) => {
+router.put('/:id/pdfs/:pdfId/section', requireRole('teacher', 'assistant'), checkManageCoursesPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
   const { section_id } = req.body;
   try {
@@ -224,8 +224,7 @@ router.put('/:id/pdfs/:pdfId/section', requireRole('teacher', 'assistant'), asyn
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
-// ── Video upload — FIXED: verify course ownership ──
-router.post('/:id/videos/upload', requireRole('teacher', 'assistant'), uploadVideo.single('video'), async (req, res) => {
+router.post('/:id/videos/upload', requireRole('teacher', 'assistant'), checkManageCoursesPerm, uploadVideo.single('video'), async (req, res) => {
   const teacherId = getTeacherId(req);
   try {
     if (!req.file) return res.status(400).json({ error: 'No video file uploaded' });
@@ -246,8 +245,7 @@ router.post('/:id/videos/upload', requireRole('teacher', 'assistant'), uploadVid
   }
 });
 
-// ── PDF upload — FIXED: verify course ownership ──
-router.post('/:id/pdfs/upload', requireRole('teacher', 'assistant'), uploadPdf.single('pdf'), async (req, res) => {
+router.post('/:id/pdfs/upload', requireRole('teacher', 'assistant'), checkManageCoursesPerm, uploadPdf.single('pdf'), async (req, res) => {
   const teacherId = getTeacherId(req);
   try {
     if (!req.file) return res.status(400).json({ error: 'No PDF file uploaded' });
@@ -268,8 +266,7 @@ router.post('/:id/pdfs/upload', requireRole('teacher', 'assistant'), uploadPdf.s
   }
 });
 
-// ── Delete video — FIXED: verify video belongs to teacher's course ──
-router.delete('/:id/videos/:videoId', requireRole('teacher', 'assistant'), async (req, res) => {
+router.delete('/:id/videos/:videoId', requireRole('teacher', 'assistant'), checkManageCoursesPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
   try {
     if (!(await verifyCoursOwnership(req.params.id, teacherId))) {
@@ -288,8 +285,7 @@ router.delete('/:id/videos/:videoId', requireRole('teacher', 'assistant'), async
   }
 });
 
-// ── Delete PDF — FIXED: verify PDF belongs to teacher's course ──
-router.delete('/:id/pdfs/:pdfId', requireRole('teacher', 'assistant'), async (req, res) => {
+router.delete('/:id/pdfs/:pdfId', requireRole('teacher', 'assistant'), checkManageCoursesPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
   try {
     if (!(await verifyCoursOwnership(req.params.id, teacherId))) {
@@ -308,8 +304,7 @@ router.delete('/:id/pdfs/:pdfId', requireRole('teacher', 'assistant'), async (re
   }
 });
 
-// ── Enrollment — FIXED: verify course AND student both belong to teacher ──
-router.post('/:id/enroll/:studentId', requireRole('teacher', 'assistant'), async (req, res) => {
+router.post('/:id/enroll/:studentId', requireRole('teacher', 'assistant'), checkManageCoursesPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
   try {
     if (!(await verifyCoursOwnership(req.params.id, teacherId))) {
@@ -329,7 +324,6 @@ router.post('/:id/enroll/:studentId', requireRole('teacher', 'assistant'), async
   }
 });
 
-// ── Student: my courses ──
 router.get('/student/my-courses', requireRole('student'), async (req, res) => {
   try {
     const studentRes = await pool.query('SELECT academic_stage FROM students WHERE id=$1', [req.user.id]);
@@ -353,7 +347,6 @@ router.get('/student/my-courses', requireRole('student'), async (req, res) => {
   }
 });
 
-// ── Student: browse all available courses (with enrollment/request status) ──
 router.get('/student/available-all', requireRole('student'), async (req, res) => {
   try {
     const teacherRes = await pool.query('SELECT teacher_id FROM students WHERE id=$1', [req.user.id]);
@@ -382,7 +375,6 @@ router.get('/student/available-all', requireRole('student'), async (req, res) =>
   }
 });
 
-// ── Student: request enrollment in a course ──
 router.post('/student/request/:courseId', requireRole('student'), async (req, res) => {
   const { message } = req.body;
   try {
@@ -410,7 +402,6 @@ router.post('/student/request/:courseId', requireRole('student'), async (req, re
   }
 });
 
-// ── Teacher: list enrollment requests ──
 router.get('/enrollment-requests', requireRole('teacher', 'assistant'), async (req, res) => {
   const teacherId = getTeacherId(req);
   try {
@@ -430,10 +421,9 @@ router.get('/enrollment-requests', requireRole('teacher', 'assistant'), async (r
   }
 });
 
-// ── Teacher: approve or reject enrollment request ──
-router.put('/enrollment-requests/:id', requireRole('teacher', 'assistant'), async (req, res) => {
+router.put('/enrollment-requests/:id', requireRole('teacher', 'assistant'), checkManageCoursesPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
-  const { action } = req.body; // 'approve' | 'reject'
+  const { action } = req.body;
   try {
     const reqRes = await pool.query(
       `SELECT cer.* FROM course_enrollment_requests cer

@@ -199,3 +199,6 @@ CREATE TABLE IF NOT EXISTS badges (
   badge_color VARCHAR(20),
   earned_at TIMESTAMP DEFAULT NOW()
 );
+
+ALTER TABLE notification_log ADD COLUMN IF NOT EXISTS type VARCHAR(50) DEFAULT 'general';
+ALTER TABLE notification_log ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT false;

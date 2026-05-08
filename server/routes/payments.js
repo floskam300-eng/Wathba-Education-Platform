@@ -7,7 +7,18 @@ router.use(authenticate);
 
 const getTeacherId = (req) => req.user.role === 'teacher' ? req.user.id : req.user.teacher_id;
 
-// ── List payments (scoped to teacher's students) ──
+const checkPermission = async (req, res, next, perm) => {
+  if (req.user.role === 'teacher') return next();
+  try {
+    const result = await pool.query('SELECT * FROM assistants WHERE id = $1', [req.user.id]);
+    if (result.rows.length === 0) return res.status(403).json({ error: 'Access denied' });
+    if (!result.rows[0][perm]) return res.status(403).json({ error: 'Access denied: missing permission' });
+    next();
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
 router.get('/', requireRole('teacher', 'assistant'), async (req, res) => {
   const teacherId = getTeacherId(req);
   try {
@@ -24,17 +35,14 @@ router.get('/', requireRole('teacher', 'assistant'), async (req, res) => {
   }
 });
 
-// ── Create payment — FIXED: verify student belongs to teacher ──
-router.post('/', requireRole('teacher', 'assistant'), async (req, res) => {
+router.post('/', requireRole('teacher', 'assistant'), (req, res, next) => checkPermission(req, res, next, 'can_manage_payments'), async (req, res) => {
   const teacherId = getTeacherId(req);
   const { student_id, course_id, amount, method, reference_number, notes } = req.body;
   try {
-    // Verify student belongs to this teacher
     const studentCheck = await pool.query('SELECT id FROM students WHERE id=$1 AND teacher_id=$2', [student_id, teacherId]);
     if (!studentCheck.rows.length) {
       return res.status(403).json({ error: 'Access denied: student not yours' });
     }
-    // If course_id provided, verify it belongs to this teacher
     if (course_id) {
       const courseCheck = await pool.query('SELECT id FROM courses WHERE id=$1 AND teacher_id=$2', [course_id, teacherId]);
       if (!courseCheck.rows.length) {
@@ -51,12 +59,10 @@ router.post('/', requireRole('teacher', 'assistant'), async (req, res) => {
   }
 });
 
-// ── Verify payment — FIXED: verify payment's student belongs to teacher ──
-router.put('/:id/verify', requireRole('teacher', 'assistant'), async (req, res) => {
+router.put('/:id/verify', requireRole('teacher', 'assistant'), (req, res, next) => checkPermission(req, res, next, 'can_manage_payments'), async (req, res) => {
   const teacherId = getTeacherId(req);
   const { status } = req.body;
   try {
-    // Fetch the payment and verify ownership through the student's teacher
     const paymentRes = await pool.query(
       `SELECT p.*, s.teacher_id as student_teacher_id
        FROM payments p JOIN students s ON p.student_id=s.id
@@ -88,7 +94,6 @@ router.put('/:id/verify', requireRole('teacher', 'assistant'), async (req, res) 
   }
 });
 
-// ── Leaderboard ──
 router.get('/leaderboard', requireRole('teacher', 'assistant', 'student'), async (req, res) => {
   let teacherId;
   try {
