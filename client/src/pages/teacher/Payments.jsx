@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CreditCard, Plus, CheckCircle, XCircle, Printer } from 'lucide-react';
+import { CreditCard, Plus, CheckCircle, XCircle, Printer, TrendingUp } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import Modal from '../../components/ui/Modal';
 import Badge from '../../components/ui/Badge';
 import api from '../../lib/api';
@@ -59,6 +60,23 @@ export default function TeacherPayments() {
     pending:  payments.filter(p => p.status === 'pending').length,
   };
 
+  const monthlyRevenue = useMemo(() => {
+    const now = new Date();
+    return Array.from({ length: 6 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+      const yr = d.getFullYear();
+      const mo = d.getMonth();
+      const label = d.toLocaleDateString('ar-EG', { month: 'short', year: '2-digit' });
+      const amount = payments
+        .filter(p => {
+          const pd = new Date(p.payment_date);
+          return p.status === 'verified' && pd.getFullYear() === yr && pd.getMonth() === mo;
+        })
+        .reduce((s, p) => s + parseFloat(p.amount || 0), 0);
+      return { name: label, 'الإيرادات': amount };
+    });
+  }, [payments]);
+
   const handlePrint = () => {
     const headers = ['الطالب', 'الكورس', 'المبلغ', 'الطريقة', 'المرجع', 'الحالة'];
     const data = filtered.map(p => [
@@ -110,6 +128,44 @@ export default function TeacherPayments() {
             {payments.filter(p => new Date(p.payment_date).getMonth() === new Date().getMonth()).length}
           </p>
         </div>
+      </div>
+
+      {/* Monthly Revenue Chart */}
+      <div className="card">
+        <div className="flex items-center gap-2 mb-5">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow">
+            <TrendingUp className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h2 className="font-black text-gray-800 text-sm">الإيرادات الشهرية</h2>
+            <p className="text-[11px] text-gray-400 font-medium">المدفوعات المؤكدة خلال آخر 6 أشهر</p>
+          </div>
+          <div className="mr-auto bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-1.5">
+            <span className="text-emerald-700 font-black text-sm">{totals.verified.toLocaleString()} ج</span>
+            <span className="text-emerald-600 text-[11px] font-semibold mr-1">إجمالي مؤكد</span>
+          </div>
+        </div>
+        <ResponsiveContainer width="100%" height={200}>
+          <AreaChart data={monthlyRevenue} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+            <defs>
+              <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%"  stopColor="#10b981" stopOpacity={0.25} />
+                <stop offset="95%" stopColor="#10b981" stopOpacity={0.02} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+            <XAxis dataKey="name" tick={{ fontSize: 11, fontFamily: 'Cairo', fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 11, fontFamily: 'Cairo', fill: '#94a3b8' }} axisLine={false} tickLine={false} width={55}
+              tickFormatter={v => v > 0 ? `${v.toLocaleString()}` : '0'} />
+            <Tooltip
+              contentStyle={{ fontFamily: 'Cairo', borderRadius: '12px', border: 'none', boxShadow: '0 8px 24px rgba(0,0,0,0.10)', fontSize: '12px' }}
+              formatter={(val) => [`${val.toLocaleString()} جنيه`, 'الإيرادات']}
+            />
+            <Area type="monotone" dataKey="الإيرادات" stroke="#10b981" strokeWidth={2.5}
+              fill="url(#revenueGradient)" dot={{ r: 4, fill: '#10b981', strokeWidth: 2, stroke: '#fff' }}
+              activeDot={{ r: 6, fill: '#10b981' }} />
+          </AreaChart>
+        </ResponsiveContainer>
       </div>
 
       <div className="flex gap-2 flex-wrap">

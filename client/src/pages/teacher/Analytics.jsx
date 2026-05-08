@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   BarChart3, TrendingUp, Users, Award, Target, GraduationCap,
   CheckCircle2, XCircle, Clock, Star, ChevronUp, ChevronDown,
-  Minus, Eye, Search, Filter, X as XIcon
+  Minus, Eye, Search, Filter, X as XIcon, Download
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -101,6 +101,28 @@ export default function TeacherAnalytics() {
     { label: 'نسبة النجاح',         value: `${passRate}%`,                   icon: Award,        gradient: 'linear-gradient(135deg,#8b5cf6,#ec4899)', lightBg: 'bg-purple-50',  textColor: '#8b5cf6' },
     { label: 'إجمالي الطلاب',       value: data?.topStudents?.length || 0,   icon: Users,        gradient: 'linear-gradient(135deg,#f59e0b,#f97316)', lightBg: 'bg-amber-50',   textColor: '#f59e0b' },
   ];
+
+  const exportCSV = () => {
+    const headers = ['الاسم', 'المرحلة الدراسية', 'الجنس', 'النقاط', 'عدد الاختبارات', 'متوسط الدرجات%'];
+    const rows = filteredStudents.map(s => [
+      s.name,
+      s.academic_stage || '—',
+      s.gender || '—',
+      s.points,
+      s.exams_taken,
+      Math.round(parseFloat(s.avg_score) || 0),
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `students_analytics_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   const handleSort = (field) => {
     if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -360,7 +382,7 @@ export default function TeacherAnalytics() {
 
       {/* Students Table */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="p-5 border-b border-gray-50 flex items-center justify-between">
+        <div className="p-5 border-b border-gray-50 flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
               <Users className="w-4 h-4 text-emerald-500" />
@@ -374,9 +396,20 @@ export default function TeacherAnalytics() {
               </p>
             </div>
           </div>
-          <span className="text-[10px] font-semibold text-orange-500 bg-orange-50 px-2 py-1 rounded-full flex items-center gap-1">
-            <Eye className="w-3 h-3" /> اضغط على الطالب لعرض ملفه
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-semibold text-orange-500 bg-orange-50 px-2 py-1 rounded-full flex items-center gap-1">
+              <Eye className="w-3 h-3" /> اضغط على الطالب لعرض ملفه
+            </span>
+            {filteredStudents.length > 0 && (
+              <button
+                onClick={exportCSV}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors shadow-sm"
+              >
+                <Download className="w-3.5 h-3.5" />
+                تصدير CSV
+              </button>
+            )}
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[560px]">

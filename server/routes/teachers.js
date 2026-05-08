@@ -84,4 +84,28 @@ router.get('/analytics', requireRole('teacher'), async (req, res) => {
   }
 });
 
+router.get('/course-stats', requireRole('teacher'), async (req, res) => {
+  const teacherId = req.user.id;
+  try {
+    const result = await pool.query(`
+      SELECT c.id, c.name, c.target_stage,
+             COUNT(DISTINCT sce.student_id)::int AS enrolled_count,
+             COUNT(DISTINCT v.id)::int            AS total_videos,
+             COALESCE(ROUND(AVG(vp.progress_percentage)::numeric, 0), 0)::int AS avg_progress,
+             COUNT(DISTINCT CASE WHEN vp.progress_percentage >= 80 THEN vp.student_id END)::int AS active_students
+      FROM courses c
+      LEFT JOIN student_course_enrollment sce ON c.id = sce.course_id
+      LEFT JOIN videos v  ON v.course_id = c.id
+      LEFT JOIN video_progress vp ON v.id = vp.video_id
+      WHERE c.teacher_id = $1
+      GROUP BY c.id, c.name, c.target_stage
+      ORDER BY enrolled_count DESC
+    `, [teacherId]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;

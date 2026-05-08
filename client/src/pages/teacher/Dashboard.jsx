@@ -21,6 +21,11 @@ export default function TeacherDashboard() {
     queryFn: () => api.get('/teachers/analytics').then(r => r.data),
   });
 
+  const { data: courseStats = [] } = useQuery({
+    queryKey: ['teacher-course-stats'],
+    queryFn: () => api.get('/teachers/course-stats').then(r => r.data),
+  });
+
   const chartData = analytics?.examResults?.map(e => ({
     name: e.title?.substring(0, 12) + (e.title?.length > 12 ? '...' : ''),
     متوسط: Math.round(e.avg_score),
@@ -148,6 +153,50 @@ export default function TeacherDashboard() {
           </div>
         </div>
       </div>
+
+      {courseStats.length > 0 && (
+        <div className="card">
+          <h2 className="section-title mb-4">
+            <BookOpen className="w-5 h-5 text-orange-500" />
+            متابعة الكورسات
+          </h2>
+          <div className="space-y-3">
+            {courseStats.map(c => (
+              <div key={c.id} className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-navy-50 flex items-center justify-center flex-shrink-0">
+                  <BookOpen className="w-4 h-4 text-navy-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-sm font-bold text-navy-700 truncate">{c.name}</p>
+                    <span className="text-xs font-black text-gray-500 flex-shrink-0 mr-2">
+                      {c.avg_progress}%
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                      <div
+                        className="h-1.5 rounded-full transition-all duration-700"
+                        style={{
+                          width: `${Math.min(c.avg_progress, 100)}%`,
+                          background: c.avg_progress >= 60
+                            ? 'linear-gradient(90deg,#10b981,#06b6d4)'
+                            : c.avg_progress >= 30
+                            ? 'linear-gradient(90deg,#f59e0b,#f97316)'
+                            : 'linear-gradient(90deg,#ef4444,#f97316)',
+                        }}
+                      />
+                    </div>
+                    <span className="text-[11px] text-gray-500 font-semibold flex-shrink-0 whitespace-nowrap">
+                      {c.enrolled_count} طالب · {c.total_videos} فيديو
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="card">
         <h2 className="section-title mb-4">
