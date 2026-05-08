@@ -1,11 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, Users, LogOut, Menu, FileText, BarChart3, BookOpen, CreditCard } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
+import { LayoutDashboard, Users, LogOut, Menu, FileText, BarChart3, BookOpen, CreditCard, Moon, Sun } from 'lucide-react';
 import WathbaLogo from '../assets/wathba_logo.png';
 
 export default function AssistantLayout() {
   const { user, logout } = useAuth();
+  const { dark, toggle } = useTheme();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -15,26 +17,12 @@ export default function AssistantLayout() {
     const items = [
       { to: '/assistant', icon: LayoutDashboard, label: 'لوحة التحكم', end: true },
     ];
-
     if (user?.role === 'assistant') {
       items.push({ to: '/assistant/students', icon: Users, label: 'الطلاب' });
-
-      if (user?.can_manage_exams) {
-        items.push({ to: '/assistant/exams', icon: FileText, label: 'الاختبارات' });
-      }
-
-      if (user?.can_manage_courses) {
-        items.push({ to: '/assistant/courses', icon: BookOpen, label: 'الكورسات' });
-      }
-
-      if (user?.can_manage_payments) {
-        items.push({ to: '/assistant/payments', icon: CreditCard, label: 'المدفوعات' });
-      }
-
-      if (user?.can_view_analytics) {
-        items.push({ to: '/assistant/analytics', icon: BarChart3, label: 'التحليلات' });
-      }
-
+      if (user?.can_manage_exams) items.push({ to: '/assistant/exams', icon: FileText, label: 'الاختبارات' });
+      if (user?.can_manage_courses) items.push({ to: '/assistant/courses', icon: BookOpen, label: 'الكورسات' });
+      if (user?.can_manage_payments) items.push({ to: '/assistant/payments', icon: CreditCard, label: 'المدفوعات' });
+      if (user?.can_view_analytics) items.push({ to: '/assistant/analytics', icon: BarChart3, label: 'التحليلات' });
     }
     return items;
   }, [user]);
@@ -86,7 +74,7 @@ export default function AssistantLayout() {
   );
 
   return (
-    <div className="flex h-screen bg-navy-50 overflow-hidden">
+    <div className={`flex h-screen overflow-hidden ${dark ? 'bg-slate-900' : 'bg-navy-50'}`}>
       <aside className="hidden lg:flex w-64 bg-navy-500 flex-col flex-shrink-0">
         <Sidebar />
       </aside>
@@ -97,11 +85,16 @@ export default function AssistantLayout() {
         </div>
       )}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shadow-sm">
-          <button className="lg:hidden p-2 rounded-lg text-navy-600 hover:bg-gray-100" onClick={() => setSidebarOpen(true)}>
+        <header className={`border-b px-4 py-3 flex items-center justify-between shadow-sm ${dark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'}`}>
+          <button className={`lg:hidden p-2 rounded-lg ${dark ? 'text-slate-300 hover:bg-slate-700' : 'text-navy-600 hover:bg-gray-100'}`} onClick={() => setSidebarOpen(true)}>
             <Menu className="w-5 h-5" />
           </button>
-          <span className="text-sm text-gray-700 font-semibold">لوحة المساعد</span>
+          <span className={`text-sm font-semibold ${dark ? 'text-slate-200' : 'text-gray-700'}`}>لوحة المساعد</span>
+          <button onClick={toggle}
+            className={`p-2 rounded-lg transition-all ${dark ? 'text-yellow-400 hover:bg-slate-700' : 'text-navy-600 hover:bg-gray-100'}`}
+            title={dark ? 'الوضع الفاتح' : 'الوضع الداكن'}>
+            {dark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+          </button>
         </header>
         <main className="flex-1 overflow-y-auto p-4 lg:p-6"><Outlet /></main>
       </div>

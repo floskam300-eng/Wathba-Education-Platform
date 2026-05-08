@@ -6,6 +6,21 @@ const { authenticate, requireRole } = require('../middleware/auth');
 const router = express.Router();
 router.use(authenticate);
 
+const _cache = new Map();
+const CACHE_TTL = 5 * 60 * 1000;
+function getCached(key) {
+  const entry = _cache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > CACHE_TTL) { _cache.delete(key); return null; }
+  return entry.data;
+}
+function setCache(key, data) { _cache.set(key, { data, ts: Date.now() }); }
+function invalidateCache(teacherId) {
+  for (const k of _cache.keys()) {
+    if (k.startsWith(`t${teacherId}_`)) _cache.delete(k);
+  }
+}
+
 router.get('/dashboard', requireRole('teacher'), async (req, res) => {
   const teacherId = req.user.id;
   try {
@@ -45,6 +60,9 @@ router.put('/profile', requireRole('teacher'), async (req, res) => {
 
 router.get('/analytics', requireRole('teacher'), async (req, res) => {
   const teacherId = req.user.id;
+  const cacheKey = `t${teacherId}_analytics`;
+  const cached = getCached(cacheKey);
+  if (cached) return res.json(cached);
   try {
     const examResults = await pool.query(`
       SELECT e.title, AVG(er.score) as avg_score, COUNT(er.id) as attempt_count,
@@ -78,7 +96,9 @@ router.get('/analytics', requireRole('teacher'), async (req, res) => {
       ORDER BY er.created_at DESC LIMIT 30
     `, [teacherId]);
 
-    res.json({ examResults: examResults.rows, topStudents: topStudents.rows, recentResults: recentResults.rows });
+    const result = { examResults: examResults.rows, topStudents: topStudents.rows, recentResults: recentResults.rows };
+    setCache(cacheKey, result);
+    res.json(result);
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }
@@ -86,6 +106,9 @@ router.get('/analytics', requireRole('teacher'), async (req, res) => {
 
 router.get('/analytics/trend', requireRole('teacher'), async (req, res) => {
   const teacherId = req.user.id;
+  const cacheKey = `t${teacherId}_trend`;
+  const cached = getCached(cacheKey);
+  if (cached) return res.json(cached);
   try {
     const result = await pool.query(`
       SELECT
@@ -102,6 +125,7 @@ router.get('/analytics/trend', requireRole('teacher'), async (req, res) => {
       GROUP BY DATE_TRUNC('month', er.created_at)
       ORDER BY DATE_TRUNC('month', er.created_at) ASC
     `, [teacherId]);
+    setCache(cacheKey, result.rows);
     res.json(result.rows);
   } catch (err) {
     console.error(err);
@@ -111,6 +135,9 @@ router.get('/analytics/trend', requireRole('teacher'), async (req, res) => {
 
 router.get('/course-stats', requireRole('teacher'), async (req, res) => {
   const teacherId = req.user.id;
+  const cacheKey = `t${teacherId}_coursestats`;
+  const cached = getCached(cacheKey);
+  if (cached) return res.json(cached);
   try {
     const result = await pool.query(`
       SELECT c.id, c.name, c.target_stage,
@@ -126,6 +153,7 @@ router.get('/course-stats', requireRole('teacher'), async (req, res) => {
       GROUP BY c.id, c.name, c.target_stage
       ORDER BY enrolled_count DESC
     `, [teacherId]);
+    setCache(cacheKey, result.rows);
     res.json(result.rows);
   } catch (err) {
     console.error(err);

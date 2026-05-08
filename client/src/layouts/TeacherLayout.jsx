@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import {
   LayoutDashboard, Users, BookOpen, FileText, UserCog,
   BarChart3, CreditCard, Trophy, LogOut, Menu, MessageCircle,
-  Bell, Database, ClipboardList
+  Bell, Database, ClipboardList, Moon, Sun
 } from 'lucide-react';
 import WathbaLogo from '../assets/wathba_logo.png';
 
@@ -24,6 +25,7 @@ const navItems = [
 
 export default function TeacherLayout() {
   const { user, logout } = useAuth();
+  const { dark, toggle } = useTheme();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -83,7 +85,7 @@ export default function TeacherLayout() {
   );
 
   return (
-    <div className="flex h-screen bg-navy-50 overflow-hidden">
+    <div className={`flex h-screen overflow-hidden ${dark ? 'bg-slate-900' : 'bg-navy-50'}`}>
       <aside className="hidden lg:flex w-64 bg-navy-500 flex-col flex-shrink-0">
         <Sidebar />
       </aside>
@@ -96,13 +98,20 @@ export default function TeacherLayout() {
       )}
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="bg-white border-b border-gray-200 px-4 lg:px-6 py-3 flex items-center justify-between shadow-sm flex-shrink-0">
-          <button className="lg:hidden p-2 rounded-lg text-navy-600 hover:bg-gray-100" onClick={() => setSidebarOpen(true)}>
+        <header className={`border-b px-4 lg:px-6 py-3 flex items-center justify-between shadow-sm flex-shrink-0 ${dark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'}`}>
+          <button className={`lg:hidden p-2 rounded-lg ${dark ? 'text-slate-300 hover:bg-slate-700' : 'text-navy-600 hover:bg-gray-100'}`} onClick={() => setSidebarOpen(true)}>
             <Menu className="w-5 h-5" />
           </button>
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-green-600 rounded-full animate-pulse"></div>
-            <span className="text-sm text-gray-700 font-medium">متصل</span>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span className={`text-sm font-medium ${dark ? 'text-slate-300' : 'text-gray-700'}`}>متصل</span>
+            </div>
+            <button onClick={toggle}
+              className={`p-2 rounded-lg transition-all ${dark ? 'text-yellow-400 hover:bg-slate-700' : 'text-navy-600 hover:bg-gray-100'}`}
+              title={dark ? 'الوضع الفاتح' : 'الوضع الداكن'}>
+              {dark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </button>
           </div>
         </header>
 

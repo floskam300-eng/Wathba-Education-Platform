@@ -21,6 +21,8 @@ export default function StudentExams() {
   const [result, setResult] = useState(null);
   const [timeLeft, setTimeLeft] = useState(0);
   const [startTime, setStartTime] = useState(null);
+  const [countdown, setCountdown] = useState(null);
+  const [pendingExam, setPendingExam] = useState(null);
 
   const { data: exams = [], isLoading } = useQuery({
     queryKey: ['student-exams'],
@@ -63,6 +65,19 @@ export default function StudentExams() {
     return () => clearInterval(interval);
   }, [examData]);
 
+  /* ── Pre-exam countdown 3-2-1 ── */
+  useEffect(() => {
+    if (countdown === null) return;
+    if (countdown === 0) {
+      setCountdown(null);
+      setTaking(pendingExam);
+      setPendingExam(null);
+      return;
+    }
+    const t = setTimeout(() => setCountdown(c => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [countdown, pendingExam]);
+
   const formatTime = (secs) => {
     const m = Math.floor(secs / 60).toString().padStart(2, '0');
     const s = (secs % 60).toString().padStart(2, '0');
@@ -74,13 +89,45 @@ export default function StudentExams() {
     const status = getExamScheduleStatus(exam);
     if (status === 'upcoming') return toast.error('الاختبار لم يبدأ بعد');
     if (status === 'expired') return toast.error('انتهى وقت هذا الاختبار');
-    setAnswers({}); setResult(null); setTaking(exam);
+    setAnswers({}); setResult(null);
+    setPendingExam(exam);
+    setCountdown(3);
   };
+
+  /* ── Pre-exam countdown overlay ── */
+  if (countdown !== null) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-900/95 backdrop-blur-sm">
+        <div className="text-center">
+          <p className="text-white/60 text-lg font-bold mb-6">الاختبار سيبدأ بعد</p>
+          {countdown > 0 ? (
+            <div
+              key={countdown}
+              className="w-40 h-40 rounded-full bg-gradient-to-br from-orange-500 to-orange-700 flex items-center justify-center mx-auto shadow-2xl shadow-orange-500/40"
+              style={{ animation: 'countPop 0.4s cubic-bezier(0.34,1.56,0.64,1)' }}
+            >
+              <span className="text-7xl font-black text-white">{countdown}</span>
+            </div>
+          ) : (
+            <div className="w-40 h-40 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center mx-auto shadow-2xl shadow-green-500/40">
+              <span className="text-4xl font-black text-white">ابدأ!</span>
+            </div>
+          )}
+          <p className="text-white/40 text-sm font-medium mt-6">{pendingExam?.title}</p>
+        </div>
+        <style>{`
+          @keyframes countPop {
+            from { transform: scale(0.5); opacity: 0.3; }
+            to   { transform: scale(1);   opacity: 1; }
+          }
+        `}</style>
+      </div>
+    );
+  }
 
   if (taking && examData && !taking.already_taken) {
     const { exam, questions } = examData;
     const answered = Object.keys(answers).filter(k => answers[k]).length;
-    const mcqAndTf = questions.filter(q => q.question_type !== 'essay');
 
     return (
       <div className="h-full overflow-y-auto p-4 lg:p-6">

@@ -85,8 +85,12 @@ function FeatureCard({ icon: Icon, title, desc, color, delay }) {
 
 /* ─── Course Card ─── */
 function CourseCard({ course, index, delay }) {
-  const cover = DEMO_COVERS[index % DEMO_COVERS.length];
+  const demoCover = DEMO_COVERS[index % DEMO_COVERS.length];
+  const realCover = course.thumbnail_url
+    ? (course.thumbnail_url.startsWith('http') ? course.thumbnail_url : `/uploads/${course.thumbnail_url}`)
+    : null;
   const [imgError, setImgError] = useState(false);
+  const cover = (!imgError && realCover) ? realCover : demoCover;
   return (
     <Reveal delay={delay}
       className="group bg-white/5 border border-white/10 rounded-3xl overflow-hidden hover:border-orange-400/50 hover:-translate-y-3 transition-all duration-500 card-glow">

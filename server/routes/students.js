@@ -311,6 +311,10 @@ router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => ch
   if (!Array.isArray(students) || students.length === 0) {
     return res.status(400).json({ error: 'No students provided' });
   }
+  const MAX_BULK = 200;
+  if (students.length > MAX_BULK) {
+    return res.status(400).json({ error: `الحد الأقصى للاستيراد الجماعي هو ${MAX_BULK} طالب في المرة الواحدة` });
+  }
   const results = { success: 0, failed: 0, errors: [] };
   for (const s of students) {
     const name     = (s['الاسم'] || s['name'] || '').toString().trim();

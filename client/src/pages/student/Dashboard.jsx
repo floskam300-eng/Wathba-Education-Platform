@@ -1,7 +1,7 @@
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, FileText, Award, Star, Eye, Bell, BellOff, CheckCheck } from 'lucide-react';
+import { BookOpen, FileText, Award, Star, Eye, Bell, CheckCheck, Search, ChevronLeft } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 
@@ -47,6 +47,20 @@ export default function StudentDashboard() {
           </div>
         </div>
       </div>
+
+      {/* ── Browse available courses CTA ── */}
+      <button
+        onClick={() => navigate('/student/courses', { state: { tab: 'browse' } })}
+        className="w-full flex items-center gap-4 p-4 rounded-2xl bg-gradient-to-l from-orange-500/10 to-orange-400/5 border border-orange-300/40 hover:border-orange-400/70 hover:from-orange-500/15 transition-all duration-300 group">
+        <div className="w-12 h-12 rounded-xl bg-orange-500/20 flex items-center justify-center flex-shrink-0 group-hover:bg-orange-500/30 transition-colors">
+          <Search className="w-6 h-6 text-orange-500" />
+        </div>
+        <div className="flex-1 text-right">
+          <p className="font-black text-navy-600 text-sm">تصفح الكورسات المتاحة</p>
+          <p className="text-xs text-gray-500 mt-0.5">اكتشف الكورسات وانضم قبل الشراء</p>
+        </div>
+        <ChevronLeft className="w-5 h-5 text-orange-400 group-hover:-translate-x-1 transition-transform" />
+      </button>
 
       <div className="grid grid-cols-3 gap-4">
         {[

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, BookOpen, FileText, Trophy, LogOut, Menu, BarChart2 } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
+import { LayoutDashboard, BookOpen, FileText, Trophy, LogOut, Menu, BarChart2, Moon, Sun } from 'lucide-react';
 import WathbaLogo from '../assets/wathba_logo.png';
 
 const navItems = [
@@ -14,6 +15,7 @@ const navItems = [
 
 export default function StudentLayout() {
   const { user, logout } = useAuth();
+  const { dark, toggle } = useTheme();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -66,7 +68,7 @@ export default function StudentLayout() {
   );
 
   return (
-    <div className="flex h-screen bg-navy-50 overflow-hidden">
+    <div className={`flex h-screen overflow-hidden ${dark ? 'bg-slate-900' : 'bg-navy-50'}`}>
       <aside className="hidden lg:flex w-64 bg-navy-500 flex-col flex-shrink-0">
         <Sidebar />
       </aside>
@@ -77,11 +79,16 @@ export default function StudentLayout() {
         </div>
       )}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shadow-sm">
-          <button className="lg:hidden p-2 rounded-lg text-navy-600 hover:bg-gray-100" onClick={() => setSidebarOpen(true)}>
+        <header className={`border-b px-4 py-3 flex items-center justify-between shadow-sm ${dark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'}`}>
+          <button className={`lg:hidden p-2 rounded-lg ${dark ? 'text-slate-300 hover:bg-slate-700' : 'text-navy-600 hover:bg-gray-100'}`} onClick={() => setSidebarOpen(true)}>
             <Menu className="w-5 h-5" />
           </button>
-          <span className="text-sm text-gray-700 font-semibold">مرحباً {user?.name} 👋</span>
+          <span className={`text-sm font-semibold ${dark ? 'text-slate-200' : 'text-gray-700'}`}>مرحباً {user?.name} 👋</span>
+          <button onClick={toggle}
+            className={`p-2 rounded-lg transition-all ${dark ? 'text-yellow-400 hover:bg-slate-700' : 'text-navy-600 hover:bg-gray-100'}`}
+            title={dark ? 'الوضع الفاتح' : 'الوضع الداكن'}>
+            {dark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+          </button>
         </header>
         <main className="flex-1 overflow-hidden"><Outlet /></main>
       </div>

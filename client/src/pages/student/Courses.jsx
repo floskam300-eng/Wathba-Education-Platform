@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   BookOpen, Video, FileText, GraduationCap, Filter,
   Play, ChevronRight, Lock, Search, Bell, CheckCircle,
@@ -30,10 +30,18 @@ function RequestStatusBadge({ status }) {
 export default function StudentCourses() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const qc = useQueryClient();
   const [tab, setTab] = useState('enrolled');
   const [stageFilter, setStageFilter] = useState('الكل');
   const [requestMsg, setRequestMsg] = useState({});
+
+  useEffect(() => {
+    if (location.state?.tab) {
+      setTab(location.state.tab);
+      window.history.replaceState({}, '');
+    }
+  }, [location.state]);
 
   const { data: courses = [], isLoading } = useQuery({
     queryKey: ['student-courses'],
