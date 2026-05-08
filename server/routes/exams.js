@@ -212,4 +212,56 @@ router.get('/results/:resultId', authenticate, async (req, res) => {
   }
 });
 
+// ── Full exam review: questions + student answers ──
+router.get('/results/:resultId/review', authenticate, async (req, res) => {
+  try {
+    const resultRes = await pool.query(
+      `SELECT er.*, s.name as student_name, s.id as sid,
+              e.title as exam_title, e.total_score, e.pass_score, e.id as exam_id
+       FROM exam_results er
+       JOIN students s ON er.student_id = s.id
+       JOIN exams e    ON er.exam_id    = e.id
+       WHERE er.id = $1`,
+      [req.params.resultId]
+    );
+    if (!resultRes.rows.length) return res.status(404).json({ error: 'Result not found' });
+    const row = resultRes.rows[0];
+
+    // Access control: student can only see own results; teacher/assistant must own the exam
+    if (req.user.role === 'student') {
+      if (row.sid !== req.user.id) return res.status(403).json({ error: 'Access denied' });
+    } else {
+      const teacherId = getTeacherId(req);
+      const owns = await pool.query('SELECT id FROM exams WHERE id=$1 AND teacher_id=$2', [row.exam_id, teacherId]);
+      if (!owns.rows.length) return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const questionsRes = await pool.query(
+      'SELECT * FROM questions WHERE exam_id=$1 ORDER BY id',
+      [row.exam_id]
+    );
+
+    // Parse stored answers array
+    let storedAnswers = [];
+    try { storedAnswers = typeof row.answers === 'string' ? JSON.parse(row.answers) : (row.answers || []); } catch (_) {}
+    const answerMap = {};
+    storedAnswers.forEach(a => { answerMap[a.question_id] = a; });
+
+    const questions = questionsRes.rows.map(q => ({
+      ...q,
+      student_answer:  answerMap[q.id]?.student_answer  || null,
+      correct_answer:  q.correct_answer_letter,
+      is_correct:      answerMap[q.id]?.is_correct      || false,
+    }));
+
+    res.json({
+      result: { ...row, answers: undefined },
+      questions,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;

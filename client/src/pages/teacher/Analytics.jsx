@@ -11,6 +11,7 @@ import {
 } from 'recharts';
 import api from '../../lib/api';
 import StudentProfileModal from '../../components/ui/StudentProfileModal';
+import ExamReviewModal from '../../components/ui/ExamReviewModal';
 
 const CHART_COLORS = ['#1A2E4A', '#FF8C00', '#6366f1', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'];
 const STAGES = ['الكل', 'الصف الأول الثانوي', 'الصف الثاني الثانوي', 'الصف الثالث الثانوي', 'الصف الأول الإعدادي', 'الصف الثاني الإعدادي', 'الصف الثالث الإعدادي', 'جامعي'];
@@ -60,6 +61,7 @@ export default function TeacherAnalytics() {
   const [sortField, setSortField]     = useState('points');
   const [sortDir, setSortDir]         = useState('desc');
   const [selectedStudentId, setSelectedStudentId] = useState(null);
+  const [reviewResultId, setReviewResultId]       = useState(null);
 
   // Search + extra filters state
   const [searchQuery, setSearchQuery]   = useState('');
@@ -167,6 +169,9 @@ export default function TeacherAnalytics() {
     <div className="space-y-6">
       {selectedStudentId && (
         <StudentProfileModal studentId={selectedStudentId} onClose={() => setSelectedStudentId(null)} />
+      )}
+      {reviewResultId && (
+        <ExamReviewModal resultId={reviewResultId} onClose={() => setReviewResultId(null)} />
       )}
 
       {/* Page Title */}
@@ -466,10 +471,10 @@ export default function TeacherAnalytics() {
           </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[680px]">
+          <table className="w-full min-w-[740px]">
             <thead>
               <tr className="bg-gray-50/50">
-                {['الطالب', 'المرحلة', 'الاختبار', 'الدرجة', 'صواب', 'خطأ', 'التاريخ'].map(h => (
+                {['الطالب', 'المرحلة', 'الاختبار', 'الدرجة', 'صواب', 'خطأ', 'التاريخ', ''].map(h => (
                   <th key={h} className="px-4 py-3 text-right text-[11px] font-black text-gray-500">{h}</th>
                 ))}
               </tr>
@@ -507,11 +512,18 @@ export default function TeacherAnalytics() {
                     <td className="px-4 py-3.5 text-gray-400 text-xs font-medium whitespace-nowrap">
                       {new Date(r.created_at).toLocaleDateString('ar-EG', { day: '2-digit', month: 'short' })}
                     </td>
+                    <td className="px-4 py-3.5">
+                      <button
+                        onClick={() => setReviewResultId(r.id)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-colors border border-indigo-200 whitespace-nowrap">
+                        <Eye className="w-3.5 h-3.5" /> مراجعة
+                      </button>
+                    </td>
                   </tr>
                 );
               }) : (
                 <tr>
-                  <td colSpan={7} className="py-14 text-center">
+                  <td colSpan={8} className="py-14 text-center">
                     <Clock className="w-10 h-10 mx-auto mb-2 text-gray-200" />
                     <p className="text-gray-400 font-medium text-sm">لا توجد نتائج مطابقة</p>
                   </td>

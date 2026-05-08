@@ -3,10 +3,11 @@ import { useQuery } from '@tanstack/react-query';
 import {
   BarChart2, BookOpen, FileText, Award, Star, CreditCard,
   CheckCircle, XCircle, Clock, Play, TrendingUp, Trophy,
-  Calendar, Video, Target, Wallet, AlertCircle, ChevronDown, ChevronUp
+  Calendar, Video, Target, Wallet, AlertCircle, ChevronDown, ChevronUp, Eye
 } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
+import ExamReviewModal from '../../components/ui/ExamReviewModal';
 
 const fmt = (n) => new Intl.NumberFormat('ar-EG').format(n);
 const fmtDate = (d) => new Date(d).toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' });
@@ -86,8 +87,12 @@ function ProgressRing({ value, max, size = 80, stroke = 8, color = '#f97316' }) 
   );
 }
 
+const EXAMS_PAGE = 3;
+
 export default function StudentMyStats() {
   const { user } = useAuth();
+  const [reviewResultId, setReviewResultId] = useState(null);
+  const [showAllExams, setShowAllExams]     = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['student-my-stats'],
@@ -110,6 +115,9 @@ export default function StudentMyStats() {
 
   return (
     <div className="h-full overflow-y-auto p-4 lg:p-6">
+      {reviewResultId && (
+        <ExamReviewModal resultId={reviewResultId} onClose={() => setReviewResultId(null)} />
+      )}
       <div className="space-y-5 max-w-4xl mx-auto">
 
         {/* ── Hero ── */}
@@ -214,42 +222,60 @@ export default function StudentMyStats() {
           {examResults.length === 0 ? (
             <p className="text-gray-500 text-sm text-center py-6">لم تؤدِ أي امتحانات بعد</p>
           ) : (
-            <div className="space-y-3 pt-1">
-              {examResults.map(r => {
-                const pct = Math.round((r.score / r.total_score) * 100);
-                const passed = r.score >= r.pass_score;
-                return (
-                  <div key={r.id} className={`rounded-xl border-2 p-4 ${passed ? 'border-green-200 bg-green-50/50' : 'border-red-200 bg-red-50/50'}`}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-navy-700 text-sm leading-tight">{r.exam_title}</p>
-                        {r.course_name && <p className="text-xs text-gray-500 font-medium mt-0.5">{r.course_name}</p>}
-                        <div className="flex flex-wrap gap-3 mt-2 text-xs font-semibold text-gray-600">
-                          <span className="flex items-center gap-1"><CheckCircle className="w-3.5 h-3.5 text-green-600" /> {r.correct_count} صواب</span>
-                          <span className="flex items-center gap-1"><XCircle className="w-3.5 h-3.5 text-red-500" /> {r.wrong_count} خطأ</span>
-                          {r.unanswered_count > 0 && <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-gray-400" /> {r.unanswered_count} بدون إجابة</span>}
-                          {r.points_earned > 0 && <span className="text-orange-600">+{r.points_earned} نقطة ⭐</span>}
+            <>
+              <div className="space-y-3 pt-1">
+                {(showAllExams ? examResults : examResults.slice(0, EXAMS_PAGE)).map(r => {
+                  const passed = r.score >= r.pass_score;
+                  return (
+                    <div key={r.id} className={`rounded-xl border-2 p-4 ${passed ? 'border-green-200 bg-green-50/50' : 'border-red-200 bg-red-50/50'}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-navy-700 text-sm leading-tight">{r.exam_title}</p>
+                          {r.course_name && <p className="text-xs text-gray-500 font-medium mt-0.5">{r.course_name}</p>}
+                          <div className="flex flex-wrap gap-3 mt-2 text-xs font-semibold text-gray-600">
+                            <span className="flex items-center gap-1"><CheckCircle className="w-3.5 h-3.5 text-green-600" /> {r.correct_count} صواب</span>
+                            <span className="flex items-center gap-1"><XCircle className="w-3.5 h-3.5 text-red-500" /> {r.wrong_count} خطأ</span>
+                            {r.unanswered_count > 0 && <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-gray-400" /> {r.unanswered_count} بدون إجابة</span>}
+                            {r.points_earned > 0 && <span className="text-orange-600">+{r.points_earned} نقطة ⭐</span>}
+                          </div>
+                        </div>
+                        <div className="text-center flex-shrink-0">
+                          <p className={`text-2xl font-black ${passed ? 'text-green-700' : 'text-red-600'}`}>{r.score}<span className="text-sm font-semibold text-gray-400">/{r.total_score}</span></p>
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${passed ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-700'}`}>
+                            {passed ? '✓ ناجح' : '✗ راسب'}
+                          </span>
                         </div>
                       </div>
-                      <div className="text-center flex-shrink-0">
-                        <p className={`text-2xl font-black ${passed ? 'text-green-700' : 'text-red-600'}`}>{r.score}<span className="text-sm font-semibold text-gray-400">/{r.total_score}</span></p>
-                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${passed ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-700'}`}>
-                          {passed ? '✓ ناجح' : '✗ راسب'}
-                        </span>
+                      <ScoreBar score={r.score} total={r.total_score} passScore={r.pass_score} />
+                      <div className="flex items-center justify-between mt-3">
+                        <p className="text-xs text-gray-400">{fmtDate(r.created_at)}</p>
+                        <div className="flex items-center gap-2">
+                          {r.badge_name && (
+                            <span className="text-xs font-bold px-2 py-0.5 rounded-full text-white"
+                              style={{ backgroundColor: r.badge_color || '#f97316' }}>🏅 {r.badge_name}</span>
+                          )}
+                          <button
+                            onClick={() => setReviewResultId(r.id)}
+                            className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-navy-50 hover:bg-navy-100 text-navy-700 text-xs font-bold transition-colors border border-navy-200">
+                            <Eye className="w-3.5 h-3.5" /> مراجعة
+                          </button>
+                        </div>
                       </div>
                     </div>
-                    <ScoreBar score={r.score} total={r.total_score} passScore={r.pass_score} />
-                    <div className="flex items-center justify-between mt-2">
-                      <p className="text-xs text-gray-400">{fmtDate(r.created_at)}</p>
-                      {r.badge_name && (
-                        <span className="text-xs font-bold px-2 py-0.5 rounded-full text-white"
-                          style={{ backgroundColor: r.badge_color || '#f97316' }}>🏅 {r.badge_name}</span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+
+              {examResults.length > EXAMS_PAGE && (
+                <button
+                  onClick={() => setShowAllExams(v => !v)}
+                  className="mt-3 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-gray-200 text-gray-500 text-sm font-bold hover:border-orange-300 hover:text-orange-600 hover:bg-orange-50/50 transition-all">
+                  {showAllExams
+                    ? <><ChevronUp className="w-4 h-4" /> عرض أقل</>
+                    : <><ChevronDown className="w-4 h-4" /> عرض المزيد ({examResults.length - EXAMS_PAGE} اختبار آخر)</>}
+                </button>
+              )}
+            </>
           )}
         </Section>
 
