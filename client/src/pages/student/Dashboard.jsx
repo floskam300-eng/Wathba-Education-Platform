@@ -1,11 +1,13 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { BookOpen, FileText, Award, Star } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { BookOpen, FileText, Award, Star, Eye } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 
 export default function StudentDashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const { data, isLoading } = useQuery({
     queryKey: ['student-dashboard'],
@@ -72,18 +74,26 @@ export default function StudentDashboard() {
           {isLoading ? (
             [...Array(3)].map((_, i) => <div key={i} className="h-14 bg-gray-100 animate-pulse rounded-xl" />)
           ) : data?.recentResults?.length > 0 ? data.recentResults.map(r => (
-            <div key={r.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-              <div>
-                <p className="font-semibold text-navy-600 text-sm">{r.exam_title}</p>
-                {/* gray-600 on gray-50 = 5.9:1 ✓ */}
+            <div key={r.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-orange-50/50 transition-colors group">
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-navy-600 text-sm truncate">{r.exam_title}</p>
                 <p className="text-xs text-gray-600 font-medium mt-0.5">{new Date(r.created_at).toLocaleDateString('ar-EG')}</p>
               </div>
-              <div className="text-left">
-                <p className={`text-lg font-black ${r.score >= r.pass_score ? 'text-green-700' : 'text-red-700'}`}>{r.score}/{r.total_score}</p>
-                {/* green-700/red-700 on white = 7.2:1 / 7.4:1 ✓ */}
-                <p className={`text-xs font-bold ${r.score >= r.pass_score ? 'text-green-700' : 'text-red-700'}`}>
-                  {r.score >= r.pass_score ? '✓ ناجح' : '✗ راسب'}
-                </p>
+              <div className="flex items-center gap-3 flex-shrink-0">
+                <div className="text-left">
+                  <p className={`text-lg font-black ${r.score >= r.pass_score ? 'text-green-700' : 'text-red-700'}`}>{r.score}/{r.total_score}</p>
+                  <p className={`text-xs font-bold ${r.score >= r.pass_score ? 'text-green-700' : 'text-red-700'}`}>
+                    {r.score >= r.pass_score ? '✓ ناجح' : '✗ راسب'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => navigate(`/student/exam-review/${r.id}`)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-navy-600 hover:bg-navy-700 text-white text-xs font-bold rounded-lg transition-colors shadow-sm"
+                  title="مراجعة الإجابات"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  مراجعة
+                </button>
               </div>
             </div>
           )) : (

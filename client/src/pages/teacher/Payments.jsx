@@ -7,7 +7,12 @@ import api from '../../lib/api';
 import toast from 'react-hot-toast';
 import { generatePDFReport } from '../../lib/pdfReport';
 
-const METHOD_LABELS = { 'Vodafone Cash': '📱 فودافون كاش', 'Instapay': '💳 إنستاباي' };
+const METHOD_LABELS = {
+  'Vodafone Cash': '📱 فودافون كاش',
+  'Instapay': '💳 إنستاباي',
+  'Cash': '💵 كاش',
+  'Bank Transfer': '🏦 تحويل بنكي',
+};
 const STATUS_MAP = {
   pending:  { label: 'قيد الانتظار', variant: 'warning' },
   verified: { label: 'مؤكدة',        variant: 'success' },
@@ -196,6 +201,8 @@ export default function TeacherPayments() {
               <select value={form.method} onChange={e => setForm({ ...form, method: e.target.value })} className="input-field">
                 <option value="Vodafone Cash">فودافون كاش</option>
                 <option value="Instapay">إنستاباي</option>
+                <option value="Cash">كاش</option>
+                <option value="Bank Transfer">تحويل بنكي</option>
               </select>
             </div>
           </div>

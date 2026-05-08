@@ -1,6 +1,7 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Users, BookOpen, FileText, UserCog, TrendingUp } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Users, BookOpen, FileText, UserCog, TrendingUp, Eye } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import StatCard from '../../components/ui/StatCard';
 import api from '../../lib/api';
@@ -8,6 +9,7 @@ import { useAuth } from '../../context/AuthContext';
 
 export default function TeacherDashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['teacher-dashboard'],
@@ -153,21 +155,21 @@ export default function TeacherDashboard() {
           آخر النتائج
         </h2>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[500px]">
+          <table className="w-full min-w-[560px]">
             <thead>
               <tr>
                 <th className="table-header rounded-r-lg">الطالب</th>
                 <th className="table-header">الاختبار</th>
                 <th className="table-header">الدرجة</th>
                 <th className="table-header">الصواب</th>
-                <th className="table-header rounded-l-lg">الخطأ</th>
+                <th className="table-header">الخطأ</th>
+                <th className="table-header rounded-l-lg"></th>
               </tr>
             </thead>
             <tbody>
               {analytics?.recentResults?.slice(0, 8).map((r) => (
-                <tr key={r.id} className="table-row">
+                <tr key={r.id} className="table-row group">
                   <td className="table-cell font-semibold text-navy-700">{r.student_name}</td>
-                  {/* gray-700 on white = 10:1 ✓ */}
                   <td className="table-cell text-gray-700">{r.exam_title}</td>
                   <td className="table-cell">
                     <span className={`font-bold ${r.score >= r.pass_score ? 'text-green-700' : 'text-red-700'}`}>
@@ -176,9 +178,19 @@ export default function TeacherDashboard() {
                   </td>
                   <td className="table-cell text-green-700 font-semibold">✓ {r.correct_count}</td>
                   <td className="table-cell text-red-700 font-semibold">✗ {r.wrong_count}</td>
+                  <td className="table-cell">
+                    <button
+                      onClick={() => navigate(`/teacher/exam-review/${r.id}`)}
+                      className="flex items-center gap-1.5 px-2.5 py-1 bg-navy-50 hover:bg-navy-600 text-navy-600 hover:text-white text-xs font-bold rounded-lg transition-all opacity-0 group-hover:opacity-100 border border-navy-200 hover:border-navy-600"
+                      title="مراجعة إجابات الطالب"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      مراجعة
+                    </button>
+                  </td>
                 </tr>
               )) || (
-                  <tr><td colSpan={5} className="table-cell text-center text-gray-600 py-8">لا توجد نتائج بعد</td></tr>
+                  <tr><td colSpan={6} className="table-cell text-center text-gray-600 py-8">لا توجد نتائج بعد</td></tr>
                 )}
             </tbody>
           </table>
