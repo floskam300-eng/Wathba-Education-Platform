@@ -71,6 +71,15 @@ export default function AssistantAnalytics() {
   const [perfFilter, setPerfFilter]     = useState('الكل');
   const [showFilters, setShowFilters]   = useState(false);
 
+  // Results section independent filters
+  const [resultsSearch, setResultsSearch]         = useState('');
+  const [resultsExamFilter, setResultsExamFilter] = useState('الكل');
+  const [resultsStatus, setResultsStatus]         = useState('الكل');
+  const [resultsPage, setResultsPage]             = useState(10);
+
+  // Students pagination
+  const [studentsPage, setStudentsPage] = useState(10);
+
   const { data, isLoading, isError } = useQuery({
     queryKey: ['assistant-analytics'],
     queryFn: () => api.get('/assistants/analytics').then(r => r.data),
@@ -140,12 +149,23 @@ export default function AssistantAnalytics() {
   const filteredResults = useMemo(() => {
     let list = data?.recentResults || [];
     if (stageFilter !== 'الكل') list = list.filter(r => r.academic_stage === stageFilter);
-    if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
-      list = list.filter(r => r.student_name?.toLowerCase().includes(q));
+    if (resultsSearch.trim()) {
+      const q = resultsSearch.trim().toLowerCase();
+      list = list.filter(r =>
+        r.student_name?.toLowerCase().includes(q) ||
+        r.exam_title?.toLowerCase().includes(q)
+      );
     }
+    if (resultsExamFilter !== 'الكل') list = list.filter(r => r.exam_title === resultsExamFilter);
+    if (resultsStatus === 'ناجح')  list = list.filter(r => r.score >= r.pass_score);
+    if (resultsStatus === 'راسب') list = list.filter(r => r.score < r.pass_score);
     return list;
-  }, [data, stageFilter, searchQuery]);
+  }, [data, stageFilter, resultsSearch, resultsExamFilter, resultsStatus]);
+
+  const examOptions = useMemo(() => {
+    const titles = [...new Set((data?.recentResults || []).map(r => r.exam_title).filter(Boolean))];
+    return ['الكل', ...titles];
+  }, [data]);
 
   const activeFiltersCount = [
     genderFilter !== 'الكل',
@@ -397,7 +417,7 @@ export default function AssistantAnalytics() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {filteredStudents.length > 0 ? filteredStudents.map((s, i) => {
+              {filteredStudents.length > 0 ? filteredStudents.slice(0, studentsPage).map((s, i) => {
                 const avg = Math.round(parseFloat(s.avg_score) || 0);
                 const rankColors = ['from-yellow-400 to-yellow-500', 'from-gray-300 to-gray-400', 'from-orange-400 to-orange-500'];
                 return (
@@ -449,24 +469,97 @@ export default function AssistantAnalytics() {
             </tbody>
           </table>
         </div>
+        {filteredStudents.length > studentsPage && (
+          <div className="px-5 py-4 border-t border-gray-50 flex items-center justify-between">
+            <p className="text-xs text-gray-400 font-medium">
+              يُعرض <span className="font-black text-gray-600">{Math.min(studentsPage, filteredStudents.length)}</span> من <span className="font-black text-gray-600">{filteredStudents.length}</span> طالب
+            </p>
+            <button
+              onClick={() => setStudentsPage(p => p + 10)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold transition-colors border border-emerald-200">
+              <ChevronDown className="w-4 h-4" /> عرض المزيد
+            </button>
+          </div>
+        )}
+        {filteredStudents.length > 0 && filteredStudents.length <= studentsPage && studentsPage > 10 && (
+          <div className="px-5 py-3 border-t border-gray-50 text-center">
+            <p className="text-xs text-gray-400 font-medium">تم عرض جميع الطلاب ({filteredStudents.length})</p>
+          </div>
+        )}
       </div>
 
       {/* Recent Results */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="p-5 border-b border-gray-50">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center">
-              <Award className="w-4 h-4 text-purple-500" />
-            </div>
-            <div>
-              <h2 className="font-black text-gray-800 text-sm">آخر النتائج</h2>
-              <p className="text-[11px] text-gray-400">
-                {filteredResults.length} نتيجة
-                {stageFilter !== 'الكل' && <span className="text-orange-500 mr-1">· {stageFilter}</span>}
-              </p>
+        {/* Results header + filters */}
+        <div className="p-5 border-b border-gray-50 space-y-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center">
+                <Award className="w-4 h-4 text-purple-500" />
+              </div>
+              <div>
+                <h2 className="font-black text-gray-800 text-sm">آخر النتائج</h2>
+                <p className="text-[11px] text-gray-400">
+                  يُعرض <span className="font-black text-gray-600">{Math.min(resultsPage, filteredResults.length)}</span> من <span className="font-black text-gray-600">{filteredResults.length}</span> نتيجة
+                  {stageFilter !== 'الكل' && <span className="text-orange-500 mr-1">· {stageFilter}</span>}
+                </p>
+              </div>
             </div>
           </div>
+
+          {/* Results search + filters */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative flex-1 min-w-[180px]">
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+              <input
+                type="text"
+                value={resultsSearch}
+                onChange={e => { setResultsSearch(e.target.value); setResultsPage(10); }}
+                placeholder="ابحث باسم الطالب أو الاختبار..."
+                className="w-full pr-8 pl-3 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 placeholder-gray-400 focus:outline-none focus:border-purple-300 focus:ring-2 focus:ring-purple-100 transition"
+              />
+              {resultsSearch && (
+                <button onClick={() => { setResultsSearch(''); setResultsPage(10); }}
+                  className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  <XIcon className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            <select
+              value={resultsExamFilter}
+              onChange={e => { setResultsExamFilter(e.target.value); setResultsPage(10); }}
+              className="px-3 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-600 focus:outline-none focus:border-purple-300 focus:ring-2 focus:ring-purple-100 transition bg-white cursor-pointer max-w-[180px]">
+              {examOptions.map(opt => (
+                <option key={opt} value={opt}>{opt}</option>
+              ))}
+            </select>
+
+            <div className="flex gap-1.5">
+              {['الكل', 'ناجح', 'راسب'].map(s => (
+                <button key={s} onClick={() => { setResultsStatus(s); setResultsPage(10); }}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all border ${
+                    resultsStatus === s
+                      ? s === 'ناجح' ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm'
+                        : s === 'راسب' ? 'bg-red-500 border-red-500 text-white shadow-sm'
+                        : 'bg-purple-500 border-purple-500 text-white shadow-sm'
+                      : 'border-gray-200 text-gray-500 hover:border-gray-300 bg-white'
+                  }`}>
+                  {s === 'ناجح' ? '✓ ناجح' : s === 'راسب' ? '✗ راسب' : 'الكل'}
+                </button>
+              ))}
+            </div>
+
+            {(resultsSearch || resultsExamFilter !== 'الكل' || resultsStatus !== 'الكل') && (
+              <button
+                onClick={() => { setResultsSearch(''); setResultsExamFilter('الكل'); setResultsStatus('الكل'); setResultsPage(10); }}
+                className="flex items-center gap-1 px-2.5 py-2 rounded-xl border border-red-200 text-red-500 text-xs font-bold hover:bg-red-50 transition">
+                <XIcon className="w-3 h-3" /> مسح
+              </button>
+            )}
+          </div>
         </div>
+
         <div className="overflow-x-auto">
           <table className="w-full min-w-[740px]">
             <thead>
@@ -477,7 +570,7 @@ export default function AssistantAnalytics() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {filteredResults.length > 0 ? filteredResults.map(r => {
+              {filteredResults.length > 0 ? filteredResults.slice(0, resultsPage).map(r => {
                 const passed = r.score >= r.pass_score;
                 const pct = Math.min(Math.round((r.score / Math.max(r.total_score, 1)) * 100), 100);
                 return (
@@ -529,6 +622,23 @@ export default function AssistantAnalytics() {
             </tbody>
           </table>
         </div>
+        {filteredResults.length > resultsPage && (
+          <div className="px-5 py-4 border-t border-gray-50 flex items-center justify-between">
+            <p className="text-xs text-gray-400 font-medium">
+              يُعرض <span className="font-black text-gray-600">{Math.min(resultsPage, filteredResults.length)}</span> من <span className="font-black text-gray-600">{filteredResults.length}</span> نتيجة
+            </p>
+            <button
+              onClick={() => setResultsPage(p => p + 10)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold transition-colors border border-purple-200">
+              <ChevronDown className="w-4 h-4" /> عرض المزيد
+            </button>
+          </div>
+        )}
+        {filteredResults.length > 0 && filteredResults.length <= resultsPage && resultsPage > 10 && (
+          <div className="px-5 py-3 border-t border-gray-50 text-center">
+            <p className="text-xs text-gray-400 font-medium">تم عرض جميع النتائج ({filteredResults.length})</p>
+          </div>
+        )}
       </div>
     </div>
   );
