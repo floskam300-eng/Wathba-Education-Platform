@@ -77,12 +77,13 @@ router.get('/', requireRole('teacher', 'assistant'), async (req, res) => {
 });
 
 // ── Create course ──
-router.post('/', requireRole('teacher'), async (req, res) => {
+router.post('/', requireRole('teacher', 'assistant'), async (req, res) => {
+  const teacherId = getTeacherId(req);
   const { name, description, price, thumbnail_url, target_stage } = req.body;
   try {
     const result = await pool.query(
       'INSERT INTO courses (name,description,price,thumbnail_url,teacher_id,target_stage) VALUES($1,$2,$3,$4,$5,$6) RETURNING *',
-      [name, description, price || 0, thumbnail_url, req.user.id, target_stage || null]
+      [name, description, price || 0, thumbnail_url, teacherId, target_stage || null]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -90,13 +91,14 @@ router.post('/', requireRole('teacher'), async (req, res) => {
   }
 });
 
-// ── Update course (scoped by teacher_id in WHERE) ──
-router.put('/:id', requireRole('teacher'), async (req, res) => {
+// ── Update course ──
+router.put('/:id', requireRole('teacher', 'assistant'), async (req, res) => {
+  const teacherId = getTeacherId(req);
   const { name, description, price, thumbnail_url, target_stage } = req.body;
   try {
     const result = await pool.query(
       'UPDATE courses SET name=$1,description=$2,price=$3,thumbnail_url=$4,target_stage=$5 WHERE id=$6 AND teacher_id=$7 RETURNING *',
-      [name, description, price, thumbnail_url, target_stage || null, req.params.id, req.user.id]
+      [name, description, price, thumbnail_url, target_stage || null, req.params.id, teacherId]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Course not found' });
     res.json(result.rows[0]);
@@ -105,10 +107,11 @@ router.put('/:id', requireRole('teacher'), async (req, res) => {
   }
 });
 
-// ── Delete course (scoped by teacher_id in WHERE) ──
-router.delete('/:id', requireRole('teacher'), async (req, res) => {
+// ── Delete course ──
+router.delete('/:id', requireRole('teacher', 'assistant'), async (req, res) => {
+  const teacherId = getTeacherId(req);
   try {
-    const result = await pool.query('DELETE FROM courses WHERE id=$1 AND teacher_id=$2 RETURNING id', [req.params.id, req.user.id]);
+    const result = await pool.query('DELETE FROM courses WHERE id=$1 AND teacher_id=$2 RETURNING id', [req.params.id, teacherId]);
     if (!result.rows.length) return res.status(404).json({ error: 'Course not found' });
     res.json({ message: 'Course deleted' });
   } catch (err) {
@@ -346,6 +349,119 @@ router.get('/student/my-courses', requireRole('student'), async (req, res) => {
     );
     res.json(result.rows);
   } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── Student: browse all available courses (with enrollment/request status) ──
+router.get('/student/available-all', requireRole('student'), async (req, res) => {
+  try {
+    const teacherRes = await pool.query('SELECT teacher_id FROM students WHERE id=$1', [req.user.id]);
+    if (!teacherRes.rows.length) return res.status(404).json({ error: 'Student not found' });
+    const teacherId = teacherRes.rows[0].teacher_id;
+
+    const result = await pool.query(
+      `SELECT c.*,
+              COUNT(DISTINCT v.id) as video_count, COUNT(DISTINCT p.id) as pdf_count,
+              sce.student_id IS NOT NULL as is_enrolled,
+              cer.status as request_status, cer.id as request_id
+       FROM courses c
+       LEFT JOIN videos v ON c.id = v.course_id
+       LEFT JOIN pdf_files p ON c.id = p.course_id
+       LEFT JOIN student_course_enrollment sce ON c.id = sce.course_id AND sce.student_id = $1
+       LEFT JOIN course_enrollment_requests cer ON c.id = cer.course_id AND cer.student_id = $1
+       WHERE c.teacher_id = $2
+       GROUP BY c.id, sce.student_id, cer.status, cer.id
+       ORDER BY c.created_at DESC`,
+      [req.user.id, teacherId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── Student: request enrollment in a course ──
+router.post('/student/request/:courseId', requireRole('student'), async (req, res) => {
+  const { message } = req.body;
+  try {
+    const teacherRes = await pool.query('SELECT teacher_id FROM students WHERE id=$1', [req.user.id]);
+    if (!teacherRes.rows.length) return res.status(404).json({ error: 'Student not found' });
+    const teacherId = teacherRes.rows[0].teacher_id;
+
+    const courseCheck = await pool.query('SELECT id FROM courses WHERE id=$1 AND teacher_id=$2', [req.params.courseId, teacherId]);
+    if (!courseCheck.rows.length) return res.status(403).json({ error: 'Course not available' });
+
+    const enrolled = await pool.query('SELECT id FROM student_course_enrollment WHERE student_id=$1 AND course_id=$2', [req.user.id, req.params.courseId]);
+    if (enrolled.rows.length) return res.status(409).json({ error: 'Already enrolled' });
+
+    const result = await pool.query(
+      `INSERT INTO course_enrollment_requests (student_id, course_id, message)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (student_id, course_id) DO UPDATE SET status='pending', message=EXCLUDED.message
+       RETURNING *`,
+      [req.user.id, req.params.courseId, message || null]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── Teacher: list enrollment requests ──
+router.get('/enrollment-requests', requireRole('teacher', 'assistant'), async (req, res) => {
+  const teacherId = getTeacherId(req);
+  try {
+    const result = await pool.query(
+      `SELECT cer.*, s.name as student_name, s.academic_stage, s.phone,
+              c.name as course_name
+       FROM course_enrollment_requests cer
+       JOIN students s ON cer.student_id = s.id
+       JOIN courses c ON cer.course_id = c.id
+       WHERE c.teacher_id = $1
+       ORDER BY cer.created_at DESC`,
+      [teacherId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── Teacher: approve or reject enrollment request ──
+router.put('/enrollment-requests/:id', requireRole('teacher', 'assistant'), async (req, res) => {
+  const teacherId = getTeacherId(req);
+  const { action } = req.body; // 'approve' | 'reject'
+  try {
+    const reqRes = await pool.query(
+      `SELECT cer.* FROM course_enrollment_requests cer
+       JOIN courses c ON cer.course_id = c.id
+       WHERE cer.id = $1 AND c.teacher_id = $2`,
+      [req.params.id, teacherId]
+    );
+    if (!reqRes.rows.length) return res.status(404).json({ error: 'Request not found' });
+    const enrReq = reqRes.rows[0];
+
+    if (action === 'approve') {
+      await pool.query(
+        'INSERT INTO student_course_enrollment (student_id, course_id) VALUES($1,$2) ON CONFLICT DO NOTHING',
+        [enrReq.student_id, enrReq.course_id]
+      );
+      await pool.query(
+        'UPDATE course_enrollment_requests SET status=$1, handled_at=NOW() WHERE id=$2',
+        ['approved', req.params.id]
+      );
+    } else {
+      await pool.query(
+        'UPDATE course_enrollment_requests SET status=$1, handled_at=NOW() WHERE id=$2',
+        ['rejected', req.params.id]
+      );
+    }
+    res.json({ success: true, action });
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Server error' });
   }
 });

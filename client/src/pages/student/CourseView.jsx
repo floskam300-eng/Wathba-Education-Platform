@@ -324,6 +324,12 @@ export default function CourseView() {
     enabled: !!courseId,
   });
 
+  const { data: examResults = [] } = useQuery({
+    queryKey: ['course-exam-results', courseId],
+    queryFn: () => api.get(`/exams/student/course-results/${courseId}`).then(r => r.data),
+    enabled: !!courseId,
+  });
+
   const course = courses.find(c => String(c.id) === String(courseId));
   const videos = content?.videos || [];
   const pdfs = content?.pdfs || [];
@@ -480,26 +486,35 @@ export default function CourseView() {
               <div className="p-3 space-y-1.5">
                 {exams.length === 0 ? (
                   <EmptyState icon={BookOpen} text="لا توجد اختبارات بعد" />
-                ) : exams.map(ex => (
-                  <button
-                    key={ex.id}
-                    onClick={() => navigate('/student/exams')}
-                    className="w-full text-right flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-white/5 transition-all group"
-                  >
-                    <div className="w-9 h-9 rounded-lg bg-purple-500/10 flex items-center justify-center flex-shrink-0">
-                      <BookOpen className="w-4 h-4 text-purple-400" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-bold text-sm text-gray-300 group-hover:text-white truncate transition-colors">
-                        {ex.title}
-                      </p>
-                      <p className="text-xs text-gray-600 mt-0.5">
-                        {ex.total_score} درجة · {ex.duration_minutes} دقيقة
-                      </p>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-gray-600 group-hover:text-gray-400 transition-colors flex-shrink-0" />
-                  </button>
-                ))}
+                ) : exams.map(ex => {
+                  const myResult = examResults.find(r => String(r.exam_id) === String(ex.id));
+                  const passed = myResult && myResult.score >= ex.pass_score;
+                  return (
+                    <button
+                      key={ex.id}
+                      onClick={() => myResult ? navigate(`/student/exam-review/${myResult.id}`) : navigate('/student/exams')}
+                      className="w-full text-right flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-white/5 transition-all group"
+                    >
+                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${myResult ? (passed ? 'bg-green-500/20' : 'bg-red-500/20') : 'bg-purple-500/10'}`}>
+                        <BookOpen className={`w-4 h-4 ${myResult ? (passed ? 'text-green-400' : 'text-red-400') : 'text-purple-400'}`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-sm text-gray-300 group-hover:text-white truncate transition-colors">
+                          {ex.title}
+                        </p>
+                        {myResult ? (
+                          <p className={`text-xs mt-0.5 font-bold ${passed ? 'text-green-400' : 'text-red-400'}`}>
+                            {myResult.score}/{ex.total_score} · {passed ? '✓ ناجح' : '✗ راسب'}
+                            {myResult.essay_graded === false && myResult.has_essay && <span className="mr-1 text-yellow-400">· بانتظار التصحيح المقالي</span>}
+                          </p>
+                        ) : (
+                          <p className="text-xs text-gray-600 mt-0.5">{ex.total_score} درجة · {ex.duration_minutes} دقيقة</p>
+                        )}
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-gray-600 group-hover:text-gray-400 transition-colors flex-shrink-0" />
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -597,31 +612,88 @@ export default function CourseView() {
               </div>
             </>
           ) : (
-            /* Exams tab main area */
-            <div className="flex-1 flex items-center justify-center p-8">
-              <div className="max-w-md text-center">
-                <div className="w-24 h-24 rounded-3xl bg-purple-500/10 flex items-center justify-center mx-auto mb-6">
-                  <BookOpen className="w-12 h-12 text-purple-400" />
-                </div>
-                <h2 className="text-white font-black text-2xl mb-3">الاختبارات</h2>
-                <p className="text-gray-500 text-sm mb-8 leading-relaxed">
-                  يمكنك تأدية اختبارات هذا الكورس من صفحة الاختبارات، حيث ستجد جميع
-                  اختباراتك المتاحة في مكان واحد.
-                </p>
-                <div className="grid grid-cols-2 gap-3 mb-8">
-                  {exams.slice(0, 4).map(ex => (
-                    <div key={ex.id} className="bg-white/5 rounded-xl p-3 text-right">
-                      <p className="text-white font-bold text-xs truncate">{ex.title}</p>
-                      <p className="text-gray-500 text-[10px] mt-1">{ex.duration_minutes} دقيقة</p>
+            /* Exams tab main area — shows grades breakdown */
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="max-w-2xl mx-auto space-y-5">
+                <h2 className="text-white font-black text-xl mb-4 flex items-center gap-2">
+                  <BookOpen className="w-6 h-6 text-purple-400" /> درجاتي في الاختبارات
+                </h2>
+
+                {exams.length === 0 ? (
+                  <div className="text-center py-16 text-gray-600">
+                    <BookOpen className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                    <p className="text-sm font-medium">لا توجد اختبارات بعد</p>
+                  </div>
+                ) : exams.map(ex => {
+                  const myResult = examResults.find(r => String(r.exam_id) === String(ex.id));
+                  const passed = myResult && myResult.score >= ex.pass_score;
+                  const pct = myResult ? Math.round((myResult.score / ex.total_score) * 100) : 0;
+                  return (
+                    <div key={ex.id} className={`bg-white/5 rounded-2xl p-5 border ${myResult ? (passed ? 'border-green-500/30' : 'border-red-500/30') : 'border-white/10'}`}>
+                      <div className="flex items-start justify-between gap-3 mb-3">
+                        <div>
+                          <h3 className="text-white font-bold text-sm">{ex.title}</h3>
+                          <p className="text-gray-500 text-xs mt-0.5">{ex.total_score} درجة · حد النجاح {ex.pass_score}</p>
+                        </div>
+                        {myResult ? (
+                          <div className="text-left flex-shrink-0">
+                            <div className={`text-2xl font-black ${passed ? 'text-green-400' : 'text-red-400'}`}>
+                              {myResult.score}<span className="text-sm text-gray-500">/{ex.total_score}</span>
+                            </div>
+                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${passed ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                              {passed ? '✓ ناجح' : '✗ راسب'}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-xs font-bold text-gray-500 bg-white/5 px-3 py-1.5 rounded-full">لم تُؤدَّ بعد</span>
+                        )}
+                      </div>
+                      {myResult && (
+                        <>
+                          <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden mb-3">
+                            <div className={`h-2 rounded-full transition-all ${passed ? 'bg-green-500' : 'bg-red-400'}`} style={{ width: `${pct}%` }} />
+                          </div>
+                          <div className="flex items-center gap-4 text-xs">
+                            <span className="text-green-400 font-bold">✓ صحيح: {myResult.correct_count}</span>
+                            <span className="text-red-400 font-bold">✗ خاطئ: {myResult.wrong_count}</span>
+                            <span className="text-gray-500 font-bold">— متروك: {myResult.unanswered_count}</span>
+                            {myResult.essay_graded === false && (
+                              <span className="text-yellow-400 font-bold flex items-center gap-1 mr-auto">
+                                <CheckCircle2 className="w-3 h-3" /> بانتظار تصحيح المقالي
+                              </span>
+                            )}
+                            {myResult.essay_graded === true && myResult.essay_score_adjustment > 0 && (
+                              <span className="text-blue-400 font-bold mr-auto">+{myResult.essay_score_adjustment} مقالي</span>
+                            )}
+                          </div>
+                          <div className="flex gap-2 mt-3">
+                            <button
+                              onClick={() => navigate(`/student/exam-review/${myResult.id}`)}
+                              className="text-xs font-bold text-orange-400 hover:text-orange-300 bg-orange-500/10 hover:bg-orange-500/20 px-3 py-1.5 rounded-lg transition-all"
+                            >
+                              مراجعة الاختبار
+                            </button>
+                          </div>
+                        </>
+                      )}
+                      {!myResult && (
+                        <button
+                          onClick={() => navigate('/student/exams')}
+                          className="text-xs font-bold text-purple-400 hover:text-purple-300 bg-purple-500/10 hover:bg-purple-500/20 px-3 py-1.5 rounded-lg transition-all"
+                        >
+                          ابدأ الاختبار
+                        </button>
+                      )}
                     </div>
-                  ))}
-                </div>
+                  );
+                })}
+
                 <button
                   onClick={() => navigate('/student/exams')}
-                  className="inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-black px-8 py-3.5 rounded-2xl transition-all hover:shadow-lg hover:shadow-orange-500/25 active:scale-95"
+                  className="w-full flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-black px-6 py-3 rounded-2xl transition-all"
                 >
-                  <BookOpen className="w-5 h-5" />
-                  ابدأ الاختبارات
+                  <BookOpen className="w-4 h-4" />
+                  صفحة الاختبارات الكاملة
                 </button>
               </div>
             </div>

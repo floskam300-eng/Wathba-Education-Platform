@@ -20,6 +20,8 @@ import AssistantDashboard from './pages/assistant/Dashboard';
 import AssistantStudents from './pages/assistant/Students';
 import AssistantExams from './pages/teacher/Exams';
 import AssistantAnalytics from './pages/assistant/Analytics';
+import AssistantCourses from './pages/assistant/Courses';
+import AssistantPayments from './pages/assistant/Payments';
 import StudentDashboard from './pages/student/Dashboard';
 import StudentCourses from './pages/student/Courses';
 import StudentCourseView from './pages/student/CourseView';
@@ -61,6 +63,8 @@ const AppRoutes = () => {
         <Route index element={<AssistantDashboard />} />
         <Route path="students" element={<AssistantStudents />} />
         <Route path="exams" element={<AssistantExams />} />
+        <Route path="courses" element={<AssistantCourses />} />
+        <Route path="payments" element={<AssistantPayments />} />
         <Route path="analytics" element={<AssistantAnalytics />} />
         <Route path="exam-review/:resultId" element={<ExamReviewPage />} />
       </Route>

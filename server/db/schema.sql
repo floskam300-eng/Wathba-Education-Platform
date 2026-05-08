@@ -161,6 +161,23 @@ ALTER TABLE pdf_files ADD COLUMN IF NOT EXISTS section_id INTEGER REFERENCES sec
 ALTER TABLE exams ADD COLUMN IF NOT EXISTS start_date TIMESTAMP;
 ALTER TABLE exams ADD COLUMN IF NOT EXISTS end_date   TIMESTAMP;
 
+ALTER TABLE exam_results ADD COLUMN IF NOT EXISTS essay_graded          BOOLEAN DEFAULT false;
+ALTER TABLE exam_results ADD COLUMN IF NOT EXISTS essay_score_adjustment INTEGER DEFAULT 0;
+
+ALTER TABLE assistants ADD COLUMN IF NOT EXISTS can_manage_payments BOOLEAN DEFAULT false;
+ALTER TABLE assistants ADD COLUMN IF NOT EXISTS can_manage_courses  BOOLEAN DEFAULT false;
+
+CREATE TABLE IF NOT EXISTS course_enrollment_requests (
+  id SERIAL PRIMARY KEY,
+  student_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
+  course_id  INTEGER REFERENCES courses(id)  ON DELETE CASCADE,
+  status     VARCHAR(20) DEFAULT 'pending',
+  message    TEXT,
+  created_at TIMESTAMP DEFAULT NOW(),
+  handled_at TIMESTAMP,
+  UNIQUE(student_id, course_id)
+);
+
 ALTER TABLE questions ADD COLUMN IF NOT EXISTS question_type      VARCHAR(20) DEFAULT 'mcq';
 ALTER TABLE questions ADD COLUMN IF NOT EXISTS essay_answer_key   TEXT;
 

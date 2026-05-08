@@ -3,7 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   BookOpen, Plus, Pencil, Trash2, Video, FileText, Users,
   ChevronDown, ChevronUp, GraduationCap, Filter, Upload,
-  X, Loader2, Play, FolderOpen, FolderPlus, Check
+  X, Loader2, Play, FolderOpen, FolderPlus, Check,
+  Bell, CheckCircle, XCircle, Clock
 } from 'lucide-react';
 import Modal from '../../components/ui/Modal';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
@@ -278,6 +279,20 @@ export default function TeacherCourses() {
     enabled: !!expandedCourse,
   });
 
+  const { data: enrollRequests = [] } = useQuery({
+    queryKey: ['enrollment-requests'],
+    queryFn: () => api.get('/courses/enrollment-requests').then(r => r.data),
+  });
+
+  const handleRequestMut = useMutation({
+    mutationFn: ({ id, action }) => api.put(`/courses/enrollment-requests/${id}`, { action }),
+    onSuccess: (_, { action }) => {
+      qc.invalidateQueries(['enrollment-requests']);
+      toast.success(action === 'approve' ? 'تم قبول الطالب في الكورس' : 'تم رفض الطلب');
+    },
+    onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
+  });
+
   const createMut = useMutation({
     mutationFn: (data) => api.post('/courses', data),
     onSuccess: () => { qc.invalidateQueries(['courses']); toast.success('تم إنشاء الكورس'); closeModal(); },
@@ -360,6 +375,45 @@ export default function TeacherCourses() {
           <Plus className="w-4 h-4" /> إضافة كورس
         </button>
       </div>
+
+      {/* ── Enrollment Requests ── */}
+      {enrollRequests.filter(r => r.status === 'pending').length > 0 && (
+        <div className="bg-yellow-50 border-2 border-yellow-200 rounded-2xl p-5">
+          <h2 className="font-black text-yellow-800 flex items-center gap-2 mb-4">
+            <Bell className="w-5 h-5" />
+            طلبات الانضمام للكورسات
+            <span className="text-xs font-bold bg-yellow-400 text-white px-2 py-0.5 rounded-full">
+              {enrollRequests.filter(r => r.status === 'pending').length}
+            </span>
+          </h2>
+          <div className="space-y-3">
+            {enrollRequests.filter(r => r.status === 'pending').map(r => (
+              <div key={r.id} className="bg-white rounded-xl p-4 border border-yellow-200 flex items-center justify-between gap-4 flex-wrap">
+                <div>
+                  <p className="font-bold text-navy-700 text-sm">{r.student_name}</p>
+                  <p className="text-xs text-gray-500 font-medium">{r.academic_stage}</p>
+                  <p className="text-xs text-orange-600 font-bold mt-0.5">كورس: {r.course_name}</p>
+                  {r.message && <p className="text-xs text-gray-400 mt-1 italic">"{r.message}"</p>}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleRequestMut.mutate({ id: r.id, action: 'approve' })}
+                    disabled={handleRequestMut.isPending}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded-xl transition-colors">
+                    <CheckCircle className="w-3.5 h-3.5" /> قبول
+                  </button>
+                  <button
+                    onClick={() => handleRequestMut.mutate({ id: r.id, action: 'reject' })}
+                    disabled={handleRequestMut.isPending}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-red-100 hover:bg-red-200 text-red-700 text-xs font-bold rounded-xl transition-colors">
+                    <XCircle className="w-3.5 h-3.5" /> رفض
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Stage Filter */}
       <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">

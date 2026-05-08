@@ -9,7 +9,7 @@ router.use(authenticate);
 router.get('/', requireRole('teacher'), async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT id,username,name,phone,can_add_students,can_edit_students,can_delete_students,can_manage_exams,can_view_analytics,can_send_reports,created_at FROM assistants WHERE teacher_id=$1 ORDER BY created_at DESC',
+      'SELECT id,username,name,phone,can_add_students,can_edit_students,can_delete_students,can_manage_exams,can_view_analytics,can_send_reports,can_manage_payments,can_manage_courses,created_at FROM assistants WHERE teacher_id=$1 ORDER BY created_at DESC',
       [req.user.id]
     );
     res.json(result.rows);
@@ -19,13 +19,13 @@ router.get('/', requireRole('teacher'), async (req, res) => {
 });
 
 router.post('/', requireRole('teacher'), async (req, res) => {
-  const { username, password, name, phone, can_add_students, can_edit_students, can_delete_students, can_manage_exams, can_view_analytics, can_send_reports } = req.body;
+  const { username, password, name, phone, can_add_students, can_edit_students, can_delete_students, can_manage_exams, can_view_analytics, can_send_reports, can_manage_payments, can_manage_courses } = req.body;
   try {
     const hashed = await bcrypt.hash(password, 10);
     const result = await pool.query(
-      `INSERT INTO assistants (username,password,name,phone,teacher_id,can_add_students,can_edit_students,can_delete_students,can_manage_exams,can_view_analytics,can_send_reports)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id,username,name,phone,can_add_students,can_edit_students,can_delete_students,can_manage_exams,can_view_analytics,can_send_reports`,
-      [username, hashed, name, phone, req.user.id, can_add_students ?? true, can_edit_students ?? true, can_delete_students ?? false, can_manage_exams ?? true, can_view_analytics ?? true, can_send_reports ?? true]
+      `INSERT INTO assistants (username,password,name,phone,teacher_id,can_add_students,can_edit_students,can_delete_students,can_manage_exams,can_view_analytics,can_send_reports,can_manage_payments,can_manage_courses)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id,username,name,phone,can_add_students,can_edit_students,can_delete_students,can_manage_exams,can_view_analytics,can_send_reports,can_manage_payments,can_manage_courses`,
+      [username, hashed, name, phone, req.user.id, can_add_students ?? true, can_edit_students ?? true, can_delete_students ?? false, can_manage_exams ?? true, can_view_analytics ?? true, can_send_reports ?? true, can_manage_payments ?? false, can_manage_courses ?? false]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -35,11 +35,11 @@ router.post('/', requireRole('teacher'), async (req, res) => {
 });
 
 router.put('/:id/permissions', requireRole('teacher'), async (req, res) => {
-  const { can_add_students, can_edit_students, can_delete_students, can_manage_exams, can_view_analytics, can_send_reports } = req.body;
+  const { can_add_students, can_edit_students, can_delete_students, can_manage_exams, can_view_analytics, can_send_reports, can_manage_payments, can_manage_courses } = req.body;
   try {
     const result = await pool.query(
-      'UPDATE assistants SET can_add_students=$1,can_edit_students=$2,can_delete_students=$3,can_manage_exams=$4,can_view_analytics=$5,can_send_reports=$6 WHERE id=$7 AND teacher_id=$8 RETURNING id,username,name,can_add_students,can_edit_students,can_delete_students,can_manage_exams,can_view_analytics,can_send_reports',
-      [can_add_students, can_edit_students, can_delete_students, can_manage_exams, can_view_analytics, can_send_reports, req.params.id, req.user.id]
+      'UPDATE assistants SET can_add_students=$1,can_edit_students=$2,can_delete_students=$3,can_manage_exams=$4,can_view_analytics=$5,can_send_reports=$6,can_manage_payments=$7,can_manage_courses=$8 WHERE id=$9 AND teacher_id=$10 RETURNING id,username,name,can_add_students,can_edit_students,can_delete_students,can_manage_exams,can_view_analytics,can_send_reports,can_manage_payments,can_manage_courses',
+      [can_add_students, can_edit_students, can_delete_students, can_manage_exams, can_view_analytics, can_send_reports, can_manage_payments ?? false, can_manage_courses ?? false, req.params.id, req.user.id]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Assistant not found' });
     res.json(result.rows[0]);

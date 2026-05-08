@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, Users, LogOut, Menu, FileText, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, Users, LogOut, Menu, FileText, BarChart3, BookOpen, CreditCard } from 'lucide-react';
 import WathbaLogo from '../assets/wathba_logo.png';
 
 export default function AssistantLayout() {
@@ -21,6 +21,14 @@ export default function AssistantLayout() {
 
       if (user?.can_manage_exams) {
         items.push({ to: '/assistant/exams', icon: FileText, label: 'الاختبارات' });
+      }
+
+      if (user?.can_manage_courses) {
+        items.push({ to: '/assistant/courses', icon: BookOpen, label: 'الكورسات' });
+      }
+
+      if (user?.can_manage_payments) {
+        items.push({ to: '/assistant/payments', icon: CreditCard, label: 'المدفوعات' });
       }
 
       if (user?.can_view_analytics) {

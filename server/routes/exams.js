@@ -302,6 +302,63 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
   }
 });
 
+// ── Teacher: grade essay questions in a result ──
+router.put('/results/:resultId/grade-essay', requireRole('teacher', 'assistant'), async (req, res) => {
+  const teacherId = getTeacherId(req);
+  const { essay_scores } = req.body; // { [question_id]: points_awarded }
+  try {
+    const resultRes = await pool.query(
+      `SELECT er.*, e.total_score, e.teacher_id, e.id as exam_id_val
+       FROM exam_results er
+       JOIN exams e ON er.exam_id = e.id
+       WHERE er.id = $1 AND e.teacher_id = $2`,
+      [req.params.resultId, teacherId]
+    );
+    if (!resultRes.rows.length) return res.status(404).json({ error: 'Result not found' });
+    const row = resultRes.rows[0];
+
+    const totalEssayPoints = Object.values(essay_scores || {}).reduce((s, v) => s + (parseInt(v) || 0), 0);
+    const newScore = Math.min(row.score + totalEssayPoints, row.total_score);
+
+    await pool.query(
+      'UPDATE exam_results SET essay_graded=true, essay_score_adjustment=$1, score=$2 WHERE id=$3',
+      [totalEssayPoints, newScore, req.params.resultId]
+    );
+
+    try {
+      await pool.query(
+        `INSERT INTO notification_log (teacher_id, student_id, message, type)
+         VALUES ($1, $2, 'تم تصحيح إجاباتك المقالية وتحديث درجتك', 'essay_graded')`,
+        [teacherId, row.student_id]
+      );
+    } catch (_) {}
+
+    res.json({ success: true, new_score: newScore, essay_score_adjustment: totalEssayPoints });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── Student: get exam results for a specific course ──
+router.get('/student/course-results/:courseId', requireRole('student'), async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT er.id, er.score, er.correct_count, er.wrong_count, er.unanswered_count,
+              er.points_earned, er.essay_graded, er.essay_score_adjustment, er.created_at,
+              e.title as exam_title, e.total_score, e.pass_score, e.id as exam_id
+       FROM exam_results er
+       JOIN exams e ON er.exam_id = e.id
+       WHERE er.student_id = $1 AND e.course_id = $2
+       ORDER BY er.created_at DESC`,
+      [req.user.id, req.params.courseId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ── Get result summary ──
 router.get('/results/:resultId', authenticate, async (req, res) => {
   try {
@@ -383,7 +440,8 @@ router.get('/results/:resultId/review', authenticate, async (req, res) => {
     });
 
     const { answers, exam_teacher_id, ...resultClean } = row;
-    res.json({ result: resultClean, questions });
+    const hasEssay = questions.some(q => q.question_type === 'essay');
+    res.json({ result: { ...resultClean, has_essay: hasEssay }, questions });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
