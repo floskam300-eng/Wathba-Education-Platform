@@ -349,9 +349,9 @@ router.get('/student/my-courses', requireRole('student'), async (req, res) => {
 
 router.get('/student/available-all', requireRole('student'), async (req, res) => {
   try {
-    const teacherRes = await pool.query('SELECT teacher_id FROM students WHERE id=$1', [req.user.id]);
-    if (!teacherRes.rows.length) return res.status(404).json({ error: 'Student not found' });
-    const teacherId = teacherRes.rows[0].teacher_id;
+    const studentRes = await pool.query('SELECT teacher_id, academic_stage FROM students WHERE id=$1', [req.user.id]);
+    if (!studentRes.rows.length) return res.status(404).json({ error: 'Student not found' });
+    const { teacher_id: teacherId, academic_stage: studentStage } = studentRes.rows[0];
 
     const result = await pool.query(
       `SELECT c.*,
@@ -364,9 +364,10 @@ router.get('/student/available-all', requireRole('student'), async (req, res) =>
        LEFT JOIN student_course_enrollment sce ON c.id = sce.course_id AND sce.student_id = $1
        LEFT JOIN course_enrollment_requests cer ON c.id = cer.course_id AND cer.student_id = $1
        WHERE c.teacher_id = $2
+         AND (c.target_stage = $3 OR c.target_stage IS NULL OR c.target_stage = '')
        GROUP BY c.id, sce.student_id, cer.status, cer.id
        ORDER BY c.created_at DESC`,
-      [req.user.id, teacherId]
+      [req.user.id, teacherId, studentStage]
     );
     res.json(result.rows);
   } catch (err) {

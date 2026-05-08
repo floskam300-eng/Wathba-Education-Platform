@@ -88,7 +88,7 @@ export default function ExamReviewPage() {
   const goBack = () => navigate(-1);
 
   return (
-    <div className="min-h-screen bg-gray-50 font-cairo" dir="rtl">
+    <div className="h-full overflow-y-auto bg-gray-50 font-cairo" dir="rtl">
 
       <div className="max-w-3xl mx-auto px-4 pt-6 pb-2">
         <button onClick={goBack}
