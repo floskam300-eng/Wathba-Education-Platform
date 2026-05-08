@@ -195,6 +195,116 @@ router.get('/:id/profile', requireRole('teacher', 'assistant'), async (req, res)
   }
 });
 
+// ── Full stats for the logged-in student themselves ──
+router.get('/me/stats', requireRole('student'), async (req, res) => {
+  const studentId = req.user.id;
+  try {
+    const [studentRes, coursesRes, examsRes, paymentsRes, badgesRes, videoProgressRes, rankRes] = await Promise.all([
+      pool.query(
+        `SELECT id, name, username, phone, parent_phone, academic_stage, gender, points, created_at
+         FROM students WHERE id=$1`, [studentId]
+      ),
+      pool.query(`
+        SELECT c.id, c.name, c.description, c.price, c.target_stage,
+               sce.enrollment_date, sce.status,
+               COUNT(DISTINCT v.id)::int  AS total_videos,
+               COUNT(DISTINCT pf.id)::int AS total_pdfs,
+               COUNT(DISTINCT vp.video_id)::int AS watched_videos,
+               COALESCE(SUM(vp.watched_minutes),0)::int AS total_watched_minutes,
+               COALESCE(AVG(vp.progress_percentage),0)::numeric(5,1) AS avg_progress
+        FROM student_course_enrollment sce
+        JOIN courses c ON sce.course_id = c.id
+        LEFT JOIN videos v  ON v.course_id = c.id
+        LEFT JOIN pdf_files pf ON pf.course_id = c.id
+        LEFT JOIN video_progress vp ON vp.video_id = v.id AND vp.student_id = $1
+        WHERE sce.student_id = $1
+        GROUP BY c.id, sce.enrollment_date, sce.status
+        ORDER BY sce.enrollment_date DESC
+      `, [studentId]),
+      pool.query(`
+        SELECT er.id, er.score, er.correct_count, er.wrong_count,
+               er.unanswered_count, er.points_earned, er.start_time, er.end_time, er.created_at,
+               e.title AS exam_title, e.total_score, e.pass_score, e.badge_name, e.badge_color,
+               c.name  AS course_name
+        FROM exam_results er
+        JOIN exams e ON er.exam_id = e.id
+        LEFT JOIN courses c ON e.course_id = c.id
+        WHERE er.student_id = $1
+        ORDER BY er.created_at DESC
+      `, [studentId]),
+      pool.query(`
+        SELECT p.id, p.amount, p.method, p.payment_date, p.status,
+               p.reference_number, p.notes, c.name AS course_name, c.price AS course_price
+        FROM payments p
+        LEFT JOIN courses c ON p.course_id = c.id
+        WHERE p.student_id = $1
+        ORDER BY p.payment_date DESC
+      `, [studentId]),
+      pool.query(`
+        SELECT b.*, e.title AS exam_title
+        FROM badges b LEFT JOIN exams e ON b.exam_id = e.id
+        WHERE b.student_id = $1 ORDER BY b.earned_at DESC
+      `, [studentId]),
+      pool.query(`
+        SELECT vp.video_id, vp.watch_count, vp.watched_minutes, vp.progress_percentage, vp.last_watched_at,
+               v.title AS video_title, v.duration_minutes, c.name AS course_name
+        FROM video_progress vp
+        JOIN videos v ON vp.video_id = v.id
+        JOIN courses c ON v.course_id = c.id
+        WHERE vp.student_id = $1
+        ORDER BY vp.last_watched_at DESC
+      `, [studentId]),
+      pool.query(`
+        SELECT COUNT(*) AS total,
+               SUM(CASE WHEN points > $2 THEN 1 ELSE 0 END) AS above
+        FROM students WHERE teacher_id = (SELECT teacher_id FROM students WHERE id=$1)
+      `, [studentId, 0]),
+    ]);
+
+    if (!studentRes.rows.length) return res.status(404).json({ error: 'Student not found' });
+
+    const student   = studentRes.rows[0];
+    const exams     = examsRes.rows;
+    const payments  = paymentsRes.rows;
+
+    // Aggregate totals
+    const totalPaid    = payments.filter(p => p.status === 'completed' || p.status === 'verified').reduce((s, p) => s + parseFloat(p.amount), 0);
+    const totalPending = payments.filter(p => p.status === 'pending').reduce((s, p) => s + parseFloat(p.amount), 0);
+    const passCount    = exams.filter(e => e.score >= e.pass_score).length;
+    const avgScore     = exams.length ? Math.round(exams.reduce((s, e) => s + (e.score / e.total_score * 100), 0) / exams.length) : 0;
+    const totalWatchedMinutes = videoProgressRes.rows.reduce((s, v) => s + v.watched_minutes, 0);
+
+    // Rank among teacher's students by points
+    const rankRow  = rankRes.rows[0];
+    const myRank   = parseInt(rankRow.total) - parseInt(rankRow.above);
+
+    res.json({
+      student,
+      courses: coursesRes.rows,
+      examResults: exams,
+      payments,
+      badges: badgesRes.rows,
+      videoProgress: videoProgressRes.rows,
+      summary: {
+        totalPaid,
+        totalPending,
+        totalExams: exams.length,
+        passCount,
+        failCount: exams.length - passCount,
+        avgScore,
+        totalWatchedMinutes,
+        totalCourses: coursesRes.rows.length,
+        totalBadges: badgesRes.rows.length,
+        rank: myRank,
+        totalStudents: parseInt(rankRow.total),
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 router.get('/me/dashboard', requireRole('student'), async (req, res) => {
   const studentId = req.user.id;
   try {

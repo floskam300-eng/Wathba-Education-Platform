@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, BookOpen, FileText, Trophy, LogOut, Menu } from 'lucide-react';
+import { LayoutDashboard, BookOpen, FileText, Trophy, LogOut, Menu, BarChart2 } from 'lucide-react';
 import WathbaLogo from '../assets/wathba_logo.png';
 
 const navItems = [
   { to: '/student', icon: LayoutDashboard, label: 'لوحتي', end: true },
   { to: '/student/courses', icon: BookOpen, label: 'كورساتي' },
   { to: '/student/exams', icon: FileText, label: 'الاختبارات' },
+  { to: '/student/stats', icon: BarChart2, label: 'إحصائياتي' },
   { to: '/student/leaderboard', icon: Trophy, label: 'المتصدرون' },
 ];
 

@@ -23,6 +23,7 @@ import StudentCourses from './pages/student/Courses';
 import StudentCourseView from './pages/student/CourseView';
 import StudentExams from './pages/student/Exams';
 import StudentLeaderboard from './pages/student/Leaderboard';
+import StudentMyStats from './pages/student/MyStats';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading } = useAuth();
@@ -62,6 +63,7 @@ const AppRoutes = () => {
         <Route path="courses" element={<StudentCourses />} />
         <Route path="courses/:courseId" element={<StudentCourseView />} />
         <Route path="exams" element={<StudentExams />} />
+        <Route path="stats" element={<StudentMyStats />} />
         <Route path="leaderboard" element={<StudentLeaderboard />} />
       </Route>
 
