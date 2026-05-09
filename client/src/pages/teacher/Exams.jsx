@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { FileText, Plus, Pencil, Trash2, HelpCircle, ChevronDown, ChevronUp, Printer, Filter, Calendar, AlignLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { FileText, Plus, Pencil, Trash2, HelpCircle, ChevronDown, ChevronUp, Printer, Filter, Calendar, User, Eye, CheckCircle, XCircle, Search } from 'lucide-react';
 import Modal from '../../components/ui/Modal';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import Badge from '../../components/ui/Badge';
@@ -26,6 +27,7 @@ const fmtDateLocal = (iso) => {
 
 export default function TeacherExams() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [modal, setModal] = useState(false);
   const [editData, setEditData] = useState(null);
   const [form, setForm] = useState(emptyExam);
@@ -34,6 +36,9 @@ export default function TeacherExams() {
   const [qForm, setQForm] = useState(emptyQ);
   const [editQ, setEditQ] = useState(null);
   const [stageFilter, setStageFilter] = useState('الكل');
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [studentSearch, setStudentSearch] = useState('');
+  const [showStudentDropdown, setShowStudentDropdown] = useState(false);
 
   const { data: exams = [], isLoading } = useQuery({
     queryKey: ['exams'],
@@ -50,6 +55,28 @@ export default function TeacherExams() {
     queryFn: () => api.get(`/exams/${expandedExam}/questions`).then(r => r.data),
     enabled: !!expandedExam,
   });
+
+  const { data: students = [] } = useQuery({
+    queryKey: ['students'],
+    queryFn: () => api.get('/students').then(r => r.data),
+  });
+
+  const { data: studentResults = [] } = useQuery({
+    queryKey: ['student-results', selectedStudent?.id],
+    queryFn: () => api.get(`/students/${selectedStudent.id}/results`).then(r => r.data),
+    enabled: !!selectedStudent,
+  });
+
+  const studentResultMap = useMemo(() => {
+    const map = {};
+    studentResults.forEach(r => { map[r.exam_id] = r; });
+    return map;
+  }, [studentResults]);
+
+  const filteredStudents = useMemo(() =>
+    students.filter(s => !studentSearch || s.name.includes(studentSearch) || s.username.includes(studentSearch)),
+    [students, studentSearch]
+  );
 
   const createMut = useMutation({
     mutationFn: (data) => api.post('/exams', data),
@@ -178,6 +205,68 @@ export default function TeacherExams() {
         </div>
       </div>
 
+      {/* Student Filter */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+        <div className="flex items-center gap-2 mb-3">
+          <User className="w-4 h-4 text-gray-500" />
+          <span className="text-xs font-bold text-gray-500">عرض نتائج طالب محدد</span>
+          {selectedStudent && (
+            <button
+              onClick={() => { setSelectedStudent(null); setStudentSearch(''); }}
+              className="mr-auto text-xs text-red-600 font-bold hover:underline"
+            >
+              إلغاء التحديد ✕
+            </button>
+          )}
+        </div>
+        <div className="relative">
+          {selectedStudent ? (
+            <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-xl">
+              <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-black flex-shrink-0">
+                {selectedStudent.name.charAt(0)}
+              </div>
+              <div>
+                <p className="font-bold text-blue-800 text-sm">{selectedStudent.name}</p>
+                <p className="text-xs text-blue-600">{selectedStudent.academic_stage || 'بدون مرحلة'} · أدى {studentResults.length} اختبار</p>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="relative">
+                <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  value={studentSearch}
+                  onChange={e => { setStudentSearch(e.target.value); setShowStudentDropdown(true); }}
+                  onFocus={() => setShowStudentDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowStudentDropdown(false), 200)}
+                  placeholder="ابحث باسم الطالب لعرض نتائجه..."
+                  className="input-field pr-9 text-sm"
+                />
+              </div>
+              {showStudentDropdown && filteredStudents.length > 0 && (
+                <div className="absolute z-30 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-52 overflow-y-auto">
+                  {filteredStudents.slice(0, 15).map(s => (
+                    <button
+                      key={s.id}
+                      onMouseDown={() => { setSelectedStudent(s); setStudentSearch(''); setShowStudentDropdown(false); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-blue-50 text-right transition-colors"
+                    >
+                      <div className="w-7 h-7 bg-navy-600 rounded-full flex items-center justify-center text-white text-xs font-black flex-shrink-0">
+                        {s.name.charAt(0)}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-navy-700 text-sm">{s.name}</p>
+                        <p className="text-xs text-gray-500">{s.academic_stage || '—'}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
       <div className="space-y-4">
         {isLoading ? (
           [...Array(3)].map((_, i) => <div key={i} className="card h-20 animate-pulse bg-gray-100" />)
@@ -221,6 +310,45 @@ export default function TeacherExams() {
                   </button>
                 </div>
               </div>
+
+              {/* Student result strip */}
+              {selectedStudent && (() => {
+                const res = studentResultMap[ex.id];
+                if (!res) {
+                  return (
+                    <div className="mx-4 mb-4 flex items-center gap-2 px-4 py-2.5 bg-gray-50 border border-dashed border-gray-300 rounded-xl text-sm text-gray-500 font-medium">
+                      <span className="text-base">—</span>
+                      لم يؤدِ <span className="font-bold text-gray-700">{selectedStudent.name}</span> هذا الاختبار بعد
+                    </div>
+                  );
+                }
+                const passed = res.score >= res.pass_score;
+                const pct = res.total_score > 0 ? Math.round((res.score / res.total_score) * 100) : 0;
+                return (
+                  <div className={`mx-4 mb-4 flex items-center gap-3 px-4 py-2.5 rounded-xl border ${passed ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                    {passed
+                      ? <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
+                      : <XCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+                    }
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-bold ${passed ? 'text-green-800' : 'text-red-800'}`}>
+                        {selectedStudent.name} — {passed ? 'ناجح ✓' : 'راسب ✗'}
+                      </p>
+                      <p className="text-xs text-gray-600 mt-0.5">
+                        الدرجة: <span className="font-black">{res.score}/{res.total_score}</span>
+                        {' '}({pct}%) · ✓{res.correct_count} صح · ✗{res.wrong_count} خطأ
+                        {' '}· {new Date(res.created_at).toLocaleDateString('ar-EG')}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => navigate(`/teacher/exam-review/${res.id}`)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-bold text-navy-700 hover:bg-navy-50 transition-colors flex-shrink-0"
+                    >
+                      <Eye className="w-3.5 h-3.5" /> مراجعة
+                    </button>
+                  </div>
+                );
+              })()}
 
               {expandedExam === ex.id && (
                 <div className="border-t border-gray-200 p-4 bg-gray-50 space-y-4">
