@@ -205,3 +205,14 @@ ALTER TABLE notification_log ADD COLUMN IF NOT EXISTS type VARCHAR(50) DEFAULT '
 ALTER TABLE notification_log ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT false;
 
 ALTER TABLE students ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP DEFAULT NULL;
+
+CREATE TABLE IF NOT EXISTS exam_retry_requests (
+  id SERIAL PRIMARY KEY,
+  student_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
+  exam_id INTEGER REFERENCES exams(id) ON DELETE CASCADE,
+  status VARCHAR(20) DEFAULT 'pending',
+  message TEXT,
+  teacher_note TEXT,
+  created_at TIMESTAMP DEFAULT NOW(),
+  handled_at TIMESTAMP
+);

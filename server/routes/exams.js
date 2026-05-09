@@ -185,10 +185,131 @@ router.delete('/questions/:qid', requireRole('teacher', 'assistant'), async (req
   }
 });
 
+// ── Student: get my retry requests ──
+router.get('/student/retry-requests', requireRole('student'), async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT rr.*, e.title as exam_title
+       FROM exam_retry_requests rr
+       JOIN exams e ON rr.exam_id = e.id
+       WHERE rr.student_id = $1
+       ORDER BY rr.created_at DESC`,
+      [req.user.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── Student: submit retry request ──
+router.post('/:id/retry-request', requireRole('student'), async (req, res) => {
+  const studentId = req.user.id;
+  const examId = req.params.id;
+  const { message } = req.body;
+  try {
+    const taken = await pool.query(
+      'SELECT id, score FROM exam_results WHERE student_id=$1 AND exam_id=$2',
+      [studentId, examId]
+    );
+    if (!taken.rows.length) return res.status(400).json({ error: 'لم تؤدِ هذا الاختبار بعد' });
+    const pending = await pool.query(
+      "SELECT id FROM exam_retry_requests WHERE student_id=$1 AND exam_id=$2 AND status='pending'",
+      [studentId, examId]
+    );
+    if (pending.rows.length) return res.status(409).json({ error: 'يوجد طلب معلق بالفعل، انتظر رد المعلم' });
+    const result = await pool.query(
+      'INSERT INTO exam_retry_requests (student_id, exam_id, message) VALUES ($1,$2,$3) RETURNING *',
+      [studentId, examId, message || null]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── Teacher: list pending retry requests ──
+router.get('/retry-requests', requireRole('teacher', 'assistant'), async (req, res) => {
+  const teacherId = getTeacherId(req);
+  try {
+    const result = await pool.query(
+      `SELECT rr.*, s.name as student_name, e.title as exam_title
+       FROM exam_retry_requests rr
+       JOIN students s ON rr.student_id = s.id
+       JOIN exams e ON rr.exam_id = e.id
+       WHERE e.teacher_id = $1
+       ORDER BY rr.created_at DESC`,
+      [teacherId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── Teacher: approve retry request ──
+router.put('/retry-requests/:reqId/approve', requireRole('teacher', 'assistant'), async (req, res) => {
+  const teacherId = getTeacherId(req);
+  const { teacher_note } = req.body;
+  try {
+    const rr = await pool.query(
+      `SELECT rr.* FROM exam_retry_requests rr
+       JOIN exams e ON rr.exam_id = e.id
+       WHERE rr.id=$1 AND e.teacher_id=$2`,
+      [req.params.reqId, teacherId]
+    );
+    if (!rr.rows.length) return res.status(404).json({ error: 'الطلب غير موجود' });
+    await pool.query(
+      "UPDATE exam_retry_requests SET status='approved', teacher_note=$1, handled_at=NOW() WHERE id=$2",
+      [teacher_note || null, req.params.reqId]
+    );
+    try {
+      const row = rr.rows[0];
+      await pool.query(
+        `INSERT INTO notification_log (teacher_id, student_id, message, type)
+         VALUES ($1, $2, 'تمت الموافقة على طلب إعادة الاختبار — يمكنك الآن إعادة تأدية الاختبار', 'retry_approved')`,
+        [teacherId, row.student_id]
+      );
+    } catch (_) {}
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── Teacher: reject retry request ──
+router.put('/retry-requests/:reqId/reject', requireRole('teacher', 'assistant'), async (req, res) => {
+  const teacherId = getTeacherId(req);
+  const { teacher_note } = req.body;
+  try {
+    const rr = await pool.query(
+      `SELECT rr.* FROM exam_retry_requests rr
+       JOIN exams e ON rr.exam_id = e.id
+       WHERE rr.id=$1 AND e.teacher_id=$2`,
+      [req.params.reqId, teacherId]
+    );
+    if (!rr.rows.length) return res.status(404).json({ error: 'الطلب غير موجود' });
+    await pool.query(
+      "UPDATE exam_retry_requests SET status='rejected', teacher_note=$1, handled_at=NOW() WHERE id=$2",
+      [teacher_note || null, req.params.reqId]
+    );
+    try {
+      const row = rr.rows[0];
+      await pool.query(
+        `INSERT INTO notification_log (teacher_id, student_id, message, type)
+         VALUES ($1, $2, 'تم رفض طلب إعادة الاختبار', 'retry_rejected')`,
+        [teacherId, row.student_id]
+      );
+    } catch (_) {}
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ── Student: list available exams (with scheduling check) ──
 router.get('/student/available', requireRole('student'), async (req, res) => {
   try {
-    const now = new Date().toISOString();
     const result = await pool.query(
       `SELECT e.id, e.title, e.duration_minutes, e.total_score, e.pass_score,
               e.badge_name, e.start_date, e.end_date, c.name as course_name,
@@ -197,6 +318,10 @@ router.get('/student/available', requireRole('student'), async (req, res) => {
        LEFT JOIN courses c ON e.course_id = c.id
        LEFT JOIN student_course_enrollment sce ON e.course_id = sce.course_id AND sce.student_id = $1
        LEFT JOIN exam_results er ON e.id = er.exam_id AND er.student_id = $1
+         AND NOT EXISTS (
+           SELECT 1 FROM exam_retry_requests rr
+           WHERE rr.student_id = $1 AND rr.exam_id = e.id AND rr.status = 'approved'
+         )
        WHERE e.teacher_id = (SELECT teacher_id FROM students WHERE id = $1)
          AND (e.course_id IS NULL OR sce.student_id IS NOT NULL)`,
       [req.user.id]
@@ -257,7 +382,18 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
       [studentId, examId]
     );
     if (existing.rows.length > 0) {
-      return res.status(409).json({ error: 'لقد أديت هذا الاختبار مسبقاً' });
+      const retryApproved = await pool.query(
+        "SELECT id FROM exam_retry_requests WHERE student_id=$1 AND exam_id=$2 AND status='approved' ORDER BY created_at DESC LIMIT 1",
+        [studentId, examId]
+      );
+      if (!retryApproved.rows.length) {
+        return res.status(409).json({ error: 'لقد أديت هذا الاختبار مسبقاً' });
+      }
+      await pool.query('DELETE FROM exam_results WHERE student_id=$1 AND exam_id=$2', [studentId, examId]);
+      await pool.query(
+        "UPDATE exam_retry_requests SET status='used', handled_at=NOW() WHERE id=$1",
+        [retryApproved.rows[0].id]
+      );
     }
 
     const eligibilityCheck = await pool.query(

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Clock, CheckCircle, Play, Eye, Calendar, Lock, AlignLeft } from 'lucide-react';
+import { FileText, Clock, CheckCircle, Play, Eye, Calendar, Lock, RotateCcw, X } from 'lucide-react';
 import Modal from '../../components/ui/Modal';
 import Badge from '../../components/ui/Badge';
 import api from '../../lib/api';
@@ -24,6 +24,8 @@ export default function StudentExams() {
   const [countdown, setCountdown] = useState(null);
   const [pendingExam, setPendingExam] = useState(null);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+  const [retryModal, setRetryModal] = useState(null);
+  const [retryMessage, setRetryMessage] = useState('');
 
   const answersRef = useRef({});
   useEffect(() => { answersRef.current = answers; }, [answers]);
@@ -33,10 +35,28 @@ export default function StudentExams() {
     queryFn: () => api.get('/exams/student/available').then(r => r.data),
   });
 
+  const { data: retryRequests = [] } = useQuery({
+    queryKey: ['student-retry-requests'],
+    queryFn: () => api.get('/exams/student/retry-requests').then(r => r.data),
+  });
+
+  const retryMap = retryRequests.reduce((acc, r) => { acc[r.exam_id] = r; return acc; }, {});
+
   const { data: examData } = useQuery({
     queryKey: ['exam-take', taking?.id],
     queryFn: () => api.get(`/exams/${taking?.id}/take`).then(r => r.data),
     enabled: !!taking && !taking.already_taken,
+  });
+
+  const retryRequestMut = useMutation({
+    mutationFn: ({ examId, message }) => api.post(`/exams/${examId}/retry-request`, { message }),
+    onSuccess: () => {
+      qc.invalidateQueries(['student-retry-requests']);
+      toast.success('تم إرسال طلب إعادة الاختبار للمعلم');
+      setRetryModal(null);
+      setRetryMessage('');
+    },
+    onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
   });
 
   const submitMut = useMutation({
@@ -295,6 +315,45 @@ export default function StudentExams() {
           </div>
         )}
 
+        {/* Retry Request Modal */}
+        {retryModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
+                  <RotateCcw className="w-6 h-6 text-orange-600" />
+                </div>
+                <div>
+                  <h3 className="font-black text-navy-700">طلب إعادة الاختبار</h3>
+                  <p className="text-xs text-gray-500">{retryModal.title}</p>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-navy-700 mb-1">سبب طلب الإعادة (اختياري)</label>
+                <textarea
+                  value={retryMessage}
+                  onChange={e => setRetryMessage(e.target.value)}
+                  className="input-field h-24 resize-none text-sm"
+                  placeholder="اكتب سبب طلبك لإعادة هذا الاختبار..."
+                />
+              </div>
+              <p className="text-xs text-gray-500 bg-gray-50 rounded-lg p-3">
+                سيتم إرسال طلبك للمعلم للمراجعة. في حالة الموافقة ستتمكن من إعادة تأدية الاختبار من جديد.
+              </p>
+              <div className="flex gap-3">
+                <button onClick={() => setRetryModal(null)} className="flex-1 btn-secondary">إلغاء</button>
+                <button
+                  onClick={() => retryRequestMut.mutate({ examId: retryModal.id, message: retryMessage })}
+                  disabled={retryRequestMut.isPending}
+                  className="flex-1 btn-primary"
+                >
+                  {retryRequestMut.isPending ? 'جاري الإرسال...' : 'إرسال الطلب'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {isLoading ? (
           [...Array(3)].map((_, i) => <div key={i} className="card h-24 animate-pulse bg-gray-100" />)
         ) : exams.length === 0 ? (
@@ -348,17 +407,41 @@ export default function StudentExams() {
                     </div>
                   )}
 
-                  {ex.already_taken ? (
-                    <div className="space-y-2">
-                      <div className={`text-center py-2 rounded-xl font-bold text-lg ${ex.score >= ex.pass_score ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                        {ex.score}/{ex.total_score}
+                  {ex.already_taken ? (() => {
+                    const passed = ex.score >= ex.pass_score;
+                    const myRetry = retryMap[ex.id];
+                    return (
+                      <div className="space-y-2">
+                        <div className={`text-center py-2 rounded-xl font-bold text-lg ${passed ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                          {ex.score}/{ex.total_score}
+                        </div>
+                        <button onClick={() => navigate(`/student/exam-review/${ex.already_taken}`)}
+                          className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border-2 border-navy-200 hover:border-navy-400 hover:bg-navy-50 text-navy-700 text-sm font-bold transition-all">
+                          <Eye className="w-4 h-4" /> مراجعة الإجابات
+                        </button>
+                        {!passed && (
+                          myRetry?.status === 'pending' ? (
+                            <div className="flex items-center gap-2 px-3 py-2 bg-yellow-50 border border-yellow-200 rounded-xl text-xs text-yellow-800 font-bold">
+                              <Clock className="w-3.5 h-3.5 flex-shrink-0" />
+                              في انتظار موافقة المعلم على طلب الإعادة
+                            </div>
+                          ) : myRetry?.status === 'rejected' ? (
+                            <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-bold">
+                              <X className="w-3.5 h-3.5 flex-shrink-0" />
+                              رُفض طلب الإعادة{myRetry.teacher_note ? ` — ${myRetry.teacher_note}` : ''}
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => { setRetryModal(ex); setRetryMessage(''); }}
+                              className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border-2 border-orange-200 hover:border-orange-400 hover:bg-orange-50 text-orange-700 text-sm font-bold transition-all"
+                            >
+                              <RotateCcw className="w-4 h-4" /> طلب إعادة الاختبار
+                            </button>
+                          )
+                        )}
                       </div>
-                      <button onClick={() => navigate(`/student/exam-review/${ex.already_taken}`)}
-                        className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border-2 border-navy-200 hover:border-navy-400 hover:bg-navy-50 text-navy-700 text-sm font-bold transition-all">
-                        <Eye className="w-4 h-4" /> مراجعة الإجابات
-                      </button>
-                    </div>
-                  ) : (
+                    );
+                  })() : (
                     <button onClick={() => openExam(ex)}
                       disabled={isExpired || isUpcoming}
                       className="w-full btn-primary flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">

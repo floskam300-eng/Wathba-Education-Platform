@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Plus, Pencil, Trash2, HelpCircle, ChevronDown, ChevronUp, Printer, Filter, Calendar, User, Eye, CheckCircle, XCircle, Search } from 'lucide-react';
+import { FileText, Plus, Pencil, Trash2, HelpCircle, ChevronDown, ChevronUp, Printer, Filter, Calendar, User, Eye, CheckCircle, XCircle, Search, RotateCcw, Clock } from 'lucide-react';
 import Modal from '../../components/ui/Modal';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import Badge from '../../components/ui/Badge';
@@ -39,6 +39,9 @@ export default function TeacherExams() {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [studentSearch, setStudentSearch] = useState('');
   const [showStudentDropdown, setShowStudentDropdown] = useState(false);
+  const [showRetryPanel, setShowRetryPanel] = useState(false);
+  const [retryNoteModal, setRetryNoteModal] = useState(null);
+  const [retryNote, setRetryNote] = useState('');
 
   const { data: exams = [], isLoading } = useQuery({
     queryKey: ['exams'],
@@ -65,6 +68,26 @@ export default function TeacherExams() {
     queryKey: ['student-results', selectedStudent?.id],
     queryFn: () => api.get(`/students/${selectedStudent.id}/results`).then(r => r.data),
     enabled: !!selectedStudent,
+  });
+
+  const { data: retryRequests = [] } = useQuery({
+    queryKey: ['retry-requests'],
+    queryFn: () => api.get('/exams/retry-requests').then(r => r.data),
+    refetchInterval: 30000,
+  });
+
+  const pendingRetries = retryRequests.filter(r => r.status === 'pending');
+
+  const approveMut = useMutation({
+    mutationFn: ({ reqId, note }) => api.put(`/exams/retry-requests/${reqId}/approve`, { teacher_note: note }),
+    onSuccess: () => { qc.invalidateQueries(['retry-requests']); toast.success('تمت الموافقة على الطلب'); setRetryNoteModal(null); setRetryNote(''); },
+    onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
+  });
+
+  const rejectMut = useMutation({
+    mutationFn: ({ reqId, note }) => api.put(`/exams/retry-requests/${reqId}/reject`, { teacher_note: note }),
+    onSuccess: () => { qc.invalidateQueries(['retry-requests']); toast.success('تم رفض الطلب'); setRetryNoteModal(null); setRetryNote(''); },
+    onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
   });
 
   const studentResultMap = useMemo(() => {
@@ -204,6 +227,108 @@ export default function TeacherExams() {
           ))}
         </div>
       </div>
+
+      {/* Retry Requests Panel */}
+      <div className={`rounded-2xl border p-4 shadow-sm transition-all ${pendingRetries.length > 0 ? 'bg-orange-50 border-orange-300' : 'bg-white border-slate-200'}`}>
+        <button
+          className="w-full flex items-center justify-between"
+          onClick={() => setShowRetryPanel(v => !v)}
+        >
+          <div className="flex items-center gap-2">
+            <RotateCcw className={`w-4 h-4 ${pendingRetries.length > 0 ? 'text-orange-600' : 'text-gray-500'}`} />
+            <span className={`text-xs font-bold ${pendingRetries.length > 0 ? 'text-orange-800' : 'text-gray-500'}`}>
+              طلبات إعادة الاختبار
+            </span>
+            {pendingRetries.length > 0 && (
+              <span className="bg-orange-500 text-white text-xs font-black px-2 py-0.5 rounded-full">
+                {pendingRetries.length} جديد
+              </span>
+            )}
+          </div>
+          {showRetryPanel ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+        </button>
+        {showRetryPanel && (
+          <div className="mt-4 space-y-3">
+            {retryRequests.length === 0 ? (
+              <p className="text-center text-sm text-gray-500 py-4">لا توجد طلبات إعادة اختبار</p>
+            ) : retryRequests.map(rr => (
+              <div key={rr.id} className={`rounded-xl border p-3 flex flex-col gap-2 ${rr.status === 'pending' ? 'border-orange-200 bg-white' : rr.status === 'approved' ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-bold text-navy-700 text-sm">{rr.student_name}</p>
+                    <p className="text-xs text-gray-500">{rr.exam_title}</p>
+                    {rr.message && <p className="text-xs text-gray-700 mt-1 bg-gray-100 rounded px-2 py-1">"{rr.message}"</p>}
+                    <p className="text-xs text-gray-400 mt-1">{new Date(rr.created_at).toLocaleString('ar-EG')}</p>
+                  </div>
+                  <span className={`text-xs font-black px-2 py-1 rounded-full flex-shrink-0 ${rr.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : rr.status === 'approved' ? 'bg-green-100 text-green-700' : rr.status === 'used' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'}`}>
+                    {rr.status === 'pending' ? '⏳ معلق' : rr.status === 'approved' ? '✅ موافق' : rr.status === 'used' ? '🔄 مُستخدم' : '❌ مرفوض'}
+                  </span>
+                </div>
+                {rr.status === 'pending' && (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => { setRetryNoteModal({ rr, action: 'approve' }); setRetryNote(''); }}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-green-100 hover:bg-green-200 text-green-800 text-xs font-bold transition-all"
+                    >
+                      <CheckCircle className="w-3.5 h-3.5" /> موافقة
+                    </button>
+                    <button
+                      onClick={() => { setRetryNoteModal({ rr, action: 'reject' }); setRetryNote(''); }}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-red-100 hover:bg-red-200 text-red-800 text-xs font-bold transition-all"
+                    >
+                      <XCircle className="w-3.5 h-3.5" /> رفض
+                    </button>
+                  </div>
+                )}
+                {rr.teacher_note && (
+                  <p className="text-xs text-gray-600 border-t pt-2">ملاحظة المعلم: {rr.teacher_note}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Retry Note Modal */}
+      {retryNoteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center ${retryNoteModal.action === 'approve' ? 'bg-green-100' : 'bg-red-100'}`}>
+                {retryNoteModal.action === 'approve' ? <CheckCircle className="w-6 h-6 text-green-600" /> : <XCircle className="w-6 h-6 text-red-600" />}
+              </div>
+              <div>
+                <h3 className="font-black text-navy-700">
+                  {retryNoteModal.action === 'approve' ? 'الموافقة على طلب الإعادة' : 'رفض طلب الإعادة'}
+                </h3>
+                <p className="text-xs text-gray-500">{retryNoteModal.rr.student_name} — {retryNoteModal.rr.exam_title}</p>
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-navy-700 mb-1">ملاحظة للطالب (اختياري)</label>
+              <textarea
+                value={retryNote}
+                onChange={e => setRetryNote(e.target.value)}
+                className="input-field h-20 resize-none text-sm"
+                placeholder="أضف ملاحظة سترسل للطالب..."
+              />
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setRetryNoteModal(null)} className="flex-1 btn-secondary">إلغاء</button>
+              <button
+                onClick={() => {
+                  if (retryNoteModal.action === 'approve') approveMut.mutate({ reqId: retryNoteModal.rr.id, note: retryNote });
+                  else rejectMut.mutate({ reqId: retryNoteModal.rr.id, note: retryNote });
+                }}
+                disabled={approveMut.isPending || rejectMut.isPending}
+                className={`flex-1 font-bold py-2 rounded-xl text-white transition-all disabled:opacity-50 ${retryNoteModal.action === 'approve' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}
+              >
+                {(approveMut.isPending || rejectMut.isPending) ? 'جاري...' : (retryNoteModal.action === 'approve' ? 'تأكيد الموافقة' : 'تأكيد الرفض')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Student Filter */}
       <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
