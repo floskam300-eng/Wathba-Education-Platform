@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useTheme } from '../../context/ThemeContext';
 import {
   BarChart3, TrendingUp, Users, Award, Target, GraduationCap,
   CheckCircle2, XCircle, Clock, Star, ChevronUp, ChevronDown,
@@ -47,14 +48,27 @@ const PERF_LEVELS = [
 ];
 
 const CustomTooltip = ({ active, payload, label }) => {
+  const { dark } = useTheme();
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-white/95 backdrop-blur border border-gray-100 rounded-2xl shadow-2xl p-4 text-sm font-cairo min-w-[160px]"
-      style={{ boxShadow: '0 20px 60px rgba(0,0,0,0.12)' }}>
-      {label && <p className="font-black text-gray-800 mb-2 text-xs border-b border-gray-100 pb-2">{label}</p>}
+    <div
+      className="rounded-2xl shadow-2xl p-4 text-sm font-cairo min-w-[160px] border"
+      style={{
+        backgroundColor: dark ? 'var(--dk-elevated)' : 'rgba(255,255,255,0.97)',
+        borderColor: dark ? 'var(--dk-border-md)' : '#f1f5f9',
+        backdropFilter: 'blur(8px)',
+        boxShadow: dark ? '0 20px 60px rgba(0,0,0,0.60)' : '0 20px 60px rgba(0,0,0,0.12)',
+      }}>
+      {label && (
+        <p className="font-black mb-2 text-xs pb-2"
+          style={{ color: dark ? 'var(--dk-text-1)' : '#1e293b', borderBottom: `1px solid ${dark ? 'var(--dk-border)' : '#f1f5f9'}` }}>
+          {label}
+        </p>
+      )}
       {payload.map((p, i) => (
         <div key={i} className="flex items-center justify-between gap-4 py-0.5">
-          <span className="flex items-center gap-1.5 text-xs font-semibold text-gray-600">
+          <span className="flex items-center gap-1.5 text-xs font-semibold"
+            style={{ color: dark ? 'var(--dk-text-2)' : '#475569' }}>
             <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: p.color }} />
             {p.name}
           </span>
