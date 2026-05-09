@@ -490,46 +490,61 @@ export default function TeacherAnalytics() {
             </ChartCard>
 
             {/* Top Students by Avg Score */}
-            <ChartCard title="أفضل الطلاب أداءً" subtitle="ترتيب الطلاب حسب متوسط الدرجات"
-              icon={Star} iconBg="bg-amber-50" iconColor="text-amber-500">
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow duration-300">
+              <div className="h-1 bg-gradient-to-r from-amber-400 via-orange-400 to-rose-400 flex-shrink-0" />
+              <div className="p-5 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0">
+                    <Star className="w-4 h-4 text-amber-500" />
+                  </div>
+                  <div>
+                    <h2 className="font-black text-gray-800 text-sm">أفضل الطلاب أداءً</h2>
+                    <p className="text-[11px] text-gray-400 font-medium mt-0.5">ترتيب الطلاب حسب متوسط الدرجات</p>
+                  </div>
+                </div>
+              </div>
               {(data?.topStudents?.length > 0) ? (() => {
                 const top5 = [...(data.topStudents)]
                   .sort((a, b) => parseFloat(b.avg_score) - parseFloat(a.avg_score))
                   .slice(0, 5);
-                const medals = ['🥇','🥈','🥉','4️⃣','5️⃣'];
                 return (
-                  <div className="space-y-3">
+                  <div className="border-t border-gray-50">
                     {top5.map((s, i) => {
                       const avg = Math.round(parseFloat(s.avg_score) || 0);
-                      const sc = avg >= 75 ? { bar: PALETTE.emerald, badge: '#dcfce7', text: '#10b981' }
-                               : avg >= 50 ? { bar: PALETTE.indigo,  badge: '#ede9fe', text: '#6366f1' }
-                               :             { bar: PALETTE.rose,    badge: '#ffe4e6', text: '#f43f5e' };
+                      const sc = avg >= 70
+                        ? { text: '#10b981', bg: '#dcfce7' }
+                        : avg >= 50
+                        ? { text: '#6366f1', bg: '#ede9fe' }
+                        : { text: '#f43f5e', bg: '#ffe4e6' };
                       return (
                         <div key={s.id}
-                          className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-50/80 transition-colors cursor-pointer"
+                          className="flex items-center justify-between px-5 py-2.5 hover:bg-gray-50/70 transition-colors border-b border-gray-50 last:border-0 cursor-pointer"
                           onClick={() => setSelectedStudentId(s.id)}>
-                          <span className="text-lg flex-shrink-0 w-7 text-center">{medals[i]}</span>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-[12px] font-bold text-gray-700 truncate">{s.name}</span>
-                              <span className="text-[11px] font-black px-2 py-0.5 rounded-lg flex-shrink-0 mr-1"
-                                style={{ color: sc.text, background: sc.badge }}>{avg}%</span>
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                            <span className="w-5 h-5 rounded-md flex items-center justify-center text-[9px] font-black text-white flex-shrink-0"
+                              style={{ background: CHART_COLORS[i % CHART_COLORS.length] }}>
+                              {i + 1}
+                            </span>
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold text-gray-700 truncate">{s.name}</p>
+                              <p className="text-[10px] text-gray-400 font-medium">{s.exams_taken} اختبار · {s.points} نقطة</p>
                             </div>
-                            <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
-                              <div className="h-full rounded-full transition-all duration-700"
-                                style={{ width: `${avg}%`, background: sc.bar }} />
-                            </div>
-                            <p className="text-[10px] text-gray-400 font-medium mt-0.5">
-                              {s.exams_taken} اختبار · {s.points} نقطة
-                            </p>
                           </div>
+                          <span className="text-[11px] font-black px-2 py-0.5 rounded-lg flex-shrink-0 mr-2"
+                            style={{ color: sc.text, background: sc.bg }}>
+                            {avg}%
+                          </span>
                         </div>
                       );
                     })}
                   </div>
                 );
-              })() : <EmptyState icon={Star} text="لا توجد بيانات طلاب بعد" />}
-            </ChartCard>
+              })() : (
+                <div className="p-5 pt-0">
+                  <EmptyState icon={Star} text="لا توجد بيانات طلاب بعد" />
+                </div>
+              )}
+            </div>
 
           </div>
         </div>
