@@ -72,6 +72,7 @@ const AppRoutes = () => {
         <Route path="payments" element={<AssistantPayments />} />
         <Route path="analytics" element={<AssistantAnalytics />} />
         <Route path="notifications" element={<TeacherNotifications />} />
+        <Route path="requests" element={<TeacherRequests />} />
         <Route path="exam-review/:resultId" element={<ExamReviewPage />} />
       </Route>
 
