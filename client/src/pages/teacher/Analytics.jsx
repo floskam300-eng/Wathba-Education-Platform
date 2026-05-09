@@ -312,7 +312,7 @@ export default function TeacherAnalytics() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {selectedStudentId && (
         <StudentProfileModal studentId={selectedStudentId} onClose={() => setSelectedStudentId(null)} />
       )}
