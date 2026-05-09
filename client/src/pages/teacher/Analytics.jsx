@@ -344,7 +344,7 @@ export default function TeacherAnalytics() {
           {[...Array(2)].map((_, i) => <div key={i} className="h-72 rounded-2xl bg-gradient-to-br from-gray-100 to-gray-50 animate-pulse" />)}
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
           {/* Exam Performance Card — Redesigned */}
           {examChartData.length > 0 ? (
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow duration-300 flex flex-col">
@@ -436,59 +436,102 @@ export default function TeacherAnalytics() {
             </div>
           )}
 
-          {/* Attempts Distribution Donut */}
-          <ChartCard title="توزيع المحاولات" subtitle="نسبة المحاولات لكل اختبار"
-            icon={Target} iconBg="bg-orange-50" iconColor="text-orange-500">
-            {pieData.length > 0 ? (
-              <div className="flex items-center gap-4">
-                {/* Donut */}
-                <div className="flex-shrink-0 w-[180px]">
-                  <ResponsiveContainer width={180} height={180}>
-                    <PieChart>
-                      <GradientDefs />
-                      <Pie data={pieData} cx="50%" cy="50%" innerRadius={52} outerRadius={82}
-                        paddingAngle={3} dataKey="value"
-                        animationBegin={100} animationDuration={1200} animationEasing="ease-out"
-                        stroke="none">
-                        {pieData.map((_, i) => (
-                          <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip content={<CustomTooltip />} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  {/* Center label */}
-                  <p className="text-center -mt-2 text-[11px] font-bold text-gray-400">
-                    {totalAttempts} محاولة إجمالاً
-                  </p>
-                </div>
+          {/* Right column: Attempts Donut + Top Students */}
+          <div className="flex flex-col gap-5">
 
-                {/* Legend list */}
-                <div className="flex-1 space-y-2 overflow-y-auto max-h-[200px] pl-1">
-                  {pieData.map((item, i) => {
-                    const pct = totalAttempts > 0 ? Math.round((item.value / totalAttempts) * 100) : 0;
-                    const color = CHART_COLORS[i % CHART_COLORS.length];
-                    return (
-                      <div key={i} className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-0.5">
-                            <span className="text-[11px] font-semibold text-gray-600 truncate">{item.name}</span>
-                            <span className="text-[11px] font-black flex-shrink-0 mr-1" style={{ color }}>{item.value}</span>
+            {/* Attempts Distribution Donut */}
+            <ChartCard title="توزيع المحاولات" subtitle="نسبة المحاولات لكل اختبار"
+              icon={Target} iconBg="bg-orange-50" iconColor="text-orange-500">
+              {pieData.length > 0 ? (
+                <div className="flex items-center gap-4">
+                  <div className="flex-shrink-0 w-[180px]">
+                    <ResponsiveContainer width={180} height={180}>
+                      <PieChart>
+                        <GradientDefs />
+                        <Pie data={pieData} cx="50%" cy="50%" innerRadius={52} outerRadius={82}
+                          paddingAngle={3} dataKey="value"
+                          animationBegin={100} animationDuration={1200} animationEasing="ease-out"
+                          stroke="none">
+                          {pieData.map((_, i) => (
+                            <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip content={<CustomTooltip />} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <p className="text-center -mt-2 text-[11px] font-bold text-gray-400">
+                      {totalAttempts} محاولة إجمالاً
+                    </p>
+                  </div>
+                  <div className="flex-1 space-y-2 overflow-y-auto max-h-[200px] pl-1">
+                    {pieData.map((item, i) => {
+                      const pct = totalAttempts > 0 ? Math.round((item.value / totalAttempts) * 100) : 0;
+                      const color = CHART_COLORS[i % CHART_COLORS.length];
+                      return (
+                        <div key={i} className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-0.5">
+                              <span className="text-[11px] font-semibold text-gray-600 truncate">{item.name}</span>
+                              <span className="text-[11px] font-black flex-shrink-0 mr-1" style={{ color }}>{item.value}</span>
+                            </div>
+                            <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                              <div className="h-full rounded-full transition-all duration-700"
+                                style={{ width: `${pct}%`, background: color }} />
+                            </div>
                           </div>
-                          <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
-                            <div className="h-full rounded-full transition-all duration-700"
-                              style={{ width: `${pct}%`, background: color }} />
+                          <span className="text-[10px] font-bold text-gray-400 flex-shrink-0 w-7 text-left">{pct}%</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : <EmptyState icon={Target} text="لا توجد محاولات بعد" />}
+            </ChartCard>
+
+            {/* Top Students by Avg Score */}
+            <ChartCard title="أفضل الطلاب أداءً" subtitle="ترتيب الطلاب حسب متوسط الدرجات"
+              icon={Star} iconBg="bg-amber-50" iconColor="text-amber-500">
+              {(data?.topStudents?.length > 0) ? (() => {
+                const top5 = [...(data.topStudents)]
+                  .sort((a, b) => parseFloat(b.avg_score) - parseFloat(a.avg_score))
+                  .slice(0, 5);
+                const medals = ['🥇','🥈','🥉','4️⃣','5️⃣'];
+                return (
+                  <div className="space-y-3">
+                    {top5.map((s, i) => {
+                      const avg = Math.round(parseFloat(s.avg_score) || 0);
+                      const sc = avg >= 75 ? { bar: PALETTE.emerald, badge: '#dcfce7', text: '#10b981' }
+                               : avg >= 50 ? { bar: PALETTE.indigo,  badge: '#ede9fe', text: '#6366f1' }
+                               :             { bar: PALETTE.rose,    badge: '#ffe4e6', text: '#f43f5e' };
+                      return (
+                        <div key={s.id}
+                          className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-50/80 transition-colors cursor-pointer"
+                          onClick={() => setSelectedStudentId(s.id)}>
+                          <span className="text-lg flex-shrink-0 w-7 text-center">{medals[i]}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[12px] font-bold text-gray-700 truncate">{s.name}</span>
+                              <span className="text-[11px] font-black px-2 py-0.5 rounded-lg flex-shrink-0 mr-1"
+                                style={{ color: sc.text, background: sc.badge }}>{avg}%</span>
+                            </div>
+                            <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                              <div className="h-full rounded-full transition-all duration-700"
+                                style={{ width: `${avg}%`, background: sc.bar }} />
+                            </div>
+                            <p className="text-[10px] text-gray-400 font-medium mt-0.5">
+                              {s.exams_taken} اختبار · {s.points} نقطة
+                            </p>
                           </div>
                         </div>
-                        <span className="text-[10px] font-bold text-gray-400 flex-shrink-0 w-7 text-left">{pct}%</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : <EmptyState icon={Target} text="لا توجد محاولات بعد" />}
-          </ChartCard>
+                      );
+                    })}
+                  </div>
+                );
+              })() : <EmptyState icon={Star} text="لا توجد بيانات طلاب بعد" />}
+            </ChartCard>
+
+          </div>
         </div>
       )}
 
