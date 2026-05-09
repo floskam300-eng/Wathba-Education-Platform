@@ -11,7 +11,17 @@ import { useAuth } from '../../context/AuthContext';
 import { generatePDFReport } from '../../lib/pdfReport';
 
 const STAGES = ['الصف الأول الثانوي', 'الصف الثاني الثانوي', 'الصف الثالث الثانوي', 'الصف الأول الإعدادي', 'الصف الثاني الإعدادي', 'الصف الثالث الإعدادي', 'جامعي'];
-const emptyForm = { username: '', password: '', name: '', phone: '', parent_phone: '', academic_stage: '', gender: '' };
+const emptyForm = { password: '', name: '', phone: '', parent_phone: '', academic_stage: '', gender: '' };
+
+const STAGE_PREFIX_LABELS = {
+  'الصف الأول الثانوي':   'H',
+  'الصف الثاني الثانوي':  'N',
+  'الصف الثالث الثانوي':  'T',
+  'الصف الأول الإعدادي':  'A',
+  'الصف الثاني الإعدادي': 'B',
+  'الصف الثالث الإعدادي': 'C',
+  'جامعي':                 'U',
+};
 
 export default function TeacherStudents() {
   const qc = useQueryClient();
@@ -33,6 +43,8 @@ export default function TeacherStudents() {
   const [importRows, setImportRows] = useState([]);
   const [importLoading, setImportLoading] = useState(false);
   const importFileRef = useRef();
+  const [previewUsername, setPreviewUsername] = useState('');
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   const { data: students = [], isLoading } = useQuery({
     queryKey: ['students', debouncedSearch],
@@ -107,13 +119,31 @@ export default function TeacherStudents() {
   const canEdit = user?.role === 'teacher' || user?.can_edit_students;
   const canDelete = user?.role === 'teacher' || user?.can_delete_students;
 
-  const openAdd = () => { setEditData(null); setForm(emptyForm); setModal(true); };
-  const openEdit = (s) => { setEditData(s); setForm({ ...s, password: '' }); setModal(true); };
-  const closeModal = () => { setModal(false); setEditData(null); setForm(emptyForm); };
+  const openAdd = () => { setEditData(null); setForm(emptyForm); setPreviewUsername(''); setModal(true); };
+  const openEdit = (s) => { setEditData(s); setForm({ ...s, password: '' }); setPreviewUsername(''); setModal(true); };
+  const closeModal = () => { setModal(false); setEditData(null); setForm(emptyForm); setPreviewUsername(''); };
+
+  // Fetch preview username when stage changes (only when adding a new student)
+  useEffect(() => {
+    if (editData || !modal) return;
+    if (!form.academic_stage) { setPreviewUsername(''); return; }
+    let cancelled = false;
+    setPreviewLoading(true);
+    api.get('/students/next-username', { params: { stage: form.academic_stage } })
+      .then(r => { if (!cancelled) setPreviewUsername(r.data.username); })
+      .catch(() => {
+        if (!cancelled) {
+          const p = STAGE_PREFIX_LABELS[form.academic_stage] || 'S';
+          setPreviewUsername(`${p}???`);
+        }
+      })
+      .finally(() => { if (!cancelled) setPreviewLoading(false); });
+    return () => { cancelled = true; };
+  }, [form.academic_stage, editData, modal]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!form.username || !form.name) return toast.error('اسم المستخدم والاسم مطلوبان');
+    if (!form.name) return toast.error('الاسم مطلوب');
     if (!editData && !form.password) return toast.error('كلمة المرور مطلوبة');
     if (editData) updateMut.mutate({ id: editData.id, data: form });
     else createMut.mutate(form);
@@ -313,30 +343,38 @@ export default function TeacherStudents() {
       {/* Add/Edit Modal */}
       <Modal open={modal} onClose={closeModal} title={editData ? 'تعديل بيانات طالب' : 'إضافة طالب جديد'}>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-bold text-navy-700 mb-1">الاسم *</label>
-              <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="input-field" placeholder="الاسم الكامل" />
+
+          {/* Username display */}
+          {editData ? (
+            <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+              <span className="text-xs font-bold text-slate-500">كود الطالب</span>
+              <span className="font-mono font-black text-navy-700 tracking-widest text-lg">{editData.username}</span>
             </div>
-            <div>
-              <label className="block text-sm font-bold text-navy-700 mb-1">اسم المستخدم *</label>
-              <input value={form.username} onChange={e => setForm({ ...form, username: e.target.value })} className="input-field" placeholder="username" dir="ltr" disabled={!!editData} />
+          ) : (
+            <div className="flex items-center gap-3 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3">
+              <span className="text-xs font-bold text-orange-600">الكود التلقائي</span>
+              {form.academic_stage ? (
+                previewLoading ? (
+                  <span className="font-mono text-sm text-orange-400 animate-pulse">جاري التوليد...</span>
+                ) : (
+                  <span className="font-mono font-black text-orange-700 tracking-widest text-lg">{previewUsername}</span>
+                )
+              ) : (
+                <span className="text-xs text-orange-400">اختر المرحلة الدراسية أولاً لظهور الكود</span>
+              )}
             </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-bold text-navy-700 mb-1">الاسم *</label>
+            <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="input-field" placeholder="الاسم الكامل" />
           </div>
+
           <div>
             <label className="block text-sm font-bold text-navy-700 mb-1">كلمة المرور {editData ? '(اتركها فارغة للإبقاء)' : '*'}</label>
             <input type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} className="input-field" placeholder="••••••••" dir="ltr" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-bold text-navy-700 mb-1">هاتف الطالب</label>
-              <input value={form.phone || ''} onChange={e => setForm({ ...form, phone: e.target.value })} className="input-field" placeholder="01xxxxxxxxx" dir="ltr" />
-            </div>
-            <div>
-              <label className="block text-sm font-bold text-navy-700 mb-1">هاتف ولي الأمر</label>
-              <input value={form.parent_phone || ''} onChange={e => setForm({ ...form, parent_phone: e.target.value })} className="input-field" placeholder="01xxxxxxxxx" dir="ltr" />
-            </div>
-          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-bold text-navy-700 mb-1">المرحلة الدراسية</label>
@@ -354,6 +392,18 @@ export default function TeacherStudents() {
               </select>
             </div>
           </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-bold text-navy-700 mb-1">هاتف الطالب</label>
+              <input value={form.phone || ''} onChange={e => setForm({ ...form, phone: e.target.value })} className="input-field" placeholder="01xxxxxxxxx" dir="ltr" />
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-navy-700 mb-1">هاتف ولي الأمر</label>
+              <input value={form.parent_phone || ''} onChange={e => setForm({ ...form, parent_phone: e.target.value })} className="input-field" placeholder="01xxxxxxxxx" dir="ltr" />
+            </div>
+          </div>
+
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={closeModal} className="flex-1 btn-secondary">إلغاء</button>
             <button type="submit" disabled={createMut.isPending || updateMut.isPending} className="flex-1 btn-primary">

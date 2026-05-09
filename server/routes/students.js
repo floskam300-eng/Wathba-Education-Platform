@@ -13,6 +13,47 @@ const getTeacherId = (req) => {
   return req.user.teacher_id;
 };
 
+// ── Stage → username prefix map ──
+const STAGE_PREFIXES = {
+  'الصف الأول الثانوي':   'H',
+  'الصف الثاني الثانوي':  'N',
+  'الصف الثالث الثانوي':  'T',
+  'الصف الأول الإعدادي':  'A',
+  'الصف الثاني الإعدادي': 'B',
+  'الصف الثالث الإعدادي': 'C',
+  'جامعي':                 'U',
+};
+
+// Returns the next available username for a teacher + stage (e.g. H001, H002 …)
+const generateUsername = async (teacherId, stage, dbPool) => {
+  const prefix = STAGE_PREFIXES[stage] || 'S';
+  // Fetch all usernames that match PREFIX followed by digits only
+  const { rows } = await dbPool.query(
+    `SELECT username FROM students
+     WHERE teacher_id = $1 AND username ~ $2`,
+    [teacherId, `^${prefix}[0-9]+$`]
+  );
+  let maxNum = 0;
+  for (const row of rows) {
+    const n = parseInt(row.username.slice(prefix.length), 10);
+    if (!isNaN(n) && n > maxNum) maxNum = n;
+  }
+  return `${prefix}${String(maxNum + 1).padStart(3, '0')}`;
+};
+
+// ── Preview next username for a given stage ──
+router.get('/next-username', requireRole('teacher', 'assistant'), async (req, res) => {
+  const teacherId = getTeacherId(req);
+  const { stage } = req.query;
+  if (!stage) return res.status(400).json({ error: 'stage is required' });
+  try {
+    const username = await generateUsername(teacherId, stage, pool);
+    res.json({ username, prefix: STAGE_PREFIXES[stage] || 'S' });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 router.get('/', requireRole('teacher', 'assistant'), async (req, res) => {
   const teacherId = getTeacherId(req);
   const { search } = req.query;
@@ -51,19 +92,34 @@ const checkPermission = async (req, res, next, perm) => {
 
 router.post('/', requireRole('teacher', 'assistant'), (req, res, next) => checkPermission(req, res, next, 'can_add_students'), async (req, res) => {
   const teacherId = getTeacherId(req);
-  const { username, password, name, phone, parent_phone, academic_stage, gender } = req.body;
-  if (!username || !password || !name) return res.status(400).json({ error: 'Username, password and name are required' });
+  const { password, name, phone, parent_phone, academic_stage, gender } = req.body;
+  if (!password || !name) return res.status(400).json({ error: 'الاسم وكلمة المرور مطلوبان' });
   try {
-    const hashed = await bcrypt.hash(password, 10);
-    const result = await pool.query(
-      'INSERT INTO students (username,password,name,phone,parent_phone,academic_stage,gender,teacher_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
-      [username, hashed, name, phone, parent_phone, academic_stage, gender, teacherId]
-    );
-    invalidateCache(teacherId);
-    const { password: _, ...safe } = result.rows[0];
-    res.status(201).json(safe);
+    // Auto-generate username based on academic stage
+    let username = await generateUsername(teacherId, academic_stage || '', pool);
+    // Retry up to 5 times if race condition causes duplicate
+    let retries = 0;
+    while (retries < 5) {
+      try {
+        const hashed = await bcrypt.hash(password, 10);
+        const result = await pool.query(
+          'INSERT INTO students (username,password,name,phone,parent_phone,academic_stage,gender,teacher_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
+          [username, hashed, name, phone, parent_phone, academic_stage, gender, teacherId]
+        );
+        invalidateCache(teacherId);
+        const { password: _, ...safe } = result.rows[0];
+        return res.status(201).json(safe);
+      } catch (err) {
+        if (err.code === '23505') {
+          retries++;
+          username = await generateUsername(teacherId, academic_stage || '', pool);
+        } else {
+          throw err;
+        }
+      }
+    }
+    res.status(409).json({ error: 'تعذّر توليد اسم مستخدم فريد، حاول مرة أخرى' });
   } catch (err) {
-    if (err.code === '23505') return res.status(409).json({ error: 'Username already exists' });
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -331,19 +387,21 @@ router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => ch
   }
   const results = { success: 0, failed: 0, errors: [] };
   for (const s of students) {
-    const name     = (s['الاسم'] || s['name'] || '').toString().trim();
-    const username = (s['اسم المستخدم'] || s['username'] || '').toString().trim();
-    const password = (s['كلمة المرور'] || s['password'] || '').toString().trim();
-    const phone    = (s['الهاتف'] || s['phone'] || '').toString().trim() || null;
-    const parent_phone = (s['هاتف ولي الأمر'] || s['parent_phone'] || '').toString().trim() || null;
+    const name           = (s['الاسم'] || s['name'] || '').toString().trim();
+    const manualUsername = (s['اسم المستخدم'] || s['username'] || '').toString().trim();
+    const password       = (s['كلمة المرور'] || s['password'] || '').toString().trim();
+    const phone          = (s['الهاتف'] || s['phone'] || '').toString().trim() || null;
+    const parent_phone   = (s['هاتف ولي الأمر'] || s['parent_phone'] || '').toString().trim() || null;
     const academic_stage = (s['المرحلة'] || s['academic_stage'] || '').toString().trim() || null;
-    const gender = (s['الجنس'] || s['gender'] || '').toString().trim() || null;
-    if (!name || !username || !password) {
+    const gender         = (s['الجنس'] || s['gender'] || '').toString().trim() || null;
+    if (!name || !password) {
       results.failed++;
-      results.errors.push(`${name || username || '؟'}: حقول مطلوبة ناقصة`);
+      results.errors.push(`${name || '؟'}: الاسم وكلمة المرور مطلوبان`);
       continue;
     }
     try {
+      // Use manual username if provided, otherwise auto-generate
+      const username = manualUsername || await generateUsername(teacherId, academic_stage || '', pool);
       const hashed = await bcrypt.hash(password, 10);
       await pool.query(
         'INSERT INTO students (username,password,name,phone,parent_phone,academic_stage,gender,teacher_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',
