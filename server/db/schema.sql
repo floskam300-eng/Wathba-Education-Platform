@@ -166,6 +166,7 @@ ALTER TABLE exam_results ADD COLUMN IF NOT EXISTS essay_score_adjustment INTEGER
 
 ALTER TABLE assistants ADD COLUMN IF NOT EXISTS can_manage_payments BOOLEAN DEFAULT false;
 ALTER TABLE assistants ADD COLUMN IF NOT EXISTS can_manage_courses  BOOLEAN DEFAULT false;
+ALTER TABLE assistants ADD COLUMN IF NOT EXISTS can_send_notifications BOOLEAN DEFAULT false;
 
 CREATE TABLE IF NOT EXISTS course_enrollment_requests (
   id SERIAL PRIMARY KEY,

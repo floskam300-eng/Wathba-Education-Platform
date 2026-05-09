@@ -18,7 +18,7 @@ router.get('/students', requireRole('teacher', 'assistant'), async (req, res) =>
               COALESCE(AVG(er.score), 0)::int as avg_score
        FROM students s
        LEFT JOIN exam_results er ON s.id = er.student_id
-       WHERE s.teacher_id = $1
+       WHERE s.teacher_id = $1 AND s.deleted_at IS NULL
        GROUP BY s.id ORDER BY s.name ASC`,
       [teacherId]
     );

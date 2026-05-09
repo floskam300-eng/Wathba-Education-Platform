@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { MessageCircle, Send, Clock, Users, Search, ChevronDown } from 'lucide-react';
+import { MessageCircle, Send, Clock, Users, Search, ChevronDown, GraduationCap, Filter } from 'lucide-react';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
 
@@ -23,6 +23,7 @@ const fmtPhone = (phone) => {
 export default function Notifications() {
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
+  const [stageFilter, setStageFilter] = useState('الكل');
   const [selectedStudents, setSelectedStudents] = useState([]);
   const [message, setMessage] = useState('');
   const [recipientType, setRecipientType] = useState('student');
@@ -45,9 +46,13 @@ export default function Notifications() {
     onSuccess: () => qc.invalidateQueries(['notif-logs']),
   });
 
-  const filtered = students.filter(s =>
-    s.name.includes(search) || (s.phone || '').includes(search)
-  );
+  const stages = ['الكل', ...new Set(students.map(s => s.academic_stage).filter(Boolean))];
+
+  const filtered = students.filter(s => {
+    const matchSearch = s.name.includes(search) || (s.phone || '').includes(search);
+    const matchStage = stageFilter === 'الكل' || s.academic_stage === stageFilter;
+    return matchSearch && matchStage;
+  });
 
   const toggleStudent = (id) => {
     setSelectedStudents(prev =>
@@ -56,8 +61,14 @@ export default function Notifications() {
   };
 
   const selectAll = () => {
-    if (selectedStudents.length === filtered.length) setSelectedStudents([]);
+    if (selectedStudents.length === filtered.length && filtered.length > 0) setSelectedStudents([]);
     else setSelectedStudents(filtered.map(s => s.id));
+  };
+
+  const selectStageAll = (stage) => {
+    const stageStudents = students.filter(s => s.academic_stage === stage).map(s => s.id);
+    setStageFilter(stage);
+    setSelectedStudents(stageStudents);
   };
 
   const applyTemplate = (tpl) => {
@@ -119,8 +130,8 @@ export default function Notifications() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {/* Student picker */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="p-4 border-b border-slate-100">
-              <div className="flex items-center justify-between mb-3">
+            <div className="p-4 border-b border-slate-100 space-y-3">
+              <div className="flex items-center justify-between">
                 <h2 className="font-black text-navy-600 flex items-center gap-2">
                   <Users className="w-4 h-4 text-orange-500" /> اختر الطلاب
                   {selectedStudents.length > 0 && (
@@ -133,11 +144,56 @@ export default function Notifications() {
                   {selectedStudents.length === filtered.length && filtered.length > 0 ? 'إلغاء الكل' : 'تحديد الكل'}
                 </button>
               </div>
+
               <div className="relative">
                 <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input value={search} onChange={e => setSearch(e.target.value)}
                   className="input-field pr-9 text-sm" placeholder="بحث باسم الطالب أو الهاتف..." />
               </div>
+
+              {stages.length > 1 && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-1 text-xs font-bold text-gray-500">
+                    <Filter className="w-3 h-3" /> فلتر حسب المرحلة
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {stages.map(stage => {
+                      const count = stage === 'الكل'
+                        ? students.length
+                        : students.filter(s => s.academic_stage === stage).length;
+                      const isActive = stageFilter === stage;
+                      return (
+                        <button
+                          key={stage}
+                          onClick={() => {
+                            if (stage !== 'الكل') {
+                              selectStageAll(stage);
+                            } else {
+                              setStageFilter('الكل');
+                              setSelectedStudents([]);
+                            }
+                          }}
+                          className={`flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full transition-all border ${
+                            isActive
+                              ? 'bg-navy-600 text-white border-navy-600'
+                              : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                          }`}>
+                          {stage !== 'الكل' && <GraduationCap className="w-3 h-3" />}
+                          {stage}
+                          <span className={`text-xs rounded-full px-1 font-black ${isActive ? 'bg-white/20 text-white' : 'bg-white text-gray-500 border border-gray-200'}`}>
+                            {count}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {stageFilter !== 'الكل' && (
+                    <p className="text-xs text-orange-600 font-bold">
+                      ✓ تم تحديد جميع طلاب {stageFilter} تلقائياً — يمكنك تعديل التحديد
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
             <div className="overflow-y-auto max-h-80 divide-y divide-slate-100">
               {filtered.length === 0 ? (

@@ -15,9 +15,10 @@ const PERMISSIONS = [
   { key: 'can_send_reports', label: 'إرسال التقارير' },
   { key: 'can_manage_payments', label: 'إدارة المدفوعات' },
   { key: 'can_manage_courses', label: 'إدارة الكورسات' },
+  { key: 'can_send_notifications', label: 'إرسال الإشعارات والرسائل' },
 ];
 
-const emptyForm = { username: '', password: '', name: '', phone: '', can_add_students: true, can_edit_students: true, can_delete_students: false, can_manage_exams: true, can_view_analytics: true, can_send_reports: true, can_manage_payments: false, can_manage_courses: false };
+const emptyForm = { username: '', password: '', name: '', phone: '', can_add_students: true, can_edit_students: true, can_delete_students: false, can_manage_exams: true, can_view_analytics: true, can_send_reports: true, can_manage_payments: false, can_manage_courses: false, can_send_notifications: false };
 
 export default function TeacherAssistants() {
   const qc = useQueryClient();
@@ -50,7 +51,7 @@ export default function TeacherAssistants() {
 
   const openPerm = (a) => {
     setPermModal(a);
-    setPermForm({ can_add_students: a.can_add_students, can_edit_students: a.can_edit_students, can_delete_students: a.can_delete_students, can_manage_exams: a.can_manage_exams, can_view_analytics: a.can_view_analytics, can_send_reports: a.can_send_reports, can_manage_payments: a.can_manage_payments || false, can_manage_courses: a.can_manage_courses || false });
+    setPermForm({ can_add_students: a.can_add_students, can_edit_students: a.can_edit_students, can_delete_students: a.can_delete_students, can_manage_exams: a.can_manage_exams, can_view_analytics: a.can_view_analytics, can_send_reports: a.can_send_reports, can_manage_payments: a.can_manage_payments || false, can_manage_courses: a.can_manage_courses || false, can_send_notifications: a.can_send_notifications || false });
   };
 
   return (
