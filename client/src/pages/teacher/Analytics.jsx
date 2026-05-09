@@ -381,16 +381,16 @@ export default function TeacherAnalytics() {
               </div>
 
               {/* Chart */}
-              <div className="px-3 pb-1 flex-shrink-0">
-                <ResponsiveContainer width="100%" height={175}>
-                  <BarChart data={examChartData} margin={{ top: 0, right: 5, left: -18, bottom: 0 }} barGap={3} barCategoryGap="30%">
+              <div className="px-2 pb-1 flex-shrink-0">
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={examChartData} margin={{ top: 4, right: 8, left: -14, bottom: 0 }} barGap={2} barCategoryGap="18%">
                     <GradientDefs />
                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                    <XAxis dataKey="name" tick={{ fontSize: 9, fontFamily: 'Cairo', fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 9, fontFamily: 'Cairo', fill: '#94a3b8' }} axisLine={false} tickLine={false} domain={[0, 100]} tickFormatter={v => `${v}%`} />
+                    <XAxis dataKey="name" tick={{ fontSize: 9, fontFamily: 'Cairo', fill: '#94a3b8' }} axisLine={false} tickLine={false} interval={0} />
+                    <YAxis tick={{ fontSize: 9, fontFamily: 'Cairo', fill: '#94a3b8' }} axisLine={false} tickLine={false} domain={[0, 100]} tickFormatter={v => `${v}%`} tickCount={5} />
                     <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(99,102,241,0.05)', radius: 8 }} />
-                    <Bar dataKey="متوسط" fill="url(#barNavy)"   radius={[5,5,0,0]} maxBarSize={22} animationDuration={1200} animationEasing="ease-out" />
-                    <Bar dataKey="أعلى"  fill="url(#barOrange)" radius={[5,5,0,0]} maxBarSize={22} animationDuration={1400} animationEasing="ease-out" />
+                    <Bar dataKey="متوسط" fill="url(#barNavy)"   radius={[5,5,0,0]} animationDuration={1200} animationEasing="ease-out" />
+                    <Bar dataKey="أعلى"  fill="url(#barOrange)" radius={[5,5,0,0]} animationDuration={1400} animationEasing="ease-out" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -405,21 +405,21 @@ export default function TeacherAnalytics() {
                 </span>
               </div>
 
-              {/* Exam rows */}
+              {/* Exam rows — use fullName so nothing is cut off */}
               <div className="border-t border-gray-50 flex-1 overflow-y-auto">
                 {examChartData.map((e, i) => {
                   const avg = e['متوسط'];
                   const sc = avg >= 70 ? { text:'#10b981', bg:'#dcfce7' } : avg >= 50 ? { text:'#6366f1', bg:'#ede9fe' } : { text:'#f43f5e', bg:'#ffe4e6' };
                   return (
-                    <div key={i} className="flex items-center justify-between px-5 py-2 hover:bg-gray-50/70 transition-colors border-b border-gray-50 last:border-0">
-                      <div className="flex items-center gap-2.5 min-w-0">
+                    <div key={i} className="flex items-center justify-between px-5 py-2.5 hover:bg-gray-50/70 transition-colors border-b border-gray-50 last:border-0">
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
                         <span className="w-5 h-5 rounded-md flex items-center justify-center text-[9px] font-black text-white flex-shrink-0"
                           style={{ background: CHART_COLORS[i % CHART_COLORS.length] }}>
                           {i + 1}
                         </span>
-                        <span className="text-xs font-semibold text-gray-700 truncate" title={e.fullName}>{e.name}</span>
+                        <span className="text-xs font-semibold text-gray-700 truncate">{e.fullName}</span>
                       </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
+                      <div className="flex items-center gap-2 flex-shrink-0 mr-2">
                         <span className="text-[10px] text-gray-400 font-medium">{e['محاولات']} محاولة</span>
                         <span className="text-[11px] font-black px-2 py-0.5 rounded-lg" style={{ color: sc.text, background: sc.bg }}>
                           {avg}%
