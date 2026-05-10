@@ -39,3 +39,6 @@ Thumbs.db
 .replit
 replit.nix
 .local/
+
+# Attached assets
+attached_assets/
