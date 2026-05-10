@@ -126,9 +126,9 @@ async function seed() {
   const students = [];
   for (const [un, name, ph, pph, stage, gender, pts] of studentsRaw) {
     const [r] = await q(
-      `INSERT INTO students (username,password,name,phone,parent_phone,academic_stage,gender,teacher_id,points)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id, username, academic_stage`,
-      [un, pass, name, ph, pph, stage, gender, T, pts]
+      `INSERT INTO students (username,password,name,phone,parent_phone,academic_stage,gender,teacher_id,points,plain_password)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id, username, academic_stage`,
+      [un, pass, name, ph, pph, stage, gender, T, pts, '123456']
     );
     students.push(r);
   }
