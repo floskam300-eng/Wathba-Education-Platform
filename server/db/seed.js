@@ -35,6 +35,8 @@ async function seed() {
   await q('DELETE FROM courses');
   await q('DELETE FROM students');
   await q('DELETE FROM assistants');
+  await q('DELETE FROM leaderboard_history');
+  await q('DELETE FROM leaderboard_reset_tracker');
   console.log('  ✓ تم مسح البيانات القديمة بالكامل');
 
   // ══════════════════════════════════════════════════════════
@@ -1092,9 +1094,9 @@ async function seed() {
     [sid('std_hassan'),  E1, 'pending',  'كنت مريضاً يوم الامتحان',                       null,                                    ago(4),  null],
     [sid('std_dina'),    E3, 'pending',  'أريد تحسين درجتي في امتحان الترم',              null,                                    ago(2),  null],
     [sid('std_nada'),    E2, 'pending',  'أريد تحسين إجابتي في السؤال المقالي',           null,                                    ago(1),  null],
-    [sid('std_adam'),    E6, 'accepted', 'درجتي منخفضة وأريد إعادة الاختبار',             'تمت الموافقة — حدد موعداً مع المعلم',  ago(10), ago(8)],
+    [sid('std_adam'),    E6, 'approved', 'درجتي منخفضة وأريد إعادة الاختبار',             'تمت الموافقة — حدد موعداً مع المعلم',  ago(10), ago(8)],
     [sid('std_ziad'),    E7, 'rejected', 'طلب إعادة',                                     'مرفوض — أديت الامتحان في وقته المناسب', ago(8),  ago(6)],
-    [sid('std_ibrahim'), E6, 'accepted', 'أريد تحسين درجتي',                              'مقبول — موعد الإعادة الأسبوع القادم',   ago(6),  ago(4)],
+    [sid('std_ibrahim'), E6, 'approved', 'أريد تحسين درجتي',                              'مقبول — موعد الإعادة الأسبوع القادم',   ago(6),  ago(4)],
     [sid('std_hassan'),  E3, 'pending',  'أريد إعادة امتحان الترم لأن درجتي منخفضة',    null,                                    ago(2),  null],
   ];
   for (const [s_id, examId, status, msg, note, created, handled] of retryReqs) {
@@ -1152,6 +1154,82 @@ async function seed() {
   console.log(`  ✓ ${notifications.length} إشعار (طلاب + أولياء أمور — مقروء + غير مقروء + كل الأنواع)`);
 
   // ══════════════════════════════════════════════════════════
+  // 18. سجل الـ Leaderboard — كل الأعمدة
+  //     teacher_id, month_label, reset_at, rankings (JSONB)
+  // ══════════════════════════════════════════════════════════
+  console.log('\n⟳  إضافة سجل المتصدرين (Leaderboard)...');
+
+  // بناء بيانات الترتيب من الطلاب الحاليين
+  const buildRankings = (entries) =>
+    JSON.stringify(
+      entries.map(([username, name, stage, pts, badge], rank) => ({
+        rank: rank + 1,
+        student_id: sid(username),
+        username,
+        name,
+        academic_stage: stage,
+        points: pts,
+        top_badge: badge,
+      })).filter(e => e.student_id)
+    );
+
+  // شهر مارس 2025
+  const rankingsMar = buildRankings([
+    ['std_youssef', 'يوسف إبراهيم كمال',    'الصف الثالث الثانوي', 780, 'خبير التفاضل'],
+    ['std_ali',     'علي محمد رمضان',        'الصف الثالث الثانوي', 740, 'نجم المصفوفات'],
+    ['std_fatma',   'فاطمة أحمد سعد',        'الصف الثالث الثانوي', 650, 'نجم المصفوفات'],
+    ['std_hana',    'هناء وليد منصور',       'الصف الثالث الثانوي', 610, 'نجم المصفوفات'],
+    ['std_mostafa', 'مصطفى أسامة نور',       'الصف الثاني الثانوي', 290, 'مهندس المستقبل'],
+    ['std_rana',    'رنا طارق عبد العزيز',   'الصف الثاني الثانوي', 380, 'عبقري المثلثات'],
+    ['std_tarek',   'طارق ماهر أبو زيد',     'الصف الأول الثانوي',  155, 'طالب متميز'],
+    ['std_nour2',   'نور الدين سامي توفيق',  'الصف الأول الثانوي',  130, 'نجم الدفعة'],
+    ['std_salma',   'سلمى محمد الشاذلي',     'الصف الأول الثانوي',  145, 'نجم الدفعة'],
+    ['std_khaled',  'خالد عصام مبروك',        'الصف الثالث الثانوي', 580, null],
+  ]);
+
+  // شهر أبريل 2025
+  const rankingsApr = buildRankings([
+    ['std_youssef', 'يوسف إبراهيم كمال',    'الصف الثالث الثانوي', 850, 'خبير التفاضل'],
+    ['std_ali',     'علي محمد رمضان',        'الصف الثالث الثانوي', 780, 'نجم المصفوفات'],
+    ['std_rana',    'رنا طارق عبد العزيز',   'الصف الثاني الثانوي', 420, 'عبقري المثلثات'],
+    ['std_mostafa', 'مصطفى أسامة نور',       'الصف الثاني الثانوي', 340, 'مهندس المستقبل'],
+    ['std_fatma',   'فاطمة أحمد سعد',        'الصف الثالث الثانوي', 710, 'نجم المصفوفات'],
+    ['std_hana',    'هناء وليد منصور',       'الصف الثالث الثانوي', 690, 'نجم المصفوفات'],
+    ['std_tarek',   'طارق ماهر أبو زيد',     'الصف الأول الثانوي',  175, 'طالب متميز'],
+    ['std_salma',   'سلمى محمد الشاذلي',     'الصف الأول الثانوي',  160, 'نجم الدفعة'],
+    ['std_nour2',   'نور الدين سامي توفيق',  'الصف الأول الثانوي',  145, 'نجم الدفعة'],
+    ['std_omar',    'عمر سامي فرج',          'الصف الثالث الثانوي', 620, null],
+  ]);
+
+  await q(`
+    INSERT INTO leaderboard_history (teacher_id, month_label, reset_at, rankings)
+    VALUES
+      ($1, 'مارس 2025',  $2::TIMESTAMP, $3::JSONB),
+      ($1, 'أبريل 2025', $4::TIMESTAMP, $5::JSONB)
+  `, [
+    T,
+    new Date(now - 60 * 86400000).toISOString(),  // مارس: منذ 60 يوم
+    rankingsMar,
+    new Date(now - 30 * 86400000).toISOString(),  // أبريل: منذ 30 يوم
+    rankingsApr,
+  ]);
+
+  // leaderboard_reset_tracker — سجل آخر إعادة تعيين وموعد القادم
+  await q(`
+    INSERT INTO leaderboard_reset_tracker (teacher_id, last_reset_at, next_reset_at)
+    VALUES ($1, $2::TIMESTAMP, $3::TIMESTAMP)
+    ON CONFLICT (teacher_id) DO UPDATE
+      SET last_reset_at = EXCLUDED.last_reset_at,
+          next_reset_at = EXCLUDED.next_reset_at
+  `, [
+    T,
+    new Date(now - 30 * 86400000).toISOString(),                // آخر إعادة: منذ 30 يوم
+    new Date(now.getTime() + 1 * 86400000).toISOString(),       // القادم: بعد يوم واحد
+  ]);
+
+  console.log('  ✓ 2 شهر في سجل المتصدرين (مارس + أبريل 2025) + سجل الإعادة التلقائية');
+
+  // ══════════════════════════════════════════════════════════
   // ملخص نهائي شامل
   // ══════════════════════════════════════════════════════════
   console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -1184,7 +1262,9 @@ async function seed() {
       (SELECT COUNT(*) FROM video_progress)                              AS video_progress,
       (SELECT COUNT(*) FROM notification_log)                            AS notifications,
       (SELECT COUNT(*) FROM exam_retry_requests)                         AS retries,
-      (SELECT COUNT(*) FROM course_enrollment_requests)                  AS enroll_reqs
+      (SELECT COUNT(*) FROM course_enrollment_requests)                  AS enroll_reqs,
+      (SELECT COUNT(*) FROM leaderboard_history)                         AS lb_history,
+      (SELECT COUNT(*) FROM leaderboard_reset_tracker)                   AS lb_tracker
   `);
   const s = summary[0];
 
@@ -1207,8 +1287,10 @@ async function seed() {
   الشارات                         ${s.badges}      (على 6 امتحانات)
   تقدم الفيديوهات                 ${s.video_progress}     (30+ طالب)
   الإشعارات                       ${s.notifications}      (طلاب + أولياء)
-  طلبات إعادة الامتحان            ${s.retries}       (pending + accepted + rejected)
+  طلبات إعادة الامتحان            ${s.retries}       (pending + approved + rejected)
   طلبات التسجيل في الكورسات       ${s.enroll_reqs}       (pending + accepted + rejected)
+  سجل المتصدرين (تاريخ)           ${s.lb_history}       (مارس + أبريل 2025)
+  متتبع إعادة الضبط               ${s.lb_tracker}       (موعد الإعادة القادم)
   ──────────────────────────────────────────────────────────
 
   🔑 بيانات تسجيل الدخول:
