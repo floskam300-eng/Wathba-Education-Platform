@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Users, Plus, Pencil, Trash2, Search, Eye, Printer, GraduationCap, Upload, FileSpreadsheet, X, Loader2, Copy, CheckCircle } from 'lucide-react';
+import { Users, Plus, Pencil, Trash2, Search, Eye, EyeOff, Printer, GraduationCap, Upload, FileSpreadsheet, X, Loader2, Copy, CheckCircle } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import Modal from '../../components/ui/Modal';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
@@ -11,6 +11,25 @@ import { useAuth } from '../../context/AuthContext';
 import { generatePDFReport } from '../../lib/pdfReport';
 
 const STAGES = ['الصف الأول الثانوي', 'الصف الثاني الثانوي', 'الصف الثالث الثانوي', 'الصف الأول الإعدادي', 'الصف الثاني الإعدادي', 'الصف الثالث الإعدادي', 'جامعي'];
+
+function PasswordCell({ password, onCopy }) {
+  const [visible, setVisible] = React.useState(false);
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="font-mono text-sm font-bold text-green-700 tracking-widest">
+        {visible ? password : '••••••'}
+      </span>
+      <button onClick={() => setVisible(v => !v)} className="text-gray-400 hover:text-navy-600 transition-colors" title={visible ? 'إخفاء' : 'إظهار'}>
+        {visible ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+      </button>
+      {visible && (
+        <button onClick={() => onCopy(password)} className="text-gray-400 hover:text-green-600 transition-colors" title="نسخ">
+          <Copy className="w-3.5 h-3.5" />
+        </button>
+      )}
+    </div>
+  );
+}
 const emptyForm = { name: '', phone: '', parent_phone: '', academic_stage: '', gender: '' };
 
 const STAGE_PREFIX_LABELS = {
@@ -328,6 +347,7 @@ export default function TeacherStudents() {
                 <th className="table-header rounded-r-lg">#</th>
                 <th className="table-header">الاسم</th>
                 <th className="table-header">اسم المستخدم</th>
+                <th className="table-header">كلمة المرور</th>
                 <th className="table-header">الهاتف</th>
                 <th className="table-header">المرحلة</th>
                 <th className="table-header">النقاط</th>
@@ -352,6 +372,13 @@ export default function TeacherStudents() {
                   <td className="table-cell text-gray-600 font-semibold">{i + 1}</td>
                   <td className="table-cell font-bold text-navy-600">{s.name}</td>
                   <td className="table-cell font-mono text-sm text-gray-700">{s.username}</td>
+                  <td className="table-cell">
+                    {s.plain_password ? (
+                      <PasswordCell password={s.plain_password} onCopy={copyToClipboard} />
+                    ) : (
+                      <span className="text-gray-400 text-xs">—</span>
+                    )}
+                  </td>
                   <td className="table-cell text-gray-700">{s.phone || '—'}</td>
                   <td className="table-cell">
                     <span className="text-xs bg-blue-50 text-blue-700 font-semibold px-2 py-1 rounded-full">

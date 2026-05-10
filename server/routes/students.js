@@ -105,8 +105,8 @@ router.post('/', requireRole('teacher', 'assistant'), (req, res, next) => checkP
       try {
         const hashed = await bcrypt.hash(generatedPassword, 10);
         const result = await pool.query(
-          'INSERT INTO students (username,password,name,phone,parent_phone,academic_stage,gender,teacher_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
-          [username, hashed, name, phone, parent_phone, academic_stage, gender, teacherId]
+          'INSERT INTO students (username,password,name,phone,parent_phone,academic_stage,gender,teacher_id,plain_password) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',
+          [username, hashed, name, phone, parent_phone, academic_stage, gender, teacherId, generatedPassword]
         );
         invalidateCache(teacherId);
         const { password: _, ...safe } = result.rows[0];

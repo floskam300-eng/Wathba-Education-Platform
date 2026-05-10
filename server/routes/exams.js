@@ -671,4 +671,71 @@ router.get('/results/:resultId/review', authenticate, async (req, res) => {
   }
 });
 
+// ── Teacher: list all exam results with pending essay questions ──
+router.get('/essay-pending', requireRole('teacher', 'assistant'), async (req, res) => {
+  const teacherId = getTeacherId(req);
+  try {
+    const result = await pool.query(
+      `SELECT er.id, er.student_id, er.exam_id, er.score, er.created_at,
+              er.essay_graded, er.essay_score_adjustment, er.answers,
+              s.name  AS student_name, s.username AS student_username,
+              e.title AS exam_title, e.total_score, e.pass_score
+       FROM exam_results er
+       JOIN students s ON er.student_id = s.id
+       JOIN exams   e ON er.exam_id    = e.id
+       WHERE e.teacher_id = $1
+         AND er.essay_graded = false
+         AND EXISTS (
+           SELECT 1 FROM questions q
+           WHERE q.exam_id = e.id AND q.question_type = 'essay'
+         )
+       ORDER BY er.created_at DESC`,
+      [teacherId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── Teacher: get essay questions + student answers for a result ──
+router.get('/results/:resultId/essay-detail', requireRole('teacher', 'assistant'), async (req, res) => {
+  const teacherId = getTeacherId(req);
+  try {
+    const resultRes = await pool.query(
+      `SELECT er.*, e.teacher_id AS exam_teacher_id, e.total_score, e.title AS exam_title, e.pass_score
+       FROM exam_results er
+       JOIN exams e ON er.exam_id = e.id
+       WHERE er.id = $1 AND e.teacher_id = $2`,
+      [req.params.resultId, teacherId]
+    );
+    if (!resultRes.rows.length) return res.status(403).json({ error: 'Access denied' });
+    const row = resultRes.rows[0];
+
+    const questionsRes = await pool.query(
+      `SELECT * FROM questions WHERE exam_id = $1 AND question_type = 'essay' ORDER BY id`,
+      [row.exam_id]
+    );
+
+    let answers = [];
+    try {
+      const raw = typeof row.answers === 'string' ? JSON.parse(row.answers) : row.answers;
+      if (Array.isArray(raw)) answers = raw;
+    } catch (_) {}
+
+    const answerMap = {};
+    answers.forEach(a => { if (a.question_id) answerMap[String(a.question_id)] = a; });
+
+    const essayQuestions = questionsRes.rows.map(q => ({
+      ...q,
+      student_answer: answerMap[String(q.id)]?.student_answer ?? null,
+    }));
+
+    const { exam_teacher_id, answers: _ans, ...safeResult } = row;
+    res.json({ result: safeResult, essay_questions: essayQuestions });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;
