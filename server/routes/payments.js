@@ -20,6 +20,114 @@ const checkPermission = async (req, res, next, perm) => {
   }
 };
 
+// ─── helper: get Arabic month+year label ───────────────────────────────────
+function getArabicMonthLabel(date) {
+  const months = [
+    'يناير','فبراير','مارس','أبريل','مايو','يونيو',
+    'يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'
+  ];
+  return `${months[date.getMonth()]} ${date.getFullYear()}`;
+}
+
+// ─── helper: check & auto-reset leaderboard if 30 days passed ──────────────
+async function checkAndResetLeaderboard(teacherId) {
+  try {
+    const trackerRes = await pool.query(
+      'SELECT * FROM leaderboard_reset_tracker WHERE teacher_id=$1',
+      [teacherId]
+    );
+
+    const now = new Date();
+
+    if (trackerRes.rows.length === 0) {
+      // First time: init tracker, no reset yet
+      await pool.query(
+        `INSERT INTO leaderboard_reset_tracker (teacher_id, last_reset_at, next_reset_at)
+         VALUES ($1, NOW(), NOW() + INTERVAL '30 days')
+         ON CONFLICT (teacher_id) DO NOTHING`,
+        [teacherId]
+      );
+      return false;
+    }
+
+    const tracker = trackerRes.rows[0];
+    const nextReset = new Date(tracker.next_reset_at);
+
+    if (now >= nextReset) {
+      await doLeaderboardReset(teacherId, getArabicMonthLabel(new Date(tracker.last_reset_at)));
+      return true;
+    }
+    return false;
+  } catch (err) {
+    console.error('leaderboard auto-reset error:', err.message);
+    return false;
+  }
+}
+
+// ─── helper: perform the actual reset ──────────────────────────────────────
+async function doLeaderboardReset(teacherId, monthLabel) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. snapshot current rankings
+    const snapshot = await client.query(
+      `SELECT s.id as student_id, s.name, s.points, s.academic_stage,
+              COUNT(DISTINCT b.id) as badge_count
+       FROM students s
+       LEFT JOIN badges b ON s.id = b.student_id
+       WHERE s.teacher_id = $1 AND s.deleted_at IS NULL
+       GROUP BY s.id
+       ORDER BY s.points DESC`,
+      [teacherId]
+    );
+
+    const rankings = snapshot.rows.map((r, i) => ({
+      rank: i + 1,
+      student_id: r.student_id,
+      name: r.name,
+      points: parseInt(r.points) || 0,
+      academic_stage: r.academic_stage,
+      badge_count: parseInt(r.badge_count) || 0,
+    }));
+
+    // 2. save snapshot to history (only if there are students with points)
+    const hasPoints = rankings.some(r => r.points > 0);
+    if (hasPoints) {
+      await client.query(
+        'INSERT INTO leaderboard_history (teacher_id, month_label, reset_at, rankings) VALUES ($1, $2, NOW(), $3)',
+        [teacherId, monthLabel, JSON.stringify(rankings)]
+      );
+    }
+
+    // 3. reset all student points to 0
+    await client.query(
+      'UPDATE students SET points = 0 WHERE teacher_id = $1',
+      [teacherId]
+    );
+
+    // 4. update tracker
+    await client.query(
+      `INSERT INTO leaderboard_reset_tracker (teacher_id, last_reset_at, next_reset_at)
+       VALUES ($1, NOW(), NOW() + INTERVAL '30 days')
+       ON CONFLICT (teacher_id) DO UPDATE
+       SET last_reset_at = NOW(), next_reset_at = NOW() + INTERVAL '30 days'`,
+      [teacherId]
+    );
+
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+//  Payments routes
+// ════════════════════════════════════════════════════════════════
+
 router.get('/', requireRole('teacher', 'assistant'), async (req, res) => {
   const teacherId = getTeacherId(req);
   try {
@@ -100,6 +208,11 @@ router.put('/:id/verify', requireRole('teacher', 'assistant'), (req, res, next) 
   }
 });
 
+// ════════════════════════════════════════════════════════════════
+//  Leaderboard routes
+// ════════════════════════════════════════════════════════════════
+
+// GET /leaderboard — current month rankings (auto-reset if due)
 router.get('/leaderboard', requireRole('teacher', 'assistant', 'student'), async (req, res) => {
   let teacherId;
   try {
@@ -111,6 +224,15 @@ router.get('/leaderboard', requireRole('teacher', 'assistant', 'student'), async
       teacherId = getTeacherId(req);
     }
 
+    // auto-reset check
+    await checkAndResetLeaderboard(teacherId);
+
+    // fetch tracker for countdown
+    const trackerRes = await pool.query(
+      'SELECT last_reset_at, next_reset_at FROM leaderboard_reset_tracker WHERE teacher_id=$1',
+      [teacherId]
+    );
+
     const result = await pool.query(
       `SELECT s.id, s.name, s.points, s.academic_stage, s.gender,
               COUNT(DISTINCT er.exam_id) as exams_taken,
@@ -119,12 +241,58 @@ router.get('/leaderboard', requireRole('teacher', 'assistant', 'student'), async
        FROM students s
        LEFT JOIN exam_results er ON s.id=er.student_id
        LEFT JOIN badges b ON s.id=b.student_id
-       WHERE s.teacher_id=$1
+       WHERE s.teacher_id=$1 AND s.deleted_at IS NULL
        GROUP BY s.id ORDER BY s.points DESC LIMIT 50`,
+      [teacherId]
+    );
+
+    res.json({
+      students: result.rows,
+      tracker: trackerRes.rows[0] || null,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /leaderboard/history — past months archive
+router.get('/leaderboard/history', requireRole('teacher', 'assistant', 'student'), async (req, res) => {
+  let teacherId;
+  try {
+    if (req.user.role === 'student') {
+      const r = await pool.query('SELECT teacher_id FROM students WHERE id=$1', [req.user.id]);
+      if (!r.rows.length) return res.status(404).json({ error: 'Student not found' });
+      teacherId = r.rows[0].teacher_id;
+    } else {
+      teacherId = getTeacherId(req);
+    }
+
+    const result = await pool.query(
+      'SELECT id, month_label, reset_at, rankings FROM leaderboard_history WHERE teacher_id=$1 ORDER BY reset_at DESC',
       [teacherId]
     );
     res.json(result.rows);
   } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /leaderboard/reset — manual reset by teacher
+router.post('/leaderboard/reset', requireRole('teacher'), async (req, res) => {
+  const teacherId = getTeacherId(req);
+  try {
+    const trackerRes = await pool.query(
+      'SELECT last_reset_at FROM leaderboard_reset_tracker WHERE teacher_id=$1',
+      [teacherId]
+    );
+    const lastReset = trackerRes.rows[0]?.last_reset_at
+      ? new Date(trackerRes.rows[0].last_reset_at)
+      : new Date();
+    const label = getArabicMonthLabel(lastReset);
+    await doLeaderboardReset(teacherId, label);
+    res.json({ success: true, message: 'تم تصفير اللوحة وحفظ سجل الشهر بنجاح' });
+  } catch (err) {
+    console.error('manual reset error:', err.message);
     res.status(500).json({ error: 'Server error' });
   }
 });

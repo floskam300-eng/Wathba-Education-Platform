@@ -219,3 +219,17 @@ CREATE TABLE IF NOT EXISTS exam_retry_requests (
 );
 
 ALTER TABLE courses ADD COLUMN IF NOT EXISTS is_free BOOLEAN DEFAULT false;
+
+CREATE TABLE IF NOT EXISTS leaderboard_history (
+  id SERIAL PRIMARY KEY,
+  teacher_id INTEGER REFERENCES teachers(id) ON DELETE CASCADE,
+  month_label VARCHAR(100) NOT NULL,
+  reset_at TIMESTAMP DEFAULT NOW(),
+  rankings JSONB NOT NULL DEFAULT '[]'
+);
+
+CREATE TABLE IF NOT EXISTS leaderboard_reset_tracker (
+  teacher_id INTEGER PRIMARY KEY REFERENCES teachers(id) ON DELETE CASCADE,
+  last_reset_at TIMESTAMP DEFAULT NOW(),
+  next_reset_at TIMESTAMP DEFAULT (NOW() + INTERVAL '30 days')
+);
