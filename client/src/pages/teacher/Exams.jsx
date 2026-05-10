@@ -133,7 +133,7 @@ export default function TeacherExams() {
 
   const handleQSubmit = (e) => {
     e.preventDefault();
-    if (!qForm.question_text) return toast.error('نص السؤال مطلوب');
+    if (!qForm.question_text && !qForm.question_image_url) return toast.error('أدخل نص السؤال أو ارفع صورة السؤال');
     if (qForm.question_type === 'mcq' && (!qForm.option_a || !qForm.option_b)) return toast.error('الخياران الأول والثاني مطلوبان');
     if (editQ) updateQMut.mutate({ qid: editQ.id, data: qForm });
     else addQMut.mutate({ id: expandedExam, data: qForm });
@@ -408,11 +408,20 @@ export default function TeacherExams() {
                         </div>
                       </div>
 
-                      <textarea value={qForm.question_text} onChange={e => setQForm({ ...qForm, question_text: e.target.value })}
-                        className="input-field h-16 resize-none text-sm" placeholder="نص السؤال..." />
+                      <div>
+                        <label className="block text-xs font-bold text-navy-700 mb-1">نص السؤال <span className="text-gray-400 font-normal">(اختياري إذا وُجدت صورة)</span></label>
+                        <textarea value={qForm.question_text} onChange={e => setQForm({ ...qForm, question_text: e.target.value })}
+                          className="input-field h-16 resize-none text-sm" placeholder="اكتب نص السؤال هنا..." />
+                      </div>
 
-                      <input value={qForm.question_image_url || ''} onChange={e => setQForm({ ...qForm, question_image_url: e.target.value })}
-                        className="input-field text-sm" placeholder="رابط صورة السؤال (اختياري)" dir="ltr" />
+                      <div>
+                        <label className="block text-xs font-bold text-navy-700 mb-1">صورة السؤال <span className="text-gray-400 font-normal">(اختياري إذا وُجد نص)</span></label>
+                        <input value={qForm.question_image_url || ''} onChange={e => setQForm({ ...qForm, question_image_url: e.target.value })}
+                          className="input-field text-sm" placeholder="الصق رابط الصورة هنا..." dir="ltr" />
+                        {qForm.question_image_url && (
+                          <img src={qForm.question_image_url} alt="preview" className="mt-2 h-28 rounded-lg object-contain border border-gray-200" onError={e => e.target.style.display='none'} />
+                        )}
+                      </div>
 
                       {qForm.question_type === 'mcq' && (
                         <div className="grid grid-cols-2 gap-2">

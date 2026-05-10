@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Users, Plus, Pencil, Trash2, Search, Eye, Printer, GraduationCap, Upload, FileSpreadsheet, X, Loader2 } from 'lucide-react';
+import { Users, Plus, Pencil, Trash2, Search, Eye, Printer, GraduationCap, Upload, FileSpreadsheet, X, Loader2, Copy, CheckCircle } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import Modal from '../../components/ui/Modal';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
@@ -11,7 +11,7 @@ import { useAuth } from '../../context/AuthContext';
 import { generatePDFReport } from '../../lib/pdfReport';
 
 const STAGES = ['الصف الأول الثانوي', 'الصف الثاني الثانوي', 'الصف الثالث الثانوي', 'الصف الأول الإعدادي', 'الصف الثاني الإعدادي', 'الصف الثالث الإعدادي', 'جامعي'];
-const emptyForm = { password: '', name: '', phone: '', parent_phone: '', academic_stage: '', gender: '' };
+const emptyForm = { name: '', phone: '', parent_phone: '', academic_stage: '', gender: '' };
 
 const STAGE_PREFIX_LABELS = {
   'الصف الأول الثانوي':   'H',
@@ -45,6 +45,7 @@ export default function TeacherStudents() {
   const importFileRef = useRef();
   const [previewUsername, setPreviewUsername] = useState('');
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [createdStudent, setCreatedStudent] = useState(null);
 
   const { data: students = [], isLoading } = useQuery({
     queryKey: ['students', debouncedSearch],
@@ -59,7 +60,11 @@ export default function TeacherStudents() {
 
   const createMut = useMutation({
     mutationFn: (data) => api.post('/students', data),
-    onSuccess: () => { qc.invalidateQueries(['students']); toast.success('تم إضافة الطالب'); closeModal(); },
+    onSuccess: (res) => {
+      qc.invalidateQueries(['students']);
+      setCreatedStudent(res.data);
+      closeModal();
+    },
     onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
   });
 
@@ -122,6 +127,7 @@ export default function TeacherStudents() {
   const openAdd = () => { setEditData(null); setForm(emptyForm); setPreviewUsername(''); setModal(true); };
   const openEdit = (s) => { setEditData(s); setForm({ ...s, password: '' }); setPreviewUsername(''); setModal(true); };
   const closeModal = () => { setModal(false); setEditData(null); setForm(emptyForm); setPreviewUsername(''); };
+  const copyToClipboard = (text) => { navigator.clipboard.writeText(text).then(() => toast.success('تم النسخ!')); };
 
   // Fetch preview username when stage changes (only when adding a new student)
   useEffect(() => {
@@ -144,7 +150,6 @@ export default function TeacherStudents() {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!form.name) return toast.error('الاسم مطلوب');
-    if (!editData && !form.password) return toast.error('كلمة المرور مطلوبة');
     if (editData) updateMut.mutate({ id: editData.id, data: form });
     else createMut.mutate(form);
   };
@@ -191,6 +196,39 @@ export default function TeacherStudents() {
           )}
         </div>
       </div>
+
+      {/* Created Student Password Modal */}
+      {createdStudent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center">
+            <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckCircle className="w-8 h-8 text-green-600" />
+            </div>
+            <h3 className="text-lg font-black text-navy-700 mb-1">تم إضافة الطالب بنجاح!</h3>
+            <p className="text-sm text-gray-500 mb-5">احتفظ بهذه البيانات وسلّمها للطالب</p>
+            <div className="bg-gray-50 rounded-xl p-4 space-y-3 text-right mb-5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-500">اسم الطالب</span>
+                <span className="font-bold text-navy-700 text-sm">{createdStudent.name}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-500">اسم المستخدم (الكود)</span>
+                <span className="font-mono font-black text-orange-600 tracking-widest text-sm">{createdStudent.username}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-500">كلمة المرور</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono font-black text-green-700 tracking-widest text-xl">{createdStudent.generated_password}</span>
+                  <button onClick={() => copyToClipboard(createdStudent.generated_password)} className="text-gray-400 hover:text-green-600 transition-colors">
+                    <Copy className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+            <button onClick={() => setCreatedStudent(null)} className="btn-primary w-full">حسناً، تم الحفظ</button>
+          </div>
+        </div>
+      )}
 
       {/* Import Preview Modal */}
       {importModal && (
@@ -370,10 +408,18 @@ export default function TeacherStudents() {
             <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="input-field" placeholder="الاسم الكامل" />
           </div>
 
-          <div>
-            <label className="block text-sm font-bold text-navy-700 mb-1">كلمة المرور {editData ? '(اتركها فارغة للإبقاء)' : '*'}</label>
-            <input type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} className="input-field" placeholder="••••••••" dir="ltr" />
-          </div>
+          {editData && (
+            <div>
+              <label className="block text-sm font-bold text-navy-700 mb-1">كلمة المرور (اتركها فارغة للإبقاء)</label>
+              <input type="password" value={form.password || ''} onChange={e => setForm({ ...form, password: e.target.value })} className="input-field" placeholder="••••••" dir="ltr" />
+            </div>
+          )}
+          {!editData && (
+            <div className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-orange-500 flex-shrink-0" />
+              <p className="text-sm text-orange-700">سيتم توليد كلمة مرور من 6 أرقام تلقائياً وعرضها بعد الحفظ</p>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div>

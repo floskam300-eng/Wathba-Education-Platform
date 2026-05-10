@@ -92,8 +92,10 @@ const checkPermission = async (req, res, next, perm) => {
 
 router.post('/', requireRole('teacher', 'assistant'), (req, res, next) => checkPermission(req, res, next, 'can_add_students'), async (req, res) => {
   const teacherId = getTeacherId(req);
-  const { password, name, phone, parent_phone, academic_stage, gender } = req.body;
-  if (!password || !name) return res.status(400).json({ error: 'الاسم وكلمة المرور مطلوبان' });
+  const { name, phone, parent_phone, academic_stage, gender } = req.body;
+  if (!name) return res.status(400).json({ error: 'الاسم مطلوب' });
+  // Auto-generate 6-digit numeric password
+  const generatedPassword = Math.floor(100000 + Math.random() * 900000).toString();
   try {
     // Auto-generate username based on academic stage
     let username = await generateUsername(teacherId, academic_stage || '', pool);
@@ -101,14 +103,14 @@ router.post('/', requireRole('teacher', 'assistant'), (req, res, next) => checkP
     let retries = 0;
     while (retries < 5) {
       try {
-        const hashed = await bcrypt.hash(password, 10);
+        const hashed = await bcrypt.hash(generatedPassword, 10);
         const result = await pool.query(
           'INSERT INTO students (username,password,name,phone,parent_phone,academic_stage,gender,teacher_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
           [username, hashed, name, phone, parent_phone, academic_stage, gender, teacherId]
         );
         invalidateCache(teacherId);
         const { password: _, ...safe } = result.rows[0];
-        return res.status(201).json(safe);
+        return res.status(201).json({ ...safe, generated_password: generatedPassword });
       } catch (err) {
         if (err.code === '23505') {
           retries++;
