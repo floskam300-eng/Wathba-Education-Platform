@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowRight, Play, FileText, BookOpen, Video, Clock,
   Download, CheckCircle2, Lock, ChevronRight, AlertCircle,
-  Pause, Volume2, VolumeX, Maximize2, RotateCcw
+  Pause, Volume2, VolumeX, Maximize2, Minimize2, RotateCcw
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
@@ -113,10 +113,86 @@ function isYoutubeUrl(url) {
 }
 
 /* ─── YouTube Embed Player ─────────────────────────────── */
-function YoutubePlayer({ video, studentName, studentCode }) {
+function YoutubePlayer({ video, studentName, studentCode, onProgressUpdate }) {
   const containerRef = useRef(null);
-  const ytId = extractYoutubeId(video.file_path_or_url);
-  const embedUrl = `https://www.youtube.com/embed/${ytId}?rel=0&modestbranding=1&autoplay=1`;
+  const iframeRef    = useRef(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const ytId     = extractYoutubeId(video.file_path_or_url);
+  const embedUrl = `https://www.youtube.com/embed/${ytId}?rel=0&modestbranding=1&autoplay=1&enablejsapi=1`;
+
+  /* ── Fullscreen change listener ── */
+  useEffect(() => {
+    const onChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onChange);
+    document.addEventListener('webkitfullscreenchange', onChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', onChange);
+      document.removeEventListener('webkitfullscreenchange', onChange);
+    };
+  }, []);
+
+  /* ── YouTube progress tracking via postMessage ── */
+  useEffect(() => {
+    if (!onProgressUpdate || !video?.id) return;
+
+    let isPlaying      = false;
+    let playStartMs    = null;
+    let totalWatchedSec = 0;
+    let saveInterval   = null;
+
+    const saveProgress = (completed = false) => {
+      if (isPlaying && playStartMs) {
+        totalWatchedSec += (Date.now() - playStartMs) / 1000;
+        playStartMs = Date.now();
+      }
+      const mins = totalWatchedSec / 60;
+      if (mins > 0) {
+        onProgressUpdate(video.id, mins, completed ? 100 : Math.min(Math.round((mins / 60) * 100), 99), completed);
+      }
+    };
+
+    const handleMessage = (evt) => {
+      if (!evt.data) return;
+      let data;
+      try { data = typeof evt.data === 'string' ? JSON.parse(evt.data) : evt.data; }
+      catch { return; }
+
+      if (data.event === 'onStateChange') {
+        const state = Number(data.info);
+        if (state === 1) {
+          isPlaying   = true;
+          playStartMs = Date.now();
+          clearInterval(saveInterval);
+          saveInterval = setInterval(() => saveProgress(false), 30000);
+        } else if (state === 2) {
+          if (isPlaying && playStartMs) {
+            totalWatchedSec += (Date.now() - playStartMs) / 1000;
+            playStartMs = null;
+          }
+          isPlaying = false;
+          clearInterval(saveInterval);
+          saveProgress(false);
+        } else if (state === 0) {
+          if (isPlaying && playStartMs) {
+            totalWatchedSec += (Date.now() - playStartMs) / 1000;
+            playStartMs = null;
+          }
+          isPlaying = false;
+          clearInterval(saveInterval);
+          saveProgress(true);
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => {
+      window.removeEventListener('message', handleMessage);
+      clearInterval(saveInterval);
+      if (isPlaying && playStartMs) totalWatchedSec += (Date.now() - playStartMs) / 1000;
+      if (totalWatchedSec > 5) saveProgress(false);
+    };
+  }, [video?.id]); // eslint-disable-line
 
   const goFullscreen = () => {
     const el = containerRef.current;
@@ -125,24 +201,28 @@ function YoutubePlayer({ video, studentName, studentCode }) {
     else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
     else if (el.mozRequestFullScreen) el.mozRequestFullScreen();
   };
+  const exitFullscreen = () => {
+    if (document.exitFullscreen) document.exitFullscreen();
+    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+  };
 
   return (
-    <div ref={containerRef} className="relative w-full h-full bg-black">
+    <div ref={containerRef} className="relative w-full h-full bg-black" style={{ minHeight: 0 }}>
       <FloatingWatermark name={studentName} code={studentCode} />
       <iframe
+        ref={iframeRef}
         key={video.id}
         src={embedUrl}
         className="w-full h-full border-0"
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
         title={video.title}
       />
-      {/* Custom fullscreen button so the container (with watermark) goes fullscreen */}
       <button
-        onClick={goFullscreen}
+        onClick={isFullscreen ? exitFullscreen : goFullscreen}
         className="absolute bottom-3 left-3 z-30 text-white bg-black/50 hover:bg-black/80 rounded-lg p-1.5 transition-all"
-        title="ملء الشاشة"
+        title={isFullscreen ? 'تصغير' : 'ملء الشاشة'}
       >
-        <Maximize2 className="w-4 h-4" />
+        {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
       </button>
     </div>
   );
@@ -159,6 +239,7 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode }) {
   const [volume, setVolume]           = useState(1);   // 0–1
   const [muted, setMuted]             = useState(false);
   const [showControls, setShowControls] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const hideTimer    = useRef(null);
   const seeking      = useRef(false);
   const saveTimer    = useRef(null);
@@ -172,6 +253,17 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode }) {
     maxProgress.current = 0;
     watchStart.current = null;
   }, [video?.id]);
+
+  /* ── Fullscreen change listener ── */
+  useEffect(() => {
+    const onChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onChange);
+    document.addEventListener('webkitfullscreenchange', onChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', onChange);
+      document.removeEventListener('webkitfullscreenchange', onChange);
+    };
+  }, []);
 
   const resetHideTimer = () => {
     setShowControls(true);
@@ -226,7 +318,7 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode }) {
 
   /* ── Route YouTube links to the dedicated embed player ── */
   if (isYoutubeUrl(video.file_path_or_url)) {
-    return <YoutubePlayer video={video} studentName={studentName} studentCode={studentCode} />;
+    return <YoutubePlayer video={video} studentName={studentName} studentCode={studentCode} onProgressUpdate={onProgressUpdate} />;
   }
 
   const goFullscreen = () => {
@@ -236,6 +328,10 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode }) {
     else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
     else if (el.mozRequestFullScreen) el.mozRequestFullScreen();
   };
+  const exitFullscreen = () => {
+    if (document.exitFullscreen) document.exitFullscreen();
+    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+  };
 
   const pct  = `${progress}%`;
   const vol  = `${(muted ? 0 : volume) * 100}%`;
@@ -243,7 +339,8 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode }) {
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-full bg-black"
+      className="relative w-full bg-black"
+      style={{ height: '100%', minHeight: 0 }}
       onMouseMove={resetHideTimer}
       onMouseLeave={() => { if (!seeking.current && playing) setShowControls(false); }}
     >
@@ -254,7 +351,8 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode }) {
         ref={videoRef}
         key={video.id}
         src={video.file_path_or_url}
-        className="w-full h-full object-contain cursor-pointer"
+        className="w-full object-contain cursor-pointer"
+        style={{ height: '100%', display: 'block' }}
         muted={muted}
         controlsList="nodownload nofullscreen noremoteplayback"
         disablePictureInPicture
@@ -394,12 +492,16 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode }) {
               />
             </div>
 
-            {/* Fullscreen */}
+            {/* Fullscreen / Exit Fullscreen */}
             <button
-              onClick={goFullscreen}
+              onClick={isFullscreen ? exitFullscreen : goFullscreen}
               className="text-white hover:text-orange-400 transition-colors flex-shrink-0"
+              title={isFullscreen ? 'تصغير' : 'ملء الشاشة'}
             >
-              <Maximize2 className="w-4 h-4" />
+              {isFullscreen
+                ? <Minimize2 className="w-4 h-4" />
+                : <Maximize2 className="w-4 h-4" />
+              }
             </button>
           </div>
         </div>
@@ -471,13 +573,17 @@ export default function CourseView() {
   const [activeVideo, setActiveVideo] = useState(null);
   const [activePdf, setActivePdf] = useState(null);
   const [activeTab, setActiveTab] = useState('videos');
+  const qc = useQueryClient();
 
   const handleProgressUpdate = (videoId, watchedMinutes, progressPct, completed) => {
+    if (!videoId) return;
     api.post('/students/me/video-progress', {
       video_id: videoId,
-      watched_minutes: Math.round(watchedMinutes * 10) / 10,
-      progress_percentage: Math.round(progressPct),
+      watched_minutes: Math.round((watchedMinutes || 0) * 10) / 10,
+      progress_percentage: progressPct != null ? Math.round(progressPct) : 0,
       watch_count_increment: completed ? 1 : 0,
+    }).then(() => {
+      qc.invalidateQueries({ queryKey: ['student-my-stats'] });
     }).catch(() => {});
   };
 
