@@ -432,28 +432,15 @@ export default function TeacherCourses() {
               return (
                 <div key={c.id} className={`bg-white rounded-2xl border shadow-sm overflow-hidden flex flex-col transition-all duration-200 ${isExpanded ? 'border-orange-400 ring-2 ring-orange-200 shadow-lg' : 'border-gray-100 hover:shadow-md hover:border-orange-200'}`}>
                   {/* Thumbnail */}
-                  <div className={`relative w-full bg-gradient-to-br ${grad} overflow-hidden group`} style={{ paddingTop: '56.25%' }}>
+                  <div className={`relative w-full bg-gradient-to-br ${grad} overflow-hidden`} style={{ paddingTop: '56.25%' }}>
                     <ThumbnailImg url={c.thumbnail_url} name={c.name} />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
-                    {/* Action buttons overlay */}
-                    <div className="absolute top-2 left-2 flex gap-1">
-                      <button onClick={() => openEdit(c)}
-                        className="w-7 h-7 bg-white/90 hover:bg-white rounded-lg flex items-center justify-center shadow transition-all"
-                        title="تعديل">
-                        <Pencil className="w-3.5 h-3.5 text-navy-600" />
-                      </button>
-                      <button onClick={() => setDeleteId(c.id)}
-                        className="w-7 h-7 bg-white/90 hover:bg-red-50 rounded-lg flex items-center justify-center shadow transition-all"
-                        title="حذف">
-                        <Trash2 className="w-3.5 h-3.5 text-red-500" />
-                      </button>
-                    </div>
-                    {/* Badges */}
-                    <div className="absolute top-2 right-2 flex flex-col gap-1">
+                    {/* Price badge — top start (right in RTL) */}
+                    <div className="absolute top-2 right-2">
                       {c.is_free || !c.price || parseFloat(c.price) === 0 ? (
-                        <span className="text-[9px] font-black bg-green-500 text-white px-1.5 py-0.5 rounded-full shadow">مجاني</span>
+                        <span className="text-[10px] font-black bg-green-500 text-white px-2 py-0.5 rounded-full shadow">مجاني</span>
                       ) : (
-                        <span className="text-[9px] font-black bg-orange-500 text-white px-1.5 py-0.5 rounded-full shadow">{parseFloat(c.price).toLocaleString()} ج</span>
+                        <span className="text-[10px] font-black bg-orange-500 text-white px-2 py-0.5 rounded-full shadow">{parseFloat(c.price).toLocaleString()} ج</span>
                       )}
                     </div>
                     {c.target_stage && (
@@ -466,7 +453,7 @@ export default function TeacherCourses() {
                   </div>
                   {/* Details */}
                   <div className="p-3 flex-1 flex flex-col">
-                    <h3 className="font-black text-navy-700 text-sm leading-snug line-clamp-2 mb-1.5">{c.name}</h3>
+                    <h3 className="font-black text-navy-700 text-sm leading-snug line-clamp-2 mb-1">{c.name}</h3>
                     {c.description && (
                       <p className="text-gray-400 text-[11px] line-clamp-1 mb-2">{c.description}</p>
                     )}
@@ -481,9 +468,22 @@ export default function TeacherCourses() {
                         <FileText className="w-2.5 h-2.5" />{c.pdf_count} ملف
                       </span>
                     </div>
+                    {/* Action buttons row */}
+                    <div className="flex gap-1.5 pt-2 border-t border-gray-100 mb-1.5">
+                      <button
+                        onClick={() => openEdit(c)}
+                        className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg bg-navy-50 hover:bg-navy-100 text-navy-600 text-xs font-bold transition-all">
+                        <Pencil className="w-3 h-3" /> تعديل
+                      </button>
+                      <button
+                        onClick={() => setDeleteId(c.id)}
+                        className="flex items-center justify-center gap-1 px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-500 text-xs font-bold transition-all">
+                        <Trash2 className="w-3 h-3" /> حذف
+                      </button>
+                    </div>
                     <button
                       onClick={() => { setExpandedCourse(isExpanded ? null : c.id); setContentTab('videos'); }}
-                      className={`mt-auto w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-black transition-all ${isExpanded ? 'bg-orange-500 text-white' : 'bg-gray-100 hover:bg-navy-600 hover:text-white text-gray-700'}`}>
+                      className={`w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-black transition-all ${isExpanded ? 'bg-orange-500 text-white' : 'bg-gray-100 hover:bg-navy-600 hover:text-white text-gray-700'}`}>
                       {isExpanded ? <><ChevronUp className="w-3.5 h-3.5" /> إغلاق المحتوى</> : <><ChevronDown className="w-3.5 h-3.5" /> إدارة المحتوى</>}
                     </button>
                   </div>
