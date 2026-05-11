@@ -112,38 +112,299 @@ function isYoutubeUrl(url) {
   return !!extractYoutubeId(url);
 }
 
-/* ─── YouTube Embed Player ─────────────────────────────── */
-function YoutubePlayer({ video, studentName, studentCode }) {
-  const containerRef = useRef(null);
+/* ─── YouTube IFrame API global loader ─────────────────── */
+let _ytApiReady = false;
+const _ytApiQueue = [];
+function ensureYTApi(cb) {
+  if (_ytApiReady && window.YT?.Player) { cb(); return; }
+  _ytApiQueue.push(cb);
+  if (!document.getElementById('yt-api-script')) {
+    const s = document.createElement('script');
+    s.id = 'yt-api-script';
+    s.src = 'https://www.youtube.com/iframe_api';
+    document.head.appendChild(s);
+  }
+  const prevReady = window.onYouTubeIframeAPIReady;
+  window.onYouTubeIframeAPIReady = () => {
+    if (prevReady) prevReady();
+    _ytApiReady = true;
+    _ytApiQueue.forEach(fn => fn());
+    _ytApiQueue.length = 0;
+  };
+}
+
+/* ─── Custom YouTube Player (IFrame API) ───────────────── */
+function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode }) {
+  const containerRef  = useRef(null);
+  const playerRef     = useRef(null);
+  const playerDivId   = useRef(`yt-${Math.random().toString(36).slice(2)}`).current;
+  const progressTimer = useRef(null);
+  const hideTimer     = useRef(null);
+  const seeking       = useRef(false);
+  const maxPct        = useRef(0);
+
+  const [playing,      setPlaying]      = useState(false);
+  const [buffering,    setBuffering]    = useState(true);
+  const [progress,     setProgress]     = useState(0);
+  const [duration,     setDuration]     = useState(0);
+  const [currentTime,  setCurrentTime]  = useState(0);
+  const [volume,       setVolume]       = useState(80);
+  const [muted,        setMuted]        = useState(false);
+  const [showControls, setShowControls] = useState(true);
+
   const ytId = extractYoutubeId(video.file_path_or_url);
-  const embedUrl = `https://www.youtube.com/embed/${ytId}?rel=0&modestbranding=1&autoplay=1`;
+
+  /* ── reset state on video change ── */
+  useEffect(() => {
+    setPlaying(false);
+    setBuffering(true);
+    setProgress(0);
+    setCurrentTime(0);
+    maxPct.current = 0;
+  }, [video?.id]);
+
+  /* ── initialise / destroy player ── */
+  useEffect(() => {
+    if (!ytId) return;
+
+    const init = () => {
+      if (playerRef.current) {
+        try { playerRef.current.destroy(); } catch (_) {}
+        playerRef.current = null;
+      }
+      playerRef.current = new window.YT.Player(playerDivId, {
+        height: '100%',
+        width: '100%',
+        videoId: ytId,
+        playerVars: {
+          autoplay: 1,
+          controls: 0,
+          disablekb: 1,
+          fs: 0,
+          modestbranding: 1,
+          rel: 0,
+          iv_load_policy: 3,
+          playsinline: 1,
+          cc_load_policy: 0,
+        },
+        events: {
+          onReady: (e) => {
+            setBuffering(false);
+            const d = e.target.getDuration();
+            if (d > 0) setDuration(d);
+            e.target.setVolume(80);
+          },
+          onStateChange: (e) => {
+            const S = window.YT.PlayerState;
+            if (e.data === S.PLAYING) {
+              setPlaying(true);
+              setBuffering(false);
+              const d = e.target.getDuration();
+              if (d > 0) setDuration(d);
+              clearInterval(progressTimer.current);
+              progressTimer.current = setInterval(() => {
+                if (seeking.current || !playerRef.current) return;
+                try {
+                  const ct = playerRef.current.getCurrentTime();
+                  const d  = playerRef.current.getDuration();
+                  setCurrentTime(ct);
+                  if (d > 0) {
+                    const pct = (ct / d) * 100;
+                    setProgress(pct);
+                    if (pct > maxPct.current) maxPct.current = pct;
+                  }
+                } catch (_) {}
+              }, 500);
+            } else if (e.data === S.BUFFERING) {
+              setBuffering(true);
+            } else {
+              setPlaying(false);
+              setBuffering(false);
+              clearInterval(progressTimer.current);
+              if (e.data === S.ENDED) {
+                setProgress(100);
+                if (onProgressUpdate && video?.id) {
+                  const d = playerRef.current?.getDuration() || 0;
+                  onProgressUpdate(video.id, d / 60, 100, true);
+                }
+              }
+            }
+          },
+        },
+      });
+    };
+
+    ensureYTApi(init);
+
+    return () => {
+      clearInterval(progressTimer.current);
+      clearTimeout(hideTimer.current);
+    };
+  }, [ytId]);
+
+  /* ── controls helpers ── */
+  const toggle = () => {
+    if (!playerRef.current) return;
+    playing ? playerRef.current.pauseVideo() : playerRef.current.playVideo();
+  };
+
+  const onSeekChange = (e) => {
+    const pct = Number(e.target.value);
+    setProgress(pct);
+    try {
+      const d = playerRef.current?.getDuration() || 0;
+      const t = (pct / 100) * d;
+      playerRef.current?.seekTo(t, true);
+      setCurrentTime(t);
+    } catch (_) {}
+  };
+
+  const onVolumeChange = (e) => {
+    const v = Number(e.target.value);
+    setVolume(v);
+    setMuted(v === 0);
+    try {
+      playerRef.current?.setVolume(v);
+      v === 0 ? playerRef.current?.mute() : playerRef.current?.unMute();
+    } catch (_) {}
+  };
+
+  const toggleMute = () => {
+    try {
+      if (muted) { playerRef.current?.unMute(); setMuted(false); }
+      else        { playerRef.current?.mute();   setMuted(true);  }
+    } catch (_) {}
+  };
+
+  const rewind10 = () => {
+    try {
+      const t = Math.max(0, (playerRef.current?.getCurrentTime() || 0) - 10);
+      playerRef.current?.seekTo(t, true);
+      setCurrentTime(t);
+    } catch (_) {}
+  };
 
   const goFullscreen = () => {
     const el = containerRef.current;
     if (!el) return;
-    if (el.requestFullscreen) el.requestFullscreen();
-    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
-    else if (el.mozRequestFullScreen) el.mozRequestFullScreen();
+    (el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen)?.call(el);
   };
 
+  const resetHide = () => {
+    setShowControls(true);
+    clearTimeout(hideTimer.current);
+    hideTimer.current = setTimeout(() => {
+      if (!seeking.current) setShowControls(false);
+    }, 3000);
+  };
+
+  const fmtSec = (s) => {
+    const m = Math.floor(s / 60);
+    return `${m}:${Math.floor(s % 60).toString().padStart(2, '0')}`;
+  };
+
+  const pct = `${progress}%`;
+  const vol = `${muted ? 0 : volume}%`;
+
   return (
-    <div ref={containerRef} className="relative w-full h-full bg-black">
+    <div
+      ref={containerRef}
+      className="relative w-full h-full bg-black select-none"
+      onMouseMove={resetHide}
+      onMouseLeave={() => { if (!seeking.current && playing) setShowControls(false); }}
+      onContextMenu={(e) => e.preventDefault()}
+    >
+      {/* ── Watermark — highest layer, always visible ── */}
       <FloatingWatermark name={studentName} code={studentCode} />
-      <iframe
-        key={video.id}
-        src={embedUrl}
-        className="w-full h-full border-0"
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        title={video.title}
+
+      {/* ── YouTube IFrame target ── */}
+      <div id={playerDivId} className="absolute inset-0 w-full h-full" />
+
+      {/* ── Transparent overlay — blocks iframe mouse capture ── */}
+      <div
+        className="absolute inset-0"
+        style={{ zIndex: 10 }}
+        onClick={toggle}
+        onContextMenu={(e) => e.preventDefault()}
       />
-      {/* Custom fullscreen button so the container (with watermark) goes fullscreen */}
-      <button
-        onClick={goFullscreen}
-        className="absolute bottom-3 left-3 z-30 text-white bg-black/50 hover:bg-black/80 rounded-lg p-1.5 transition-all"
-        title="ملء الشاشة"
+
+      {/* ── Big play button ── */}
+      {!playing && !buffering && (
+        <div className="absolute inset-0 flex items-center justify-center" style={{ zIndex: 20, pointerEvents: 'none' }}>
+          <div
+            className="w-20 h-20 rounded-full bg-orange-500/90 flex items-center justify-center shadow-2xl hover:scale-110 transition-transform cursor-pointer"
+            style={{ pointerEvents: 'auto' }}
+            onClick={(e) => { e.stopPropagation(); toggle(); }}
+          >
+            <Play className="w-8 h-8 text-white fill-white mr-[-2px]" />
+          </div>
+        </div>
+      )}
+
+      {/* ── Buffering spinner ── */}
+      {buffering && (
+        <div className="absolute inset-0 flex items-center justify-center" style={{ zIndex: 20, pointerEvents: 'none' }}>
+          <div className="w-12 h-12 border-4 border-white/20 border-t-orange-500 rounded-full animate-spin" />
+        </div>
+      )}
+
+      {/* ── Controls bar ── */}
+      <div
+        className={`absolute bottom-0 left-0 right-0 transition-opacity duration-300 ${
+          showControls || !playing ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
+        style={{ zIndex: 30 }}
       >
-        <Maximize2 className="w-4 h-4" />
-      </button>
+        <div className="bg-gradient-to-t from-black/95 via-black/60 to-transparent px-4 pt-10 pb-3">
+
+          {/* Seek bar */}
+          <div className="mb-3">
+            <input
+              type="range" min="0" max="100" step="0.1" value={progress} dir="ltr"
+              className="player-range player-range-progress"
+              style={{ '--pct': pct }}
+              onMouseDown={() => { seeking.current = true; }}
+              onMouseUp={() => { seeking.current = false; resetHide(); }}
+              onChange={onSeekChange}
+            />
+          </div>
+
+          {/* Buttons row */}
+          <div className="flex items-center gap-3">
+            <button onClick={toggle} className="text-white hover:text-orange-400 transition-colors flex-shrink-0">
+              {playing ? <Pause className="w-5 h-5 fill-white" /> : <Play className="w-5 h-5 fill-white" />}
+            </button>
+
+            <button onClick={rewind10} className="text-white hover:text-orange-400 transition-colors flex-shrink-0">
+              <RotateCcw className="w-4 h-4" />
+            </button>
+
+            <span className="text-white/70 text-xs font-mono flex-shrink-0">
+              {fmtSec(currentTime)} / {fmtSec(duration)}
+            </span>
+
+            <div className="flex-1" />
+
+            <button onClick={toggleMute} className="text-white hover:text-orange-400 transition-colors flex-shrink-0">
+              {muted || volume === 0 ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+            </button>
+
+            <div className="w-20 flex-shrink-0">
+              <input
+                type="range" min="0" max="100" step="1"
+                value={muted ? 0 : volume} dir="ltr"
+                className="player-range player-range-volume"
+                style={{ '--vol': vol }}
+                onChange={onVolumeChange}
+              />
+            </div>
+
+            <button onClick={goFullscreen} className="text-white hover:text-orange-400 transition-colors flex-shrink-0">
+              <Maximize2 className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -226,7 +487,7 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode }) {
 
   /* ── Route YouTube links to the dedicated embed player ── */
   if (isYoutubeUrl(video.file_path_or_url)) {
-    return <YoutubePlayer video={video} studentName={studentName} studentCode={studentCode} />;
+    return <YoutubePlayer video={video} onProgressUpdate={onProgressUpdate} studentName={studentName} studentCode={studentCode} />;
   }
 
   const goFullscreen = () => {
