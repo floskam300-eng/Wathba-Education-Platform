@@ -35,11 +35,11 @@ const COVER_GRADIENTS = [
 
 function ThumbnailImg({ url, name }) {
   const [err, setErr] = React.useState(false);
-  if (!url || err) return null;
+  const src = (!err && url) ? url : '/default-course.svg';
   return (
     <img
-      key={url}
-      src={url}
+      key={url || 'default'}
+      src={src}
       alt={name}
       onError={() => setErr(true)}
       className="absolute inset-0 w-full h-full object-cover"

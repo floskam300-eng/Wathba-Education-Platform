@@ -51,19 +51,13 @@ function CourseCard({ course, onClick, children }) {
     >
       {/* Thumbnail */}
       <div className={`relative w-full bg-gradient-to-br ${grad} overflow-hidden flex-shrink-0`} style={{ paddingTop: '56.25%' }}>
-        {course.thumbnail_url && !imgError ? (
-          <img
-            key={course.thumbnail_url}
-            src={course.thumbnail_url}
-            alt={course.name}
-            onError={() => setImgError(true)}
-            className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-          />
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <BookOpen className="w-10 h-10 text-white/40" />
-          </div>
-        )}
+        <img
+          key={course.thumbnail_url || 'default'}
+          src={(!imgError && course.thumbnail_url) ? course.thumbnail_url : '/default-course.svg'}
+          alt={course.name}
+          onError={() => setImgError(true)}
+          className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+        />
         <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
         {/* Badges */}
         <div className="absolute top-2 right-2 flex flex-col gap-1">
