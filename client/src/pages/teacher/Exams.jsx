@@ -540,20 +540,42 @@ export default function TeacherExams() {
 
           {/* Scheduling */}
           <div className="bg-orange-50 rounded-xl p-4 space-y-3 border border-orange-200">
-            <p className="text-sm font-black text-orange-800 flex items-center gap-1.5"><Calendar className="w-4 h-4" /> جدولة الاختبار (اختياري)</p>
-            <div className="grid grid-cols-2 gap-3">
+            <p className="text-sm font-black text-orange-800 flex items-center gap-1.5">
+              <Calendar className="w-4 h-4" /> جدولة الاختبار <span className="font-normal text-orange-600">(اختياري)</span>
+            </p>
+            <div className="grid grid-cols-1 gap-3">
               <div>
-                <label className="block text-xs font-bold text-navy-700 mb-1">تاريخ وموعد البدء</label>
-                <input type="datetime-local" value={form.start_date} onChange={e => { setForm({ ...form, start_date: e.target.value }); clearError('end_date'); }} className="input-field text-sm" />
+                <label className="block text-xs font-bold text-navy-700 mb-1">📅 تاريخ وموعد البدء</label>
+                <input
+                  type="datetime-local"
+                  dir="ltr"
+                  value={form.start_date}
+                  onChange={e => { setForm({ ...form, start_date: e.target.value }); clearError('end_date'); clearError('start_date'); }}
+                  className="input-field text-sm"
+                  style={{ colorScheme: 'light' }}
+                />
               </div>
               <div>
-                <label className="block text-xs font-bold text-navy-700 mb-1">تاريخ وموعد الانتهاء</label>
-                <input type="datetime-local" value={form.end_date} onChange={e => { setForm({ ...form, end_date: e.target.value }); clearError('end_date'); }}
-                  className={`input-field text-sm ${formErrors.end_date ? 'border-red-400 focus:ring-red-300' : ''}`} />
+                <label className="block text-xs font-bold text-navy-700 mb-1">🔒 تاريخ وموعد الانتهاء</label>
+                <input
+                  type="datetime-local"
+                  dir="ltr"
+                  value={form.end_date}
+                  onChange={e => { setForm({ ...form, end_date: e.target.value }); clearError('end_date'); }}
+                  className={`input-field text-sm ${formErrors.end_date ? 'border-red-400 focus:ring-red-300' : ''}`}
+                  style={{ colorScheme: 'light' }}
+                  min={form.start_date || undefined}
+                />
                 <FieldError error={formErrors.end_date} />
               </div>
             </div>
-            <p className="text-xs text-orange-700">إذا تركتها فارغة، سيكون الاختبار متاحاً في أي وقت</p>
+            {(form.start_date || form.end_date) && (
+              <div className="bg-white rounded-lg px-3 py-2 border border-orange-200 text-xs text-orange-700 space-y-1">
+                {form.start_date && <p>▶️ يبدأ: <span className="font-bold">{new Date(form.start_date).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' })}</span></p>}
+                {form.end_date && <p>⏹️ ينتهي: <span className="font-bold">{new Date(form.end_date).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' })}</span></p>}
+              </div>
+            )}
+            <p className="text-xs text-orange-600">إذا تركتها فارغة، سيكون الاختبار متاحاً في أي وقت</p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
