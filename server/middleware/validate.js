@@ -112,7 +112,7 @@ function validateExam(req, res, next) {
 
 // ── Payment ──────────────────────────────────────────────────
 function validatePayment(req, res, next) {
-  const { student_id, amount, method } = req.body;
+  const { student_id, amount } = req.body;
   const errors = {};
 
   if (!student_id) errors.student_id = 'يجب اختيار الطالب';
@@ -121,8 +121,6 @@ function validatePayment(req, res, next) {
   if (!amount && amount !== 0) errors.amount = 'المبلغ مطلوب';
   else if (isNaN(num)) errors.amount = 'المبلغ يجب أن يكون رقماً';
   else if (num <= 0) errors.amount = 'المبلغ يجب أن يكون أكبر من صفر';
-
-  if (!method) errors.method = 'طريقة الدفع مطلوبة';
 
   if (Object.keys(errors).length > 0) return fail(res, errors);
   next();

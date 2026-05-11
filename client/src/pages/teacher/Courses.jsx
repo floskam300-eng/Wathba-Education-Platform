@@ -2,15 +2,14 @@ import React, { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   BookOpen, Plus, Pencil, Trash2, Video, FileText, Users,
-  ChevronDown, ChevronUp, GraduationCap, Filter, Upload,
-  X, Loader2, Play, FolderOpen, FolderPlus, Check, AlertCircle
+  ChevronDown, ChevronUp, GraduationCap, Filter,
+  X, Play, FolderOpen, FolderPlus, Check, AlertCircle, Link, ExternalLink
 } from 'lucide-react';
 import Modal from '../../components/ui/Modal';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import Badge from '../../components/ui/Badge';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
-import axios from 'axios';
 import { validateCourseForm, hasErrors } from '../../lib/validation';
 
 function FieldError({ error }) {
@@ -35,130 +34,58 @@ const STAGE_COLORS = {
   'جامعي': 'bg-orange-50 text-orange-700',
 };
 
-function UploadProgress({ progress, fileName, onCancel }) {
-  return (
-    <div className="bg-navy-50 border border-navy-200 rounded-xl p-3">
-      <div className="flex items-center justify-between mb-2">
-        <p className="text-xs font-bold text-navy-700 truncate flex-1 ml-2">{fileName}</p>
-        {onCancel && <button onClick={onCancel}><X className="w-4 h-4 text-gray-500" /></button>}
-      </div>
-      <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-        <div className="h-2 rounded-full bg-gradient-to-r from-navy-500 to-orange-500 transition-all duration-300"
-          style={{ width: `${progress}%` }} />
-      </div>
-      <p className="text-[11px] text-gray-500 mt-1 text-left">{progress}%</p>
-    </div>
-  );
-}
-
-function VideoUploadSection({ courseId, onSuccess, sections = [] }) {
+function VideoUrlSection({ courseId, onSuccess, sections = [] }) {
   const [title, setTitle] = useState('');
+  const [url, setUrl] = useState('');
   const [duration, setDuration] = useState('');
   const [sectionId, setSectionId] = useState('');
-  const [file, setFile] = useState(null);
-  const [progress, setProgress] = useState(0);
-  const [uploading, setUploading] = useState(false);
-  const [processing, setProcessing] = useState(false);
-  const fileRef = useRef();
-  const controllerRef = useRef(null);
+  const [loading, setLoading] = useState(false);
 
-  const MAX_SIZE_MB = 300;
-
-  const handleUpload = async () => {
-    if (!file) return toast.error('اختر ملف فيديو');
+  const handleAdd = async () => {
     if (!title.trim()) return toast.error('أدخل عنوان الفيديو');
-    if (file.size > MAX_SIZE_MB * 1024 * 1024) {
-      return toast.error(`حجم الفيديو يجب أن يكون أقل من ${MAX_SIZE_MB} MB`);
-    }
-    const fd = new FormData();
-    fd.append('video', file);
-    fd.append('title', title);
-    fd.append('duration_minutes', duration || '0');
-    if (sectionId) fd.append('section_id', sectionId);
-    setUploading(true);
-    setProcessing(false);
-    setProgress(0);
-    controllerRef.current = new AbortController();
+    if (!url.trim()) return toast.error('أدخل رابط الفيديو');
+    setLoading(true);
     try {
       const token = localStorage.getItem('wathba_token');
-      await axios.post(`/api/courses/${courseId}/videos/upload`, fd, {
-        headers: { Authorization: `Bearer ${token}` },
-        signal: controllerRef.current.signal,
-        onUploadProgress: e => {
-          const pct = Math.round((e.loaded / e.total) * 100);
-          setProgress(pct);
-          if (pct >= 100) setProcessing(true);
-        },
-      });
-      toast.success('تم رفع الفيديو بنجاح ✅');
-      setTitle(''); setDuration(''); setFile(null); setProgress(0); setProcessing(false);
-      if (fileRef.current) fileRef.current.value = '';
+      const { default: axios } = await import('axios');
+      await axios.post(`/api/courses/${courseId}/videos/url`, {
+        title: title.trim(),
+        url: url.trim(),
+        duration_minutes: duration || '0',
+        section_id: sectionId || undefined,
+      }, { headers: { Authorization: `Bearer ${token}` } });
+      toast.success('تم إضافة الفيديو بنجاح ✅');
+      setTitle(''); setUrl(''); setDuration(''); setSectionId('');
       onSuccess();
     } catch (e) {
-      if (axios.isCancel(e)) {
-        toast('تم إلغاء الرفع', { icon: '⚠️' });
-      } else {
-        toast.error(e.response?.data?.error || 'فشل رفع الفيديو — تحقق من حجم الملف والاتصال');
-      }
-      setProgress(0);
-      setProcessing(false);
+      toast.error(e.response?.data?.error || 'فشل إضافة الفيديو');
     } finally {
-      setUploading(false);
+      setLoading(false);
     }
-  };
-
-  const handleCancel = () => {
-    controllerRef.current?.abort();
   };
 
   return (
     <div className="space-y-3 bg-gray-50 rounded-xl p-4 border border-dashed border-gray-300">
-      <p className="text-xs font-black text-gray-500 uppercase tracking-wide">رفع فيديو جديد</p>
+      <p className="text-xs font-black text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
+        <Link className="w-3.5 h-3.5" /> إضافة فيديو برابط
+      </p>
       <div className="grid grid-cols-2 gap-2">
         <input value={title} onChange={e => setTitle(e.target.value)}
-          className="input-field col-span-2" placeholder="عنوان الفيديو *" disabled={uploading} />
+          className="input-field col-span-2" placeholder="عنوان الفيديو *" disabled={loading} />
+        <input value={url} onChange={e => setUrl(e.target.value)}
+          className="input-field col-span-2" placeholder="رابط الفيديو * (YouTube, Drive, أو أي رابط مباشر)" dir="ltr" disabled={loading} />
         <input type="number" value={duration} onChange={e => setDuration(e.target.value)}
-          className="input-field" placeholder="المدة (دقائق)" disabled={uploading} />
+          className="input-field" placeholder="المدة (دقائق)" disabled={loading} />
         {sections.length > 0 && (
-          <select value={sectionId} onChange={e => setSectionId(e.target.value)} className="input-field" disabled={uploading}>
+          <select value={sectionId} onChange={e => setSectionId(e.target.value)} className="input-field" disabled={loading}>
             <option value="">— بدون فصل —</option>
             {sections.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
           </select>
         )}
-        <label className={`flex items-center gap-2 px-3 py-2 rounded-xl border-2 cursor-pointer transition-all text-sm font-bold
-          ${uploading ? 'opacity-50 cursor-not-allowed' : ''}
-          ${file ? 'border-green-400 bg-green-50 text-green-700' : 'border-dashed border-gray-300 bg-white text-gray-500 hover:border-orange-400 hover:text-orange-500'}`}>
-          <Video className="w-4 h-4 flex-shrink-0" />
-          <span className="truncate text-xs">{file ? `${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)` : 'اختر فيديو (max 300 MB)'}</span>
-          <input ref={fileRef} type="file" accept="video/*" className="hidden" disabled={uploading}
-            onChange={e => setFile(e.target.files[0] || null)} />
-        </label>
       </div>
-      {uploading && (
-        <div className="bg-navy-50 border border-navy-200 rounded-xl p-3">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-bold text-navy-700 truncate flex-1 ml-2">
-              {processing ? '⚙️ جارٍ المعالجة والحفظ...' : file?.name}
-            </p>
-            <button onClick={handleCancel} className="text-gray-400 hover:text-red-500 transition-colors">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-          <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
-            <div className={`h-2.5 rounded-full transition-all duration-500 ${processing ? 'animate-pulse bg-orange-400' : 'bg-gradient-to-r from-navy-500 to-orange-500'}`}
-              style={{ width: `${progress}%` }} />
-          </div>
-          <p className="text-[11px] text-gray-500 mt-1.5 flex justify-between">
-            <span>{processing ? 'تم الإرسال، انتظر قليلاً...' : `${progress}% مُرفوع`}</span>
-            <span className="font-bold text-navy-600">{processing ? '✓ 100%' : `${progress}%`}</span>
-          </p>
-        </div>
-      )}
-      <button onClick={handleUpload} disabled={uploading || !file}
+      <button onClick={handleAdd} disabled={loading || !title.trim() || !url.trim()}
         className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-        {uploading
-          ? <><Loader2 className="w-4 h-4 animate-spin" /> {processing ? 'جارٍ المعالجة...' : 'جارٍ الرفع...'}</>
-          : <><Upload className="w-4 h-4" /> رفع الفيديو</>}
+        {loading ? 'جارٍ الإضافة...' : <><Plus className="w-4 h-4" /> إضافة الفيديو</>}
       </button>
     </div>
   );
@@ -188,6 +115,7 @@ function PdfUploadSection({ courseId, onSuccess, sections = [] }) {
     controllerRef.current = new AbortController();
     try {
       const token = localStorage.getItem('wathba_token');
+      const { default: axios } = await import('axios');
       await axios.post(`/api/courses/${courseId}/pdfs/upload`, fd, {
         headers: { Authorization: `Bearer ${token}` },
         signal: controllerRef.current.signal,
@@ -202,6 +130,7 @@ function PdfUploadSection({ courseId, onSuccess, sections = [] }) {
       if (fileRef.current) fileRef.current.value = '';
       onSuccess();
     } catch (e) {
+      const { default: axios } = await import('axios');
       if (axios.isCancel(e)) {
         toast('تم إلغاء الرفع', { icon: '⚠️' });
       } else {
@@ -254,10 +183,63 @@ function PdfUploadSection({ courseId, onSuccess, sections = [] }) {
       )}
       <button onClick={handleUpload} disabled={uploading || !file}
         className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-        {uploading
-          ? <><Loader2 className="w-4 h-4 animate-spin" /> {processing ? 'جارٍ المعالجة...' : 'جارٍ الرفع...'}</>
-          : <><Upload className="w-4 h-4" /> رفع الملف</>}
+        {uploading ? (processing ? 'جارٍ المعالجة...' : 'جارٍ الرفع...') : 'رفع الملف'}
       </button>
+    </div>
+  );
+}
+
+function VideoPreviewModal({ video, onClose }) {
+  if (!video) return null;
+  const isYoutube = /youtube\.com|youtu\.be/.test(video.file_path_or_url || '');
+  const isDrive = /drive\.google\.com/.test(video.file_path_or_url || '');
+  const isLocal = (video.file_path_or_url || '').startsWith('/uploads/');
+
+  let embedUrl = video.file_path_or_url;
+  if (isYoutube) {
+    const match = video.file_path_or_url.match(/(?:v=|youtu\.be\/)([^&?/]+)/);
+    if (match) embedUrl = `https://www.youtube.com/embed/${match[1]}`;
+  } else if (isDrive) {
+    const match = video.file_path_or_url.match(/\/d\/([^/]+)/);
+    if (match) embedUrl = `https://drive.google.com/file/d/${match[1]}/preview`;
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={onClose}>
+      <div className="bg-black rounded-2xl overflow-hidden w-full max-w-3xl shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 py-3 bg-gray-900">
+          <p className="text-white font-bold text-sm truncate">{video.title}</p>
+          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="relative" style={{ paddingTop: '56.25%' }}>
+          {(isYoutube || isDrive) ? (
+            <iframe
+              src={embedUrl}
+              className="absolute inset-0 w-full h-full"
+              allowFullScreen
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              title={video.title}
+            />
+          ) : isLocal ? (
+            <video
+              src={video.file_path_or_url}
+              className="absolute inset-0 w-full h-full object-contain bg-black"
+              controls
+              autoPlay
+            />
+          ) : (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 gap-4">
+              <p className="text-gray-400 text-sm text-center px-6">لا يمكن تشغيل هذا الرابط مباشرة — افتحه في نافذة جديدة</p>
+              <a href={video.file_path_or_url} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-bold px-5 py-2.5 rounded-xl transition-all">
+                <ExternalLink className="w-4 h-4" /> فتح الرابط
+              </a>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -276,6 +258,8 @@ export default function TeacherCourses() {
   const [newSectionTitle, setNewSectionTitle] = useState('');
   const [editingSectionId, setEditingSectionId] = useState(null);
   const [editingSectionTitle, setEditingSectionTitle] = useState('');
+  const [previewVideo, setPreviewVideo] = useState(null);
+
   const { data: courses = [], isLoading } = useQuery({
     queryKey: ['courses'],
     queryFn: () => api.get('/courses').then(r => r.data),
@@ -376,7 +360,6 @@ export default function TeacherCourses() {
         </button>
       </div>
 
-      {/* Stage Filter */}
       <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
         <div className="flex items-center gap-2 mb-3">
           <Filter className="w-4 h-4 text-gray-500" />
@@ -410,7 +393,12 @@ export default function TeacherCourses() {
         ) : filteredCourses.map(c => (
           <div key={c.id} className="card !p-0 overflow-hidden">
             <div className="p-4 flex items-center gap-4">
-              <div className="w-14 h-14 bg-gradient-to-br from-navy-500 to-navy-600 rounded-xl flex items-center justify-center flex-shrink-0">
+              {c.thumbnail_url ? (
+                <img src={c.thumbnail_url} alt={c.name}
+                  className="w-14 h-14 rounded-xl object-cover flex-shrink-0 border border-gray-200"
+                  onError={e => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }} />
+              ) : null}
+              <div className={`w-14 h-14 bg-gradient-to-br from-navy-500 to-navy-600 rounded-xl flex items-center justify-center flex-shrink-0 ${c.thumbnail_url ? 'hidden' : ''}`}>
                 <BookOpen className="w-7 h-7 text-white" />
               </div>
               <div className="flex-1 min-w-0">
@@ -470,12 +458,25 @@ export default function TeacherCourses() {
                   });
                   const VideoItem = ({ v }) => (
                     <div className="flex items-center gap-3 p-3 bg-white rounded-xl shadow-sm border border-gray-100">
-                      <div className="w-10 h-10 bg-navy-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <Play className="w-5 h-5 text-navy-700" />
-                      </div>
+                      <button
+                        onClick={() => setPreviewVideo(v)}
+                        className="w-10 h-10 bg-navy-100 rounded-lg flex items-center justify-center flex-shrink-0 hover:bg-navy-200 transition-colors group"
+                        title="معاينة الفيديو"
+                      >
+                        <Play className="w-5 h-5 text-navy-700 group-hover:text-navy-900" />
+                      </button>
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-navy-600 text-sm truncate">{v.title}</p>
-                        <p className="text-xs text-gray-500 font-medium">{v.duration_minutes} دقيقة</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          {v.duration_minutes > 0 && (
+                            <p className="text-xs text-gray-500 font-medium">{v.duration_minutes} دقيقة</p>
+                          )}
+                          {v.file_path_or_url && !v.file_path_or_url.startsWith('/uploads/') && (
+                            <span className="text-[10px] bg-blue-50 text-blue-600 font-bold px-1.5 py-0.5 rounded-full flex items-center gap-1">
+                              <Link className="w-2.5 h-2.5" /> رابط
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <button onClick={() => setDeleteVideoId(v.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg flex-shrink-0">
                         <Trash2 className="w-4 h-4" />
@@ -518,7 +519,7 @@ export default function TeacherCourses() {
                           {(content?.videos || []).map(v => <VideoItem key={v.id} v={v} />)}
                         </div>
                       )}
-                      <VideoUploadSection courseId={c.id} onSuccess={refreshContent} sections={content?.sections || []} />
+                      <VideoUrlSection courseId={c.id} onSuccess={refreshContent} sections={content?.sections || []} />
                     </div>
                   );
                 })()}
@@ -638,7 +639,6 @@ export default function TeacherCourses() {
         ))}
       </div>
 
-      {/* Course Modal */}
       <Modal open={modal} onClose={closeModal} title={editData ? 'تعديل الكورس' : 'إضافة كورس جديد'}>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -646,6 +646,17 @@ export default function TeacherCourses() {
             <input value={form.name} onChange={e => { setForm({ ...form, name: e.target.value }); clearError('name'); }}
               className={`input-field ${formErrors.name ? 'border-red-400 focus:ring-red-300' : ''}`} placeholder="مثال: الرياضيات للثانوية العامة" />
             <FieldError error={formErrors.name} />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-navy-700 mb-1">صورة الغلاف (رابط)</label>
+            <input value={form.thumbnail_url} onChange={e => setForm({ ...form, thumbnail_url: e.target.value })}
+              className="input-field" placeholder="https://example.com/image.jpg" dir="ltr" />
+            {form.thumbnail_url && (
+              <div className="mt-2">
+                <img src={form.thumbnail_url} alt="معاينة" className="h-20 rounded-xl object-cover border border-gray-200"
+                  onError={e => { e.target.style.display = 'none'; }} />
+              </div>
+            )}
           </div>
           <div>
             <label className="block text-sm font-bold text-navy-700 mb-1">المرحلة الدراسية المستهدفة</label>
@@ -656,24 +667,17 @@ export default function TeacherCourses() {
           </div>
           <div>
             <label className="block text-sm font-bold text-navy-700 mb-1">وصف الكورس</label>
-            <textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} className="input-field h-24 resize-none" placeholder="نبذة عن الكورس..." />
+            <textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} className="input-field h-20 resize-none" placeholder="نبذة عن الكورس..." />
           </div>
-          {/* Free / Paid toggle */}
           <div className="rounded-xl border border-gray-200 p-3 bg-gray-50">
             <p className="text-sm font-bold text-navy-700 mb-3">نوع الكورس</p>
             <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setForm({ ...form, is_free: false })}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all border-2 ${!form.is_free ? 'bg-navy-600 text-white border-navy-600' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'}`}
-              >
+              <button type="button" onClick={() => setForm({ ...form, is_free: false })}
+                className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all border-2 ${!form.is_free ? 'bg-navy-600 text-white border-navy-600' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'}`}>
                 💰 مدفوع
               </button>
-              <button
-                type="button"
-                onClick={() => setForm({ ...form, is_free: true, price: 0 })}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all border-2 ${form.is_free ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'}`}
-              >
+              <button type="button" onClick={() => setForm({ ...form, is_free: true, price: 0 })}
+                className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all border-2 ${form.is_free ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'}`}>
                 🎁 مجاني
               </button>
             </div>
@@ -682,13 +686,7 @@ export default function TeacherCourses() {
                 ✅ سيُضاف تلقائياً لجميع طلاب {form.target_stage}
               </p>
             )}
-            {form.is_free && !form.target_stage && (
-              <p className="text-xs text-orange-600 font-bold mt-2 bg-orange-50 rounded-lg px-3 py-2">
-                ⚠️ حدد المرحلة الدراسية لإضافة الكورس تلقائياً للطلاب
-              </p>
-            )}
           </div>
-
           {!form.is_free && (
             <div>
               <label className="block text-sm font-bold text-navy-700 mb-1">السعر (جنيه)</label>
@@ -697,10 +695,6 @@ export default function TeacherCourses() {
               <FieldError error={formErrors.price} />
             </div>
           )}
-          <div>
-            <label className="block text-sm font-bold text-navy-700 mb-1">صورة الغلاف (رابط)</label>
-            <input value={form.thumbnail_url} onChange={e => setForm({ ...form, thumbnail_url: e.target.value })} className="input-field" placeholder="https://..." dir="ltr" />
-          </div>
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={closeModal} className="flex-1 btn-secondary">إلغاء</button>
             <button type="submit" disabled={createMut.isPending || updateMut.isPending} className="flex-1 btn-primary">
@@ -716,11 +710,13 @@ export default function TeacherCourses() {
 
       <ConfirmDialog open={!!deleteVideoId} onClose={() => setDeleteVideoId(null)}
         onConfirm={() => deleteVideoMut.mutate({ courseId: expandedCourse, videoId: deleteVideoId })}
-        title="حذف الفيديو" message="هل أنت متأكد من حذف هذا الفيديو؟ سيتم حذفه نهائياً من الخادم." danger />
+        title="حذف الفيديو" message="هل أنت متأكد من حذف هذا الفيديو؟" danger />
 
       <ConfirmDialog open={!!deletePdfId} onClose={() => setDeletePdfId(null)}
         onConfirm={() => deletePdfMut.mutate({ courseId: expandedCourse, pdfId: deletePdfId })}
-        title="حذف الملف" message="هل أنت متأكد من حذف هذا الملف؟ سيتم حذفه نهائياً من الخادم." danger />
+        title="حذف الملف" message="هل أنت متأكد من حذف هذا الملف؟" danger />
+
+      <VideoPreviewModal video={previewVideo} onClose={() => setPreviewVideo(null)} />
     </div>
   );
 }

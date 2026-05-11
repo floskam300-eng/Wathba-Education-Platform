@@ -222,6 +222,16 @@ CREATE TABLE IF NOT EXISTS exam_retry_requests (
 
 ALTER TABLE courses ADD COLUMN IF NOT EXISTS is_free BOOLEAN DEFAULT false;
 
+ALTER TABLE payments ALTER COLUMN method DROP NOT NULL;
+ALTER TABLE payments ALTER COLUMN method SET DEFAULT '';
+ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_verified_by_fkey;
+
+ALTER TABLE courses ALTER COLUMN thumbnail_url TYPE TEXT;
+ALTER TABLE videos  ALTER COLUMN file_path_or_url TYPE TEXT;
+ALTER TABLE pdf_files ALTER COLUMN file_url TYPE TEXT;
+ALTER TABLE teachers ALTER COLUMN logo_url TYPE TEXT;
+ALTER TABLE teachers ALTER COLUMN photo_url TYPE TEXT;
+
 CREATE TABLE IF NOT EXISTS leaderboard_history (
   id SERIAL PRIMARY KEY,
   teacher_id INTEGER REFERENCES teachers(id) ON DELETE CASCADE,

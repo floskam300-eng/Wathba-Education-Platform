@@ -251,6 +251,26 @@ router.put('/:id/pdfs/:pdfId/section', requireRole('teacher', 'assistant'), chec
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
+router.post('/:id/videos/url', requireRole('teacher', 'assistant'), checkManageCoursesPerm, async (req, res) => {
+  const teacherId = getTeacherId(req);
+  try {
+    if (!(await verifyCoursOwnership(req.params.id, teacherId))) {
+      return res.status(403).json({ error: 'Access denied: course not yours' });
+    }
+    const { title, url, duration_minutes, sort_order, section_id } = req.body;
+    if (!title?.trim()) return res.status(400).json({ error: 'عنوان الفيديو مطلوب' });
+    if (!url?.trim()) return res.status(400).json({ error: 'رابط الفيديو مطلوب' });
+    const result = await pool.query(
+      'INSERT INTO videos (title,file_path_or_url,duration_minutes,course_id,sort_order,section_id) VALUES($1,$2,$3,$4,$5,$6) RETURNING *',
+      [title.trim(), url.trim(), parseInt(duration_minutes) || 0, req.params.id, parseInt(sort_order) || 0, section_id || null]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 router.post('/:id/videos/upload', requireRole('teacher', 'assistant'), checkManageCoursesPerm, uploadVideo.single('video'), async (req, res) => {
   const teacherId = getTeacherId(req);
   try {
@@ -407,8 +427,9 @@ router.post('/student/request/:courseId', requireRole('student'), async (req, re
     if (!teacherRes.rows.length) return res.status(404).json({ error: 'Student not found' });
     const teacherId = teacherRes.rows[0].teacher_id;
 
-    const courseCheck = await pool.query('SELECT id FROM courses WHERE id=$1 AND teacher_id=$2', [req.params.courseId, teacherId]);
+    const courseCheck = await pool.query('SELECT id, price, is_free, name FROM courses WHERE id=$1 AND teacher_id=$2', [req.params.courseId, teacherId]);
     if (!courseCheck.rows.length) return res.status(403).json({ error: 'Course not available' });
+    const course = courseCheck.rows[0];
 
     const enrolled = await pool.query('SELECT id FROM student_course_enrollment WHERE student_id=$1 AND course_id=$2', [req.user.id, req.params.courseId]);
     if (enrolled.rows.length) return res.status(409).json({ error: 'Already enrolled' });
@@ -420,14 +441,22 @@ router.post('/student/request/:courseId', requireRole('student'), async (req, re
        RETURNING *`,
       [req.user.id, req.params.courseId, message || null]
     );
+
+    if (!course.is_free && parseFloat(course.price) > 0) {
+      await pool.query(
+        `INSERT INTO payments (student_id, course_id, amount, method, status)
+         VALUES ($1, $2, $3, '', 'pending')
+         ON CONFLICT DO NOTHING`,
+        [req.user.id, req.params.courseId, course.price]
+      );
+    }
+
     try {
       const studentInfo = await pool.query('SELECT name FROM students WHERE id=$1', [req.user.id]);
-      const courseInfo = await pool.query('SELECT name FROM courses WHERE id=$1', [req.params.courseId]);
       const studentName = studentInfo.rows[0]?.name || 'طالب';
-      const courseName = courseInfo.rows[0]?.name || '';
       sendEvent(`teacher_${teacherId}`, 'new_request', {
         student_name: studentName,
-        course_name: courseName,
+        course_name: course.name,
         courseId: req.params.courseId,
       });
     } catch (_) {}

@@ -142,7 +142,6 @@ export function validatePaymentForm(form) {
   const e = (f, v) => { if (v) errors[f] = v; };
   e('student_id', validateRequired(form.student_id, 'الطالب'));
   e('amount', validateAmount(form.amount));
-  e('method', validateRequired(form.method, 'طريقة الدفع'));
   return errors;
 }
 

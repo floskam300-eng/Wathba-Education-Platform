@@ -147,7 +147,8 @@ router.get('/', requireRole('teacher', 'assistant'), async (req, res) => {
 
 router.post('/', requireRole('teacher', 'assistant'), (req, res, next) => checkPermission(req, res, next, 'can_manage_payments'), validatePayment, async (req, res) => {
   const teacherId = getTeacherId(req);
-  const { student_id, course_id, method, reference_number, notes } = req.body;
+  const { student_id, course_id, reference_number, notes } = req.body;
+  const method = req.body.method || '';
   const amount = parseFloat(req.body.amount);
   try {
     const studentCheck = await pool.query('SELECT id FROM students WHERE id=$1 AND teacher_id=$2', [student_id, teacherId]);
@@ -162,7 +163,7 @@ router.post('/', requireRole('teacher', 'assistant'), (req, res, next) => checkP
     }
     const result = await pool.query(
       'INSERT INTO payments (student_id,course_id,amount,method,reference_number,notes,status) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *',
-      [student_id, course_id, amount, method, reference_number, notes, 'pending']
+      [student_id, course_id || null, amount, method, reference_number || null, notes || null, 'pending']
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -172,7 +173,7 @@ router.post('/', requireRole('teacher', 'assistant'), (req, res, next) => checkP
 
 router.put('/:id/verify', requireRole('teacher', 'assistant'), (req, res, next) => checkPermission(req, res, next, 'can_manage_payments'), async (req, res) => {
   const teacherId = getTeacherId(req);
-  const { status } = req.body;
+  const { status, method, reference_number } = req.body;
   try {
     const paymentRes = await pool.query(
       `SELECT p.*, s.teacher_id as student_teacher_id
@@ -187,20 +188,39 @@ router.put('/:id/verify', requireRole('teacher', 'assistant'), (req, res, next) 
       return res.status(403).json({ error: 'Access denied: payment not yours' });
     }
 
+    const updateFields = ['status=$1', 'verified_at=NOW()'];
+    const params = [status];
+
+    if (method !== undefined && method !== null) {
+      params.push(method);
+      updateFields.push(`method=$${params.length}`);
+    }
+    if (reference_number !== undefined && reference_number !== null) {
+      params.push(reference_number);
+      updateFields.push(`reference_number=$${params.length}`);
+    }
+    params.push(req.params.id);
+    const idIdx = params.length;
+
     const result = await pool.query(
-      'UPDATE payments SET status=$1, verified_by=$2, verified_at=NOW() WHERE id=$3 RETURNING *',
-      [status, req.user.id, req.params.id]
+      `UPDATE payments SET ${updateFields.join(', ')} WHERE id=$${idIdx} RETURNING *`,
+      params
     );
 
     if (status === 'verified' && result.rows[0].course_id) {
-      await pool.query(
-        'INSERT INTO student_course_enrollment (student_id,course_id) VALUES($1,$2) ON CONFLICT DO NOTHING',
-        [result.rows[0].student_id, result.rows[0].course_id]
-      );
+      const courseCheck = await pool.query('SELECT is_free FROM courses WHERE id=$1', [result.rows[0].course_id]);
+      const isFree = courseCheck.rows[0]?.is_free;
+      if (!isFree) {
+        await pool.query(
+          'INSERT INTO student_course_enrollment (student_id,course_id) VALUES($1,$2) ON CONFLICT DO NOTHING',
+          [result.rows[0].student_id, result.rows[0].course_id]
+        );
+      }
     }
 
     res.json(result.rows[0]);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Server error' });
   }
 });
