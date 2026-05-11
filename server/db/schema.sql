@@ -118,7 +118,7 @@ CREATE TABLE IF NOT EXISTS video_progress (
   student_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
   video_id INTEGER REFERENCES videos(id) ON DELETE CASCADE,
   watch_count INTEGER DEFAULT 0,
-  watched_minutes DECIMAL(8,2) DEFAULT 0,
+  watched_minutes INTEGER DEFAULT 0,
   progress_percentage DECIMAL(5,2) DEFAULT 0,
   last_watched_at TIMESTAMP DEFAULT NOW(),
   UNIQUE(student_id, video_id)

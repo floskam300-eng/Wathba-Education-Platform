@@ -112,20 +112,14 @@ function isYoutubeUrl(url) {
   return !!extractYoutubeId(url);
 }
 
-/* ─── YouTube Embed Player (uses official YT IFrame API) ── */
+/* ─── YouTube Embed Player ─────────────────────────────── */
 function YoutubePlayer({ video, studentName, studentCode, onProgressUpdate }) {
-  const containerRef  = useRef(null);
-  const slotRef       = useRef(null);   // div that YT.Player mounts into
-  const playerRef     = useRef(null);   // YT.Player instance
-  const watchedSecRef = useRef(0);
-  const playStartRef  = useRef(null);
-  const saveTimerRef  = useRef(null);
-  const onProgressRef = useRef(onProgressUpdate);
-  const videoIdRef    = useRef(video?.id);
+  const containerRef = useRef(null);
+  const iframeRef    = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Keep callback ref fresh without triggering effects
-  useEffect(() => { onProgressRef.current = onProgressUpdate; }, [onProgressUpdate]);
+  const ytId     = extractYoutubeId(video.file_path_or_url);
+  const embedUrl = `https://www.youtube.com/embed/${ytId}?rel=0&modestbranding=1&autoplay=1&enablejsapi=1`;
 
   /* ── Fullscreen change listener ── */
   useEffect(() => {
@@ -138,107 +132,65 @@ function YoutubePlayer({ video, studentName, studentCode, onProgressUpdate }) {
     };
   }, []);
 
-  /* ── YouTube IFrame API player ── */
+  /* ── YouTube progress tracking via postMessage ── */
   useEffect(() => {
-    const ytId  = extractYoutubeId(video?.file_path_or_url);
-    const vidId = video?.id;
-    if (!ytId || !vidId) return;
+    if (!onProgressUpdate || !video?.id) return;
 
-    videoIdRef.current    = vidId;
-    watchedSecRef.current = 0;
-    playStartRef.current  = null;
+    let isPlaying      = false;
+    let playStartMs    = null;
+    let totalWatchedSec = 0;
+    let saveInterval   = null;
 
-    /* Save helper — uses refs so it's never stale */
     const saveProgress = (completed = false) => {
-      const cb = onProgressRef.current;
-      if (!cb) return;
-      const totalSec = watchedSecRef.current;
-      const mins = totalSec / 60;
-      let pct = null;
-      try {
-        if (playerRef.current?.getDuration) {
-          const dur = playerRef.current.getDuration();
-          if (dur > 0) pct = Math.min((totalSec / dur) * 100, completed ? 100 : 99);
-        }
-      } catch (_) {}
-      if (mins > 0.05 || completed) {
-        cb(videoIdRef.current, mins, pct, completed);
+      if (isPlaying && playStartMs) {
+        totalWatchedSec += (Date.now() - playStartMs) / 1000;
+        playStartMs = Date.now();
+      }
+      const mins = totalWatchedSec / 60;
+      if (mins > 0) {
+        onProgressUpdate(video.id, mins, completed ? 100 : Math.min(Math.round((mins / 60) * 100), 99), completed);
       }
     };
 
-    const onStateChange = ({ data: state }) => {
-      if (state === 1) {                    // playing
-        playStartRef.current = Date.now();
-        clearInterval(saveTimerRef.current);
-        saveTimerRef.current = setInterval(() => {
-          if (playStartRef.current) {
-            watchedSecRef.current += (Date.now() - playStartRef.current) / 1000;
-            playStartRef.current = Date.now();
+    const handleMessage = (evt) => {
+      if (!evt.data) return;
+      let data;
+      try { data = typeof evt.data === 'string' ? JSON.parse(evt.data) : evt.data; }
+      catch { return; }
+
+      if (data.event === 'onStateChange') {
+        const state = Number(data.info);
+        if (state === 1) {
+          isPlaying   = true;
+          playStartMs = Date.now();
+          clearInterval(saveInterval);
+          saveInterval = setInterval(() => saveProgress(false), 30000);
+        } else if (state === 2) {
+          if (isPlaying && playStartMs) {
+            totalWatchedSec += (Date.now() - playStartMs) / 1000;
+            playStartMs = null;
           }
+          isPlaying = false;
+          clearInterval(saveInterval);
           saveProgress(false);
-        }, 30000);
-      } else if (state === 2) {             // paused
-        if (playStartRef.current) {
-          watchedSecRef.current += (Date.now() - playStartRef.current) / 1000;
-          playStartRef.current = null;
+        } else if (state === 0) {
+          if (isPlaying && playStartMs) {
+            totalWatchedSec += (Date.now() - playStartMs) / 1000;
+            playStartMs = null;
+          }
+          isPlaying = false;
+          clearInterval(saveInterval);
+          saveProgress(true);
         }
-        clearInterval(saveTimerRef.current);
-        saveProgress(false);
-      } else if (state === 0) {             // ended
-        if (playStartRef.current) {
-          watchedSecRef.current += (Date.now() - playStartRef.current) / 1000;
-          playStartRef.current = null;
-        }
-        clearInterval(saveTimerRef.current);
-        saveProgress(true);
       }
     };
 
-    /* Create/recreate the inner mount div so YT.Player has a fresh target */
-    const slot = slotRef.current;
-    if (!slot) return;
-    slot.innerHTML = '';
-    const mountDiv = document.createElement('div');
-    slot.appendChild(mountDiv);
-
-    const createPlayer = () => {
-      if (!window.YT?.Player || !mountDiv.isConnected) return;
-      try { playerRef.current?.destroy(); } catch (_) {}
-      playerRef.current = new window.YT.Player(mountDiv, {
-        videoId: ytId,
-        width: '100%',
-        height: '100%',
-        playerVars: { autoplay: 1, rel: 0, modestbranding: 1, controls: 1 },
-        events: { onStateChange },
-      });
-    };
-
-    if (window.YT && window.YT.Player) {
-      createPlayer();
-    } else {
-      /* Chain onto existing callback if API is already loading */
-      const prev = window.onYouTubeIframeAPIReady;
-      window.onYouTubeIframeAPIReady = () => {
-        if (typeof prev === 'function') prev();
-        createPlayer();
-      };
-      if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
-        const s = document.createElement('script');
-        s.src = 'https://www.youtube.com/iframe_api';
-        document.head.appendChild(s);
-      }
-    }
-
+    window.addEventListener('message', handleMessage);
     return () => {
-      clearInterval(saveTimerRef.current);
-      if (playStartRef.current) {
-        watchedSecRef.current += (Date.now() - playStartRef.current) / 1000;
-        playStartRef.current = null;
-      }
-      if (watchedSecRef.current > 3) saveProgress(false);
-      try { playerRef.current?.destroy(); } catch (_) {}
-      playerRef.current = null;
-      if (slot) slot.innerHTML = '';
+      window.removeEventListener('message', handleMessage);
+      clearInterval(saveInterval);
+      if (isPlaying && playStartMs) totalWatchedSec += (Date.now() - playStartMs) / 1000;
+      if (totalWatchedSec > 5) saveProgress(false);
     };
   }, [video?.id]); // eslint-disable-line
 
@@ -255,14 +207,16 @@ function YoutubePlayer({ video, studentName, studentCode, onProgressUpdate }) {
   };
 
   return (
-    <div
-      ref={containerRef}
-      className="relative w-full bg-black"
-      style={{ height: '100%', minHeight: 0 }}
-    >
+    <div ref={containerRef} className="relative w-full h-full bg-black" style={{ minHeight: 0 }}>
       <FloatingWatermark name={studentName} code={studentCode} />
-      {/* YT.Player mounts inside this div — it replaces its content with an iframe */}
-      <div ref={slotRef} className="w-full h-full" />
+      <iframe
+        ref={iframeRef}
+        key={video.id}
+        src={embedUrl}
+        className="w-full h-full border-0"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        title={video.title}
+      />
       <button
         onClick={isFullscreen ? exitFullscreen : goFullscreen}
         className="absolute bottom-3 left-3 z-30 text-white bg-black/50 hover:bg-black/80 rounded-lg p-1.5 transition-all"
@@ -298,16 +252,7 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode }) {
     setCurrentTime(0);
     maxProgress.current = 0;
     watchStart.current = null;
-    clearInterval(saveTimer.current);
   }, [video?.id]);
-
-  /* ── Cleanup on unmount ── */
-  useEffect(() => {
-    return () => {
-      clearInterval(saveTimer.current);
-      clearTimeout(hideTimer.current);
-    };
-  }, []);
 
   /* ── Fullscreen change listener ── */
   useEffect(() => {
@@ -425,7 +370,6 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode }) {
         onLoadedMetadata={() => setDuration(videoRef.current?.duration || 0)}
         onEnded={() => {
           setPlaying(false);
-          clearInterval(saveTimer.current);
           if (onProgressUpdate && video?.id) {
             const d = videoRef.current?.duration || 0;
             onProgressUpdate(video.id, d / 60, 100, true);
@@ -434,7 +378,6 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode }) {
         onPlay={() => {
           setPlaying(true);
           watchStart.current = Date.now();
-          clearInterval(saveTimer.current);
           saveTimer.current = setInterval(() => {
             if (!videoRef.current) return;
             const d = videoRef.current.duration || 0;
@@ -445,8 +388,6 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode }) {
           }, 30000);
         }}
         onPause={() => {
-          /* onPause fires after onEnded — skip saving if video has truly ended */
-          if (videoRef.current?.ended) return;
           setPlaying(false);
           clearInterval(saveTimer.current);
           if (onProgressUpdate && video?.id && videoRef.current) {
@@ -636,19 +577,14 @@ export default function CourseView() {
 
   const handleProgressUpdate = (videoId, watchedMinutes, progressPct, completed) => {
     if (!videoId) return;
-    const payload = {
-      video_id: Number(videoId),
+    api.post('/students/me/video-progress', {
+      video_id: videoId,
       watched_minutes: Math.round((watchedMinutes || 0) * 10) / 10,
       progress_percentage: progressPct != null ? Math.round(progressPct) : 0,
       watch_count_increment: completed ? 1 : 0,
-    };
-    api.post('/students/me/video-progress', payload)
-      .then(() => {
-        qc.invalidateQueries({ queryKey: ['student-my-stats'] });
-      })
-      .catch((err) => {
-        console.error('[VideoProgress] save failed:', err?.response?.data || err?.message);
-      });
+    }).then(() => {
+      qc.invalidateQueries({ queryKey: ['student-my-stats'] });
+    }).catch(() => {});
   };
 
   const { data: courses = [], isLoading: coursesLoading } = useQuery({

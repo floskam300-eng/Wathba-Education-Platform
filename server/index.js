@@ -73,12 +73,6 @@ const initDB = async () => {
     await pool.query(schema);
     console.log('Database schema initialized');
 
-    // Migrate watched_minutes from INTEGER to DECIMAL if needed
-    await pool.query(`
-      ALTER TABLE video_progress
-        ALTER COLUMN watched_minutes TYPE DECIMAL(8,2)
-    `).catch(() => {});  // safe no-op if already correct type
-
     const existing = await pool.query("SELECT id FROM teachers WHERE username='admin' LIMIT 1");
     if (existing.rows.length === 0) {
       const bcrypt = require('bcryptjs');

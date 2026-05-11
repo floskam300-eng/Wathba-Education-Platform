@@ -163,29 +163,6 @@ router.delete('/:id', requireRole('teacher', 'assistant'), (req, res, next) => c
   }
 });
 
-// ── Save video progress ──
-router.post('/me/video-progress', requireRole('student'), async (req, res) => {
-  const studentId = req.user.id;
-  const { video_id, watched_minutes, progress_percentage, watch_count_increment } = req.body;
-  if (!video_id) return res.status(400).json({ error: 'video_id required' });
-  try {
-    await pool.query(
-      `INSERT INTO video_progress (student_id, video_id, watch_count, watched_minutes, progress_percentage, last_watched_at)
-       VALUES ($1, $2, $3, $4, $5, NOW())
-       ON CONFLICT (student_id, video_id) DO UPDATE SET
-         watch_count = CASE WHEN $3 > 0 THEN video_progress.watch_count + $3 ELSE video_progress.watch_count END,
-         watched_minutes = GREATEST(video_progress.watched_minutes, $4),
-         progress_percentage = GREATEST(video_progress.progress_percentage, $5),
-         last_watched_at = NOW()`,
-      [studentId, Number(video_id), Number(watch_count_increment) || 0, Number(watched_minutes) || 0, Number(progress_percentage) || 0]
-    );
-    res.json({ ok: true });
-  } catch (err) {
-    console.error('[video-progress] error:', err.message);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
 router.get('/:id/results', requireRole('teacher', 'assistant'), async (req, res) => {
   try {
     const result = await pool.query(
@@ -467,6 +444,29 @@ router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => ch
     }
   }
   res.json(results);
+});
+
+// ── Save video progress ──
+router.post('/me/video-progress', requireRole('student'), async (req, res) => {
+  const studentId = req.user.id;
+  const { video_id, watched_minutes, progress_percentage, watch_count_increment } = req.body;
+  if (!video_id) return res.status(400).json({ error: 'video_id required' });
+  try {
+    await pool.query(
+      `INSERT INTO video_progress (student_id, video_id, watch_count, watched_minutes, progress_percentage, last_watched_at)
+       VALUES ($1, $2, $3, $4, $5, NOW())
+       ON CONFLICT (student_id, video_id) DO UPDATE SET
+         watch_count = CASE WHEN $3 > 0 THEN video_progress.watch_count + $3 ELSE video_progress.watch_count END,
+         watched_minutes = GREATEST(video_progress.watched_minutes, $4),
+         progress_percentage = GREATEST(video_progress.progress_percentage, $5),
+         last_watched_at = NOW()`,
+      [studentId, video_id, watch_count_increment || 0, watched_minutes || 0, progress_percentage || 0]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
 router.get('/me/dashboard', requireRole('student'), async (req, res) => {
