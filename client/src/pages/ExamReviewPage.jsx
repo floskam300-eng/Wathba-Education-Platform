@@ -97,7 +97,11 @@ export default function ExamReviewPage() {
   const hasEssay  = result?.has_essay || essayQuestions.length > 0;
   const isGraded  = result?.essay_graded;
 
-  const goBack = () => navigate(-1);
+  const goBack = () => {
+    if (window.history.length > 1) navigate(-1);
+    else if (user?.role === 'student') navigate('/student/exams');
+    else navigate('/teacher/exams');
+  };
 
   return (
     <div className="h-full overflow-y-auto bg-gray-50 font-cairo" dir="rtl">

@@ -4,9 +4,32 @@ const pool = require('../db/connection');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { invalidateCache } = require('../lib/analyticsCache');
 const { validateExam } = require('../middleware/validate');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 
 const router = express.Router();
 router.use(authenticate);
+
+const questionImageStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(__dirname, '../../uploads/question-images');
+    fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `q_${Date.now()}${ext}`);
+  },
+});
+const uploadQuestionImage = multer({
+  storage: questionImageStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) cb(null, true);
+    else cb(new Error('يُسمح بالصور فقط'));
+  },
+});
 
 const { getPermissions } = require('../lib/permissionsCache');
 
@@ -96,6 +119,28 @@ router.put('/:id', requireRole('teacher', 'assistant'), validateExam, async (req
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }
+});
+
+// ── Toggle publish exam ──
+router.put('/:id/publish', requireRole('teacher', 'assistant'), async (req, res) => {
+  const teacherId = getTeacherId(req);
+  try {
+    const result = await pool.query(
+      'UPDATE exams SET is_published = NOT is_published WHERE id=$1 AND teacher_id=$2 RETURNING id, is_published',
+      [req.params.id, teacherId]
+    );
+    if (!result.rows.length) return res.status(404).json({ error: 'Exam not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── Upload question image ──
+router.post('/upload-question-image', requireRole('teacher', 'assistant'), uploadQuestionImage.single('image'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'لم يتم رفع أي ملف' });
+  const url = `/uploads/question-images/${req.file.filename}`;
+  res.json({ url });
 });
 
 // ── Delete exam ──
@@ -348,7 +393,8 @@ router.get('/student/available', requireRole('student'), async (req, res) => {
            WHERE rr.student_id = $1 AND rr.exam_id = e.id AND rr.status = 'approved'
          )
        WHERE e.teacher_id = (SELECT teacher_id FROM students WHERE id = $1)
-         AND (e.course_id IS NULL OR sce.student_id IS NOT NULL)`,
+         AND (e.course_id IS NULL OR sce.student_id IS NOT NULL)
+         AND e.is_published = true`,
       [req.user.id]
     );
     res.json(result.rows);

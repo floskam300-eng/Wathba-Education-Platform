@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Plus, Pencil, Trash2, HelpCircle, ChevronDown, ChevronUp, Printer, Filter, Calendar, User, Eye, Search, AlertCircle } from 'lucide-react';
+import { FileText, Plus, Pencil, Trash2, HelpCircle, ChevronDown, ChevronUp, Printer, Filter, Calendar, User, Eye, Search, AlertCircle, Globe, EyeOff, Upload, Link } from 'lucide-react';
 import Modal from '../../components/ui/Modal';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import Badge from '../../components/ui/Badge';
@@ -49,6 +49,10 @@ export default function TeacherExams() {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [studentSearch, setStudentSearch] = useState('');
   const [showStudentDropdown, setShowStudentDropdown] = useState(false);
+  const [imageInputMode, setImageInputMode] = useState('url');
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState('');
+  const imageFileRef = useRef(null);
 
   const { data: exams = [], isLoading } = useQuery({
     queryKey: ['exams'],
@@ -105,14 +109,37 @@ export default function TeacherExams() {
     onSuccess: () => { qc.invalidateQueries(['exams']); toast.success('تم حذف الاختبار'); },
   });
 
+  const publishMut = useMutation({
+    mutationFn: (id) => api.put(`/exams/${id}/publish`),
+    onSuccess: () => { qc.invalidateQueries(['exams']); },
+    onError: () => toast.error('حدث خطأ'),
+  });
+
   const addQMut = useMutation({
     mutationFn: ({ id, data }) => api.post(`/exams/${id}/questions`, data),
-    onSuccess: () => { qc.invalidateQueries(['questions', expandedExam]); toast.success('تم إضافة السؤال'); setQForm(emptyQ); },
+    onSuccess: () => {
+      qc.invalidateQueries(['questions', expandedExam]);
+      toast.success('تم إضافة السؤال');
+      setQForm(emptyQ);
+      setImageFile(null);
+      setImagePreview('');
+      setImageInputMode('url');
+      if (imageFileRef.current) imageFileRef.current.value = '';
+    },
   });
 
   const updateQMut = useMutation({
     mutationFn: ({ qid, data }) => api.put(`/exams/questions/${qid}`, data),
-    onSuccess: () => { qc.invalidateQueries(['questions', expandedExam]); toast.success('تم تحديث السؤال'); setEditQ(null); setQForm(emptyQ); },
+    onSuccess: () => {
+      qc.invalidateQueries(['questions', expandedExam]);
+      toast.success('تم تحديث السؤال');
+      setEditQ(null);
+      setQForm(emptyQ);
+      setImageFile(null);
+      setImagePreview('');
+      setImageInputMode('url');
+      if (imageFileRef.current) imageFileRef.current.value = '';
+    },
   });
 
   const deleteQMut = useMutation({
@@ -137,22 +164,48 @@ export default function TeacherExams() {
   };
   const closeModal = () => { setModal(false); setEditData(null); setForm(emptyExam); setFormErrors({}); };
 
+  const toUTCIso = (localStr) => {
+    if (!localStr) return null;
+    return new Date(localStr).toISOString();
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     const errs = validateExamForm(form);
     if (hasErrors(errs)) { setFormErrors(errs); return; }
     setFormErrors({});
-    const payload = { ...form, start_date: form.start_date || null, end_date: form.end_date || null };
+    const payload = {
+      ...form,
+      start_date: toUTCIso(form.start_date),
+      end_date: toUTCIso(form.end_date),
+    };
     if (editData) updateMut.mutate({ id: editData.id, data: payload });
     else createMut.mutate(payload);
   };
 
-  const handleQSubmit = (e) => {
+  const handleQSubmit = async (e) => {
     e.preventDefault();
-    if (!qForm.question_text && !qForm.question_image_url) return toast.error('أدخل نص السؤال أو ارفع صورة السؤال');
-    if (qForm.question_type === 'mcq' && (!qForm.option_a || !qForm.option_b)) return toast.error('الخياران الأول والثاني مطلوبان');
-    if (editQ) updateQMut.mutate({ qid: editQ.id, data: qForm });
-    else addQMut.mutate({ id: expandedExam, data: qForm });
+    let finalImageUrl = qForm.question_image_url || '';
+
+    if (imageFile) {
+      const fd = new FormData();
+      fd.append('image', imageFile);
+      try {
+        const res = await api.post('/exams/upload-question-image', fd, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        finalImageUrl = res.data.url;
+      } catch {
+        return toast.error('فشل رفع الصورة، حاول مرة أخرى');
+      }
+    }
+
+    const finalForm = { ...qForm, question_image_url: finalImageUrl };
+
+    if (!finalForm.question_text && !finalImageUrl) return toast.error('أدخل نص السؤال أو ارفع صورة السؤال');
+    if (finalForm.question_type === 'mcq' && (!finalForm.option_a || !finalForm.option_b)) return toast.error('الخياران الأول والثاني مطلوبان');
+    if (editQ) updateQMut.mutate({ qid: editQ.id, data: finalForm });
+    else addQMut.mutate({ id: expandedExam, data: finalForm });
   };
 
   const handlePrint = () => {
@@ -320,6 +373,13 @@ export default function TeacherExams() {
                   )}
                 </div>
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => publishMut.mutate(ex.id)}
+                    disabled={publishMut.isPending}
+                    title={ex.is_published ? 'إلغاء النشر' : 'نشر للطلاب'}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-all ${ex.is_published ? 'bg-green-50 border-green-300 text-green-700 hover:bg-red-50 hover:border-red-300 hover:text-red-600' : 'bg-gray-100 border-gray-200 text-gray-500 hover:bg-green-50 hover:border-green-300 hover:text-green-700'}`}>
+                    {ex.is_published ? <><Globe className="w-3.5 h-3.5" /> منشور</> : <><EyeOff className="w-3.5 h-3.5" /> غير منشور</>}
+                  </button>
                   <button onClick={() => openEdit(ex)} className="p-2 text-navy-600 hover:bg-navy-50 rounded-lg"><Pencil className="w-4 h-4" /></button>
                   <button onClick={() => setDeleteId(ex.id)} className="p-2 text-red-700 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
                   <button onClick={() => setExpandedExam(expandedExam === ex.id ? null : ex.id)} className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg">
@@ -381,6 +441,9 @@ export default function TeacherExams() {
                             <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${q.question_type === 'essay' ? 'bg-blue-100 text-blue-700' : q.question_type === 'true_false' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'}`}>
                               {qTypeLabel(q.question_type)}
                             </span>
+                            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800">
+                              {q.points} درجة
+                            </span>
                           </div>
                           <p className="font-semibold text-navy-600 text-sm mb-2">س{qi + 1}: {q.question_text}</p>
                           {q.question_image_url && <img src={q.question_image_url} alt="question" className="w-40 h-24 object-cover rounded-lg mb-2" />}
@@ -399,7 +462,14 @@ export default function TeacherExams() {
                           )}
                         </div>
                         <div className="flex gap-1">
-                          <button onClick={() => { setEditQ(q); setQForm({ ...q, question_type: q.question_type || 'mcq' }); }} className="p-1.5 text-navy-600 hover:bg-navy-50 rounded-lg"><Pencil className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => {
+                            setEditQ(q);
+                            setQForm({ ...q, question_type: q.question_type || 'mcq' });
+                            setImageFile(null);
+                            setImagePreview('');
+                            setImageInputMode(q.question_image_url ? 'url' : 'url');
+                            if (imageFileRef.current) imageFileRef.current.value = '';
+                          }} className="p-1.5 text-navy-600 hover:bg-navy-50 rounded-lg"><Pencil className="w-3.5 h-3.5" /></button>
                           <button onClick={() => deleteQMut.mutate(q.id)} className="p-1.5 text-red-700 hover:bg-red-50 rounded-lg"><Trash2 className="w-3.5 h-3.5" /></button>
                         </div>
                       </div>
@@ -431,11 +501,47 @@ export default function TeacherExams() {
                       </div>
 
                       <div>
-                        <label className="block text-xs font-bold text-navy-700 mb-1">صورة السؤال <span className="text-gray-400 font-normal">(اختياري إذا وُجد نص)</span></label>
-                        <input value={qForm.question_image_url || ''} onChange={e => setQForm({ ...qForm, question_image_url: e.target.value })}
-                          className="input-field text-sm" placeholder="الصق رابط الصورة هنا..." dir="ltr" />
-                        {qForm.question_image_url && (
-                          <img src={qForm.question_image_url} alt="preview" className="mt-2 h-28 rounded-lg object-contain border border-gray-200" onError={e => e.target.style.display='none'} />
+                        <label className="block text-xs font-bold text-navy-700 mb-1">صورة السؤال <span className="text-gray-400 font-normal">(اختياري)</span></label>
+                        <div className="flex gap-2 mb-2">
+                          <button type="button" onClick={() => { setImageInputMode('url'); setImageFile(null); setImagePreview(''); if (imageFileRef.current) imageFileRef.current.value = ''; }}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border-2 transition-all ${imageInputMode === 'url' ? 'border-orange-500 bg-orange-50 text-orange-800' : 'border-gray-200 text-gray-600'}`}>
+                            <Link className="w-3.5 h-3.5" /> رابط URL
+                          </button>
+                          <button type="button" onClick={() => { setImageInputMode('file'); setQForm({ ...qForm, question_image_url: '' }); }}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border-2 transition-all ${imageInputMode === 'file' ? 'border-orange-500 bg-orange-50 text-orange-800' : 'border-gray-200 text-gray-600'}`}>
+                            <Upload className="w-3.5 h-3.5" /> رفع صورة
+                          </button>
+                        </div>
+                        {imageInputMode === 'url' ? (
+                          <>
+                            <input value={qForm.question_image_url || ''} onChange={e => setQForm({ ...qForm, question_image_url: e.target.value })}
+                              className="input-field text-sm" placeholder="الصق رابط الصورة هنا..." dir="ltr" />
+                            {qForm.question_image_url && (
+                              <img src={qForm.question_image_url} alt="preview" className="mt-2 h-28 rounded-lg object-contain border border-gray-200" onError={e => e.target.style.display='none'} />
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <input
+                              ref={imageFileRef}
+                              type="file"
+                              accept="image/*"
+                              onChange={e => {
+                                const f = e.target.files[0];
+                                if (f) {
+                                  setImageFile(f);
+                                  setImagePreview(URL.createObjectURL(f));
+                                } else {
+                                  setImageFile(null);
+                                  setImagePreview('');
+                                }
+                              }}
+                              className="block w-full text-sm text-gray-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100 border border-gray-200 rounded-xl p-2 cursor-pointer"
+                            />
+                            {imagePreview && (
+                              <img src={imagePreview} alt="preview" className="mt-2 h-28 rounded-lg object-contain border border-gray-200" />
+                            )}
+                          </>
                         )}
                       </div>
 

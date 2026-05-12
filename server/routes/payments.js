@@ -207,17 +207,6 @@ router.put('/:id/verify', requireRole('teacher', 'assistant'), (req, res, next) 
       params
     );
 
-    if (status === 'verified' && result.rows[0].course_id) {
-      const courseCheck = await pool.query('SELECT is_free FROM courses WHERE id=$1', [result.rows[0].course_id]);
-      const isFree = courseCheck.rows[0]?.is_free;
-      if (!isFree) {
-        await pool.query(
-          'INSERT INTO student_course_enrollment (student_id,course_id) VALUES($1,$2) ON CONFLICT DO NOTHING',
-          [result.rows[0].student_id, result.rows[0].course_id]
-        );
-      }
-    }
-
     res.json(result.rows[0]);
   } catch (err) {
     console.error(err);
