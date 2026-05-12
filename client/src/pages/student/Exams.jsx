@@ -144,10 +144,51 @@ export default function StudentExams() {
     onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
   });
 
+  const takingRef = useRef(null);
+  const examDataRef = useRef(null);
+  const startTimeRef = useRef(null);
+  useEffect(() => { takingRef.current = taking; }, [taking]);
+  useEffect(() => { examDataRef.current = examData; }, [examData]);
+  useEffect(() => { startTimeRef.current = startTime; }, [startTime]);
+
   const handleSubmit = useCallback(() => {
     if (!taking || !examData) return;
     submitMut.mutate({ id: taking.id, data: { answers: answersRef.current, start_time: startTime } });
   }, [taking, examData, startTime]);
+
+  // ── Auto-submit when student closes tab / navigates away ──
+  useEffect(() => {
+    const sendBeaconSubmit = (examId) => {
+      const token = localStorage.getItem('wathba_token');
+      if (!token) return;
+      const payload = JSON.stringify({ answers: answersRef.current, start_time: startTimeRef.current });
+      navigator.sendBeacon(
+        `/api/exams/${examId}/submit?token=${encodeURIComponent(token)}`,
+        new Blob([payload], { type: 'application/json' })
+      );
+      localStorage.removeItem(`exam_start_${examId}`);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden' && takingRef.current && examDataRef.current) {
+        sendBeaconSubmit(takingRef.current.id);
+      }
+    };
+
+    const handleBeforeUnload = (e) => {
+      if (!takingRef.current || !examDataRef.current) return;
+      sendBeaconSubmit(takingRef.current.id);
+      e.preventDefault();
+      e.returnValue = '';
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, []);
 
   useEffect(() => {
     if (!examData || !taking) return;

@@ -112,6 +112,11 @@ export function validateStudentForm(form, isEdit = false) {
   e('name', validateName(form.name, 'اسم الطالب'));
   e('phone', validatePhone(form.phone, 'هاتف الطالب'));
   e('parent_phone', validatePhone(form.parent_phone, 'هاتف ولي الأمر'));
+  if (!errors.phone && !errors.parent_phone && form.phone && form.parent_phone) {
+    const cleanPhone = String(form.phone).replace(/[\s\-]/g, '');
+    const cleanParent = String(form.parent_phone).replace(/[\s\-]/g, '');
+    if (cleanPhone === cleanParent) errors.parent_phone = 'رقم ولي الأمر يجب أن يكون مختلفاً عن رقم الطالب';
+  }
   if (isEdit && form.password) e('password', validatePassword(form.password, false));
   return errors;
 }
@@ -131,6 +136,7 @@ export function validateCourseForm(form) {
   const e = (f, v) => { if (v) errors[f] = v; };
   e('name', validateName(form.name, 'اسم الكورس'));
   e('price', validatePrice(form.price));
+  if (!form.target_stage || !form.target_stage.trim()) errors.target_stage = 'يجب اختيار المرحلة الدراسية المستهدفة';
   return errors;
 }
 

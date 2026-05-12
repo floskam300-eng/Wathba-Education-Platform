@@ -20,7 +20,7 @@ function FieldError({ error }) {
   );
 }
 
-const STAGES = ['الصف الأول الثانوي', 'الصف الثاني الثانوي', 'الصف الثالث الثانوي', 'الصف الأول الإعدادي', 'الصف الثاني الإعدادي', 'الصف الثالث الإعدادي', 'جامعي'];
+const STAGES = ['الصف الأول الثانوي', 'الصف الثاني الثانوي', 'الصف الثالث الثانوي', 'الصف الأول الإعدادي', 'الصف الثاني الإعدادي', 'الصف الثالث الإعدادي'];
 
 function PasswordCell({ password, onCopy }) {
   const [visible, setVisible] = React.useState(false);
@@ -49,7 +49,6 @@ const STAGE_PREFIX_LABELS = {
   'الصف الأول الإعدادي':  'A',
   'الصف الثاني الإعدادي': 'B',
   'الصف الثالث الإعدادي': 'C',
-  'جامعي':                 'U',
 };
 
 export default function TeacherStudents() {

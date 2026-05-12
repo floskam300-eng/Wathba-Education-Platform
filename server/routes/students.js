@@ -22,7 +22,6 @@ const STAGE_PREFIXES = {
   'الصف الأول الإعدادي':  'A',
   'الصف الثاني الإعدادي': 'B',
   'الصف الثالث الإعدادي': 'C',
-  'جامعي':                 'U',
 };
 
 // Returns the next available username for a teacher + stage (e.g. H001, H002 …)

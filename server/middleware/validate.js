@@ -31,6 +31,12 @@ function validateStudent(req, res, next) {
   const ppErr = checkPhone(parent_phone);
   if (ppErr) errors.parent_phone = ppErr;
 
+  if (!errors.phone && !errors.parent_phone && phone && parent_phone) {
+    const cleanPhone = String(phone).replace(/[\s\-]/g, '');
+    const cleanParent = String(parent_phone).replace(/[\s\-]/g, '');
+    if (cleanPhone === cleanParent) errors.parent_phone = 'رقم ولي الأمر يجب أن يكون مختلفاً عن رقم الطالب';
+  }
+
   // password only required on edit when provided
   if (password !== undefined && password !== '') {
     if (String(password).length < 6) errors.password = 'كلمة المرور يجب أن تكون 6 أحرف على الأقل';

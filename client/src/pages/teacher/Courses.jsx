@@ -22,7 +22,7 @@ function FieldError({ error }) {
   );
 }
 
-const STAGES = ['الصف الأول الثانوي', 'الصف الثاني الثانوي', 'الصف الثالث الثانوي', 'الصف الأول الإعدادي', 'الصف الثاني الإعدادي', 'الصف الثالث الإعدادي', 'جامعي'];
+const STAGES = ['الصف الأول الثانوي', 'الصف الثاني الثانوي', 'الصف الثالث الثانوي', 'الصف الأول الإعدادي', 'الصف الثاني الإعدادي', 'الصف الثالث الإعدادي'];
 const emptyForm = { name: '', description: '', price: '', thumbnail_url: '', target_stage: '', is_free: false };
 
 const COVER_GRADIENTS = [
@@ -55,7 +55,6 @@ const STAGE_COLORS = {
   'الصف الأول الإعدادي': 'bg-green-50 text-green-700',
   'الصف الثاني الإعدادي': 'bg-teal-50 text-teal-700',
   'الصف الثالث الإعدادي': 'bg-cyan-50 text-cyan-700',
-  'جامعي': 'bg-orange-50 text-orange-700',
 };
 
 function VideoUrlSection({ courseId, onSuccess, sections = [] }) {
@@ -764,11 +763,12 @@ export default function TeacherCourses() {
             )}
           </div>
           <div>
-            <label className="block text-sm font-bold text-navy-700 mb-1">المرحلة الدراسية المستهدفة</label>
-            <select value={form.target_stage || ''} onChange={e => setForm({ ...form, target_stage: e.target.value })} className="input-field">
-              <option value="">كل المراحل (عام)</option>
+            <label className="block text-sm font-bold text-navy-700 mb-1">المرحلة الدراسية المستهدفة <span className="text-red-500">*</span></label>
+            <select value={form.target_stage || ''} onChange={e => { setForm({ ...form, target_stage: e.target.value }); clearError('target_stage'); }} className={`input-field ${formErrors.target_stage ? 'border-red-400 focus:ring-red-300' : ''}`}>
+              <option value="">— اختر المرحلة —</option>
               {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
+            <FieldError error={formErrors.target_stage} />
           </div>
           <div>
             <label className="block text-sm font-bold text-navy-700 mb-1">وصف الكورس</label>

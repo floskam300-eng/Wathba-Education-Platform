@@ -83,11 +83,15 @@ const validateExamFields = ({ title, duration_minutes, total_score, pass_score }
 // ── Create exam ──
 router.post('/', requireRole('teacher', 'assistant'), validateExam, async (req, res) => {
   const teacherId = getTeacherId(req);
-  const { title, duration_minutes, total_score, course_id, pass_score, badge_name, badge_color, start_date, end_date, shuffle_questions, shuffle_options } = req.body;
+  const { title, duration_minutes, total_score, course_id, pass_score, badge_name, badge_color, start_date, end_date, shuffle_questions, shuffle_options, question_source, bank_id, bank_question_count } = req.body;
   try {
     if (course_id) {
       const courseCheck = await pool.query('SELECT id FROM courses WHERE id=$1 AND teacher_id=$2', [course_id, teacherId]);
       if (!courseCheck.rows.length) return res.status(403).json({ error: 'Access denied: course not yours' });
+    }
+    if (question_source === 'bank' && bank_id) {
+      const bankCheck = await pool.query('SELECT id FROM question_banks WHERE id=$1 AND teacher_id=$2', [bank_id, teacherId]);
+      if (!bankCheck.rows.length) return res.status(403).json({ error: 'Access denied: bank not yours' });
     }
     if (start_date && end_date) {
       const diffMin = (new Date(end_date) - new Date(start_date)) / 60000;
@@ -95,11 +99,12 @@ router.post('/', requireRole('teacher', 'assistant'), validateExam, async (req, 
         return res.status(400).json({ error: `الفترة بين البداية والنهاية (${Math.round(diffMin)} دقيقة) أقل من مدة الاختبار (${duration_minutes || 60} دقيقة)` });
     }
     const result = await pool.query(
-      'INSERT INTO exams (title,duration_minutes,total_score,course_id,teacher_id,pass_score,badge_name,badge_color,start_date,end_date,shuffle_questions,shuffle_options) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *',
-      [title, duration_minutes || 60, total_score || 100, course_id || null, teacherId, pass_score ?? 50, badge_name, badge_color || '#FF8C00', start_date || null, end_date || null, !!shuffle_questions, !!shuffle_options]
+      'INSERT INTO exams (title,duration_minutes,total_score,course_id,teacher_id,pass_score,badge_name,badge_color,start_date,end_date,shuffle_questions,shuffle_options,question_source,bank_id,bank_question_count) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *',
+      [title, duration_minutes || 60, total_score || 100, course_id || null, teacherId, pass_score ?? 50, badge_name, badge_color || '#FF8C00', start_date || null, end_date || null, !!shuffle_questions, !!shuffle_options, question_source || 'manual', (question_source === 'bank' && bank_id) ? bank_id : null, bank_question_count || 10]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -107,20 +112,25 @@ router.post('/', requireRole('teacher', 'assistant'), validateExam, async (req, 
 // ── Update exam ──
 router.put('/:id', requireRole('teacher', 'assistant'), validateExam, async (req, res) => {
   const teacherId = getTeacherId(req);
-  const { title, duration_minutes, total_score, course_id, pass_score, badge_name, badge_color, start_date, end_date, shuffle_questions, shuffle_options } = req.body;
+  const { title, duration_minutes, total_score, course_id, pass_score, badge_name, badge_color, start_date, end_date, shuffle_questions, shuffle_options, question_source, bank_id, bank_question_count } = req.body;
   try {
+    if (question_source === 'bank' && bank_id) {
+      const bankCheck = await pool.query('SELECT id FROM question_banks WHERE id=$1 AND teacher_id=$2', [bank_id, teacherId]);
+      if (!bankCheck.rows.length) return res.status(403).json({ error: 'Access denied: bank not yours' });
+    }
     if (start_date && end_date) {
       const diffMin = (new Date(end_date) - new Date(start_date)) / 60000;
       if (diffMin < parseInt(duration_minutes || 60))
         return res.status(400).json({ error: `الفترة بين البداية والنهاية (${Math.round(diffMin)} دقيقة) أقل من مدة الاختبار (${duration_minutes || 60} دقيقة)` });
     }
     const result = await pool.query(
-      'UPDATE exams SET title=$1,duration_minutes=$2,total_score=$3,course_id=$4,pass_score=$5,badge_name=$6,badge_color=$7,start_date=$8,end_date=$9,shuffle_questions=$10,shuffle_options=$11 WHERE id=$12 AND teacher_id=$13 RETURNING *',
-      [title, duration_minutes, total_score, course_id, pass_score, badge_name, badge_color, start_date || null, end_date || null, !!shuffle_questions, !!shuffle_options, req.params.id, teacherId]
+      'UPDATE exams SET title=$1,duration_minutes=$2,total_score=$3,course_id=$4,pass_score=$5,badge_name=$6,badge_color=$7,start_date=$8,end_date=$9,shuffle_questions=$10,shuffle_options=$11,question_source=$12,bank_id=$13,bank_question_count=$14 WHERE id=$15 AND teacher_id=$16 RETURNING *',
+      [title, duration_minutes, total_score, course_id || null, pass_score, badge_name, badge_color, start_date || null, end_date || null, !!shuffle_questions, !!shuffle_options, question_source || 'manual', (question_source === 'bank' && bank_id) ? bank_id : null, bank_question_count || 10, req.params.id, teacherId]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Exam not found' });
     res.json(result.rows[0]);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Server error' });
   }
 });
