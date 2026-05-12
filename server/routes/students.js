@@ -330,6 +330,7 @@ router.get('/me/stats', requireRole('student'), async (req, res) => {
         SELECT COUNT(*) AS total,
                SUM(CASE WHEN points > (SELECT points FROM students WHERE id=$1) THEN 1 ELSE 0 END) AS above
         FROM students WHERE teacher_id = (SELECT teacher_id FROM students WHERE id=$1)
+          AND deleted_at IS NULL
       `, [studentId]),
     ]);
 

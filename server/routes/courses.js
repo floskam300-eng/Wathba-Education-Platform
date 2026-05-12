@@ -511,6 +511,11 @@ router.put('/enrollment-requests/:id', requireRole('teacher', 'assistant'), chec
         'UPDATE course_enrollment_requests SET status=$1, handled_at=NOW() WHERE id=$2',
         ['approved', req.params.id]
       );
+      await pool.query(
+        `INSERT INTO notification_log (teacher_id, student_id, recipient_type, message, type, is_read, source, title)
+         VALUES ($1,$2,'student',$3,'enrollment_approved',false,'platform','قبول في كورس')`,
+        [teacherId, enrReq.student_id, `🎓 تمت الموافقة على انضمامك لكورس: "${courseName}"`]
+      );
       sendEvent(`student_${enrReq.student_id}`, 'enrollment_approved', {
         course_name: courseName,
         courseId: enrReq.course_id,
@@ -519,6 +524,11 @@ router.put('/enrollment-requests/:id', requireRole('teacher', 'assistant'), chec
       await pool.query(
         'UPDATE course_enrollment_requests SET status=$1, handled_at=NOW() WHERE id=$2',
         ['rejected', req.params.id]
+      );
+      await pool.query(
+        `INSERT INTO notification_log (teacher_id, student_id, recipient_type, message, type, is_read, source, title)
+         VALUES ($1,$2,'student',$3,'enrollment_rejected',false,'platform','رفض طلب كورس')`,
+        [teacherId, enrReq.student_id, `رُفض طلب انضمامك لكورس: "${courseName}"`]
       );
       sendEvent(`student_${enrReq.student_id}`, 'enrollment_rejected', {
         course_name: courseName,

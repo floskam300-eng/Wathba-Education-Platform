@@ -55,6 +55,8 @@ export function useSSE(enabled, role) {
         const data = JSON.parse(e.data);
         qc.invalidateQueries({ queryKey: ['student-exams'] });
         qc.invalidateQueries({ queryKey: ['student-dashboard'] });
+        qc.invalidateQueries({ queryKey: ['my-notifications'] });
+        window.dispatchEvent(new CustomEvent('wathba_platform_notification', { detail: data }));
         toast.success(
           `${EVENT_ICONS.new_exam} اختبار جديد: ${data.title}`,
           { duration: 6000, style: { fontFamily: 'inherit', direction: 'rtl' } }

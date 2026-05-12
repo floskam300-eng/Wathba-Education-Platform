@@ -52,6 +52,7 @@ export default function TeacherExams() {
   const [imageInputMode, setImageInputMode] = useState('url');
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState('');
+  const [uploadProgress, setUploadProgress] = useState(0);
   const imageFileRef = useRef(null);
 
   const { data: exams = [], isLoading } = useQuery({
@@ -111,7 +112,14 @@ export default function TeacherExams() {
 
   const publishMut = useMutation({
     mutationFn: (id) => api.put(`/exams/${id}/publish`),
-    onSuccess: () => { qc.invalidateQueries(['exams']); },
+    onSuccess: (res) => {
+      qc.invalidateQueries(['exams']);
+      if (res.data.is_published) {
+        toast.success('تم نشر الاختبار وإشعار الطلاب 📢');
+      } else {
+        toast('تم إلغاء نشر الاختبار', { icon: '🔕' });
+      }
+    },
     onError: () => toast.error('حدث خطأ'),
   });
 
@@ -191,11 +199,18 @@ export default function TeacherExams() {
       const fd = new FormData();
       fd.append('image', imageFile);
       try {
+        setUploadProgress(1);
         const res = await api.post('/exams/upload-question-image', fd, {
           headers: { 'Content-Type': 'multipart/form-data' },
+          onUploadProgress: (evt) => {
+            if (evt.total) setUploadProgress(Math.round((evt.loaded / evt.total) * 100));
+          },
         });
         finalImageUrl = res.data.url;
+        setUploadProgress(100);
+        setTimeout(() => setUploadProgress(0), 800);
       } catch {
+        setUploadProgress(0);
         return toast.error('فشل رفع الصورة، حاول مرة أخرى');
       }
     }
@@ -433,6 +448,19 @@ export default function TeacherExams() {
                     <HelpCircle className="w-4 h-4 text-orange-500" /> بنك الأسئلة ({questions.length})
                   </h4>
 
+                  {questions.length > 0 && (() => {
+                    const sum = questions.reduce((s, q) => s + (parseInt(q.points) || 0), 0);
+                    if (sum !== parseInt(ex.total_score)) {
+                      return (
+                        <div className="flex items-center gap-2 px-4 py-3 bg-amber-50 border border-amber-300 rounded-xl text-sm text-amber-800 font-semibold">
+                          <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                          <span>⚠️ مجموع درجات الأسئلة (<span className="font-black">{sum}</span>) لا يساوي المجموع الكلي للاختبار (<span className="font-black">{ex.total_score}</span>) — تحقق من درجات الأسئلة</span>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+
                   {questions.map((q, qi) => (
                     <div key={q.id} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
                       <div className="flex items-start justify-between gap-2">
@@ -538,6 +566,23 @@ export default function TeacherExams() {
                               }}
                               className="block w-full text-sm text-gray-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100 border border-gray-200 rounded-xl p-2 cursor-pointer"
                             />
+                            {uploadProgress > 0 && uploadProgress < 100 && (
+                              <div className="mt-2">
+                                <div className="flex justify-between text-xs text-gray-500 mb-1">
+                                  <span>جاري رفع الصورة...</span>
+                                  <span className="font-bold text-orange-600">{uploadProgress}%</span>
+                                </div>
+                                <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                                  <div
+                                    className="h-2 bg-gradient-to-r from-orange-400 to-orange-600 rounded-full transition-all duration-300"
+                                    style={{ width: `${uploadProgress}%` }}
+                                  />
+                                </div>
+                              </div>
+                            )}
+                            {uploadProgress === 100 && (
+                              <p className="mt-1 text-xs text-green-600 font-bold">✓ تم الرفع بنجاح</p>
+                            )}
                             {imagePreview && (
                               <img src={imagePreview} alt="preview" className="mt-2 h-28 rounded-lg object-contain border border-gray-200" />
                             )}

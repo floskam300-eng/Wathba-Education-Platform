@@ -89,17 +89,16 @@ router.post('/', requireRole('teacher', 'assistant'), validateExam, async (req, 
       const courseCheck = await pool.query('SELECT id FROM courses WHERE id=$1 AND teacher_id=$2', [course_id, teacherId]);
       if (!courseCheck.rows.length) return res.status(403).json({ error: 'Access denied: course not yours' });
     }
+    if (start_date && end_date) {
+      const diffMin = (new Date(end_date) - new Date(start_date)) / 60000;
+      if (diffMin < parseInt(duration_minutes || 60))
+        return res.status(400).json({ error: `الفترة بين البداية والنهاية (${Math.round(diffMin)} دقيقة) أقل من مدة الاختبار (${duration_minutes || 60} دقيقة)` });
+    }
     const result = await pool.query(
       'INSERT INTO exams (title,duration_minutes,total_score,course_id,teacher_id,pass_score,badge_name,badge_color,start_date,end_date) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *',
       [title, duration_minutes || 60, total_score || 100, course_id || null, teacherId, pass_score ?? 50, badge_name, badge_color || '#FF8C00', start_date || null, end_date || null]
     );
-    const exam = result.rows[0];
-    if (course_id) {
-      broadcastToCourseStudents(pool, course_id, 'new_exam', { title, examId: exam.id });
-    } else {
-      broadcastToTeacherStudents(pool, teacherId, 'new_exam', { title, examId: exam.id });
-    }
-    res.status(201).json(exam);
+    res.status(201).json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }
@@ -110,6 +109,11 @@ router.put('/:id', requireRole('teacher', 'assistant'), validateExam, async (req
   const teacherId = getTeacherId(req);
   const { title, duration_minutes, total_score, course_id, pass_score, badge_name, badge_color, start_date, end_date } = req.body;
   try {
+    if (start_date && end_date) {
+      const diffMin = (new Date(end_date) - new Date(start_date)) / 60000;
+      if (diffMin < parseInt(duration_minutes || 60))
+        return res.status(400).json({ error: `الفترة بين البداية والنهاية (${Math.round(diffMin)} دقيقة) أقل من مدة الاختبار (${duration_minutes || 60} دقيقة)` });
+    }
     const result = await pool.query(
       'UPDATE exams SET title=$1,duration_minutes=$2,total_score=$3,course_id=$4,pass_score=$5,badge_name=$6,badge_color=$7,start_date=$8,end_date=$9 WHERE id=$10 AND teacher_id=$11 RETURNING *',
       [title, duration_minutes, total_score, course_id, pass_score, badge_name, badge_color, start_date || null, end_date || null, req.params.id, teacherId]
@@ -126,12 +130,72 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), async (req, res)
   const teacherId = getTeacherId(req);
   try {
     const result = await pool.query(
-      'UPDATE exams SET is_published = NOT is_published WHERE id=$1 AND teacher_id=$2 RETURNING id, is_published',
+      'UPDATE exams SET is_published = NOT is_published WHERE id=$1 AND teacher_id=$2 RETURNING id, is_published, title, course_id, start_date',
       [req.params.id, teacherId]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Exam not found' });
-    res.json(result.rows[0]);
+    const exam = result.rows[0];
+
+    if (exam.is_published) {
+      // Get all affected student IDs
+      let studentIds = [];
+      if (exam.course_id) {
+        const sRes = await pool.query(
+          'SELECT student_id AS id FROM student_course_enrollment WHERE course_id=$1',
+          [exam.course_id]
+        );
+        studentIds = sRes.rows.map(r => r.id);
+      } else {
+        const sRes = await pool.query(
+          'SELECT id FROM students WHERE teacher_id=$1 AND deleted_at IS NULL',
+          [teacherId]
+        );
+        studentIds = sRes.rows.map(r => r.id);
+      }
+
+      const now = new Date();
+      const startDate = exam.start_date ? new Date(exam.start_date) : null;
+      const hasStartDate = startDate && startDate > now;
+
+      const notifTitle = 'اختبار جديد';
+      const notifMsg = hasStartDate
+        ? `📝 اختبار جديد: "${exam.title}" — يبدأ في ${startDate.toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}`
+        : `📝 اختبار جديد متاح الآن: "${exam.title}"`;
+
+      for (const sid of studentIds) {
+        try {
+          await pool.query(
+            `INSERT INTO notification_log (teacher_id, student_id, recipient_type, message, type, is_read, source, title)
+             VALUES ($1,$2,'student',$3,'new_exam',false,'platform',$4)`,
+            [teacherId, sid, notifMsg, notifTitle]
+          );
+        } catch (_) {}
+        if (!hasStartDate) {
+          sendEvent(`student_${sid}`, 'new_exam', { title: exam.title, examId: exam.id });
+        }
+      }
+
+      if (hasStartDate) {
+        const delay = startDate - now;
+        setTimeout(async () => {
+          const startMsg = `⏰ بدأ وقت اختبار: "${exam.title}" — يمكنك الدخول الآن`;
+          for (const sid of studentIds) {
+            try {
+              await pool.query(
+                `INSERT INTO notification_log (teacher_id, student_id, recipient_type, message, type, is_read, source, title)
+                 VALUES ($1,$2,'student',$3,'new_exam',false,'platform',$4)`,
+                [teacherId, sid, startMsg, 'بدأ وقت الاختبار']
+              );
+            } catch (_) {}
+            sendEvent(`student_${sid}`, 'new_exam', { title: exam.title, examId: exam.id });
+          }
+        }, delay);
+      }
+    }
+
+    res.json({ id: exam.id, is_published: exam.is_published });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Server error' });
   }
 });

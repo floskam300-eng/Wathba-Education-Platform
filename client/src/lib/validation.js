@@ -89,10 +89,18 @@ export function validatePassScore(passScore, totalScore) {
   return null;
 }
 
-export function validateDates(startDate, endDate) {
+export function validateDates(startDate, endDate, durationMinutes) {
   if (!startDate || !endDate) return null;
-  if (new Date(endDate) <= new Date(startDate))
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  if (end <= start)
     return 'تاريخ الانتهاء يجب أن يكون بعد تاريخ البداية';
+  if (durationMinutes) {
+    const diffMin = (end - start) / 60000;
+    const dur = parseInt(durationMinutes);
+    if (!isNaN(dur) && diffMin < dur)
+      return `الفترة بين البداية والنهاية (${Math.round(diffMin)} دقيقة) أقل من مدة الاختبار (${dur} دقيقة)`;
+  }
   return null;
 }
 
@@ -133,7 +141,7 @@ export function validateExamForm(form) {
   e('duration_minutes', validateDuration(form.duration_minutes));
   e('total_score', validateTotalScore(form.total_score));
   e('pass_score', validatePassScore(form.pass_score, form.total_score));
-  e('end_date', validateDates(form.start_date, form.end_date));
+  e('end_date', validateDates(form.start_date, form.end_date, form.duration_minutes));
   return errors;
 }
 
