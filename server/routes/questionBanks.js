@@ -34,11 +34,12 @@ router.get('/', requireRole('teacher', 'assistant'), async (req, res) => {
   const teacherId = getTeacherId(req);
   try {
     const result = await pool.query(
-      `SELECT qb.*, COUNT(bq.id) AS question_count
+      `SELECT qb.*, c.name AS course_name, COUNT(bq.id) AS question_count
        FROM question_banks qb
        LEFT JOIN bank_questions bq ON bq.bank_id = qb.id
+       LEFT JOIN courses c ON c.id = qb.course_id
        WHERE qb.teacher_id = $1
-       GROUP BY qb.id
+       GROUP BY qb.id, c.name
        ORDER BY qb.created_at DESC`,
       [teacherId]
     );
@@ -52,12 +53,16 @@ router.get('/', requireRole('teacher', 'assistant'), async (req, res) => {
 // ── Create bank ──
 router.post('/', requireRole('teacher', 'assistant'), async (req, res) => {
   const teacherId = getTeacherId(req);
-  const { name, subject } = req.body;
+  const { name, course_id } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: 'اسم البنك مطلوب' });
   try {
+    if (course_id) {
+      const courseCheck = await pool.query('SELECT id FROM courses WHERE id=$1 AND teacher_id=$2', [course_id, teacherId]);
+      if (!courseCheck.rows.length) return res.status(403).json({ error: 'الكورس غير موجود' });
+    }
     const result = await pool.query(
-      'INSERT INTO question_banks (name, subject, teacher_id) VALUES ($1,$2,$3) RETURNING *',
-      [name.trim(), subject || null, teacherId]
+      'INSERT INTO question_banks (name, course_id, teacher_id) VALUES ($1,$2,$3) RETURNING *',
+      [name.trim(), course_id || null, teacherId]
     );
     res.status(201).json({ ...result.rows[0], question_count: 0 });
   } catch (err) {
@@ -68,12 +73,16 @@ router.post('/', requireRole('teacher', 'assistant'), async (req, res) => {
 // ── Update bank ──
 router.put('/:id', requireRole('teacher', 'assistant'), async (req, res) => {
   const teacherId = getTeacherId(req);
-  const { name, subject } = req.body;
+  const { name, course_id } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: 'اسم البنك مطلوب' });
   try {
+    if (course_id) {
+      const courseCheck = await pool.query('SELECT id FROM courses WHERE id=$1 AND teacher_id=$2', [course_id, teacherId]);
+      if (!courseCheck.rows.length) return res.status(403).json({ error: 'الكورس غير موجود' });
+    }
     const result = await pool.query(
-      'UPDATE question_banks SET name=$1, subject=$2 WHERE id=$3 AND teacher_id=$4 RETURNING *',
-      [name.trim(), subject || null, req.params.id, teacherId]
+      'UPDATE question_banks SET name=$1, course_id=$2 WHERE id=$3 AND teacher_id=$4 RETURNING *',
+      [name.trim(), course_id || null, req.params.id, teacherId]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'البنك غير موجود' });
     res.json(result.rows[0]);

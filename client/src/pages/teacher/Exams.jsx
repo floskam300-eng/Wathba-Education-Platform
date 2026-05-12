@@ -735,7 +735,7 @@ export default function TeacherExams() {
                   <p className="text-xs font-normal text-gray-500 mt-0.5">أنت تضيف الأسئلة بنفسك داخل الاختبار</p>
                 </div>
               </button>
-              <button type="button" onClick={() => setForm({ ...form, question_source: 'bank' })}
+              <button type="button" onClick={() => setForm({ ...form, question_source: 'bank', shuffle_questions: false })}
                 className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl border-2 font-bold text-sm transition-all ${form.question_source === 'bank' ? 'border-blue-500 bg-blue-100 text-blue-800' : 'border-gray-200 bg-white text-gray-600 hover:border-blue-300'}`}>
                 <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${form.question_source === 'bank' ? 'border-blue-500 bg-blue-500' : 'border-gray-300'}`}>
                   {form.question_source === 'bank' && <span className="w-2.5 h-2.5 rounded-full bg-white block" />}
@@ -824,6 +824,7 @@ export default function TeacherExams() {
               🔀 خيارات منع الغش <span className="font-normal text-purple-600">(اختياري)</span>
             </p>
             <div className="flex flex-col gap-2">
+              {form.question_source !== 'bank' && (
               <button
                 type="button"
                 onClick={() => setForm({ ...form, shuffle_questions: !form.shuffle_questions })}
@@ -837,6 +838,7 @@ export default function TeacherExams() {
                   <p className="text-xs font-normal text-gray-500 mt-0.5">كل طالب يشوف الأسئلة بترتيب مختلف — يمنع الغش بالترتيب</p>
                 </div>
               </button>
+              )}
               <button
                 type="button"
                 onClick={() => setForm({ ...form, shuffle_options: !form.shuffle_options })}
