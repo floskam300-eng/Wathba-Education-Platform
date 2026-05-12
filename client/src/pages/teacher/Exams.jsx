@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Plus, Pencil, Trash2, HelpCircle, ChevronDown, ChevronUp, Printer, Filter, Calendar, User, Eye, Search, AlertCircle, Globe, EyeOff, Upload, Link } from 'lucide-react';
+import { FileText, Plus, Pencil, Trash2, HelpCircle, ChevronDown, ChevronUp, Printer, Filter, Calendar, User, Eye, Search, AlertCircle, Globe, EyeOff, Upload, Link, CheckCircle, XCircle } from 'lucide-react';
 import Modal from '../../components/ui/Modal';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import Badge from '../../components/ui/Badge';
