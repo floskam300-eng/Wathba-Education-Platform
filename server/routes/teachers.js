@@ -133,13 +133,14 @@ router.get('/analytics/wrong-questions', requireRole('teacher', 'assistant'), as
       ORDER BY e.id, wrong_pct DESC, wrong_count DESC
     `, [teacherId]);
 
-    // Group by exam, keep top 5 per exam
+    const full = req.query.full === 'true';
+    const limit = full ? Infinity : 5;
     const byExam = {};
     for (const row of result.rows) {
       if (!byExam[row.exam_id]) {
         byExam[row.exam_id] = { exam_id: row.exam_id, exam_title: row.exam_title, questions: [] };
       }
-      if (byExam[row.exam_id].questions.length < 5) {
+      if (byExam[row.exam_id].questions.length < limit) {
         byExam[row.exam_id].questions.push(row);
       }
     }

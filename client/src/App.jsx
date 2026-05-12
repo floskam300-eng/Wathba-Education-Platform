@@ -20,6 +20,7 @@ import TeacherBackup from './pages/teacher/Backup';
 import TeacherAttendance from './pages/teacher/Attendance';
 import TeacherRequests from './pages/teacher/Requests';
 import EssayGrading from './pages/teacher/EssayGrading';
+import WrongQuestionsPage from './pages/teacher/WrongQuestions';
 import AssistantDashboard from './pages/assistant/Dashboard';
 import AssistantStudents from './pages/assistant/Students';
 import AssistantExams from './pages/teacher/Exams';
@@ -65,6 +66,7 @@ const AppRoutes = () => {
         <Route path="requests" element={<TeacherRequests />} />
         <Route path="essay-grading" element={<EssayGrading />} />
         <Route path="exam-review/:resultId" element={<ExamReviewPage />} />
+        <Route path="wrong-questions" element={<WrongQuestionsPage />} />
       </Route>
 
       <Route path="/assistant" element={<ProtectedRoute allowedRoles={['assistant']}><AssistantLayout /></ProtectedRoute>}>

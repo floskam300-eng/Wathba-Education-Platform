@@ -811,6 +811,16 @@ export default function TeacherAnalytics() {
                 );
               })}
             </div>
+            {/* View All button */}
+            <div className="p-4 border-t border-gray-100 bg-gray-50/50">
+              <button
+                onClick={() => navigate('/teacher/wrong-questions')}
+                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-red-50 hover:bg-red-100 border border-red-100 hover:border-red-200 text-red-600 text-sm font-black transition-all group">
+                <AlertTriangle className="w-4 h-4" />
+                عرض المزيد — تقرير كامل لجميع الامتحانات
+                <ChevronLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+              </button>
+            </div>
           </div>
         );
       })()}
