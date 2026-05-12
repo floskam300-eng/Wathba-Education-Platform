@@ -21,7 +21,7 @@ function FieldError({ error }) {
 
 const STAGES = ['الصف الأول الثانوي', 'الصف الثاني الثانوي', 'الصف الثالث الثانوي', 'الصف الأول الإعدادي', 'الصف الثاني الإعدادي', 'الصف الثالث الإعدادي', 'جامعي'];
 
-const emptyExam = { title: '', duration_minutes: 60, total_score: 100, course_id: '', pass_score: 50, badge_name: '', badge_color: '#995400', start_date: '', end_date: '' };
+const emptyExam = { title: '', duration_minutes: 60, total_score: 100, course_id: '', pass_score: 50, badge_name: '', badge_color: '#995400', start_date: '', end_date: '', shuffle_questions: false, shuffle_options: false };
 const emptyQ = { question_text: '', question_image_url: '', option_a: '', option_b: '', option_c: '', option_d: '', correct_answer_letter: 'A', points: 1, question_type: 'mcq', essay_answer_key: '' };
 
 const QUESTION_TYPES = [
@@ -166,6 +166,7 @@ export default function TeacherExams() {
       course_id: e.course_id || '', pass_score: e.pass_score,
       badge_name: e.badge_name || '', badge_color: e.badge_color || '#995400',
       start_date: fmtDateLocal(e.start_date), end_date: fmtDateLocal(e.end_date),
+      shuffle_questions: !!e.shuffle_questions, shuffle_options: !!e.shuffle_options,
     });
     setFormErrors({});
     setModal(true);
@@ -727,6 +728,41 @@ export default function TeacherExams() {
               </div>
             )}
             <p className="text-xs text-orange-600">إذا تركتها فارغة، سيكون الاختبار متاحاً في أي وقت</p>
+          </div>
+
+          {/* Anti-cheat shuffle options */}
+          <div className="bg-purple-50 rounded-xl p-4 border border-purple-200 space-y-3">
+            <p className="text-sm font-black text-purple-800 flex items-center gap-1.5">
+              🔀 خيارات منع الغش <span className="font-normal text-purple-600">(اختياري)</span>
+            </p>
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, shuffle_questions: !form.shuffle_questions })}
+                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl border-2 font-bold text-sm transition-all ${form.shuffle_questions ? 'border-purple-500 bg-purple-100 text-purple-800' : 'border-gray-200 bg-white text-gray-600 hover:border-purple-300'}`}
+              >
+                <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all ${form.shuffle_questions ? 'border-purple-500 bg-purple-500' : 'border-gray-300'}`}>
+                  {form.shuffle_questions && <span className="text-white text-xs font-black">✓</span>}
+                </span>
+                <div className="text-right flex-1">
+                  <p className="font-bold">🔀 عشوائية ترتيب الأسئلة</p>
+                  <p className="text-xs font-normal text-gray-500 mt-0.5">كل طالب يشوف الأسئلة بترتيب مختلف — يمنع الغش بالترتيب</p>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, shuffle_options: !form.shuffle_options })}
+                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl border-2 font-bold text-sm transition-all ${form.shuffle_options ? 'border-purple-500 bg-purple-100 text-purple-800' : 'border-gray-200 bg-white text-gray-600 hover:border-purple-300'}`}
+              >
+                <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all ${form.shuffle_options ? 'border-purple-500 bg-purple-500' : 'border-gray-300'}`}>
+                  {form.shuffle_options && <span className="text-white text-xs font-black">✓</span>}
+                </span>
+                <div className="text-right flex-1">
+                  <p className="font-bold">🔀 عشوائية ترتيب الإجابات</p>
+                  <p className="text-xs font-normal text-gray-500 mt-0.5">كل طالب يشوف الإجابات بترتيب مختلف — يمنع الغش بحرف الإجابة</p>
+                </div>
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">

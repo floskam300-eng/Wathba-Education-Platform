@@ -83,7 +83,7 @@ const validateExamFields = ({ title, duration_minutes, total_score, pass_score }
 // ── Create exam ──
 router.post('/', requireRole('teacher', 'assistant'), validateExam, async (req, res) => {
   const teacherId = getTeacherId(req);
-  const { title, duration_minutes, total_score, course_id, pass_score, badge_name, badge_color, start_date, end_date } = req.body;
+  const { title, duration_minutes, total_score, course_id, pass_score, badge_name, badge_color, start_date, end_date, shuffle_questions, shuffle_options } = req.body;
   try {
     if (course_id) {
       const courseCheck = await pool.query('SELECT id FROM courses WHERE id=$1 AND teacher_id=$2', [course_id, teacherId]);
@@ -95,8 +95,8 @@ router.post('/', requireRole('teacher', 'assistant'), validateExam, async (req, 
         return res.status(400).json({ error: `الفترة بين البداية والنهاية (${Math.round(diffMin)} دقيقة) أقل من مدة الاختبار (${duration_minutes || 60} دقيقة)` });
     }
     const result = await pool.query(
-      'INSERT INTO exams (title,duration_minutes,total_score,course_id,teacher_id,pass_score,badge_name,badge_color,start_date,end_date) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *',
-      [title, duration_minutes || 60, total_score || 100, course_id || null, teacherId, pass_score ?? 50, badge_name, badge_color || '#FF8C00', start_date || null, end_date || null]
+      'INSERT INTO exams (title,duration_minutes,total_score,course_id,teacher_id,pass_score,badge_name,badge_color,start_date,end_date,shuffle_questions,shuffle_options) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *',
+      [title, duration_minutes || 60, total_score || 100, course_id || null, teacherId, pass_score ?? 50, badge_name, badge_color || '#FF8C00', start_date || null, end_date || null, !!shuffle_questions, !!shuffle_options]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -107,7 +107,7 @@ router.post('/', requireRole('teacher', 'assistant'), validateExam, async (req, 
 // ── Update exam ──
 router.put('/:id', requireRole('teacher', 'assistant'), validateExam, async (req, res) => {
   const teacherId = getTeacherId(req);
-  const { title, duration_minutes, total_score, course_id, pass_score, badge_name, badge_color, start_date, end_date } = req.body;
+  const { title, duration_minutes, total_score, course_id, pass_score, badge_name, badge_color, start_date, end_date, shuffle_questions, shuffle_options } = req.body;
   try {
     if (start_date && end_date) {
       const diffMin = (new Date(end_date) - new Date(start_date)) / 60000;
@@ -115,8 +115,8 @@ router.put('/:id', requireRole('teacher', 'assistant'), validateExam, async (req
         return res.status(400).json({ error: `الفترة بين البداية والنهاية (${Math.round(diffMin)} دقيقة) أقل من مدة الاختبار (${duration_minutes || 60} دقيقة)` });
     }
     const result = await pool.query(
-      'UPDATE exams SET title=$1,duration_minutes=$2,total_score=$3,course_id=$4,pass_score=$5,badge_name=$6,badge_color=$7,start_date=$8,end_date=$9 WHERE id=$10 AND teacher_id=$11 RETURNING *',
-      [title, duration_minutes, total_score, course_id, pass_score, badge_name, badge_color, start_date || null, end_date || null, req.params.id, teacherId]
+      'UPDATE exams SET title=$1,duration_minutes=$2,total_score=$3,course_id=$4,pass_score=$5,badge_name=$6,badge_color=$7,start_date=$8,end_date=$9,shuffle_questions=$10,shuffle_options=$11 WHERE id=$12 AND teacher_id=$13 RETURNING *',
+      [title, duration_minutes, total_score, course_id, pass_score, badge_name, badge_color, start_date || null, end_date || null, !!shuffle_questions, !!shuffle_options, req.params.id, teacherId]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Exam not found' });
     res.json(result.rows[0]);
@@ -456,6 +456,21 @@ router.get('/student/available', requireRole('student'), async (req, res) => {
   }
 });
 
+// ── Seeded shuffle helper (Fisher-Yates with LCG RNG) ──
+function seededShuffle(arr, seed) {
+  const result = [...arr];
+  let s = seed >>> 0;
+  const rand = () => {
+    s = Math.imul(s, 1664525) + 1013904223 >>> 0;
+    return s / 0x100000000;
+  };
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
 // ── Student: take exam ──
 router.get('/:id/take', requireRole('student'), async (req, res) => {
   const studentId = req.user.id;
@@ -463,7 +478,7 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
     const now = new Date();
     const eligibilityCheck = await pool.query(
       `SELECT e.id, e.title, e.duration_minutes, e.total_score, e.pass_score,
-              e.start_date, e.end_date
+              e.start_date, e.end_date, e.shuffle_questions, e.shuffle_options
        FROM exams e
        LEFT JOIN student_course_enrollment sce ON e.course_id = sce.course_id AND sce.student_id = $1
        WHERE e.id = $2
@@ -481,14 +496,19 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
     if (exam.end_date && new Date(exam.end_date) < now) {
       return res.status(403).json({ error: 'انتهى وقت الاختبار', end_date: exam.end_date });
     }
-    const questions = await pool.query(
+    const questionsRes = await pool.query(
       'SELECT id,question_text,question_image_url,option_a,option_b,option_c,option_d,points,question_type FROM questions WHERE exam_id=$1 ORDER BY id',
       [req.params.id]
     );
-    if (questions.rows.length === 0) {
+    if (questionsRes.rows.length === 0) {
       return res.status(400).json({ error: 'هذا الاختبار لا يحتوي على أسئلة بعد' });
     }
-    res.json({ exam: eligibilityCheck.rows[0], questions: questions.rows });
+    let questions = questionsRes.rows;
+    if (exam.shuffle_questions) {
+      const seed = (studentId * 31 + parseInt(req.params.id) * 17) >>> 0;
+      questions = seededShuffle(questions, seed);
+    }
+    res.json({ exam, questions });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }

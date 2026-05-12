@@ -6,6 +6,28 @@ import Modal from '../../components/ui/Modal';
 import Badge from '../../components/ui/Badge';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
+import { useAuth } from '../../context/AuthContext';
+
+function seededShuffle(arr, seed) {
+  const result = [...arr];
+  let s = seed >>> 0;
+  const rand = () => {
+    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+    return s / 0x100000000;
+  };
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
+function getShuffledOpts(q, studentId, shuffleOptions) {
+  const allOpts = ['A', 'B', 'C', 'D'].filter(o => q[`option_${o.toLowerCase()}`]);
+  if (!shuffleOptions) return allOpts;
+  const seed = ((studentId * 1000003) ^ (q.id * 999983)) >>> 0;
+  return seededShuffle(allOpts, seed);
+}
 
 const getExamScheduleStatus = (ex) => {
   const now = new Date();
@@ -34,6 +56,8 @@ function formatCountdown(ms) {
 }
 
 export default function StudentExams() {
+  const { user } = useAuth();
+  const studentId = user?.id || 0;
   const qc = useQueryClient();
   const [taking, setTaking] = useState(null);
   const [answers, setAnswers] = useState({});
@@ -281,13 +305,17 @@ export default function StudentExams() {
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {['A', 'B', 'C', 'D'].map(opt => q[`option_${opt.toLowerCase()}`] && (
-                        <button key={opt} onClick={() => setAnswers({ ...answers, [q.id]: opt })}
-                          className={`p-3 rounded-xl text-sm font-semibold text-right transition-all border-2 ${answers[q.id] === opt ? 'border-orange-500 bg-orange-50 text-orange-800' : 'border-gray-300 hover:border-navy-400 hover:bg-navy-50 text-navy-700'}`}>
-                          <span className={`inline-flex w-6 h-6 rounded-full items-center justify-center text-xs font-bold ml-2 ${answers[q.id] === opt ? 'bg-orange-500 text-white' : 'bg-gray-200 text-gray-700'}`}>{opt}</span>
-                          {q[`option_${opt.toLowerCase()}`]}
-                        </button>
-                      ))}
+                      {(() => {
+                        const shuffledOpts = getShuffledOpts(q, studentId, exam.shuffle_options);
+                        const displayLabels = ['أ', 'ب', 'ج', 'د'];
+                        return shuffledOpts.map((origOpt, idx) => (
+                          <button key={origOpt} onClick={() => setAnswers({ ...answers, [q.id]: origOpt })}
+                            className={`p-3 rounded-xl text-sm font-semibold text-right transition-all border-2 ${answers[q.id] === origOpt ? 'border-orange-500 bg-orange-50 text-orange-800' : 'border-gray-300 hover:border-navy-400 hover:bg-navy-50 text-navy-700'}`}>
+                            <span className={`inline-flex w-6 h-6 rounded-full items-center justify-center text-xs font-bold ml-2 ${answers[q.id] === origOpt ? 'bg-orange-500 text-white' : 'bg-gray-200 text-gray-700'}`}>{displayLabels[idx]}</span>
+                            {q[`option_${origOpt.toLowerCase()}`]}
+                          </button>
+                        ));
+                      })()}
                     </div>
                   )}
                 </div>
