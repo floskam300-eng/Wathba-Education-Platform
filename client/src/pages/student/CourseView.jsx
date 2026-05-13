@@ -418,9 +418,7 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
   };
 
   /* Visible quality options: always show 'default'; add others if available */
-  const visibleQualities = YT_QUALITIES.filter(q =>
-    q.key === 'default' || availableQualities.includes(q.key)
-  );
+  const visibleQualities = YT_QUALITIES;
   const qualityLabel = YT_QUALITIES.find(q => q.key === quality)?.label || 'تلقائي';
 
   const pct = `${progress}%`;

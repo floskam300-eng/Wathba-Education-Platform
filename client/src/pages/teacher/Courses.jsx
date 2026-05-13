@@ -23,7 +23,7 @@ function FieldError({ error }) {
 }
 
 const STAGES = ['الصف الأول الثانوي', 'الصف الثاني الثانوي', 'الصف الثالث الثانوي', 'الصف الأول الإعدادي', 'الصف الثاني الإعدادي', 'الصف الثالث الإعدادي'];
-const emptyForm = { name: '', description: '', price: '', thumbnail_url: '', target_stage: '', is_free: false };
+const emptyForm = { name: '', description: '', price: '', thumbnail_url: '', target_stage: '', is_free: false, points_on_complete: 0 };
 
 const COVER_GRADIENTS = [
   'from-navy-600 to-indigo-700',
@@ -387,7 +387,7 @@ export default function TeacherCourses() {
   const openAdd = () => { setEditData(null); setForm(emptyForm); setFormErrors({}); setModal(true); };
   const openEdit = (c) => {
     setEditData(c);
-    setForm({ name: c.name, description: c.description || '', price: c.price, thumbnail_url: c.thumbnail_url || '', target_stage: c.target_stage || '', is_free: !!c.is_free });
+    setForm({ name: c.name, description: c.description || '', price: c.price, thumbnail_url: c.thumbnail_url || '', target_stage: c.target_stage || '', is_free: !!c.is_free, points_on_complete: c.points_on_complete || 0 });
     setFormErrors({});
     setModal(true);
   };
@@ -833,6 +833,17 @@ export default function TeacherCourses() {
               <FieldError error={formErrors.price} />
             </div>
           )}
+          <div className="bg-amber-50 rounded-xl p-4 border border-amber-200">
+            <label className="block text-sm font-black text-amber-800 mb-1">⭐ نقاط إتمام الكورس</label>
+            <input type="number" min="0" max="9999" value={form.points_on_complete}
+              onChange={e => setForm({ ...form, points_on_complete: parseInt(e.target.value) || 0 })}
+              className="input-field" placeholder="0" />
+            <p className="text-xs text-gray-500 mt-1.5">
+              {form.points_on_complete > 0
+                ? `✅ الطالب يكسب ${form.points_on_complete} نقطة لما يخلص مشاهدة كل فيديوهات الكورس (90%+ من كل فيديو)`
+                : 'اكتب عدد النقاط لو عايز تكافئ الطلاب اللي يخلصوا الكورس'}
+            </p>
+          </div>
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={closeModal} className="flex-1 btn-secondary">إلغاء</button>
             <button type="submit" disabled={createMut.isPending || updateMut.isPending} className="flex-1 btn-primary">

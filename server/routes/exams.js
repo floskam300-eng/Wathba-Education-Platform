@@ -83,7 +83,7 @@ const validateExamFields = ({ title, duration_minutes, total_score, pass_score }
 // ── Create exam ──
 router.post('/', requireRole('teacher', 'assistant'), validateExam, async (req, res) => {
   const teacherId = getTeacherId(req);
-  const { title, duration_minutes, total_score, course_id, pass_score, badge_name, badge_color, start_date, end_date, shuffle_questions, shuffle_options, question_source, bank_id, bank_question_count } = req.body;
+  const { title, duration_minutes, total_score, course_id, pass_score, badge_name, badge_color, start_date, end_date, shuffle_questions, shuffle_options, question_source, bank_id, bank_question_count, points_on_attempt, points_on_pass } = req.body;
   try {
     if (course_id) {
       const courseCheck = await pool.query('SELECT id FROM courses WHERE id=$1 AND teacher_id=$2', [course_id, teacherId]);
@@ -99,8 +99,8 @@ router.post('/', requireRole('teacher', 'assistant'), validateExam, async (req, 
         return res.status(400).json({ error: `الفترة بين البداية والنهاية (${Math.round(diffMin)} دقيقة) أقل من مدة الاختبار (${duration_minutes || 60} دقيقة)` });
     }
     const result = await pool.query(
-      'INSERT INTO exams (title,duration_minutes,total_score,course_id,teacher_id,pass_score,badge_name,badge_color,start_date,end_date,shuffle_questions,shuffle_options,question_source,bank_id,bank_question_count) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *',
-      [title, duration_minutes || 60, total_score || 100, course_id || null, teacherId, pass_score ?? 50, badge_name, badge_color || '#FF8C00', start_date || null, end_date || null, !!shuffle_questions, !!shuffle_options, question_source || 'manual', (question_source === 'bank' && bank_id) ? bank_id : null, bank_question_count || 10]
+      'INSERT INTO exams (title,duration_minutes,total_score,course_id,teacher_id,pass_score,badge_name,badge_color,start_date,end_date,shuffle_questions,shuffle_options,question_source,bank_id,bank_question_count,points_on_attempt,points_on_pass) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *',
+      [title, duration_minutes || 60, total_score || 100, course_id || null, teacherId, pass_score ?? 50, badge_name, badge_color || '#FF8C00', start_date || null, end_date || null, !!shuffle_questions, !!shuffle_options, question_source || 'manual', (question_source === 'bank' && bank_id) ? bank_id : null, bank_question_count || 10, points_on_attempt || 0, points_on_pass || 0]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -112,7 +112,7 @@ router.post('/', requireRole('teacher', 'assistant'), validateExam, async (req, 
 // ── Update exam ──
 router.put('/:id', requireRole('teacher', 'assistant'), validateExam, async (req, res) => {
   const teacherId = getTeacherId(req);
-  const { title, duration_minutes, total_score, course_id, pass_score, badge_name, badge_color, start_date, end_date, shuffle_questions, shuffle_options, question_source, bank_id, bank_question_count } = req.body;
+  const { title, duration_minutes, total_score, course_id, pass_score, badge_name, badge_color, start_date, end_date, shuffle_questions, shuffle_options, question_source, bank_id, bank_question_count, points_on_attempt, points_on_pass } = req.body;
   try {
     if (question_source === 'bank' && bank_id) {
       const bankCheck = await pool.query('SELECT id FROM question_banks WHERE id=$1 AND teacher_id=$2', [bank_id, teacherId]);
@@ -124,8 +124,8 @@ router.put('/:id', requireRole('teacher', 'assistant'), validateExam, async (req
         return res.status(400).json({ error: `الفترة بين البداية والنهاية (${Math.round(diffMin)} دقيقة) أقل من مدة الاختبار (${duration_minutes || 60} دقيقة)` });
     }
     const result = await pool.query(
-      'UPDATE exams SET title=$1,duration_minutes=$2,total_score=$3,course_id=$4,pass_score=$5,badge_name=$6,badge_color=$7,start_date=$8,end_date=$9,shuffle_questions=$10,shuffle_options=$11,question_source=$12,bank_id=$13,bank_question_count=$14 WHERE id=$15 AND teacher_id=$16 RETURNING *',
-      [title, duration_minutes, total_score, course_id || null, pass_score, badge_name, badge_color, start_date || null, end_date || null, !!shuffle_questions, !!shuffle_options, question_source || 'manual', (question_source === 'bank' && bank_id) ? bank_id : null, bank_question_count || 10, req.params.id, teacherId]
+      'UPDATE exams SET title=$1,duration_minutes=$2,total_score=$3,course_id=$4,pass_score=$5,badge_name=$6,badge_color=$7,start_date=$8,end_date=$9,shuffle_questions=$10,shuffle_options=$11,question_source=$12,bank_id=$13,bank_question_count=$14,points_on_attempt=$15,points_on_pass=$16 WHERE id=$17 AND teacher_id=$18 RETURNING *',
+      [title, duration_minutes, total_score, course_id || null, pass_score, badge_name, badge_color, start_date || null, end_date || null, !!shuffle_questions, !!shuffle_options, question_source || 'manual', (question_source === 'bank' && bank_id) ? bank_id : null, bank_question_count || 10, points_on_attempt || 0, points_on_pass || 0, req.params.id, teacherId]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Exam not found' });
     res.json(result.rows[0]);
@@ -641,17 +641,20 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
 
     const totalPoints = questions.reduce((s, q) => s + q.points, 0);
     const normalizedScore = totalPoints > 0 ? Math.round((score / totalPoints) * exam.total_score) : 0;
-    const pointsEarned = normalizedScore;
+    const passed = normalizedScore >= exam.pass_score;
+    const pointsEarned = (exam.points_on_attempt || 0) + (passed ? (exam.points_on_pass || 0) : 0);
 
     const result = await pool.query(
       'INSERT INTO exam_results (student_id,exam_id,score,correct_count,wrong_count,unanswered_count,start_time,end_time,answers,points_earned) VALUES($1,$2,$3,$4,$5,$6,$7,NOW(),$8,$9) RETURNING *',
       [studentId, examId, normalizedScore, correct, wrong, unanswered, start_time, JSON.stringify(detailedAnswers), pointsEarned]
     );
 
-    await pool.query('UPDATE students SET points = points + $1 WHERE id = $2', [pointsEarned, studentId]);
+    if (pointsEarned > 0) {
+      await pool.query('UPDATE students SET points = points + $1 WHERE id = $2', [pointsEarned, studentId]);
+    }
     invalidateCache(exam.teacher_id);
 
-    if (normalizedScore >= exam.pass_score && exam.badge_name) {
+    if (passed && exam.badge_name) {
       await pool.query(
         'INSERT INTO badges (student_id,exam_id,badge_name,badge_color) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING',
         [studentId, examId, exam.badge_name, exam.badge_color]

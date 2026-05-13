@@ -275,6 +275,16 @@ CREATE TABLE IF NOT EXISTS bank_questions (
 ALTER TABLE exams ADD COLUMN IF NOT EXISTS question_source VARCHAR(20) DEFAULT 'manual';
 ALTER TABLE exams ADD COLUMN IF NOT EXISTS bank_id INTEGER REFERENCES question_banks(id) ON DELETE SET NULL;
 ALTER TABLE exams ADD COLUMN IF NOT EXISTS bank_question_count INTEGER DEFAULT 10;
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS points_on_attempt INTEGER DEFAULT 0;
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS points_on_pass    INTEGER DEFAULT 0;
+ALTER TABLE courses ADD COLUMN IF NOT EXISTS points_on_complete INTEGER DEFAULT 0;
+CREATE TABLE IF NOT EXISTS course_completion_points (
+  student_id    INTEGER REFERENCES students(id) ON DELETE CASCADE,
+  course_id     INTEGER REFERENCES courses(id) ON DELETE CASCADE,
+  points_awarded INTEGER DEFAULT 0,
+  awarded_at    TIMESTAMP DEFAULT NOW(),
+  PRIMARY KEY (student_id, course_id)
+);
 
 ALTER TABLE question_banks ADD COLUMN IF NOT EXISTS course_id INTEGER REFERENCES courses(id) ON DELETE SET NULL;
 

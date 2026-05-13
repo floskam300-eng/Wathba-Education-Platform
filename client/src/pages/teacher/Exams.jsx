@@ -21,7 +21,7 @@ function FieldError({ error }) {
 
 const STAGES = ['الصف الأول الثانوي', 'الصف الثاني الثانوي', 'الصف الثالث الثانوي', 'الصف الأول الإعدادي', 'الصف الثاني الإعدادي', 'الصف الثالث الإعدادي'];
 
-const emptyExam = { title: '', duration_minutes: 60, total_score: 100, course_id: '', pass_score: 50, badge_name: '', badge_color: '#995400', start_date: '', end_date: '', shuffle_questions: false, shuffle_options: false, question_source: 'manual', bank_id: '', bank_question_count: 10 };
+const emptyExam = { title: '', duration_minutes: 60, total_score: 100, course_id: '', pass_score: 50, badge_name: '', badge_color: '#995400', start_date: '', end_date: '', shuffle_questions: false, shuffle_options: false, question_source: 'manual', bank_id: '', bank_question_count: 10, points_on_attempt: 0, points_on_pass: 0 };
 const emptyQ = { question_text: '', question_image_url: '', option_a: '', option_b: '', option_c: '', option_d: '', correct_answer_letter: 'A', points: 1, question_type: 'mcq' };
 
 const QUESTION_TYPES = [
@@ -188,6 +188,8 @@ export default function TeacherExams() {
       question_source: e.question_source || 'manual',
       bank_id: e.bank_id || '',
       bank_question_count: e.bank_question_count || 10,
+      points_on_attempt: e.points_on_attempt || 0,
+      points_on_pass: e.points_on_pass || 0,
     });
     setFormErrors({});
     setModal(true);
@@ -852,6 +854,32 @@ export default function TeacherExams() {
                 </div>
               </button>
             </div>
+          </div>
+
+          <div className="bg-amber-50 rounded-xl p-4 border border-amber-200 space-y-3">
+            <p className="text-sm font-black text-amber-800 flex items-center gap-1.5">⭐ نقاط المكافأة</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-amber-800 mb-1">نقاط مجرد المحاولة</label>
+                <input type="number" min="0" max="9999" value={form.points_on_attempt}
+                  onChange={e => setForm({ ...form, points_on_attempt: parseInt(e.target.value) || 0 })}
+                  className="input-field text-sm" placeholder="0" />
+                <p className="text-xs text-gray-500 mt-1">تُعطى للطالب عند تسليم الاختبار بغض النظر عن النتيجة</p>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-amber-800 mb-1">نقاط إضافية عند النجاح</label>
+                <input type="number" min="0" max="9999" value={form.points_on_pass}
+                  onChange={e => setForm({ ...form, points_on_pass: parseInt(e.target.value) || 0 })}
+                  className="input-field text-sm" placeholder="0" />
+                <p className="text-xs text-gray-500 mt-1">تُضاف فقط لو الطالب عدى درجة النجاح</p>
+              </div>
+            </div>
+            {(form.points_on_attempt > 0 || form.points_on_pass > 0) && (
+              <div className="bg-amber-100 rounded-lg p-2.5 text-xs text-amber-800 font-bold space-y-1">
+                {form.points_on_attempt > 0 && <p>✅ أي طالب يسلّم الاختبار ← يكسب <span className="text-amber-900">{form.points_on_attempt} نقطة</span></p>}
+                {form.points_on_pass > 0 && <p>🏆 لو نجح ← يكسب <span className="text-amber-900">{(form.points_on_attempt || 0) + form.points_on_pass} نقطة</span> إجمالاً</p>}
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">

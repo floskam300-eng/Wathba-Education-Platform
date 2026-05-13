@@ -88,12 +88,12 @@ router.get('/', requireRole('teacher', 'assistant'), async (req, res) => {
 
 router.post('/', requireRole('teacher', 'assistant'), checkManageCoursesPerm, validateCourse, async (req, res) => {
   const teacherId = getTeacherId(req);
-  const { name, description, price, thumbnail_url, target_stage, is_free } = req.body;
+  const { name, description, price, thumbnail_url, target_stage, is_free, points_on_complete } = req.body;
   const isFree = is_free === true || is_free === 'true';
   try {
     const result = await pool.query(
-      'INSERT INTO courses (name,description,price,thumbnail_url,teacher_id,target_stage,is_free,is_published) VALUES($1,$2,$3,$4,$5,$6,$7,false) RETURNING *',
-      [name, description, isFree ? 0 : (price || 0), thumbnail_url, teacherId, target_stage || null, isFree]
+      'INSERT INTO courses (name,description,price,thumbnail_url,teacher_id,target_stage,is_free,is_published,points_on_complete) VALUES($1,$2,$3,$4,$5,$6,$7,false,$8) RETURNING *',
+      [name, description, isFree ? 0 : (price || 0), thumbnail_url, teacherId, target_stage || null, isFree, points_on_complete || 0]
     );
     const course = result.rows[0];
     res.status(201).json(course);
@@ -105,12 +105,12 @@ router.post('/', requireRole('teacher', 'assistant'), checkManageCoursesPerm, va
 
 router.put('/:id', requireRole('teacher', 'assistant'), checkManageCoursesPerm, validateCourse, async (req, res) => {
   const teacherId = getTeacherId(req);
-  const { name, description, price, thumbnail_url, target_stage, is_free } = req.body;
+  const { name, description, price, thumbnail_url, target_stage, is_free, points_on_complete } = req.body;
   const isFree = is_free === true || is_free === 'true';
   try {
     const result = await pool.query(
-      'UPDATE courses SET name=$1,description=$2,price=$3,thumbnail_url=$4,target_stage=$5,is_free=$6 WHERE id=$7 AND teacher_id=$8 RETURNING *',
-      [name, description, isFree ? 0 : (price || 0), thumbnail_url, target_stage || null, isFree, req.params.id, teacherId]
+      'UPDATE courses SET name=$1,description=$2,price=$3,thumbnail_url=$4,target_stage=$5,is_free=$6,points_on_complete=$7 WHERE id=$8 AND teacher_id=$9 RETURNING *',
+      [name, description, isFree ? 0 : (price || 0), thumbnail_url, target_stage || null, isFree, points_on_complete || 0, req.params.id, teacherId]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Course not found' });
     res.json(result.rows[0]);
