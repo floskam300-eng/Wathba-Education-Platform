@@ -1,4 +1,5 @@
 const { sendEvent, broadcastToTeacherStudents, broadcastToCourseStudents } = require('../sse');
+const { sendFCMToStudents } = require('../lib/fcm');
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
@@ -173,7 +174,8 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageCours
       const notifTitle = course.is_free ? 'تسجيل تلقائي في كورس مجاني' : 'كورس جديد';
       const notifType  = 'new_course';
 
-      for (const { id: sid } of eligibleStudents.rows) {
+      const eligibleStudentIds = eligibleStudents.rows.map(r => r.id);
+      for (const sid of eligibleStudentIds) {
         await pool.query(
           `INSERT INTO notification_log (teacher_id, student_id, recipient_type, message, type, is_read, source, title)
            VALUES ($1,$2,'student',$3,$4,false,'platform',$5)`,
@@ -186,6 +188,7 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageCours
           courseId: course.id,
         });
       }
+      sendFCMToStudents(pool, eligibleStudentIds, notifTitle, msgText, { courseId: String(course.id) }).catch(() => {});
     }
 
     res.json({ is_published: newPublished });
@@ -601,6 +604,7 @@ router.put('/enrollment-requests/:id', requireRole('teacher', 'assistant'), chec
         course_name: courseName,
         courseId: enrReq.course_id,
       });
+      sendFCMToStudents(pool, [enrReq.student_id], 'قبول في كورس', `🎓 تمت الموافقة على انضمامك لكورس: "${courseName}"`).catch(() => {});
     } else {
       await pool.query(
         'UPDATE course_enrollment_requests SET status=$1, handled_at=NOW() WHERE id=$2',
@@ -615,6 +619,7 @@ router.put('/enrollment-requests/:id', requireRole('teacher', 'assistant'), chec
         course_name: courseName,
         courseId: enrReq.course_id,
       });
+      sendFCMToStudents(pool, [enrReq.student_id], 'رفض طلب كورس', `رُفض طلب انضمامك لكورس: "${courseName}"`).catch(() => {});
     }
     res.json({ success: true, action });
   } catch (err) {

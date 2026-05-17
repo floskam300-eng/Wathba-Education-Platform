@@ -1,4 +1,5 @@
 const { sendEvent, broadcastToTeacherStudents, broadcastToCourseStudents } = require('../sse');
+const { sendFCMToStudents } = require('../lib/fcm');
 const express = require('express');
 const pool = require('../db/connection');
 const { authenticate, requireRole } = require('../middleware/auth');
@@ -214,6 +215,7 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), async (req, res)
           sendEvent(`student_${sid}`, 'new_exam', { title: exam.title, examId: exam.id });
         }
       }
+      sendFCMToStudents(pool, studentIds, notifTitle, notifMsg, { examId: String(exam.id) }).catch(() => {});
 
       await pool.query(
         'UPDATE exams SET start_notified = $1 WHERE id = $2',
@@ -428,6 +430,7 @@ router.put('/retry-requests/:reqId/approve', requireRole('teacher', 'assistant')
         [teacherId, row.student_id]
       );
       sendEvent(`student_${row.student_id}`, 'retry_approved', { examId: row.exam_id });
+      sendFCMToStudents(pool, [row.student_id], 'قبول إعادة اختبار', 'تمت الموافقة على طلب إعادة الاختبار — يمكنك الآن إعادة تأدية الاختبار').catch(() => {});
     } catch (_) {}
     res.json({ success: true });
   } catch (err) {
@@ -459,6 +462,7 @@ router.put('/retry-requests/:reqId/reject', requireRole('teacher', 'assistant'),
         [teacherId, row.student_id]
       );
       sendEvent(`student_${row.student_id}`, 'retry_rejected', { examId: row.exam_id });
+      sendFCMToStudents(pool, [row.student_id], 'رفض إعادة اختبار', 'تم رفض طلب إعادة الاختبار').catch(() => {});
     } catch (_) {}
     res.json({ success: true });
   } catch (err) {

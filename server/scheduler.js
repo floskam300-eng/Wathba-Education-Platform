@@ -7,6 +7,7 @@
  */
 
 const { sendEvent } = require('./sse');
+const { sendFCMToStudents } = require('./lib/fcm');
 
 let _pool = null;
 let _intervalId = null;
@@ -46,6 +47,8 @@ async function runCheck() {
             examId: exam.id,
           });
         }
+
+        sendFCMToStudents(_pool, studentIds, 'بدأ الاختبار الآن!', `⏰ يمكنك الدخول الآن لأداء اختبار: "${exam.title}"`, { examId: String(exam.id) }).catch(() => {});
 
         await _pool.query(
           'UPDATE exams SET start_notified = true WHERE id = $1',

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import WathbaLogo from '../assets/wathba_logo.png';
 import { useSSE } from '../hooks/useSSE';
+import { useFCM } from '../hooks/useFCM';
 import api from '../lib/api';
 import { useAntiCapture } from '../hooks/useAntiCapture';
 
@@ -224,6 +225,7 @@ export default function StudentLayout() {
   const warningTimer = useRef(null);
 
   useSSE(!!user, user?.role || 'student');
+  useFCM(!!user && user?.role === 'student');
 
   const handleLogout = () => { logout(); navigate('/login'); };
 

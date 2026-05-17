@@ -2,6 +2,7 @@ const express = require('express');
 const pool = require('../db/connection');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { sendEvent } = require('../sse');
+const { sendFCMToStudents } = require('../lib/fcm');
 
 const router = express.Router();
 router.use(authenticate);
@@ -42,6 +43,18 @@ router.get('/students', requireRole('teacher', 'assistant'), async (req, res) =>
   }
 });
 
+// ── Save student FCM token ───────────────────────────────────────────
+router.post('/fcm-token', requireRole('student'), async (req, res) => {
+  const { token } = req.body;
+  if (!token) return res.status(400).json({ error: 'token required' });
+  try {
+    await pool.query('UPDATE students SET fcm_token = $1 WHERE id = $2', [token, req.user.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ── Log a WhatsApp notification ─────────────────────────────────────
 router.post('/log', requireRole('teacher', 'assistant'), async (req, res) => {
   const teacherId = getTeacherId(req);
@@ -55,6 +68,7 @@ router.post('/log', requireRole('teacher', 'assistant'), async (req, res) => {
     );
     if (student_id) {
       sendEvent(`student_${student_id}`, 'notification', { message, type: 'general' });
+      sendFCMToStudents(pool, [student_id], 'إشعار جديد', message).catch(() => {});
     }
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -96,6 +110,7 @@ router.post('/platform', requireRole('teacher', 'assistant'), async (req, res) =
         type,
         sent_at:  row.sent_at,
       });
+      sendFCMToStudents(pool, [sid], resolvedTitle, personalMsg, { type }).catch(() => {});
       sent++;
     }
     res.status(201).json({ sent });
