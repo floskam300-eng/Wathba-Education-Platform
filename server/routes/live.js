@@ -42,6 +42,7 @@ router.post('/start', requireRole('teacher'), async (req, res) => {
         chat_enabled !== false,
         hand_raise_enabled !== false,
       ]
+      // Note: JSON.stringify is intentional — pg sends it as text and PostgreSQL casts to JSONB
     );
 
     const stream = result.rows[0];
@@ -146,14 +147,22 @@ router.get('/available', requireRole('student'), async (req, res) => {
       [teacherId]
     );
 
+    const parseJsonbField = (val) => {
+      if (Array.isArray(val)) return val;
+      if (typeof val === 'string') {
+        try { return JSON.parse(val); } catch (_) { return []; }
+      }
+      return [];
+    };
+
     const accessible = rows.filter(s => {
       if (s.access === 'all') return true;
       if (s.access === 'stages') {
-        const stages = Array.isArray(s.allowed_stages) ? s.allowed_stages : [];
-        return stages.includes(academic_stage);
+        const stages = parseJsonbField(s.allowed_stages);
+        return stages.map(x => String(x).trim()).includes(String(academic_stage || '').trim());
       }
       if (s.access === 'specific') {
-        const ids = (Array.isArray(s.allowed_student_ids) ? s.allowed_student_ids : []).map(Number);
+        const ids = parseJsonbField(s.allowed_student_ids).map(Number);
         return ids.includes(studentId);
       }
       return false;
@@ -268,10 +277,14 @@ router.post('/:streamId/hand-raise', requireRole('student'), async (req, res) =>
 
   try {
     const { rows } = await pool.query(
-      'SELECT teacher_id FROM live_streams WHERE id=$1',
+      'SELECT teacher_id, hand_raise_enabled FROM live_streams WHERE id=$1',
       [streamId]
     );
     if (!rows.length) return res.status(404).json({ error: 'البث غير موجود' });
+
+    if (raised && rows[0].hand_raise_enabled === false) {
+      return res.status(403).json({ error: 'رفع اليد معطل في هذا البث' });
+    }
 
     if (raised) {
       await pool.query(

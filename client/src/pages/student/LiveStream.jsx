@@ -189,18 +189,20 @@ function LiveView({ stream, user, dark, onLeave }) {
           )}
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <button
-            onClick={toggleHand}
-            disabled={raisingHand}
-            className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${
-              handRaised
-                ? 'bg-yellow-500 hover:bg-yellow-600 text-white animate-pulse'
-                : 'bg-white/10 hover:bg-white/20 text-white'
-            }`}
-          >
-            {raisingHand ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '✋'}
-            {handRaised ? 'يدك مرفوعة' : 'ارفع يدك'}
-          </button>
+          {stream.hand_raise_enabled !== false && (
+            <button
+              onClick={toggleHand}
+              disabled={raisingHand}
+              className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${
+                handRaised
+                  ? 'bg-yellow-500 hover:bg-yellow-600 text-white animate-pulse'
+                  : 'bg-white/10 hover:bg-white/20 text-white'
+              }`}
+            >
+              {raisingHand ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '✋'}
+              {handRaised ? 'يدك مرفوعة' : 'ارفع يدك'}
+            </button>
+          )}
           <button
             onClick={() => setChatOpen(p => !p)}
             className={`p-1.5 rounded-lg transition-colors ${chatOpen ? 'bg-green-600 text-white' : 'bg-white/10 hover:bg-white/20 text-white'}`}
