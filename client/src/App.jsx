@@ -99,8 +99,11 @@ const AppRoutes = () => {
         <Route path="exam-review/:resultId" element={<ExamReviewPage />} />
         <Route path="live" element={<StudentLiveStream />} />
         <Route path="events" element={<StudentEvents />} />
-        <Route path="events/stickman-run" element={<StickmanRunPage />} />
       </Route>
+
+      <Route path="/student/events/stickman-run" element={
+        <ProtectedRoute allowedRoles={['student']}><StickmanRunPage /></ProtectedRoute>
+      } />
 
       <Route path="/" element={user ? <Navigate to={`/${user.role}`} replace /> : <LandingPage />} />
       <Route path="*" element={<Navigate to={user ? `/${user.role}` : '/'} replace />} />
