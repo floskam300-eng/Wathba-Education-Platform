@@ -642,6 +642,7 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
       `SELECT e.* FROM exams e
        LEFT JOIN student_course_enrollment sce ON e.course_id = sce.course_id AND sce.student_id = $1
        WHERE e.id = $2
+         AND e.is_published = true
          AND e.teacher_id = (SELECT teacher_id FROM students WHERE id = $1)
          AND (e.course_id IS NULL OR sce.student_id IS NOT NULL)`,
       [studentId, examId]
@@ -650,6 +651,11 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
       return res.status(403).json({ error: 'Access denied: exam not available to you' });
 
     eligibilityRow = ec.rows[0];
+
+    // Reject if exam window has closed
+    const nowCheck = new Date();
+    if (eligibilityRow.end_date && new Date(eligibilityRow.end_date) < nowCheck)
+      return res.status(409).json({ error: 'انتهى وقت الاختبار — لا يمكن تسليم الإجابات بعد انقضاء المهلة' });
 
     if (eligibilityRow.question_source === 'bank' && eligibilityRow.bank_id) {
       const questionIds = Object.keys(answers || {}).map(Number).filter(id => id > 0);

@@ -213,7 +213,8 @@ ALTER TABLE notification_log ADD COLUMN IF NOT EXISTS source VARCHAR(20) DEFAULT
 ALTER TABLE notification_log ADD COLUMN IF NOT EXISTS title VARCHAR(200);
 
 ALTER TABLE students ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP DEFAULT NULL;
-ALTER TABLE students ADD COLUMN IF NOT EXISTS plain_password VARCHAR(20) DEFAULT NULL;
+-- plain_password removed for security: passwords must never be stored in plaintext
+ALTER TABLE students DROP COLUMN IF EXISTS plain_password;
 
 CREATE TABLE IF NOT EXISTS exam_retry_requests (
   id SERIAL PRIMARY KEY,

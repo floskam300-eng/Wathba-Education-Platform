@@ -287,14 +287,8 @@ router.get('/leaderboard/history', requireRole('teacher', 'assistant', 'student'
 router.post('/leaderboard/reset', requireRole('teacher'), async (req, res) => {
   const teacherId = getTeacherId(req);
   try {
-    const trackerRes = await pool.query(
-      'SELECT last_reset_at FROM leaderboard_reset_tracker WHERE teacher_id=$1',
-      [teacherId]
-    );
-    const lastReset = trackerRes.rows[0]?.last_reset_at
-      ? new Date(trackerRes.rows[0].last_reset_at)
-      : new Date();
-    const label = getArabicMonthLabel(lastReset);
+    // Use the current month label (the month being closed/archived now)
+    const label = getArabicMonthLabel(new Date());
     await doLeaderboardReset(teacherId, label);
     res.json({ success: true, message: 'تم تصفير اللوحة وحفظ سجل الشهر بنجاح' });
   } catch (err) {

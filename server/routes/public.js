@@ -10,13 +10,13 @@ router.get('/info', async (req, res) => {
     );
     const stats = await pool.query(`
       SELECT
-        (SELECT COUNT(*) FROM students)  AS total_students,
-        (SELECT COUNT(*) FROM courses)   AS total_courses,
-        (SELECT COUNT(*) FROM exams)     AS total_exams,
+        (SELECT COUNT(*) FROM students WHERE deleted_at IS NULL) AS total_students,
+        (SELECT COUNT(*) FROM courses   WHERE is_published = true) AS total_courses,
+        (SELECT COUNT(*) FROM exams     WHERE is_published = true) AS total_exams,
         (SELECT COUNT(*) FROM exam_results) AS total_results
     `);
     const courses = await pool.query(
-      'SELECT id, name, description, price, thumbnail_url, target_stage, created_at FROM courses ORDER BY created_at DESC LIMIT 12'
+      'SELECT id, name, description, price, thumbnail_url, target_stage, created_at FROM courses WHERE is_published = true ORDER BY created_at DESC LIMIT 12'
     );
     res.json({
       teacher: teacher.rows[0] || null,

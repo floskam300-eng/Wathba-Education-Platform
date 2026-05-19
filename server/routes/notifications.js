@@ -77,44 +77,69 @@ router.post('/log', requireRole('teacher', 'assistant'), async (req, res) => {
 });
 
 // ── Send platform (in-app) notification to selected students ────────
-router.post('/platform', requireRole('teacher', 'assistant'), async (req, res) => {
+const MAX_NOTIFICATION_STUDENTS = 500;
+
+const checkNotifPermission = async (req, res, next) => {
+  if (req.user.role === 'teacher') return next();
+  try {
+    const r = await pool.query('SELECT can_send_notifications FROM assistants WHERE id=$1', [req.user.id]);
+    if (!r.rows.length || !r.rows[0].can_send_notifications)
+      return res.status(403).json({ error: 'Access denied: missing permission (can_send_notifications)' });
+    next();
+  } catch {
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+router.post('/platform', requireRole('teacher', 'assistant'), checkNotifPermission, async (req, res) => {
   const teacherId = getTeacherId(req);
   const { student_ids, message, type = 'general', title } = req.body;
   if (!message?.trim()) return res.status(400).json({ error: 'الرسالة مطلوبة' });
   if (!Array.isArray(student_ids) || student_ids.length === 0)
     return res.status(400).json({ error: 'اختر طالباً على الأقل' });
+  if (student_ids.length > MAX_NOTIFICATION_STUDENTS)
+    return res.status(400).json({ error: `الحد الأقصى ${MAX_NOTIFICATION_STUDENTS} طالب في المرة الواحدة` });
 
   try {
-    // fetch names for all target students in one query
+    const resolvedTitle = title || TYPE_TITLES[type] || 'إشعار جديد';
+
+    // Fetch names in one query + verify students belong to this teacher
     const namesRes = await pool.query(
-      `SELECT id, name FROM students WHERE id = ANY($1)`,
-      [student_ids]
+      'SELECT id, name FROM students WHERE id = ANY($1) AND teacher_id=$2 AND deleted_at IS NULL',
+      [student_ids, teacherId]
     );
     const nameMap = Object.fromEntries(namesRes.rows.map(r => [r.id, r.name]));
+    const validIds = namesRes.rows.map(r => r.id);
 
-    let sent = 0;
-    for (const sid of student_ids) {
-      const resolvedTitle = title || TYPE_TITLES[type] || 'إشعار جديد';
-      const personalMsg = message.replace(/\{name\}/g, nameMap[sid] || '');
-      const result = await pool.query(
-        `INSERT INTO notification_log
-           (teacher_id, student_id, recipient_type, message, type, is_read, source, title)
-         VALUES ($1,$2,'student',$3,$4,false,'platform',$5) RETURNING *`,
-        [teacherId, sid, personalMsg, type, resolvedTitle]
-      );
-      const row = result.rows[0];
-      sendEvent(`student_${sid}`, 'platform_notification', {
-        id:       row.id,
-        title:    resolvedTitle,
-        message:  personalMsg,
+    if (validIds.length === 0) return res.status(400).json({ error: 'لا يوجد طلاب صالحون في القائمة' });
+
+    // Build personalised messages per student
+    const personalMsgs = validIds.map(sid => message.replace(/\{name\}/g, nameMap[sid] || ''));
+
+    // Batch INSERT all notifications in one query using unnest
+    const insertRes = await pool.query(
+      `INSERT INTO notification_log
+         (teacher_id, student_id, recipient_type, message, type, is_read, source, title)
+       SELECT $1, unnest($2::int[]), 'student', unnest($3::text[]), $4, false, 'platform', $5
+       RETURNING id, student_id, message, sent_at`,
+      [teacherId, validIds, personalMsgs, type, resolvedTitle]
+    );
+
+    // Push real-time SSE events
+    for (const row of insertRes.rows) {
+      sendEvent(`student_${row.student_id}`, 'platform_notification', {
+        id:      row.id,
+        title:   resolvedTitle,
+        message: row.message,
         type,
-        sent_at:  row.sent_at,
+        sent_at: row.sent_at,
       });
-      sendFCMToStudents(pool, [sid], resolvedTitle, personalMsg, { type }).catch(() => {});
-      sent++;
     }
-    res.status(201).json({ sent });
+
+    sendFCMToStudents(pool, validIds, resolvedTitle, message, { type }).catch(() => {});
+    res.status(201).json({ sent: validIds.length });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Server error' });
   }
 });

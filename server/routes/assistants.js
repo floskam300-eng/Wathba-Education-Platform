@@ -62,7 +62,19 @@ router.delete('/:id', requireRole('teacher'), async (req, res) => {
   }
 });
 
-router.get('/analytics', requireRole('teacher', 'assistant'), async (req, res) => {
+const checkAnalyticsPerm = async (req, res, next) => {
+  if (req.user.role === 'teacher') return next();
+  try {
+    const r = await pool.query('SELECT can_view_analytics FROM assistants WHERE id=$1', [req.user.id]);
+    if (!r.rows.length || !r.rows[0].can_view_analytics)
+      return res.status(403).json({ error: 'Access denied: missing permission (can_view_analytics)' });
+    next();
+  } catch {
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+router.get('/analytics', requireRole('teacher', 'assistant'), checkAnalyticsPerm, async (req, res) => {
   try {
     let teacherId;
     if (req.user.role === 'teacher') {

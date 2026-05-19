@@ -193,14 +193,16 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageCours
     client.release();
 
     if (newPublished) {
-      // Determine which students to notify
-      const stageClause = (course.target_stage && course.target_stage.trim())
-        ? `AND academic_stage = '${course.target_stage.replace(/'/g, "''")}'`
-        : '';
-      const eligibleStudents = await pool.query(
-        `SELECT id FROM students WHERE teacher_id=$1 AND deleted_at IS NULL ${stageClause}`,
-        [teacherId]
-      );
+      // Determine which students to notify (parameterized — no SQL injection)
+      const eligibleStudents = (course.target_stage && course.target_stage.trim())
+        ? await pool.query(
+            'SELECT id FROM students WHERE teacher_id=$1 AND deleted_at IS NULL AND academic_stage=$2',
+            [teacherId, course.target_stage]
+          )
+        : await pool.query(
+            'SELECT id FROM students WHERE teacher_id=$1 AND deleted_at IS NULL',
+            [teacherId]
+          );
 
       if (course.is_free) {
         // Auto-enroll all eligible students
@@ -287,7 +289,7 @@ router.get('/:id/content', authenticate, async (req, res) => {
   try {
     if (req.user.role === 'student') {
       const enrollment = await pool.query(
-        'SELECT id FROM student_course_enrollment WHERE student_id=$1 AND course_id=$2',
+        "SELECT id FROM student_course_enrollment WHERE student_id=$1 AND course_id=$2 AND status='active'",
         [req.user.id, courseId]
       );
       if (!enrollment.rows.length) {
@@ -361,15 +363,23 @@ router.put('/:id/sections/:sectionId', requireRole('teacher', 'assistant'), chec
 
 router.delete('/:id/sections/:sectionId', requireRole('teacher', 'assistant'), checkManageCoursesPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
+  if (!(await verifyCoursOwnership(req.params.id, teacherId))) {
+    return res.status(403).json({ error: 'Access denied: course not yours' });
+  }
+  const client = await pool.connect();
   try {
-    if (!(await verifyCoursOwnership(req.params.id, teacherId))) {
-      return res.status(403).json({ error: 'Access denied: course not yours' });
-    }
-    await pool.query('UPDATE videos SET section_id=NULL WHERE section_id=$1', [req.params.sectionId]);
-    await pool.query('UPDATE pdf_files SET section_id=NULL WHERE section_id=$1', [req.params.sectionId]);
-    await pool.query('DELETE FROM sections WHERE id=$1 AND course_id=$2', [req.params.sectionId, req.params.id]);
+    await client.query('BEGIN');
+    await client.query('UPDATE videos SET section_id=NULL WHERE section_id=$1', [req.params.sectionId]);
+    await client.query('UPDATE pdf_files SET section_id=NULL WHERE section_id=$1', [req.params.sectionId]);
+    await client.query('DELETE FROM sections WHERE id=$1 AND course_id=$2', [req.params.sectionId, req.params.id]);
+    await client.query('COMMIT');
     res.json({ message: 'Section deleted' });
-  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+  } catch (err) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ error: 'Server error' });
+  } finally {
+    client.release();
+  }
 });
 
 router.put('/:id/videos/:videoId/section', requireRole('teacher', 'assistant'), checkManageCoursesPerm, async (req, res) => {

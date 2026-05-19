@@ -120,8 +120,8 @@ router.post('/', requireRole('teacher', 'assistant'), (req, res, next) => checkP
       try {
         const hashed = await bcrypt.hash(generatedPassword, 10);
         const result = await pool.query(
-          'INSERT INTO students (username,password,name,phone,parent_phone,academic_stage,gender,teacher_id,plain_password) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',
-          [username, hashed, name, phone, parent_phone, academic_stage, gender, teacherId, generatedPassword]
+          'INSERT INTO students (username,password,name,phone,parent_phone,academic_stage,gender,teacher_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
+          [username, hashed, name, phone, parent_phone, academic_stage, gender, teacherId]
         );
         invalidateCache(teacherId);
         // Auto-enroll new student in teacher's published free courses
@@ -190,12 +190,20 @@ router.delete('/:id', requireRole('teacher', 'assistant'), (req, res, next) => c
 });
 
 router.get('/:id/results', requireRole('teacher', 'assistant'), async (req, res) => {
+  const teacherId = getTeacherId(req);
   try {
+    const studentCheck = await pool.query(
+      'SELECT id FROM students WHERE id=$1 AND teacher_id=$2 AND deleted_at IS NULL',
+      [req.params.id, teacherId]
+    );
+    if (!studentCheck.rows.length) return res.status(404).json({ error: 'Student not found' });
     const result = await pool.query(
       `SELECT er.*, e.title as exam_title, e.total_score, e.pass_score
-       FROM exam_results er JOIN exams e ON er.exam_id = e.id
-       WHERE er.student_id = $1 ORDER BY er.created_at DESC`,
-      [req.params.id]
+       FROM exam_results er
+       JOIN exams e ON er.exam_id = e.id
+       WHERE er.student_id = $1 AND e.teacher_id = $2
+       ORDER BY er.created_at DESC`,
+      [req.params.id, teacherId]
     );
     res.json(result.rows);
   } catch (err) {
@@ -443,8 +451,8 @@ router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => ch
         try {
           const hashed = await bcrypt.hash(finalPassword, 10);
           await pool.query(
-            'INSERT INTO students (username,password,name,phone,parent_phone,academic_stage,gender,teacher_id,plain_password) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',
-            [username, hashed, name, phone, parent_phone, academic_stage, gender, teacherId, finalPassword]
+            'INSERT INTO students (username,password,name,phone,parent_phone,academic_stage,gender,teacher_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',
+            [username, hashed, name, phone, parent_phone, academic_stage, gender, teacherId]
           );
           results.success++;
           // Only report generated credentials (not user-supplied ones)
