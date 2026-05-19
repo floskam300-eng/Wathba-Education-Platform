@@ -230,19 +230,23 @@ export default function StudentExams() {
 
     setTimeLeft(remaining);
 
+    let timerActive = true;
     const interval = setInterval(() => {
       setTimeLeft(t => {
         if (t <= 1) {
           clearInterval(interval);
           localStorage.removeItem(storageKey);
-          submitMut.mutate({ id: examId, data: { answers: answersRef.current, start_time: startIso } });
+          // Guard: only submit if component is still mounted and exam still active
+          if (timerActive) {
+            submitMut.mutate({ id: examId, data: { answers: answersRef.current, start_time: startIso } });
+          }
           return 0;
         }
         return t - 1;
       });
     }, 1000);
 
-    return () => clearInterval(interval);
+    return () => { timerActive = false; clearInterval(interval); };
   }, [examData]);
 
   /* ── Pre-exam countdown 3-2-1 ── */

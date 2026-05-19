@@ -218,17 +218,17 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExams
         ? `📝 اختبار جديد: "${exam.title}" — يبدأ في ${startDate.toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}`
         : `📝 اختبار جديد متاح الآن: "${exam.title}"`;
 
-      for (const sid of studentIds) {
-        try {
-          await pool.query(
-            `INSERT INTO notification_log (teacher_id, student_id, recipient_type, message, type, is_read, source, title)
-             VALUES ($1,$2,'student',$3,'new_exam',false,'platform',$4)`,
-            [teacherId, sid, notifMsg, notifTitle]
-          );
-        } catch (_) {}
-        if (!hasStartDate) {
+      // Batch INSERT all notifications in one query (avoid N+1)
+      if (studentIds.length > 0) {
+        await pool.query(
+          `INSERT INTO notification_log (teacher_id, student_id, recipient_type, message, type, is_read, source, title)
+           SELECT $1, unnest($2::int[]), 'student', $3, 'new_exam', false, 'platform', $4`,
+          [teacherId, studentIds, notifMsg, notifTitle]
+        ).catch(e => console.error('[exam publish notif batch]', e.message));
+      }
+      if (!hasStartDate) {
+        for (const sid of studentIds)
           sendEvent(`student_${sid}`, 'new_exam', { title: exam.title, examId: exam.id });
-        }
       }
       sendFCMToStudents(pool, studentIds, notifTitle, notifMsg, { examId: String(exam.id) }).catch(() => {});
 
@@ -622,6 +622,8 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
   const examId = req.params.id;
   const { answers, start_time } = req.body;
 
+  // ── Pre-flight eligibility check (outside transaction for speed) ──
+  let eligibilityRow, questionsData;
   try {
     const existing = await pool.query(
       'SELECT id FROM exam_results WHERE student_id=$1 AND exam_id=$2',
@@ -632,99 +634,101 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
         "SELECT id FROM exam_retry_requests WHERE student_id=$1 AND exam_id=$2 AND status='approved' ORDER BY created_at DESC LIMIT 1",
         [studentId, examId]
       );
-      if (!retryApproved.rows.length) {
+      if (!retryApproved.rows.length)
         return res.status(409).json({ error: 'لقد أديت هذا الاختبار مسبقاً' });
-      }
-      // ── Deduct previously earned points before deleting the old result ──
-      const oldResult = await pool.query(
-        'SELECT points_earned FROM exam_results WHERE student_id=$1 AND exam_id=$2',
-        [studentId, examId]
-      );
-      if (oldResult.rows.length && oldResult.rows[0].points_earned > 0) {
-        await pool.query(
-          'UPDATE students SET points = GREATEST(0, points - $1) WHERE id=$2',
-          [oldResult.rows[0].points_earned, studentId]
-        );
-      }
-      await pool.query('DELETE FROM exam_results WHERE student_id=$1 AND exam_id=$2', [studentId, examId]);
-      await pool.query(
-        "UPDATE exam_retry_requests SET status='used', handled_at=NOW() WHERE id=$1",
-        [retryApproved.rows[0].id]
-      );
     }
 
-    const eligibilityCheck = await pool.query(
-      `SELECT e.*
-       FROM exams e
+    const ec = await pool.query(
+      `SELECT e.* FROM exams e
        LEFT JOIN student_course_enrollment sce ON e.course_id = sce.course_id AND sce.student_id = $1
        WHERE e.id = $2
          AND e.teacher_id = (SELECT teacher_id FROM students WHERE id = $1)
          AND (e.course_id IS NULL OR sce.student_id IS NOT NULL)`,
       [studentId, examId]
     );
-    if (!eligibilityCheck.rows.length) {
+    if (!ec.rows.length)
       return res.status(403).json({ error: 'Access denied: exam not available to you' });
-    }
 
-    const exam = eligibilityCheck.rows[0];
+    eligibilityRow = ec.rows[0];
 
-    let questions;
-    if (exam.question_source === 'bank' && exam.bank_id) {
+    if (eligibilityRow.question_source === 'bank' && eligibilityRow.bank_id) {
       const questionIds = Object.keys(answers || {}).map(Number).filter(id => id > 0);
       if (questionIds.length === 0) return res.status(400).json({ error: 'لم يتم إرسال أي إجابات' });
-      const bankQRes = await pool.query('SELECT * FROM bank_questions WHERE id = ANY($1) AND bank_id = $2', [questionIds, exam.bank_id]);
-      questions = bankQRes.rows;
+      const bqr = await pool.query('SELECT * FROM bank_questions WHERE id = ANY($1) AND bank_id = $2', [questionIds, eligibilityRow.bank_id]);
+      questionsData = bqr.rows;
     } else {
-      const questionsRes = await pool.query('SELECT * FROM questions WHERE exam_id=$1', [examId]);
-      questions = questionsRes.rows;
+      const qr = await pool.query('SELECT * FROM questions WHERE exam_id=$1', [examId]);
+      questionsData = qr.rows;
+    }
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+
+  // ── Score calculation (pure, no DB) ──
+  const exam = eligibilityRow;
+  let score = 0, correct = 0, wrong = 0, unanswered = 0;
+  const detailedAnswers = questionsData.map(q => {
+    const rawAnswer     = answers[q.id];
+    const studentAnswer = rawAnswer ? String(rawAnswer).toUpperCase() : null;
+    const correctLetter = q.correct_answer_letter ? q.correct_answer_letter.toUpperCase() : null;
+    const qType = q.question_type || 'mcq';
+    let isCorrect = false;
+    if (!studentAnswer) { unanswered++; }
+    else if (studentAnswer === correctLetter) { score += q.points; correct++; isCorrect = true; }
+    else { wrong++; }
+    return { question_id: q.id, student_answer: studentAnswer, correct_answer: correctLetter, is_correct: isCorrect, question_type: qType };
+  });
+  const totalPoints = questionsData.reduce((s, q) => s + q.points, 0);
+  const normalizedScore = totalPoints > 0 ? Math.round((score / totalPoints) * exam.total_score) : 0;
+  const passed = normalizedScore >= exam.pass_score;
+  const pointsEarned = (exam.points_on_attempt || 0) + (passed ? (exam.points_on_pass || 0) : 0);
+
+  // ── Atomic DB write inside a transaction ──
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Retry path: deduct old points + remove old result + mark retry as used
+    const existingCheck = await client.query(
+      'SELECT points_earned FROM exam_results WHERE student_id=$1 AND exam_id=$2 FOR UPDATE',
+      [studentId, examId]
+    );
+    if (existingCheck.rows.length > 0) {
+      const oldPts = existingCheck.rows[0].points_earned || 0;
+      if (oldPts > 0)
+        await client.query('UPDATE students SET points = GREATEST(0, points - $1) WHERE id=$2', [oldPts, studentId]);
+      await client.query('DELETE FROM exam_results WHERE student_id=$1 AND exam_id=$2', [studentId, examId]);
+      await client.query(
+        "UPDATE exam_retry_requests SET status='used', handled_at=NOW() WHERE student_id=$1 AND exam_id=$2 AND status='approved'",
+        [studentId, examId]
+      );
     }
 
-    let score = 0, correct = 0, wrong = 0, unanswered = 0;
-    const detailedAnswers = questions.map(q => {
-      const rawAnswer    = answers[q.id];
-      const studentAnswer = rawAnswer ? String(rawAnswer).toUpperCase() : null;
-      const correctLetter = q.correct_answer_letter ? q.correct_answer_letter.toUpperCase() : null;
-      const qType = q.question_type || 'mcq';
-
-      let isCorrect = false;
-      if (!studentAnswer) {
-        unanswered++;
-      } else if (studentAnswer === correctLetter) {
-        score += q.points;
-        correct++;
-        isCorrect = true;
-      } else {
-        wrong++;
-      }
-      return { question_id: q.id, student_answer: studentAnswer, correct_answer: correctLetter, is_correct: isCorrect, question_type: qType };
-    });
-
-    const totalPoints = questions.reduce((s, q) => s + q.points, 0);
-    const normalizedScore = totalPoints > 0 ? Math.round((score / totalPoints) * exam.total_score) : 0;
-    const passed = normalizedScore >= exam.pass_score;
-    const pointsEarned = (exam.points_on_attempt || 0) + (passed ? (exam.points_on_pass || 0) : 0);
-
-    const result = await pool.query(
+    // Insert new result
+    const resultRow = await client.query(
       'INSERT INTO exam_results (student_id,exam_id,score,correct_count,wrong_count,unanswered_count,start_time,end_time,answers,points_earned) VALUES($1,$2,$3,$4,$5,$6,$7,NOW(),$8,$9) RETURNING *',
       [studentId, examId, normalizedScore, correct, wrong, unanswered, start_time, JSON.stringify(detailedAnswers), pointsEarned]
     );
 
-    if (pointsEarned > 0) {
-      await pool.query('UPDATE students SET points = points + $1 WHERE id = $2', [pointsEarned, studentId]);
-    }
-    invalidateCache(exam.teacher_id);
+    if (pointsEarned > 0)
+      await client.query('UPDATE students SET points = points + $1 WHERE id=$2', [pointsEarned, studentId]);
 
-    if (passed && exam.badge_name) {
-      await pool.query(
+    if (passed && exam.badge_name)
+      await client.query(
         'INSERT INTO badges (student_id,exam_id,badge_name,badge_color) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING',
         [studentId, examId, exam.badge_name, exam.badge_color]
       );
-    }
 
-    res.json({ result: result.rows[0], detailedAnswers, normalizedScore, pointsEarned });
+    await client.query('COMMIT');
+    invalidateCache(exam.teacher_id);
+    res.json({ result: resultRow.rows[0], detailedAnswers, normalizedScore, pointsEarned });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error(err);
     res.status(500).json({ error: 'Server error' });
+  } finally {
+    client.release();
   }
 });
 

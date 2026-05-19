@@ -170,18 +170,27 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageCours
       }
     }
 
-    await pool.query(
-      'UPDATE courses SET is_published=$1 WHERE id=$2 AND teacher_id=$3',
-      [newPublished, req.params.id, teacherId]
-    );
-
-    // If unpublishing, also unpublish all exams in this course
-    if (!newPublished) {
-      await pool.query(
-        'UPDATE exams SET is_published=false WHERE course_id=$1 AND teacher_id=$2',
-        [req.params.id, teacherId]
+    // ── Atomic: update course + exams in one transaction ──
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        'UPDATE courses SET is_published=$1 WHERE id=$2 AND teacher_id=$3',
+        [newPublished, req.params.id, teacherId]
       );
+      if (!newPublished) {
+        await client.query(
+          'UPDATE exams SET is_published=false WHERE course_id=$1 AND teacher_id=$2',
+          [req.params.id, teacherId]
+        );
+      }
+      await client.query('COMMIT');
+    } catch (txErr) {
+      await client.query('ROLLBACK');
+      client.release();
+      throw txErr;
     }
+    client.release();
 
     if (newPublished) {
       // Determine which students to notify
@@ -220,18 +229,18 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageCours
       const notifType  = 'new_course';
 
       const eligibleStudentIds = eligibleStudents.rows.map(r => r.id);
-      for (const sid of eligibleStudentIds) {
+      // Batch INSERT all notifications in one query (avoid N+1)
+      if (eligibleStudentIds.length > 0) {
         await pool.query(
           `INSERT INTO notification_log (teacher_id, student_id, recipient_type, message, type, is_read, source, title)
-           VALUES ($1,$2,'student',$3,$4,false,'platform',$5)`,
-          [teacherId, sid, msgText, notifType, notifTitle]
-        );
-        sendEvent(`student_${sid}`, 'platform_notification', {
-          title:   notifTitle,
-          message: msgText,
-          type:    notifType,
-          courseId: course.id,
-        });
+           SELECT $1, unnest($2::int[]), 'student', $3, $4, false, 'platform', $5`,
+          [teacherId, eligibleStudentIds, msgText, notifType, notifTitle]
+        ).catch(e => console.error('[course publish notif batch]', e.message));
+        for (const sid of eligibleStudentIds) {
+          sendEvent(`student_${sid}`, 'platform_notification', {
+            title: notifTitle, message: msgText, type: notifType, courseId: course.id,
+          });
+        }
       }
       sendFCMToStudents(pool, eligibleStudentIds, notifTitle, msgText, { courseId: String(course.id) }).catch(() => {});
     } else {

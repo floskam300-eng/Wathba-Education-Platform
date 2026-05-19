@@ -183,9 +183,12 @@ router.post('/:streamId/join', requireRole('student'), async (req, res) => {
   const { streamId } = req.params;
 
   try {
+    // Verify stream exists AND student belongs to the teacher who owns the stream
     const { rows } = await pool.query(
-      "SELECT * FROM live_streams WHERE id=$1 AND status='active'",
-      [streamId]
+      `SELECT ls.* FROM live_streams ls
+       JOIN students s ON s.teacher_id = ls.teacher_id
+       WHERE ls.id=$1 AND ls.status='active' AND s.id=$2 AND s.deleted_at IS NULL`,
+      [streamId, studentId]
     );
     if (!rows.length) return res.status(404).json({ error: 'البث غير موجود أو انتهى' });
 
@@ -275,6 +278,9 @@ router.post('/:streamId/hand-raise', requireRole('student'), async (req, res) =>
   const { streamId } = req.params;
   const { raised } = req.body;
 
+  if (typeof raised !== 'boolean' && raised !== 0 && raised !== 1 && raised !== 'true' && raised !== 'false')
+    return res.status(400).json({ error: 'قيمة غير صحيحة لحقل raised' });
+
   try {
     const { rows } = await pool.query(
       'SELECT teacher_id, hand_raise_enabled FROM live_streams WHERE id=$1',
@@ -356,8 +362,24 @@ router.post('/:streamId/award-points', requireRole('teacher'), async (req, res) 
 router.get('/:streamId/chat', async (req, res) => {
   const { streamId } = req.params;
   const { since } = req.query;
+  const userId = req.user.id;
+  const userRole = req.user.role;
 
   try {
+    // Verify the requester is allowed to see this stream's chat
+    if (userRole === 'student') {
+      const access = await pool.query(
+        `SELECT ls.id FROM live_streams ls
+         JOIN students s ON s.teacher_id = ls.teacher_id
+         WHERE ls.id=$1 AND s.id=$2 AND s.deleted_at IS NULL`,
+        [streamId, userId]
+      );
+      if (!access.rows.length) return res.status(403).json({ error: 'Access denied' });
+    } else if (userRole === 'teacher') {
+      const access = await pool.query('SELECT id FROM live_streams WHERE id=$1 AND teacher_id=$2', [streamId, userId]);
+      if (!access.rows.length) return res.status(403).json({ error: 'Access denied' });
+    }
+
     let q = 'SELECT * FROM live_chat_messages WHERE stream_id=$1';
     const params = [streamId];
     if (since) {
@@ -383,6 +405,7 @@ router.post('/:streamId/chat', async (req, res) => {
   const senderName = req.user.name;
 
   if (!message?.trim()) return res.status(400).json({ error: 'الرسالة فارغة' });
+  if (message.trim().length > 500) return res.status(400).json({ error: 'الرسالة طويلة جداً (500 حرف كحد أقصى)' });
 
   try {
     const { rows: streamRows } = await pool.query(
@@ -390,6 +413,15 @@ router.post('/:streamId/chat', async (req, res) => {
       [streamId]
     );
     if (!streamRows.length) return res.status(404).json({ error: 'البث غير موجود أو انتهى' });
+
+    // Students must belong to the teacher who owns the stream
+    if (senderType === 'student') {
+      const belongs = await pool.query(
+        'SELECT 1 FROM students WHERE id=$1 AND teacher_id=$2 AND deleted_at IS NULL',
+        [senderId, streamRows[0].teacher_id]
+      );
+      if (!belongs.rows.length) return res.status(403).json({ error: 'Access denied' });
+    }
 
     if (senderType === 'student' && !streamRows[0].chat_enabled)
       return res.status(403).json({ error: 'الدردشة معطلة من قِبَل المعلم' });

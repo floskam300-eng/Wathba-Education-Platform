@@ -1,5 +1,6 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { LiveStreamProvider } from './context/LiveStreamContext';
@@ -41,6 +42,42 @@ import StudentEvents from './pages/student/Events';
 import StickmanRunPage from './pages/student/games/StickmanRunPage';
 import ExamReviewPage from './pages/ExamReviewPage';
 import PWAInstallBanner from './components/PWAInstallBanner';
+
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, info) {
+    console.error('[ErrorBoundary]', error, info.componentStack);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 p-6 text-center" dir="rtl">
+          <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md w-full">
+            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle className="w-8 h-8 text-red-500" />
+            </div>
+            <h2 className="text-xl font-bold text-gray-800 mb-2">حدث خطأ غير متوقع</h2>
+            <p className="text-gray-500 text-sm mb-6">يرجى إعادة تحميل الصفحة. إذا استمر الخطأ، تواصل مع الدعم الفني.</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-5 py-2.5 rounded-xl font-semibold mx-auto transition-colors"
+            >
+              <RefreshCw className="w-4 h-4" />
+              إعادة تحميل الصفحة
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading } = useAuth();
@@ -114,13 +151,15 @@ const AppRoutes = () => {
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <LiveStreamProvider>
-          <AppRoutes />
-          <PWAInstallBanner />
-        </LiveStreamProvider>
-      </AuthProvider>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <AuthProvider>
+          <LiveStreamProvider>
+            <AppRoutes />
+            <PWAInstallBanner />
+          </LiveStreamProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }

@@ -481,37 +481,36 @@ router.post('/me/video-progress', requireRole('student'), async (req, res) => {
       [studentId, video_id, watch_count_increment || 0, watched_minutes || 0, progress_percentage || 0, last_position || 0, Math.max(0, Math.min(actual_watched_seconds || 0, 120))]
     );
 
-    // ── Award course completion points if all videos watched ──
+    // ── Award course completion points if all videos watched (race-safe) ──
     try {
       const videoRow = await pool.query('SELECT course_id FROM videos WHERE id=$1', [video_id]);
       if (videoRow.rows.length && videoRow.rows[0].course_id) {
         const courseId = videoRow.rows[0].course_id;
-        const [courseRes, videosRes, progressRes, alreadyRes] = await Promise.all([
+        const [courseRes, videosRes] = await Promise.all([
           pool.query('SELECT points_on_complete FROM courses WHERE id=$1', [courseId]),
           pool.query('SELECT id FROM videos WHERE course_id=$1', [courseId]),
-          pool.query('SELECT video_id FROM video_progress WHERE student_id=$1 AND course_id=(SELECT course_id FROM videos WHERE id=$1 LIMIT 1) AND progress_percentage >= 90', [studentId]),
-          pool.query('SELECT 1 FROM course_completion_points WHERE student_id=$1 AND course_id=$2', [studentId, courseId]),
         ]);
         const pointsOnComplete = courseRes.rows[0]?.points_on_complete || 0;
-        if (pointsOnComplete > 0 && !alreadyRes.rows.length) {
-          const totalVideos = videosRes.rows.length;
-          if (totalVideos > 0) {
-            const doneRes = await pool.query(
-              'SELECT COUNT(*) FROM video_progress WHERE student_id=$1 AND video_id = ANY($2) AND progress_percentage >= 90',
-              [studentId, videosRes.rows.map(v => v.id)]
+        if (pointsOnComplete > 0 && videosRes.rows.length > 0) {
+          const doneRes = await pool.query(
+            'SELECT COUNT(*) FROM video_progress WHERE student_id=$1 AND video_id = ANY($2) AND progress_percentage >= 90',
+            [studentId, videosRes.rows.map(v => v.id)]
+          );
+          if (parseInt(doneRes.rows[0].count) >= videosRes.rows.length) {
+            // Atomic: INSERT only if not exists, then UPDATE only if INSERT actually inserted
+            const insertRes = await pool.query(
+              'INSERT INTO course_completion_points (student_id, course_id, points_awarded) VALUES($1,$2,$3) ON CONFLICT DO NOTHING RETURNING id',
+              [studentId, courseId, pointsOnComplete]
             );
-            const doneCount = parseInt(doneRes.rows[0].count);
-            if (doneCount >= totalVideos) {
-              await pool.query(
-                'INSERT INTO course_completion_points (student_id, course_id, points_awarded) VALUES($1,$2,$3) ON CONFLICT DO NOTHING',
-                [studentId, courseId, pointsOnComplete]
-              );
+            if (insertRes.rows.length > 0) {
               await pool.query('UPDATE students SET points = points + $1 WHERE id=$2', [pointsOnComplete, studentId]);
             }
           }
         }
       }
-    } catch (_) {}
+    } catch (completionErr) {
+      console.error('[video-progress completion]', completionErr.message);
+    }
 
     res.json({ ok: true });
   } catch (err) {

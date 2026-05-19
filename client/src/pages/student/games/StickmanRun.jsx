@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import { getGameConfig, BOSS_POINTS } from './gameConfig';
 import api from '../../../lib/api';
+import toast from 'react-hot-toast';
 
 // ── constants ──────────────────────────────────────────────────
 const CW = 900;
@@ -457,7 +458,9 @@ export default function StickmanRun({ onClose, academicStage }) {
       setPhase(def === 3 ? 'victory' : 'gameover');
       api.post('/events/weekly-run/finish', { pointsEarned: pts, bossesDefeated: def })
         .then(r => { if (r.data.success && updateUser) updateUser({ points: r.data.newTotal }); })
-        .catch(() => {});
+        .catch(() => {
+          toast.error('تعذّر حفظ نتيجة اللعبة — تأكد من اتصالك بالإنترنت');
+        });
     };
 
     const handleAnswer = (bossIdx, choiceIdx) => {

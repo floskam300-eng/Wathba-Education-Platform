@@ -32,6 +32,10 @@ export default function JitsiMeet({
 }) {
   const containerRef = useRef(null);
   const apiRef       = useRef(null);
+  // Keep onLeft in a ref so the Jitsi event listener always calls the latest version
+  // without needing to recreate the entire Jitsi instance when the prop changes
+  const onLeftRef    = useRef(onLeft);
+  useEffect(() => { onLeftRef.current = onLeft; }, [onLeft]);
 
   useEffect(() => {
     let mounted = true;
@@ -74,11 +78,12 @@ export default function JitsiMeet({
 
       apiRef.current = api;
 
+      // Use ref so callback is never stale even if parent re-renders
       api.addEventListener('videoConferenceLeft', () => {
-        if (onLeft) onLeft();
+        if (onLeftRef.current) onLeftRef.current();
       });
       api.addEventListener('readyToClose', () => {
-        if (onLeft) onLeft();
+        if (onLeftRef.current) onLeftRef.current();
       });
     }).catch((err) => {
       console.error('[JitsiMeet] Failed to load API:', err);
