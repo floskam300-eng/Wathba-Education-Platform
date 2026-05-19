@@ -304,14 +304,16 @@ export default function StudentExams() {
     return (
       <div className="h-full overflow-y-auto p-4 lg:p-6">
         <div className="space-y-6">
-          <div className="card bg-navy-600 text-white flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-black text-white">{exam.title}</h2>
-              <p className="text-navy-100 text-sm font-medium mt-0.5">{answered}/{questions.length} سؤال أُجيب عليه</p>
-            </div>
-            <div className={`flex items-center gap-2 text-2xl font-black ${timeLeft < 60 ? 'text-red-300 animate-pulse' : 'text-orange-300'}`}>
-              <Clock className="w-6 h-6" />
-              {formatTime(timeLeft)}
+          <div className="card bg-navy-600 text-white !p-3 sm:!p-5">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <h2 className="text-sm sm:text-xl font-black text-white leading-snug truncate">{exam.title}</h2>
+                <p className="text-navy-100 text-xs sm:text-sm font-medium mt-0.5">{answered}/{questions.length} سؤال أُجيب عليه</p>
+              </div>
+              <div className={`flex items-center gap-1.5 flex-shrink-0 px-3 py-1.5 rounded-xl ${timeLeft < 60 ? 'bg-red-500/30 text-red-200 animate-pulse' : 'bg-white/10 text-orange-300'}`}>
+                <Clock className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span className="text-lg sm:text-2xl font-black tabular-nums">{formatTime(timeLeft)}</span>
+              </div>
             </div>
           </div>
 

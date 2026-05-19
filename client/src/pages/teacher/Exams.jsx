@@ -401,42 +401,48 @@ export default function TeacherExams() {
           const scheduleStatus = getScheduleStatus(ex);
           return (
             <div key={ex.id} className="card !p-0 overflow-hidden">
-              <div className="p-4 flex items-center gap-4">
-                <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-orange-700 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <FileText className="w-6 h-6 text-white" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-bold text-navy-600">{ex.title}</h3>
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {ex.course_name && <Badge variant="info">{ex.course_name}</Badge>}
-                    {courseStageMap[ex.course_id] && <span className="text-xs bg-purple-50 text-purple-700 font-bold px-2 py-0.5 rounded-full">{courseStageMap[ex.course_id]}</span>}
-                    <Badge variant="navy">⏱ {ex.duration_minutes} دقيقة</Badge>
-                    <Badge variant="warning">📝 {ex.question_count} سؤال</Badge>
-                    <Badge variant="gray">المجموع: {ex.total_score}</Badge>
-                    <Badge variant="success">محاولات: {ex.attempt_count}</Badge>
-                    {scheduleStatus && <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${scheduleStatus.cls}`}>{scheduleStatus.label}</span>}
+              <div className="p-3 sm:p-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-orange-500 to-orange-700 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                   </div>
-                  {(ex.start_date || ex.end_date) && (
-                    <div className="flex items-center gap-1 mt-1 text-xs text-gray-500">
-                      <Calendar className="w-3 h-3" />
-                      {ex.start_date && <span>من: {new Date(ex.start_date).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}</span>}
-                      {ex.end_date && <span>· حتى: {new Date(ex.end_date).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}</span>}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="font-bold text-navy-600 text-sm leading-snug flex-1 min-w-0">{ex.title}</h3>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button onClick={() => openEdit(ex)} className="p-1.5 text-navy-600 hover:bg-navy-50 rounded-lg" title="تعديل"><Pencil className="w-4 h-4" /></button>
+                        <button onClick={() => setDeleteId(ex.id)} className="p-1.5 text-red-700 hover:bg-red-50 rounded-lg" title="حذف"><Trash2 className="w-4 h-4" /></button>
+                        <button onClick={() => setExpandedExam(expandedExam === ex.id ? null : ex.id)} className="p-1.5 text-gray-600 hover:bg-gray-100 rounded-lg">
+                          {expandedExam === ex.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                        </button>
+                      </div>
                     </div>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handlePublishClick(ex)}
-                    disabled={publishMut.isPending}
-                    title={ex.is_published ? 'إلغاء النشر' : 'نشر للطلاب'}
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-all ${ex.is_published ? 'bg-green-50 border-green-300 text-green-700 hover:bg-red-50 hover:border-red-300 hover:text-red-600' : 'bg-gray-100 border-gray-200 text-gray-500 hover:bg-green-50 hover:border-green-300 hover:text-green-700'}`}>
-                    {ex.is_published ? <><Globe className="w-3.5 h-3.5" /> منشور</> : <><EyeOff className="w-3.5 h-3.5" /> غير منشور</>}
-                  </button>
-                  <button onClick={() => openEdit(ex)} className="p-2 text-navy-600 hover:bg-navy-50 rounded-lg"><Pencil className="w-4 h-4" /></button>
-                  <button onClick={() => setDeleteId(ex.id)} className="p-2 text-red-700 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
-                  <button onClick={() => setExpandedExam(expandedExam === ex.id ? null : ex.id)} className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg">
-                    {expandedExam === ex.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                  </button>
+                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                      {ex.course_name && <Badge variant="info">{ex.course_name}</Badge>}
+                      {courseStageMap[ex.course_id] && <span className="text-xs bg-purple-50 text-purple-700 font-bold px-2 py-0.5 rounded-full">{courseStageMap[ex.course_id]}</span>}
+                      <Badge variant="navy">⏱ {ex.duration_minutes} د</Badge>
+                      <Badge variant="warning">📝 {ex.question_count} س</Badge>
+                      <Badge variant="gray">{ex.total_score} درجة</Badge>
+                      <Badge variant="success">{ex.attempt_count} محاولة</Badge>
+                      {scheduleStatus && <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${scheduleStatus.cls}`}>{scheduleStatus.label}</span>}
+                    </div>
+                    {(ex.start_date || ex.end_date) && (
+                      <div className="flex items-center gap-1 mt-1 text-xs text-gray-500">
+                        <Calendar className="w-3 h-3 flex-shrink-0" />
+                        {ex.start_date && <span className="truncate">من: {new Date(ex.start_date).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}</span>}
+                        {ex.end_date && <span className="truncate">· حتى: {new Date(ex.end_date).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}</span>}
+                      </div>
+                    )}
+                    <div className="mt-2">
+                      <button
+                        onClick={() => handlePublishClick(ex)}
+                        disabled={publishMut.isPending}
+                        title={ex.is_published ? 'إلغاء النشر' : 'نشر للطلاب'}
+                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-all ${ex.is_published ? 'bg-green-50 border-green-300 text-green-700 hover:bg-red-50 hover:border-red-300 hover:text-red-600' : 'bg-gray-100 border-gray-200 text-gray-500 hover:bg-green-50 hover:border-green-300 hover:text-green-700'}`}>
+                        {ex.is_published ? <><Globe className="w-3.5 h-3.5" /> منشور</> : <><EyeOff className="w-3.5 h-3.5" /> غير منشور</>}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
