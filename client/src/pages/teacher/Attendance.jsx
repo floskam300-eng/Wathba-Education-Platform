@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Users, Video, CheckCircle2, Circle, XCircle, BookOpen, Download } from 'lucide-react';
 import api from '../../lib/api';
+import { useTheme } from '../../context/ThemeContext';
 
 const PRESENT_THRESHOLD = 70;
 const PARTIAL_THRESHOLD = 20;
@@ -21,6 +22,7 @@ const StatusIcon = ({ status }) => {
 };
 
 export default function Attendance() {
+  const { dark } = useTheme();
   const [selectedCourse, setSelectedCourse] = useState('');
 
   const { data: courses, isLoading: loadingCourses } = useQuery({
@@ -193,8 +195,8 @@ export default function Attendance() {
                     {attendance.students.map((student, idx) => {
                       const pct = getStudentAttendancePct(student.id);
                       return (
-                        <tr key={student.id} className={`border-b border-gray-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'} hover:bg-orange-50/30 transition-colors`}>
-                          <td className={`py-3 px-4 sticky right-0 z-10 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
+                        <tr key={student.id} className={`border-b transition-colors ${dark ? 'border-[var(--dk-border)] hover:bg-[var(--dk-hover)]' : `border-gray-100 hover:bg-orange-50/30 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}`}>
+                          <td className={`py-3 px-4 sticky right-0 z-10 ${dark ? 'bg-[var(--dk-surface)]' : idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
                             <div className="font-semibold text-navy-700 text-sm">{student.name}</div>
                             {student.academic_stage && (
                               <div className="text-xs text-gray-500">{student.academic_stage}</div>

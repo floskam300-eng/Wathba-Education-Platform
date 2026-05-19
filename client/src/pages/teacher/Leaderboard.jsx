@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Trophy, GraduationCap, History, RotateCcw, ChevronDown, ChevronUp, Clock } from 'lucide-react';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
+import { useTheme } from '../../context/ThemeContext';
 
 const MEDAL = ['🥇', '🥈', '🥉'];
 
@@ -27,14 +28,15 @@ function CountdownBadge({ nextResetAt }) {
 
 function HistoryCard({ record }) {
   const [open, setOpen] = useState(false);
+  const { dark } = useTheme();
   const top3 = (record.rankings || []).slice(0, 3);
   const date = new Date(record.reset_at).toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' });
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <div className={`rounded-2xl border shadow-sm overflow-hidden ${dark ? 'bg-[var(--dk-surface)] border-[var(--dk-border-md)]' : 'bg-white border-slate-200'}`}>
       <button
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors"
+        className={`w-full flex items-center justify-between px-5 py-4 transition-colors ${dark ? 'hover:bg-[var(--dk-elevated)]' : 'hover:bg-gray-50'}`}
       >
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center">
@@ -104,6 +106,7 @@ function HistoryCard({ record }) {
 }
 
 export default function TeacherLeaderboard() {
+  const { dark } = useTheme();
   const [stageFilter, setStageFilter] = useState('الكل');
   const [tab, setTab] = useState('current');
   const queryClient = useQueryClient();
@@ -183,7 +186,7 @@ export default function TeacherLeaderboard() {
         <button
           onClick={() => setTab('current')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-            tab === 'current' ? 'bg-orange-500 text-white shadow-sm' : 'bg-white border border-slate-200 text-gray-600 hover:bg-gray-50'
+            tab === 'current' ? 'bg-orange-500 text-white shadow-sm' : dark ? 'bg-[var(--dk-surface)] border border-[var(--dk-border-md)] text-gray-300 hover:bg-[var(--dk-elevated)]' : 'bg-white border border-slate-200 text-gray-600 hover:bg-gray-50'
           }`}
         >
           <Trophy className="w-4 h-4" /> الشهر الحالي
@@ -191,7 +194,7 @@ export default function TeacherLeaderboard() {
         <button
           onClick={() => setTab('history')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-            tab === 'history' ? 'bg-navy-600 text-white shadow-sm' : 'bg-white border border-slate-200 text-gray-600 hover:bg-gray-50'
+            tab === 'history' ? 'bg-navy-600 text-white shadow-sm' : dark ? 'bg-[var(--dk-surface)] border border-[var(--dk-border-md)] text-gray-300 hover:bg-[var(--dk-elevated)]' : 'bg-white border border-slate-200 text-gray-600 hover:bg-gray-50'
           }`}
         >
           <History className="w-4 h-4" /> سجل الشهور السابقة
@@ -206,10 +209,10 @@ export default function TeacherLeaderboard() {
       {tab === 'current' && (
         <>
           {/* Stage Tabs */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+          <div className={`rounded-2xl border p-4 shadow-sm ${dark ? 'bg-[var(--dk-surface)] border-[var(--dk-border-md)]' : 'bg-white border-slate-200'}`}>
             <div className="flex items-center gap-2 mb-3">
               <GraduationCap className="w-4 h-4 text-gray-500" />
-              <span className="text-xs font-bold text-gray-500">تصفية حسب السنة الدراسية</span>
+              <span className={`text-xs font-bold ${dark ? 'text-gray-400' : 'text-gray-500'}`}>تصفية حسب السنة الدراسية</span>
             </div>
             <div className="filter-scroll">
               {stages.map(stage => (
@@ -219,12 +222,12 @@ export default function TeacherLeaderboard() {
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all duration-200 ${
                     stageFilter === stage
                       ? 'bg-orange-500 text-white shadow-sm'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      : dark ? 'bg-[var(--dk-elevated)] text-gray-300 hover:bg-[var(--dk-hover)]' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
                 >
                   {stage}
                   <span className={`text-xs rounded-full px-1.5 font-black ${
-                    stageFilter === stage ? 'bg-white/20 text-white' : 'bg-white text-gray-600'
+                    stageFilter === stage ? 'bg-white/20 text-white' : dark ? 'bg-[var(--dk-bg)] text-gray-400' : 'bg-white text-gray-600'
                   }`}>
                     {stageCounts[stage] || 0}
                   </span>

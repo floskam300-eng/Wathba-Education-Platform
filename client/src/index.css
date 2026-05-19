@@ -25,6 +25,7 @@
   --dk-text-1:        #F2EDE5;   /* primary — warm white */
   --dk-text-2:        #C4B8AC;   /* secondary — warm muted (was too dark) */
   --dk-text-3:        #8A7E72;   /* disabled/placeholder (was #60584E — unreadable) */
+  --dk-text:          #F2EDE5;   /* alias for --dk-text-1 (convenience) */
 
   /* ── Brand accent: warm amber-orange ── */
   --dk-orange:        #F5A623;
@@ -702,6 +703,21 @@ html.dark ::-webkit-scrollbar-thumb:hover {
     flex-shrink: 0;
     margin-left: 8px;
   }
+
+  /* ── Dark mode overrides for mobile-card-table ── */
+  html.dark .mobile-card-table tbody tr {
+    background: var(--dk-surface);
+    border-color: var(--dk-border-md);
+    box-shadow: 0 1px 6px rgba(0,0,0,0.35);
+  }
+  html.dark .mobile-card-table td {
+    border-bottom-color: var(--dk-border);
+    color: var(--dk-text-2);
+  }
+  html.dark .mobile-card-table td:last-child { border-bottom: none; }
+  html.dark .mobile-card-table td::before {
+    color: var(--dk-text-3);
+  }
   .mobile-card-table .col-span-all {
     display: block !important;
     text-align: center;
@@ -725,6 +741,66 @@ html.dark ::-webkit-scrollbar-thumb:hover {
     overflow-y: auto !important;
   }
 }
+
+/* ── Notification bell dropdown — RTL-safe positioning on mobile ── */
+.notif-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: 320px;
+  max-width: calc(100vw - 1rem);
+  z-index: 50;
+}
+@media (max-width: 639px) {
+  .notif-dropdown {
+    left: auto;
+    right: -4rem;
+    width: calc(100vw - 1rem);
+    max-width: 340px;
+  }
+}
+
+/* ── Dark mode for Leaderboard history cards ── */
+html.dark .leaderboard-history-card {
+  background-color: var(--dk-surface) !important;
+  border-color: var(--dk-border-md) !important;
+}
+html.dark .leaderboard-history-card:hover {
+  background-color: var(--dk-elevated) !important;
+}
+
+/* ── Fix hardcoded bg-white in page sections ── */
+html.dark .dark-card-override {
+  background-color: var(--dk-surface) !important;
+  border-color: var(--dk-border) !important;
+}
+
+/* ── Attendance table dark mode ── */
+html.dark .attendance-grid-header {
+  background-color: var(--dk-elevated) !important;
+  color: var(--dk-text-3) !important;
+  border-color: var(--dk-border) !important;
+}
+html.dark .attendance-grid-cell {
+  border-color: var(--dk-border) !important;
+}
+
+/* ── Password cell (Students page) ── */
+html.dark .password-cell-text {
+  color: var(--dk-teal) !important;
+}
+
+/* ── StatCard value text in dark ── */
+html.dark .stat-value {
+  color: var(--dk-text-1) !important;
+}
+html.dark .stat-label {
+  color: var(--dk-text-3) !important;
+}
+
+/* ── Consistent heading colors across light theme ── */
+html:not(.dark) .text-navy-600 { color: #152540; }
+html:not(.dark) .text-navy-700 { color: #101C32; }
 
 /* ── Hide on mobile helpers ── */
 .hide-mobile { display: none !important; }

@@ -136,7 +136,7 @@ function NotificationBell({ dark }) {
 
       {open && (
         <div
-          className={`absolute left-0 top-full mt-2 w-80 rounded-2xl border shadow-xl z-50 overflow-hidden ${dark ? '' : 'bg-white border-slate-200'}`}
+          className={`notif-dropdown rounded-2xl border shadow-xl overflow-hidden ${dark ? '' : 'bg-white border-slate-200'}`}
           style={dark ? { ...surfaceStyle, boxShadow: '0 8px 32px rgba(0,0,0,0.4)' } : {}}
         >
           {/* Header */}
