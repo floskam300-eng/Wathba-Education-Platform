@@ -600,7 +600,8 @@ router.get('/attendance/:courseId', requireRole('teacher', 'assistant'), async (
         [courseId]
       ),
       pool.query(
-        `SELECT vp.student_id, vp.video_id, vp.progress_percentage, vp.watched_minutes, vp.watch_count
+        `SELECT vp.student_id, vp.video_id, vp.progress_percentage, vp.watched_minutes,
+                vp.watch_count, COALESCE(vp.actual_watched_seconds, 0) AS actual_watched_seconds
          FROM video_progress vp
          JOIN videos v ON vp.video_id = v.id
          WHERE v.course_id = $1`,
@@ -615,6 +616,7 @@ router.get('/attendance/:courseId', requireRole('teacher', 'assistant'), async (
         progress_percentage: parseFloat(p.progress_percentage),
         watched_minutes: p.watched_minutes,
         watch_count: p.watch_count,
+        actual_watched_seconds: parseInt(p.actual_watched_seconds) || 0,
       };
     });
 
