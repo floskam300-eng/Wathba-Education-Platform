@@ -219,7 +219,7 @@ router.get('/:id/profile', requireRole('teacher', 'assistant'), async (req, res)
     // Student basic info
     const studentRes = await pool.query(
       `SELECT id, name, username, phone, parent_phone, academic_stage, gender, points, created_at
-       FROM students WHERE id=$1 AND teacher_id=$2`,
+       FROM students WHERE id=$1 AND teacher_id=$2 AND deleted_at IS NULL`,
       [studentId, teacherId]
     );
     if (!studentRes.rows.length) return res.status(404).json({ error: 'Student not found' });

@@ -25,7 +25,7 @@ app.use(cors({
 }));
 app.use((req, res, next) => {
   if (req.is('multipart/form-data')) return next();
-  express.json({ limit: '50mb' })(req, res, next);
+  express.json({ limit: '5mb' })(req, res, next);
 });
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 

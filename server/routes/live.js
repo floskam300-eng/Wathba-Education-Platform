@@ -63,8 +63,12 @@ router.post('/start', requireRole('teacher'), async (req, res) => {
       );
       for (const { id } of rows) sendEvent(`student_${id}`, 'live_started', payload);
     } else if (access === 'specific' && allowed_student_ids?.length) {
-      for (const sid of allowed_student_ids)
-        sendEvent(`student_${sid}`, 'live_started', payload);
+      const { rows: validStudents } = await pool.query(
+        'SELECT id FROM students WHERE id = ANY($1) AND teacher_id=$2 AND deleted_at IS NULL',
+        [allowed_student_ids, teacherId]
+      );
+      for (const { id } of validStudents)
+        sendEvent(`student_${id}`, 'live_started', payload);
     }
 
     res.json({ success: true, stream });
@@ -288,6 +292,13 @@ router.post('/:streamId/hand-raise', requireRole('student'), async (req, res) =>
     );
     if (!rows.length) return res.status(404).json({ error: 'البث غير موجود' });
 
+    const viewerCheck = await pool.query(
+      'SELECT 1 FROM live_stream_viewers WHERE stream_id=$1 AND student_id=$2 AND is_active=true',
+      [streamId, studentId]
+    );
+    if (!viewerCheck.rows.length)
+      return res.status(403).json({ error: 'يجب الانضمام للبث أولاً قبل رفع اليد' });
+
     if (raised && rows[0].hand_raise_enabled === false) {
       return res.status(403).json({ error: 'رفع اليد معطل في هذا البث' });
     }
@@ -371,7 +382,7 @@ router.get('/:streamId/chat', async (req, res) => {
       const access = await pool.query(
         `SELECT ls.id FROM live_streams ls
          JOIN students s ON s.teacher_id = ls.teacher_id
-         WHERE ls.id=$1 AND s.id=$2 AND s.deleted_at IS NULL`,
+         WHERE ls.id=$1 AND s.id=$2 AND s.deleted_at IS NULL AND ls.status='active'`,
         [streamId, userId]
       );
       if (!access.rows.length) return res.status(403).json({ error: 'Access denied' });

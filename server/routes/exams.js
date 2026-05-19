@@ -175,10 +175,18 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExams
       }
       // If republishing (exam was taken before), clear previous results to allow re-attempt
       const existingResults = await pool.query(
-        'SELECT id FROM exam_results WHERE exam_id=$1 LIMIT 1',
+        'SELECT COUNT(id) as cnt FROM exam_results WHERE exam_id=$1',
         [req.params.id]
       );
-      if (existingResults.rows.length > 0) {
+      const resultCount = parseInt(existingResults.rows[0].cnt);
+      if (resultCount > 0) {
+        if (!req.body.force_reset) {
+          return res.status(409).json({
+            error: `يوجد ${resultCount} طالب أدوا هذا الاختبار بالفعل — إعادة النشر ستمسح نتائجهم نهائياً`,
+            code: 'RESULTS_EXIST',
+            count: resultCount,
+          });
+        }
         await pool.query('DELETE FROM exam_results WHERE exam_id=$1', [req.params.id]);
         await pool.query(
           "UPDATE exam_retry_requests SET status='used', handled_at=NOW() WHERE exam_id=$1 AND status='pending'",
@@ -531,7 +539,7 @@ router.get('/student/available', requireRole('student'), async (req, res) => {
            WHERE rr.student_id = $1 AND rr.exam_id = e.id AND rr.status = 'approved'
          )
        WHERE e.teacher_id = (SELECT teacher_id FROM students WHERE id = $1)
-         AND (e.course_id IS NULL OR sce.student_id IS NOT NULL)
+         AND (e.course_id IS NULL OR sce.status = 'active')
          AND e.is_published = true`,
       [req.user.id]
     );
@@ -568,8 +576,9 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
        FROM exams e
        LEFT JOIN student_course_enrollment sce ON e.course_id = sce.course_id AND sce.student_id = $1
        WHERE e.id = $2
+         AND e.is_published = true
          AND e.teacher_id = (SELECT teacher_id FROM students WHERE id = $1)
-         AND (e.course_id IS NULL OR sce.student_id IS NOT NULL)`,
+         AND (e.course_id IS NULL OR sce.status = 'active')`,
       [studentId, req.params.id]
     );
     if (!eligibilityCheck.rows.length) {
@@ -652,8 +661,12 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
 
     eligibilityRow = ec.rows[0];
 
-    // Reject if exam window has closed
+    // Reject if exam window has not yet opened
     const nowCheck = new Date();
+    if (eligibilityRow.start_date && new Date(eligibilityRow.start_date) > nowCheck)
+      return res.status(409).json({ error: 'الاختبار لم يبدأ بعد — لا يمكن تسليم الإجابات قبل موعد البدء' });
+
+    // Reject if exam window has closed
     if (eligibilityRow.end_date && new Date(eligibilityRow.end_date) < nowCheck)
       return res.status(409).json({ error: 'انتهى وقت الاختبار — لا يمكن تسليم الإجابات بعد انقضاء المهلة' });
 
@@ -736,7 +749,7 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
 
     await client.query('COMMIT');
     invalidateCache(exam.teacher_id);
-    res.json({ result: resultRow.rows[0], detailedAnswers, normalizedScore, pointsEarned });
+    res.json({ result: resultRow.rows[0], detailedAnswers, normalizedScore, pointsEarned, pass_score: exam.pass_score });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error(err);
@@ -749,6 +762,13 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
 // ── Student: get exam results for a specific course ──
 router.get('/student/course-results/:courseId', requireRole('student'), async (req, res) => {
   try {
+    const enrollCheck = await pool.query(
+      "SELECT id FROM student_course_enrollment WHERE student_id=$1 AND course_id=$2 AND status='active'",
+      [req.user.id, req.params.courseId]
+    );
+    if (!enrollCheck.rows.length)
+      return res.status(403).json({ error: 'Access denied: not enrolled in this course' });
+
     const result = await pool.query(
       `SELECT er.id, er.score, er.correct_count, er.wrong_count, er.unanswered_count,
               er.points_earned, er.created_at,

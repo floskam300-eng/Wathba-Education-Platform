@@ -64,7 +64,8 @@ router.get('/me', authenticate, async (req, res) => {
   try {
     const { id, role } = req.user;
     let table = role === 'teacher' ? 'teachers' : role === 'assistant' ? 'assistants' : 'students';
-    const result = await pool.query(`SELECT * FROM ${table} WHERE id = $1`, [id]);
+    const whereClause = role === 'student' ? 'WHERE id = $1 AND deleted_at IS NULL' : 'WHERE id = $1';
+    const result = await pool.query(`SELECT * FROM ${table} ${whereClause}`, [id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
     const { password: _, ...safeUser } = result.rows[0];
     res.json({ ...safeUser, role });

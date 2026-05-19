@@ -174,6 +174,9 @@ router.post('/', requireRole('teacher', 'assistant'), (req, res, next) => checkP
 router.put('/:id/verify', requireRole('teacher', 'assistant'), (req, res, next) => checkPermission(req, res, next, 'can_manage_payments'), async (req, res) => {
   const teacherId = getTeacherId(req);
   const { status, method, reference_number } = req.body;
+  const VALID_STATUSES = ['verified', 'pending', 'rejected'];
+  if (!VALID_STATUSES.includes(status))
+    return res.status(400).json({ error: 'قيمة الحالة غير صحيحة — المسموح: verified / pending / rejected' });
   try {
     const paymentRes = await pool.query(
       `SELECT p.*, s.teacher_id as student_teacher_id

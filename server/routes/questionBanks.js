@@ -133,7 +133,7 @@ router.get('/:id/questions', requireRole('teacher', 'assistant'), async (req, re
 });
 
 // ── Add question to bank ──
-router.post('/:id/questions', requireRole('teacher', 'assistant'), async (req, res) => {
+router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
   const { question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, question_type } = req.body;
   try {
@@ -159,7 +159,7 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), async (req, r
 });
 
 // ── Update bank question ──
-router.put('/questions/:qid', requireRole('teacher', 'assistant'), async (req, res) => {
+router.put('/questions/:qid', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
   const { question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, question_type } = req.body;
   try {
@@ -186,7 +186,7 @@ router.put('/questions/:qid', requireRole('teacher', 'assistant'), async (req, r
 });
 
 // ── Delete bank question ──
-router.delete('/questions/:qid', requireRole('teacher', 'assistant'), async (req, res) => {
+router.delete('/questions/:qid', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
   try {
     const ownership = await pool.query(

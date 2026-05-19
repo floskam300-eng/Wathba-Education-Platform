@@ -54,6 +54,7 @@ export default function TeacherExams() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const imageFileRef = useRef(null);
   const [publishConfirm, setPublishConfirm] = useState(null);
+  const [forceResetConfirm, setForceResetConfirm] = useState(null);
 
   const { data: exams = [], isLoading } = useQuery({
     queryKey: ['exams'],
@@ -116,25 +117,33 @@ export default function TeacherExams() {
   });
 
   const publishMut = useMutation({
-    mutationFn: (id) => api.put(`/exams/${id}/publish`),
+    mutationFn: ({ id, force_reset }) => api.put(`/exams/${id}/publish`, { force_reset: !!force_reset }),
     onSuccess: (res) => {
       qc.invalidateQueries(['exams']);
       setPublishConfirm(null);
+      setForceResetConfirm(null);
       if (res.data.is_published) {
         toast.success('تم نشر الاختبار وإشعار الطلاب 📢');
       } else {
         toast('تم إلغاء نشر الاختبار', { icon: '🔕' });
       }
     },
-    onError: (e) => {
+    onError: (e, variables) => {
+      const data = e.response?.data;
+      if (data?.code === 'RESULTS_EXIST') {
+        setPublishConfirm(null);
+        setForceResetConfirm({ id: variables.id, count: data.count });
+        return;
+      }
       setPublishConfirm(null);
-      toast.error(e.response?.data?.error || 'حدث خطأ');
+      setForceResetConfirm(null);
+      toast.error(data?.error || 'حدث خطأ');
     },
   });
 
   const handlePublishClick = (ex) => {
     if (ex.is_published) {
-      publishMut.mutate(ex.id);
+      publishMut.mutate({ id: ex.id });
       return;
     }
     // Check if linked course is published
@@ -981,7 +990,7 @@ export default function TeacherExams() {
               <div className="flex gap-3 pt-1">
                 <button onClick={() => setPublishConfirm(null)} className="flex-1 btn-secondary">إلغاء</button>
                 <button
-                  onClick={() => { if (!isExpired) publishMut.mutate(publishConfirm.id); }}
+                  onClick={() => { if (!isExpired) publishMut.mutate({ id: publishConfirm.id }); }}
                   disabled={isExpired || publishMut.isPending}
                   className={`flex-1 font-bold py-2.5 rounded-xl transition-all ${isExpired ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600 text-white active:scale-95'}`}
                 >
@@ -992,6 +1001,29 @@ export default function TeacherExams() {
           </div>
         );
       })()}
+
+      {forceResetConfirm && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl text-center">
+            <div className="text-5xl mb-3">⚠️</div>
+            <h3 className="text-xl font-black text-red-700 mb-2">تحذير: مسح النتائج</h3>
+            <p className="text-gray-600 mb-4">
+              يوجد <span className="font-black text-red-600">{forceResetConfirm.count}</span> طالب أدوا هذا الاختبار بالفعل.
+              إعادة النشر ستمسح نتائجهم نهائياً ولا يمكن التراجع عن ذلك.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setForceResetConfirm(null)} className="flex-1 btn-secondary">إلغاء</button>
+              <button
+                onClick={() => publishMut.mutate({ id: forceResetConfirm.id, force_reset: true })}
+                disabled={publishMut.isPending}
+                className="flex-1 font-bold py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white transition-all active:scale-95"
+              >
+                {publishMut.isPending ? 'جاري...' : 'نعم، امسح النتائج وأعد النشر'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
