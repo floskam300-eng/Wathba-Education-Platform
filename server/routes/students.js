@@ -124,6 +124,17 @@ router.post('/', requireRole('teacher', 'assistant'), (req, res, next) => checkP
           [username, hashed, name, phone, parent_phone, academic_stage, gender, teacherId, generatedPassword]
         );
         invalidateCache(teacherId);
+        // Auto-enroll new student in teacher's published free courses
+        try {
+          await pool.query(
+            `INSERT INTO student_course_enrollment (student_id, course_id)
+             SELECT $1, c.id FROM courses c
+             WHERE c.teacher_id = $2 AND c.is_free = true AND c.is_published = true
+               AND (c.target_stage IS NULL OR c.target_stage = '' OR c.target_stage = $3)
+             ON CONFLICT DO NOTHING`,
+            [result.rows[0].id, teacherId, academic_stage || '']
+          );
+        } catch (_) {}
         const { password: _, ...safe } = result.rows[0];
         return res.status(201).json({ ...safe, generated_password: generatedPassword });
       } catch (err) {

@@ -173,21 +173,23 @@ export default function StudentExams() {
 
   // ── Auto-submit only when browser/tab is CLOSED (not just hidden) ──
   useEffect(() => {
-    const sendBeaconSubmit = (examId) => {
+    const sendKeepaliveSubmit = (examId) => {
       const token = localStorage.getItem('wathba_token');
       if (!token) return;
       const payload = JSON.stringify({ answers: answersRef.current, start_time: startTimeRef.current });
-      navigator.sendBeacon(
-        `/api/exams/${examId}/submit?token=${encodeURIComponent(token)}`,
-        new Blob([payload], { type: 'application/json' })
-      );
+      fetch(`/api/exams/${examId}/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: payload,
+        keepalive: true,
+      }).catch(() => {});
       localStorage.removeItem(`exam_start_${examId}`);
       localStorage.removeItem(`exam_answers_${examId}`);
     };
 
     const handleBeforeUnload = (e) => {
       if (!takingRef.current || !examDataRef.current) return;
-      sendBeaconSubmit(takingRef.current.id);
+      sendKeepaliveSubmit(takingRef.current.id);
       e.preventDefault();
       e.returnValue = '';
     };

@@ -35,7 +35,13 @@ router.get('/weekly-run/status', requireRole('student'), async (req, res) => {
 });
 
 router.post('/weekly-run/finish', requireRole('student'), async (req, res) => {
-  const { pointsEarned = 0, bossesDefeated = 0 } = req.body;
+  // Server-side validation: cap values to prevent cheating
+  const MAX_BOSSES = 3;
+  const MAX_POINTS_PER_BOSS = 200;
+  const sanitizedBosses = Math.max(0, Math.min(MAX_BOSSES, parseInt(req.body.bossesDefeated) || 0));
+  const maxAllowedPoints = sanitizedBosses * MAX_POINTS_PER_BOSS;
+  const sanitizedPoints = Math.max(0, Math.min(maxAllowedPoints, parseInt(req.body.pointsEarned) || 0));
+
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -52,12 +58,12 @@ router.post('/weekly-run/finish', requireRole('student'), async (req, res) => {
     await client.query(
       `INSERT INTO event_plays (student_id, event_id, score, completed)
        VALUES ($1,'weekly_run',$2,$3)`,
-      [req.user.id, pointsEarned, bossesDefeated === 3]
+      [req.user.id, sanitizedPoints, sanitizedBosses === MAX_BOSSES]
     );
-    if (pointsEarned > 0) {
+    if (sanitizedPoints > 0) {
       await client.query(
         'UPDATE students SET points = points + $1 WHERE id = $2',
-        [pointsEarned, req.user.id]
+        [sanitizedPoints, req.user.id]
       );
     }
     await client.query('COMMIT');
@@ -66,7 +72,7 @@ router.post('/weekly-run/finish', requireRole('student'), async (req, res) => {
     );
     res.json({
       success: true,
-      pointsEarned,
+      pointsEarned: sanitizedPoints,
       newTotal: rows[0]?.points || 0,
     });
   } catch (err) {

@@ -245,28 +245,53 @@ export default function ExamReviewPage() {
                         <img src={q.question_image_url} alt="" className="mt-2 mb-3 max-w-sm rounded-xl border border-gray-200" />
                       )}
 
-                      {/* Options */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-4">
-                        {OPTS.map(opt => {
-                          const text = q[`option_${opt.toLowerCase()}`];
-                          if (!text || text === '-') return null;
-                          return (
-                            <div key={opt}
-                              className={`flex items-center gap-3 p-3.5 rounded-xl border-2 transition-all ${optStyle(opt, studentAns, correctAns)}`}>
-                              <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 ${optBadge(opt, studentAns, correctAns)}`}>
-                                {optLabel[opt]}
-                              </span>
-                              <span className={`text-sm flex-1 leading-snug ${optTextColor(opt, studentAns, correctAns)}`}>
-                                {text}
-                              </span>
-                              {optIcon(opt, studentAns, correctAns)}
-                            </div>
-                          );
-                        })}
-                      </div>
+                      {/* Options — MCQ / True-False */}
+                      {q.question_type !== 'essay' && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-4">
+                          {OPTS.map(opt => {
+                            const text = q[`option_${opt.toLowerCase()}`];
+                            if (!text || text === '-') return null;
+                            return (
+                              <div key={opt}
+                                className={`flex items-center gap-3 p-3.5 rounded-xl border-2 transition-all ${optStyle(opt, studentAns, correctAns)}`}>
+                                <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 ${optBadge(opt, studentAns, correctAns)}`}>
+                                  {optLabel[opt]}
+                                </span>
+                                <span className={`text-sm flex-1 leading-snug ${optTextColor(opt, studentAns, correctAns)}`}>
+                                  {text}
+                                </span>
+                                {optIcon(opt, studentAns, correctAns)}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
 
-                      {/* Correction note */}
-                      {!answered && correctAns && (
+                      {/* Essay question display */}
+                      {q.question_type === 'essay' && (
+                        <div className="mt-4 space-y-2.5">
+                          <div className={`rounded-xl border px-4 py-3 text-sm ${studentAns ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
+                            <p className="text-xs font-bold text-gray-500 mb-1">إجابة الطالب</p>
+                            <p className={`font-medium leading-relaxed ${studentAns ? 'text-blue-800' : 'text-gray-400 italic'}`}>
+                              {studentAns || 'لم تُجَب'}
+                            </p>
+                          </div>
+                          {q.essay_answer_key && (
+                            <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm">
+                              <p className="text-xs font-bold text-green-600 mb-1">نموذج الإجابة</p>
+                              <p className="text-green-800 font-medium leading-relaxed whitespace-pre-wrap">{q.essay_answer_key}</p>
+                            </div>
+                          )}
+                          {q.essay_pending && (
+                            <div className="rounded-xl border border-yellow-200 bg-yellow-50 px-4 py-2.5 text-xs font-semibold text-yellow-700">
+                              ⏳ في انتظار تصحيح المعلم
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Correction note — MCQ/True-False only */}
+                      {q.question_type !== 'essay' && !answered && correctAns && (
                         <div className="mt-3 flex flex-wrap items-center gap-4 text-xs font-semibold bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5">
                           <span className="flex items-center gap-1.5 text-gray-500">
                             <Minus className="w-3.5 h-3.5" />
@@ -278,7 +303,7 @@ export default function ExamReviewPage() {
                           </span>
                         </div>
                       )}
-                      {answered && !q.is_correct && (
+                      {q.question_type !== 'essay' && answered && !q.is_correct && (
                         <div className="mt-3 flex flex-wrap items-center gap-4 text-xs font-semibold bg-orange-50 border border-orange-200 rounded-xl px-4 py-2.5">
                           <span className="flex items-center gap-1.5 text-red-700">
                             <XCircle className="w-3.5 h-3.5" />

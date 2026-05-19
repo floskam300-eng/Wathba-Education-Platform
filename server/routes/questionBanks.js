@@ -1,6 +1,7 @@
 const express = require('express');
 const pool = require('../db/connection');
 const { authenticate, requireRole } = require('../middleware/auth');
+const { getPermissions } = require('../lib/permissionsCache');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -9,6 +10,18 @@ const router = express.Router();
 router.use(authenticate);
 
 const getTeacherId = (req) => req.user.role === 'teacher' ? req.user.id : req.user.teacher_id;
+
+const checkManageExamsPerm = async (req, res, next) => {
+  if (req.user.role === 'teacher') return next();
+  try {
+    const perms = await getPermissions(req.user.id, pool);
+    if (!perms || !perms.can_manage_exams)
+      return res.status(403).json({ error: 'Access denied: missing permission (can_manage_exams)' });
+    next();
+  } catch {
+    res.status(500).json({ error: 'Server error' });
+  }
+};
 
 const qImgStorage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -51,7 +64,7 @@ router.get('/', requireRole('teacher', 'assistant'), async (req, res) => {
 });
 
 // ── Create bank ──
-router.post('/', requireRole('teacher', 'assistant'), async (req, res) => {
+router.post('/', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
   const { name, course_id } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: 'اسم البنك مطلوب' });
@@ -71,7 +84,7 @@ router.post('/', requireRole('teacher', 'assistant'), async (req, res) => {
 });
 
 // ── Update bank ──
-router.put('/:id', requireRole('teacher', 'assistant'), async (req, res) => {
+router.put('/:id', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
   const { name, course_id } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: 'اسم البنك مطلوب' });
@@ -92,7 +105,7 @@ router.put('/:id', requireRole('teacher', 'assistant'), async (req, res) => {
 });
 
 // ── Delete bank ──
-router.delete('/:id', requireRole('teacher', 'assistant'), async (req, res) => {
+router.delete('/:id', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
   try {
     const result = await pool.query(

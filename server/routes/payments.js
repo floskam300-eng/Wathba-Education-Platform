@@ -129,7 +129,7 @@ async function doLeaderboardReset(teacherId, monthLabel) {
 //  Payments routes
 // ════════════════════════════════════════════════════════════════
 
-router.get('/', requireRole('teacher', 'assistant'), async (req, res) => {
+router.get('/', requireRole('teacher', 'assistant'), (req, res, next) => checkPermission(req, res, next, 'can_manage_payments'), async (req, res) => {
   const teacherId = getTeacherId(req);
   try {
     const result = await pool.query(

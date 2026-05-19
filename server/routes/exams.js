@@ -620,7 +620,7 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
 router.post('/:id/submit', requireRole('student'), async (req, res) => {
   const studentId = req.user.id;
   const examId = req.params.id;
-  const { answers, start_time } = req.body;
+  const { answers, start_time: clientStartTime } = req.body;
 
   // ── Pre-flight eligibility check (outside transaction for speed) ──
   let eligibilityRow, questionsData;
@@ -705,10 +705,18 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
       );
     }
 
+    // Cap start_time to prevent timer cheating: reject starts older than 1.2× duration
+    const durationMs = (exam.duration_minutes || 60) * 60 * 1000;
+    const minAllowedStart = new Date(Date.now() - durationMs * 1.2);
+    const parsedClientStart = clientStartTime ? new Date(clientStartTime) : null;
+    const safeStartTime = (parsedClientStart && !isNaN(parsedClientStart) && parsedClientStart >= minAllowedStart && parsedClientStart <= new Date())
+      ? parsedClientStart
+      : new Date(Date.now() - durationMs);
+
     // Insert new result
     const resultRow = await client.query(
       'INSERT INTO exam_results (student_id,exam_id,score,correct_count,wrong_count,unanswered_count,start_time,end_time,answers,points_earned) VALUES($1,$2,$3,$4,$5,$6,$7,NOW(),$8,$9) RETURNING *',
-      [studentId, examId, normalizedScore, correct, wrong, unanswered, start_time, JSON.stringify(detailedAnswers), pointsEarned]
+      [studentId, examId, normalizedScore, correct, wrong, unanswered, safeStartTime, JSON.stringify(detailedAnswers), pointsEarned]
     );
 
     if (pointsEarned > 0)
@@ -815,12 +823,20 @@ router.get('/results/:resultId/review', authenticate, async (req, res) => {
     let questionsRes;
     if (isBank) {
       let answeredIds = [];
+      let isOldBankFormat = false;
       try {
         const raw = typeof row.answers === 'string' ? JSON.parse(row.answers) : row.answers;
-        if (Array.isArray(raw)) answeredIds = raw.map(a => a.question_id).filter(Boolean);
+        if (Array.isArray(raw)) {
+          answeredIds = raw.map(a => a.question_id).filter(Boolean);
+        } else if (raw && typeof raw === 'object') {
+          // Old sequential format — fall back to fetching all bank questions by position
+          isOldBankFormat = true;
+        }
       } catch (_) {}
       if (answeredIds.length > 0) {
         questionsRes = await pool.query('SELECT * FROM bank_questions WHERE id = ANY($1) ORDER BY id', [answeredIds]);
+      } else if (isOldBankFormat) {
+        questionsRes = await pool.query('SELECT * FROM bank_questions WHERE bank_id = $1 ORDER BY id', [row.bank_id]);
       } else {
         questionsRes = { rows: [] };
       }

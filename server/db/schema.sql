@@ -361,3 +361,26 @@ CREATE TABLE IF NOT EXISTS event_plays (
   completed BOOLEAN DEFAULT FALSE
 );
 CREATE INDEX IF NOT EXISTS idx_event_plays_student_event ON event_plays(student_id, event_id);
+
+-- ── Performance indexes ──────────────────────────────────────────────────────
+CREATE INDEX IF NOT EXISTS idx_questions_exam_id ON questions(exam_id);
+CREATE INDEX IF NOT EXISTS idx_exam_results_student_id ON exam_results(student_id);
+CREATE INDEX IF NOT EXISTS idx_exam_results_exam_id ON exam_results(exam_id);
+CREATE INDEX IF NOT EXISTS idx_video_progress_student_id ON video_progress(student_id);
+CREATE INDEX IF NOT EXISTS idx_video_progress_video_id ON video_progress(video_id);
+CREATE INDEX IF NOT EXISTS idx_payments_student_id ON payments(student_id);
+CREATE INDEX IF NOT EXISTS idx_notification_log_student_id ON notification_log(student_id);
+CREATE INDEX IF NOT EXISTS idx_students_teacher_id ON students(teacher_id);
+CREATE INDEX IF NOT EXISTS idx_courses_teacher_id ON courses(teacher_id);
+CREATE INDEX IF NOT EXISTS idx_enrollment_student_id ON student_course_enrollment(student_id);
+CREATE INDEX IF NOT EXISTS idx_enrollment_course_id ON student_course_enrollment(course_id);
+
+-- ── Prevent duplicate exam submissions ──────────────────────────────────────
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'uq_exam_results_student_exam'
+  ) THEN
+    ALTER TABLE exam_results ADD CONSTRAINT uq_exam_results_student_exam UNIQUE (student_id, exam_id);
+  END IF;
+END $$;

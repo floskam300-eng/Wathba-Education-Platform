@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const pool = require('../db/connection');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { validateAssistant } = require('../middleware/validate');
+const { invalidatePermissions } = require('../lib/permissionsCache');
 
 const router = express.Router();
 router.use(authenticate);
@@ -43,6 +44,7 @@ router.put('/:id/permissions', requireRole('teacher'), async (req, res) => {
       [can_add_students, can_edit_students, can_delete_students, can_manage_exams, can_view_analytics, can_send_reports, can_manage_payments ?? false, can_manage_courses ?? false, req.params.id, req.user.id]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Assistant not found' });
+    invalidatePermissions(parseInt(req.params.id));
     res.json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
@@ -53,6 +55,7 @@ router.delete('/:id', requireRole('teacher'), async (req, res) => {
   try {
     const result = await pool.query('DELETE FROM assistants WHERE id=$1 AND teacher_id=$2 RETURNING id', [req.params.id, req.user.id]);
     if (!result.rows.length) return res.status(404).json({ error: 'Assistant not found' });
+    invalidatePermissions(parseInt(req.params.id));
     res.json({ message: 'Assistant deleted' });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });

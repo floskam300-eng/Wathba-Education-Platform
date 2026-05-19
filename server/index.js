@@ -11,7 +11,18 @@ const { initFCM } = require('./lib/fcm');
 
 const app = express();
 app.set('trust proxy', 1);
-app.use(cors({ origin: '*' }));
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+  : null;
+app.use(cors({
+  origin: process.env.NODE_ENV === 'production' && allowedOrigins
+    ? (origin, cb) => {
+        if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+        return cb(new Error('Not allowed by CORS'));
+      }
+    : '*',
+  credentials: true,
+}));
 app.use((req, res, next) => {
   if (req.is('multipart/form-data')) return next();
   express.json({ limit: '50mb' })(req, res, next);
