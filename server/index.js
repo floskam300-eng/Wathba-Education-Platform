@@ -87,6 +87,7 @@ const initDB = async () => {
         ['admin', hashed, 'المعلم الافتراضي', 'مرحباً بك في منصة وثبة التعليمية', 'مدرس رياضيات', '+201000000000']
       );
       console.log('Default teacher created: username=admin, password=admin123');
+      console.warn('⚠️  SECURITY WARNING: Change the default admin password immediately via Settings!');
     }
   } catch (err) {
     console.error('DB init error:', err.message);

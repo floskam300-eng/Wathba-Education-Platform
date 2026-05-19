@@ -75,9 +75,10 @@ export default function TeacherStudents() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [createdStudent, setCreatedStudent] = useState(null);
 
-  const { data: students = [], isLoading } = useQuery({
+  const { data: students = [], isLoading, isFetching } = useQuery({
     queryKey: ['students', debouncedSearch],
     queryFn: () => api.get('/students', { params: debouncedSearch ? { search: debouncedSearch } : {} }).then(r => r.data),
+    placeholderData: (prev) => prev,
   });
 
   const { data: results = [] } = useQuery({
@@ -349,7 +350,10 @@ export default function TeacherStudents() {
       {/* Search */}
       <div className="card !p-4">
         <div className="relative">
-          <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+          {isFetching && !isLoading
+            ? <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-orange-500 animate-spin" />
+            : <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+          }
           <input value={search} onChange={(e) => setSearch(e.target.value)}
             placeholder="بحث بالاسم أو اسم المستخدم أو الهاتف..."
             className="input-field pr-10" />

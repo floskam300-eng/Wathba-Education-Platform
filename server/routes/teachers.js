@@ -331,7 +331,7 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
         );
         sectionMap[s.id] = r.rows[0].id;
         stats.sections++;
-      } catch (e) { /* silent */ }
+      } catch (e) { stats.errors.push(`قسم "${s.title}": ${e.message}`); }
     }
 
     // 3. Import videos
@@ -346,7 +346,7 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
            v.sort_order || 0, v.section_id ? (sectionMap[v.section_id] || null) : null, v.created_at || new Date()]
         );
         stats.videos++;
-      } catch (e) { /* silent */ }
+      } catch (e) { stats.errors.push(`فيديو "${v.title}": ${e.message}`); }
     }
 
     // 4. Import PDFs
@@ -360,7 +360,7 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
            p.section_id ? (sectionMap[p.section_id] || null) : null, p.created_at || new Date()]
         );
         stats.pdfs++;
-      } catch (e) { /* silent */ }
+      } catch (e) { stats.errors.push(`PDF "${p.title}": ${e.message}`); }
     }
 
     // 5. Import exams
@@ -395,7 +395,7 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
            q.points || 1, newExamId, q.question_type || 'mcq']
         );
         stats.questions++;
-      } catch (e) { /* silent */ }
+      } catch (e) { stats.errors.push(`سؤال في اختبار "${q.exam_id}": ${e.message}`); }
     }
 
     // 7. Import students

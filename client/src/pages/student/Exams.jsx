@@ -36,13 +36,23 @@ const getExamScheduleStatus = (ex) => {
   return 'open';
 };
 
-function useCountdownTick() {
-  const [, setTick] = useState(0);
+// Isolated countdown badge — manages its own 1s timer to avoid re-rendering the whole page
+const ExamCountdownBadge = React.memo(function ExamCountdownBadge({ targetDate }) {
+  const [display, setDisplay] = useState(() => formatCountdown(new Date(targetDate).getTime() - Date.now()));
   useEffect(() => {
-    const id = setInterval(() => setTick(t => t + 1), 1000);
+    const id = setInterval(() => {
+      const msLeft = new Date(targetDate).getTime() - Date.now();
+      setDisplay(msLeft > 0 ? formatCountdown(msLeft) : null);
+    }, 1000);
     return () => clearInterval(id);
-  }, []);
-}
+  }, [targetDate]);
+  if (!display) return null;
+  return (
+    <span className="text-xs font-black text-orange-700 bg-orange-100 rounded-lg px-2 py-0.5 tabular-nums tracking-wider">
+      ⏳ {display}
+    </span>
+  );
+});
 
 function formatCountdown(ms) {
   if (ms <= 0) return null;
@@ -69,8 +79,6 @@ export default function StudentExams() {
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [retryModal, setRetryModal] = useState(null);
   const [retryMessage, setRetryMessage] = useState('');
-
-  useCountdownTick();
 
   const answersRef = useRef({});
   useEffect(() => { answersRef.current = answers; }, [answers]);
@@ -518,24 +526,16 @@ export default function StudentExams() {
                     </div>
                   )}
 
-                  {isUpcoming && ex.start_date && (() => {
-                    const msLeft = new Date(ex.start_date).getTime() - Date.now();
-                    const cd = formatCountdown(msLeft);
-                    return (
-                      <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-3 py-2 mb-3">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-xs text-yellow-800 font-bold">
-                            يبدأ في: {new Date(ex.start_date).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' })}
-                          </span>
-                          {cd && (
-                            <span className="text-xs font-black text-orange-700 bg-orange-100 rounded-lg px-2 py-0.5 tabular-nums tracking-wider">
-                              ⏳ {cd}
-                            </span>
-                          )}
-                        </div>
+                  {isUpcoming && ex.start_date && (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-3 py-2 mb-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs text-yellow-800 font-bold">
+                          يبدأ في: {new Date(ex.start_date).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' })}
+                        </span>
+                        <ExamCountdownBadge targetDate={ex.start_date} />
                       </div>
-                    );
-                  })()}
+                    </div>
+                  )}
 
                   {ex.already_taken ? (() => {
                     const passed = ex.score >= ex.pass_score;

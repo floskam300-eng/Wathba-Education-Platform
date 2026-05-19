@@ -34,6 +34,19 @@ const uploadQuestionImage = multer({
 
 const getTeacherId = (req) => req.user.role === 'teacher' ? req.user.id : req.user.teacher_id;
 
+// ── Middleware: assistants must have can_manage_exams ──
+const checkManageExamsPerm = async (req, res, next) => {
+  if (req.user.role === 'teacher') return next();
+  try {
+    const r = await pool.query('SELECT can_manage_exams FROM assistants WHERE id=$1', [req.user.id]);
+    if (!r.rows.length || !r.rows[0].can_manage_exams)
+      return res.status(403).json({ error: 'Access denied: missing permission (can_manage_exams)' });
+    next();
+  } catch {
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
 const verifyExamOwnership = async (examId, teacherId) => {
   const r = await pool.query('SELECT id FROM exams WHERE id=$1 AND teacher_id=$2', [examId, teacherId]);
   return r.rows.length > 0;
@@ -70,7 +83,7 @@ router.get('/', requireRole('teacher', 'assistant'), async (req, res) => {
 
 
 // ── Create exam ──
-router.post('/', requireRole('teacher', 'assistant'), validateExam, async (req, res) => {
+router.post('/', requireRole('teacher', 'assistant'), checkManageExamsPerm, validateExam, async (req, res) => {
   const teacherId = getTeacherId(req);
   const { title, duration_minutes, total_score, course_id, pass_score, badge_name, badge_color, start_date, end_date, shuffle_questions, shuffle_options, question_source, bank_id, bank_question_count, points_on_attempt, points_on_pass } = req.body;
   try {
@@ -99,7 +112,7 @@ router.post('/', requireRole('teacher', 'assistant'), validateExam, async (req, 
 });
 
 // ── Update exam ──
-router.put('/:id', requireRole('teacher', 'assistant'), validateExam, async (req, res) => {
+router.put('/:id', requireRole('teacher', 'assistant'), checkManageExamsPerm, validateExam, async (req, res) => {
   const teacherId = getTeacherId(req);
   const { title, duration_minutes, total_score, course_id, pass_score, badge_name, badge_color, start_date, end_date, shuffle_questions, shuffle_options, question_source, bank_id, bank_question_count, points_on_attempt, points_on_pass } = req.body;
   try {
@@ -125,7 +138,7 @@ router.put('/:id', requireRole('teacher', 'assistant'), validateExam, async (req
 });
 
 // ── Toggle publish exam ──
-router.put('/:id/publish', requireRole('teacher', 'assistant'), async (req, res) => {
+router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
   try {
     // Get current exam state before toggling
@@ -269,7 +282,7 @@ router.post('/upload-question-image', requireRole('teacher', 'assistant'), uploa
 });
 
 // ── Delete exam ──
-router.delete('/:id', requireRole('teacher', 'assistant'), async (req, res) => {
+router.delete('/:id', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
   try {
     const result = await pool.query('DELETE FROM exams WHERE id=$1 AND teacher_id=$2 RETURNING id', [req.params.id, teacherId]);
@@ -295,7 +308,7 @@ router.get('/:id/questions', requireRole('teacher', 'assistant'), async (req, re
 });
 
 // ── Add question ──
-router.post('/:id/questions', requireRole('teacher', 'assistant'), async (req, res) => {
+router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
   const { question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, question_type } = req.body;
   try {
@@ -321,7 +334,7 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), async (req, r
 });
 
 // ── Update question ──
-router.put('/questions/:qid', requireRole('teacher', 'assistant'), async (req, res) => {
+router.put('/questions/:qid', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
   const { question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, question_type } = req.body;
   try {
@@ -343,7 +356,7 @@ router.put('/questions/:qid', requireRole('teacher', 'assistant'), async (req, r
 });
 
 // ── Delete question ──
-router.delete('/questions/:qid', requireRole('teacher', 'assistant'), async (req, res) => {
+router.delete('/questions/:qid', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
   try {
     if (!(await verifyQuestionOwnership(req.params.qid, teacherId))) {
@@ -621,6 +634,17 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
       );
       if (!retryApproved.rows.length) {
         return res.status(409).json({ error: 'لقد أديت هذا الاختبار مسبقاً' });
+      }
+      // ── Deduct previously earned points before deleting the old result ──
+      const oldResult = await pool.query(
+        'SELECT points_earned FROM exam_results WHERE student_id=$1 AND exam_id=$2',
+        [studentId, examId]
+      );
+      if (oldResult.rows.length && oldResult.rows[0].points_earned > 0) {
+        await pool.query(
+          'UPDATE students SET points = GREATEST(0, points - $1) WHERE id=$2',
+          [oldResult.rows[0].points_earned, studentId]
+        );
       }
       await pool.query('DELETE FROM exam_results WHERE student_id=$1 AND exam_id=$2', [studentId, examId]);
       await pool.query(

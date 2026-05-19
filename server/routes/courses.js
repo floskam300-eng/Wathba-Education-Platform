@@ -458,10 +458,11 @@ router.delete('/:id/videos/:videoId', requireRole('teacher', 'assistant'), check
     const v = await pool.query('SELECT file_path_or_url FROM videos WHERE id=$1 AND course_id=$2', [req.params.videoId, req.params.id]);
     if (!v.rows.length) return res.status(404).json({ error: 'Video not found' });
     if (v.rows[0].file_path_or_url?.startsWith('/uploads/')) {
-      const fp = path.join(__dirname, '../../', v.rows[0].file_path_or_url);
-      if (fs.existsSync(fp)) fs.unlinkSync(fp);
+      const uploadsRoot = path.resolve(__dirname, '../../uploads');
+      const fp = path.resolve(__dirname, '../../', v.rows[0].file_path_or_url.replace(/^\//, ''));
+      if (fp.startsWith(uploadsRoot) && fs.existsSync(fp)) fs.unlinkSync(fp);
     }
-    await pool.query('DELETE FROM videos WHERE id=$1', [req.params.videoId]);
+    await pool.query('DELETE FROM videos WHERE id=$1 AND course_id=$2', [req.params.videoId, req.params.id]);
     res.json({ message: 'Video deleted' });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
@@ -477,10 +478,11 @@ router.delete('/:id/pdfs/:pdfId', requireRole('teacher', 'assistant'), checkMana
     const p = await pool.query('SELECT file_url FROM pdf_files WHERE id=$1 AND course_id=$2', [req.params.pdfId, req.params.id]);
     if (!p.rows.length) return res.status(404).json({ error: 'PDF not found' });
     if (p.rows[0].file_url?.startsWith('/uploads/')) {
-      const fp = path.join(__dirname, '../../', p.rows[0].file_url);
-      if (fs.existsSync(fp)) fs.unlinkSync(fp);
+      const uploadsRoot = path.resolve(__dirname, '../../uploads');
+      const fp = path.resolve(__dirname, '../../', p.rows[0].file_url.replace(/^\//, ''));
+      if (fp.startsWith(uploadsRoot) && fs.existsSync(fp)) fs.unlinkSync(fp);
     }
-    await pool.query('DELETE FROM pdf_files WHERE id=$1', [req.params.pdfId]);
+    await pool.query('DELETE FROM pdf_files WHERE id=$1 AND course_id=$2', [req.params.pdfId, req.params.id]);
     res.json({ message: 'PDF deleted' });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
