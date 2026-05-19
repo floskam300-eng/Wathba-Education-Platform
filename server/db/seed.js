@@ -154,10 +154,10 @@ async function seed() {
     const [r] = await q(
       `INSERT INTO students
          (username, password, name, phone, parent_phone, academic_stage, gender,
-          teacher_id, points, plain_password, fcm_token)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+          teacher_id, points, fcm_token)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
        RETURNING id, username, academic_stage`,
-      [un, pass, name, ph, pph, stage, gender, T, pts, '123456', null]
+      [un, pass, name, ph, pph, stage, gender, T, pts, null]
     );
     students.push(r);
   }
