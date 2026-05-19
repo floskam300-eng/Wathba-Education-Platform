@@ -327,35 +327,6 @@ export default function StudentLayout() {
         WebkitUserSelect: 'none',
       }}
     >
-      {/* ── Watermark overlay — visible in screenshots ── */}
-      <div
-        aria-hidden="true"
-        style={{
-          position: 'fixed', inset: 0, zIndex: 9996,
-          pointerEvents: 'none', overflow: 'hidden',
-          userSelect: 'none', WebkitUserSelect: 'none',
-        }}
-      >
-        {Array.from({ length: 48 }).map((_, i) => (
-          <div
-            key={i}
-            style={{
-              position: 'absolute',
-              top: `${(i % 8) * 13}%`,
-              left: `${Math.floor(i / 8) * 22 - 8}%`,
-              transform: 'rotate(-28deg)',
-              color: 'rgba(120,120,120,0.09)',
-              fontSize: '13px',
-              fontWeight: 900,
-              whiteSpace: 'nowrap',
-              direction: 'rtl',
-              letterSpacing: '0.04em',
-            }}
-          >
-            {user?.name} — {user?.id}
-          </div>
-        ))}
-      </div>
 
       {captureWarning && (
         <div

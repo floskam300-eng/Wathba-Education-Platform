@@ -32,8 +32,6 @@ export default function JitsiMeet({
 }) {
   const containerRef = useRef(null);
   const apiRef       = useRef(null);
-  // Keep onLeft in a ref so the Jitsi event listener always calls the latest version
-  // without needing to recreate the entire Jitsi instance when the prop changes
   const onLeftRef    = useRef(onLeft);
   useEffect(() => { onLeftRef.current = onLeft; }, [onLeft]);
 
@@ -43,42 +41,52 @@ export default function JitsiMeet({
     loadJitsiScript().then(() => {
       if (!mounted || !containerRef.current || apiRef.current) return;
 
+      const teacherToolbar = [
+        'microphone', 'camera', 'desktop',
+        'fullscreen', 'fodeviceselection',
+        'hangup', 'tileview', 'settings',
+        'recording', 'livestreaming',
+        'participants-pane', 'mute-everyone',
+      ];
+
+      const studentToolbar = [
+        'microphone', 'camera',
+        'fullscreen', 'hangup', 'tileview',
+        'fodeviceselection', 'raisehand',
+      ];
+
       const api = new window.JitsiMeetExternalAPI(JITSI_DOMAIN, {
         roomName,
         parentNode: containerRef.current,
         userInfo: { displayName },
         configOverwrite: {
-          startWithAudioMuted:  false,
-          startWithVideoMuted:  false,
-          prejoinPageEnabled:   false,
-          disableDeepLinking:   true,
-          defaultLanguage:      'ar',
-          disableInviteFunctions: true,
-          enableNoAudioDetection: false,
+          startWithAudioMuted:     !isTeacher,
+          startWithVideoMuted:     !isTeacher,
+          prejoinPageEnabled:      false,
+          disableDeepLinking:      true,
+          defaultLanguage:         'ar',
+          disableInviteFunctions:  true,
+          enableNoAudioDetection:  false,
           enableNoisyMicDetection: false,
-          toolbarConfig: { alwaysVisible: true },
+          disableScreensharing:    !isTeacher,
+          toolbarConfig:           { alwaysVisible: true },
         },
         interfaceConfigOverwrite: {
-          TOOLBAR_BUTTONS: [
-            'microphone', 'camera', 'desktop',
-            'fullscreen', 'fodeviceselection',
-            'hangup', 'tileview', 'settings',
-          ],
-          SHOW_JITSI_WATERMARK:       false,
-          SHOW_WATERMARK_FOR_GUESTS:  false,
-          SHOW_BRAND_WATERMARK:       false,
+          TOOLBAR_BUTTONS: isTeacher ? teacherToolbar : studentToolbar,
+          SHOW_JITSI_WATERMARK:             false,
+          SHOW_WATERMARK_FOR_GUESTS:        false,
+          SHOW_BRAND_WATERMARK:             false,
           DISABLE_JOIN_LEAVE_NOTIFICATIONS: false,
-          DEFAULT_REMOTE_DISPLAY_NAME: 'مشارك',
-          LANG_DETECTION: false,
-          RECENT_LIST_ENABLED: false,
-          HIDE_INVITE_MORE_HEADER: true,
-          DISABLE_PRESENCE_STATUS: true,
+          DEFAULT_REMOTE_DISPLAY_NAME:      'مشارك',
+          LANG_DETECTION:                   false,
+          RECENT_LIST_ENABLED:              false,
+          HIDE_INVITE_MORE_HEADER:          true,
+          DISABLE_PRESENCE_STATUS:          true,
         },
       });
 
       apiRef.current = api;
 
-      // Use ref so callback is never stale even if parent re-renders
       api.addEventListener('videoConferenceLeft', () => {
         if (onLeftRef.current) onLeftRef.current();
       });

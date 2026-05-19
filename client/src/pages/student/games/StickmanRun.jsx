@@ -528,8 +528,16 @@ export default function StickmanRun({ onClose, academicStage }) {
     };
 
     let animId;
-    const loop = () => {
+    let lastFrameTime = 0;
+    const TARGET_MS = 1000 / 60;
+    const loop = (now) => {
       const state = stateRef.current; if (!state) return;
+      const elapsed = now - lastFrameTime;
+      if (elapsed < TARGET_MS - 1) {
+        animId = requestAnimationFrame(loop);
+        return;
+      }
+      lastFrameTime = now - (elapsed % TARGET_MS);
 
       if (state.phase === 'running') {
         state.frame++;

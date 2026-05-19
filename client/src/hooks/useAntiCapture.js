@@ -30,7 +30,6 @@ export function useAntiCapture({ onAttempt } = {}) {
     };
     document.addEventListener('keydown', blockKeys, true);
 
-    // Also catch PrintScreen on keyup (some OS fire after capture)
     const blockKeyUp = (e) => {
       if (e.key === 'PrintScreen') {
         try { navigator.clipboard.writeText(''); } catch (_) {}
@@ -45,7 +44,6 @@ export function useAntiCapture({ onAttempt } = {}) {
     const blockSelect = (e) => e.preventDefault();
     document.addEventListener('selectstart', blockSelect);
 
-    // Block screen-share / recording via browser API
     let origGetDisplayMedia = null;
     if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
       origGetDisplayMedia = navigator.mediaDevices.getDisplayMedia.bind(navigator.mediaDevices);
@@ -55,41 +53,12 @@ export function useAntiCapture({ onAttempt } = {}) {
       };
     }
 
-    // Overlay when window loses focus (external screenshot tools)
-    // 400ms delay to avoid false triggers from accidental tab switches
-    let blurOverlay = null;
-    let blurTimer = null;
-    const showBlur = () => {
-      clearTimeout(blurTimer);
-      blurTimer = setTimeout(() => {
-        if (blurOverlay) return;
-        blurOverlay = document.createElement('div');
-        Object.assign(blurOverlay.style, {
-          position: 'fixed', inset: '0', zIndex: '2147483647',
-          background: 'rgba(0,0,0,0.97)', backdropFilter: 'blur(20px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        });
-        blurOverlay.innerHTML = '<div style="color:#ef4444;font-size:22px;font-weight:900;font-family:inherit;text-align:center;direction:rtl;padding:32px">⛔ تسجيل الشاشة ممنوع</div>';
-        document.body.appendChild(blurOverlay);
-      }, 400);
-    };
-    const hideBlur = () => {
-      clearTimeout(blurTimer);
-      if (blurOverlay) { blurOverlay.remove(); blurOverlay = null; }
-    };
-    window.addEventListener('blur', showBlur);
-    window.addEventListener('focus', hideBlur);
-
     return () => {
       document.removeEventListener('contextmenu', blockContext);
       document.removeEventListener('keydown', blockKeys, true);
       document.removeEventListener('keyup', blockKeyUp, true);
       document.removeEventListener('dragstart', blockDrag);
       document.removeEventListener('selectstart', blockSelect);
-      window.removeEventListener('blur', showBlur);
-      window.removeEventListener('focus', hideBlur);
-      clearTimeout(blurTimer);
-      hideBlur();
       if (origGetDisplayMedia && navigator.mediaDevices) {
         navigator.mediaDevices.getDisplayMedia = origGetDisplayMedia;
       }
