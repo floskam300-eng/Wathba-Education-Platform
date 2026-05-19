@@ -984,10 +984,10 @@ export default function CourseView() {
       </div>
 
       {/* ── Body ── */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex flex-col-reverse md:flex-row overflow-hidden">
 
         {/* ── Sidebar ── */}
-        <aside className="w-80 flex-shrink-0 bg-gray-900 border-l border-white/10 flex flex-col overflow-hidden order-last">
+        <aside className="w-full h-56 md:w-80 md:h-auto flex-shrink-0 bg-gray-900 border-t md:border-t-0 md:border-l border-white/10 flex flex-col overflow-hidden">
 
           {/* Course info strip */}
           <div className="flex-shrink-0 px-4 py-4 border-b border-white/10 bg-gradient-to-b from-orange-500/10 to-transparent">

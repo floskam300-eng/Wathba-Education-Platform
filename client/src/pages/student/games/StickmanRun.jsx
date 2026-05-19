@@ -364,6 +364,13 @@ export default function StickmanRun({ onClose, academicStage }) {
   const [bossesDefeated, setBossesDefeated] = useState(0);
   const [totalPoints, setTotalPoints] = useState(0);
   const [resultData, setResultData]   = useState(null);
+  const [narrow, setNarrow]           = useState(() => window.innerWidth < 520);
+
+  useEffect(() => {
+    const onResize = () => setNarrow(window.innerWidth < 520);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   const stage    = academicStage || user?.academic_stage;
   const cfg      = getGameConfig(stage);
@@ -755,7 +762,7 @@ export default function StickmanRun({ onClose, academicStage }) {
         <div style={{
           position: 'absolute', inset: 0, background: 'rgba(4,4,14,.9)',
           backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center',
-          justifyContent: 'center', padding: 28,
+          justifyContent: 'center', padding: narrow ? 16 : 28,
           animation: 'slideUp .4s cubic-bezier(.34,1.56,.64,1) both',
         }}>
           <div style={{
@@ -763,36 +770,36 @@ export default function StickmanRun({ onClose, academicStage }) {
               dialogueUI.bossIdx === 0 ? '168,85,247' : dialogueUI.bossIdx === 1 ? '236,72,153' : '251,191,36'
             },.14))`,
             border: `1.5px solid rgba(${dialogueUI.bossIdx === 0 ? '168,85,247' : dialogueUI.bossIdx === 1 ? '236,72,153' : '251,191,36'},.45)`,
-            borderRadius: 24, padding: '32px 36px', maxWidth: 500, width: '100%',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, textAlign: 'center',
+            borderRadius: 20, padding: narrow ? '20px 18px' : '32px 36px', maxWidth: 500, width: '100%',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: narrow ? 12 : 20, textAlign: 'center',
             boxShadow: `0 16px 60px rgba(${dialogueUI.bossIdx === 0 ? '168,85,247' : dialogueUI.bossIdx === 1 ? '236,72,153' : '251,191,36'},.4)`,
           }}>
             <div style={{ animation: 'punchIn .5s cubic-bezier(.34,1.56,.64,1) both' }}>
               {dlgBossImg ? (
-                <img src={dlgBossImg.src} alt="boss" style={{ width: 130, height: 130, borderRadius: 20, objectFit: 'cover', border: `3px solid ${dialogueUI.dlg.color}`, boxShadow: `0 0 32px ${dialogueUI.dlg.color}66` }} />
+                <img src={dlgBossImg.src} alt="boss" style={{ width: narrow ? 80 : 130, height: narrow ? 80 : 130, borderRadius: 16, objectFit: 'cover', border: `3px solid ${dialogueUI.dlg.color}`, boxShadow: `0 0 32px ${dialogueUI.dlg.color}66` }} />
               ) : (
-                <div style={{ fontSize: 110, lineHeight: 1, filter: `drop-shadow(0 0 26px ${dialogueUI.dlg.color})`, animation: 'bossWarn 1.2s ease-in-out infinite' }}>
+                <div style={{ fontSize: narrow ? 72 : 110, lineHeight: 1, filter: `drop-shadow(0 0 26px ${dialogueUI.dlg.color})`, animation: 'bossWarn 1.2s ease-in-out infinite' }}>
                   {dialogueUI.dlg.emoji}
                 </div>
               )}
             </div>
             <div>
-              <div style={{ color: 'rgba(255,255,255,.38)', fontSize: 13, fontWeight: 700, letterSpacing: 1 }}>{dialogueUI.dlg.subtitle}</div>
-              <div style={{ color: '#fff', fontSize: 26, fontWeight: 900, marginTop: 4 }}>{dialogueUI.dlg.title}</div>
+              <div style={{ color: 'rgba(255,255,255,.38)', fontSize: narrow ? 11 : 13, fontWeight: 700, letterSpacing: 1 }}>{dialogueUI.dlg.subtitle}</div>
+              <div style={{ color: '#fff', fontSize: narrow ? 20 : 26, fontWeight: 900, marginTop: 4 }}>{dialogueUI.dlg.title}</div>
             </div>
             <div style={{
               background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.14)',
-              borderRadius: 16, padding: '16px 22px', position: 'relative',
+              borderRadius: 14, padding: narrow ? '12px 14px' : '16px 22px', position: 'relative',
             }}>
               <div style={{ position: 'absolute', top: -10, right: 34, width: 0, height: 0, borderLeft: '10px solid transparent', borderRight: '10px solid transparent', borderBottom: '10px solid rgba(255,255,255,.14)' }} />
-              <p style={{ color: '#fff', fontSize: 16, fontWeight: 700, margin: 0 }}>{dialogueUI.dlg.taunt}</p>
+              <p style={{ color: '#fff', fontSize: narrow ? 14 : 16, fontWeight: 700, margin: 0 }}>{dialogueUI.dlg.taunt}</p>
             </div>
             <button
               onClick={() => startFightRef.current?.(dialogueUI.bossIdx)}
               style={{
-                padding: '16px 60px', borderRadius: 16, border: 'none', cursor: 'pointer',
+                padding: narrow ? '12px 36px' : '16px 60px', borderRadius: 14, border: 'none', cursor: 'pointer',
                 background: `linear-gradient(135deg, ${dialogueUI.dlg.color}, ${dialogueUI.bossIdx === 0 ? '#ec4899' : dialogueUI.bossIdx === 1 ? '#f97316' : '#f97316'})`,
-                color: '#fff', fontFamily: 'inherit', fontWeight: 900, fontSize: 20,
+                color: '#fff', fontFamily: 'inherit', fontWeight: 900, fontSize: narrow ? 16 : 20,
                 boxShadow: `0 8px 28px ${dialogueUI.dlg.color}77`,
                 animation: 'bossWarn 1.5s ease-in-out infinite',
               }}
@@ -824,17 +831,17 @@ export default function StickmanRun({ onClose, academicStage }) {
             ⏱️ الوقت المتبقي: {Math.ceil(timerPct * bossCfgs[bossUI.bossIdx].timeLimit / 100)}ث
           </div>
 
-          <div style={{ display: 'flex', gap: 20, width: '100%', maxWidth: 600, alignItems: 'flex-start' }}>
+          <div style={{ display: 'flex', flexDirection: narrow ? 'column' : 'row', gap: narrow ? 12 : 20, width: '100%', maxWidth: 600, alignItems: narrow ? 'center' : 'flex-start' }}>
             {/* Boss face */}
-            <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7 }}>
+            <div style={{ flexShrink: 0, display: 'flex', flexDirection: narrow ? 'row' : 'column', alignItems: 'center', gap: 7 }}>
               {bossImg ? (
                 <img src={bossImg.src} alt="boss"
-                  style={{ width: 100, height: 100, borderRadius: 16, objectFit: 'cover',
+                  style={{ width: narrow ? 64 : 100, height: narrow ? 64 : 100, borderRadius: 16, objectFit: 'cover',
                     border: `3px solid ${answerResult === 'correct' ? '#22c55e' : answerResult === 'wrong' ? '#ef4444' : '#fbbf24'}`,
                     animation: answerResult === 'wrong' ? 'shakeX .4s ease' : 'none',
                     boxShadow: `0 0 20px ${answerResult === 'correct' ? '#22c55e55' : answerResult === 'wrong' ? '#ef444455' : '#fbbf2455'}` }} />
               ) : (
-                <div style={{ width: 90, height: 90, fontSize: 72, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ width: narrow ? 52 : 90, height: narrow ? 52 : 90, fontSize: narrow ? 44 : 72, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {bossUI.bossIdx === 0 ? '👹' : '👾'}
                 </div>
               )}
@@ -842,21 +849,21 @@ export default function StickmanRun({ onClose, academicStage }) {
             </div>
 
             {/* Question + choices */}
-            <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ flex: 1, minWidth: 0, width: narrow ? '100%' : undefined }}>
               <div style={{
                 background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.14)',
-                borderRadius: 14, padding: '14px 18px', marginBottom: 14,
+                borderRadius: 14, padding: narrow ? '10px 12px' : '14px 18px', marginBottom: 12,
               }}>
-                <p style={{ color: 'rgba(255,255,255,.5)', fontSize: 13, margin: '0 0 8px' }}>
+                <p style={{ color: 'rgba(255,255,255,.5)', fontSize: narrow ? 12 : 13, margin: '0 0 6px' }}>
                   {answerResult === 'correct' ? bossUI.cfg.correctDialog
                     : answerResult === 'wrong' ? bossUI.cfg.wrongDialog
                     : bossUI.cfg.dialog}
                 </p>
-                <p style={{ color: '#fff', fontWeight: 900, fontSize: 17, margin: 0, lineHeight: 1.7, whiteSpace: 'pre-line' }}>
+                <p style={{ color: '#fff', fontWeight: 900, fontSize: narrow ? 15 : 17, margin: 0, lineHeight: 1.7, whiteSpace: 'pre-line' }}>
                   {bossUI.cfg.question}
                 </p>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: narrow ? 8 : 10 }}>
                 {bossUI.cfg.choices.map((ch, idx) => {
                   const sel = selectedChoice === idx, cor = idx === bossUI.cfg.correctIndex;
                   let bg = 'rgba(255,255,255,.08)', bd = '1px solid rgba(255,255,255,.16)', cl = '#fff';
@@ -871,8 +878,8 @@ export default function StickmanRun({ onClose, academicStage }) {
                     <button key={idx} disabled={!!answerResult}
                       onClick={() => { if (!answerResult) handleAnswerRef.current?.(bossUI.bossIdx, idx); }}
                       style={{
-                        background: bg, border: bd, borderRadius: 11, padding: '12px 14px',
-                        color: cl, fontFamily: 'inherit', fontWeight: 700, fontSize: 15,
+                        background: bg, border: bd, borderRadius: 11, padding: narrow ? '10px 10px' : '12px 14px',
+                        color: cl, fontFamily: 'inherit', fontWeight: 700, fontSize: narrow ? 13 : 15,
                         cursor: answerResult ? 'default' : 'pointer', textAlign: 'center',
                         transition: 'all .2s', animation: `choiceIn .3s ${.07 * idx}s both`,
                       }}>

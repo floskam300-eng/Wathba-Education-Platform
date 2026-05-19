@@ -16,55 +16,55 @@ export default function StickmanRunPage() {
     }}>
       {/* Header */}
       <div style={{
-        display: 'flex', alignItems: 'center', gap: 14,
-        padding: '8px 16px', borderBottom: '1px solid rgba(124,58,237,.2)',
+        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '8px 12px', borderBottom: '1px solid rgba(124,58,237,.2)',
         background: 'rgba(6,6,18,.97)', backdropFilter: 'blur(12px)',
-        flexShrink: 0, zIndex: 10,
+        flexShrink: 0, zIndex: 10, flexWrap: 'nowrap', minWidth: 0,
       }}>
         <button
           onClick={() => navigate('/student/events')}
           style={{
-            display: 'flex', alignItems: 'center', gap: 7, padding: '7px 13px',
+            display: 'flex', alignItems: 'center', gap: 6, padding: '7px 10px',
             borderRadius: 10, border: '1px solid rgba(255,255,255,.12)',
             background: 'rgba(255,255,255,.07)', color: 'rgba(255,255,255,.7)',
             cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: 13,
-            transition: 'all .2s',
+            transition: 'all .2s', flexShrink: 0,
           }}
           onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,.13)'; e.currentTarget.style.color = '#fff'; }}
           onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,.07)'; e.currentTarget.style.color = 'rgba(255,255,255,.7)'; }}
         >
           <ArrowRight size={15} />
-          الفعاليات
+          <span style={{ display: window.innerWidth < 380 ? 'none' : 'inline' }}>الفعاليات</span>
         </button>
 
-        <div style={{ width: 1, height: 22, background: 'rgba(255,255,255,.12)' }} />
+        <div style={{ width: 1, height: 22, background: 'rgba(255,255,255,.12)', flexShrink: 0 }} />
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
           <div style={{
-            width: 32, height: 32, borderRadius: 9, flexShrink: 0,
+            width: 30, height: 30, borderRadius: 8, flexShrink: 0,
             background: 'linear-gradient(135deg,#7c3aed,#ec4899)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: '0 4px 14px rgba(124,58,237,.5)',
           }}>
-            <Gamepad2 size={16} color="#fff" />
+            <Gamepad2 size={15} color="#fff" />
           </div>
-          <div>
-            <div style={{ color: '#fff', fontWeight: 900, fontSize: 14, lineHeight: 1.2 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ color: '#fff', fontWeight: 900, fontSize: 13, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               تحدي الأسبوعي الرياضي
             </div>
-            <div style={{ color: 'rgba(255,255,255,.4)', fontSize: 11 }}>
+            <div style={{ color: 'rgba(255,255,255,.4)', fontSize: 10, whiteSpace: 'nowrap' }}>
               مرة واحدة في الأسبوع • حتى 300 نقطة
             </div>
           </div>
         </div>
 
         <div style={{
-          display: 'flex', alignItems: 'center', gap: 6,
+          display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0,
           background: 'rgba(251,191,36,.12)', border: '1px solid rgba(251,191,36,.28)',
-          borderRadius: 8, padding: '4px 11px',
-          color: '#fbbf24', fontSize: 13, fontWeight: 700,
+          borderRadius: 8, padding: '4px 9px',
+          color: '#fbbf24', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
         }}>
-          ⭐ {user?.points?.toLocaleString('ar-EG') || '0'} نقطة
+          ⭐ {user?.points?.toLocaleString('ar-EG') || '0'}
         </div>
       </div>
 
