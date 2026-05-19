@@ -1,24 +1,26 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
-import { Eye, EyeOff, LogIn, Lock, User } from 'lucide-react';
-import WathbaLogo from '../assets/wathba_logo.png';
+import {
+  Eye, EyeOff, LogIn, Lock, User,
+  BookOpen, Users, BarChart2, Award, Video, FileText,
+} from 'lucide-react';
+import WathbaLogo from '../assets/wathba_logo_new.png';
 
-const PARTICLES = Array.from({ length: 18 }, (_, i) => ({
-  id: i,
-  size: Math.random() * 3 + 1,
-  x: Math.random() * 100,
-  y: Math.random() * 100,
-  delay: Math.random() * 6,
-  duration: Math.random() * 8 + 10,
-  opacity: Math.random() * 0.4 + 0.1,
-}));
+const FEATURES = [
+  { icon: BookOpen,  title: 'كورسات تفاعلية',    desc: 'محتوى فيديو منظّم مع متابعة تقدم الطالب' },
+  { icon: FileText,  title: 'امتحانات ذكية',      desc: 'بنك أسئلة متنوع مع تحليل فوري للنتائج' },
+  { icon: BarChart2, title: 'تحليلات متقدمة',     desc: 'تقارير أداء تفصيلية للطلاب والمعلمين' },
+  { icon: Award,     title: 'نقاط وشارات',        desc: 'نظام تحفيز يشجع الطلاب على التفوق' },
+  { icon: Users,     title: 'إدارة شاملة',        desc: 'إدارة الطلاب والمساعدين والمدفوعات' },
+  { icon: Video,     title: 'بث مباشر',           desc: 'حصص مباشرة تفاعلية مع الطلاب' },
+];
 
-const ORBS = [
-  { w: 420, h: 420, top: '-10%', left: '-8%', color: 'rgba(245,166,35,0.13)', blur: 90 },
-  { w: 320, h: 320, top: '55%', right: '-6%', color: 'rgba(245,166,35,0.09)', blur: 80 },
-  { w: 250, h: 250, top: '30%', left: '45%', color: 'rgba(99,102,241,0.07)', blur: 70 },
+const STATS = [
+  { value: '١٠٠٠+', label: 'طالب مسجل' },
+  { value: '٥٠+',   label: 'كورس متاح' },
+  { value: '٩٨٪',   label: 'رضا الطلاب' },
 ];
 
 export default function Login() {
@@ -29,61 +31,364 @@ export default function Login() {
   const [focused, setFocused] = useState(null);
   const { login } = useAuth();
   const navigate = useNavigate();
-  const formRef = useRef(null);
 
   useEffect(() => {
-    const style = document.createElement('style');
-    style.id = 'login-animations';
-    style.textContent = `
-      @keyframes floatUp {
-        0%   { transform: translateY(0px) scale(1);   opacity: var(--op); }
-        50%  { transform: translateY(-28px) scale(1.1); opacity: calc(var(--op) * 1.5); }
-        100% { transform: translateY(0px) scale(1);   opacity: var(--op); }
+    const s = document.createElement('style');
+    s.id = 'login-page-styles';
+    s.textContent = `
+      .lp-root {
+        min-height: 100vh;
+        display: flex;
+        direction: rtl;
+        font-family: 'Cairo', sans-serif;
+        background: #080711;
       }
-      @keyframes loginSlideIn {
-        from { opacity: 0; transform: translateY(28px); }
-        to   { opacity: 1; transform: translateY(0); }
+
+      /* ─── Left panel (info) ─── */
+      .lp-left {
+        position: relative;
+        width: 52%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 3rem 3.5rem;
+        overflow: hidden;
+        background: linear-gradient(155deg, #0E0B1A 0%, #130F22 50%, #0A0914 100%);
       }
-      @keyframes logoFloat {
-        0%,100% { transform: translateY(0px); }
-        50%      { transform: translateY(-6px); }
+      .lp-left::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23F5A623' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+        pointer-events: none;
       }
-      @keyframes shimmer {
-        0%   { background-position: -200% center; }
-        100% { background-position:  200% center; }
+      .lp-orb1 {
+        position: absolute;
+        width: 500px; height: 500px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(245,166,35,0.12) 0%, transparent 70%);
+        top: -120px; right: -100px;
+        pointer-events: none;
       }
-      @keyframes spin360 {
-        from { transform: rotate(0deg); }
-        to   { transform: rotate(360deg); }
+      .lp-orb2 {
+        position: absolute;
+        width: 380px; height: 380px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 70%);
+        bottom: -80px; left: -60px;
+        pointer-events: none;
       }
-      .login-card-anim { animation: loginSlideIn 0.7s cubic-bezier(.22,1,.36,1) both; }
-      .logo-float      { animation: logoFloat 3.5s ease-in-out infinite; }
-      .shimmer-text {
-        background: linear-gradient(90deg, #F5A623 0%, #FCD577 40%, #F5A623 60%, #E8870A 100%);
-        background-size: 200% auto;
+
+      /* ─── Right panel (form) ─── */
+      .lp-right {
+        width: 48%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 3rem 2.5rem;
+        background: #0B0A14;
+        position: relative;
+      }
+      .lp-right::before {
+        content: '';
+        position: absolute;
+        top: 0; right: 0;
+        width: 1px;
+        height: 100%;
+        background: linear-gradient(to bottom, transparent 0%, rgba(245,166,35,0.25) 30%, rgba(245,166,35,0.25) 70%, transparent 100%);
+      }
+
+      /* ─── Logo ─── */
+      .lp-logo {
+        display: block;
+        width: 220px;
+        margin-bottom: 2rem;
+        filter: drop-shadow(0 0 30px rgba(245,166,35,0.25));
+        animation: lp-logo-in 0.8s ease both;
+      }
+      @keyframes lp-logo-in {
+        from { opacity:0; transform:translateY(-16px); }
+        to   { opacity:1; transform:translateY(0); }
+      }
+
+      /* ─── Tagline ─── */
+      .lp-tagline {
+        font-size: 2rem;
+        font-weight: 900;
+        line-height: 1.3;
+        margin-bottom: 0.6rem;
+        background: linear-gradient(135deg, #F2EDE5 0%, #F5A623 60%, #FCD577 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
-        animation: shimmer 3s linear infinite;
       }
-      .input-glow:focus-within {
-        box-shadow: 0 0 0 2px rgba(245,166,35,0.35), 0 4px 20px rgba(245,166,35,0.12);
+      .lp-sub {
+        color: rgba(196,184,172,0.6);
+        font-size: 0.95rem;
+        margin-bottom: 2.5rem;
+        line-height: 1.6;
+        max-width: 420px;
       }
-      .btn-login {
-        background: linear-gradient(135deg, #F5A623 0%, #E8870A 100%);
-        transition: all 0.25s ease;
+
+      /* ─── Stats bar ─── */
+      .lp-stats {
+        display: flex;
+        gap: 0;
+        margin-bottom: 2.5rem;
+        border: 1px solid rgba(245,166,35,0.15);
+        border-radius: 16px;
+        overflow: hidden;
+        background: rgba(245,166,35,0.04);
+        max-width: 420px;
+        width: 100%;
+      }
+      .lp-stat {
+        flex: 1;
+        text-align: center;
+        padding: 0.9rem 0.5rem;
+        border-left: 1px solid rgba(245,166,35,0.12);
+      }
+      .lp-stat:last-child { border-left: none; }
+      .lp-stat-val {
+        display: block;
+        font-size: 1.4rem;
+        font-weight: 900;
+        color: #F5A623;
+        line-height: 1;
+        margin-bottom: 0.25rem;
+      }
+      .lp-stat-lbl {
+        font-size: 0.72rem;
+        color: rgba(196,184,172,0.55);
+        font-weight: 500;
+      }
+
+      /* ─── Feature grid ─── */
+      .lp-features {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.75rem;
+        max-width: 440px;
+        width: 100%;
+      }
+      .lp-feature {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.65rem;
+        padding: 0.9rem;
+        background: rgba(255,255,255,0.025);
+        border: 1px solid rgba(245,166,35,0.1);
+        border-radius: 14px;
+        transition: all 0.2s;
+        cursor: default;
+      }
+      .lp-feature:hover {
+        background: rgba(245,166,35,0.07);
+        border-color: rgba(245,166,35,0.25);
+        transform: translateY(-2px);
+      }
+      .lp-feature-icon {
+        width: 34px; height: 34px;
+        border-radius: 10px;
+        background: rgba(245,166,35,0.12);
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0;
+        color: #F5A623;
+      }
+      .lp-feature-title {
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: #F2EDE5;
+        margin-bottom: 0.15rem;
+      }
+      .lp-feature-desc {
+        font-size: 0.72rem;
+        color: rgba(138,126,114,0.85);
+        line-height: 1.45;
+      }
+
+      /* ─── Form card ─── */
+      .lp-form-card {
+        width: 100%;
+        max-width: 380px;
+        animation: lp-form-in 0.7s 0.15s cubic-bezier(.22,1,.36,1) both;
+      }
+      @keyframes lp-form-in {
+        from { opacity:0; transform:translateY(24px); }
+        to   { opacity:1; transform:translateY(0); }
+      }
+
+      .lp-form-title {
+        font-size: 1.5rem;
+        font-weight: 900;
+        color: #F2EDE5;
+        margin-bottom: 0.3rem;
+        text-align: center;
+      }
+      .lp-form-subtitle {
+        font-size: 0.82rem;
+        color: rgba(138,126,114,0.75);
+        text-align: center;
+        margin-bottom: 2rem;
+      }
+
+      /* ─── Input group ─── */
+      .lp-field-label {
+        display: block;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: rgba(196,184,172,0.8);
+        margin-bottom: 0.45rem;
+      }
+      .lp-input-wrap {
+        position: relative;
+        border-radius: 12px;
+        border: 1.5px solid rgba(245,166,35,0.15);
+        background: rgba(10,9,20,0.8);
+        transition: border-color 0.2s, box-shadow 0.2s;
+        margin-bottom: 1.1rem;
+      }
+      .lp-input-wrap.focused {
+        border-color: rgba(245,166,35,0.55);
+        box-shadow: 0 0 0 3px rgba(245,166,35,0.1);
+      }
+      .lp-input-icon {
+        position: absolute;
+        right: 13px;
+        top: 50%; transform: translateY(-50%);
+        color: rgba(138,126,114,0.6);
+        transition: color 0.2s;
+        pointer-events: none;
+      }
+      .lp-input-wrap.focused .lp-input-icon { color: #F5A623; }
+      .lp-input {
+        width: 100%;
+        background: transparent;
+        border: none;
+        outline: none;
+        padding: 0.72rem 2.4rem 0.72rem 0.9rem;
+        color: #F2EDE5;
+        font-size: 0.9rem;
+        font-family: 'Cairo', sans-serif;
+        border-radius: 12px;
+        direction: ltr;
+        text-align: left;
+      }
+      .lp-input::placeholder { color: rgba(138,126,114,0.5); }
+      .lp-eye-btn {
+        position: absolute;
+        left: 11px;
+        top: 50%; transform: translateY(-50%);
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: rgba(138,126,114,0.6);
+        display: flex; align-items: center;
+        padding: 3px;
+        transition: color 0.2s;
+      }
+      .lp-eye-btn:hover { color: #F5A623; }
+
+      /* ─── Submit btn ─── */
+      .lp-submit {
+        width: 100%;
+        border: none;
+        border-radius: 12px;
+        padding: 0.85rem;
+        font-size: 0.95rem;
+        font-weight: 700;
+        font-family: 'Cairo', sans-serif;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        background: linear-gradient(135deg, #F5A623 0%, #E07B0A 100%);
+        color: #fff;
         box-shadow: 0 4px 20px rgba(245,166,35,0.35);
+        transition: all 0.25s;
+        margin-bottom: 1.25rem;
       }
-      .btn-login:hover:not(:disabled) {
+      .lp-submit:hover:not(:disabled) {
         transform: translateY(-2px);
         box-shadow: 0 8px 28px rgba(245,166,35,0.5);
       }
-      .btn-login:active:not(:disabled) {
-        transform: translateY(0px);
+      .lp-submit:active:not(:disabled) { transform: translateY(0); }
+      .lp-submit:disabled { opacity: 0.65; cursor: not-allowed; }
+
+      /* ─── Hint box ─── */
+      .lp-hint {
+        padding: 0.7rem 1rem;
+        background: rgba(245,166,35,0.07);
+        border: 1px solid rgba(245,166,35,0.18);
+        border-radius: 10px;
+        text-align: center;
+        font-size: 0.75rem;
+        color: rgba(196,184,172,0.7);
+      }
+      .lp-hint span {
+        font-family: monospace;
+        color: #F5A623;
+        font-weight: 700;
+      }
+
+      /* ─── Spinner ─── */
+      @keyframes lp-spin { to { transform: rotate(360deg); } }
+      .lp-spinner {
+        width: 18px; height: 18px;
+        border: 2.5px solid rgba(255,255,255,0.3);
+        border-top-color: #fff;
+        border-radius: 50%;
+        animation: lp-spin 0.7s linear infinite;
+      }
+
+      /* ─── Divider ─── */
+      .lp-divider {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 1.5rem;
+      }
+      .lp-divider-line {
+        flex: 1;
+        height: 1px;
+        background: rgba(245,166,35,0.12);
+      }
+      .lp-divider-text {
+        font-size: 0.72rem;
+        color: rgba(138,126,114,0.5);
+        white-space: nowrap;
+      }
+
+      /* ─── Right panel logo (mobile) ─── */
+      .lp-right-logo {
+        display: none;
+        width: 130px;
+        margin-bottom: 1.5rem;
+        filter: drop-shadow(0 0 20px rgba(245,166,35,0.2));
+      }
+
+      /* ─── Footer ─── */
+      .lp-footer {
+        position: absolute;
+        bottom: 1.25rem;
+        font-size: 0.7rem;
+        color: rgba(138,126,114,0.35);
+        text-align: center;
+        width: 100%;
+      }
+
+      /* ─── Responsive ─── */
+      @media (max-width: 900px) {
+        .lp-left  { display: none; }
+        .lp-right { width: 100%; padding: 2rem 1.5rem; }
+        .lp-right::before { display: none; }
+        .lp-right-logo { display: block; }
       }
     `;
-    document.head.appendChild(style);
-    return () => document.head.removeChild(style);
+    document.head.appendChild(s);
+    return () => { const el = document.getElementById('login-page-styles'); if (el) el.remove(); };
   }, []);
 
   const handleSubmit = async (e) => {
@@ -102,314 +407,127 @@ export default function Login() {
   };
 
   return (
-    <div
-      dir="rtl"
-      style={{
-        minHeight: '100vh',
-        background: 'linear-gradient(145deg, #0A0910 0%, #0F0E17 40%, #130E1A 70%, #0C0B14 100%)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '1rem',
-        position: 'relative',
-        overflow: 'hidden',
-        fontFamily: "'Cairo', sans-serif",
-      }}
-    >
-      {ORBS.map((o, i) => (
-        <div
-          key={i}
-          style={{
-            position: 'absolute',
-            width: o.w,
-            height: o.h,
-            top: o.top,
-            left: o.left,
-            right: o.right,
-            borderRadius: '50%',
-            background: o.color,
-            filter: `blur(${o.blur}px)`,
-            pointerEvents: 'none',
-          }}
-        />
-      ))}
+    <div className="lp-root">
 
-      {PARTICLES.map((p) => (
-        <div
-          key={p.id}
-          style={{
-            position: 'absolute',
-            width: p.size,
-            height: p.size,
-            borderRadius: '50%',
-            top: `${p.y}%`,
-            left: `${p.x}%`,
-            background: '#F5A623',
-            '--op': p.opacity,
-            opacity: p.opacity,
-            animation: `floatUp ${p.duration}s ${p.delay}s ease-in-out infinite`,
-            pointerEvents: 'none',
-          }}
-        />
-      ))}
+      {/* ═══ LEFT PANEL ═══ */}
+      <div className="lp-left">
+        <div className="lp-orb1" />
+        <div className="lp-orb2" />
 
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          backgroundImage: `
-            linear-gradient(rgba(245,166,35,0.03) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(245,166,35,0.03) 1px, transparent 1px)
-          `,
-          backgroundSize: '60px 60px',
-          pointerEvents: 'none',
-        }}
-      />
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <img src={WathbaLogo} alt="وثبة" className="lp-logo" />
 
-      <div style={{ width: '100%', maxWidth: 420, position: 'relative', zIndex: 10 }}>
-        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <div
-            className="logo-float"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 88,
-              height: 88,
-              borderRadius: 24,
-              background: 'linear-gradient(145deg, #1E1B2E, #272239)',
-              border: '1px solid rgba(245,166,35,0.3)',
-              boxShadow: '0 0 40px rgba(245,166,35,0.2), inset 0 1px 0 rgba(255,255,255,0.06)',
-              marginBottom: '1rem',
-              overflow: 'hidden',
-              padding: 6,
-            }}
-          >
-            <img src={WathbaLogo} alt="وثبة" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-          </div>
-
-          <h1
-            className="shimmer-text"
-            style={{ fontSize: '2.5rem', fontWeight: 900, margin: 0, letterSpacing: '-0.5px' }}
-          >
-            وثبة
+          <h1 className="lp-tagline">
+            قفزة نحو التميّز<br />التعليمي
           </h1>
-          <p style={{ color: 'rgba(196,184,172,0.7)', fontSize: '0.85rem', marginTop: '0.35rem', fontWeight: 500 }}>
-            المنصة التعليمية المتكاملة
+          <p className="lp-sub">
+            منصة وثبة التعليمية — بيئة متكاملة تجمع المعلمين والطلاب في تجربة تعليمية
+            احترافية تشمل الكورسات والامتحانات والتحليلات والتواصل المباشر.
           </p>
-        </div>
 
-        <div
-          className="login-card-anim"
-          style={{
-            background: 'linear-gradient(160deg, rgba(30,27,46,0.95) 0%, rgba(20,18,34,0.98) 100%)',
-            borderRadius: 24,
-            border: '1px solid rgba(245,166,35,0.18)',
-            boxShadow: '0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.03), inset 0 1px 0 rgba(255,255,255,0.05)',
-            padding: '2.25rem 2rem',
-            backdropFilter: 'blur(20px)',
-          }}
-        >
-          <div style={{ marginBottom: '1.75rem', textAlign: 'center' }}>
-            <h2 style={{ color: '#F2EDE5', fontSize: '1.2rem', fontWeight: 700, margin: 0 }}>
-              تسجيل الدخول
-            </h2>
-            <p style={{ color: 'rgba(138,126,114,0.9)', fontSize: '0.8rem', marginTop: '0.3rem' }}>
-              أدخل بياناتك للوصول إلى حسابك
-            </p>
+          {/* Stats */}
+          <div className="lp-stats">
+            {STATS.map((s) => (
+              <div key={s.label} className="lp-stat">
+                <span className="lp-stat-val">{s.value}</span>
+                <span className="lp-stat-lbl">{s.label}</span>
+              </div>
+            ))}
           </div>
 
-          <form ref={formRef} onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
-            <div>
-              <label style={{ display: 'block', color: 'rgba(196,184,172,0.85)', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.5rem' }}>
-                اسم المستخدم
-              </label>
-              <div
-                className="input-glow"
-                style={{
-                  position: 'relative',
-                  borderRadius: 12,
-                  border: focused === 'user'
-                    ? '1.5px solid rgba(245,166,35,0.55)'
-                    : '1.5px solid rgba(245,166,35,0.15)',
-                  background: 'rgba(15,14,23,0.7)',
-                  transition: 'border-color 0.2s',
-                }}
-              >
-                <User
-                  size={16}
-                  style={{
-                    position: 'absolute',
-                    right: 14,
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    color: focused === 'user' ? '#F5A623' : 'rgba(138,126,114,0.7)',
-                    transition: 'color 0.2s',
-                  }}
-                />
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  onFocus={() => setFocused('user')}
-                  onBlur={() => setFocused(null)}
-                  placeholder="أدخل اسم المستخدم"
-                  dir="ltr"
-                  autoComplete="username"
-                  style={{
-                    width: '100%',
-                    background: 'transparent',
-                    border: 'none',
-                    outline: 'none',
-                    padding: '0.7rem 2.5rem 0.7rem 0.9rem',
-                    color: '#F2EDE5',
-                    fontSize: '0.9rem',
-                    fontFamily: "'Cairo', sans-serif",
-                    borderRadius: 12,
-                    textAlign: 'left',
-                  }}
-                />
+          {/* Features */}
+          <div className="lp-features">
+            {FEATURES.map(({ icon: Icon, title, desc }) => (
+              <div key={title} className="lp-feature">
+                <div className="lp-feature-icon">
+                  <Icon size={16} />
+                </div>
+                <div>
+                  <div className="lp-feature-title">{title}</div>
+                  <div className="lp-feature-desc">{desc}</div>
+                </div>
               </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ═══ RIGHT PANEL ═══ */}
+      <div className="lp-right">
+
+        {/* Mobile-only logo */}
+        <img src={WathbaLogo} alt="وثبة" className="lp-right-logo" />
+
+        <div className="lp-form-card">
+          <h2 className="lp-form-title">مرحباً بك 👋</h2>
+          <p className="lp-form-subtitle">سجّل دخولك للوصول إلى لوحة التحكم</p>
+
+          <div className="lp-divider">
+            <div className="lp-divider-line" />
+            <span className="lp-divider-text">تسجيل الدخول</span>
+            <div className="lp-divider-line" />
+          </div>
+
+          <form onSubmit={handleSubmit}>
+            {/* Username */}
+            <label className="lp-field-label">اسم المستخدم</label>
+            <div className={`lp-input-wrap ${focused === 'user' ? 'focused' : ''}`}>
+              <User size={16} className="lp-input-icon" />
+              <input
+                className="lp-input"
+                type="text"
+                placeholder="أدخل اسم المستخدم"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                onFocus={() => setFocused('user')}
+                onBlur={() => setFocused(null)}
+                autoComplete="username"
+              />
             </div>
 
-            <div>
-              <label style={{ display: 'block', color: 'rgba(196,184,172,0.85)', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.5rem' }}>
-                كلمة المرور
-              </label>
-              <div
-                className="input-glow"
-                style={{
-                  position: 'relative',
-                  borderRadius: 12,
-                  border: focused === 'pass'
-                    ? '1.5px solid rgba(245,166,35,0.55)'
-                    : '1.5px solid rgba(245,166,35,0.15)',
-                  background: 'rgba(15,14,23,0.7)',
-                  transition: 'border-color 0.2s',
-                }}
+            {/* Password */}
+            <label className="lp-field-label">كلمة المرور</label>
+            <div className={`lp-input-wrap ${focused === 'pass' ? 'focused' : ''}`}>
+              <Lock size={16} className="lp-input-icon" />
+              <input
+                className="lp-input"
+                type={showPass ? 'text' : 'password'}
+                placeholder="أدخل كلمة المرور"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onFocus={() => setFocused('pass')}
+                onBlur={() => setFocused(null)}
+                autoComplete="current-password"
+                style={{ paddingLeft: '2.4rem' }}
+              />
+              <button
+                type="button"
+                className="lp-eye-btn"
+                onClick={() => setShowPass(!showPass)}
+                tabIndex={-1}
               >
-                <Lock
-                  size={16}
-                  style={{
-                    position: 'absolute',
-                    right: 14,
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    color: focused === 'pass' ? '#F5A623' : 'rgba(138,126,114,0.7)',
-                    transition: 'color 0.2s',
-                  }}
-                />
-                <input
-                  type={showPass ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  onFocus={() => setFocused('pass')}
-                  onBlur={() => setFocused(null)}
-                  placeholder="أدخل كلمة المرور"
-                  dir="ltr"
-                  autoComplete="current-password"
-                  style={{
-                    width: '100%',
-                    background: 'transparent',
-                    border: 'none',
-                    outline: 'none',
-                    padding: '0.7rem 2.5rem 0.7rem 2.5rem',
-                    color: '#F2EDE5',
-                    fontSize: '0.9rem',
-                    fontFamily: "'Cairo', sans-serif",
-                    borderRadius: 12,
-                    textAlign: 'left',
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPass(!showPass)}
-                  style={{
-                    position: 'absolute',
-                    left: 12,
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    color: 'rgba(138,126,114,0.7)',
-                    padding: 2,
-                    display: 'flex',
-                    alignItems: 'center',
-                  }}
-                >
-                  {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
+                {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
             </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn-login"
-              style={{
-                width: '100%',
-                border: 'none',
-                borderRadius: 12,
-                padding: '0.85rem',
-                color: '#fff',
-                fontSize: '0.95rem',
-                fontWeight: 700,
-                fontFamily: "'Cairo', sans-serif",
-                cursor: loading ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.5rem',
-                marginTop: '0.25rem',
-                opacity: loading ? 0.75 : 1,
-              }}
-            >
+            {/* Submit */}
+            <button type="submit" disabled={loading} className="lp-submit">
               {loading ? (
-                <>
-                  <div
-                    style={{
-                      width: 18,
-                      height: 18,
-                      border: '2.5px solid rgba(255,255,255,0.35)',
-                      borderTopColor: '#fff',
-                      borderRadius: '50%',
-                      animation: 'spin360 0.7s linear infinite',
-                    }}
-                  />
-                  جاري التحقق...
-                </>
+                <><div className="lp-spinner" /> جاري التحقق...</>
               ) : (
-                <>
-                  <LogIn size={17} />
-                  دخول
-                </>
+                <><LogIn size={17} /> دخول</>
               )}
             </button>
           </form>
 
-          <div
-            style={{
-              marginTop: '1.5rem',
-              padding: '0.75rem 1rem',
-              background: 'rgba(245,166,35,0.07)',
-              border: '1px solid rgba(245,166,35,0.18)',
-              borderRadius: 12,
-              textAlign: 'center',
-            }}
-          >
-            <p style={{ color: 'rgba(196,184,172,0.75)', fontSize: '0.75rem', margin: 0 }}>
-              الحساب الافتراضي:{' '}
-              <span style={{ fontFamily: 'monospace', color: '#F5A623', fontWeight: 700 }}>
-                admin / admin123
-              </span>
-            </p>
+          {/* Default credentials hint */}
+          <div className="lp-hint">
+            الحساب الافتراضي:&nbsp;
+            <span>admin / admin123</span>
           </div>
         </div>
 
-        <p style={{ textAlign: 'center', color: 'rgba(138,126,114,0.5)', fontSize: '0.72rem', marginTop: '1.25rem' }}>
-          وثبة © 2025 — منصة التعليم الإلكتروني
-        </p>
+        <div className="lp-footer">وثبة © 2025 — منصة التعليم الإلكتروني</div>
       </div>
     </div>
   );
