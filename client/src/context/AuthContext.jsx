@@ -31,7 +31,8 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (username, password, role) => {
-    const res = await api.post('/auth/login', { username, password, role });
+    const body = role ? { username, password, role } : { username, password };
+    const res = await api.post('/auth/login', body);
     const { token, user } = res.data;
     localStorage.setItem('wathba_token', token);
     localStorage.setItem('wathba_user', JSON.stringify(user));

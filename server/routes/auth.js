@@ -17,36 +17,43 @@ const loginLimiter = rateLimit({
 
 router.post('/login', loginLimiter, async (req, res) => {
   const { username, password, role } = req.body;
-  if (!username || !password || !role) {
-    return res.status(400).json({ error: 'Username, password and role are required' });
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Username and password are required' });
   }
 
   try {
-    let user = null;
-    let table = '';
+    const checks = role
+      ? [role]
+      : ['teacher', 'assistant', 'student'];
 
-    if (role === 'teacher') table = 'teachers';
-    else if (role === 'assistant') table = 'assistants';
-    else if (role === 'student') table = 'students';
-    else return res.status(400).json({ error: 'Invalid role' });
+    for (const r of checks) {
+      let table = '';
+      if (r === 'teacher') table = 'teachers';
+      else if (r === 'assistant') table = 'assistants';
+      else if (r === 'student') table = 'students';
+      else continue;
 
-    const whereClause = role === 'student'
-      ? `WHERE username = $1 AND deleted_at IS NULL`
-      : `WHERE username = $1`;
-    const result = await pool.query(`SELECT * FROM ${table} ${whereClause}`, [username]);
-    if (result.rows.length === 0) return res.status(401).json({ error: 'Invalid credentials' });
+      const whereClause = r === 'student'
+        ? `WHERE username = $1 AND deleted_at IS NULL`
+        : `WHERE username = $1`;
 
-    user = result.rows[0];
-    const valid = await bcrypt.compare(password, user.password);
-    if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
+      const result = await pool.query(`SELECT * FROM ${table} ${whereClause}`, [username]);
+      if (result.rows.length === 0) continue;
 
-    const payload = { id: user.id, role, username: user.username, name: user.name };
-    if (role === 'assistant') payload.teacher_id = user.teacher_id;
-    if (role === 'student') payload.teacher_id = user.teacher_id;
+      const user = result.rows[0];
+      const valid = await bcrypt.compare(password, user.password);
+      if (!valid) continue;
 
-    const token = generateToken(payload);
-    const { password: _, ...safeUser } = user;
-    res.json({ token, user: { ...safeUser, role } });
+      const payload = { id: user.id, role: r, username: user.username, name: user.name };
+      if (r === 'assistant') payload.teacher_id = user.teacher_id;
+      if (r === 'student') payload.teacher_id = user.teacher_id;
+
+      const token = generateToken(payload);
+      const { password: _, ...safeUser } = user;
+      return res.json({ token, user: { ...safeUser, role: r } });
+    }
+
+    return res.status(401).json({ error: 'بيانات الدخول غير صحيحة' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
