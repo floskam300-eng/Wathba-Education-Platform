@@ -70,6 +70,24 @@ export function useSSE(enabled, role) {
           { duration: 6000, style: { fontFamily: 'inherit', direction: 'rtl' } });
       });
 
+      es.addEventListener('course_unpublished', (e) => {
+        const data = JSON.parse(e.data);
+        qc.invalidateQueries({ queryKey: ['student-courses'] });
+        qc.invalidateQueries({ queryKey: ['student-courses-all'] });
+        qc.invalidateQueries({ queryKey: ['student-dashboard'] });
+        qc.invalidateQueries({ queryKey: ['student-exams'] });
+        toast(`🔕 الكورس "${data.name}" لم يعد متاحاً حالياً`,
+          { duration: 6000, style: { fontFamily: 'inherit', direction: 'rtl' } });
+      });
+
+      es.addEventListener('exam_unpublished', (e) => {
+        const data = JSON.parse(e.data);
+        qc.invalidateQueries({ queryKey: ['student-exams'] });
+        qc.invalidateQueries({ queryKey: ['student-dashboard'] });
+        toast(`🔕 الاختبار "${data.title}" لم يعد متاحاً حالياً`,
+          { duration: 6000, style: { fontFamily: 'inherit', direction: 'rtl' } });
+      });
+
       es.addEventListener('enrollment_approved', (e) => {
         const data = JSON.parse(e.data);
         qc.invalidateQueries({ queryKey: ['student-courses'] });

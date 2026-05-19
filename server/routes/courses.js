@@ -234,6 +234,18 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageCours
         });
       }
       sendFCMToStudents(pool, eligibleStudentIds, notifTitle, msgText, { courseId: String(course.id) }).catch(() => {});
+    } else {
+      // Unpublishing — notify enrolled students so their UI updates immediately
+      const enrolledRes = await pool.query(
+        'SELECT student_id FROM student_course_enrollment WHERE course_id=$1',
+        [req.params.id]
+      );
+      for (const { student_id } of enrolledRes.rows) {
+        sendEvent(`student_${student_id}`, 'course_unpublished', {
+          courseId: course.id,
+          name: course.name,
+        });
+      }
     }
 
     // Notify the teacher (and any logged-in assistants) in real-time

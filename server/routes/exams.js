@@ -223,6 +223,28 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), async (req, res)
         'UPDATE exams SET start_notified = $1 WHERE id = $2',
         [!hasStartDate, exam.id]
       );
+    } else {
+      // Unpublishing — notify relevant students so their UI updates immediately
+      let unpubStudentIds = [];
+      if (exam.course_id) {
+        const sRes = await pool.query(
+          'SELECT student_id AS id FROM student_course_enrollment WHERE course_id=$1',
+          [exam.course_id]
+        );
+        unpubStudentIds = sRes.rows.map(r => r.id);
+      } else {
+        const sRes = await pool.query(
+          'SELECT id FROM students WHERE teacher_id=$1 AND deleted_at IS NULL',
+          [teacherId]
+        );
+        unpubStudentIds = sRes.rows.map(r => r.id);
+      }
+      for (const sid of unpubStudentIds) {
+        sendEvent(`student_${sid}`, 'exam_unpublished', {
+          examId: exam.id,
+          title: exam.title,
+        });
+      }
     }
 
     // Notify the teacher (and any logged-in assistants) in real-time
