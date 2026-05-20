@@ -13,6 +13,19 @@ router.use(authenticate);
 
 const getTeacherId = (req) => req.user.role === 'teacher' ? req.user.id : req.user.teacher_id;
 
+// Middleware: check course ownership BEFORE multer writes to disk
+const preCheckOwnership = async (req, res, next) => {
+  const teacherId = getTeacherId(req);
+  try {
+    if (!(await verifyCoursOwnership(req.params.id, teacherId))) {
+      return res.status(403).json({ error: 'Access denied: course not yours' });
+    }
+    next();
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
 const verifyCoursOwnership = async (courseId, teacherId) => {
   const r = await pool.query('SELECT id FROM courses WHERE id=$1 AND teacher_id=$2', [courseId, teacherId]);
   return r.rows.length > 0;
@@ -423,14 +436,9 @@ router.post('/:id/videos/url', requireRole('teacher', 'assistant'), checkManageC
   }
 });
 
-router.post('/:id/videos/upload', requireRole('teacher', 'assistant'), checkManageCoursesPerm, uploadVideo.single('video'), async (req, res) => {
-  const teacherId = getTeacherId(req);
+router.post('/:id/videos/upload', requireRole('teacher', 'assistant'), checkManageCoursesPerm, preCheckOwnership, uploadVideo.single('video'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No video file uploaded' });
-    if (!(await verifyCoursOwnership(req.params.id, teacherId))) {
-      fs.unlinkSync(req.file.path);
-      return res.status(403).json({ error: 'Access denied: course not yours' });
-    }
     const { title, duration_minutes, sort_order, section_id } = req.body;
     const filePath = `/uploads/videos/${req.file.filename}`;
     const result = await pool.query(
@@ -444,14 +452,9 @@ router.post('/:id/videos/upload', requireRole('teacher', 'assistant'), checkMana
   }
 });
 
-router.post('/:id/pdfs/upload', requireRole('teacher', 'assistant'), checkManageCoursesPerm, uploadPdf.single('pdf'), async (req, res) => {
-  const teacherId = getTeacherId(req);
+router.post('/:id/pdfs/upload', requireRole('teacher', 'assistant'), checkManageCoursesPerm, preCheckOwnership, uploadPdf.single('pdf'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No PDF file uploaded' });
-    if (!(await verifyCoursOwnership(req.params.id, teacherId))) {
-      fs.unlinkSync(req.file.path);
-      return res.status(403).json({ error: 'Access denied: course not yours' });
-    }
     const { title, section_id } = req.body;
     const filePath = `/uploads/pdfs/${req.file.filename}`;
     const result = await pool.query(

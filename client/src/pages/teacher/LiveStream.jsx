@@ -205,7 +205,9 @@ function ChatPanel({ stream, teacherName, dark }) {
       await api.post(`/live/${stream.id}/chat-toggle`, { enabled: next });
       setChatEnabled(next);
       toast(next ? '💬 الدردشة مفعلة' : '🔇 الدردشة معطلة', { duration: 3000, style: { fontFamily: 'inherit', direction: 'rtl' } });
-    } catch (_) {}
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'فشل تغيير حالة الدردشة');
+    }
   };
 
   const sendMsg = async () => {

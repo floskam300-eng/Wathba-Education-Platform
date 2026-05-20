@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const pool = require('../db/connection');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { sendEvent, broadcastToTeacherStudents } = require('../sse');
@@ -26,7 +27,7 @@ router.post('/start', requireRole('teacher'), async (req, res) => {
       [teacherId]
     );
 
-    const roomId = `wathba-${teacherId}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const roomId = `wathba-${teacherId}-${Date.now().toString(36)}-${crypto.randomBytes(4).toString('hex')}`;
 
     const result = await pool.query(
       `INSERT INTO live_streams

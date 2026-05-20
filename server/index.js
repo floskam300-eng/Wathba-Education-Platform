@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const path = require('path');
 const pool = require('./db/connection');
 const fs = require('fs');
@@ -10,8 +11,22 @@ const { addClient, removeClient } = require('./sse');
 const { startScheduler } = require('./scheduler');
 const { initFCM } = require('./lib/fcm');
 
+// Global unhandled rejection / uncaught exception guards
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[unhandledRejection]', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException]', err);
+});
+
 const app = express();
 app.set('trust proxy', 1);
+
+// Security headers (helmet) — configured to allow CDN fonts & inline styles needed by Vite
+app.use(helmet({
+  contentSecurityPolicy: false,  // Disabled: Vite / React inline scripts need it off in dev
+  crossOriginEmbedderPolicy: false,
+}));
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
   : null;

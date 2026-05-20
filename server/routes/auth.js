@@ -42,14 +42,16 @@ router.post('/login', loginLimiter, async (req, res) => {
 
       const user = result.rows[0];
       const valid = await bcrypt.compare(password, user.password);
-      if (!valid) continue;
+      // Username found but wrong password — stop immediately, don't try other tables
+      // (prevents role-confusion attacks with shared usernames)
+      if (!valid) return res.status(401).json({ error: 'بيانات الدخول غير صحيحة' });
 
       const payload = { id: user.id, role: r, username: user.username, name: user.name };
       if (r === 'assistant') payload.teacher_id = user.teacher_id;
       if (r === 'student') payload.teacher_id = user.teacher_id;
 
       const token = generateToken(payload);
-      const { password: _, plain_password: __, ...safeUser } = user;
+      const { password: _, plain_password: __, fcm_token: ___, ...safeUser } = user;
       return res.json({ token, user: { ...safeUser, role: r } });
     }
 
@@ -67,7 +69,7 @@ router.get('/me', authenticate, async (req, res) => {
     const whereClause = role === 'student' ? 'WHERE id = $1 AND deleted_at IS NULL' : 'WHERE id = $1';
     const result = await pool.query(`SELECT * FROM ${table} ${whereClause}`, [id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
-    const { password: _, plain_password: __, ...safeUser } = result.rows[0];
+    const { password: _, plain_password: __, fcm_token: ___, ...safeUser } = result.rows[0];
     res.json({ ...safeUser, role });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });

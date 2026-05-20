@@ -303,11 +303,17 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
   const examMap = {};
   const studentMap = {};
 
+  // Wrap entire import in a single transaction with per-item savepoints
+  // so partial failures are logged but don't leave the DB in a half-imported state
+  const client = await pool.connect();
   try {
+    await client.query('BEGIN');
+
     // 1. Import courses
     for (const c of (data.courses || [])) {
+      await client.query('SAVEPOINT sp');
       try {
-        const r = await pool.query(
+        const r = await client.query(
           `INSERT INTO courses (name,description,price,thumbnail_url,teacher_id,target_stage,is_free,created_at)
            VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
           [c.name, c.description || null, c.price || 0, c.thumbnail_url || null, teacherId,
@@ -315,7 +321,9 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
         );
         courseMap[c.id] = r.rows[0].id;
         stats.courses++;
+        await client.query('RELEASE SAVEPOINT sp');
       } catch (e) {
+        await client.query('ROLLBACK TO SAVEPOINT sp');
         stats.errors.push(`كورس "${c.name}": ${e.message}`);
       }
     }
@@ -324,50 +332,66 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
     for (const s of (data.sections || [])) {
       const newCourseId = courseMap[s.course_id];
       if (!newCourseId) continue;
+      await client.query('SAVEPOINT sp');
       try {
-        const r = await pool.query(
+        const r = await client.query(
           `INSERT INTO sections (course_id,title,sort_order,created_at) VALUES($1,$2,$3,$4) RETURNING id`,
           [newCourseId, s.title, s.sort_order || 0, s.created_at || new Date()]
         );
         sectionMap[s.id] = r.rows[0].id;
         stats.sections++;
-      } catch (e) { stats.errors.push(`قسم "${s.title}": ${e.message}`); }
+        await client.query('RELEASE SAVEPOINT sp');
+      } catch (e) {
+        await client.query('ROLLBACK TO SAVEPOINT sp');
+        stats.errors.push(`قسم "${s.title}": ${e.message}`);
+      }
     }
 
     // 3. Import videos
     for (const v of (data.videos || [])) {
       const newCourseId = courseMap[v.course_id];
       if (!newCourseId) continue;
+      await client.query('SAVEPOINT sp');
       try {
-        await pool.query(
+        await client.query(
           `INSERT INTO videos (title,file_path_or_url,duration_minutes,course_id,sort_order,section_id,created_at)
            VALUES($1,$2,$3,$4,$5,$6,$7)`,
           [v.title, v.file_path_or_url || null, v.duration_minutes || 0, newCourseId,
            v.sort_order || 0, v.section_id ? (sectionMap[v.section_id] || null) : null, v.created_at || new Date()]
         );
         stats.videos++;
-      } catch (e) { stats.errors.push(`فيديو "${v.title}": ${e.message}`); }
+        await client.query('RELEASE SAVEPOINT sp');
+      } catch (e) {
+        await client.query('ROLLBACK TO SAVEPOINT sp');
+        stats.errors.push(`فيديو "${v.title}": ${e.message}`);
+      }
     }
 
     // 4. Import PDFs
     for (const p of (data.pdfs || [])) {
       const newCourseId = courseMap[p.course_id];
       if (!newCourseId) continue;
+      await client.query('SAVEPOINT sp');
       try {
-        await pool.query(
+        await client.query(
           `INSERT INTO pdf_files (title,file_url,course_id,section_id,created_at) VALUES($1,$2,$3,$4,$5)`,
           [p.title, p.file_url || null, newCourseId,
            p.section_id ? (sectionMap[p.section_id] || null) : null, p.created_at || new Date()]
         );
         stats.pdfs++;
-      } catch (e) { stats.errors.push(`PDF "${p.title}": ${e.message}`); }
+        await client.query('RELEASE SAVEPOINT sp');
+      } catch (e) {
+        await client.query('ROLLBACK TO SAVEPOINT sp');
+        stats.errors.push(`PDF "${p.title}": ${e.message}`);
+      }
     }
 
     // 5. Import exams
     for (const e of (data.exams || [])) {
+      await client.query('SAVEPOINT sp');
       try {
         const newCourseId = e.course_id ? (courseMap[e.course_id] || null) : null;
-        const r = await pool.query(
+        const r = await client.query(
           `INSERT INTO exams (title,duration_minutes,total_score,course_id,teacher_id,pass_score,badge_name,badge_color,start_date,end_date,created_at)
            VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
           [e.title, e.duration_minutes || 60, e.total_score || 100, newCourseId, teacherId,
@@ -376,7 +400,9 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
         );
         examMap[e.id] = r.rows[0].id;
         stats.exams++;
+        await client.query('RELEASE SAVEPOINT sp');
       } catch (e2) {
+        await client.query('ROLLBACK TO SAVEPOINT sp');
         stats.errors.push(`اختبار "${e.title}": ${e2.message}`);
       }
     }
@@ -385,8 +411,9 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
     for (const q of (data.questions || [])) {
       const newExamId = examMap[q.exam_id];
       if (!newExamId) continue;
+      await client.query('SAVEPOINT sp');
       try {
-        await pool.query(
+        await client.query(
           `INSERT INTO questions (question_text,question_image_url,option_a,option_b,option_c,option_d,
              correct_answer_letter,points,exam_id,question_type)
            VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
@@ -395,25 +422,30 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
            q.points || 1, newExamId, q.question_type || 'mcq']
         );
         stats.questions++;
-      } catch (e) { stats.errors.push(`سؤال في اختبار "${q.exam_id}": ${e.message}`); }
+        await client.query('RELEASE SAVEPOINT sp');
+      } catch (e) {
+        await client.query('ROLLBACK TO SAVEPOINT sp');
+        stats.errors.push(`سؤال في اختبار "${q.exam_id}": ${e.message}`);
+      }
     }
 
     // 7. Import students
     for (const s of (data.students || [])) {
+      await client.query('SAVEPOINT sp');
       try {
-        // If username already exists under this teacher, just remap
-        const existing = await pool.query(
+        const existing = await client.query(
           'SELECT id FROM students WHERE username=$1 AND teacher_id=$2 AND deleted_at IS NULL',
           [s.username, teacherId]
         );
         if (existing.rows.length > 0) {
           studentMap[s.id] = existing.rows[0].id;
           stats.skipped_students++;
+          await client.query('RELEASE SAVEPOINT sp');
           continue;
         }
         const plainPwd = s.plain_password || Math.floor(100000 + Math.random() * 900000).toString();
         const hashed = await bcrypt.hash(plainPwd, 10);
-        const r = await pool.query(
+        const r = await client.query(
           `INSERT INTO students (username,password,name,phone,parent_phone,academic_stage,gender,
              teacher_id,points,plain_password,created_at)
            VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
@@ -423,7 +455,9 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
         );
         studentMap[s.id] = r.rows[0].id;
         stats.students++;
+        await client.query('RELEASE SAVEPOINT sp');
       } catch (e) {
+        await client.query('ROLLBACK TO SAVEPOINT sp');
         stats.errors.push(`طالب "${s.name}": ${e.message}`);
       }
     }
@@ -433,22 +467,25 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
       const newStudentId = studentMap[e.student_id];
       const newCourseId  = courseMap[e.course_id];
       if (!newStudentId || !newCourseId) continue;
+      await client.query('SAVEPOINT sp');
       try {
-        await pool.query(
+        await client.query(
           `INSERT INTO student_course_enrollment (student_id,course_id,enrollment_date,status)
            VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING`,
           [newStudentId, newCourseId, e.enrollment_date || new Date(), e.status || 'active']
         );
         stats.enrollments++;
-      } catch (e2) { /* silent */ }
+        await client.query('RELEASE SAVEPOINT sp');
+      } catch (e2) { await client.query('ROLLBACK TO SAVEPOINT sp'); }
     }
 
     // 9. Import payments
     for (const p of (data.payments || [])) {
       const newStudentId = studentMap[p.student_id];
       if (!newStudentId) continue;
+      await client.query('SAVEPOINT sp');
       try {
-        await pool.query(
+        await client.query(
           `INSERT INTO payments (student_id,course_id,amount,method,payment_date,status,reference_number,notes)
            VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
           [newStudentId, p.course_id ? (courseMap[p.course_id] || null) : null,
@@ -456,7 +493,8 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
            p.status || 'pending', p.reference_number || null, p.notes || null]
         );
         stats.payments++;
-      } catch (e) { /* silent */ }
+        await client.query('RELEASE SAVEPOINT sp');
+      } catch (e) { await client.query('ROLLBACK TO SAVEPOINT sp'); }
     }
 
     // 10. Import exam results
@@ -464,8 +502,9 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
       const newStudentId = studentMap[r.student_id];
       const newExamId    = examMap[r.exam_id];
       if (!newStudentId || !newExamId) continue;
+      await client.query('SAVEPOINT sp');
       try {
-        await pool.query(
+        await client.query(
           `INSERT INTO exam_results (student_id,exam_id,score,correct_count,wrong_count,
              unanswered_count,start_time,end_time,answers,points_earned,created_at)
            VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
@@ -476,14 +515,19 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
            r.points_earned || 0, r.created_at || new Date()]
         );
         stats.results++;
-      } catch (e) { /* silent */ }
+        await client.query('RELEASE SAVEPOINT sp');
+      } catch (e) { await client.query('ROLLBACK TO SAVEPOINT sp'); }
     }
 
+    await client.query('COMMIT');
     invalidateCache(teacherId);
     res.json({ success: true, stats });
   } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
     console.error('Import error:', err);
     res.status(500).json({ error: 'حدث خطأ أثناء الاستيراد', details: err.message });
+  } finally {
+    client.release();
   }
 });
 

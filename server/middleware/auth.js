@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const pool = require('../db/connection');
 
 if (!process.env.JWT_SECRET) {
   console.error('FATAL: JWT_SECRET environment variable is not set. Server will not start.');
@@ -31,7 +32,6 @@ const authenticate = async (req, res, next) => {
       const now = Date.now();
       const cached = _studentCache.get(decoded.id);
       if (!cached || now - cached.at > CACHE_TTL_MS) {
-        const pool = require('../db/connection');
         const check = await pool.query(
           'SELECT id FROM students WHERE id=$1 AND deleted_at IS NULL',
           [decoded.id]

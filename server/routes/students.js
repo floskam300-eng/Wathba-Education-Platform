@@ -134,7 +134,9 @@ router.post('/', requireRole('teacher', 'assistant'), (req, res, next) => checkP
              ON CONFLICT DO NOTHING`,
             [result.rows[0].id, teacherId, academic_stage || '']
           );
-        } catch (_) {}
+        } catch (enrollErr) {
+          console.warn('[auto-enroll] Failed to enroll student in free courses:', enrollErr.message);
+        }
         const { password: _, plain_password: __, ...safe } = result.rows[0];
         return res.status(201).json({ ...safe, generated_password: generatedPassword });
       } catch (err) {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { FileText, Clock, CheckCircle, Play, Eye, Calendar, Lock, RotateCcw, X } from 'lucide-react';
@@ -83,6 +83,9 @@ export default function StudentExams() {
   const answersRef = useRef({});
   useEffect(() => { answersRef.current = answers; }, [answers]);
 
+  // Guard against double-submission from timer + manual submit racing
+  const submittedRef = useRef(false);
+
   const { data: exams = [], isLoading } = useQuery({
     queryKey: ['student-exams'],
     queryFn: () => api.get('/exams/student/available').then(r => r.data),
@@ -153,6 +156,16 @@ export default function StudentExams() {
     onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
   });
 
+  // Pre-compute shuffled MCQ options once when exam data loads (not on every re-render)
+  const shuffledQuestionsOpts = useMemo(() => {
+    if (!examData) return {};
+    const map = {};
+    for (const q of (examData.questions || [])) {
+      map[q.id] = getShuffledOpts(q, studentId, examData.exam.shuffle_options);
+    }
+    return map;
+  }, [examData, studentId]);
+
   const takingRef = useRef(null);
   const examDataRef = useRef(null);
   const startTimeRef = useRef(null);
@@ -161,7 +174,8 @@ export default function StudentExams() {
   useEffect(() => { startTimeRef.current = startTime; }, [startTime]);
 
   const handleSubmit = useCallback(() => {
-    if (!taking || !examData) return;
+    if (!taking || !examData || submittedRef.current) return;
+    submittedRef.current = true;
     submitMut.mutate({ id: taking.id, data: { answers: answersRef.current, start_time: startTime } });
   }, [taking, examData, startTime]);
 
@@ -226,7 +240,10 @@ export default function StudentExams() {
 
     if (remaining <= 0) {
       localStorage.removeItem(storageKey);
-      submitMut.mutate({ id: examId, data: { answers: answersRef.current, start_time: startIso } });
+      if (!submittedRef.current) {
+        submittedRef.current = true;
+        submitMut.mutate({ id: examId, data: { answers: answersRef.current, start_time: startIso } });
+      }
       return;
     }
 
@@ -238,8 +255,9 @@ export default function StudentExams() {
         if (t <= 1) {
           clearInterval(interval);
           localStorage.removeItem(storageKey);
-          // Guard: only submit if component is still mounted and exam still active
-          if (timerActive) {
+          // Guard: only submit if component still mounted AND not already submitted
+          if (timerActive && !submittedRef.current) {
+            submittedRef.current = true;
             submitMut.mutate({ id: examId, data: { answers: answersRef.current, start_time: startIso } });
           }
           return 0;
@@ -276,6 +294,7 @@ export default function StudentExams() {
     if (status === 'upcoming') return toast.error('الاختبار لم يبدأ بعد');
     if (status === 'expired') return toast.error('انتهى وقت هذا الاختبار');
     setAnswers({}); setResult(null);
+    submittedRef.current = false; // reset guard for new exam attempt
     setPendingExam(exam);
     setCountdown(3);
   };
@@ -363,7 +382,7 @@ export default function StudentExams() {
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {(() => {
-                        const shuffledOpts = getShuffledOpts(q, studentId, exam.shuffle_options);
+                        const shuffledOpts = shuffledQuestionsOpts[q.id] || getShuffledOpts(q, studentId, exam.shuffle_options);
                         const displayLabels = ['أ', 'ب', 'ج', 'د'];
                         return shuffledOpts.map((origOpt, idx) => (
                           <button key={origOpt} onClick={() => setAnswers({ ...answers, [q.id]: origOpt })}
