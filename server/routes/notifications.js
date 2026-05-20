@@ -138,7 +138,8 @@ router.post('/platform', requireRole('teacher', 'assistant'), checkNotifPermissi
       });
     }
 
-    sendFCMToStudents(pool, validIds, resolvedTitle, message, { type }).catch(() => {});
+    const fcmBody = message.replace(/\{name\}/g, '').replace(/\s+/g, ' ').trim();
+    sendFCMToStudents(pool, validIds, resolvedTitle, fcmBody, { type }).catch(() => {});
     res.status(201).json({ sent: validIds.length });
   } catch (err) {
     console.error(err);

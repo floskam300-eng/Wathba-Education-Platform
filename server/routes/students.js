@@ -193,6 +193,10 @@ router.delete('/:id', requireRole('teacher', 'assistant'), (req, res, next) => c
 router.get('/:id/results', requireRole('teacher', 'assistant'), async (req, res) => {
   const teacherId = getTeacherId(req);
   try {
+    if (req.user.role === 'assistant') {
+      const perms = await getPermissions(req.user.id, pool);
+      if (!perms?.can_view_analytics) return res.status(403).json({ error: 'Access denied: missing permission' });
+    }
     const studentCheck = await pool.query(
       'SELECT id FROM students WHERE id=$1 AND teacher_id=$2 AND deleted_at IS NULL',
       [req.params.id, teacherId]
@@ -217,6 +221,10 @@ router.get('/:id/profile', requireRole('teacher', 'assistant'), async (req, res)
   const teacherId = getTeacherId(req);
   const studentId = req.params.id;
   try {
+    if (req.user.role === 'assistant') {
+      const perms = await getPermissions(req.user.id, pool);
+      if (!perms?.can_view_analytics) return res.status(403).json({ error: 'Access denied: missing permission' });
+    }
     // Student basic info
     const studentRes = await pool.query(
       `SELECT id, name, username, phone, parent_phone, academic_stage, gender, points, created_at
@@ -424,6 +432,7 @@ router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => ch
     return res.status(400).json({ error: `الحد الأقصى للاستيراد الجماعي هو ${MAX_BULK} طالب في المرة الواحدة` });
   }
 
+  const EGYPTIAN_PHONE_RE = /^01[0125][0-9]{8}$/;
   const client = await pool.connect();
   const results = { success: 0, failed: 0, errors: [], created: [] };
   try {
@@ -433,8 +442,14 @@ router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => ch
       const name           = (s['الاسم'] || s['name'] || '').toString().trim();
       const manualUsername = (s['اسم المستخدم'] || s['username'] || '').toString().trim();
       const manualPassword = (s['كلمة المرور'] || s['password'] || '').toString().trim();
-      const phone          = (s['الهاتف'] || s['phone'] || '').toString().trim() || null;
-      const parent_phone   = (s['هاتف ولي الأمر'] || s['parent_phone'] || '').toString().trim() || null;
+      const rawPhone       = (s['الهاتف'] || s['phone'] || '').toString().trim();
+      const rawParentPhone = (s['هاتف ولي الأمر'] || s['parent_phone'] || '').toString().trim();
+      const cleanPhone       = rawPhone ? rawPhone.replace(/[\s\-]/g, '') : '';
+      const cleanParentPhone = rawParentPhone ? rawParentPhone.replace(/[\s\-]/g, '') : '';
+      const phone          = cleanPhone && EGYPTIAN_PHONE_RE.test(cleanPhone) ? cleanPhone : null;
+      const parent_phone   = cleanParentPhone && EGYPTIAN_PHONE_RE.test(cleanParentPhone) ? cleanParentPhone : null;
+      if (rawPhone && !phone) results.errors.push(`${name || '?'}: رقم الهاتف "${rawPhone}" غير صحيح — تم تجاهله`);
+      if (rawParentPhone && !parent_phone) results.errors.push(`${name || '?'}: هاتف ولي الأمر "${rawParentPhone}" غير صحيح — تم تجاهله`);
       const academic_stage = (s['المرحلة'] || s['academic_stage'] || '').toString().trim() || null;
       const gender         = (s['الجنس'] || s['gender'] || '').toString().trim() || null;
 

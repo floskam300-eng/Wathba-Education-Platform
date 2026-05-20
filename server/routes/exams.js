@@ -706,6 +706,15 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
     );
     serverSession = sessionRes.rows[0] || null;
 
+    // ── Enforce server-side duration limit (prevents client-side timer cheating) ──
+    if (serverSession?.started_at) {
+      const elapsedMs  = Date.now() - new Date(serverSession.started_at).getTime();
+      const maxMs      = (eligibilityRow.duration_minutes || 60) * 60 * 1000 + 90_000; // +90s grace
+      if (elapsedMs > maxMs) {
+        return res.status(409).json({ error: 'انتهت مدة الاختبار — لا يمكن تسليم الإجابات بعد انتهاء الوقت المخصص' });
+      }
+    }
+
     if (eligibilityRow.question_source === 'bank' && eligibilityRow.bank_id) {
       const questionIds = Object.keys(answers || {}).map(Number).filter(id => id > 0);
       if (questionIds.length === 0) return res.status(400).json({ error: 'لم يتم إرسال أي إجابات' });

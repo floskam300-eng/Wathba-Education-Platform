@@ -218,7 +218,7 @@ router.get('/export', requireRole('teacher'), async (req, res) => {
   try {
     const [teacher, students, courses, sections, videos, pdfs, exams, questions, results, payments, enrollments, videoProgress] = await Promise.all([
       pool.query('SELECT id,username,name,bio,classification,logo_url,photo_url,whatsapp_phone,created_at FROM teachers WHERE id=$1', [teacherId]),
-      pool.query('SELECT id,username,name,phone,parent_phone,academic_stage,gender,points,plain_password,created_at FROM students WHERE teacher_id=$1 AND deleted_at IS NULL ORDER BY name', [teacherId]),
+      pool.query('SELECT id,username,name,phone,parent_phone,academic_stage,gender,points,created_at FROM students WHERE teacher_id=$1 AND deleted_at IS NULL ORDER BY name', [teacherId]),
       pool.query('SELECT * FROM courses WHERE teacher_id=$1 ORDER BY created_at', [teacherId]),
       pool.query('SELECT s.* FROM sections s JOIN courses c ON s.course_id=c.id WHERE c.teacher_id=$1 ORDER BY s.course_id, s.sort_order', [teacherId]),
       pool.query('SELECT v.* FROM videos v JOIN courses c ON v.course_id=c.id WHERE c.teacher_id=$1 ORDER BY v.course_id, v.sort_order, v.id', [teacherId]),

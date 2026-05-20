@@ -414,3 +414,28 @@ BEGIN
     );
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
+
+-- ── Security: remove plain-text password column ───────────────────────────────
+ALTER TABLE students DROP COLUMN IF EXISTS plain_password;
+
+-- ── CHECK constraints on correct_answer_letter ────────────────────────────────
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_correct_answer_letter') THEN
+    ALTER TABLE questions
+      ADD CONSTRAINT chk_correct_answer_letter
+      CHECK (correct_answer_letter IS NULL OR correct_answer_letter = ANY(ARRAY['A','B','C','D','T','F']));
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_bank_correct_answer_letter') THEN
+    ALTER TABLE bank_questions
+      ADD CONSTRAINT chk_bank_correct_answer_letter
+      CHECK (correct_answer_letter IS NULL OR correct_answer_letter = ANY(ARRAY['A','B','C','D','T','F']));
+  END IF;
+END $$;
+
+-- ── Additional performance indexes ────────────────────────────────────────────
+CREATE INDEX IF NOT EXISTS idx_payments_student_status   ON payments(student_id, status);
+CREATE INDEX IF NOT EXISTS idx_exams_teacher_published   ON exams(teacher_id, is_published);
+CREATE INDEX IF NOT EXISTS idx_notification_log_unread   ON notification_log(student_id, is_read) WHERE is_read = false;
+CREATE INDEX IF NOT EXISTS idx_students_username         ON students(username);
+CREATE INDEX IF NOT EXISTS idx_assistants_teacher        ON assistants(teacher_id);

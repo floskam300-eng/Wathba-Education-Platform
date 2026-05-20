@@ -183,8 +183,8 @@ export default function StudentExams() {
         body: payload,
         keepalive: true,
       }).catch(() => {});
-      localStorage.removeItem(`exam_start_${examId}`);
-      localStorage.removeItem(`exam_answers_${examId}`);
+      // Do NOT clear localStorage here — if the fetch fails silently, the student
+      // needs their saved state to resume. Keys are cleared on successful submission.
     };
 
     const handleBeforeUnload = (e) => {

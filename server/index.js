@@ -79,7 +79,10 @@ app.get('/api/sse', (req, res) => {
   res.write(`event: connected\ndata: ${JSON.stringify({ key })}\n\n`);
 
   const heartbeat = setInterval(() => {
-    try { res.write(': heartbeat\n\n'); } catch (_) { clearInterval(heartbeat); }
+    try { res.write(': heartbeat\n\n'); } catch (_) {
+      clearInterval(heartbeat);
+      removeClient(key, res);
+    }
   }, 25000);
 
   req.on('close', () => {

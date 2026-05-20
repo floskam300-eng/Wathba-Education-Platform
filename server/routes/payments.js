@@ -199,6 +199,9 @@ router.put('/:id/verify', requireRole('teacher', 'assistant'), (req, res, next) 
     if (parseInt(paymentRes.rows[0].student_teacher_id) !== parseInt(teacherId)) {
       return res.status(403).json({ error: 'Access denied: payment not yours' });
     }
+    if (paymentRes.rows[0].status === 'verified' && status !== 'verified') {
+      return res.status(400).json({ error: 'لا يمكن تغيير حالة مدفوعة تم التحقق منها — غيّرها لـ "معلّق" أولاً إذا لزم الأمر' });
+    }
 
     const updateFields = ['status=$1', 'verified_at=NOW()'];
     const params = [status];
@@ -222,6 +225,25 @@ router.put('/:id/verify', requireRole('teacher', 'assistant'), (req, res, next) 
     res.json(result.rows[0]);
   } catch (err) {
     console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── Student: view own payment history ──────────────────────────────────────────
+router.get('/my', requireRole('student'), async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT p.id, p.amount, p.method, p.payment_date, p.status,
+              p.reference_number, p.notes,
+              c.name as course_name, c.id as course_id
+       FROM payments p
+       LEFT JOIN courses c ON p.course_id = c.id
+       WHERE p.student_id = $1
+       ORDER BY p.payment_date DESC`,
+      [req.user.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }
 });

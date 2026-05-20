@@ -8,6 +8,11 @@ require('dotenv').config({ path: require('path').join(__dirname, '../../.env') }
 const pool = require('./connection');
 const bcrypt = require('bcryptjs');
 
+if (process.env.NODE_ENV === 'production') {
+  console.error('❌ seed.js مرفوض في بيئة الإنتاج — لن يُشغَّل لحماية البيانات الحقيقية');
+  process.exit(1);
+}
+
 const q = (text, params = []) => pool.query(text, params).then(r => r.rows);
 
 async function seed() {
