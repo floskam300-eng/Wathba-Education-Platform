@@ -16,7 +16,7 @@ router.get('/info', async (req, res) => {
         (SELECT COUNT(*) FROM exam_results) AS total_results
     `);
     const courses = await pool.query(
-      'SELECT id, name, description, price, thumbnail_url, target_stage, created_at FROM courses WHERE is_published = true ORDER BY created_at DESC LIMIT 12'
+      'SELECT id, name, description, price, thumbnail_url, target_stage, created_at FROM courses WHERE is_published = true AND price > 0 ORDER BY price DESC LIMIT 3'
     );
     res.json({
       teacher: teacher.rows[0] || null,

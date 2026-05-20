@@ -6,7 +6,8 @@ import {
   GraduationCap, BookOpen, BarChart3, Award, Shield,
   Play, FileText, Star, Users, CheckCircle, ArrowLeft,
   Sparkles, Trophy, Zap, MessageCircle, ChevronDown,
-  Clock, Target, TrendingUp, CreditCard, Phone
+  Clock, Target, TrendingUp, CreditCard, Phone,
+  Video, Gamepad2, Database, HelpCircle
 } from 'lucide-react';
 import wathbaLogo from '../assets/wathba_logo_transparent.png';
 
@@ -173,14 +174,18 @@ export default function LandingPage() {
   };
 
   const features = [
-    { icon: Play,          title: 'فيديوهات تعليمية',   desc: 'محتوى فيديو احترافي ومنظم داخل كل كورس مع تتبع تقدم المشاهدة لكل طالب.', color: 'bg-blue-500',    delay: 0 },
-    { icon: Target,        title: 'امتحانات تفاعلية',   desc: 'امتحانات أونلاين متكاملة بأسئلة متنوعة ونتائج فورية مع تحليل تفصيلي.', color: 'bg-orange-500',  delay: 0.1 },
-    { icon: BarChart3,     title: 'تحليلات متقدمة',     desc: 'لوحة تحكم تحليلية لمتابعة أداء الطلاب ورسوم بيانية تفاعلية دقيقة.', color: 'bg-emerald-500', delay: 0.2 },
-    { icon: Trophy,        title: 'نقاط وشارات',        desc: 'نظام مكافآت يحفّز الطلاب من خلال النقاط والشارات ولوحة الشرف.', color: 'bg-amber-500',   delay: 0.3 },
-    { icon: FileText,      title: 'تقارير PDF',          desc: 'تقارير مفصلة قابلة للطباعة لأولياء الأمور والمتابعة الأكاديمية.', color: 'bg-purple-500',  delay: 0.4 },
-    { icon: CreditCard,    title: 'دفع إلكتروني',       desc: 'نظام مدفوعات مدمج يدعم فودافون كاش وإنستاباي مع تتبع كامل.', color: 'bg-pink-500',    delay: 0.5 },
-    { icon: Shield,        title: 'صلاحيات مرنة',       desc: 'نظام أدوار متدرج بين المعلم والمساعدين مع تحكم دقيق في الصلاحيات.', color: 'bg-cyan-500',    delay: 0.6 },
-    { icon: MessageCircle, title: 'تواصل مع الأهل',     desc: 'إشعارات مباشرة لأولياء الأمور عند تراجع أداء الطالب في الامتحانات.', color: 'bg-rose-500',    delay: 0.7 },
+    { icon: Play,          title: 'فيديوهات تعليمية',    desc: 'محتوى فيديو احترافي ومنظم داخل كل كورس مع تتبع تقدم المشاهدة لكل طالب.',           color: 'bg-blue-500',    delay: 0 },
+    { icon: Target,        title: 'امتحانات تفاعلية',    desc: 'امتحانات أونلاين بأسئلة MCQ وصح/خطأ ومقالي مع نتائج فورية وتحليل تفصيلي.',          color: 'bg-orange-500',  delay: 0.05 },
+    { icon: Video,         title: 'بث مباشر',             desc: 'غرف بث مباشر متكاملة مع شات وعرض اليد وتسجيل الحضور أثناء الحصة.',                   color: 'bg-red-500',     delay: 0.1 },
+    { icon: BarChart3,     title: 'تحليلات متقدمة',      desc: 'لوحة تحكم تحليلية لمتابعة أداء الطلاب ورسوم بيانية تفاعلية دقيقة.',                   color: 'bg-emerald-500', delay: 0.15 },
+    { icon: Trophy,        title: 'نقاط ولوحة الشرف',    desc: 'نظام نقاط وشارات يحفّز الطلاب مع لوحة متصدرين شهرية تُعاد تلقائياً.',                  color: 'bg-amber-500',   delay: 0.2 },
+    { icon: Gamepad2,      title: 'ألعاب تعليمية',        desc: 'لعبة Stickman Run أسبوعية تتضمن أسئلة علمية — تعلّم وانت بتلعب!',                    color: 'bg-violet-500',  delay: 0.25 },
+    { icon: Phone,         title: 'بوابة أولياء الأمور',  desc: 'ولي الأمر يتابع نتائج ابنه فوراً — امتحانات وكورسات ونقاط — بمجرد إدخال رقمه.',       color: 'bg-teal-500',    delay: 0.3 },
+    { icon: HelpCircle,    title: 'بنك الأسئلة',          desc: 'مكتبة أسئلة منظمة يستطيع المعلم الاختيار منها لبناء امتحاناته بسرعة.',                  color: 'bg-sky-500',     delay: 0.35 },
+    { icon: FileText,      title: 'تقارير PDF',            desc: 'تقارير مفصلة قابلة للطباعة لأولياء الأمور والمتابعة الأكاديمية.',                      color: 'bg-purple-500',  delay: 0.4 },
+    { icon: CreditCard,    title: 'دفع إلكتروني',         desc: 'نظام مدفوعات مدمج يدعم فودافون كاش وإنستاباي مع تتبع كامل وتحقق فوري.',               color: 'bg-pink-500',    delay: 0.45 },
+    { icon: Shield,        title: 'مساعدون بصلاحيات',     desc: 'أضف مساعدين لإدارة منصتك مع تحكم دقيق في 9 صلاحيات مختلفة لكل مساعد.',               color: 'bg-cyan-500',    delay: 0.5 },
+    { icon: Database,      title: 'نسخ احتياطية',         desc: 'تصدير واستيراد بيانات الطلاب بصيغة Excel مع حفظ سجل كامل لكل شيء.',                    color: 'bg-rose-500',    delay: 0.55 },
   ];
 
   return (
@@ -470,21 +475,21 @@ export default function LandingPage() {
           <Reveal className="text-center mb-14">
             <p className="text-orange-400 font-bold text-sm mb-3 tracking-widest uppercase">تعلّم معنا</p>
             <h2 className="font-black text-4xl text-white mb-4">
-              أبرز <span className="gradient-text">الكورسات المتاحة</span>
+              أبرز <span className="gradient-text">الكورسات المدفوعة</span>
             </h2>
-            <p className="text-white/50 text-base max-w-xl mx-auto">كورسات مصممة بعناية لتغطي جميع المواضيع وتساعدك على التفوق</p>
+            <p className="text-white/50 text-base max-w-xl mx-auto">أفضل ٣ كورسات متاحة — محتوى احترافي يأخذك خطوة للأمام</p>
             <div className="w-24 h-1 bg-gradient-to-l from-orange-500 to-transparent rounded-full mx-auto mt-4" />
           </Reveal>
 
           {isLoading ? (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[...Array(6)].map((_, i) => (
+            <div className="grid sm:grid-cols-3 gap-6 max-w-5xl mx-auto">
+              {[...Array(3)].map((_, i) => (
                 <div key={i} className="h-60 rounded-3xl bg-white/5 animate-pulse border border-white/8" />
               ))}
             </div>
           ) : courses.length > 0 ? (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {courses.map((c, i) => <CourseCard key={c.id} course={c} index={i} delay={i * 0.08} />)}
+            <div className="grid sm:grid-cols-3 gap-6 max-w-5xl mx-auto">
+              {courses.map((c, i) => <CourseCard key={c.id} course={c} index={i} delay={i * 0.1} />)}
             </div>
           ) : (
             <div className="text-center py-20 text-white/30">
@@ -524,6 +529,11 @@ export default function LandingPage() {
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
             {features.map(f => <FeatureCard key={f.title} {...f} />)}
           </div>
+          <Reveal delay={0.6} className="text-center mt-10">
+            <p className="text-white/30 text-sm">
+              <span className="text-orange-400 font-bold">{features.length}+</span> ميزة متكاملة في مكان واحد
+            </p>
+          </Reveal>
         </div>
       </section>
 
