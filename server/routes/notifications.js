@@ -10,16 +10,18 @@ router.use(authenticate);
 const getTeacherId = (req) => req.user.role === 'teacher' ? req.user.id : req.user.teacher_id;
 
 const TYPE_TITLES = {
-  general:             'إشعار عام',
-  exam_result:         'نتيجة اختبار',
-  new_exam:            'اختبار جديد',
-  new_course:          'كورس جديد',
-  retry_approved:      'قبول إعادة اختبار',
-  enrollment_approved: 'قبول في كورس',
-  payment:             'إشعار دفع',
-  badge:               'شارة جديدة',
-  reminder:            'تذكير',
-  announcement:        'إعلان هام',
+  general:              'إشعار عام',
+  exam_result:          'نتيجة اختبار',
+  new_exam:             'اختبار جديد',
+  new_course:           'كورس جديد',
+  retry_approved:       'قبول إعادة اختبار',
+  retry_rejected:       'رفض إعادة اختبار',
+  enrollment_approved:  'قبول في كورس',
+  enrollment_rejected:  'رفض طلب الانضمام',
+  payment:              'إشعار دفع',
+  badge:                'شارة جديدة',
+  reminder:             'تذكير',
+  announcement:         'إعلان هام',
 };
 
 // ── List students (for notifications) ──────────────────────────────

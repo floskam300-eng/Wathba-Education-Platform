@@ -423,63 +423,73 @@ router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => ch
   if (students.length > MAX_BULK) {
     return res.status(400).json({ error: `الحد الأقصى للاستيراد الجماعي هو ${MAX_BULK} طالب في المرة الواحدة` });
   }
+
+  const client = await pool.connect();
   const results = { success: 0, failed: 0, errors: [], created: [] };
-  for (const s of students) {
-    const name           = (s['الاسم'] || s['name'] || '').toString().trim();
-    const manualUsername = (s['اسم المستخدم'] || s['username'] || '').toString().trim();
-    const manualPassword = (s['كلمة المرور'] || s['password'] || '').toString().trim();
-    const phone          = (s['الهاتف'] || s['phone'] || '').toString().trim() || null;
-    const parent_phone   = (s['هاتف ولي الأمر'] || s['parent_phone'] || '').toString().trim() || null;
-    const academic_stage = (s['المرحلة'] || s['academic_stage'] || '').toString().trim() || null;
-    const gender         = (s['الجنس'] || s['gender'] || '').toString().trim() || null;
+  try {
+    await client.query('BEGIN');
 
-    if (!name) {
-      results.failed++;
-      results.errors.push(`(صف فارغ): الاسم مطلوب`);
-      continue;
-    }
+    for (const s of students) {
+      const name           = (s['الاسم'] || s['name'] || '').toString().trim();
+      const manualUsername = (s['اسم المستخدم'] || s['username'] || '').toString().trim();
+      const manualPassword = (s['كلمة المرور'] || s['password'] || '').toString().trim();
+      const phone          = (s['الهاتف'] || s['phone'] || '').toString().trim() || null;
+      const parent_phone   = (s['هاتف ولي الأمر'] || s['parent_phone'] || '').toString().trim() || null;
+      const academic_stage = (s['المرحلة'] || s['academic_stage'] || '').toString().trim() || null;
+      const gender         = (s['الجنس'] || s['gender'] || '').toString().trim() || null;
 
-    // Auto-generate password if not supplied
-    const finalPassword = manualPassword || Math.floor(100000 + Math.random() * 900000).toString();
+      if (!name) {
+        results.failed++;
+        results.errors.push(`(صف فارغ): الاسم مطلوب`);
+        continue;
+      }
 
-    try {
-      // Use manual username if provided, otherwise auto-generate
-      let username = manualUsername || await generateUsername(teacherId, academic_stage || '', pool);
+      const finalPassword = manualPassword || Math.floor(100000 + Math.random() * 900000).toString();
 
-      // Retry up to 5 times on username collision
-      const hashed = await bcrypt.hash(finalPassword, 10);
-      let retries = 0;
-      while (retries < 5) {
-        try {
-          await pool.query(
-            'INSERT INTO students (username,password,name,phone,parent_phone,academic_stage,gender,teacher_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',
-            [username, hashed, name, phone, parent_phone, academic_stage, gender, teacherId]
-          );
-          results.success++;
-          // Only report generated credentials (not user-supplied ones)
-          if (!manualPassword || !manualUsername) {
-            results.created.push({ name, username, generated_password: finalPassword });
-          }
-          break;
-        } catch (err) {
-          if (err.code === '23505' && !manualUsername) {
-            retries++;
-            username = await generateUsername(teacherId, academic_stage || '', pool);
-          } else {
-            throw err;
+      try {
+        let username = manualUsername || await generateUsername(teacherId, academic_stage || '', client);
+        const hashed = await bcrypt.hash(finalPassword, 10);
+        let retries = 0;
+        while (retries < 5) {
+          try {
+            await client.query(
+              'INSERT INTO students (username,password,name,phone,parent_phone,academic_stage,gender,teacher_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',
+              [username, hashed, name, phone, parent_phone, academic_stage, gender, teacherId]
+            );
+            results.success++;
+            if (!manualPassword || !manualUsername) {
+              results.created.push({ name, username, generated_password: finalPassword });
+            }
+            break;
+          } catch (err) {
+            if (err.code === '23505' && !manualUsername) {
+              retries++;
+              username = await generateUsername(teacherId, academic_stage || '', client);
+            } else {
+              throw err;
+            }
           }
         }
-      }
-      if (retries >= 5) {
+        if (retries >= 5) {
+          results.failed++;
+          results.errors.push(`${name}: تعذّر توليد اسم مستخدم فريد`);
+        }
+      } catch (err) {
         results.failed++;
-        results.errors.push(`${name}: تعذّر توليد اسم مستخدم فريد`);
+        results.errors.push(`${name}: ${err.code === '23505' ? 'اسم المستخدم موجود مسبقاً' : 'خطأ في الحفظ'}`);
       }
-    } catch (err) {
-      results.failed++;
-      results.errors.push(`${name}: ${err.code === '23505' ? 'اسم المستخدم موجود مسبقاً' : 'خطأ في الحفظ'}`);
     }
+
+    await client.query('COMMIT');
+    invalidateCache(teacherId);
+    res.json(results);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[bulk import]', err.message);
+    res.status(500).json({ error: 'حدث خطأ غير متوقع — تم التراجع عن جميع التغييرات، لم يُحفظ أي طالب' });
+  } finally {
+    client.release();
   }
-  res.json(results);
 });
 
 // ── Save video progress ──

@@ -296,6 +296,14 @@ export default function Notifications() {
                 className="input-field h-32 resize-none text-sm"
                 placeholder="اكتب رسالتك هنا... استخدم {name} لإدراج اسم الطالب تلقائياً" />
               <p className="text-xs text-gray-400 mt-1">استخدم &#123;name&#125; لإدراج اسم الطالب تلقائياً</p>
+              {message && selectedStudents.length > 0 && (
+                <div className="mt-2 bg-gray-50 border border-gray-200 rounded-xl p-3">
+                  <p className="text-xs font-bold text-gray-500 mb-1.5">👁 معاينة (أول طالب مختار):</p>
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                    {message.replace(/\{name\}/g, students.find(s => s.id === selectedStudents[0])?.name || 'الطالب')}
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-xs text-green-800 font-medium">
@@ -371,6 +379,14 @@ export default function Notifications() {
                 className="input-field h-32 resize-none text-sm"
                 placeholder="اكتب نص الإشعار هنا... استخدم {name} لإدراج اسم الطالب" />
               <p className="text-xs text-gray-400 mt-1">استخدم &#123;name&#125; لإدراج اسم الطالب تلقائياً</p>
+              {message && selectedStudents.length > 0 && (
+                <div className="mt-2 bg-gray-50 border border-gray-200 rounded-xl p-3">
+                  <p className="text-xs font-bold text-gray-500 mb-1.5">👁 معاينة (أول طالب مختار):</p>
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                    {message.replace(/\{name\}/g, students.find(s => s.id === selectedStudents[0])?.name || 'الطالب')}
+                  </p>
+                </div>
+              )}
             </div>
 
             <button onClick={sendPlatform} disabled={platformMut.isPending}

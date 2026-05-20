@@ -159,6 +159,9 @@ export function validateExamForm(form) {
   e('total_score', validateTotalScore(form.total_score));
   e('pass_score', validatePassScore(form.pass_score, form.total_score));
   e('end_date', validateDates(form.start_date, form.end_date, form.duration_minutes));
+  if (form.question_source === 'bank' && !form.bank_id) {
+    errors.bank_id = 'يجب اختيار بنك الأسئلة عند استخدام مصدر البنك';
+  }
   return errors;
 }
 
