@@ -153,7 +153,7 @@ export default function LandingPage() {
 
   const teacher = data?.teacher;
   const stats   = data?.stats;
-  const courses = data?.courses || [];
+  const courses = (data?.courses || []).slice(0, 3);
 
   const studentsCount = useCounter(parseInt(stats?.total_students || 0), 2000, statsVisible);
   const coursesCount  = useCounter(parseInt(stats?.total_courses  || 0), 1600, statsVisible);
