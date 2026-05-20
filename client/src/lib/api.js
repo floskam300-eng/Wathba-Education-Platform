@@ -12,6 +12,11 @@ api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
+      // Don't redirect if student is actively taking an exam
+      // (any exam_start_ key in localStorage means an exam is in progress)
+      const isInExam = Object.keys(localStorage).some(k => k.startsWith('exam_start_'));
+      if (isInExam) return Promise.reject(err);
+
       localStorage.removeItem('wathba_token');
       localStorage.removeItem('wathba_user');
       if (!window.location.pathname.includes('/login')) {

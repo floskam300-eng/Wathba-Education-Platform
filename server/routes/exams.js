@@ -12,12 +12,12 @@ const fs = require('fs');
 const router = express.Router();
 router.use(authenticate);
 
+// Pre-create question-images directory once at startup (not on every request)
+const QUESTION_IMG_DIR = path.join(__dirname, '../../uploads/question-images');
+fs.mkdirSync(QUESTION_IMG_DIR, { recursive: true });
+
 const questionImageStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const dir = path.join(__dirname, '../../uploads/question-images');
-    fs.mkdirSync(dir, { recursive: true });
-    cb(null, dir);
-  },
+  destination: (req, file, cb) => cb(null, QUESTION_IMG_DIR),
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname);
     cb(null, `q_${Date.now()}${ext}`);
@@ -468,7 +468,7 @@ router.get('/retry-requests', requireRole('teacher', 'assistant'), async (req, r
 });
 
 // ── Teacher: approve retry request ──
-router.put('/retry-requests/:reqId/approve', requireRole('teacher', 'assistant'), async (req, res) => {
+router.put('/retry-requests/:reqId/approve', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
   const { teacher_note } = req.body;
   try {
@@ -504,7 +504,7 @@ router.put('/retry-requests/:reqId/approve', requireRole('teacher', 'assistant')
 });
 
 // ── Teacher: reject retry request ──
-router.put('/retry-requests/:reqId/reject', requireRole('teacher', 'assistant'), async (req, res) => {
+router.put('/retry-requests/:reqId/reject', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
   const { teacher_note } = req.body;
   try {

@@ -30,12 +30,16 @@ const checkManageCoursesPerm = async (req, res, next) => {
   }
 };
 
+// Pre-create upload directories once at startup (not on every request)
+const UPLOAD_DIRS = {
+  thumbnails: path.join(__dirname, '../../uploads/thumbnails'),
+  videos:     path.join(__dirname, '../../uploads/videos'),
+  pdfs:       path.join(__dirname, '../../uploads/pdfs'),
+};
+Object.values(UPLOAD_DIRS).forEach(dir => fs.mkdirSync(dir, { recursive: true }));
+
 const thumbnailStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const dir = path.join(__dirname, '../../uploads/thumbnails');
-    fs.mkdirSync(dir, { recursive: true });
-    cb(null, dir);
-  },
+  destination: (req, file, cb) => cb(null, UPLOAD_DIRS.thumbnails),
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname);
     cb(null, `thumb_${Date.now()}${ext}`);
@@ -51,22 +55,14 @@ const uploadThumbnail = multer({
 });
 
 const videoStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const dir = path.join(__dirname, '../../uploads/videos');
-    fs.mkdirSync(dir, { recursive: true });
-    cb(null, dir);
-  },
+  destination: (req, file, cb) => cb(null, UPLOAD_DIRS.videos),
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname);
     cb(null, `vid_${Date.now()}${ext}`);
   },
 });
 const pdfStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const dir = path.join(__dirname, '../../uploads/pdfs');
-    fs.mkdirSync(dir, { recursive: true });
-    cb(null, dir);
-  },
+  destination: (req, file, cb) => cb(null, UPLOAD_DIRS.pdfs),
   filename: (req, file, cb) => {
     cb(null, `pdf_${Date.now()}.pdf`);
   },

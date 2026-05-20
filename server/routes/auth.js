@@ -12,7 +12,7 @@ const loginLimiter = rateLimit({
   message: { error: 'محاولات تسجيل دخول كثيرة، حاول مرة أخرى بعد 15 دقيقة' },
   standardHeaders: true,
   legacyHeaders: false,
-  skipSuccessfulRequests: true,
+  skipSuccessfulRequests: false,
 });
 
 router.post('/login', loginLimiter, async (req, res) => {

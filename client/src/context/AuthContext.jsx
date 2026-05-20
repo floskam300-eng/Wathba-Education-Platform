@@ -47,6 +47,12 @@ export const AuthProvider = ({ children }) => {
     const updated = { ...user, ...updates };
     localStorage.setItem('wathba_user', JSON.stringify(updated));
     setUser(updated);
+    // Background re-fetch to ensure data stays in sync with server
+    api.get('/auth/me').then(res => {
+      const fresh = res.data;
+      localStorage.setItem('wathba_user', JSON.stringify(fresh));
+      setUser(fresh);
+    }).catch(() => {});
   };
 
   return (

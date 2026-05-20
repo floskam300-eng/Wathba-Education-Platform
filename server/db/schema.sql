@@ -171,7 +171,7 @@ ALTER TABLE exam_results ADD COLUMN IF NOT EXISTS essay_graded          BOOLEAN 
 ALTER TABLE exam_results ADD COLUMN IF NOT EXISTS essay_score_adjustment INTEGER DEFAULT 0;
 
 ALTER TABLE assistants ADD COLUMN IF NOT EXISTS can_manage_payments BOOLEAN DEFAULT false;
-ALTER TABLE assistants ADD COLUMN IF NOT EXISTS can_manage_courses  BOOLEAN DEFAULT false;
+ALTER TABLE assistants ADD COLUMN IF NOT EXISTS can_manage_courses  BOOLEAN DEFAULT true;
 ALTER TABLE assistants ADD COLUMN IF NOT EXISTS can_send_notifications BOOLEAN DEFAULT false;
 
 CREATE TABLE IF NOT EXISTS course_enrollment_requests (
@@ -228,7 +228,7 @@ CREATE TABLE IF NOT EXISTS exam_retry_requests (
 
 ALTER TABLE courses ADD COLUMN IF NOT EXISTS is_free BOOLEAN DEFAULT false;
 ALTER TABLE courses ADD COLUMN IF NOT EXISTS is_published BOOLEAN DEFAULT false;
-ALTER TABLE assistants ADD COLUMN IF NOT EXISTS can_manage_courses BOOLEAN DEFAULT true;
+-- Note: can_manage_courses already added above with DEFAULT true — no duplicate needed
 
 ALTER TABLE exams ADD COLUMN IF NOT EXISTS start_notified BOOLEAN DEFAULT false;
 
@@ -439,3 +439,32 @@ CREATE INDEX IF NOT EXISTS idx_exams_teacher_published   ON exams(teacher_id, is
 CREATE INDEX IF NOT EXISTS idx_notification_log_unread   ON notification_log(student_id, is_read) WHERE is_read = false;
 CREATE INDEX IF NOT EXISTS idx_students_username         ON students(username);
 CREATE INDEX IF NOT EXISTS idx_assistants_teacher        ON assistants(teacher_id);
+
+-- ── Missing performance indexes identified in audit ───────────────────────────
+CREATE INDEX IF NOT EXISTS idx_exams_course_id           ON exams(course_id);
+CREATE INDEX IF NOT EXISTS idx_pdf_files_course_id       ON pdf_files(course_id);
+CREATE INDEX IF NOT EXISTS idx_videos_course_id          ON videos(course_id);
+CREATE INDEX IF NOT EXISTS idx_bank_questions_bank_id    ON bank_questions(bank_id);
+CREATE INDEX IF NOT EXISTS idx_exam_results_created_at   ON exam_results(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_payments_date             ON payments(payment_date DESC);
+CREATE INDEX IF NOT EXISTS idx_live_chat_stream_id       ON live_chat_messages(stream_id);
+
+-- ── Partial unique index: allow username reuse after soft-delete ──────────────
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'uq_students_username_active') THEN
+    CREATE UNIQUE INDEX uq_students_username_active ON students(username) WHERE deleted_at IS NULL;
+  END IF;
+END $$;
+
+-- ── CHECK constraint: enforce valid payment status values ─────────────────────
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_payment_status') THEN
+    ALTER TABLE payments ADD CONSTRAINT chk_payment_status
+      CHECK (status IN ('pending', 'verified', 'rejected'));
+  END IF;
+END $$;
+
+-- ── Add essay_answer_key to bank_questions to match questions table ───────────
+ALTER TABLE bank_questions ADD COLUMN IF NOT EXISTS essay_answer_key TEXT;

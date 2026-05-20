@@ -284,13 +284,15 @@ export default function TeacherExams() {
 
   const stageCounts = ['الكل', ...STAGES].reduce((acc, s) => {
     if (s === 'الكل') { acc[s] = exams.length; return acc; }
-    acc[s] = exams.filter(ex => courseStageMap[ex.course_id] === s).length;
+    // Include general exams (no course) in every stage count
+    acc[s] = exams.filter(ex => !ex.course_id || courseStageMap[ex.course_id] === s).length;
     return acc;
   }, {});
 
   const filteredExams = stageFilter === 'الكل'
     ? exams
-    : exams.filter(ex => courseStageMap[ex.course_id] === stageFilter);
+    // Include general exams (no course_id) in every stage filter so they are always visible
+    : exams.filter(ex => !ex.course_id || courseStageMap[ex.course_id] === stageFilter);
 
   const getScheduleStatus = (ex) => {
     const now = new Date();
