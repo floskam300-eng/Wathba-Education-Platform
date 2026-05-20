@@ -151,9 +151,10 @@ export default function LandingPage() {
   const [statsVisible, setStatsVisible] = useState(false);
   const statsRef = useRef(null);
 
-  const teacher = data?.teacher;
-  const stats   = data?.stats;
-  const courses = (data?.courses || []).slice(0, 3);
+  const teacher    = data?.teacher;
+  const stats      = data?.stats;
+  const courses    = (data?.courses || []).slice(0, 3);
+  const assistants = data?.assistants || [];
 
   const studentsCount = useCounter(parseInt(stats?.total_students || 0), 2000, statsVisible);
   const coursesCount  = useCounter(parseInt(stats?.total_courses  || 0), 1600, statsVisible);
@@ -249,7 +250,7 @@ export default function LandingPage() {
 
           {/* Nav Links */}
           <div className="hidden md:flex items-center gap-6 text-sm font-semibold text-white/60">
-            {[['about','عن المعلم'],['courses','الكورسات'],['features','المميزات']].map(([id, label]) => (
+            {[['about','عن المعلم'],['courses','الكورسات'],['features','المميزات'],['assistants','فريق الدعم']].map(([id, label]) => (
               <button key={id} onClick={() => scrollTo(id)}
                 className="hover:text-orange-400 transition-colors duration-200">{label}</button>
             ))}
@@ -412,14 +413,9 @@ export default function LandingPage() {
                     ))}
                   </div>
 
-                  {teacher?.whatsapp_phone && (
-                    <a href={`https://wa.me/${teacher.whatsapp_phone.replace(/\D/g,'')}`}
-                      target="_blank" rel="noopener noreferrer"
-                      className="mt-5 flex items-center justify-center gap-2 bg-emerald-500/15 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-400 font-bold text-sm px-4 py-2.5 rounded-xl transition-all duration-300">
-                      <MessageCircle className="w-4 h-4" />
-                      تواصل عبر واتساب
-                    </a>
-                  )}
+                  <div className="mt-5 bg-orange-500/10 border border-orange-500/20 rounded-xl px-4 py-3 text-center">
+                    <p className="text-orange-300/80 text-xs font-semibold">للتواصل والانضمام راجع المساعدين أسفل الصفحة</p>
+                  </div>
                 </div>
               </div>
             </Reveal>
@@ -463,6 +459,60 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* ══════════════════════════════════════════
+          ASSISTANTS — للتواصل والانضمام
+      ══════════════════════════════════════════ */}
+      {assistants.length > 0 && (
+        <section id="assistants" className="relative py-20 overflow-hidden">
+          <div className="absolute inset-0 bg-[#060d1a]" />
+          <Orb size="500px" top="0"   left="60%"  color="radial-gradient(#7c3aed,transparent)" delay={0} duration={10} />
+          <Orb size="400px" top="40%" left="-100px" color="radial-gradient(#FF8C00,transparent)" delay={2} duration={12} />
+
+          <div className="relative z-10 max-w-5xl mx-auto px-6">
+            <Reveal className="text-center mb-12">
+              <p className="text-emerald-400 font-bold text-sm mb-3 tracking-widest uppercase">انضم إلينا</p>
+              <h2 className="font-black text-4xl text-white mb-4">
+                تواصل مع <span className="gradient-text">فريق الدعم</span>
+              </h2>
+              <p className="text-white/50 text-base max-w-xl mx-auto">
+                للاستفسار عن الكورسات أو التسجيل في المنصة، تواصل مع أحد المساعدين مباشرةً
+              </p>
+              <div className="w-24 h-1 bg-gradient-to-l from-emerald-500 to-transparent rounded-full mx-auto mt-4" />
+            </Reveal>
+
+            <div className={`grid gap-5 ${assistants.length === 1 ? 'max-w-sm mx-auto' : assistants.length === 2 ? 'sm:grid-cols-2 max-w-2xl mx-auto' : 'sm:grid-cols-2 lg:grid-cols-3'}`}>
+              {assistants.map((asst, i) => (
+                <Reveal key={asst.id} delay={i * 0.1}
+                  className="group bg-white/5 border border-white/10 rounded-3xl p-6 hover:border-emerald-400/40 hover:bg-white/8 transition-all duration-400 hover:-translate-y-2 card-glow text-center">
+                  {/* Avatar */}
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500/30 to-emerald-700/20 border border-emerald-500/25 flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
+                    <span className="text-2xl font-black text-emerald-300">{asst.name?.charAt(0) || '؟'}</span>
+                  </div>
+
+                  <h3 className="font-black text-white text-lg mb-1">{asst.name}</h3>
+                  <p className="text-white/40 text-sm mb-5">مساعد للتسجيل والدعم</p>
+
+                  {asst.phone ? (
+                    <a
+                      href={`https://wa.me/${asst.phone.replace(/\D/g, '')}`}
+                      target="_blank" rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-2 w-full bg-emerald-500/15 hover:bg-emerald-500/30 border border-emerald-500/30 hover:border-emerald-400/60 text-emerald-300 font-bold text-sm px-4 py-2.5 rounded-xl transition-all duration-300 active:scale-95">
+                      <MessageCircle className="w-4 h-4" />
+                      {asst.phone}
+                    </a>
+                  ) : (
+                    <div className="flex items-center justify-center gap-2 w-full bg-white/5 border border-white/10 text-white/30 text-sm px-4 py-2.5 rounded-xl">
+                      <Phone className="w-4 h-4" />
+                      رقم غير متاح
+                    </div>
+                  )}
+                </Reveal>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ══════════════════════════════════════════
           COURSES

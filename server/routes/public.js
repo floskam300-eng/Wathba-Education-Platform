@@ -18,10 +18,14 @@ router.get('/info', async (req, res) => {
     const courses = await pool.query(
       'SELECT id, name, description, price, thumbnail_url, target_stage, created_at FROM courses WHERE is_published = true AND price > 0 ORDER BY price DESC LIMIT 3'
     );
+    const assistants = await pool.query(
+      'SELECT id, name, phone FROM assistants ORDER BY id ASC'
+    );
     res.json({
       teacher: teacher.rows[0] || null,
       stats: stats.rows[0],
       courses: courses.rows,
+      assistants: assistants.rows,
     });
   } catch (err) {
     console.error(err);
