@@ -18,15 +18,16 @@ const verifyCoursOwnership = async (courseId, teacherId) => {
   return r.rows.length > 0;
 };
 
-const checkManageCoursesPerm = (req, res, next) => {
+const checkManageCoursesPerm = async (req, res, next) => {
   if (req.user.role === 'teacher') return next();
-  pool.query('SELECT can_manage_courses FROM assistants WHERE id=$1', [req.user.id])
-    .then(r => {
-      if (!r.rows.length || !r.rows[0].can_manage_courses)
-        return res.status(403).json({ error: 'Access denied: missing permission' });
-      next();
-    })
-    .catch(() => res.status(500).json({ error: 'Server error' }));
+  try {
+    const r = await pool.query('SELECT can_manage_courses FROM assistants WHERE id=$1', [req.user.id]);
+    if (!r.rows.length || !r.rows[0].can_manage_courses)
+      return res.status(403).json({ error: 'Access denied: missing permission' });
+    next();
+  } catch {
+    res.status(500).json({ error: 'Server error' });
+  }
 };
 
 const thumbnailStorage = multer.diskStorage({
@@ -564,11 +565,15 @@ router.get('/student/available-all', requireRole('student'), async (req, res) =>
        LEFT JOIN videos v ON c.id = v.course_id
        LEFT JOIN pdf_files p ON c.id = p.course_id
        LEFT JOIN student_course_enrollment sce ON c.id = sce.course_id AND sce.student_id = $1
-       LEFT JOIN course_enrollment_requests cer ON c.id = cer.course_id AND cer.student_id = $1
+       LEFT JOIN LATERAL (
+         SELECT id, status FROM course_enrollment_requests
+         WHERE course_id = c.id AND student_id = $1
+         ORDER BY created_at DESC LIMIT 1
+       ) cer ON true
        WHERE c.teacher_id = $2
          AND c.is_published = true
          AND (c.target_stage = $3 OR c.target_stage IS NULL OR c.target_stage = '')
-       GROUP BY c.id, sce.student_id, cer.status, cer.id
+       GROUP BY c.id, sce.student_id, sce.status, cer.status, cer.id
        ORDER BY c.created_at DESC`,
       [req.user.id, teacherId, studentStage]
     );

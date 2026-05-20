@@ -186,15 +186,33 @@ router.post('/:streamId/join', requireRole('student'), async (req, res) => {
   const studentId = req.user.id;
   const { streamId } = req.params;
 
+  const parseJsonbField = (val) => {
+    if (Array.isArray(val)) return val;
+    if (typeof val === 'string') { try { return JSON.parse(val); } catch (_) { return []; } }
+    return [];
+  };
+
   try {
     // Verify stream exists AND student belongs to the teacher who owns the stream
     const { rows } = await pool.query(
-      `SELECT ls.* FROM live_streams ls
+      `SELECT ls.*, s.academic_stage FROM live_streams ls
        JOIN students s ON s.teacher_id = ls.teacher_id
        WHERE ls.id=$1 AND ls.status='active' AND s.id=$2 AND s.deleted_at IS NULL`,
       [streamId, studentId]
     );
     if (!rows.length) return res.status(404).json({ error: 'البث غير موجود أو انتهى' });
+
+    const stream = rows[0];
+    // Enforce per-stream access restrictions
+    if (stream.access === 'stages') {
+      const allowed = parseJsonbField(stream.allowed_stages).map(String);
+      if (!allowed.includes(String(stream.academic_stage || '')))
+        return res.status(403).json({ error: 'هذا البث مخصص لمراحل دراسية أخرى' });
+    } else if (stream.access === 'specific') {
+      const allowed = parseJsonbField(stream.allowed_student_ids).map(Number);
+      if (!allowed.includes(studentId))
+        return res.status(403).json({ error: 'لم تُضَف إلى قائمة المشاركين في هذا البث' });
+    }
 
     await pool.query(
       `INSERT INTO live_stream_viewers (stream_id, student_id, is_active, joined_at)
@@ -204,11 +222,11 @@ router.post('/:streamId/join', requireRole('student'), async (req, res) => {
       [streamId, studentId]
     );
 
-    sendEvent(`teacher_${rows[0].teacher_id}`, 'live_viewer_update', {
+    sendEvent(`teacher_${stream.teacher_id}`, 'live_viewer_update', {
       action: 'joined', studentId, studentName: req.user.name,
     });
 
-    res.json({ success: true, stream: rows[0] });
+    res.json({ success: true, stream });
   } catch (err) {
     console.error('[live/join]', err);
     res.status(500).json({ error: 'Server error' });
@@ -370,7 +388,7 @@ router.post('/:streamId/award-points', requireRole('teacher'), async (req, res) 
 /* ──────────────────────────────────────────────────────────────
    Both: get chat messages (supports ?since=<unix_ms>)
 ────────────────────────────────────────────────────────────── */
-router.get('/:streamId/chat', async (req, res) => {
+router.get('/:streamId/chat', requireRole('teacher', 'student'), async (req, res) => {
   const { streamId } = req.params;
   const { since } = req.query;
   const userId = req.user.id;
@@ -408,7 +426,7 @@ router.get('/:streamId/chat', async (req, res) => {
 /* ──────────────────────────────────────────────────────────────
    Both: send a chat message
 ────────────────────────────────────────────────────────────── */
-router.post('/:streamId/chat', async (req, res) => {
+router.post('/:streamId/chat', requireRole('teacher', 'student'), async (req, res) => {
   const { streamId } = req.params;
   const { message } = req.body;
   const senderId = req.user.id;

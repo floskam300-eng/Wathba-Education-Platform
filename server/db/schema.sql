@@ -395,3 +395,22 @@ CREATE TABLE IF NOT EXISTS exam_sessions (
   UNIQUE(student_id, exam_id)
 );
 CREATE INDEX IF NOT EXISTS idx_exam_sessions_student_exam ON exam_sessions(student_id, exam_id);
+
+-- ── Additional performance indexes ───────────────────────────────────────────
+CREATE INDEX IF NOT EXISTS idx_notification_log_student_source ON notification_log(student_id, source);
+CREATE INDEX IF NOT EXISTS idx_exam_results_student_exam ON exam_results(student_id, exam_id);
+CREATE INDEX IF NOT EXISTS idx_exam_retry_requests_student_exam ON exam_retry_requests(student_id, exam_id);
+CREATE INDEX IF NOT EXISTS idx_live_stream_viewers_stream_active ON live_stream_viewers(stream_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_students_deleted_at ON students(teacher_id, deleted_at);
+
+-- ── Cleanup stale exam_sessions (older than 14 days with no result) ──────────
+DO $$
+BEGIN
+  DELETE FROM exam_sessions es
+  WHERE es.started_at < NOW() - INTERVAL '14 days'
+    AND NOT EXISTS (
+      SELECT 1 FROM exam_results er
+      WHERE er.student_id = es.student_id AND er.exam_id = es.exam_id
+    );
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;

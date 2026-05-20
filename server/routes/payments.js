@@ -62,7 +62,7 @@ async function checkAndResetLeaderboard(teacherId) {
 
     if (claimed.rows.length) {
       const prevLabel = getArabicMonthLabel(new Date(claimed.rows[0].prev_last_reset_at));
-      await doLeaderboardReset(teacherId, prevLabel);
+      await doLeaderboardReset(teacherId, prevLabel, true);
       return true;
     }
     return false;
@@ -73,7 +73,7 @@ async function checkAndResetLeaderboard(teacherId) {
 }
 
 // ─── helper: perform the actual reset ──────────────────────────────────────
-async function doLeaderboardReset(teacherId, monthLabel) {
+async function doLeaderboardReset(teacherId, monthLabel, skipTrackerUpdate = false) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -114,14 +114,16 @@ async function doLeaderboardReset(teacherId, monthLabel) {
       [teacherId]
     );
 
-    // 4. update tracker
-    await client.query(
-      `INSERT INTO leaderboard_reset_tracker (teacher_id, last_reset_at, next_reset_at)
-       VALUES ($1, NOW(), NOW() + INTERVAL '30 days')
-       ON CONFLICT (teacher_id) DO UPDATE
-       SET last_reset_at = NOW(), next_reset_at = NOW() + INTERVAL '30 days'`,
-      [teacherId]
-    );
+    // 4. update tracker — skipped if already updated atomically in checkAndResetLeaderboard
+    if (!skipTrackerUpdate) {
+      await client.query(
+        `INSERT INTO leaderboard_reset_tracker (teacher_id, last_reset_at, next_reset_at)
+         VALUES ($1, NOW(), NOW() + INTERVAL '30 days')
+         ON CONFLICT (teacher_id) DO UPDATE
+         SET last_reset_at = NOW(), next_reset_at = NOW() + INTERVAL '30 days'`,
+        [teacherId]
+      );
+    }
 
     await client.query('COMMIT');
   } catch (err) {
@@ -143,7 +145,7 @@ router.get('/', requireRole('teacher', 'assistant'), (req, res, next) => checkPe
       `SELECT p.*, s.name as student_name, s.phone as student_phone, c.name as course_name
        FROM payments p JOIN students s ON p.student_id=s.id
        LEFT JOIN courses c ON p.course_id=c.id
-       WHERE s.teacher_id=$1 ORDER BY p.payment_date DESC`,
+       WHERE s.teacher_id=$1 AND s.deleted_at IS NULL ORDER BY p.payment_date DESC`,
       [teacherId]
     );
     res.json(result.rows);

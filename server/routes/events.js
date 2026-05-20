@@ -5,14 +5,20 @@ const { authenticate, requireRole } = require('../middleware/auth');
 const router = express.Router();
 router.use(authenticate);
 
+// Returns Monday 00:00:00 Cairo time expressed as a UTC Date
+// Egypt = Africa/Cairo (UTC+2 winter / UTC+3 summer — Intl handles DST correctly)
 const getWeekStart = () => {
   const now = new Date();
-  const day = now.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  const mon = new Date(now);
-  mon.setDate(now.getDate() + diff);
-  mon.setHours(0, 0, 0, 0);
-  return mon;
+  // Get the current date string in Cairo timezone (YYYY-MM-DD)
+  const cairoDateStr = now.toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
+  const [y, m, d] = cairoDateStr.split('-').map(Number);
+
+  // Build a Date that represents midnight (00:00:00) on this Cairo date, in UTC
+  const cairoMidnightUtc = new Date(Date.UTC(y, m - 1, d));
+  const dayOfWeek = cairoMidnightUtc.getUTCDay(); // 0=Sun, 1=Mon, …
+  const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  cairoMidnightUtc.setUTCDate(cairoMidnightUtc.getUTCDate() + diff);
+  return cairoMidnightUtc;
 };
 
 router.get('/weekly-run/status', requireRole('student'), async (req, res) => {

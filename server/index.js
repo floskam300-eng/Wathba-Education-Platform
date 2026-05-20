@@ -5,6 +5,7 @@ const path = require('path');
 const pool = require('./db/connection');
 const fs = require('fs');
 const jwt = require('jsonwebtoken');
+const rateLimit = require('express-rate-limit');
 const { addClient, removeClient } = require('./sse');
 const { startScheduler } = require('./scheduler');
 const { initFCM } = require('./lib/fcm');
@@ -27,6 +28,31 @@ app.use((req, res, next) => {
   if (req.is('multipart/form-data')) return next();
   express.json({ limit: '5mb' })(req, res, next);
 });
+
+// ── General API rate limiter (120 req/min per IP) ──────────────
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'طلبات كثيرة جداً، حاول مرة أخرى بعد دقيقة' },
+});
+app.use('/api/', apiLimiter);
+
+// ── Protected uploads: PDFs and videos require a valid JWT ─────
+const uploadsAuthMiddleware = (req, res, next) => {
+  const token = req.headers.authorization?.split(' ')[1] || req.query.token;
+  if (!token) return res.status(401).send('Unauthorized');
+  try {
+    jwt.verify(token, process.env.JWT_SECRET);
+    next();
+  } catch {
+    return res.status(401).send('Unauthorized');
+  }
+};
+app.use('/uploads/pdfs',   uploadsAuthMiddleware, express.static(path.join(__dirname, '../uploads/pdfs')));
+app.use('/uploads/videos', uploadsAuthMiddleware, express.static(path.join(__dirname, '../uploads/videos')));
+// Images and thumbnails remain public (needed for login page / course cards)
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // ── SSE endpoint ──────────────────────────────────────────────

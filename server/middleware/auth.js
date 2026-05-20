@@ -7,7 +7,12 @@ if (!process.env.JWT_SECRET) {
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
-const authenticate = (req, res, next) => {
+// Simple TTL cache — avoids a DB query on every student request
+// Entry: { valid: boolean, at: number (ms) }
+const _studentCache = new Map();
+const CACHE_TTL_MS = 30_000; // 30 seconds
+
+const authenticate = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   let token = null;
   if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -20,11 +25,35 @@ const authenticate = (req, res, next) => {
   }
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
+
+    // For students: verify the account hasn't been soft-deleted since token was issued
+    if (decoded.role === 'student') {
+      const now = Date.now();
+      const cached = _studentCache.get(decoded.id);
+      if (!cached || now - cached.at > CACHE_TTL_MS) {
+        const pool = require('../db/connection');
+        const check = await pool.query(
+          'SELECT id FROM students WHERE id=$1 AND deleted_at IS NULL',
+          [decoded.id]
+        );
+        const valid = check.rows.length > 0;
+        _studentCache.set(decoded.id, { valid, at: now });
+        if (!valid) return res.status(401).json({ error: 'الحساب غير نشط أو تم حذفه' });
+      } else if (!cached.valid) {
+        return res.status(401).json({ error: 'الحساب غير نشط أو تم حذفه' });
+      }
+    }
+
     req.user = decoded;
     next();
   } catch (err) {
     return res.status(401).json({ error: 'Invalid or expired token' });
   }
+};
+
+// Expose cache invalidation so delete endpoint can immediately block the token
+const invalidateStudentAuthCache = (studentId) => {
+  _studentCache.set(studentId, { valid: false, at: Date.now() });
 };
 
 const requireRole = (...roles) => (req, res, next) => {
@@ -36,4 +65,4 @@ const requireRole = (...roles) => (req, res, next) => {
 
 const generateToken = (payload) => jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
 
-module.exports = { authenticate, requireRole, generateToken };
+module.exports = { authenticate, requireRole, generateToken, invalidateStudentAuthCache };

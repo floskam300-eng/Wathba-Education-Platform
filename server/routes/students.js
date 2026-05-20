@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const pool = require('../db/connection');
-const { authenticate, requireRole } = require('../middleware/auth');
+const { authenticate, requireRole, invalidateStudentAuthCache } = require('../middleware/auth');
 const { invalidateCache } = require('../lib/analyticsCache');
 const { getPermissions } = require('../lib/permissionsCache');
 const { validateStudent } = require('../middleware/validate');
@@ -88,7 +88,7 @@ router.get('/', requireRole('teacher', 'assistant'), async (req, res) => {
        GROUP BY s.id ORDER BY s.created_at DESC`,
       params
     );
-    res.json(result.rows.map(({ password: _, ...s }) => s));
+    res.json(result.rows.map(({ password: _, plain_password: __, ...s }) => s));
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }
@@ -120,8 +120,8 @@ router.post('/', requireRole('teacher', 'assistant'), (req, res, next) => checkP
       try {
         const hashed = await bcrypt.hash(generatedPassword, 10);
         const result = await pool.query(
-          'INSERT INTO students (username,password,plain_password,name,phone,parent_phone,academic_stage,gender,teacher_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',
-          [username, hashed, generatedPassword, name, phone, parent_phone, academic_stage, gender, teacherId]
+          'INSERT INTO students (username,password,name,phone,parent_phone,academic_stage,gender,teacher_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
+          [username, hashed, name, phone, parent_phone, academic_stage, gender, teacherId]
         );
         invalidateCache(teacherId);
         // Auto-enroll new student in teacher's published free courses
@@ -135,7 +135,7 @@ router.post('/', requireRole('teacher', 'assistant'), (req, res, next) => checkP
             [result.rows[0].id, teacherId, academic_stage || '']
           );
         } catch (_) {}
-        const { password: _, ...safe } = result.rows[0];
+        const { password: _, plain_password: __, ...safe } = result.rows[0];
         return res.status(201).json({ ...safe, generated_password: generatedPassword });
       } catch (err) {
         if (err.code === '23505') {
@@ -159,15 +159,15 @@ router.put('/:id', requireRole('teacher', 'assistant'), (req, res, next) => chec
     let query, params;
     if (password) {
       const hashed = await bcrypt.hash(password, 10);
-      query = 'UPDATE students SET name=$1,phone=$2,parent_phone=$3,academic_stage=$4,gender=$5,password=$6,plain_password=$7 WHERE id=$8 AND teacher_id=$9 RETURNING *';
-      params = [name, phone, parent_phone, academic_stage, gender, hashed, password, req.params.id, teacherId];
+      query = 'UPDATE students SET name=$1,phone=$2,parent_phone=$3,academic_stage=$4,gender=$5,password=$6 WHERE id=$7 AND teacher_id=$8 RETURNING *';
+      params = [name, phone, parent_phone, academic_stage, gender, hashed, req.params.id, teacherId];
     } else {
       query = 'UPDATE students SET name=$1,phone=$2,parent_phone=$3,academic_stage=$4,gender=$5 WHERE id=$6 AND teacher_id=$7 RETURNING *';
       params = [name, phone, parent_phone, academic_stage, gender, req.params.id, teacherId];
     }
     const result = await pool.query(query, params);
     if (!result.rows.length) return res.status(404).json({ error: 'Student not found' });
-    const { password: _, ...safe } = result.rows[0];
+    const { password: _, plain_password: __, ...safe } = result.rows[0];
     res.json(safe);
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
@@ -183,6 +183,7 @@ router.delete('/:id', requireRole('teacher', 'assistant'), (req, res, next) => c
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Student not found' });
     invalidateCache(teacherId);
+    invalidateStudentAuthCache(parseInt(req.params.id));
     res.json({ message: 'Student deleted' });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
@@ -377,7 +378,7 @@ router.get('/me/stats', requireRole('student'), async (req, res) => {
     // Aggregate totals
     const totalPaid    = payments.filter(p => p.status === 'verified').reduce((s, p) => s + parseFloat(p.amount), 0);
     const totalPending = payments.filter(p => p.status === 'pending').reduce((s, p) => s + parseFloat(p.amount), 0);
-    const passCount    = exams.filter(e => e.score >= e.pass_score).length;
+    const passCount    = exams.filter(e => parseInt(e.score) >= parseInt(e.pass_score)).length;
     const avgScore     = exams.length ? Math.round(exams.reduce((s, e) => s + (e.score / e.total_score * 100), 0) / exams.length) : 0;
     const totalWatchedMinutes = videoProgressRes.rows.reduce((s, v) => s + v.watched_minutes, 0);
 
@@ -446,13 +447,13 @@ router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => ch
       let username = manualUsername || await generateUsername(teacherId, academic_stage || '', pool);
 
       // Retry up to 5 times on username collision
+      const hashed = await bcrypt.hash(finalPassword, 10);
       let retries = 0;
       while (retries < 5) {
         try {
-          const hashed = await bcrypt.hash(finalPassword, 10);
           await pool.query(
-            'INSERT INTO students (username,password,plain_password,name,phone,parent_phone,academic_stage,gender,teacher_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',
-            [username, hashed, finalPassword, name, phone, parent_phone, academic_stage, gender, teacherId]
+            'INSERT INTO students (username,password,name,phone,parent_phone,academic_stage,gender,teacher_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',
+            [username, hashed, name, phone, parent_phone, academic_stage, gender, teacherId]
           );
           results.success++;
           // Only report generated credentials (not user-supplied ones)
@@ -584,7 +585,7 @@ router.patch('/me/notifications/:id/read', requireRole('student'), async (req, r
 router.patch('/me/notifications/read-all', requireRole('student'), async (req, res) => {
   try {
     await pool.query(
-      'UPDATE notification_log SET is_read=true WHERE student_id=$1',
+      "UPDATE notification_log SET is_read=true WHERE student_id=$1 AND source='platform' AND is_read=false",
       [req.user.id]
     );
     res.json({ ok: true });

@@ -486,9 +486,13 @@ router.put('/retry-requests/:reqId/approve', requireRole('teacher', 'assistant')
     try {
       const row = rr.rows[0];
       await pool.query(
-        `INSERT INTO notification_log (teacher_id, student_id, message, type)
-         VALUES ($1, $2, 'تمت الموافقة على طلب إعادة الاختبار — يمكنك الآن إعادة تأدية الاختبار', 'retry_approved')`,
+        `INSERT INTO notification_log (teacher_id, student_id, recipient_type, message, type, is_read, source, title)
+         VALUES ($1, $2, 'student', 'تمت الموافقة على طلب إعادة الاختبار — يمكنك الآن إعادة تأدية الاختبار', 'retry_approved', false, 'platform', 'قبول إعادة اختبار')`,
         [teacherId, row.student_id]
+      );
+      await pool.query(
+        'DELETE FROM exam_sessions WHERE student_id=$1 AND exam_id=$2',
+        [row.student_id, row.exam_id]
       );
       sendEvent(`student_${row.student_id}`, 'retry_approved', { examId: row.exam_id });
       sendFCMToStudents(pool, [row.student_id], 'قبول إعادة اختبار', 'تمت الموافقة على طلب إعادة الاختبار — يمكنك الآن إعادة تأدية الاختبار').catch(() => {});
@@ -518,8 +522,8 @@ router.put('/retry-requests/:reqId/reject', requireRole('teacher', 'assistant'),
     try {
       const row = rr.rows[0];
       await pool.query(
-        `INSERT INTO notification_log (teacher_id, student_id, message, type)
-         VALUES ($1, $2, 'تم رفض طلب إعادة الاختبار', 'retry_rejected')`,
+        `INSERT INTO notification_log (teacher_id, student_id, recipient_type, message, type, is_read, source, title)
+         VALUES ($1, $2, 'student', 'تم رفض طلب إعادة الاختبار', 'retry_rejected', false, 'platform', 'رفض إعادة اختبار')`,
         [teacherId, row.student_id]
       );
       sendEvent(`student_${row.student_id}`, 'retry_rejected', { examId: row.exam_id });
@@ -634,7 +638,7 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
         `INSERT INTO exam_sessions (student_id, exam_id, started_at, questions_snapshot)
          VALUES ($1, $2, NOW(), $3)
          ON CONFLICT (student_id, exam_id)
-         DO UPDATE SET started_at = NOW(), questions_snapshot = EXCLUDED.questions_snapshot`,
+         DO UPDATE SET questions_snapshot = EXCLUDED.questions_snapshot`,
         [studentId, req.params.id, JSON.stringify(questions)]
       );
     } catch (_) {}
@@ -650,6 +654,11 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
   const studentId = req.user.id;
   const examId = req.params.id;
   const { answers } = req.body;
+
+  if (!answers || typeof answers !== 'object' || Array.isArray(answers))
+    return res.status(400).json({ error: 'بيانات الإجابات غير صحيحة' });
+  if (Object.keys(answers).length > 500)
+    return res.status(400).json({ error: 'عدد الإجابات يتجاوز الحد المسموح (500)' });
 
   // ── Pre-flight eligibility check (outside transaction for speed) ──
   let eligibilityRow, questionsData, serverSession;
@@ -673,7 +682,7 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
        WHERE e.id = $2
          AND e.is_published = true
          AND e.teacher_id = (SELECT teacher_id FROM students WHERE id = $1)
-         AND (e.course_id IS NULL OR sce.student_id IS NOT NULL)`,
+         AND (e.course_id IS NULL OR sce.status = 'active')`,
       [studentId, examId]
     );
     if (!ec.rows.length)
