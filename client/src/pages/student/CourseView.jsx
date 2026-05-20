@@ -579,6 +579,8 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
   const pendingSeekRef = useRef(null);
 
   useEffect(() => {
+    clearInterval(saveTimer.current);
+    saveTimer.current = null;
     setPlaying(false);
     setProgress(0);
     setCurrentTime(0);
@@ -995,9 +997,9 @@ export default function CourseView() {
 
   /* ── Access guard: redirect if courses loaded and this one isn't enrolled ── */
   useEffect(() => {
-    if (!coursesLoading && courses.length >= 0 && courseId) {
+    if (!coursesLoading && courses.length > 0 && courseId) {
       const found = courses.find(c => String(c.id) === String(courseId));
-      if (!found && courses !== undefined) {
+      if (!found) {
         toast.error('ليس لديك صلاحية الوصول لهذا الكورس');
         navigate('/student/courses', { replace: true });
       }

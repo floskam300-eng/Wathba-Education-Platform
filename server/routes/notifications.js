@@ -61,16 +61,27 @@ router.post('/fcm-token', requireRole('student'), async (req, res) => {
 router.post('/log', requireRole('teacher', 'assistant'), async (req, res) => {
   const teacherId = getTeacherId(req);
   const { student_id, recipient_phone, recipient_type, message } = req.body;
+  if (!message?.trim()) return res.status(400).json({ error: 'الرسالة مطلوبة' });
   try {
+    let resolvedStudentId = null;
+    if (student_id) {
+      // Verify this student belongs to this teacher
+      const check = await pool.query(
+        'SELECT id FROM students WHERE id=$1 AND teacher_id=$2 AND deleted_at IS NULL',
+        [student_id, teacherId]
+      );
+      if (!check.rows.length) return res.status(403).json({ error: 'Access denied: student not yours' });
+      resolvedStudentId = student_id;
+    }
     const result = await pool.query(
       `INSERT INTO notification_log
          (teacher_id, student_id, recipient_phone, recipient_type, message, source)
        VALUES ($1,$2,$3,$4,$5,'whatsapp') RETURNING *`,
-      [teacherId, student_id || null, recipient_phone, recipient_type || 'student', message]
+      [teacherId, resolvedStudentId, recipient_phone || null, recipient_type || 'student', message.trim()]
     );
-    if (student_id) {
-      sendEvent(`student_${student_id}`, 'notification', { message, type: 'general' });
-      sendFCMToStudents(pool, [student_id], 'إشعار جديد', message).catch(() => {});
+    if (resolvedStudentId) {
+      sendEvent(`student_${resolvedStudentId}`, 'notification', { message: message.trim(), type: 'general' });
+      sendFCMToStudents(pool, [resolvedStudentId], 'إشعار جديد', message.trim()).catch(() => {});
     }
     res.status(201).json(result.rows[0]);
   } catch (err) {

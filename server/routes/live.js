@@ -444,13 +444,13 @@ router.post('/:streamId/chat', requireRole('teacher', 'student'), async (req, re
     );
     if (!streamRows.length) return res.status(404).json({ error: 'البث غير موجود أو انتهى' });
 
-    // Students must belong to the teacher who owns the stream
+    // Students must be active viewers of this stream (verified join + access check)
     if (senderType === 'student') {
-      const belongs = await pool.query(
-        'SELECT 1 FROM students WHERE id=$1 AND teacher_id=$2 AND deleted_at IS NULL',
-        [senderId, streamRows[0].teacher_id]
+      const viewer = await pool.query(
+        'SELECT 1 FROM live_stream_viewers WHERE stream_id=$1 AND student_id=$2 AND is_active=true',
+        [streamId, senderId]
       );
-      if (!belongs.rows.length) return res.status(403).json({ error: 'Access denied' });
+      if (!viewer.rows.length) return res.status(403).json({ error: 'يجب الانضمام للبث أولاً قبل إرسال رسائل' });
     }
 
     if (senderType === 'student' && !streamRows[0].chat_enabled)

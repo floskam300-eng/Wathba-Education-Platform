@@ -153,7 +153,20 @@ export default function StudentExams() {
       qc.invalidateQueries(['student-exams']);
       qc.invalidateQueries(['student-dashboard']);
     },
-    onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
+    onError: (e, variables) => {
+      const status = e.response?.status;
+      if (status === 409) {
+        // Already submitted (e.g., duplicate keepalive) — clean up and refresh
+        localStorage.removeItem(`exam_start_${variables.id}`);
+        localStorage.removeItem(`exam_answers_${variables.id}`);
+        setTaking(null);
+        qc.invalidateQueries(['student-exams']);
+      } else {
+        // Retriable error — reset guard so student can re-submit
+        submittedRef.current = false;
+      }
+      toast.error(e.response?.data?.error || 'حدث خطأ في الإرسال');
+    },
   });
 
   // Pre-compute shuffled MCQ options once when exam data loads (not on every re-render)

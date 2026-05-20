@@ -103,6 +103,27 @@ router.post('/upload-thumbnail', requireRole('teacher', 'assistant'), checkManag
   res.json({ url });
 });
 
+router.delete('/upload-thumbnail', requireRole('teacher', 'assistant'), async (req, res) => {
+  const { url } = req.body;
+  if (!url || !url.startsWith('/uploads/thumbnails/')) {
+    return res.status(400).json({ error: 'مسار غير صالح' });
+  }
+  try {
+    const teacherId = getTeacherId(req);
+    // Only delete if not referenced by any of this teacher's courses
+    const inUse = await pool.query(
+      'SELECT id FROM courses WHERE thumbnail_url=$1 AND teacher_id=$2 LIMIT 1',
+      [url, teacherId]
+    );
+    if (inUse.rows.length) return res.json({ ok: true }); // in use, don't delete
+    const filePath = path.join(__dirname, '../../', url);
+    fs.unlink(filePath, () => {});
+    res.json({ ok: true });
+  } catch {
+    res.json({ ok: true }); // non-critical, always succeed
+  }
+});
+
 router.get('/', requireRole('teacher', 'assistant'), async (req, res) => {
   const teacherId = getTeacherId(req);
   try {

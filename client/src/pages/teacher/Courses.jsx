@@ -1,4 +1,5 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
+import axios from 'axios';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   BookOpen, Plus, Pencil, Trash2, Video, FileText, Users,
@@ -73,9 +74,7 @@ function VideoUrlSection({ courseId, onSuccess, sections = [] }) {
     if (!url.trim()) return toast.error('أدخل رابط الفيديو');
     setLoading(true);
     try {
-      const token = localStorage.getItem('wathba_token');
-      const { default: axios } = await import('axios');
-      await axios.post(`/api/courses/${courseId}/videos/url`, {
+      await api.post(`/courses/${courseId}/videos/url`, {
         title: title.trim(),
         url: url.trim(),
         duration_minutes: duration || '0',
@@ -83,7 +82,7 @@ function VideoUrlSection({ courseId, onSuccess, sections = [] }) {
         url_480: url480.trim() || undefined,
         url_720: url720.trim() || undefined,
         url_1080: url1080.trim() || undefined,
-      }, { headers: { Authorization: `Bearer ${token}` } });
+      });
       toast.success('تم إضافة الفيديو بنجاح ✅');
       setTitle(''); setUrl(''); setDuration(''); setSectionId('');
       setUrl480(''); setUrl720(''); setUrl1080(''); setShowQuality(false);
@@ -157,6 +156,10 @@ function PdfUploadSection({ courseId, onSuccess, sections = [] }) {
   const fileRef = useRef();
   const controllerRef = useRef(null);
 
+  useEffect(() => {
+    return () => { controllerRef.current?.abort(); };
+  }, []);
+
   const handleUpload = async () => {
     if (!file) return toast.error('اختر ملف PDF');
     if (!title.trim()) return toast.error('أدخل عنوان الملف');
@@ -170,10 +173,8 @@ function PdfUploadSection({ courseId, onSuccess, sections = [] }) {
     setProgress(0);
     controllerRef.current = new AbortController();
     try {
-      const token = localStorage.getItem('wathba_token');
-      const { default: axios } = await import('axios');
       await axios.post(`/api/courses/${courseId}/pdfs/upload`, fd, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${localStorage.getItem('wathba_token')}` },
         signal: controllerRef.current.signal,
         onUploadProgress: e => {
           const pct = Math.round((e.loaded / e.total) * 100);
@@ -186,7 +187,6 @@ function PdfUploadSection({ courseId, onSuccess, sections = [] }) {
       if (fileRef.current) fileRef.current.value = '';
       onSuccess();
     } catch (e) {
-      const { default: axios } = await import('axios');
       if (axios.isCancel(e)) {
         toast('تم إلغاء الرفع', { icon: '⚠️' });
       } else {
@@ -318,6 +318,7 @@ export default function TeacherCourses() {
   const [thumbnailFile, setThumbnailFile] = useState(null);
   const [thumbnailUploading, setThumbnailUploading] = useState(false);
   const thumbnailFileRef = useRef(null);
+  const pendingThumbnailUrl = useRef(null);
 
   const { data: courses = [], isLoading } = useQuery({
     queryKey: ['courses'],
@@ -395,7 +396,13 @@ export default function TeacherCourses() {
     setThumbnailFile(null);
     setModal(true);
   };
-  const closeModal = () => { setModal(false); setEditData(null); setForm(emptyForm); setFormErrors({}); setThumbnailFile(null); };
+  const closeModal = () => {
+    if (pendingThumbnailUrl.current) {
+      api.delete('/courses/upload-thumbnail', { data: { url: pendingThumbnailUrl.current } }).catch(() => {});
+      pendingThumbnailUrl.current = null;
+    }
+    setModal(false); setEditData(null); setForm(emptyForm); setFormErrors({}); setThumbnailFile(null);
+  };
 
   const handleThumbnailUpload = async (file) => {
     if (!file) return;
@@ -403,11 +410,11 @@ export default function TeacherCourses() {
     try {
       const fd = new FormData();
       fd.append('thumbnail', file);
-      const { default: axios } = await import('axios');
-      const token = localStorage.getItem('wathba_token');
-      const res = await axios.post('/api/courses/upload-thumbnail', fd, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await api.post('/courses/upload-thumbnail', fd);
+      if (pendingThumbnailUrl.current && pendingThumbnailUrl.current !== res.data.url) {
+        api.delete('/courses/upload-thumbnail', { data: { url: pendingThumbnailUrl.current } }).catch(() => {});
+      }
+      pendingThumbnailUrl.current = res.data.url;
       setForm(prev => ({ ...prev, thumbnail_url: res.data.url }));
       setThumbnailFile(file);
       toast.success('تم رفع الصورة ✅');
@@ -424,6 +431,7 @@ export default function TeacherCourses() {
     const errs = validateCourseForm(form);
     if (hasErrors(errs)) { setFormErrors(errs); return; }
     setFormErrors({});
+    pendingThumbnailUrl.current = null; // form saved — no orphan cleanup needed
     if (editData) updateMut.mutate({ id: editData.id, data: form });
     else createMut.mutate(form);
   };

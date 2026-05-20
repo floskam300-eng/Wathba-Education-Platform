@@ -525,7 +525,7 @@ router.post('/me/video-progress', requireRole('student'), async (req, res) => {
          last_watched_at = NOW(),
          last_position = $6,
          actual_watched_seconds = video_progress.actual_watched_seconds + $7`,
-      [studentId, video_id, watch_count_increment || 0, watched_minutes || 0, progress_percentage || 0, last_position || 0, Math.max(0, Math.min(actual_watched_seconds || 0, 120))]
+      [studentId, video_id, watch_count_increment || 0, watched_minutes || 0, progress_percentage || 0, last_position || 0, Math.max(0, Math.min(actual_watched_seconds || 0, 3600))]
     );
 
     // ── Award course completion points if all videos watched (race-safe) ──

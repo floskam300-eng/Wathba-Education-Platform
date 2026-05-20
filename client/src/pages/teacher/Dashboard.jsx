@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Users, BookOpen, FileText, UserCog, TrendingUp, Eye, Star, Activity } from 'lucide-react';
@@ -62,11 +62,13 @@ export default function TeacherDashboard() {
     queryFn: () => api.get('/teachers/course-stats').then(r => r.data),
   });
 
-  const chartData = analytics?.examResults?.map(e => ({
-    name: e.title?.substring(0, 12) + (e.title?.length > 12 ? '…' : ''),
-    'متوسط الدرجات': Math.round(parseFloat(e.avg_score) || 0),
-    'محاولات': parseInt(e.attempt_count) || 0,
-  })) || [];
+  const chartData = useMemo(() => (
+    analytics?.examResults?.map(e => ({
+      name: e.title || `#${e.id}`,
+      'متوسط الدرجات': Math.round(parseFloat(e.avg_score) || 0),
+      'محاولات': parseInt(e.attempt_count) || 0,
+    })) || []
+  ), [analytics]);
 
   return (
     <div className="space-y-6">

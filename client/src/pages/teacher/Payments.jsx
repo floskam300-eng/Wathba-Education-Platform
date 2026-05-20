@@ -136,7 +136,6 @@ export default function TeacherPayments() {
     if (monthFilter) {
       const [yr, mo] = monthFilter.split('-').map(Number);
       list = list.filter(p => {
-        if (p.status !== 'verified') return false;
         const d = new Date(p.payment_date);
         return d.getFullYear() === yr && d.getMonth() + 1 === mo;
       });

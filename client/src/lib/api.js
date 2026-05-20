@@ -20,7 +20,7 @@ api.interceptors.response.use(
       localStorage.removeItem('wathba_token');
       localStorage.removeItem('wathba_user');
       if (!window.location.pathname.includes('/login')) {
-        window.location.href = '/login';
+        window.dispatchEvent(new CustomEvent('wathba_unauthorized'));
       }
     }
     return Promise.reject(err);

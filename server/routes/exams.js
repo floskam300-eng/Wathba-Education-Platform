@@ -187,11 +187,21 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExams
             count: resultCount,
           });
         }
-        await pool.query('DELETE FROM exam_results WHERE exam_id=$1', [req.params.id]);
-        await pool.query(
-          "UPDATE exam_retry_requests SET status='used', handled_at=NOW() WHERE exam_id=$1 AND status='pending'",
-          [req.params.id]
-        );
+        const resetClient = await pool.connect();
+        try {
+          await resetClient.query('BEGIN');
+          await resetClient.query('DELETE FROM exam_results WHERE exam_id=$1', [req.params.id]);
+          await resetClient.query(
+            "UPDATE exam_retry_requests SET status='used', handled_at=NOW() WHERE exam_id=$1 AND status='pending'",
+            [req.params.id]
+          );
+          await resetClient.query('COMMIT');
+        } catch (txErr) {
+          await resetClient.query('ROLLBACK');
+          throw txErr;
+        } finally {
+          resetClient.release();
+        }
       }
     }
 
@@ -638,7 +648,7 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
         `INSERT INTO exam_sessions (student_id, exam_id, started_at, questions_snapshot)
          VALUES ($1, $2, NOW(), $3)
          ON CONFLICT (student_id, exam_id)
-         DO UPDATE SET questions_snapshot = EXCLUDED.questions_snapshot`,
+         DO NOTHING`,
         [studentId, req.params.id, JSON.stringify(questions)]
       );
     } catch (_) {}
