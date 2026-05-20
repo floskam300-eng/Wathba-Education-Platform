@@ -195,11 +195,18 @@ export default function ParentPortal() {
       {/* ── NAVBAR ── */}
       <nav className="fixed top-0 inset-x-0 z-50 nav-blur border-b border-white/8 bg-[#060d1a]/80">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center">
-            <img src={wathbaLogo} alt="وثبة" className="h-12 w-auto drop-shadow-lg" />
-          </Link>
           <div className="flex items-center gap-3">
-            <span className="hidden sm:block text-white/40 text-sm">بوابة أولياء الأمور</span>
+            <Link to="/"
+              className="flex items-center gap-2 bg-white/8 border border-white/15 hover:bg-white/14 hover:border-white/30 text-white/70 hover:text-white font-bold text-sm px-4 py-2 rounded-xl transition-all duration-200 active:scale-95">
+              <ArrowLeft className="w-4 h-4 rotate-180" />
+              رجوع
+            </Link>
+            <Link to="/" className="flex items-center">
+              <img src={wathbaLogo} alt="وثبة" className="h-10 w-auto drop-shadow-lg" />
+            </Link>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="hidden sm:block text-white/40 text-sm font-semibold">بوابة أولياء الأمور</span>
             <Link to="/login"
               className="flex items-center gap-2 bg-orange-500 hover:bg-orange-400 text-white font-black text-sm px-5 py-2.5 rounded-xl transition-all duration-300 hover:shadow-lg hover:shadow-orange-500/30 active:scale-95">
               تسجيل الدخول
