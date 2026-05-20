@@ -6,7 +6,7 @@ import {
   GraduationCap, BookOpen, BarChart3, Award, Shield,
   Play, FileText, Star, Users, CheckCircle, ArrowLeft,
   Sparkles, Trophy, Zap, MessageCircle, ChevronDown,
-  Clock, Target, TrendingUp, CreditCard
+  Clock, Target, TrendingUp, CreditCard, Phone
 } from 'lucide-react';
 import wathbaLogo from '../assets/wathba_logo_transparent.png';
 
@@ -251,11 +251,18 @@ export default function LandingPage() {
           </div>
 
           {/* CTA */}
-          <Link to="/login"
-            className="flex items-center gap-2 bg-orange-500 hover:bg-orange-400 text-white font-black text-sm px-5 py-2.5 rounded-xl transition-all duration-300 hover:shadow-lg hover:shadow-orange-500/30 active:scale-95">
-            تسجيل الدخول
-            <ArrowLeft className="w-4 h-4" />
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link to="/parent-portal"
+              className="hidden sm:flex items-center gap-2 bg-white/8 border border-white/15 hover:bg-white/12 hover:border-orange-400/40 text-white/80 hover:text-orange-300 font-bold text-sm px-4 py-2.5 rounded-xl transition-all duration-300 active:scale-95">
+              <Phone className="w-4 h-4" />
+              بوابة ولي الأمر
+            </Link>
+            <Link to="/login"
+              className="flex items-center gap-2 bg-orange-500 hover:bg-orange-400 text-white font-black text-sm px-5 py-2.5 rounded-xl transition-all duration-300 hover:shadow-lg hover:shadow-orange-500/30 active:scale-95">
+              تسجيل الدخول
+              <ArrowLeft className="w-4 h-4" />
+            </Link>
+          </div>
         </div>
       </nav>
 

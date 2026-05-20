@@ -41,6 +41,7 @@ import StudentNotifications from './pages/student/Notifications';
 import StudentEvents from './pages/student/Events';
 import StickmanRunPage from './pages/student/games/StickmanRunPage';
 import ExamReviewPage from './pages/ExamReviewPage';
+import ParentPortal from './pages/ParentPortal';
 import PWAInstallBanner from './components/PWAInstallBanner';
 
 class ErrorBoundary extends React.Component {
@@ -143,6 +144,7 @@ const AppRoutes = () => {
         <ProtectedRoute allowedRoles={['student']}><StickmanRunPage /></ProtectedRoute>
       } />
 
+      <Route path="/parent-portal" element={<ParentPortal />} />
       <Route path="/" element={user ? <Navigate to={`/${user.role}`} replace /> : <LandingPage />} />
       <Route path="*" element={<Navigate to={user ? `/${user.role}` : '/'} replace />} />
     </Routes>
