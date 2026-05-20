@@ -51,11 +51,18 @@ async function checkAndResetLeaderboard(teacherId) {
       return false;
     }
 
-    const tracker = trackerRes.rows[0];
-    const nextReset = new Date(tracker.next_reset_at);
+    // Atomic claim: only the first concurrent request will get the row back
+    const claimed = await pool.query(
+      `UPDATE leaderboard_reset_tracker
+          SET next_reset_at = next_reset_at + INTERVAL '30 days', last_reset_at = NOW()
+        WHERE teacher_id = $1 AND next_reset_at <= NOW()
+       RETURNING last_reset_at - INTERVAL '30 days' AS prev_last_reset_at`,
+      [teacherId]
+    );
 
-    if (now >= nextReset) {
-      await doLeaderboardReset(teacherId, getArabicMonthLabel(new Date(tracker.last_reset_at)));
+    if (claimed.rows.length) {
+      const prevLabel = getArabicMonthLabel(new Date(claimed.rows[0].prev_last_reset_at));
+      await doLeaderboardReset(teacherId, prevLabel);
       return true;
     }
     return false;

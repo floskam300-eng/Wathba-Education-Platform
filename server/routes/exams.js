@@ -405,6 +405,14 @@ router.post('/:id/retry-request', requireRole('student'), async (req, res) => {
       [studentId, examId]
     );
     if (!taken.rows.length) return res.status(400).json({ error: 'لم تؤدِ هذا الاختبار بعد' });
+    // Block spam: 24-hour cooldown after a rejection
+    const recentRejection = await pool.query(
+      "SELECT id FROM exam_retry_requests WHERE student_id=$1 AND exam_id=$2 AND status='rejected' AND created_at > NOW() - INTERVAL '24 hours' LIMIT 1",
+      [studentId, examId]
+    );
+    if (recentRejection.rows.length) {
+      return res.status(429).json({ error: 'يرجى الانتظار 24 ساعة بعد الرفض قبل إرسال طلب إعادة جديد' });
+    }
     const pending = await pool.query(
       "SELECT id, status FROM exam_retry_requests WHERE student_id=$1 AND exam_id=$2 AND status IN ('pending','approved') ORDER BY created_at DESC LIMIT 1",
       [studentId, examId]
@@ -619,6 +627,18 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
         questions = seededShuffle(questions, seed);
       }
     }
+    // ── Store server-side session: start time + question snapshot ──
+    // This prevents timer cheating and bank-question tampering on submit
+    try {
+      await pool.query(
+        `INSERT INTO exam_sessions (student_id, exam_id, started_at, questions_snapshot)
+         VALUES ($1, $2, NOW(), $3)
+         ON CONFLICT (student_id, exam_id)
+         DO UPDATE SET started_at = NOW(), questions_snapshot = EXCLUDED.questions_snapshot`,
+        [studentId, req.params.id, JSON.stringify(questions)]
+      );
+    } catch (_) {}
+
     res.json({ exam, questions });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
@@ -629,10 +649,10 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
 router.post('/:id/submit', requireRole('student'), async (req, res) => {
   const studentId = req.user.id;
   const examId = req.params.id;
-  const { answers, start_time: clientStartTime } = req.body;
+  const { answers } = req.body;
 
   // ── Pre-flight eligibility check (outside transaction for speed) ──
-  let eligibilityRow, questionsData;
+  let eligibilityRow, questionsData, serverSession;
   try {
     const existing = await pool.query(
       'SELECT id FROM exam_results WHERE student_id=$1 AND exam_id=$2',
@@ -670,11 +690,27 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
     if (eligibilityRow.end_date && new Date(eligibilityRow.end_date) < nowCheck)
       return res.status(409).json({ error: 'انتهى وقت الاختبار — لا يمكن تسليم الإجابات بعد انقضاء المهلة' });
 
+    // ── Fetch server-side session (start time + question snapshot) ──
+    const sessionRes = await pool.query(
+      'SELECT started_at, questions_snapshot FROM exam_sessions WHERE student_id=$1 AND exam_id=$2',
+      [studentId, examId]
+    );
+    serverSession = sessionRes.rows[0] || null;
+
     if (eligibilityRow.question_source === 'bank' && eligibilityRow.bank_id) {
       const questionIds = Object.keys(answers || {}).map(Number).filter(id => id > 0);
       if (questionIds.length === 0) return res.status(400).json({ error: 'لم يتم إرسال أي إجابات' });
-      const bqr = await pool.query('SELECT * FROM bank_questions WHERE id = ANY($1) AND bank_id = $2', [questionIds, eligibilityRow.bank_id]);
-      questionsData = bqr.rows;
+      // Use stored snapshot to prevent changed-question scoring bug
+      if (serverSession?.questions_snapshot?.length > 0) {
+        questionsData = serverSession.questions_snapshot.filter(q => questionIds.includes(q.id));
+        if (questionsData.length === 0) {
+          const bqr = await pool.query('SELECT * FROM bank_questions WHERE id = ANY($1) AND bank_id = $2', [questionIds, eligibilityRow.bank_id]);
+          questionsData = bqr.rows;
+        }
+      } else {
+        const bqr = await pool.query('SELECT * FROM bank_questions WHERE id = ANY($1) AND bank_id = $2', [questionIds, eligibilityRow.bank_id]);
+        questionsData = bqr.rows;
+      }
     } else {
       const qr = await pool.query('SELECT * FROM questions WHERE exam_id=$1', [examId]);
       questionsData = qr.rows;
@@ -724,12 +760,10 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
       );
     }
 
-    // Cap start_time to prevent timer cheating: reject starts older than 1.2× duration
+    // Use server-side start time — prevents all timer cheating from client
     const durationMs = (exam.duration_minutes || 60) * 60 * 1000;
-    const minAllowedStart = new Date(Date.now() - durationMs * 1.2);
-    const parsedClientStart = clientStartTime ? new Date(clientStartTime) : null;
-    const safeStartTime = (parsedClientStart && !isNaN(parsedClientStart) && parsedClientStart >= minAllowedStart && parsedClientStart <= new Date())
-      ? parsedClientStart
+    const safeStartTime = serverSession?.started_at
+      ? new Date(serverSession.started_at)
       : new Date(Date.now() - durationMs);
 
     // Insert new result

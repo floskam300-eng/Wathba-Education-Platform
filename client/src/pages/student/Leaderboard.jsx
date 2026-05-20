@@ -1,20 +1,27 @@
 import React, { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Trophy, GraduationCap, History, ChevronDown, ChevronUp, Clock } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 
 const MEDAL = ['🥇', '🥈', '🥉'];
 
-function CountdownBadge({ nextResetAt }) {
+function CountdownBadge({ nextResetAt, onExpire }) {
   const [now, setNow] = React.useState(new Date());
+  const firedRef = React.useRef(false);
   React.useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 60000);
     return () => clearInterval(t);
   }, []);
   if (!nextResetAt) return null;
   const diff = new Date(nextResetAt) - now;
-  if (diff <= 0) return <span className="text-xs text-red-500 font-bold">التصفير قريب!</span>;
+  if (diff <= 0) {
+    if (!firedRef.current) {
+      firedRef.current = true;
+      if (onExpire) setTimeout(onExpire, 0);
+    }
+    return <span className="text-xs text-red-500 font-bold">التصفير قريب!</span>;
+  }
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
   const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
   return (
@@ -127,10 +134,11 @@ function HistoryCard({ record, myName }) {
 
 export default function StudentLeaderboard() {
   const { user } = useAuth();
+  const qc = useQueryClient();
   const [stageFilter, setStageFilter] = useState('الكل');
   const [tab, setTab] = useState('current');
 
-  const { data: lbData = {}, isLoading } = useQuery({
+  const { data: lbData = {}, isLoading, refetch: refetchLb } = useQuery({
     queryKey: ['leaderboard'],
     queryFn: () => api.get('/payments/leaderboard').then(r => r.data),
   });
@@ -176,7 +184,12 @@ export default function StudentLeaderboard() {
             <Trophy className="w-7 h-7 text-orange-500" /> لوحة المتصدرين
             <span className="text-xs font-semibold text-orange-500 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded-full">أعلى 10</span>
           </h1>
-          {tracker && <CountdownBadge nextResetAt={tracker.next_reset_at} />}
+          {tracker && (
+            <CountdownBadge
+              nextResetAt={tracker.next_reset_at}
+              onExpire={() => { refetchLb(); qc.invalidateQueries(['leaderboard']); }}
+            />
+          )}
         </div>
 
         {/* Tabs */}

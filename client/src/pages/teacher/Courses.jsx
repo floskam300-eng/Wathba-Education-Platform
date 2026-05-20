@@ -420,6 +420,7 @@ export default function TeacherCourses() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (thumbnailUploading) { toast.error('انتظر حتى ينتهي رفع الصورة أولاً'); return; }
     const errs = validateCourseForm(form);
     if (hasErrors(errs)) { setFormErrors(errs); return; }
     setFormErrors({});

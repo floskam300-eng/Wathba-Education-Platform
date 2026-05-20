@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import api from '../lib/api';
 
-const AuthContext = createContext(null);
+export const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -17,10 +17,7 @@ export const AuthProvider = ({ children }) => {
           setUser(userData);
           localStorage.setItem('wathba_user', JSON.stringify(userData));
         } catch (err) {
-          console.error("Failed to fetch latest user data:", err);
-          // If token is invalid, clear storage
-          localStorage.removeItem('wathba_token');
-          localStorage.removeItem('wathba_user');
+          // Token invalid/expired — api interceptor handles cleanup & redirect
           setUser(null);
         }
       }

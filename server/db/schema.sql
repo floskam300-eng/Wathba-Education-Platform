@@ -384,3 +384,14 @@ BEGIN
     ALTER TABLE exam_results ADD CONSTRAINT uq_exam_results_student_exam UNIQUE (student_id, exam_id);
   END IF;
 END $$;
+
+-- ── Server-side exam sessions (prevents timer cheating + bank question tampering) ──
+CREATE TABLE IF NOT EXISTS exam_sessions (
+  id SERIAL PRIMARY KEY,
+  student_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
+  exam_id    INTEGER REFERENCES exams(id) ON DELETE CASCADE,
+  started_at TIMESTAMP DEFAULT NOW(),
+  questions_snapshot JSONB DEFAULT '[]',
+  UNIQUE(student_id, exam_id)
+);
+CREATE INDEX IF NOT EXISTS idx_exam_sessions_student_exam ON exam_sessions(student_id, exam_id);

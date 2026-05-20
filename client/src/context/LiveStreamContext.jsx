@@ -1,11 +1,12 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { useAuth } from './AuthContext';
+import { AuthContext } from './AuthContext';
 import api from '../lib/api';
 
 const LiveStreamContext = createContext(null);
 
 export function LiveStreamProvider({ children }) {
-  const { user } = useAuth();
+  const auth = useContext(AuthContext);
+  const user = auth?.user ?? null;
 
   // Teacher's active stream (set when teacher starts)
   const [teacherLive, setTeacherLive] = useState(null);

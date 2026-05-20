@@ -14,7 +14,9 @@ api.interceptors.response.use(
     if (err.response?.status === 401) {
       localStorage.removeItem('wathba_token');
       localStorage.removeItem('wathba_user');
-      window.location.href = '/login';
+      if (!window.location.pathname.includes('/login')) {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(err);
   }

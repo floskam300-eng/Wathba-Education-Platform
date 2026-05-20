@@ -315,10 +315,10 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
                   const dur = playerRef.current.getDuration() || 0;
                   const ct  = playerRef.current.getCurrentTime() || 0;
                   const watchedMin = dur > 0 ? (maxPct.current / 100) * (dur / 60) : 0;
-                  const elapsedSec = playStart.current ? Math.round((Date.now() - playStart.current) / 1000) : 0;
-                  actualWatched.current += elapsedSec;
+                  // Send the interval elapsed (not cumulative) to avoid double-counting in DB
+                  const intervalSec = playStart.current ? Math.round((Date.now() - playStart.current) / 1000) : 0;
                   playStart.current = Date.now();
-                  onProgressUpdate(video.id, watchedMin, maxPct.current, false, ct, actualWatched.current);
+                  onProgressUpdate(video.id, watchedMin, maxPct.current, false, ct, intervalSec);
                 } catch (_) {}
               }, 30000);
             } else if (e.data === S.BUFFERING) {
