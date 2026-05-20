@@ -415,8 +415,7 @@ BEGIN
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 
--- ── Security: remove plain-text password column ───────────────────────────────
-ALTER TABLE students DROP COLUMN IF EXISTS plain_password;
+-- plain_password column is intentionally kept for teacher/assistant access
 
 -- ── CHECK constraints on correct_answer_letter ────────────────────────────────
 DO $$
