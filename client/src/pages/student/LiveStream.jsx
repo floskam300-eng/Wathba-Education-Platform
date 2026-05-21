@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
@@ -9,7 +9,7 @@ import toast from 'react-hot-toast';
 import {
   Radio, MessageSquare, Send, Hand, LogOut,
   MessageCircleOff, Loader2, Users, RefreshCw,
-  ChevronLeft, ChevronRight, X,
+  ChevronLeft, ChevronRight, X, Maximize, Minimize,
 } from 'lucide-react';
 
 /* ── Chat Panel (student) ──────────────────────────────────── */
@@ -136,10 +136,12 @@ function ChatPanel({ stream, studentName, dark, onClose }) {
 
 /* ── Live view (student) ───────────────────────────────────── */
 function LiveView({ stream, user, dark, onLeave }) {
-  const [chatOpen, setChatOpen]   = useState(true);
+  const [chatOpen, setChatOpen]     = useState(true);
   const [handRaised, setHandRaised] = useState(false);
   const [raisingHand, setRaisingHand] = useState(false);
-  const [leaving, setLeaving]     = useState(false);
+  const [leaving, setLeaving]       = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const videoWrapRef = useRef(null);
 
   // Handle live_ended from teacher
   useEffect(() => {
@@ -174,9 +176,38 @@ function LiveView({ stream, user, dark, onLeave }) {
     onLeave();
   };
 
+  // ── Fullscreen + orientation lock ──────────────────────────
+  const toggleFullscreen = useCallback(async () => {
+    const el = videoWrapRef.current;
+    if (!el) return;
+
+    if (!document.fullscreenElement) {
+      try {
+        await el.requestFullscreen();
+        // Lock to landscape on mobile
+        if (screen?.orientation?.lock) {
+          try { await screen.orientation.lock('landscape'); } catch (_) {}
+        }
+      } catch (_) {}
+    } else {
+      try {
+        await document.exitFullscreen();
+        if (screen?.orientation?.unlock) {
+          try { screen.orientation.unlock(); } catch (_) {}
+        }
+      } catch (_) {}
+    }
+  }, []);
+
+  useEffect(() => {
+    const onFSChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onFSChange);
+    return () => document.removeEventListener('fullscreenchange', onFSChange);
+  }, []);
+
   return (
     <div className="flex flex-col" style={{ height: '100%' }}>
-      {/* Top bar */}
+      {/* Top bar — hidden in fullscreen */}
       <div className="flex items-center justify-between px-3 py-2 flex-shrink-0"
            style={{ backgroundColor: '#1a0000', borderBottom: '1px solid rgba(239,68,68,0.3)' }}>
         <div className="flex items-center gap-2 min-w-0">
@@ -226,17 +257,32 @@ function LiveView({ stream, user, dark, onLeave }) {
         {/* ── Video ── */}
         {/* Mobile: fixed compact height when chat open, fills remaining space when closed */}
         {/* Desktop: always flex-1 side by side */}
-        <div className={`bg-black overflow-hidden flex-shrink-0 md:flex-1 md:h-auto
-          ${chatOpen
-            ? 'h-[40vw] min-h-[160px] max-h-[240px]'
-            : 'flex-1 h-full'
-          } md:max-h-none md:min-h-0`}>
+        <div
+          ref={videoWrapRef}
+          className={`relative bg-black overflow-hidden flex-shrink-0 md:flex-1 md:h-auto
+            ${chatOpen
+              ? 'h-[40vw] min-h-[160px] max-h-[240px]'
+              : 'flex-1 h-full'
+            } md:max-h-none md:min-h-0`}
+        >
           <JitsiMeet
             roomName={stream.room_id}
             displayName={user?.name || 'طالب'}
             onLeft={handleLeave}
             style={{ height: '100%', width: '100%' }}
           />
+
+          {/* Fullscreen button — bottom-left corner */}
+          <button
+            onClick={toggleFullscreen}
+            title={isFullscreen ? 'تصغير' : 'تكبير الشاشة كاملة'}
+            className="absolute bottom-3 left-3 z-10 p-2 rounded-xl bg-black/60 hover:bg-black/80 text-white transition-all shadow-lg backdrop-blur-sm"
+          >
+            {isFullscreen
+              ? <Minimize className="w-5 h-5" />
+              : <Maximize className="w-5 h-5" />
+            }
+          </button>
         </div>
 
         {/* ── Chat panel ── */}

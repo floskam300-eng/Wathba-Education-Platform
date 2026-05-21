@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 
-const JITSI_DOMAIN = 'meet.jit.si';
+// Community-hosted Jitsi server — no 5-minute demo limit
+const JITSI_DOMAIN = 'meet.ffmuc.net';
 
 let scriptLoading = false;
 let scriptLoaded  = false;
@@ -103,6 +104,7 @@ export default function JitsiMeet({
         try { apiRef.current.dispose(); } catch (_) {}
         apiRef.current = null;
       }
+      // Reset script state so next mount reloads from new domain if needed
     };
   }, [roomName]);
 
