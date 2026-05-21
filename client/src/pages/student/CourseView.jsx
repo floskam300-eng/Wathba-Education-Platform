@@ -168,6 +168,8 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
   const maxPct        = useRef(0);
   const actualWatched = useRef(0);
   const playStart     = useRef(null);
+  const onProgressUpdateRef = useRef(onProgressUpdate);
+  const videoIdRef          = useRef(video?.id);
 
   const [playing,      setPlaying]      = useState(false);
   const [buffering,    setBuffering]    = useState(true);
@@ -188,7 +190,32 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
 
   const ytId = extractYoutubeId(video.file_path_or_url);
 
-  /* ── reset state on video change ── */
+  /* ── keep prop refs current ── */
+  useEffect(() => { onProgressUpdateRef.current = onProgressUpdate; }, [onProgressUpdate]);
+  useEffect(() => { videoIdRef.current = video?.id; }, [video?.id]);
+
+  /* ── flush helper (safe to call from cleanup) ── */
+  const flushYTProgress = () => {
+    if (!onProgressUpdateRef.current || !videoIdRef.current) return;
+    if (playStart.current) {
+      actualWatched.current += Math.round((Date.now() - playStart.current) / 1000);
+      playStart.current = null;
+    }
+    try {
+      const ct = playerRef.current?.getCurrentTime?.() || 0;
+      const d  = playerRef.current?.getDuration?.() || 0;
+      const watchedMin = d > 0 ? (maxPct.current / 100) * (d / 60) : 0;
+      onProgressUpdateRef.current(videoIdRef.current, watchedMin, maxPct.current, false, ct, actualWatched.current);
+    } catch (_) {}
+  };
+
+  /* ── reset state on video change (save previous first) ── */
+  useEffect(() => {
+    return () => {
+      flushYTProgress();
+    };
+  }, [video?.id]); // eslint-disable-line
+
   useEffect(() => {
     setPlaying(false);
     setBuffering(true);
@@ -372,8 +399,9 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
       clearInterval(progressTimer.current);
       clearInterval(saveTimer.current);
       clearTimeout(hideTimer.current);
+      flushYTProgress();
     };
-  }, [ytId]);
+  }, [ytId]); // eslint-disable-line
 
   /* ── controls helpers ── */
   const toggle = () => {
@@ -626,6 +654,8 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
   const actualWatched = useRef(0);
   const playStart     = useRef(null);
   const maxProgress   = useRef(0);
+  const onProgressUpdateRef = useRef(onProgressUpdate);
+  const videoIdRef          = useRef(video?.id);
 
   const [playing,      setPlaying]      = useState(false);
   const [progress,     setProgress]     = useState(0);
@@ -643,6 +673,37 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
   const [showQuality,  setShowQuality]  = useState(false);
   const pendingSeekRef = useRef(null);
 
+  /* ── keep prop refs current ── */
+  useEffect(() => { onProgressUpdateRef.current = onProgressUpdate; }, [onProgressUpdate]);
+  useEffect(() => { videoIdRef.current = video?.id; }, [video?.id]);
+
+  /* ── flush helper: save progress safely (refs only, no stale closures) ── */
+  const flushProgress = () => {
+    if (!onProgressUpdateRef.current || !videoIdRef.current || !videoRef.current) return;
+    if (playStart.current) {
+      actualWatched.current += Math.round((Date.now() - playStart.current) / 1000);
+      playStart.current = null;
+    }
+    const d  = videoRef.current.duration || 0;
+    const ct = videoRef.current.currentTime || 0;
+    const watchedMin = d > 0 ? (maxProgress.current / 100) * (d / 60) : 0;
+    onProgressUpdateRef.current(videoIdRef.current, watchedMin, maxProgress.current, false, ct, actualWatched.current);
+  };
+
+  /* ── save previous video's progress before switching ── */
+  useEffect(() => {
+    return () => { flushProgress(); };
+  }, [video?.id]); // eslint-disable-line
+
+  /* ── unmount: save progress when navigating away without pause ── */
+  useEffect(() => {
+    return () => {
+      clearInterval(saveTimer.current);
+      flushProgress();
+    };
+  }, []); // eslint-disable-line
+
+  /* ── reset state when video changes ── */
   useEffect(() => {
     clearInterval(saveTimer.current);
     saveTimer.current = null;
