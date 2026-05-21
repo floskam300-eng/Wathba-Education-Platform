@@ -7,8 +7,7 @@ import {
   TrendingUp, Award, Users, ChevronRight, AlertCircle,
   Sparkles, Phone, BarChart3, Target
 } from 'lucide-react';
-import wathbaLogoDefault from '../assets/wathba_logo_transparent.png';
-import { usePlatformLogo, usePlatformName } from '../context/TenantContext';
+import wathbaLogo from '../assets/wathba_logo_transparent.png';
 
 /* ─── Floating Orb ─── */
 function Orb({ size, top, left, color, delay = 0, duration = 10 }) {
@@ -145,9 +144,6 @@ export default function ParentPortal() {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const resultsRef = useRef(null);
-  const platformLogoUrl = usePlatformLogo();
-  const platformName = usePlatformName();
-  const wathbaLogo = platformLogoUrl || wathbaLogoDefault;
 
   const handleSearch = async (e) => {
     e.preventDefault();

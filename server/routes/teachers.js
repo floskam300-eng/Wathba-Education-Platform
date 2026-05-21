@@ -31,60 +31,16 @@ router.get('/dashboard', requireRole('teacher'), async (req, res) => {
   }
 });
 
-router.get('/me', requireRole('teacher'), async (req, res) => {
-  try {
-    const result = await pool.query(
-      'SELECT id, username, name, bio, classification, logo_url, photo_url, whatsapp_phone, platform_name, primary_color, subdomain, created_at FROM teachers WHERE id=$1',
-      [req.user.id]
-    );
-    if (!result.rows[0]) return res.status(404).json({ error: 'Not found' });
-    res.json(result.rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
 router.put('/profile', requireRole('teacher'), async (req, res) => {
-  const { name, bio, classification, logo_url, photo_url, whatsapp_phone, platform_name, primary_color } = req.body;
+  const { name, bio, classification, logo_url, photo_url, whatsapp_phone } = req.body;
   try {
     const result = await pool.query(
-      `UPDATE teachers SET name=$1, bio=$2, classification=$3, logo_url=$4, photo_url=$5,
-       whatsapp_phone=$6, platform_name=$7, primary_color=$8 WHERE id=$9 RETURNING *`,
-      [name, bio, classification, logo_url, photo_url, whatsapp_phone,
-       platform_name || null, primary_color || '#f97316', req.user.id]
+      'UPDATE teachers SET name=$1, bio=$2, classification=$3, logo_url=$4, photo_url=$5, whatsapp_phone=$6 WHERE id=$7 RETURNING *',
+      [name, bio, classification, logo_url, photo_url, whatsapp_phone, req.user.id]
     );
     const { password: _, ...safe } = result.rows[0];
     res.json(safe);
   } catch (err) {
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// ── Set subdomain (teacher only) ──
-router.put('/subdomain', requireRole('teacher'), async (req, res) => {
-  const { subdomain } = req.body;
-  if (!subdomain || !/^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$/.test(subdomain)) {
-    return res.status(400).json({ error: 'الـ subdomain يجب أن يكون بين 3-30 حرف (أحرف صغيرة وأرقام وشرطة فقط)' });
-  }
-  const reserved = ['www', 'api', 'app', 'admin', 'mail', 'wathba', 'support', 'help'];
-  if (reserved.includes(subdomain)) {
-    return res.status(400).json({ error: 'هذا الـ subdomain محجوز، اختر اسماً آخر' });
-  }
-  try {
-    const existing = await pool.query(
-      'SELECT id FROM teachers WHERE subdomain=$1 AND id != $2',
-      [subdomain, req.user.id]
-    );
-    if (existing.rows.length > 0) {
-      return res.status(409).json({ error: 'هذا الـ subdomain مستخدم بالفعل من مدرس آخر' });
-    }
-    const result = await pool.query(
-      'UPDATE teachers SET subdomain=$1 WHERE id=$2 RETURNING id, subdomain',
-      [subdomain, req.user.id]
-    );
-    res.json({ success: true, subdomain: result.rows[0].subdomain });
-  } catch (err) {
-    if (err.code === '23505') return res.status(409).json({ error: 'هذا الـ subdomain مستخدم بالفعل' });
     res.status(500).json({ error: 'Server error' });
   }
 });

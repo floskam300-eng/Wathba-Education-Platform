@@ -10,9 +10,6 @@ CREATE TABLE IF NOT EXISTS teachers (
   logo_url VARCHAR(500),
   photo_url VARCHAR(500),
   whatsapp_phone VARCHAR(20),
-  subdomain VARCHAR(100) UNIQUE,
-  platform_name VARCHAR(200),
-  primary_color VARCHAR(20) DEFAULT '#f97316',
   created_at TIMESTAMP DEFAULT NOW()
 );
 

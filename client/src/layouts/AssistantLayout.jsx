@@ -4,7 +4,6 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { LayoutDashboard, Users, LogOut, Menu, FileText, BarChart3, BookOpen, CreditCard, Moon, Sun, MessageCircle, Inbox, BookMarked } from 'lucide-react';
 import WathbaLogo from '../assets/wathba_logo.png';
-import { usePlatformName, usePlatformLogo } from '../context/TenantContext';
 import { useSSE } from '../hooks/useSSE';
 
 export default function AssistantLayout() {
@@ -12,8 +11,6 @@ export default function AssistantLayout() {
   const { dark, toggle } = useTheme();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const platformName = usePlatformName();
-  const platformLogo = usePlatformLogo();
 
   useSSE(!!user, 'assistant');
 
@@ -41,10 +38,10 @@ export default function AssistantLayout() {
       <div className="p-6 border-b border-white/10">
         <div className="flex items-center gap-3">
           <div className="w-11 h-11 rounded-xl overflow-hidden bg-white flex-shrink-0 p-0.5">
-            <img src={platformLogo || WathbaLogo} alt={platformName} className="w-full h-full object-contain" />
+            <img src={WathbaLogo} alt="وثبة" className="w-full h-full object-contain" />
           </div>
           <div>
-            <h1 className="text-white font-black text-xl">{platformName}</h1>
+            <h1 className="text-white font-black text-xl">وثبة</h1>
             <p className="text-navy-100 text-xs font-medium">لوحة المساعد</p>
           </div>
         </div>
