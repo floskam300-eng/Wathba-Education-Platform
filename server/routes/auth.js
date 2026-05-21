@@ -36,6 +36,12 @@ router.post('/login', loginLimiter, async (req, res) => {
       else if (r === 'student') table = 'students';
       else continue;
 
+      // If a subdomain was in the URL but no teacher matched it,
+      // students and assistants cannot log in (wrong platform URL)
+      if (r !== 'teacher' && req.subdomainNotFound) {
+        return res.status(401).json({ error: 'بيانات الدخول غير صحيحة' });
+      }
+
       let whereClause, queryParams;
       if (r === 'teacher') {
         whereClause = 'WHERE username = $1';

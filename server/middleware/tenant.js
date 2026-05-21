@@ -13,9 +13,14 @@ async function resolveTenant(req, res, next) {
     const subdomain = extractSubdomain(host);
 
     if (!subdomain) {
+      // No subdomain in URL → global mode, no tenant scoping
       req.tenant = null;
+      req.subdomainAttempted = false;
       return next();
     }
+
+    // A subdomain was present in the URL
+    req.subdomainAttempted = true;
 
     const result = await pool.query(
       `SELECT id, name, bio, classification, logo_url, photo_url,
@@ -25,10 +30,13 @@ async function resolveTenant(req, res, next) {
     );
 
     req.tenant = result.rows[0] || null;
+    // req.subdomainNotFound is true when a subdomain was in URL but no teacher matched
+    req.subdomainNotFound = !req.tenant;
     next();
   } catch (err) {
     console.error('[resolveTenant]', err.message);
     req.tenant = null;
+    req.subdomainAttempted = false;
     next();
   }
 }
@@ -44,6 +52,8 @@ async function resolveTenant(req, res, next) {
 function extractSubdomain(host) {
   if (!host) return null;
   const hostname = host.split(':')[0];
+  // Reject bare IPs (all parts are numeric)
+  if (/^(\d{1,3}\.){3}\d{1,3}$/.test(hostname)) return null;
   const parts = hostname.split('.');
   if (parts.length < 3) return null;
   const sub = parts[0].toLowerCase();

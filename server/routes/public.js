@@ -20,7 +20,7 @@ router.get('/info', async (req, res) => {
       teacher = req.tenant;
     } else {
       const r = await pool.query(
-        'SELECT id, name, bio, classification, logo_url, photo_url, whatsapp_phone, platform_name, primary_color, subdomain, created_at FROM teachers LIMIT 1'
+        'SELECT id, name, bio, classification, logo_url, photo_url, whatsapp_phone, platform_name, primary_color, subdomain, created_at FROM teachers ORDER BY id ASC LIMIT 1'
       );
       teacher = r.rows[0] || null;
     }
@@ -61,6 +61,11 @@ router.get('/parent-lookup', async (req, res) => {
   const { phone } = req.query;
   if (!phone || phone.trim().length < 7) {
     return res.status(400).json({ error: 'رقم الهاتف غير صحيح' });
+  }
+
+  // Subdomain was in URL but not found in DB → no results possible
+  if (req.subdomainNotFound) {
+    return res.status(404).json({ error: 'لم يتم العثور على طالب مرتبط بهذا الرقم' });
   }
 
   try {
