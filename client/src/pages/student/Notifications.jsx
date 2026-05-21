@@ -52,38 +52,40 @@ export default function StudentNotifications() {
   const { notifications, unread } = data;
 
   return (
-    <div className="h-full overflow-y-auto p-4 lg:p-6">
+    <div className="min-h-full p-4 lg:p-6">
       <div className="max-w-2xl mx-auto space-y-4">
 
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate(-1)}
-              className="p-2 rounded-xl hover:bg-gray-100 text-navy-600 transition-colors"
-              title="رجوع"
-            >
-              <ArrowRight className="w-5 h-5" />
-            </button>
-            <h1 className="text-2xl font-black text-navy-600 flex items-center gap-2">
-              <Bell className="w-6 h-6 text-orange-500" />
-              الإشعارات
+        <div className="flex items-start gap-2">
+          <button
+            onClick={() => navigate(-1)}
+            className="p-2 rounded-xl hover:bg-gray-100 text-navy-600 transition-colors flex-shrink-0 mt-0.5"
+            title="رجوع"
+          >
+            <ArrowRight className="w-5 h-5" />
+          </button>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl sm:text-2xl font-black text-navy-600 flex items-center gap-2">
+                <Bell className="w-5 h-5 sm:w-6 sm:h-6 text-orange-500 flex-shrink-0" />
+                الإشعارات
+              </h1>
               {unread > 0 && (
-                <span className="text-sm bg-red-100 text-red-600 font-black px-2 py-0.5 rounded-full">
+                <span className="text-sm bg-red-100 text-red-600 font-black px-2 py-0.5 rounded-full flex-shrink-0">
                   {unread} جديد
                 </span>
               )}
-            </h1>
+              {unread > 0 && (
+                <button
+                  onClick={() => readAllMut.mutate()}
+                  disabled={readAllMut.isPending}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-navy-50 hover:bg-navy-100 text-navy-700 text-xs font-bold transition-colors border border-navy-200 flex-shrink-0 mr-auto"
+                >
+                  <CheckCheck className="w-3.5 h-3.5" />
+                  تحديد الكل كمقروء
+                </button>
+              )}
+            </div>
           </div>
-          {unread > 0 && (
-            <button
-              onClick={() => readAllMut.mutate()}
-              disabled={readAllMut.isPending}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-navy-50 hover:bg-navy-100 text-navy-700 text-sm font-bold transition-colors border border-navy-200"
-            >
-              <CheckCheck className="w-4 h-4" />
-              تحديد الكل كمقروء
-            </button>
-          )}
         </div>
 
         {isLoading ? (

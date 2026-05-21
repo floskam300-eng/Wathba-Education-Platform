@@ -72,7 +72,7 @@ export default function Events() {
   const pts = user?.points || 0;
 
   return (
-    <div dir="rtl" style={{ height: '100%', display: 'flex', flexDirection: 'column', overflowY: 'auto', background: '#0a0812', fontFamily: "'Cairo', sans-serif" }}>
+    <div dir="rtl" style={{ minHeight: '100%', display: 'flex', flexDirection: 'column', background: '#0a0812', fontFamily: "'Cairo', sans-serif" }}>
       <style>{CSS}</style>
 
       {/* ── HERO HEADER ── */}
@@ -126,7 +126,7 @@ export default function Events() {
       </div>
 
       {/* ── CONTENT ── */}
-      <div style={{ flex: 1, padding: '22px 20px', display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 860, margin: '0 auto', width: '100%' }}>
+      <div style={{ padding: '22px 20px', display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 860, margin: '0 auto', width: '100%' }}>
 
         {/* MAIN GAME CARD */}
         <div className="ev-card" style={{

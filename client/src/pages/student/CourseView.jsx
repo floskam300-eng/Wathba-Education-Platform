@@ -178,6 +178,7 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
   const [muted,        setMuted]        = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [cssFullscreen, setCssFullscreen] = useState(false);
   const [speed,        setSpeed]        = useState(() => loadSpeed());
   const [showSpeed,    setShowSpeed]    = useState(false);
   const [quality,      setQuality]      = useState(() => loadQuality());
@@ -200,7 +201,9 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
   /* ── fullscreen change listener ── */
   useEffect(() => {
     const onFsChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
+      const fs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+      setIsFullscreen(fs);
+      if (!fs) setCssFullscreen(false);
     };
     document.addEventListener('fullscreenchange', onFsChange);
     document.addEventListener('webkitfullscreenchange', onFsChange);
@@ -218,15 +221,19 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
       const isLandscape = window.matchMedia('(orientation: landscape)').matches;
       const el = containerRef.current;
       if (!el) return;
-      if (isLandscape && !document.fullscreenElement) {
-        try {
-          (el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen)?.call(el);
-          try { screen.orientation?.lock?.('landscape').catch(() => {}); } catch (_) {}
-        } catch (_) {}
-      } else if (!isLandscape && document.fullscreenElement) {
-        try {
-          (document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen)?.call(document);
-        } catch (_) {}
+      if (isLandscape && !document.fullscreenElement && !document.webkitFullscreenElement) {
+        const fsReq = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen;
+        if (fsReq) {
+          fsReq.call(el).catch(() => { setCssFullscreen(true); setIsFullscreen(true); });
+        } else {
+          setCssFullscreen(true); setIsFullscreen(true);
+        }
+        try { screen.orientation?.lock?.('landscape').catch(() => {}); } catch (_) {}
+      } else if (!isLandscape) {
+        if (document.fullscreenElement || document.webkitFullscreenElement) {
+          try { (document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen)?.call(document); } catch (_) {}
+        }
+        setCssFullscreen(false); setIsFullscreen(false);
       }
     };
     window.addEventListener('orientationchange', onOrientationChange);
@@ -421,12 +428,26 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
   };
 
   const toggleFullscreen = () => {
-    if (document.fullscreenElement) {
-      (document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen)?.call(document);
+    const inNativeFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    if (inNativeFs || cssFullscreen) {
+      if (inNativeFs) {
+        try { (document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen)?.call(document); } catch (_) {}
+      }
+      setCssFullscreen(false);
+      setIsFullscreen(false);
+      return;
+    }
+    const el = containerRef.current;
+    if (!el) return;
+    const fsReq = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen;
+    if (fsReq) {
+      fsReq.call(el).catch(() => {
+        setCssFullscreen(true);
+        setIsFullscreen(true);
+      });
     } else {
-      const el = containerRef.current;
-      if (!el) return;
-      (el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen)?.call(el);
+      setCssFullscreen(true);
+      setIsFullscreen(true);
     }
   };
 
@@ -450,10 +471,16 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
   const pct = `${progress}%`;
   const vol = `${muted ? 0 : volume}%`;
 
+  const fsStyle = cssFullscreen ? {
+    position: 'fixed', inset: 0, zIndex: 9998,
+    width: '100vw', height: '100vh',
+  } : {};
+
   return (
     <div
       ref={containerRef}
       className="relative w-full h-full bg-black select-none"
+      style={fsStyle}
       onMouseMove={resetHide}
       onMouseLeave={() => { if (!seeking.current && playing) setShowControls(false); }}
       onTouchStart={resetHide}
@@ -572,6 +599,7 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
   const [muted,        setMuted]        = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [cssFullscreen, setCssFullscreen] = useState(false);
   const [speed,        setSpeed]        = useState(() => loadSpeed());
   const [showSpeed,    setShowSpeed]    = useState(false);
   const [quality,      setQuality]      = useState('auto');
@@ -591,7 +619,11 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
 
   /* ── fullscreen change listener ── */
   useEffect(() => {
-    const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+    const onFsChange = () => {
+      const fs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+      setIsFullscreen(fs);
+      if (!fs) setCssFullscreen(false);
+    };
     document.addEventListener('fullscreenchange', onFsChange);
     document.addEventListener('webkitfullscreenchange', onFsChange);
     document.addEventListener('mozfullscreenchange', onFsChange);
@@ -608,15 +640,19 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
       const isLandscape = window.matchMedia('(orientation: landscape)').matches;
       const el = containerRef.current;
       if (!el) return;
-      if (isLandscape && !document.fullscreenElement) {
-        try {
-          (el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen)?.call(el);
-          try { screen.orientation?.lock?.('landscape').catch(() => {}); } catch (_) {}
-        } catch (_) {}
-      } else if (!isLandscape && document.fullscreenElement) {
-        try {
-          (document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen)?.call(document);
-        } catch (_) {}
+      if (isLandscape && !document.fullscreenElement && !document.webkitFullscreenElement) {
+        const fsReq = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen;
+        if (fsReq) {
+          fsReq.call(el).catch(() => { setCssFullscreen(true); setIsFullscreen(true); });
+        } else {
+          setCssFullscreen(true); setIsFullscreen(true);
+        }
+        try { screen.orientation?.lock?.('landscape').catch(() => {}); } catch (_) {}
+      } else if (!isLandscape) {
+        if (document.fullscreenElement || document.webkitFullscreenElement) {
+          try { (document.exitFullscreen || document.webkitExitFullscreen)?.call(document); } catch (_) {}
+        }
+        setCssFullscreen(false); setIsFullscreen(false);
       }
     };
     window.addEventListener('orientationchange', onOrientationChange);
@@ -683,12 +719,32 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
   };
 
   const toggleFullscreen = () => {
-    if (document.fullscreenElement) {
-      (document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen)?.call(document);
+    const inNativeFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    if (inNativeFs || cssFullscreen) {
+      if (inNativeFs) {
+        try { (document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen)?.call(document); } catch (_) {}
+      }
+      setCssFullscreen(false);
+      setIsFullscreen(false);
+      return;
+    }
+    const el = containerRef.current;
+    if (!el) return;
+    const fsReq = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen;
+    if (fsReq) {
+      fsReq.call(el).catch(() => {
+        if (videoRef.current?.webkitEnterFullscreen) {
+          videoRef.current.webkitEnterFullscreen();
+        } else {
+          setCssFullscreen(true);
+          setIsFullscreen(true);
+        }
+      });
+    } else if (videoRef.current?.webkitEnterFullscreen) {
+      videoRef.current.webkitEnterFullscreen();
     } else {
-      const el = containerRef.current;
-      if (!el) return;
-      (el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen)?.call(el);
+      setCssFullscreen(true);
+      setIsFullscreen(true);
     }
   };
 
@@ -720,10 +776,16 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
   const pct = `${progress}%`;
   const vol = `${(muted ? 0 : volume) * 100}%`;
 
+  const vFsStyle = cssFullscreen ? {
+    position: 'fixed', inset: 0, zIndex: 9998,
+    width: '100vw', height: '100vh',
+  } : {};
+
   return (
     <div
       ref={containerRef}
       className="relative w-full h-full bg-black"
+      style={vFsStyle}
       onMouseMove={resetHideTimer}
       onMouseLeave={() => { if (!seeking.current && playing) setShowControls(false); }}
       onTouchStart={resetHideTimer}
