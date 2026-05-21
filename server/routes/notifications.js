@@ -9,6 +9,19 @@ router.use(authenticate);
 
 const getTeacherId = (req) => req.user.role === 'teacher' ? req.user.id : req.user.teacher_id;
 
+// ── Permission guard: can_send_notifications ────────────────────────
+const checkNotifPermission = async (req, res, next) => {
+  if (req.user.role === 'teacher') return next();
+  try {
+    const r = await pool.query('SELECT can_send_notifications FROM assistants WHERE id=$1', [req.user.id]);
+    if (!r.rows.length || !r.rows[0].can_send_notifications)
+      return res.status(403).json({ error: 'Access denied: missing permission (can_send_notifications)' });
+    next();
+  } catch {
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
 const TYPE_TITLES = {
   general:              'إشعار عام',
   exam_result:          'نتيجة اختبار',
@@ -91,18 +104,6 @@ router.post('/log', requireRole('teacher', 'assistant'), checkNotifPermission, a
 
 // ── Send platform (in-app) notification to selected students ────────
 const MAX_NOTIFICATION_STUDENTS = 500;
-
-const checkNotifPermission = async (req, res, next) => {
-  if (req.user.role === 'teacher') return next();
-  try {
-    const r = await pool.query('SELECT can_send_notifications FROM assistants WHERE id=$1', [req.user.id]);
-    if (!r.rows.length || !r.rows[0].can_send_notifications)
-      return res.status(403).json({ error: 'Access denied: missing permission (can_send_notifications)' });
-    next();
-  } catch {
-    res.status(500).json({ error: 'Server error' });
-  }
-};
 
 router.post('/platform', requireRole('teacher', 'assistant'), checkNotifPermission, async (req, res) => {
   const teacherId = getTeacherId(req);

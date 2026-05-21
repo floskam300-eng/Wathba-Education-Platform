@@ -293,7 +293,7 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExams
 });
 
 // ── Upload question image ──
-router.post('/upload-question-image', requireRole('teacher', 'assistant'), uploadQuestionImage.single('image'), (req, res) => {
+router.post('/upload-question-image', requireRole('teacher', 'assistant'), checkManageExamsPerm, uploadQuestionImage.single('image'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'لم يتم رفع أي ملف' });
   const url = `/uploads/question-images/${req.file.filename}`;
   res.json({ url });

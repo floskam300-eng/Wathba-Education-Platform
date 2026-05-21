@@ -103,7 +103,7 @@ router.post('/upload-thumbnail', requireRole('teacher', 'assistant'), checkManag
   res.json({ url });
 });
 
-router.delete('/upload-thumbnail', requireRole('teacher', 'assistant'), async (req, res) => {
+router.delete('/upload-thumbnail', requireRole('teacher', 'assistant'), checkManageCoursesPerm, async (req, res) => {
   const { url } = req.body;
   if (!url || !url.startsWith('/uploads/thumbnails/')) {
     return res.status(400).json({ error: 'مسار غير صالح' });
