@@ -1,20 +1,11 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  MessageCircle, Send, Clock, Users, Search, ChevronDown,
-  GraduationCap, Filter, Bell, CheckCircle, Megaphone,
+  MessageCircle, Clock, Users, Search,
+  ChevronDown, GraduationCap, Filter, Bell, CheckCircle, Megaphone,
 } from 'lucide-react';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
-
-const WA_TEMPLATES = [
-  { label: 'نتيجة اختبار',      text: 'مرحباً {name}، نتيجتك في الاختبار الأخير جاهزة. تفضل/ي بتسجيل الدخول لمعرفة نتيجتك.' },
-  { label: 'تذكير بالاختبار',   text: 'مرحباً {name}، تذكير: لديك اختبار قريباً. احرص/ي على المذاكرة الجيدة. 📚' },
-  { label: 'تذكير بالمدفوعات',  text: 'مرحباً {name}، يرجى سداد رسوم الكورس في أقرب وقت ممكن. للاستفسار تواصل معنا.' },
-  { label: 'رسالة تشجيعية',     text: 'مرحباً {name}، أداؤك رائع! استمر/ي في التقدم. أنت تستطيع تحقيق المزيد. 🌟' },
-  { label: 'تنبيه لولي الأمر',  text: 'مرحباً، هذه رسالة بخصوص الطالب/ة {name}. يرجى التواصل مع المعلم لمتابعة الأداء الدراسي.' },
-  { label: 'بداية الكورس',      text: 'مرحباً {name}، تم فتح الكورس الجديد. تفضل/ي بتسجيل الدخول والبدء في المشاهدة. 🎓' },
-];
 
 const PLATFORM_TYPES = [
   { value: 'general',             label: '📢 إعلان عام' },
@@ -37,20 +28,13 @@ const PLATFORM_TEMPLATES = [
   { type: 'announcement',title: 'إعلان هام',            text: 'إعلان هام من المعلم — يرجى الاطلاع على أحدث التحديثات في المنصة. 📣' },
 ];
 
-const fmtPhone = (phone) => {
-  if (!phone) return null;
-  let p = phone.replace(/\D/g, '');
-  if (p.startsWith('0')) p = '2' + p;
-  return p;
-};
-
 const fmtDate = (d) =>
   new Date(d).toLocaleDateString('ar-EG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
 function StudentPicker({
-  showPhone = true, search = '', setSearch, stageFilter = 'الكل', setStageFilter,
+  search = '', setSearch, stageFilter = 'الكل', setStageFilter,
   selectedStudents = [], setSelectedStudents, students = [], filtered = [],
-  stages = [], selectAll, selectStageAll, toggleStudent, recipientType = 'student',
+  stages = [], selectAll, selectStageAll, toggleStudent,
 }) {
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -115,13 +99,7 @@ function StudentPicker({
                 className="w-4 h-4 accent-orange-500 flex-shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="font-bold text-navy-700 text-sm">{s.name}</p>
-                {showPhone ? (
-                  <p className="text-xs text-gray-500">
-                    {recipientType === 'parent' ? (s.parent_phone || 'لا يوجد رقم ولي أمر') : (s.phone || 'لا يوجد رقم')}
-                  </p>
-                ) : (
-                  <p className="text-xs text-gray-400">{s.academic_stage}</p>
-                )}
+                <p className="text-xs text-gray-400">{s.academic_stage}</p>
               </div>
             </label>
           );
@@ -137,10 +115,7 @@ export default function Notifications() {
   const [stageFilter, setStageFilter] = useState('الكل');
   const [selectedStudents, setSelectedStudents] = useState([]);
   const [message, setMessage] = useState('');
-  const [tab, setTab] = useState('whatsapp');
-
-  const [recipientType, setRecipientType] = useState('student');
-  const [waTemplateOpen, setWaTemplateOpen] = useState(false);
+  const [tab, setTab] = useState('platform');
 
   const [platformType, setPlatformType] = useState('general');
   const [platformTemplateOpen, setPlatformTemplateOpen] = useState(false);
@@ -154,11 +129,6 @@ export default function Notifications() {
     queryKey: ['notif-logs'],
     queryFn: () => api.get('/notifications/log').then(r => r.data),
     enabled: tab === 'history',
-  });
-
-  const logMut = useMutation({
-    mutationFn: (data) => api.post('/notifications/log', data),
-    onSuccess: () => qc.invalidateQueries(['notif-logs']),
   });
 
   const platformMut = useMutation({
@@ -175,7 +145,7 @@ export default function Notifications() {
   const stages = ['الكل', ...new Set(students.map(s => s.academic_stage).filter(Boolean))];
 
   const filtered = students.filter(s => {
-    const matchSearch = s.name.includes(search) || (s.phone || '').includes(search);
+    const matchSearch = s.name.includes(search);
     const matchStage = stageFilter === 'الكل' || s.academic_stage === stageFilter;
     return matchSearch && matchStage;
   });
@@ -193,25 +163,6 @@ export default function Notifications() {
     setSelectedStudents(students.filter(s => s.academic_stage === stage).map(s => s.id));
   };
 
-  const sendWhatsApp = () => {
-    if (!message.trim()) return toast.error('اكتب الرسالة أولاً');
-    if (selectedStudents.length === 0) return toast.error('اختر طالباً واحداً على الأقل');
-
-    const targets = students.filter(s => selectedStudents.includes(s.id));
-    let sent = 0;
-    targets.forEach(s => {
-      const phone = recipientType === 'parent' ? s.parent_phone : s.phone;
-      const fmted = fmtPhone(phone);
-      if (!fmted) return;
-      const personalMsg = message.replace('{name}', s.name);
-      window.open(`https://wa.me/${fmted}?text=${encodeURIComponent(personalMsg)}`, '_blank');
-      logMut.mutate({ student_id: s.id, recipient_phone: phone, recipient_type: recipientType, message: personalMsg });
-      sent++;
-    });
-    if (sent > 0) { toast.success(`تم فتح ${sent} محادثة واتساب`); setSelectedStudents([]); }
-    else toast.error('لا توجد أرقام هواتف للطلاب المختارين');
-  };
-
   const sendPlatform = () => {
     if (!message.trim()) return toast.error('اكتب نص الإشعار أولاً');
     if (selectedStudents.length === 0) return toast.error('اختر طالباً واحداً على الأقل');
@@ -227,14 +178,13 @@ export default function Notifications() {
   return (
     <div className="space-y-5">
       <h1 className="text-xl sm:text-2xl font-black text-navy-600 flex items-center gap-2">
-        <MessageCircle className="w-6 h-6 sm:w-7 sm:h-7 text-green-500 flex-shrink-0" /> الإشعارات والرسائل
+        <Bell className="w-6 h-6 sm:w-7 sm:h-7 text-indigo-500 flex-shrink-0" /> الإشعارات
       </h1>
 
       <div className="flex gap-1 sm:gap-2 bg-white rounded-xl border border-slate-200 p-1 shadow-sm overflow-x-auto">
         {[
-          ['whatsapp', '📱 واتساب'],
           ['platform', '🔔 إشعار داخلي'],
-          ['history',  '📋 سجل الإرسال'],
+          ['history',  '📋 سجل الإشعارات'],
         ].map(([key, label]) => (
           <button key={key} onClick={() => { setTab(key); setMessage(''); setSelectedStudents([]); }}
             className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap flex-shrink-0 ${tab === key ? 'bg-navy-500 text-white shadow' : 'text-gray-600 hover:bg-gray-100'}`}>
@@ -243,93 +193,14 @@ export default function Notifications() {
         ))}
       </div>
 
-      {tab === 'whatsapp' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          <StudentPicker
-            showPhone
-            search={search} setSearch={setSearch}
-            stageFilter={stageFilter} setStageFilter={setStageFilter}
-            selectedStudents={selectedStudents} setSelectedStudents={setSelectedStudents}
-            students={students} filtered={filtered} stages={stages}
-            selectAll={selectAll} selectStageAll={selectStageAll} toggleStudent={toggleStudent}
-            recipientType={recipientType}
-          />
-
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
-            <h2 className="font-black text-navy-600 flex items-center gap-2">
-              <Send className="w-4 h-4 text-green-500" /> كتابة الرسالة
-            </h2>
-
-            <div>
-              <label className="block text-sm font-bold text-navy-700 mb-1">إرسال إلى</label>
-              <div className="flex gap-2">
-                {[['student', '📱 الطالب'], ['parent', '👨‍👩‍👧 ولي الأمر']].map(([val, label]) => (
-                  <button key={val} onClick={() => setRecipientType(val)}
-                    className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all border-2 ${recipientType === val ? 'border-green-500 bg-green-50 text-green-800' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-sm font-bold text-navy-700">نص الرسالة</label>
-                <div className="relative">
-                  <button onClick={() => setWaTemplateOpen(!waTemplateOpen)}
-                    className="text-xs font-bold text-orange-600 hover:underline flex items-center gap-1">
-                    قوالب جاهزة <ChevronDown className="w-3 h-3" />
-                  </button>
-                  {waTemplateOpen && (
-                    <div className="absolute left-0 top-6 w-64 bg-white border border-slate-200 rounded-xl shadow-lg z-10 overflow-hidden">
-                      {WA_TEMPLATES.map(t => (
-                        <button key={t.label} onClick={() => { setMessage(t.text); setWaTemplateOpen(false); }}
-                          className="w-full text-right px-3 py-2.5 text-xs font-semibold text-navy-700 hover:bg-orange-50 transition-colors border-b border-slate-100 last:border-0">
-                          {t.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <textarea value={message} onChange={e => setMessage(e.target.value)}
-                className="input-field h-32 resize-none text-sm"
-                placeholder="اكتب رسالتك هنا... استخدم {name} لإدراج اسم الطالب تلقائياً" />
-              <p className="text-xs text-gray-400 mt-1">استخدم &#123;name&#125; لإدراج اسم الطالب تلقائياً</p>
-              {message && selectedStudents.length > 0 && (
-                <div className="mt-2 bg-gray-50 border border-gray-200 rounded-xl p-3">
-                  <p className="text-xs font-bold text-gray-500 mb-1.5">👁 معاينة (أول طالب مختار):</p>
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-                    {message.replace(/\{name\}/g, students.find(s => s.id === selectedStudents[0])?.name || 'الطالب')}
-                  </p>
-                </div>
-              )}
-            </div>
-
-            <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-xs text-green-800 font-medium">
-              <p className="font-bold mb-1">🟢 كيف يعمل الإرسال؟</p>
-              <p>سيفتح التطبيق نافذة واتساب لكل طالب مختار، وستحتاج فقط للضغط على "إرسال" في كل محادثة.</p>
-            </div>
-
-            <button onClick={sendWhatsApp}
-              className="w-full btn-primary flex items-center justify-center gap-2 py-3 bg-green-600 hover:bg-green-700">
-              <MessageCircle className="w-5 h-5" />
-              إرسال عبر واتساب ({selectedStudents.length} طالب)
-            </button>
-          </div>
-        </div>
-      )}
-
       {tab === 'platform' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           <StudentPicker
-            showPhone={false}
             search={search} setSearch={setSearch}
             stageFilter={stageFilter} setStageFilter={setStageFilter}
             selectedStudents={selectedStudents} setSelectedStudents={setSelectedStudents}
             students={students} filtered={filtered} stages={stages}
             selectAll={selectAll} selectStageAll={selectStageAll} toggleStudent={toggleStudent}
-            recipientType={recipientType}
           />
 
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
@@ -339,7 +210,7 @@ export default function Notifications() {
 
             <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-xs text-indigo-800 font-medium">
               <p className="font-bold mb-1">🔔 ما هو الإشعار الداخلي؟</p>
-              <p>يصل الإشعار لجرس الإشعارات في حساب الطالب على المنصة مباشرةً — بدون واتساب.</p>
+              <p>يصل الإشعار لجرس الإشعارات في حساب الطالب على المنصة مباشرةً.</p>
             </div>
 
             <div>
@@ -406,13 +277,13 @@ export default function Notifications() {
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="p-4 border-b border-slate-100">
             <h2 className="font-black text-navy-600 flex items-center gap-2">
-              <Clock className="w-4 h-4 text-gray-500" /> سجل الرسائل والإشعارات المرسلة
+              <Clock className="w-4 h-4 text-gray-500" /> سجل الإشعارات المرسلة
             </h2>
           </div>
           {logs.length === 0 ? (
             <div className="text-center py-12">
-              <MessageCircle className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-              <p className="text-gray-500 font-medium">لم يتم إرسال أي رسائل بعد</p>
+              <Bell className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+              <p className="text-gray-500 font-medium">لم يتم إرسال أي إشعارات بعد</p>
             </div>
           ) : (
             <div className="divide-y divide-slate-100">
@@ -422,15 +293,10 @@ export default function Notifications() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <span className="font-bold text-navy-700 text-sm">{log.student_name || 'طالب'}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${log.source === 'platform' ? 'bg-indigo-100 text-indigo-700' : 'bg-green-100 text-green-700'}`}>
-                          {log.source === 'platform' ? '🔔 إشعار داخلي' : '📱 واتساب'}
+                        <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-indigo-100 text-indigo-700">
+                          🔔 إشعار داخلي
                         </span>
-                        {log.source !== 'platform' && (
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${log.recipient_type === 'parent' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
-                            {log.recipient_type === 'parent' ? 'ولي أمر' : 'طالب'}
-                          </span>
-                        )}
-                        {log.source === 'platform' && log.title && (
+                        {log.title && (
                           <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-purple-100 text-purple-700">{log.title}</span>
                         )}
                       </div>
