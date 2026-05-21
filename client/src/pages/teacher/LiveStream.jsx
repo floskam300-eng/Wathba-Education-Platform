@@ -134,9 +134,9 @@ function ViewersPanel({ streamId, dark }) {
     <div className="flex flex-col h-full">
       <div className={`px-3 py-2.5 border-b flex items-center justify-between flex-shrink-0 ${dark ? 'border-slate-700' : 'border-slate-200'}`}>
         <div className="flex items-center gap-2">
-          <Users className="w-4 h-4 text-blue-500" />
+          <Users className="w-4 h-4 text-purple-500" />
           <span className={`text-sm font-bold ${dark ? 'text-white' : 'text-slate-700'}`}>الحضور</span>
-          <span className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 px-1.5 py-0.5 rounded-full font-black">{viewers.length}</span>
+          <span className="text-xs bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 px-1.5 py-0.5 rounded-full font-black">{viewers.length}</span>
         </div>
         {raised > 0 && (
           <span className="text-xs bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300 px-2 py-0.5 rounded-full font-black animate-pulse">

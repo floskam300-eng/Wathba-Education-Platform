@@ -92,7 +92,7 @@ function ChatPanel({ stream, studentName, dark, onClose }) {
           </div>
         ) : messages.map(msg => (
           <div key={msg.id} className={`flex flex-col gap-0.5 ${msg.sender_type === 'student' && msg.sender_name === studentName ? 'items-end' : 'items-start'}`}>
-            <span className={`text-[10px] px-1 ${msg.sender_type === 'teacher' ? 'text-blue-400 font-bold' : 'text-slate-400'}`}>
+            <span className={`text-[10px] px-1 ${msg.sender_type === 'teacher' ? 'text-orange-400 font-bold' : 'text-slate-400'}`}>
               {msg.sender_type === 'teacher' ? `👨‍🏫 ${msg.sender_name}` : msg.sender_name}
             </span>
             <div className={`text-sm px-3 py-2 rounded-2xl max-w-[90%] leading-relaxed ${

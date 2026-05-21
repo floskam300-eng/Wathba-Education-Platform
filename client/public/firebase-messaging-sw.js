@@ -17,8 +17,8 @@ messaging.onBackgroundMessage((payload) => {
   const body  = payload.notification?.body  || '';
   self.registration.showNotification(title, {
     body,
-    icon:  '/wathba_logo.png',
-    badge: '/wathba_logo.png',
+    icon:  '/wathba-logo.png',
+    badge: '/wathba-logo.png',
     dir:   'rtl',
     lang:  'ar',
     tag:   'wathba-notification',

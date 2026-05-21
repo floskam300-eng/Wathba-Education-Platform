@@ -36,8 +36,8 @@ async function sendFCMToTokens(tokens, title, body, data = {}) {
         notification: {
           title,
           body,
-          icon: '/wathba_logo.png',
-          badge: '/wathba_logo.png',
+          icon: '/wathba-logo.png',
+          badge: '/wathba-logo.png',
           dir: 'rtl',
           lang: 'ar',
           tag: 'wathba-notification',
