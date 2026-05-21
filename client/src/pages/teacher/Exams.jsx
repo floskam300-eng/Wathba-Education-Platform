@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import { FileText, Plus, Pencil, Trash2, HelpCircle, ChevronDown, ChevronUp, Printer, Filter, Calendar, User, Eye, Search, AlertCircle, Globe, EyeOff, Upload, Link, CheckCircle, XCircle } from 'lucide-react';
 import Modal from '../../components/ui/Modal';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
@@ -37,6 +38,9 @@ const fmtDateLocal = (iso) => {
 export default function TeacherExams() {
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const canPrint = user?.role === 'teacher' || user?.can_send_reports;
+  const canManageExams = user?.role === 'teacher' || user?.can_manage_exams;
   const [modal, setModal] = useState(false);
   const [editData, setEditData] = useState(null);
   const [form, setForm] = useState(emptyExam);
@@ -325,12 +329,16 @@ export default function TeacherExams() {
           <span className="text-sm font-semibold text-gray-600">({exams.length})</span>
         </h1>
         <div className="page-header-actions">
-          <button onClick={handlePrint} className="btn-secondary flex items-center gap-2">
-            <Printer className="w-4 h-4" /> <span className="hidden sm:inline">طباعة</span>
-          </button>
-          <button onClick={openAdd} className="btn-primary flex items-center gap-2">
-            <Plus className="w-4 h-4" /> إضافة اختبار
-          </button>
+          {canPrint && (
+            <button onClick={handlePrint} className="btn-secondary flex items-center gap-2">
+              <Printer className="w-4 h-4" /> <span className="hidden sm:inline">طباعة</span>
+            </button>
+          )}
+          {canManageExams && (
+            <button onClick={openAdd} className="btn-primary flex items-center gap-2">
+              <Plus className="w-4 h-4" /> إضافة اختبار
+            </button>
+          )}
         </div>
       </div>
 

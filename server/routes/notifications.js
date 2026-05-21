@@ -58,7 +58,7 @@ router.post('/fcm-token', requireRole('student'), async (req, res) => {
 });
 
 // ── Log a WhatsApp notification ─────────────────────────────────────
-router.post('/log', requireRole('teacher', 'assistant'), async (req, res) => {
+router.post('/log', requireRole('teacher', 'assistant'), checkNotifPermission, async (req, res) => {
   const teacherId = getTeacherId(req);
   const { student_id, recipient_phone, recipient_type, message } = req.body;
   if (!message?.trim()) return res.status(400).json({ error: 'الرسالة مطلوبة' });

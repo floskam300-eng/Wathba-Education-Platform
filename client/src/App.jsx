@@ -75,6 +75,19 @@ class ErrorBoundary extends React.Component {
   }
 }
 
+// ─── Assistant Permission Route ─────────────────────────────────────────────────
+const AssistantPermissionRoute = ({ children, permission, anyOf }) => {
+  const { user } = useAuth();
+  const { teacherSlug } = useParams();
+  if (user?.role === 'assistant') {
+    const hasPermission = anyOf
+      ? anyOf.some(p => user[p])
+      : (permission ? user[permission] : true);
+    if (!hasPermission) return <Navigate to={`/${teacherSlug}/assistant`} replace />;
+  }
+  return children;
+};
+
 // ─── Protected Route ────────────────────────────────────────────────────────────
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading } = useAuth();
@@ -170,14 +183,28 @@ const AppRoutes = () => {
         }>
           <Route index element={<AssistantDashboard />} />
           <Route path="students" element={<AssistantStudents />} />
-          <Route path="exams" element={<AssistantExams />} />
-          <Route path="courses" element={<AssistantCourses />} />
-          <Route path="payments" element={<AssistantPayments />} />
-          <Route path="analytics" element={<AssistantAnalytics />} />
-          <Route path="notifications" element={<TeacherNotifications />} />
-          <Route path="requests" element={<TeacherRequests />} />
+          <Route path="exams" element={
+            <AssistantPermissionRoute permission="can_manage_exams"><AssistantExams /></AssistantPermissionRoute>
+          } />
+          <Route path="question-banks" element={
+            <AssistantPermissionRoute permission="can_manage_exams"><QuestionBanks /></AssistantPermissionRoute>
+          } />
+          <Route path="courses" element={
+            <AssistantPermissionRoute permission="can_manage_courses"><AssistantCourses /></AssistantPermissionRoute>
+          } />
+          <Route path="payments" element={
+            <AssistantPermissionRoute permission="can_manage_payments"><AssistantPayments /></AssistantPermissionRoute>
+          } />
+          <Route path="analytics" element={
+            <AssistantPermissionRoute permission="can_view_analytics"><AssistantAnalytics /></AssistantPermissionRoute>
+          } />
+          <Route path="notifications" element={
+            <AssistantPermissionRoute permission="can_send_notifications"><TeacherNotifications /></AssistantPermissionRoute>
+          } />
+          <Route path="requests" element={
+            <AssistantPermissionRoute anyOf={['can_manage_exams', 'can_manage_courses']}><TeacherRequests /></AssistantPermissionRoute>
+          } />
           <Route path="exam-review/:resultId" element={<ExamReviewPage />} />
-          <Route path="question-banks" element={<QuestionBanks />} />
         </Route>
 
         {/* Student dashboard */}

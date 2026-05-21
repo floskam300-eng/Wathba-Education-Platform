@@ -188,6 +188,7 @@ export default function TeacherStudents() {
   const canAdd = user?.role === 'teacher' || user?.can_add_students;
   const canEdit = user?.role === 'teacher' || user?.can_edit_students;
   const canDelete = user?.role === 'teacher' || user?.can_delete_students;
+  const canPrint = user?.role === 'teacher' || user?.can_send_reports;
 
   const openAdd = () => { setEditData(null); setForm(emptyForm); setPreviewUsername(''); setFormErrors({}); setModal(true); };
   const openEdit = (s) => { setEditData(s); setForm({ ...s, password: '' }); setPreviewUsername(''); setFormErrors({}); setModal(true); };
@@ -262,12 +263,16 @@ export default function TeacherStudents() {
           <span className="text-sm font-semibold text-gray-600">({students.length})</span>
         </h1>
         <div className="flex gap-2 flex-wrap">
-          <button onClick={handlePrint} className="btn-secondary flex items-center gap-2">
-            <Printer className="w-4 h-4" /> طباعة
-          </button>
-          <button onClick={handleExportExcel} className="btn-secondary flex items-center gap-2 !border-blue-300 !text-blue-700 hover:!bg-blue-50">
-            <Download className="w-4 h-4" /> تصدير Excel
-          </button>
+          {canPrint && (
+            <button onClick={handlePrint} className="btn-secondary flex items-center gap-2">
+              <Printer className="w-4 h-4" /> طباعة
+            </button>
+          )}
+          {canPrint && (
+            <button onClick={handleExportExcel} className="btn-secondary flex items-center gap-2 !border-blue-300 !text-blue-700 hover:!bg-blue-50">
+              <Download className="w-4 h-4" /> تصدير Excel
+            </button>
+          )}
           {canAdd && (
             <>
               <input ref={importFileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleExcelFile} />

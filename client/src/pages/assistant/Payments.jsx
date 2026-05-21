@@ -5,6 +5,7 @@ import Badge from '../../components/ui/Badge';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
 import { generatePDFReport } from '../../lib/pdfReport';
+import { useAuth } from '../../context/AuthContext';
 
 const METHOD_LABELS = {
   'Vodafone Cash': '📱 فودافون كاش',
@@ -22,6 +23,8 @@ const STATUS_MAP = {
 
 export default function AssistantPayments() {
   const qc = useQueryClient();
+  const { user } = useAuth();
+  const canPrint = user?.role === 'teacher' || user?.can_send_reports;
   const [statusFilter, setStatusFilter] = useState('all');
   const [search, setSearch] = useState('');
 
@@ -83,9 +86,11 @@ export default function AssistantPayments() {
           <CreditCard className="w-7 h-7 text-orange-500" />
           المدفوعات
         </h1>
-        <button onClick={handlePrint} className="btn-secondary flex items-center gap-2">
-          <Printer className="w-4 h-4" /> طباعة التقارير
-        </button>
+        {canPrint && (
+          <button onClick={handlePrint} className="btn-secondary flex items-center gap-2">
+            <Printer className="w-4 h-4" /> طباعة التقارير
+          </button>
+        )}
       </div>
 
       {/* Operational counters only — no financial totals */}
