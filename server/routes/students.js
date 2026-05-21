@@ -242,7 +242,7 @@ router.get('/:id/profile', requireRole('teacher', 'assistant'), async (req, res)
                sce.enrollment_date, sce.status,
                COUNT(DISTINCT v.id) as total_videos,
                COUNT(DISTINCT p.id) as total_pdfs,
-               COUNT(DISTINCT vp.video_id) as watched_videos,
+               COUNT(DISTINCT CASE WHEN vp.progress_percentage >= 90 THEN vp.video_id END) as watched_videos,
                COALESCE(SUM(vp.watched_minutes), 0) as total_watched_minutes
         FROM student_course_enrollment sce
         JOIN courses c ON sce.course_id = c.id
@@ -326,7 +326,7 @@ router.get('/me/stats', requireRole('student'), async (req, res) => {
                sce.enrollment_date, sce.status,
                COUNT(DISTINCT v.id)::int  AS total_videos,
                COUNT(DISTINCT pf.id)::int AS total_pdfs,
-               COUNT(DISTINCT vp.video_id)::int AS watched_videos,
+               COUNT(DISTINCT CASE WHEN vp.progress_percentage >= 90 THEN vp.video_id END)::int AS watched_videos,
                COALESCE(SUM(vp.watched_minutes),0)::int AS total_watched_minutes,
                COALESCE(AVG(vp.progress_percentage),0)::numeric(5,1) AS avg_progress
         FROM student_course_enrollment sce
