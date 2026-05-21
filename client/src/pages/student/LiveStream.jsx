@@ -177,43 +177,42 @@ function LiveView({ stream, user, dark, onLeave }) {
   return (
     <div className="flex flex-col" style={{ height: '100%' }}>
       {/* Top bar */}
-      <div className="flex items-center justify-between px-4 py-2 flex-shrink-0"
+      <div className="flex items-center justify-between px-3 py-2 flex-shrink-0"
            style={{ backgroundColor: '#1a0000', borderBottom: '1px solid rgba(239,68,68,0.3)' }}>
-        <div className="flex items-center gap-3 min-w-0">
-          <span className="flex items-center gap-1.5 bg-red-600 text-white text-xs font-black px-2.5 py-1 rounded-full flex-shrink-0 animate-pulse">
-            <Radio className="w-3 h-3" /> مباشر
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="flex items-center gap-1 bg-red-600 text-white text-[11px] font-black px-2 py-1 rounded-full flex-shrink-0 animate-pulse">
+            <Radio className="w-2.5 h-2.5" /> مباشر
           </span>
-          <span className="text-white font-bold text-sm truncate">{stream.title}</span>
+          <span className="text-white font-bold text-xs sm:text-sm truncate">{stream.title}</span>
           {stream.teacher_name && (
             <span className="text-red-300 text-xs hidden sm:block flex-shrink-0">👨‍🏫 {stream.teacher_name}</span>
           )}
         </div>
-        <div className="flex items-center gap-1.5 flex-shrink-0">
+        <div className="flex items-center gap-1 flex-shrink-0">
           {stream.hand_raise_enabled !== false && (
             <button
               onClick={toggleHand}
               disabled={raisingHand}
-              className={`flex items-center gap-1 text-xs font-bold px-2 sm:px-3 py-1.5 rounded-lg transition-colors ${
+              className={`flex items-center gap-1 text-xs font-bold px-2 py-1.5 rounded-lg transition-colors ${
                 handRaised
                   ? 'bg-yellow-500 hover:bg-yellow-600 text-white animate-pulse'
                   : 'bg-white/10 hover:bg-white/20 text-white'
               }`}
             >
-              {raisingHand ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '✋'}
-              <span className="hidden sm:inline">{handRaised ? 'يدك مرفوعة' : 'ارفع يدك'}</span>
+              {raisingHand ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <span>✋</span>}
+              <span className="hidden sm:inline text-xs">{handRaised ? 'يدك مرفوعة' : 'ارفع يدك'}</span>
             </button>
           )}
           <button
             onClick={() => setChatOpen(p => !p)}
             className={`p-1.5 rounded-lg transition-colors ${chatOpen ? 'bg-green-600 text-white' : 'bg-white/10 hover:bg-white/20 text-white'}`}
-            title="الدردشة"
           >
             <MessageSquare className="w-4 h-4" />
           </button>
           <button
             onClick={handleLeave}
             disabled={leaving}
-            className="flex items-center gap-1 text-xs font-black px-2 sm:px-3 py-1.5 rounded-lg bg-red-700 hover:bg-red-800 text-white transition-colors disabled:opacity-60"
+            className="flex items-center gap-1 text-xs font-black px-2 py-1.5 rounded-lg bg-red-700 hover:bg-red-800 text-white transition-colors disabled:opacity-60"
           >
             {leaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <LogOut className="w-3.5 h-3.5" />}
             <span className="hidden sm:inline">مغادرة</span>
@@ -221,10 +220,17 @@ function LiveView({ stream, user, dark, onLeave }) {
         </div>
       </div>
 
-      {/* Body: stacked on mobile, side-by-side on md+ */}
+      {/* Body */}
       <div className="flex flex-col md:flex-row flex-1 overflow-hidden min-h-0">
-        {/* Video — aspect-video on mobile, flex-1 on desktop */}
-        <div className="bg-black overflow-hidden flex-shrink-0 md:flex-1 aspect-video md:aspect-auto">
+
+        {/* ── Video ── */}
+        {/* Mobile: fixed compact height when chat open, fills remaining space when closed */}
+        {/* Desktop: always flex-1 side by side */}
+        <div className={`bg-black overflow-hidden flex-shrink-0 md:flex-1 md:h-auto
+          ${chatOpen
+            ? 'h-[40vw] min-h-[160px] max-h-[240px]'
+            : 'flex-1 h-full'
+          } md:max-h-none md:min-h-0`}>
           <JitsiMeet
             roomName={stream.room_id}
             displayName={user?.name || 'طالب'}
@@ -232,9 +238,13 @@ function LiveView({ stream, user, dark, onLeave }) {
             style={{ height: '100%', width: '100%' }}
           />
         </div>
-        {/* Chat panel: fixed-height strip on mobile, full-height side panel on desktop */}
+
+        {/* ── Chat panel ── */}
+        {/* Mobile: fills all remaining vertical space after video */}
+        {/* Desktop: fixed-width side panel */}
         {chatOpen && (
-          <div className={`flex flex-col flex-shrink-0 w-full h-[45vh] md:h-auto md:w-72 border-t md:border-t-0 md:border-r ${dark ? 'border-slate-700' : 'border-slate-200'}`}>
+          <div className={`flex flex-col min-h-0 flex-1 md:flex-none md:w-72 border-t md:border-t-0 md:border-r
+            ${dark ? 'border-slate-700' : 'border-slate-200'}`}>
             <ChatPanel stream={stream} studentName={user?.name} dark={dark} onClose={() => setChatOpen(false)} />
           </div>
         )}
@@ -383,7 +393,7 @@ export default function StudentLiveStream() {
 
   if (stream) {
     return (
-      <div className="overflow-hidden" style={{ height: 'calc(100vh - 56px)' }}>
+      <div className="overflow-hidden" style={{ height: 'calc(100dvh - 56px)' }}>
         <LiveView stream={stream} user={user} dark={dark} onLeave={handleLeave} />
       </div>
     );
