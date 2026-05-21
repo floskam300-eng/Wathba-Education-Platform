@@ -138,11 +138,16 @@ const initDB = async () => {
       const bcrypt = require('bcryptjs');
       const hashed = await bcrypt.hash('admin123', 10);
       await pool.query(
-        "INSERT INTO teachers (username,password,name,bio,classification,whatsapp_phone) VALUES($1,$2,$3,$4,$5,$6)",
-        ['admin', hashed, 'المعلم الافتراضي', 'مرحباً بك في منصة وثبة التعليمية', 'مدرس رياضيات', '+201000000000']
+        "INSERT INTO teachers (username,password,name,bio,classification,whatsapp_phone,slug) VALUES($1,$2,$3,$4,$5,$6,$7)",
+        ['admin', hashed, 'المعلم الافتراضي', 'مرحباً بك في منصة وثبة التعليمية', 'مدرس رياضيات', '+201000000000', 'admin']
       );
       console.log('Default teacher created: username=admin, password=admin123');
       console.warn('⚠️  SECURITY WARNING: Change the default admin password immediately via Settings!');
+    } else {
+      // Ensure existing admin teacher has a slug
+      await pool.query(
+        "UPDATE teachers SET slug = regexp_replace(lower(trim(username)), '[^a-z0-9]+', '-', 'g') WHERE slug IS NULL OR slug = ''"
+      );
     }
   } catch (err) {
     console.error('DB init error:', err.message);

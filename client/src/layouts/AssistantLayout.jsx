@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { useTeacher } from '../context/TeacherContext';
 import { LayoutDashboard, Users, LogOut, Menu, FileText, BarChart3, BookOpen, CreditCard, Moon, Sun, MessageCircle, Inbox, BookMarked } from 'lucide-react';
 import WathbaLogo from '../assets/wathba_logo.png';
 import { useSSE } from '../hooks/useSSE';
@@ -10,38 +11,41 @@ export default function AssistantLayout() {
   const { user, logout } = useAuth();
   const { dark, toggle } = useTheme();
   const navigate = useNavigate();
+  const { teacherSlug, platformName, logoUrl } = useTeacher();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useSSE(!!user, 'assistant');
 
-  const handleLogout = () => { logout(); navigate('/login'); };
+  const handleLogout = () => { logout(); navigate(`/${teacherSlug}/login`); };
 
   const navItems = useMemo(() => {
     const items = [
-      { to: '/assistant', icon: LayoutDashboard, label: 'لوحة التحكم', end: true },
+      { to: `/${teacherSlug}/assistant`, icon: LayoutDashboard, label: 'لوحة التحكم', end: true },
     ];
     if (user?.role === 'assistant') {
-      items.push({ to: '/assistant/students', icon: Users, label: 'الطلاب' });
-      if (user?.can_manage_exams) items.push({ to: '/assistant/exams', icon: FileText, label: 'الاختبارات' });
-      if (user?.can_manage_exams) items.push({ to: '/assistant/question-banks', icon: BookMarked, label: 'بنوك الأسئلة' });
-      if (user?.can_manage_courses) items.push({ to: '/assistant/courses', icon: BookOpen, label: 'الكورسات' });
-      if (user?.can_manage_payments) items.push({ to: '/assistant/payments', icon: CreditCard, label: 'المدفوعات' });
-      if (user?.can_view_analytics) items.push({ to: '/assistant/analytics', icon: BarChart3, label: 'التحليلات' });
-      if (user?.can_send_notifications) items.push({ to: '/assistant/notifications', icon: MessageCircle, label: 'الإشعارات' });
-      if (user?.can_manage_exams || user?.can_manage_courses) items.push({ to: '/assistant/requests', icon: Inbox, label: 'الطلبات' });
+      items.push({ to: `/${teacherSlug}/assistant/students`, icon: Users, label: 'الطلاب' });
+      if (user?.can_manage_exams) items.push({ to: `/${teacherSlug}/assistant/exams`, icon: FileText, label: 'الاختبارات' });
+      if (user?.can_manage_exams) items.push({ to: `/${teacherSlug}/assistant/question-banks`, icon: BookMarked, label: 'بنوك الأسئلة' });
+      if (user?.can_manage_courses) items.push({ to: `/${teacherSlug}/assistant/courses`, icon: BookOpen, label: 'الكورسات' });
+      if (user?.can_manage_payments) items.push({ to: `/${teacherSlug}/assistant/payments`, icon: CreditCard, label: 'المدفوعات' });
+      if (user?.can_view_analytics) items.push({ to: `/${teacherSlug}/assistant/analytics`, icon: BarChart3, label: 'التحليلات' });
+      if (user?.can_send_notifications) items.push({ to: `/${teacherSlug}/assistant/notifications`, icon: MessageCircle, label: 'الإشعارات' });
+      if (user?.can_manage_exams || user?.can_manage_courses) items.push({ to: `/${teacherSlug}/assistant/requests`, icon: Inbox, label: 'الطلبات' });
     }
     return items;
-  }, [user]);
+  }, [user, teacherSlug]);
+
+  const displayLogo = logoUrl || WathbaLogo;
 
   const Sidebar = () => (
     <div className="flex flex-col h-full">
       <div className="p-6 border-b border-white/10">
         <div className="flex items-center gap-3">
           <div className="w-11 h-11 rounded-xl overflow-hidden bg-white flex-shrink-0 p-0.5">
-            <img src={WathbaLogo} alt="وثبة" className="w-full h-full object-contain" />
+            <img src={displayLogo} alt={platformName} className="w-full h-full object-contain" />
           </div>
           <div>
-            <h1 className="text-white font-black text-xl">وثبة</h1>
+            <h1 className="text-white font-black text-xl leading-tight">{platformName}</h1>
             <p className="text-navy-100 text-xs font-medium">لوحة المساعد</p>
           </div>
         </div>

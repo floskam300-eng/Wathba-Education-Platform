@@ -32,15 +32,35 @@ router.get('/dashboard', requireRole('teacher'), async (req, res) => {
 });
 
 router.put('/profile', requireRole('teacher'), async (req, res) => {
-  const { name, bio, classification, logo_url, photo_url, whatsapp_phone } = req.body;
+  const { name, bio, classification, logo_url, photo_url, whatsapp_phone, platform_name, slug } = req.body;
   try {
+    // Validate slug format if provided
+    if (slug !== undefined && slug !== null && slug !== '') {
+      if (!/^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$/.test(slug)) {
+        return res.status(400).json({ error: 'الـ slug يجب أن يحتوي على حروف إنجليزية صغيرة وأرقام وشرطات فقط (3-50 حرف)' });
+      }
+      // Check uniqueness
+      const existing = await pool.query('SELECT id FROM teachers WHERE slug = $1 AND id != $2', [slug, req.user.id]);
+      if (existing.rows.length > 0) {
+        return res.status(409).json({ error: 'هذا الـ slug مستخدم بالفعل، اختر رابطاً مختلفاً' });
+      }
+    }
+
     const result = await pool.query(
-      'UPDATE teachers SET name=$1, bio=$2, classification=$3, logo_url=$4, photo_url=$5, whatsapp_phone=$6 WHERE id=$7 RETURNING *',
-      [name, bio, classification, logo_url, photo_url, whatsapp_phone, req.user.id]
+      `UPDATE teachers
+          SET name=$1, bio=$2, classification=$3, logo_url=$4, photo_url=$5,
+              whatsapp_phone=$6, platform_name=$7,
+              slug = COALESCE(NULLIF($8,''), slug)
+        WHERE id=$9
+        RETURNING *`,
+      [name, bio, classification, logo_url, photo_url, whatsapp_phone,
+       platform_name || null, slug || null, req.user.id]
     );
-    const { password: _, ...safe } = result.rows[0];
+    const { password: _, plain_password: __, ...safe } = result.rows[0];
+    safe.teacher_slug = safe.slug;
     res.json(safe);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Server error' });
   }
 });

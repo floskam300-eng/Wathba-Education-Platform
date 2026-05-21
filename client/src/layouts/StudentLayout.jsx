@@ -3,6 +3,7 @@ import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { useTeacher } from '../context/TeacherContext';
 import {
   LayoutDashboard, BookOpen, FileText, Trophy, LogOut,
   Menu, BarChart2, Moon, Sun, Bell, CheckCheck, X, ShieldAlert, Radio,
@@ -14,15 +15,6 @@ import { useSSE } from '../hooks/useSSE';
 import { useFCM } from '../hooks/useFCM';
 import api from '../lib/api';
 import { useAntiCapture } from '../hooks/useAntiCapture';
-
-const navItems = [
-  { to: '/student',            icon: LayoutDashboard, label: 'لوحتي',      end: true },
-  { to: '/student/courses',    icon: BookOpen,        label: 'كورساتي' },
-  { to: '/student/exams',      icon: FileText,        label: 'الاختبارات' },
-  { to: '/student/stats',      icon: BarChart2,       label: 'إحصائياتي' },
-  { to: '/student/leaderboard',icon: Trophy,          label: 'المتصدرون' },
-  { to: '/student/live',       icon: Radio,           label: 'بث مباشر' },
-];
 
 const EVENTS_NAV_CSS = `
   .events-nav-link {
@@ -76,6 +68,7 @@ const BELL_LIMIT = 5;
 function NotificationBell({ dark }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const { teacherSlug } = useTeacher();
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -139,7 +132,6 @@ function NotificationBell({ dark }) {
           className={`notif-dropdown rounded-2xl border shadow-xl overflow-hidden ${dark ? '' : 'bg-white border-slate-200'}`}
           style={dark ? { ...surfaceStyle, boxShadow: '0 8px 32px rgba(0,0,0,0.4)' } : {}}
         >
-          {/* Header */}
           <div className={`flex items-center justify-between px-4 py-3 border-b ${dark ? 'border-[var(--dk-border)]' : 'border-slate-100'}`}>
             <div className="flex items-center gap-2">
               <Bell className={`w-4 h-4 ${dark ? 'text-amber-400' : 'text-indigo-500'}`} />
@@ -172,7 +164,6 @@ function NotificationBell({ dark }) {
             </div>
           </div>
 
-          {/* Body — max 5 items */}
           <div>
             {preview.length === 0 ? (
               <div className="text-center py-10">
@@ -220,11 +211,10 @@ function NotificationBell({ dark }) {
             )}
           </div>
 
-          {/* Footer — "عرض المزيد" if more than 5 */}
           {(hasMore || notifications.length > 0) && (
             <div className={`border-t ${dark ? 'border-[var(--dk-border)]' : 'border-slate-100'}`}>
               <button
-                onClick={() => { setOpen(false); navigate('/student/notifications'); }}
+                onClick={() => { setOpen(false); navigate(`/${teacherSlug}/student/notifications`); }}
                 className={`w-full py-2.5 text-xs font-bold transition-colors flex items-center justify-center gap-1.5 ${
                   dark
                     ? 'text-amber-400 hover:bg-[var(--dk-elevated)]'
@@ -247,15 +237,26 @@ export default function StudentLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { studentStream, leaveStudentStream, availableLive, clearAvailableLive } = useLiveStream();
-  const onLivePage = location.pathname === '/student/live';
+  const { teacherSlug, platformName, logoUrl } = useTeacher();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [captureWarning, setCaptureWarning] = useState(false);
   const warningTimer = useRef(null);
 
+  const onLivePage = location.pathname.endsWith('/live');
+
+  const navItems = [
+    { to: `/${teacherSlug}/student`,              icon: LayoutDashboard, label: 'لوحتي',       end: true },
+    { to: `/${teacherSlug}/student/courses`,      icon: BookOpen,        label: 'كورساتي' },
+    { to: `/${teacherSlug}/student/exams`,        icon: FileText,        label: 'الاختبارات' },
+    { to: `/${teacherSlug}/student/stats`,        icon: BarChart2,       label: 'إحصائياتي' },
+    { to: `/${teacherSlug}/student/leaderboard`,  icon: Trophy,          label: 'المتصدرون' },
+    { to: `/${teacherSlug}/student/live`,         icon: Radio,           label: 'بث مباشر' },
+  ];
+
   useSSE(!!user, user?.role || 'student');
   useFCM(!!user && user?.role === 'student');
 
-  const handleLogout = () => { logout(); navigate('/login'); };
+  const handleLogout = () => { logout(); navigate(`/${teacherSlug}/login`); };
 
   const handleCaptureAttempt = () => {
     setCaptureWarning(true);
@@ -265,15 +266,17 @@ export default function StudentLayout() {
 
   useAntiCapture({ onAttempt: handleCaptureAttempt });
 
+  const displayLogo = logoUrl || WathbaLogo;
+
   const Sidebar = () => (
     <div className="flex flex-col h-full">
       <div className="p-6 border-b border-white/10">
         <div className="flex items-center gap-3">
           <div className="w-11 h-11 rounded-xl overflow-hidden bg-white flex-shrink-0 p-0.5">
-            <img src={WathbaLogo} alt="وثبة" className="w-full h-full object-contain" />
+            <img src={displayLogo} alt={platformName} className="w-full h-full object-contain" />
           </div>
           <div>
-            <h1 className="text-white font-black text-xl">وثبة</h1>
+            <h1 className="text-white font-black text-xl leading-tight">{platformName}</h1>
             <p className="text-navy-100 text-xs font-medium">منطقة الطالب</p>
           </div>
         </div>
@@ -302,7 +305,7 @@ export default function StudentLayout() {
           </NavLink>
         ))}
         <div style={{ paddingTop: 4 }}>
-          <NavLink to="/student/events" className="events-nav-link" onClick={() => setSidebarOpen(false)}>
+          <NavLink to={`/${teacherSlug}/student/events`} className="events-nav-link" onClick={() => setSidebarOpen(false)}>
             <Gamepad2 className="w-5 h-5" style={{ flexShrink: 0, position: 'relative', zIndex: 1 }} />
             <span style={{ position: 'relative', zIndex: 1 }}>الفعاليات 🎮</span>
           </NavLink>
@@ -327,50 +330,35 @@ export default function StudentLayout() {
         WebkitUserSelect: 'none',
       }}
     >
-
       {captureWarning && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 9999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: 'rgba(0,0,0,0.75)',
-            backdropFilter: 'blur(6px)',
-            direction: 'rtl',
-          }}
-        >
-          <div
-            style={{
-              background: 'linear-gradient(135deg, #1a0000 0%, #2d0a0a 100%)',
-              border: '2px solid rgba(239,68,68,0.6)',
-              borderRadius: '20px',
-              padding: '40px 48px',
-              maxWidth: '420px',
-              textAlign: 'center',
-              boxShadow: '0 25px 80px rgba(239,68,68,0.3)',
-            }}
-          >
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9999,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          backgroundColor: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)', direction: 'rtl',
+        }}>
+          <div style={{
+            background: 'linear-gradient(135deg, #1a0000 0%, #2d0a0a 100%)',
+            border: '2px solid rgba(239,68,68,0.6)', borderRadius: '20px',
+            padding: '40px 48px', maxWidth: '420px', textAlign: 'center',
+            boxShadow: '0 25px 80px rgba(239,68,68,0.3)',
+          }}>
             <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'rgba(239,68,68,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
               <ShieldAlert style={{ width: 36, height: 36, color: '#ef4444' }} />
             </div>
-            <p style={{ color: '#ef4444', fontSize: 20, fontWeight: 900, margin: '0 0 10px' }}>
-              محظور!
-            </p>
+            <p style={{ color: '#ef4444', fontSize: 20, fontWeight: 900, margin: '0 0 10px' }}>محظور!</p>
             <p style={{ color: '#fca5a5', fontSize: 15, fontWeight: 600, margin: 0, lineHeight: 1.7 }}>
               تسجيل الشاشة والتقاط الصور ممنوع منعاً باتاً على هذه المنصة.
-              <br />
-              <span style={{ color: '#f87171', fontSize: 13 }}>سيتم الإبلاغ عن أي محاولة.</span>
+              <br /><span style={{ color: '#f87171', fontSize: 13 }}>سيتم الإبلاغ عن أي محاولة.</span>
             </p>
           </div>
         </div>
       )}
+
       <aside className={`hidden lg:flex w-64 flex-col flex-shrink-0 ${dark ? '' : 'bg-navy-500'}`}
              style={dark ? { background: 'linear-gradient(180deg, #161422 0%, #100E1A 100%)', borderLeft: '1px solid rgba(230,175,80,0.12)' } : {}}>
         <Sidebar />
       </aside>
+
       {sidebarOpen && (
         <div className="lg:hidden fixed inset-0 z-50 flex">
           <div className={`w-64 flex flex-col ${dark ? '' : 'bg-navy-500'}`}
@@ -380,6 +368,7 @@ export default function StudentLayout() {
           <div className="flex-1 bg-black/60 backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
         </div>
       )}
+
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className={`border-b px-4 py-3 flex items-center justify-between flex-shrink-0 ${dark ? '' : 'bg-white border-gray-200 shadow-sm'}`}
                 style={dark ? { backgroundColor: 'var(--dk-surface)', borderColor: 'var(--dk-border)', boxShadow: '0 1px 0 var(--dk-border)' } : {}}>
@@ -399,6 +388,7 @@ export default function StudentLayout() {
             </button>
           </div>
         </header>
+
         {studentStream && !onLivePage && (
           <div className="flex items-center justify-between gap-3 px-4 py-2.5 flex-shrink-0 border-b"
             style={{ backgroundColor: '#7f1d1d', borderColor: 'rgba(239,68,68,0.4)' }}>
@@ -409,7 +399,7 @@ export default function StudentLayout() {
               <p className="text-white text-sm font-bold truncate">{studentStream.title}</p>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
-              <button onClick={() => navigate('/student/live')}
+              <button onClick={() => navigate(`/${teacherSlug}/student/live`)}
                 className="flex items-center gap-1.5 text-xs font-black px-3 py-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-white transition-colors">
                 <ExternalLink className="w-3.5 h-3.5" /> العودة للبث
               </button>
@@ -420,6 +410,7 @@ export default function StudentLayout() {
             </div>
           </div>
         )}
+
         {availableLive && !studentStream && !onLivePage && (
           <div className="flex items-center justify-between gap-3 px-4 py-2 flex-shrink-0 border-b"
             style={{ backgroundColor: '#1e3a2e', borderColor: 'rgba(34,197,94,0.35)' }}>
@@ -430,7 +421,7 @@ export default function StudentLayout() {
               <p className="text-green-100 text-sm font-bold truncate">{availableLive.title || 'بث مباشر متاح'}</p>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
-              <button onClick={() => { clearAvailableLive(); navigate('/student/live'); }}
+              <button onClick={() => { clearAvailableLive(); navigate(`/${teacherSlug}/student/live`); }}
                 className="flex items-center gap-1.5 text-xs font-black px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white transition-colors">
                 <ExternalLink className="w-3.5 h-3.5" /> انضم الآن
               </button>
@@ -441,6 +432,7 @@ export default function StudentLayout() {
             </div>
           </div>
         )}
+
         <main className="flex-1 overflow-y-auto"
               style={dark ? { backgroundColor: 'var(--dk-bg)' } : {}}>
           <Outlet />

@@ -469,3 +469,11 @@ END $$;
 
 -- ── Add essay_answer_key to bank_questions to match questions table ───────────
 ALTER TABLE bank_questions ADD COLUMN IF NOT EXISTS essay_answer_key TEXT;
+
+-- ── SaaS multi-tenant: teacher slug + platform branding ───────────────────────
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS slug VARCHAR(100) UNIQUE;
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS platform_name VARCHAR(200);
+-- Auto-generate slug from username for teachers that don't have one yet
+UPDATE teachers
+   SET slug = regexp_replace(lower(trim(username)), '[^a-z0-9]+', '-', 'g')
+ WHERE slug IS NULL OR slug = '';

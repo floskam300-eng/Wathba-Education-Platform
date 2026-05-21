@@ -1,7 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import axios from 'axios';
 import {
   GraduationCap, BookOpen, BarChart3, Play, FileText,
   Users, CheckCircle, ArrowLeft, Sparkles, Trophy,
@@ -10,6 +8,7 @@ import {
   Zap, Clock, TrendingUp
 } from 'lucide-react';
 import wathbaLogo from '../assets/wathba_logo_transparent.png';
+import { useTeacher } from '../context/TeacherContext';
 
 /* ════════════════ DEMO COVERS ════════════════ */
 const DEMO_COVERS = [
@@ -18,7 +17,6 @@ const DEMO_COVERS = [
   'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=480&h=260&fit=crop&auto=format',
 ];
 
-const fetchPublic = () => axios.get('/api/public/info').then(r => r.data);
 
 /* ════════════════ HOOKS ════════════════ */
 function useCounter(target, duration = 1800, start = false) {
@@ -172,14 +170,12 @@ function StatCard({ icon: Icon, value, label, color, delay = 0 }) {
 
 /* ════════════════ MAIN PAGE ════════════════ */
 export default function LandingPage() {
-  const { data, isLoading } = useQuery({ queryKey: ['public-info'], queryFn: fetchPublic });
+  const { teacher, stats, courses: rawCourses, assistants, isLoading, teacherSlug, platformName, logoUrl } = useTeacher();
   const [statsVisible, setStatsVisible] = useState(false);
   const statsRef = useRef(null);
 
-  const teacher    = data?.teacher;
-  const stats      = data?.stats;
-  const courses    = (data?.courses || []).slice(0, 3);
-  const assistants = data?.assistants || [];
+  const courses    = (rawCourses || []).slice(0, 3);
+  const displayLogo = logoUrl || wathbaLogo;
 
   const sCount = useCounter(parseInt(stats?.total_students || 0), 2000, statsVisible);
   const cCount = useCounter(parseInt(stats?.total_courses  || 0), 1600, statsVisible);
@@ -255,7 +251,7 @@ export default function LandingPage() {
       {/* ─────────────── NAVBAR ─────────────── */}
       <nav className="fixed top-0 inset-x-0 z-50 nav-glass border-b border-white/[0.07] bg-[#05080f]/85">
         <div className="max-w-7xl mx-auto px-5 h-16 flex items-center justify-between gap-4">
-          <img src={wathbaLogo} alt="وثبة" className="h-11 w-auto" />
+          <img src={displayLogo} alt={platformName} className="h-11 w-auto" />
 
           <div className="hidden md:flex items-center gap-1">
             {[['about','عن المعلم'],['courses','الكورسات'],['features','المميزات'],['assistants','فريق الدعم']].map(([id, label]) => (
@@ -267,12 +263,12 @@ export default function LandingPage() {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <Link to="/parent-portal"
+            <Link to={`/${teacherSlug}/parent-portal`}
               className="hidden sm:flex items-center gap-1.5 text-white/60 hover:text-white text-sm font-semibold px-3 py-2 rounded-lg border border-white/[0.1] hover:border-white/25 hover:bg-white/[0.06] transition-all duration-200">
               <Phone className="w-3.5 h-3.5" />
               بوابة الأهل
             </Link>
-            <Link to="/login"
+            <Link to={`/${teacherSlug}/login`}
               className="flex items-center gap-2 bg-orange-500 hover:bg-orange-400 text-white font-black text-sm px-5 py-2.5 rounded-xl transition-all duration-200 hover:shadow-lg hover:shadow-orange-500/25 active:scale-95">
               دخول
               <ArrowLeft className="w-4 h-4" />
@@ -298,11 +294,11 @@ export default function LandingPage() {
 
           <h1 className="lp-fade-2 font-black leading-tight mb-5" style={{ fontSize: 'clamp(2.4rem,6vw,4.5rem)' }}>
             {isLoading ? (
-              <span className="grad-orange">منصة وثبة التعليمية</span>
+              <span className="grad-orange">{platformName || 'منصة وثبة'}</span>
             ) : (
               <>
                 <span className="text-white/80">تعلّم مع </span>
-                <span className="grad-orange">{teacher?.name || 'منصة وثبة'}</span>
+                <span className="grad-orange">{teacher?.name || platformName || 'منصة وثبة'}</span>
               </>
             )}
             <br />
@@ -318,7 +314,7 @@ export default function LandingPage() {
           </p>
 
           <div className="lp-fade-3 flex items-center justify-center gap-3 flex-wrap">
-            <Link to="/login"
+            <Link to={`/${teacherSlug}/login`}
               className="flex items-center gap-2.5 bg-orange-500 hover:bg-orange-400 text-white font-black text-sm px-7 py-3.5 rounded-xl transition-all duration-200 hover:shadow-xl hover:shadow-orange-500/30 hover:-translate-y-0.5 active:scale-95">
               ابدأ الآن
               <ArrowLeft className="w-4 h-4" />
@@ -526,7 +522,7 @@ export default function LandingPage() {
           )}
 
           <Reveal delay={0.3} className="text-center mt-8">
-            <Link to="/login"
+            <Link to={`/${teacherSlug}/login`}
               className="inline-flex items-center gap-2 text-white/50 hover:text-orange-400 text-sm font-bold border border-white/[0.1] hover:border-orange-500/40 px-6 py-2.5 rounded-xl transition-all duration-200">
               عرض جميع الكورسات
               <ArrowLeft className="w-3.5 h-3.5" />
@@ -582,7 +578,7 @@ export default function LandingPage() {
             <p className="text-white/40 text-sm mb-10 leading-relaxed max-w-md mx-auto">
               انضم لمنصة وثبة وابدأ رحلتك مع أفضل المحتوى التعليمي والامتحانات التفاعلية
             </p>
-            <Link to="/login"
+            <Link to={`/${teacherSlug}/login`}
               className="inline-flex items-center gap-3 bg-orange-500 hover:bg-orange-400 text-white font-black text-base px-10 py-4 rounded-2xl transition-all duration-200 hover:shadow-2xl hover:shadow-orange-500/30 hover:-translate-y-1 active:scale-95">
               <GraduationCap className="w-5 h-5" />
               تسجيل الدخول
@@ -596,7 +592,7 @@ export default function LandingPage() {
       <footer className="border-t border-white/[0.07] py-8 bg-[#05080f]">
         <div className="max-w-7xl mx-auto px-5 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <img src={wathbaLogo} alt="وثبة" className="h-9 w-auto opacity-80" />
+            <img src={displayLogo} alt={platformName} className="h-9 w-auto opacity-80" />
             <span className="text-white/25 text-xs">المنصة التعليمية المتكاملة</span>
           </div>
           <div className="flex items-center gap-1">
@@ -607,7 +603,7 @@ export default function LandingPage() {
               </button>
             ))}
           </div>
-          <p className="text-white/20 text-xs">© {new Date().getFullYear()} منصة وثبة التعليمية</p>
+          <p className="text-white/20 text-xs">© {new Date().getFullYear()} {platformName || 'وثبة'}</p>
         </div>
       </footer>
     </div>

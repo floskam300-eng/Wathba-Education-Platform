@@ -8,6 +8,7 @@ import {
   Sparkles, Phone, BarChart3, Target
 } from 'lucide-react';
 import wathbaLogo from '../assets/wathba_logo_transparent.png';
+import { useTeacher } from '../context/TeacherContext';
 
 /* ─── Floating Orb ─── */
 function Orb({ size, top, left, color, delay = 0, duration = 10 }) {
@@ -144,6 +145,8 @@ export default function ParentPortal() {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const resultsRef = useRef(null);
+  const { teacherSlug, platformName, logoUrl } = useTeacher();
+  const displayLogo = logoUrl || wathbaLogo;
 
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -152,7 +155,7 @@ export default function ParentPortal() {
     setError('');
     setData(null);
     try {
-      const res = await axios.get('/api/public/parent-lookup', { params: { phone: phone.trim() } });
+      const res = await axios.get('/api/public/parent-lookup', { params: { phone: phone.trim(), slug: teacherSlug } });
       setData(res.data);
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
     } catch (err) {
@@ -196,18 +199,18 @@ export default function ParentPortal() {
       <nav className="fixed top-0 inset-x-0 z-50 nav-blur border-b border-white/8 bg-[#060d1a]/80">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link to="/"
+            <Link to={`/${teacherSlug}`}
               className="flex items-center gap-2 bg-white/8 border border-white/15 hover:bg-white/14 hover:border-white/30 text-white/70 hover:text-white font-bold text-sm px-4 py-2 rounded-xl transition-all duration-200 active:scale-95">
               <ArrowLeft className="w-4 h-4 rotate-180" />
               رجوع
             </Link>
-            <Link to="/" className="flex items-center">
-              <img src={wathbaLogo} alt="وثبة" className="h-10 w-auto drop-shadow-lg" />
+            <Link to={`/${teacherSlug}`} className="flex items-center">
+              <img src={displayLogo} alt={platformName} className="h-10 w-auto drop-shadow-lg" />
             </Link>
           </div>
           <div className="flex items-center gap-3">
             <span className="hidden sm:block text-white/40 text-sm font-semibold">بوابة أولياء الأمور</span>
-            <Link to="/login"
+            <Link to={`/${teacherSlug}/login`}
               className="flex items-center gap-2 bg-orange-500 hover:bg-orange-400 text-white font-black text-sm px-5 py-2.5 rounded-xl transition-all duration-300 hover:shadow-lg hover:shadow-orange-500/30 active:scale-95">
               تسجيل الدخول
               <ArrowLeft className="w-4 h-4" />
@@ -445,14 +448,14 @@ export default function ParentPortal() {
       <footer className="border-t border-white/8 py-8 bg-[#060d1a]">
         <div className="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <img src={wathbaLogo} alt="وثبة" className="h-10 w-auto drop-shadow-lg" />
+            <img src={displayLogo} alt={platformName} className="h-10 w-auto drop-shadow-lg" />
             <span className="text-white/30 text-sm">— المنصة التعليمية المتكاملة</span>
           </div>
           <div className="flex items-center gap-5 text-sm text-white/40 font-semibold">
-            <Link to="/" className="hover:text-orange-400 transition-colors">الصفحة الرئيسية</Link>
-            <Link to="/login" className="hover:text-orange-400 transition-colors">تسجيل الدخول</Link>
+            <Link to={`/${teacherSlug}`} className="hover:text-orange-400 transition-colors">الصفحة الرئيسية</Link>
+            <Link to={`/${teacherSlug}/login`} className="hover:text-orange-400 transition-colors">تسجيل الدخول</Link>
           </div>
-          <p className="text-white/25 text-xs">© {new Date().getFullYear()} منصة وثبة التعليمية</p>
+          <p className="text-white/25 text-xs">© {new Date().getFullYear()} {platformName}</p>
         </div>
       </footer>
     </div>

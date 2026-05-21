@@ -18,8 +18,10 @@ export const AuthProvider = ({ children }) => {
           const userData = res.data;
           setUser(userData);
           localStorage.setItem('wathba_user', JSON.stringify(userData));
+          if (userData.teacher_slug) {
+            localStorage.setItem('wathba_teacher_slug', userData.teacher_slug);
+          }
         } catch (err) {
-          // Token invalid/expired — api interceptor handles cleanup & redirect
           setUser(null);
         }
       }
@@ -30,18 +32,24 @@ export const AuthProvider = ({ children }) => {
 
     const handleUnauthorized = () => {
       setUser(null);
-      navigate('/login', { replace: true });
+      const slug = localStorage.getItem('wathba_teacher_slug');
+      navigate(slug ? `/${slug}/login` : '/', { replace: true });
     };
     window.addEventListener('wathba_unauthorized', handleUnauthorized);
     return () => window.removeEventListener('wathba_unauthorized', handleUnauthorized);
   }, [navigate]);
 
-  const login = async (username, password, role) => {
-    const body = role ? { username, password, role } : { username, password };
+  const login = async (username, password, role, slug) => {
+    const body = { username, password };
+    if (role) body.role = role;
+    if (slug) body.slug = slug;
     const res = await api.post('/auth/login', body);
     const { token, user } = res.data;
     localStorage.setItem('wathba_token', token);
     localStorage.setItem('wathba_user', JSON.stringify(user));
+    if (user.teacher_slug) {
+      localStorage.setItem('wathba_teacher_slug', user.teacher_slug);
+    }
     setUser(user);
     return user;
   };
@@ -55,11 +63,12 @@ export const AuthProvider = ({ children }) => {
   const updateUser = (updates) => {
     const updated = { ...user, ...updates };
     localStorage.setItem('wathba_user', JSON.stringify(updated));
+    if (updated.teacher_slug) localStorage.setItem('wathba_teacher_slug', updated.teacher_slug);
     setUser(updated);
-    // Background re-fetch to ensure data stays in sync with server
     api.get('/auth/me').then(res => {
       const fresh = res.data;
       localStorage.setItem('wathba_user', JSON.stringify(fresh));
+      if (fresh.teacher_slug) localStorage.setItem('wathba_teacher_slug', fresh.teacher_slug);
       setUser(fresh);
     }).catch(() => {});
   };

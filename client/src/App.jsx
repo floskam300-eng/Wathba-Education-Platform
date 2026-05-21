@@ -1,9 +1,10 @@
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useParams, useNavigate } from 'react-router-dom';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { LiveStreamProvider } from './context/LiveStreamContext';
+import { TeacherWrapper, TeacherNotFound } from './context/TeacherContext';
 import Login from './pages/Login';
 import LandingPage from './pages/LandingPage';
 import TeacherLayout from './layouts/TeacherLayout';
@@ -44,17 +45,14 @@ import ExamReviewPage from './pages/ExamReviewPage';
 import ParentPortal from './pages/ParentPortal';
 import PWAInstallBanner from './components/PWAInstallBanner';
 
+// ─── Error Boundary ────────────────────────────────────────────────────────────
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false };
   }
-  static getDerivedStateFromError(error) {
-    return { hasError: true, error };
-  }
-  componentDidCatch(error, info) {
-    console.error('[ErrorBoundary]', error, info.componentStack);
-  }
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(error, info) { console.error('[ErrorBoundary]', error, info.componentStack); }
   render() {
     if (this.state.hasError) {
       return (
@@ -64,13 +62,10 @@ class ErrorBoundary extends React.Component {
               <AlertTriangle className="w-8 h-8 text-red-500" />
             </div>
             <h2 className="text-xl font-bold text-gray-800 mb-2">حدث خطأ غير متوقع</h2>
-            <p className="text-gray-500 text-sm mb-6">يرجى إعادة تحميل الصفحة. إذا استمر الخطأ، تواصل مع الدعم الفني.</p>
-            <button
-              onClick={() => window.location.reload()}
-              className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-5 py-2.5 rounded-xl font-semibold mx-auto transition-colors"
-            >
-              <RefreshCw className="w-4 h-4" />
-              إعادة تحميل الصفحة
+            <p className="text-gray-500 text-sm mb-6">يرجى إعادة تحميل الصفحة.</p>
+            <button onClick={() => window.location.reload()}
+              className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-5 py-2.5 rounded-xl font-semibold mx-auto transition-colors">
+              <RefreshCw className="w-4 h-4" /> إعادة تحميل
             </button>
           </div>
         </div>
@@ -80,73 +75,169 @@ class ErrorBoundary extends React.Component {
   }
 }
 
+// ─── Protected Route ────────────────────────────────────────────────────────────
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading } = useAuth();
-  if (loading) return <div className="flex items-center justify-center h-screen"><div className="animate-spin w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full"></div></div>;
-  if (!user) return <Navigate to="/login" replace />;
-  if (allowedRoles && !allowedRoles.includes(user.role)) return <Navigate to="/login" replace />;
+  const { teacherSlug } = useParams();
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-screen">
+      <div className="animate-spin w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full" />
+    </div>
+  );
+
+  if (!user) return <Navigate to={`/${teacherSlug}/login`} replace />;
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
+    return <Navigate to={`/${teacherSlug}/login`} replace />;
+  }
+
+  // Security: ensure user belongs to this teacher's portal
+  if (user.teacher_slug && teacherSlug && user.teacher_slug !== teacherSlug) {
+    return <Navigate to={`/${teacherSlug}/login`} replace />;
+  }
+
   return children;
 };
 
+// ─── Legacy Redirects (inner page navigate() calls use /teacher/... paths) ─────
+function LegacyRoleRedirect({ role }) {
+  const params = useParams();
+  const slug = localStorage.getItem('wathba_teacher_slug');
+  const rest = params['*'] || '';
+  if (!slug) return <Navigate to="/" replace />;
+  return <Navigate to={`/${slug}/${role}${rest ? `/${rest}` : ''}`} replace />;
+}
+
+function LegacyLoginRedirect() {
+  const slug = localStorage.getItem('wathba_teacher_slug');
+  if (!slug) return <Navigate to="/" replace />;
+  return <Navigate to={`/${slug}/login`} replace />;
+}
+
+function LegacyParentPortalRedirect() {
+  const slug = localStorage.getItem('wathba_teacher_slug');
+  if (!slug) return <Navigate to="/" replace />;
+  return <Navigate to={`/${slug}/parent-portal`} replace />;
+}
+
+// ─── Root Redirect ───────────────────────────────────────────────────────────
+function RootRedirect() {
+  const { user } = useAuth();
+  const slug = localStorage.getItem('wathba_teacher_slug') || user?.teacher_slug;
+  if (user && slug) return <Navigate to={`/${slug}/${user.role}`} replace />;
+  if (slug) return <Navigate to={`/${slug}`} replace />;
+  // Fetch first teacher from DB and redirect
+  return <FetchFirstTeacher />;
+}
+
+function FetchFirstTeacher() {
+  const [slug, setSlug] = React.useState(null);
+  const [done, setDone] = React.useState(false);
+
+  React.useEffect(() => {
+    fetch('/api/public/info')
+      .then(r => r.json())
+      .then(d => {
+        setSlug(d?.teacher?.slug || null);
+        setDone(true);
+      })
+      .catch(() => setDone(true));
+  }, []);
+
+  if (!done) return (
+    <div className="flex items-center justify-center h-screen bg-[#05080f]">
+      <div className="animate-spin w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full" />
+    </div>
+  );
+  if (slug) return <Navigate to={`/${slug}`} replace />;
+  return <TeacherNotFound />;
+}
+
+// ─── Routes ─────────────────────────────────────────────────────────────────────
 const AppRoutes = () => {
   const { user } = useAuth();
 
   return (
     <Routes>
-      <Route path="/login" element={user ? <Navigate to={`/${user.role}`} replace /> : <Login />} />
+      {/* ── Legacy shortcuts (inner pages use hardcoded /role/... paths) ── */}
+      <Route path="/teacher/*" element={<LegacyRoleRedirect role="teacher" />} />
+      <Route path="/assistant/*" element={<LegacyRoleRedirect role="assistant" />} />
+      <Route path="/student/*" element={<LegacyRoleRedirect role="student" />} />
+      <Route path="/login" element={<LegacyLoginRedirect />} />
+      <Route path="/parent-portal" element={<LegacyParentPortalRedirect />} />
 
-      <Route path="/teacher" element={<ProtectedRoute allowedRoles={['teacher']}><TeacherLayout /></ProtectedRoute>}>
-        <Route index element={<TeacherDashboard />} />
-        <Route path="students" element={<TeacherStudents />} />
-        <Route path="courses" element={<TeacherCourses />} />
-        <Route path="exams" element={<TeacherExams />} />
-        <Route path="assistants" element={<TeacherAssistants />} />
-        <Route path="analytics" element={<TeacherAnalytics />} />
-        <Route path="payments" element={<TeacherPayments />} />
-        <Route path="leaderboard" element={<TeacherLeaderboard />} />
-        <Route path="notifications" element={<TeacherNotifications />} />
-        <Route path="backup" element={<TeacherBackup />} />
-        <Route path="attendance" element={<TeacherAttendance />} />
-        <Route path="requests" element={<TeacherRequests />} />
-        <Route path="exam-review/:resultId" element={<ExamReviewPage />} />
-        <Route path="wrong-questions" element={<WrongQuestionsPage />} />
-        <Route path="question-banks" element={<QuestionBanks />} />
-        <Route path="livestream" element={<TeacherLiveStream />} />
+      {/* ── Slug-based multi-tenant routes ── */}
+      <Route path="/:teacherSlug" element={<TeacherWrapper />}>
+        <Route index element={<LandingPage />} />
+
+        <Route path="login"
+          element={user ? <Navigate to={`/${user.teacher_slug}/${user.role}`} replace /> : <Login />} />
+
+        <Route path="parent-portal" element={<ParentPortal />} />
+
+        {/* Teacher dashboard */}
+        <Route path="teacher" element={
+          <ProtectedRoute allowedRoles={['teacher']}><TeacherLayout /></ProtectedRoute>
+        }>
+          <Route index element={<TeacherDashboard />} />
+          <Route path="students" element={<TeacherStudents />} />
+          <Route path="courses" element={<TeacherCourses />} />
+          <Route path="exams" element={<TeacherExams />} />
+          <Route path="assistants" element={<TeacherAssistants />} />
+          <Route path="analytics" element={<TeacherAnalytics />} />
+          <Route path="payments" element={<TeacherPayments />} />
+          <Route path="leaderboard" element={<TeacherLeaderboard />} />
+          <Route path="notifications" element={<TeacherNotifications />} />
+          <Route path="backup" element={<TeacherBackup />} />
+          <Route path="attendance" element={<TeacherAttendance />} />
+          <Route path="requests" element={<TeacherRequests />} />
+          <Route path="exam-review/:resultId" element={<ExamReviewPage />} />
+          <Route path="wrong-questions" element={<WrongQuestionsPage />} />
+          <Route path="question-banks" element={<QuestionBanks />} />
+          <Route path="livestream" element={<TeacherLiveStream />} />
+        </Route>
+
+        {/* Assistant dashboard */}
+        <Route path="assistant" element={
+          <ProtectedRoute allowedRoles={['assistant']}><AssistantLayout /></ProtectedRoute>
+        }>
+          <Route index element={<AssistantDashboard />} />
+          <Route path="students" element={<AssistantStudents />} />
+          <Route path="exams" element={<AssistantExams />} />
+          <Route path="courses" element={<AssistantCourses />} />
+          <Route path="payments" element={<AssistantPayments />} />
+          <Route path="analytics" element={<AssistantAnalytics />} />
+          <Route path="notifications" element={<TeacherNotifications />} />
+          <Route path="requests" element={<TeacherRequests />} />
+          <Route path="exam-review/:resultId" element={<ExamReviewPage />} />
+          <Route path="question-banks" element={<QuestionBanks />} />
+        </Route>
+
+        {/* Student dashboard */}
+        <Route path="student" element={
+          <ProtectedRoute allowedRoles={['student']}><StudentLayout /></ProtectedRoute>
+        }>
+          <Route index element={<StudentDashboard />} />
+          <Route path="courses" element={<StudentCourses />} />
+          <Route path="courses/:courseId" element={<StudentCourseView />} />
+          <Route path="exams" element={<StudentExams />} />
+          <Route path="stats" element={<StudentMyStats />} />
+          <Route path="notifications" element={<StudentNotifications />} />
+          <Route path="leaderboard" element={<StudentLeaderboard />} />
+          <Route path="exam-review/:resultId" element={<ExamReviewPage />} />
+          <Route path="live" element={<StudentLiveStream />} />
+          <Route path="events" element={<StudentEvents />} />
+        </Route>
+
+        {/* Stickman run - outside StudentLayout */}
+        <Route path="student/events/stickman-run" element={
+          <ProtectedRoute allowedRoles={['student']}><StickmanRunPage /></ProtectedRoute>
+        } />
       </Route>
 
-      <Route path="/assistant" element={<ProtectedRoute allowedRoles={['assistant']}><AssistantLayout /></ProtectedRoute>}>
-        <Route index element={<AssistantDashboard />} />
-        <Route path="students" element={<AssistantStudents />} />
-        <Route path="exams" element={<AssistantExams />} />
-        <Route path="courses" element={<AssistantCourses />} />
-        <Route path="payments" element={<AssistantPayments />} />
-        <Route path="analytics" element={<AssistantAnalytics />} />
-        <Route path="notifications" element={<TeacherNotifications />} />
-        <Route path="requests" element={<TeacherRequests />} />
-        <Route path="exam-review/:resultId" element={<ExamReviewPage />} />
-        <Route path="question-banks" element={<QuestionBanks />} />
-      </Route>
-
-      <Route path="/student" element={<ProtectedRoute allowedRoles={['student']}><StudentLayout /></ProtectedRoute>}>
-        <Route index element={<StudentDashboard />} />
-        <Route path="courses" element={<StudentCourses />} />
-        <Route path="courses/:courseId" element={<StudentCourseView />} />
-        <Route path="exams" element={<StudentExams />} />
-        <Route path="stats" element={<StudentMyStats />} />
-        <Route path="notifications" element={<StudentNotifications />} />
-        <Route path="leaderboard" element={<StudentLeaderboard />} />
-        <Route path="exam-review/:resultId" element={<ExamReviewPage />} />
-        <Route path="live" element={<StudentLiveStream />} />
-        <Route path="events" element={<StudentEvents />} />
-      </Route>
-
-      <Route path="/student/events/stickman-run" element={
-        <ProtectedRoute allowedRoles={['student']}><StickmanRunPage /></ProtectedRoute>
-      } />
-
-      <Route path="/parent-portal" element={<ParentPortal />} />
-      <Route path="/" element={user ? <Navigate to={`/${user.role}`} replace /> : <LandingPage />} />
-      <Route path="*" element={<Navigate to={user ? `/${user.role}` : '/'} replace />} />
+      {/* Root */}
+      <Route path="/" element={<RootRedirect />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 };
