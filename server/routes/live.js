@@ -8,6 +8,123 @@ const router = express.Router();
 router.use(authenticate);
 
 /* ──────────────────────────────────────────────────────────────
+   Teacher: schedule a future live stream
+────────────────────────────────────────────────────────────── */
+router.post('/schedule', requireRole('teacher'), async (req, res) => {
+  const teacherId = req.user.id;
+  const {
+    title, description, access,
+    allowed_stages, allowed_student_ids,
+    chat_enabled, hand_raise_enabled, scheduled_at,
+  } = req.body;
+
+  if (!title?.trim()) return res.status(400).json({ error: 'عنوان البث مطلوب' });
+  if (!scheduled_at) return res.status(400).json({ error: 'موعد البث مطلوب' });
+  if (new Date(scheduled_at).getTime() <= Date.now())
+    return res.status(400).json({ error: 'يجب أن يكون الموعد في المستقبل' });
+
+  try {
+    const roomId = `wathba-${teacherId}-${Date.now().toString(36)}-${crypto.randomBytes(4).toString('hex')}`;
+    const result = await pool.query(
+      `INSERT INTO live_streams
+         (teacher_id, room_id, title, description, access,
+          allowed_stages, allowed_student_ids, chat_enabled, hand_raise_enabled,
+          status, started_at, scheduled_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'scheduled',NULL,$10)
+       RETURNING *`,
+      [
+        teacherId, roomId, title.trim(), description || '',
+        access || 'all',
+        JSON.stringify(allowed_stages || []),
+        JSON.stringify(allowed_student_ids || []),
+        chat_enabled !== false,
+        hand_raise_enabled !== false,
+        new Date(scheduled_at),
+      ]
+    );
+    res.json({ success: true, stream: result.rows[0] });
+  } catch (err) {
+    console.error('[live/schedule]', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+/* ──────────────────────────────────────────────────────────────
+   Teacher: get their scheduled (upcoming) streams
+────────────────────────────────────────────────────────────── */
+router.get('/scheduled', requireRole('teacher'), async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT * FROM live_streams
+       WHERE teacher_id=$1 AND status='scheduled'
+       ORDER BY scheduled_at ASC`,
+      [req.user.id]
+    );
+    res.json({ streams: rows });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+/* ──────────────────────────────────────────────────────────────
+   Teacher: start a scheduled stream now
+────────────────────────────────────────────────────────────── */
+router.post('/scheduled/:streamId/start', requireRole('teacher'), async (req, res) => {
+  const teacherId = req.user.id;
+  const { streamId } = req.params;
+
+  try {
+    // End any currently active stream first
+    await pool.query(
+      "UPDATE live_streams SET status='ended', ended_at=NOW() WHERE teacher_id=$1 AND status='active'",
+      [teacherId]
+    );
+
+    const result = await pool.query(
+      `UPDATE live_streams
+       SET status='active', started_at=NOW()
+       WHERE id=$1 AND teacher_id=$2 AND status='scheduled'
+       RETURNING *`,
+      [streamId, teacherId]
+    );
+    if (!result.rows.length)
+      return res.status(404).json({ error: 'البث المجدول غير موجود' });
+
+    const stream = result.rows[0];
+    const teacher = await pool.query('SELECT name FROM teachers WHERE id=$1', [teacherId]);
+    const teacherName = teacher.rows[0]?.name || 'المعلم';
+
+    const payload = { streamId: stream.id, title: stream.title, teacherName, roomId: stream.room_id };
+    await broadcastToTeacherStudents(pool, teacherId, 'live_started', payload);
+
+    res.json({ success: true, stream });
+  } catch (err) {
+    console.error('[live/scheduled/start]', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+/* ──────────────────────────────────────────────────────────────
+   Teacher: cancel a scheduled stream
+────────────────────────────────────────────────────────────── */
+router.delete('/scheduled/:streamId', requireRole('teacher'), async (req, res) => {
+  const teacherId = req.user.id;
+  const { streamId } = req.params;
+
+  try {
+    const result = await pool.query(
+      "DELETE FROM live_streams WHERE id=$1 AND teacher_id=$2 AND status='scheduled' RETURNING id",
+      [streamId, teacherId]
+    );
+    if (!result.rows.length)
+      return res.status(404).json({ error: 'البث غير موجود' });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+/* ──────────────────────────────────────────────────────────────
    Teacher: start a new live stream
 ────────────────────────────────────────────────────────────── */
 router.post('/start', requireRole('teacher'), async (req, res) => {
@@ -147,8 +264,11 @@ router.get('/available', requireRole('student'), async (req, res) => {
          (SELECT COUNT(*) FROM live_stream_viewers WHERE stream_id=ls.id AND is_active=true) as viewer_count
        FROM live_streams ls
        JOIN teachers t ON t.id=ls.teacher_id
-       WHERE ls.teacher_id=$1 AND ls.status='active'
-       ORDER BY ls.started_at DESC`,
+       WHERE ls.teacher_id=$1 AND ls.status IN ('active','scheduled')
+       ORDER BY
+         CASE WHEN ls.status='active' THEN 0 ELSE 1 END ASC,
+         ls.scheduled_at ASC NULLS LAST,
+         ls.started_at DESC`,
       [teacherId]
     );
 

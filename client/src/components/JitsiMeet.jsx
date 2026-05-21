@@ -1,118 +1,41 @@
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 
-// Community-hosted Jitsi server — no 5-minute demo limit
-const JITSI_DOMAIN = 'meet.ffmuc.net';
-
-let scriptLoading = false;
-let scriptLoaded  = false;
-const scriptCallbacks = [];
-
-function loadJitsiScript() {
-  return new Promise((resolve, reject) => {
-    if (scriptLoaded && window.JitsiMeetExternalAPI) { resolve(); return; }
-    scriptCallbacks.push({ resolve, reject });
-    if (scriptLoading) return;
-    scriptLoading = true;
-    const s = document.createElement('script');
-    s.id  = 'jitsi-external-api';
-    s.src = `https://${JITSI_DOMAIN}/external_api.js`;
-    s.async = true;
-    s.onload  = () => { scriptLoaded = true; scriptCallbacks.forEach(cb => cb.resolve()); };
-    s.onerror = () => scriptCallbacks.forEach(cb => cb.reject(new Error('Jitsi script failed')));
-    document.head.appendChild(s);
-  });
-}
+const JITSI_DOMAIN = 'meet.jit.si';
 
 export default function JitsiMeet({
   roomName,
   displayName,
   isTeacher = false,
-  onLeft,
-  className = '',
   style = {},
+  className = '',
+  onLeft,
 }) {
-  const containerRef = useRef(null);
-  const apiRef       = useRef(null);
-  const onLeftRef    = useRef(onLeft);
-  useEffect(() => { onLeftRef.current = onLeft; }, [onLeft]);
+  const fragments = [
+    `userInfo.displayName=${encodeURIComponent(displayName || 'مشارك')}`,
+    'config.prejoinPageEnabled=false',
+    `config.startWithAudioMuted=${!isTeacher}`,
+    `config.startWithVideoMuted=${!isTeacher}`,
+    'config.disableDeepLinking=true',
+    'config.defaultLanguage=ar',
+    'config.disableInviteFunctions=true',
+    'config.toolbarConfig.alwaysVisible=true',
+    'config.disableRemoteMute=false',
+    'config.enableNoisyMicDetection=false',
+    'interfaceConfig.SHOW_JITSI_WATERMARK=false',
+    'interfaceConfig.HIDE_INVITE_MORE_HEADER=true',
+    'interfaceConfig.DISABLE_JOIN_LEAVE_NOTIFICATIONS=false',
+  ].join('&');
 
-  useEffect(() => {
-    let mounted = true;
-
-    loadJitsiScript().then(() => {
-      if (!mounted || !containerRef.current || apiRef.current) return;
-
-      const teacherToolbar = [
-        'microphone', 'camera', 'desktop',
-        'fullscreen', 'fodeviceselection',
-        'hangup', 'tileview', 'settings',
-        'recording', 'livestreaming',
-        'participants-pane', 'mute-everyone',
-      ];
-
-      const studentToolbar = [
-        'microphone', 'camera',
-        'fullscreen', 'hangup', 'tileview',
-        'fodeviceselection', 'raisehand',
-      ];
-
-      const api = new window.JitsiMeetExternalAPI(JITSI_DOMAIN, {
-        roomName,
-        parentNode: containerRef.current,
-        userInfo: { displayName },
-        configOverwrite: {
-          startWithAudioMuted:     !isTeacher,
-          startWithVideoMuted:     !isTeacher,
-          prejoinPageEnabled:      false,
-          disableDeepLinking:      true,
-          defaultLanguage:         'ar',
-          disableInviteFunctions:  true,
-          enableNoAudioDetection:  false,
-          enableNoisyMicDetection: false,
-          disableScreensharing:    !isTeacher,
-          toolbarConfig:           { alwaysVisible: true },
-        },
-        interfaceConfigOverwrite: {
-          TOOLBAR_BUTTONS: isTeacher ? teacherToolbar : studentToolbar,
-          SHOW_JITSI_WATERMARK:             false,
-          SHOW_WATERMARK_FOR_GUESTS:        false,
-          SHOW_BRAND_WATERMARK:             false,
-          DISABLE_JOIN_LEAVE_NOTIFICATIONS: false,
-          DEFAULT_REMOTE_DISPLAY_NAME:      'مشارك',
-          LANG_DETECTION:                   false,
-          RECENT_LIST_ENABLED:              false,
-          HIDE_INVITE_MORE_HEADER:          true,
-          DISABLE_PRESENCE_STATUS:          true,
-        },
-      });
-
-      apiRef.current = api;
-
-      api.addEventListener('videoConferenceLeft', () => {
-        if (onLeftRef.current) onLeftRef.current();
-      });
-      api.addEventListener('readyToClose', () => {
-        if (onLeftRef.current) onLeftRef.current();
-      });
-    }).catch((err) => {
-      console.error('[JitsiMeet] Failed to load API:', err);
-    });
-
-    return () => {
-      mounted = false;
-      if (apiRef.current) {
-        try { apiRef.current.dispose(); } catch (_) {}
-        apiRef.current = null;
-      }
-      // Reset script state so next mount reloads from new domain if needed
-    };
-  }, [roomName]);
+  const src = `https://${JITSI_DOMAIN}/${encodeURIComponent(roomName)}#${fragments}`;
 
   return (
-    <div
-      ref={containerRef}
+    <iframe
+      key={roomName}
+      src={src}
+      allow="camera; microphone; fullscreen; display-capture; autoplay; clipboard-write; screen-wake-lock"
       className={className}
-      style={{ minHeight: 300, ...style }}
+      style={{ border: 'none', width: '100%', height: '100%', minHeight: 300, ...style }}
+      title="Jitsi Meet"
     />
   );
 }

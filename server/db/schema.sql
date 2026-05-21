@@ -320,8 +320,10 @@ CREATE TABLE IF NOT EXISTS live_streams (
   hand_raise_enabled BOOLEAN DEFAULT true,
   status VARCHAR(20) DEFAULT 'active',
   started_at TIMESTAMP DEFAULT NOW(),
-  ended_at TIMESTAMP
+  ended_at TIMESTAMP,
+  scheduled_at TIMESTAMP
 );
+ALTER TABLE live_streams ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMP;
 
 CREATE TABLE IF NOT EXISTS live_stream_viewers (
   id SERIAL PRIMARY KEY,

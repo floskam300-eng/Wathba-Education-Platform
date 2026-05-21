@@ -10,6 +10,7 @@ import {
   Radio, MessageSquare, Send, Hand, LogOut,
   MessageCircleOff, Loader2, Users, RefreshCw,
   ChevronLeft, ChevronRight, X, Maximize, Minimize,
+  Calendar, Clock,
 } from 'lucide-react';
 
 /* ── Chat Panel (student) ──────────────────────────────────── */
@@ -299,6 +300,73 @@ function LiveView({ stream, user, dark, onLeave }) {
   );
 }
 
+/* ── Countdown display ─────────────────────────────────────── */
+function Countdown({ target }) {
+  const [label, setLabel] = useState('');
+  useEffect(() => {
+    const tick = () => {
+      const diff = new Date(target).getTime() - Date.now();
+      if (diff <= 0) { setLabel('ابدأ البث الآن!'); return; }
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      setLabel(h > 0
+        ? `${h}س ${String(m).padStart(2,'0')}د`
+        : `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
+      );
+    };
+    tick();
+    const iv = setInterval(tick, 1000);
+    return () => clearInterval(iv);
+  }, [target]);
+  return <span className="font-mono">{label}</span>;
+}
+
+/* ── Upcoming scheduled stream card ───────────────────────── */
+function ScheduledCard({ stream, dark }) {
+  const dateStr = new Date(stream.scheduled_at).toLocaleString('ar-EG', {
+    weekday: 'long', month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  });
+  const isPast = new Date(stream.scheduled_at).getTime() <= Date.now();
+
+  return (
+    <div className={`rounded-2xl border p-5 ${dark ? 'bg-slate-800/60 border-slate-700' : 'bg-white border-slate-200'}`}>
+      <div className="flex items-start gap-4">
+        <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
+             style={{ background: 'rgba(139,92,246,0.12)', border: '2px solid rgba(139,92,246,0.25)' }}>
+          <Calendar className="w-6 h-6 text-purple-500" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <span className="text-xs bg-purple-600 text-white font-black px-2 py-0.5 rounded-full">قادم قريباً</span>
+            {stream.teacher_name && (
+              <span className={`text-xs ${dark ? 'text-slate-400' : 'text-slate-500'}`}>👨‍🏫 {stream.teacher_name}</span>
+            )}
+          </div>
+          <h3 className={`font-black text-base mb-1 truncate ${dark ? 'text-white' : 'text-slate-800'}`}>{stream.title}</h3>
+          {stream.description && (
+            <p className={`text-sm leading-relaxed mb-2 line-clamp-2 ${dark ? 'text-slate-400' : 'text-slate-500'}`}>{stream.description}</p>
+          )}
+          <div className={`flex items-center gap-3 text-xs ${dark ? 'text-slate-400' : 'text-slate-500'}`}>
+            <span className="flex items-center gap-1">
+              <Clock className="w-3.5 h-3.5" />
+              {dateStr}
+            </span>
+          </div>
+          {/* Countdown */}
+          <div className={`mt-3 flex items-center gap-2 px-3 py-2 rounded-xl ${dark ? 'bg-purple-900/30 text-purple-300' : 'bg-purple-50 text-purple-700'}`}>
+            <Clock className="w-4 h-4 flex-shrink-0" />
+            <span className="text-sm font-bold">
+              {isPast ? 'جارٍ البدء قريباً...' : <>بعد <Countdown target={stream.scheduled_at} /></>}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── Stream card (lobby) ───────────────────────────────────── */
 function StreamCard({ stream, onJoin, dark }) {
   const [joining, setJoining] = useState(false);
@@ -362,9 +430,10 @@ function LobbyView({ dark, onJoin }) {
     queryFn: () => api.get('/live/available').then(r => r.data.streams),
     refetchInterval: 15000,
   });
-  const streams = data || [];
+  const allStreams = data || [];
+  const active    = allStreams.filter(s => s.status === 'active');
+  const upcoming  = allStreams.filter(s => s.status === 'scheduled');
 
-  // Listen for live_started / live_ended to refresh lobby
   useEffect(() => {
     const h = () => refetch();
     window.addEventListener('wathba_live_started', h);
@@ -381,12 +450,15 @@ function LobbyView({ dark, onJoin }) {
         <div>
           <h2 className={`text-xl font-black ${dark ? 'text-white' : 'text-slate-800'}`}>البث المباشر</h2>
           <p className={`text-sm ${dark ? 'text-slate-400' : 'text-slate-500'}`}>
-            {streams.length > 0 ? `${streams.length} بث${streams.length > 1 ? 'وث' : ''} متاح` : 'لا يوجد بث حالياً'}
+            {active.length > 0
+              ? `${active.length} بث مباشر الآن`
+              : upcoming.length > 0
+              ? `${upcoming.length} بث قادم`
+              : 'لا يوجد بث حالياً'}
           </p>
         </div>
         <button onClick={() => refetch()} disabled={isLoading}
-          className={`p-2 rounded-xl transition-colors ${dark ? 'text-slate-400 hover:bg-slate-700 hover:text-white' : 'text-slate-500 hover:bg-slate-100'}`}
-          title="تحديث">
+          className={`p-2 rounded-xl transition-colors ${dark ? 'text-slate-400 hover:bg-slate-700 hover:text-white' : 'text-slate-500 hover:bg-slate-100'}`}>
           <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
         </button>
       </div>
@@ -396,7 +468,7 @@ function LobbyView({ dark, onJoin }) {
           <Loader2 className="w-10 h-10 text-red-500 animate-spin mb-4" />
           <p className={`text-sm ${dark ? 'text-slate-400' : 'text-slate-500'}`}>جارٍ التحقق من البثوث المتاحة...</p>
         </div>
-      ) : streams.length === 0 ? (
+      ) : allStreams.length === 0 ? (
         <div className={`text-center py-20 rounded-2xl border ${dark ? 'border-slate-700 bg-slate-800/40' : 'border-slate-200 bg-slate-50'}`}>
           <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4"
                style={{ background: 'rgba(239,68,68,0.08)', border: '2px solid rgba(239,68,68,0.2)' }}>
@@ -412,8 +484,29 @@ function LobbyView({ dark, onJoin }) {
           </button>
         </div>
       ) : (
-        <div className="space-y-4">
-          {streams.map(s => <StreamCard key={s.id} stream={s} dark={dark} onJoin={onJoin} />)}
+        <div className="space-y-6">
+          {active.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+                <h3 className={`text-sm font-black ${dark ? 'text-slate-400' : 'text-slate-500'}`}>مباشر الآن</h3>
+              </div>
+              <div className="space-y-4">
+                {active.map(s => <StreamCard key={s.id} stream={s} dark={dark} onJoin={onJoin} />)}
+              </div>
+            </div>
+          )}
+          {upcoming.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <Calendar className="w-4 h-4 text-purple-500 flex-shrink-0" />
+                <h3 className={`text-sm font-black ${dark ? 'text-slate-400' : 'text-slate-500'}`}>مواعيد قادمة</h3>
+              </div>
+              <div className="space-y-4">
+                {upcoming.map(s => <ScheduledCard key={s.id} stream={s} dark={dark} />)}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
