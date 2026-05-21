@@ -7,15 +7,60 @@ import axios from 'axios';
 const TeacherContext = createContext(null);
 
 function applyFavicon(url) {
-  const selectors = [
-    "link[rel='icon']",
-    "link[rel='shortcut icon']",
-    "link[rel~='icon']",
-    "link[rel='apple-touch-icon']",
-  ];
-  selectors.forEach(sel => {
-    document.querySelectorAll(sel).forEach(el => { el.href = url; });
-  });
+  const setHref = (dataUrl) => {
+    const selectors = [
+      "link[rel='icon']",
+      "link[rel='shortcut icon']",
+      "link[rel~='icon']",
+      "link[rel='apple-touch-icon']",
+    ];
+    selectors.forEach(sel => {
+      document.querySelectorAll(sel).forEach(el => { el.href = dataUrl; });
+    });
+  };
+
+  // Draw image on canvas with rounded corners, then use as favicon
+  const drawRounded = (imgEl) => {
+    try {
+      const size = 64;
+      const radius = 14;
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, size, size);
+      ctx.beginPath();
+      ctx.moveTo(radius, 0);
+      ctx.lineTo(size - radius, 0);
+      ctx.quadraticCurveTo(size, 0, size, radius);
+      ctx.lineTo(size, size - radius);
+      ctx.quadraticCurveTo(size, size, size - radius, size);
+      ctx.lineTo(radius, size);
+      ctx.quadraticCurveTo(0, size, 0, size - radius);
+      ctx.lineTo(0, radius);
+      ctx.quadraticCurveTo(0, 0, radius, 0);
+      ctx.closePath();
+      ctx.clip();
+      ctx.drawImage(imgEl, 0, 0, size, size);
+      const dataUrl = canvas.toDataURL('image/png');
+      setHref(dataUrl);
+    } catch (_) {
+      // canvas tainted by CORS — fall back to original url
+      setHref(url);
+    }
+  };
+
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => drawRounded(img);
+  img.onerror = () => {
+    // retry without crossOrigin (works for same-origin or non-canvas use)
+    const img2 = new Image();
+    img2.onload = () => drawRounded(img2);
+    img2.onerror = () => setHref(url);
+    img2.src = url;
+  };
+  img.src = url;
 }
 
 function applyManifest(slug, appName) {
