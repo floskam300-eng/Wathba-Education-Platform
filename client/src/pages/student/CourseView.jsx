@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   ArrowRight, Play, FileText, BookOpen, Video, Clock,
   Download, CheckCircle2, Lock, ChevronRight, AlertCircle,
-  Pause, Volume2, VolumeX, Maximize2, Minimize2, RotateCcw,
+  Pause, Volume2, VolumeX, Maximize2, Minimize2, RotateCcw, RotateCw,
   Settings, Gauge
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -179,6 +179,7 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
   const [showControls, setShowControls] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [cssFullscreen, setCssFullscreen] = useState(false);
+  const [cssLandscape, setCssLandscape] = useState(false);
   const [speed,        setSpeed]        = useState(() => loadSpeed());
   const [showSpeed,    setShowSpeed]    = useState(false);
   const [quality,      setQuality]      = useState(() => loadQuality());
@@ -431,14 +432,26 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
     try { playerRef.current?.setPlaybackQuality(q); } catch (_) {}
   };
 
+  const toggleLandscape = () => {
+    if (cssLandscape) {
+      setCssLandscape(false);
+      setIsFullscreen(false);
+    } else {
+      setCssFullscreen(false);
+      setCssLandscape(true);
+      setIsFullscreen(true);
+    }
+  };
+
   const toggleFullscreen = () => {
     const inNativeFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
-    if (inNativeFs || cssFullscreen) {
+    if (inNativeFs || cssFullscreen || cssLandscape) {
       if (inNativeFs) {
         try { (document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen)?.call(document); } catch (_) {}
       }
       try { screen.orientation?.unlock?.(); } catch (_) {}
       setCssFullscreen(false);
+      setCssLandscape(false);
       setIsFullscreen(false);
       return;
     }
@@ -451,11 +464,11 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
           try { screen.orientation?.lock?.('landscape').catch(() => {}); } catch (_) {}
         })
         .catch(() => {
-          setCssFullscreen(true);
+          setCssLandscape(true);
           setIsFullscreen(true);
         });
     } else {
-      setCssFullscreen(true);
+      setCssLandscape(true);
       setIsFullscreen(true);
     }
   };
@@ -480,7 +493,13 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
   const pct = `${progress}%`;
   const vol = `${muted ? 0 : volume}%`;
 
-  const fsStyle = cssFullscreen ? {
+  const fsStyle = cssLandscape ? {
+    position: 'fixed', top: 0, left: 0,
+    width: '100vh', height: '100vw',
+    transformOrigin: 'top left',
+    transform: 'rotate(-90deg) translateX(-100%)',
+    zIndex: 9999,
+  } : cssFullscreen ? {
     position: 'fixed', inset: 0, zIndex: 9998,
     width: '100vw', height: '100vh',
   } : {};
@@ -579,6 +598,14 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
                 className="player-range player-range-volume" style={{ '--vol': vol }}
                 onChange={onVolumeChange} />
             </div>
+            {/* زر تدوير الشاشة — يظهر على الموبايل فقط */}
+            <button
+              onClick={toggleLandscape}
+              className={`sm:hidden transition-colors flex-shrink-0 ${cssLandscape ? 'text-orange-400' : 'text-white hover:text-orange-400'}`}
+              title="تدوير الشاشة"
+            >
+              <RotateCw className="w-4 h-4" />
+            </button>
             <button onClick={toggleFullscreen} className="text-white hover:text-orange-400 transition-colors flex-shrink-0">
               {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </button>
@@ -609,6 +636,7 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
   const [showControls, setShowControls] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [cssFullscreen, setCssFullscreen] = useState(false);
+  const [cssLandscape, setCssLandscape] = useState(false);
   const [speed,        setSpeed]        = useState(() => loadSpeed());
   const [showSpeed,    setShowSpeed]    = useState(false);
   const [quality,      setQuality]      = useState('auto');
@@ -731,14 +759,26 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
     setShowQuality(false);
   };
 
+  const toggleLandscape = () => {
+    if (cssLandscape) {
+      setCssLandscape(false);
+      setIsFullscreen(false);
+    } else {
+      setCssFullscreen(false);
+      setCssLandscape(true);
+      setIsFullscreen(true);
+    }
+  };
+
   const toggleFullscreen = () => {
     const inNativeFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
-    if (inNativeFs || cssFullscreen) {
+    if (inNativeFs || cssFullscreen || cssLandscape) {
       if (inNativeFs) {
         try { (document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen)?.call(document); } catch (_) {}
       }
       try { screen.orientation?.unlock?.(); } catch (_) {}
       setCssFullscreen(false);
+      setCssLandscape(false);
       setIsFullscreen(false);
       return;
     }
@@ -754,14 +794,14 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
           if (videoRef.current?.webkitEnterFullscreen) {
             videoRef.current.webkitEnterFullscreen();
           } else {
-            setCssFullscreen(true);
+            setCssLandscape(true);
             setIsFullscreen(true);
           }
         });
     } else if (videoRef.current?.webkitEnterFullscreen) {
       videoRef.current.webkitEnterFullscreen();
     } else {
-      setCssFullscreen(true);
+      setCssLandscape(true);
       setIsFullscreen(true);
     }
   };
@@ -794,7 +834,13 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
   const pct = `${progress}%`;
   const vol = `${(muted ? 0 : volume) * 100}%`;
 
-  const vFsStyle = cssFullscreen ? {
+  const vFsStyle = cssLandscape ? {
+    position: 'fixed', top: 0, left: 0,
+    width: '100vh', height: '100vw',
+    transformOrigin: 'top left',
+    transform: 'rotate(-90deg) translateX(-100%)',
+    zIndex: 9999,
+  } : cssFullscreen ? {
     position: 'fixed', inset: 0, zIndex: 9998,
     width: '100vw', height: '100vh',
   } : {};
@@ -960,6 +1006,14 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
                 className="player-range player-range-volume" style={{ '--vol': vol }}
                 onChange={onVolumeChange} />
             </div>
+            {/* زر تدوير الشاشة — يظهر على الموبايل فقط */}
+            <button
+              onClick={toggleLandscape}
+              className={`sm:hidden transition-colors flex-shrink-0 ${cssLandscape ? 'text-orange-400' : 'text-white hover:text-orange-400'}`}
+              title="تدوير الشاشة"
+            >
+              <RotateCw className="w-4 h-4" />
+            </button>
             <button onClick={toggleFullscreen} className="text-white hover:text-orange-400 transition-colors flex-shrink-0">
               {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </button>
