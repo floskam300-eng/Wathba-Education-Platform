@@ -287,7 +287,7 @@ export default function TeacherExams() {
         { label: 'إجمالي الاختبارات', value: exams.length, color: '#1e3a5f' },
         { label: 'منشور', value: exams.filter(e => e.is_published).length, color: '#16a34a' },
         { label: 'مسودة', value: exams.filter(e => !e.is_published).length, color: '#64748b' },
-        { label: 'إجمالي المحاولات', value: exams.reduce((a, e) => a + (e.attempt_count ?? 0), 0), color: '#f97316' },
+        { label: 'إجمالي المحاولات', value: exams.reduce((a, e) => a + (parseInt(e.attempt_count) || 0), 0), color: '#f97316' },
       ],
     });
   };

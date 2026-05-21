@@ -79,6 +79,7 @@ export default function StudentExams() {
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [retryModal, setRetryModal] = useState(null);
   const [retryMessage, setRetryMessage] = useState('');
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
   const answersRef = useRef({});
   useEffect(() => { answersRef.current = answers; }, [answers]);
@@ -413,12 +414,38 @@ export default function StudentExams() {
           </div>
 
           <div className="flex gap-4">
-            <button onClick={() => { setTaking(null); }} className="btn-secondary flex-1">إلغاء</button>
+            <button onClick={() => setShowCancelConfirm(true)} className="btn-secondary flex-1">خروج</button>
             <button onClick={() => setShowSubmitConfirm(true)} disabled={submitMut.isPending}
               className="btn-primary flex-1 py-3 text-base">
               {submitMut.isPending ? 'جاري الإرسال...' : `تسليم الاختبار (${answered}/${questions.length})`}
             </button>
           </div>
+
+          {showCancelConfirm && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+              <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center space-y-4">
+                <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto">
+                  <Clock className="w-8 h-8 text-yellow-600" />
+                </div>
+                <h3 className="text-xl font-black text-navy-700">تنبيه مهم</h3>
+                <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-right">
+                  <p className="text-yellow-800 font-bold text-sm">⏱ المؤقت يظل يعمل حتى لو خرجت</p>
+                  <p className="text-yellow-700 text-xs mt-1">ستُسلَّم إجاباتك تلقائياً عند انتهاء الوقت. هل تريد تسليم إجاباتك الآن وإنهاء الاختبار؟</p>
+                </div>
+                <div className="flex gap-3 pt-1">
+                  <button onClick={() => setShowCancelConfirm(false)} className="flex-1 btn-secondary py-3">
+                    العودة للاختبار
+                  </button>
+                  <button
+                    onClick={() => { setShowCancelConfirm(false); handleSubmit(); }}
+                    disabled={submitMut.isPending}
+                    className="flex-1 btn-primary py-3 !bg-yellow-500 hover:!bg-yellow-600">
+                    تسليم وخروج
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {showSubmitConfirm && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
@@ -430,7 +457,7 @@ export default function StudentExams() {
                 {answered < questions.length ? (
                   <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3">
                     <p className="text-yellow-800 font-bold text-sm">⚠️ أجبت على {answered} من {questions.length} سؤال</p>
-                    <p className="text-yellow-700 text-xs mt-1">{questions.length - answered} سؤال لم تُجب عليه بعد — ستُحسب أسئلة فارغة كإجابة خاطئة</p>
+                    <p className="text-yellow-700 text-xs mt-1">{questions.length - answered} سؤال لم تُجب عليه — لن تحصل على درجتها</p>
                   </div>
                 ) : (
                   <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3">

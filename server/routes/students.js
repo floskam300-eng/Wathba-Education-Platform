@@ -81,7 +81,7 @@ router.get('/', requireRole('teacher', 'assistant'), async (req, res) => {
       searchClause = `AND (s.name ILIKE $2 OR s.username ILIKE $2 OR s.phone ILIKE $2)`;
     }
     const result = await pool.query(
-      `SELECT s.*, COUNT(sce.course_id) as enrolled_courses
+      `SELECT s.*, COUNT(sce.course_id)::int as enrolled_courses
        FROM students s
        LEFT JOIN student_course_enrollment sce ON s.id = sce.student_id
        WHERE s.teacher_id = $1 AND s.deleted_at IS NULL ${searchClause}

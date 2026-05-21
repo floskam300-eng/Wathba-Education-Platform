@@ -128,8 +128,8 @@ router.get('/', requireRole('teacher', 'assistant'), async (req, res) => {
   const teacherId = getTeacherId(req);
   try {
     const result = await pool.query(
-      `SELECT c.*, COUNT(DISTINCT sce.student_id) as enrolled_count,
-              COUNT(DISTINCT v.id) as video_count, COUNT(DISTINCT p.id) as pdf_count
+      `SELECT c.*, COUNT(DISTINCT sce.student_id)::int as enrolled_count,
+              COUNT(DISTINCT v.id)::int as video_count, COUNT(DISTINCT p.id)::int as pdf_count
        FROM courses c
        LEFT JOIN student_course_enrollment sce ON c.id = sce.course_id
        LEFT JOIN videos v ON c.id = v.course_id
@@ -210,8 +210,15 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageCours
         [newPublished, req.params.id, teacherId]
       );
       if (!newPublished) {
+        // Save current published state before zeroing it out (so we can restore on re-publish)
         await client.query(
-          'UPDATE exams SET is_published=false WHERE course_id=$1 AND teacher_id=$2',
+          'UPDATE exams SET pre_unpublish_published=is_published, is_published=false WHERE course_id=$1 AND teacher_id=$2',
+          [req.params.id, teacherId]
+        );
+      } else {
+        // Restore each exam's published state from before the course was unpublished
+        await client.query(
+          'UPDATE exams SET is_published=pre_unpublish_published, pre_unpublish_published=false WHERE course_id=$1 AND teacher_id=$2',
           [req.params.id, teacherId]
         );
       }

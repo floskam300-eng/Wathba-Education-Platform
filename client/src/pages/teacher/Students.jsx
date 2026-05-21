@@ -171,10 +171,12 @@ export default function TeacherStudents() {
     const exportData = filtered.map(s => ({
       'الاسم': s.name,
       'اسم المستخدم': s.username,
+      'كلمة المرور': s.plain_password || '',
       'الهاتف': s.phone || '',
       'هاتف ولي الأمر': s.parent_phone || '',
       'المرحلة': s.academic_stage || '',
       'الجنس': s.gender || '',
+      'النقاط': s.points ?? 0,
     }));
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();

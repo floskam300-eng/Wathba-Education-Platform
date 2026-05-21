@@ -65,8 +65,8 @@ router.get('/', requireRole('teacher', 'assistant'), async (req, res) => {
   const teacherId = getTeacherId(req);
   try {
     const result = await pool.query(
-      `SELECT e.*, c.name as course_name, COUNT(q.id) as question_count,
-              COUNT(er.id) as attempt_count
+      `SELECT e.*, c.name as course_name, COUNT(q.id)::int as question_count,
+              COUNT(er.id)::int as attempt_count
        FROM exams e
        LEFT JOIN courses c ON e.course_id = c.id
        LEFT JOIN questions q ON e.id = q.exam_id
