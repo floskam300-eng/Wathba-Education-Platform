@@ -243,40 +243,6 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
     };
   }, []);
 
-  /* ── auto fullscreen on landscape rotation (mobile) ── */
-  useEffect(() => {
-    const onOrientationChange = () => {
-      const isLandscape = window.matchMedia('(orientation: landscape)').matches;
-      const el = containerRef.current;
-      if (!el) return;
-      if (isLandscape && !document.fullscreenElement && !document.webkitFullscreenElement) {
-        const fsReq = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen;
-        if (fsReq) {
-          fsReq.call(el)
-            .then(() => {
-              try { screen.orientation?.lock?.('landscape').catch(() => {}); } catch (_) {}
-            })
-            .catch(() => { setCssFullscreen(true); setIsFullscreen(true); });
-        } else {
-          setCssFullscreen(true); setIsFullscreen(true);
-        }
-      } else if (!isLandscape) {
-        if (document.fullscreenElement || document.webkitFullscreenElement) {
-          try { (document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen)?.call(document); } catch (_) {}
-        }
-        try { screen.orientation?.unlock?.(); } catch (_) {}
-        setCssFullscreen(false); setIsFullscreen(false);
-      }
-    };
-    window.addEventListener('orientationchange', onOrientationChange);
-    const mq = window.matchMedia('(orientation: landscape)');
-    mq.addEventListener('change', onOrientationChange);
-    return () => {
-      window.removeEventListener('orientationchange', onOrientationChange);
-      mq.removeEventListener('change', onOrientationChange);
-    };
-  }, []);
-
   /* ── initialise / destroy player ── */
   useEffect(() => {
     if (!ytId) return;
@@ -729,40 +695,6 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
       document.removeEventListener('fullscreenchange', onFsChange);
       document.removeEventListener('webkitfullscreenchange', onFsChange);
       document.removeEventListener('mozfullscreenchange', onFsChange);
-    };
-  }, []);
-
-  /* ── auto fullscreen on landscape rotation (mobile) ── */
-  useEffect(() => {
-    const onOrientationChange = () => {
-      const isLandscape = window.matchMedia('(orientation: landscape)').matches;
-      const el = containerRef.current;
-      if (!el) return;
-      if (isLandscape && !document.fullscreenElement && !document.webkitFullscreenElement) {
-        const fsReq = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen;
-        if (fsReq) {
-          fsReq.call(el)
-            .then(() => {
-              try { screen.orientation?.lock?.('landscape').catch(() => {}); } catch (_) {}
-            })
-            .catch(() => { setCssFullscreen(true); setIsFullscreen(true); });
-        } else {
-          setCssFullscreen(true); setIsFullscreen(true);
-        }
-      } else if (!isLandscape) {
-        if (document.fullscreenElement || document.webkitFullscreenElement) {
-          try { (document.exitFullscreen || document.webkitExitFullscreen)?.call(document); } catch (_) {}
-        }
-        try { screen.orientation?.unlock?.(); } catch (_) {}
-        setCssFullscreen(false); setIsFullscreen(false);
-      }
-    };
-    window.addEventListener('orientationchange', onOrientationChange);
-    const mq = window.matchMedia('(orientation: landscape)');
-    mq.addEventListener('change', onOrientationChange);
-    return () => {
-      window.removeEventListener('orientationchange', onOrientationChange);
-      mq.removeEventListener('change', onOrientationChange);
     };
   }, []);
 
