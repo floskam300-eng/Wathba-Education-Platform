@@ -8,6 +8,68 @@ const router = express.Router();
 router.use(authenticate);
 
 /* ──────────────────────────────────────────────────────────────
+   LiveKit: generate a join token for teacher or student
+────────────────────────────────────────────────────────────── */
+router.post('/:streamId/livekit-token', async (req, res) => {
+  const { streamId } = req.params;
+  const { id, role, name } = req.user;
+
+  const apiKey    = process.env.LIVEKIT_API_KEY;
+  const apiSecret = process.env.LIVEKIT_API_SECRET;
+  const serverUrl = process.env.LIVEKIT_URL;
+
+  if (!apiKey || !apiSecret || !serverUrl) {
+    return res.status(503).json({
+      error: 'LiveKit غير مهيأ — أضف LIVEKIT_URL و LIVEKIT_API_KEY و LIVEKIT_API_SECRET في متغيرات البيئة',
+    });
+  }
+
+  try {
+    const { rows } = await pool.query(
+      "SELECT * FROM live_streams WHERE id=$1 AND status IN ('active','scheduled')",
+      [streamId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'البث غير موجود' });
+
+    const stream   = rows[0];
+    const roomName = stream.room_id;
+
+    const { AccessToken } = require('livekit-server-sdk');
+
+    const at = new AccessToken(apiKey, apiSecret, {
+      identity: `${role}_${id}`,
+      name:     name || role,
+      ttl:      '4h',
+    });
+
+    if (role === 'teacher') {
+      at.addGrant({
+        roomJoin:        true,
+        room:            roomName,
+        canPublish:      true,
+        canSubscribe:    true,
+        canPublishData:  true,
+        roomAdmin:       true,
+      });
+    } else {
+      at.addGrant({
+        roomJoin:       true,
+        room:           roomName,
+        canPublish:     false,
+        canSubscribe:   true,
+        canPublishData: false,
+      });
+    }
+
+    const token = await at.toJwt();
+    res.json({ token, serverUrl, roomName });
+  } catch (err) {
+    console.error('[livekit-token]', err);
+    res.status(500).json({ error: 'فشل في إنشاء رمز الدخول' });
+  }
+});
+
+/* ──────────────────────────────────────────────────────────────
    Teacher: schedule a future live stream
 ────────────────────────────────────────────────────────────── */
 router.post('/schedule', requireRole('teacher'), async (req, res) => {

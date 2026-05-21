@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useLiveStream } from '../../context/LiveStreamContext';
-import JitsiMeet from '../../components/JitsiMeet';
+import LiveKitRoom from '../../components/LiveKitRoom';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
 import {
@@ -266,10 +266,10 @@ function LiveView({ stream, user, dark, onLeave }) {
               : 'flex-1 h-full'
             } md:max-h-none md:min-h-0`}
         >
-          <JitsiMeet
-            roomName={stream.room_id}
+          <LiveKitRoom
+            streamId={stream.id}
             displayName={user?.name || 'طالب'}
-            onLeft={handleLeave}
+            isTeacher={false}
             style={{ height: '100%', width: '100%' }}
           />
 
