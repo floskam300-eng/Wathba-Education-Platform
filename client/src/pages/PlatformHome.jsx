@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   GraduationCap, BookOpen, BarChart3, Users, CheckCircle,
   Sparkles, Trophy, MessageCircle, Target, CreditCard,
-  Video, Gamepad2, Shield, Star, Zap, Phone, Mail,
+  Video, Gamepad2, Shield, Star, Zap, Mail,
   ChevronDown, ArrowLeft, Play, FileText, Bell, Award
 } from 'lucide-react';
 import wathbaLogo from '../assets/wathba_logo_transparent.png';
@@ -206,8 +206,8 @@ export default function PlatformHome() {
   const faqs = [
     { q: 'إيه الفرق بين وثبة والمنصات التانية؟', a: 'وثبة بتديك منصتك الخاصة بالكامل — اسمك، لوجوك، ورابطك الفريد. مش اكونت على منصة مشتركة، ده موقع خاص بيك أنت بس.' },
     { q: 'هل في تطبيق موبايل؟', a: 'المنصة تشتغل على كل الأجهزة من المتصفح مباشرة. بتدعم الـ PWA يعني تنزلها على شاشة الهاتف زي أي تطبيق.' },
-    { q: 'طلابي يقدروا يشوفوا كورسات مدرس تاني؟', a: 'لأ أبداً. كل مدرس بياناته معزولة بالكامل. الطالب المسجل عندك مش هيشوف أي حاجة غير الكورسات والامتحانات الخاصة بمنصتك.' },
-    { q: 'مين بيدفع مصاريف الاستضافة؟', a: 'ده بيتفاوض عليه في عقد الخدمة. في حزم بتشمل الاستضافة وفي حزم بتشتغل على سيرفر خاص بيك.' },
+    { q: 'إيه نظام الحماية ضد سرقة الكورسات؟', a: 'المنصة مجهّزة بنظام حماية متكامل — بيمنع التصوير والتسجيل، بيعطّل كليك يمين وكل الاختصارات اللي بتفتح أدوات المطور أو بتحاول تنزّل المحتوى. أي محاولة اختراق بتتسجّل وبتظهر تحذير للطالب فوراً.' },
+    { q: 'المنصة بتدعم البث المباشر؟', a: 'أيوه، المنصة بتدعم حصص اللايف أونلاين من جوّاها مباشرةً بدون ما الطالب يخرج من المنصة. الطالب بيلاقي زرار الانضمام للحصة المباشرة على طول من لوحة التحكم بتاعته، ومع الدردشة والإشعارات الفورية.' },
     { q: 'أقدر أضيف مساعدين؟', a: 'أيوه، تقدر تضيف عدد غير محدود من المساعدين وتحدد صلاحيات كل واحد منهم بالتفصيل.' },
     { q: 'في تدريب على استخدام المنصة؟', a: 'أيوه، بنوفر جلسة تدريبية كاملة + دعم فني مستمر لضمان أحسن تجربة ليك ولطلابك.' },
   ];
@@ -415,11 +415,6 @@ export default function PlatformHome() {
                   className="flex items-center gap-2 bg-green-500/15 hover:bg-green-500/25 border border-green-500/30 text-green-400 text-sm font-semibold px-4 py-2.5 rounded-xl transition-all">
                   <MessageCircle className="w-4 h-4" />
                   واتساب: 01000000000
-                </a>
-                <a href="tel:+201000000000"
-                  className="flex items-center gap-2 bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/30 text-blue-400 text-sm font-semibold px-4 py-2.5 rounded-xl transition-all">
-                  <Phone className="w-4 h-4" />
-                  اتصل مباشرة
                 </a>
                 <a href="mailto:dev@wathba.com"
                   className="flex items-center gap-2 bg-violet-500/15 hover:bg-violet-500/25 border border-violet-500/30 text-violet-400 text-sm font-semibold px-4 py-2.5 rounded-xl transition-all">
