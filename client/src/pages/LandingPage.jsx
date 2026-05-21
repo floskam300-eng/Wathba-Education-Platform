@@ -9,7 +9,8 @@ import {
   Video, Gamepad2, Database, HelpCircle, Shield, Star,
   Zap, Clock, TrendingUp
 } from 'lucide-react';
-import wathbaLogo from '../assets/wathba_logo_transparent.png';
+import wathbaLogoDefault from '../assets/wathba_logo_transparent.png';
+import { usePlatformLogo, usePlatformName } from '../context/TenantContext';
 
 /* ════════════════ DEMO COVERS ════════════════ */
 const DEMO_COVERS = [
@@ -175,6 +176,9 @@ export default function LandingPage() {
   const { data, isLoading } = useQuery({ queryKey: ['public-info'], queryFn: fetchPublic });
   const [statsVisible, setStatsVisible] = useState(false);
   const statsRef = useRef(null);
+  const platformLogoUrl = usePlatformLogo();
+  const platformName = usePlatformName();
+  const wathbaLogo = platformLogoUrl || wathbaLogoDefault;
 
   const teacher    = data?.teacher;
   const stats      = data?.stats;

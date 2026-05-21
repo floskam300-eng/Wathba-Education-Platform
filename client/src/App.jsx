@@ -19,6 +19,7 @@ import TeacherPayments from './pages/teacher/Payments';
 import TeacherLeaderboard from './pages/teacher/Leaderboard';
 import TeacherNotifications from './pages/teacher/Notifications';
 import TeacherBackup from './pages/teacher/Backup';
+import TeacherSettings from './pages/teacher/Settings';
 import TeacherAttendance from './pages/teacher/Attendance';
 import TeacherRequests from './pages/teacher/Requests';
 import WrongQuestionsPage from './pages/teacher/WrongQuestions';
@@ -112,6 +113,7 @@ const AppRoutes = () => {
         <Route path="wrong-questions" element={<WrongQuestionsPage />} />
         <Route path="question-banks" element={<QuestionBanks />} />
         <Route path="livestream" element={<TeacherLiveStream />} />
+        <Route path="settings" element={<TeacherSettings />} />
       </Route>
 
       <Route path="/assistant" element={<ProtectedRoute allowedRoles={['assistant']}><AssistantLayout /></ProtectedRoute>}>

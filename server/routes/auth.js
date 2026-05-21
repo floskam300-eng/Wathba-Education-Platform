@@ -3,8 +3,10 @@ const bcrypt = require('bcryptjs');
 const rateLimit = require('express-rate-limit');
 const pool = require('../db/connection');
 const { generateToken, authenticate } = require('../middleware/auth');
+const { resolveTenant } = require('../middleware/tenant');
 
 const router = express.Router();
+router.use(resolveTenant);
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -22,6 +24,7 @@ router.post('/login', loginLimiter, async (req, res) => {
   }
 
   try {
+    const tenantId = req.tenant?.id || null;
     const checks = role
       ? [role]
       : ['teacher', 'assistant', 'student'];
@@ -33,11 +36,29 @@ router.post('/login', loginLimiter, async (req, res) => {
       else if (r === 'student') table = 'students';
       else continue;
 
-      const whereClause = r === 'student'
-        ? `WHERE username = $1 AND deleted_at IS NULL`
-        : `WHERE username = $1`;
+      let whereClause, queryParams;
+      if (r === 'teacher') {
+        whereClause = 'WHERE username = $1';
+        queryParams = [username];
+      } else if (r === 'student') {
+        if (tenantId) {
+          whereClause = 'WHERE username = $1 AND deleted_at IS NULL AND teacher_id = $2';
+          queryParams = [username, tenantId];
+        } else {
+          whereClause = 'WHERE username = $1 AND deleted_at IS NULL';
+          queryParams = [username];
+        }
+      } else {
+        if (tenantId) {
+          whereClause = 'WHERE username = $1 AND teacher_id = $2';
+          queryParams = [username, tenantId];
+        } else {
+          whereClause = 'WHERE username = $1';
+          queryParams = [username];
+        }
+      }
 
-      const result = await pool.query(`SELECT * FROM ${table} ${whereClause}`, [username]);
+      const result = await pool.query(`SELECT * FROM ${table} ${whereClause}`, queryParams);
       if (result.rows.length === 0) continue;
 
       const user = result.rows[0];

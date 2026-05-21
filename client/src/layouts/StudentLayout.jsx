@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useLiveStream } from '../context/LiveStreamContext';
 import WathbaLogo from '../assets/wathba_logo.png';
+import { usePlatformName, usePlatformLogo } from '../context/TenantContext';
 import { useSSE } from '../hooks/useSSE';
 import { useFCM } from '../hooks/useFCM';
 import api from '../lib/api';
@@ -249,6 +250,8 @@ export default function StudentLayout() {
   const { studentStream, leaveStudentStream, availableLive, clearAvailableLive } = useLiveStream();
   const onLivePage = location.pathname === '/student/live';
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const platformName = usePlatformName();
+  const platformLogo = usePlatformLogo();
   const [captureWarning, setCaptureWarning] = useState(false);
   const warningTimer = useRef(null);
 
@@ -270,10 +273,10 @@ export default function StudentLayout() {
       <div className="p-6 border-b border-white/10">
         <div className="flex items-center gap-3">
           <div className="w-11 h-11 rounded-xl overflow-hidden bg-white flex-shrink-0 p-0.5">
-            <img src={WathbaLogo} alt="وثبة" className="w-full h-full object-contain" />
+            <img src={platformLogo || WathbaLogo} alt={platformName} className="w-full h-full object-contain" />
           </div>
           <div>
-            <h1 className="text-white font-black text-xl">وثبة</h1>
+            <h1 className="text-white font-black text-xl">{platformName}</h1>
             <p className="text-navy-100 text-xs font-medium">منطقة الطالب</p>
           </div>
         </div>

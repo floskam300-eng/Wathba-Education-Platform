@@ -8,9 +8,10 @@ import {
   LayoutDashboard, Users, BookOpen, FileText, UserCog,
   BarChart3, CreditCard, Trophy, LogOut, Menu, MessageCircle,
   Bell, Database, ClipboardList, Moon, Sun, Inbox, BookMarked, Radio,
-  StopCircle, ExternalLink
+  StopCircle, ExternalLink, Settings
 } from 'lucide-react';
 import WathbaLogo from '../assets/wathba_logo.png';
+import { usePlatformName, usePlatformLogo } from '../context/TenantContext';
 
 const navItems = [
   { to: '/teacher', icon: LayoutDashboard, label: 'لوحة التحكم', end: true },
@@ -27,6 +28,7 @@ const navItems = [
   { to: '/teacher/notifications', icon: Bell, label: 'الإشعارات' },
   { to: '/teacher/backup', icon: Database, label: 'النسخ الاحتياطي' },
   { to: '/teacher/livestream', icon: Radio, label: 'البث المباشر' },
+  { to: '/teacher/settings', icon: Settings, label: 'إعدادات المنصة' },
 ];
 
 export default function TeacherLayout() {
@@ -37,6 +39,8 @@ export default function TeacherLayout() {
   const { teacherLive, endTeacherStream } = useLiveStream();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const onLivePage = location.pathname === '/teacher/livestream';
+  const platformName = usePlatformName();
+  const platformLogo = usePlatformLogo();
 
   useSSE(!!user, user?.role || 'teacher');
 
@@ -47,10 +51,10 @@ export default function TeacherLayout() {
       <div className="p-6 border-b border-white/10">
         <div className="flex items-center gap-3">
           <div className="w-11 h-11 rounded-xl overflow-hidden bg-white flex-shrink-0 p-0.5">
-            <img src={WathbaLogo} alt="وثبة" className="w-full h-full object-contain" />
+            <img src={platformLogo || WathbaLogo} alt={platformName} className="w-full h-full object-contain" />
           </div>
           <div>
-            <h1 className="text-white font-black text-xl">وثبة</h1>
+            <h1 className="text-white font-black text-xl">{platformName}</h1>
             <p className="text-navy-100 text-xs font-medium">منصة تعليمية</p>
           </div>
         </div>

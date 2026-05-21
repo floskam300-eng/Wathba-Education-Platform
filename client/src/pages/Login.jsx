@@ -6,7 +6,8 @@ import {
   Eye, EyeOff, LogIn, Lock, User,
   BookOpen, Users, BarChart2, Award, Video, FileText,
 } from 'lucide-react';
-import WathbaLogo from '../assets/wathba_logo_new.png';
+import WathbaLogoDefault from '../assets/wathba_logo_new.png';
+import { usePlatformName, usePlatformLogo } from '../context/TenantContext';
 
 const FEATURES = [
   { icon: BookOpen,  title: 'كورسات تفاعلية',    desc: 'محتوى فيديو منظّم مع متابعة تقدم الطالب' },
@@ -31,6 +32,9 @@ export default function Login() {
   const [focused, setFocused] = useState(null);
   const { login } = useAuth();
   const navigate = useNavigate();
+  const platformName = usePlatformName();
+  const platformLogo = usePlatformLogo();
+  const WathbaLogo = platformLogo || WathbaLogoDefault;
 
   useEffect(() => {
     const s = document.createElement('style');
@@ -421,7 +425,7 @@ export default function Login() {
             قفزة نحو التميّز<br />التعليمي
           </h1>
           <p className="lp-sub">
-            منصة وثبة التعليمية — بيئة متكاملة تجمع المعلمين والطلاب في تجربة تعليمية
+            منصة {platformName} التعليمية — بيئة متكاملة تجمع المعلمين والطلاب في تجربة تعليمية
             احترافية تشمل الكورسات والامتحانات والتحليلات والتواصل المباشر.
           </p>
 
@@ -527,7 +531,7 @@ export default function Login() {
           </div>
         </div>
 
-        <div className="lp-footer">وثبة © 2025 — منصة التعليم الإلكتروني</div>
+        <div className="lp-footer">{platformName} © {new Date().getFullYear()} — منصة التعليم الإلكتروني</div>
       </div>
     </div>
   );
