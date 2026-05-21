@@ -88,7 +88,7 @@ router.get('/', requireRole('teacher', 'assistant'), async (req, res) => {
        GROUP BY s.id ORDER BY s.created_at DESC`,
       params
     );
-    res.json(result.rows.map(({ password: _, plain_password: __, ...s }) => s));
+    res.json(result.rows.map(({ password: _, ...s }) => s));
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }
