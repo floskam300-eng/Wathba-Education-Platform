@@ -44,7 +44,6 @@ import StudentEvents from './pages/student/Events';
 import StickmanRunPage from './pages/student/games/StickmanRunPage';
 import ExamReviewPage from './pages/ExamReviewPage';
 import ParentPortal from './pages/ParentPortal';
-import PWAInstallBanner from './components/PWAInstallBanner';
 
 // ─── Error Boundary ────────────────────────────────────────────────────────────
 class ErrorBoundary extends React.Component {
@@ -217,7 +216,6 @@ export default function App() {
         <AuthProvider>
           <LiveStreamProvider>
             <AppRoutes />
-            <PWAInstallBanner />
           </LiveStreamProvider>
         </AuthProvider>
       </ThemeProvider>

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Download, X, Smartphone } from 'lucide-react';
 
-export default function PWAInstallBanner() {
+export default function PWAInstallBanner({ logoUrl = null, platformName = 'وثبة' }) {
   const [prompt, setPrompt]       = useState(null);
   const [visible, setVisible]     = useState(false);
   const [installed, setInstalled] = useState(false);
@@ -99,14 +99,19 @@ export default function PWAInstallBanner() {
             background: 'linear-gradient(135deg, #f97316, #7c3aed)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: '0 4px 16px rgba(249,115,22,0.4)',
+            overflow: 'hidden',
           }}>
-            <Smartphone size={20} color="#fff" />
+            {logoUrl ? (
+              <img src={logoUrl} alt={platformName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              <Smartphone size={20} color="#fff" />
+            )}
           </div>
 
           {/* Text */}
           <div style={{ flex: 1, minWidth: 0 }}>
             <p style={{ color: '#fff', fontWeight: 900, fontSize: 13, margin: 0, lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              ثبّت تطبيق وثبة
+              ثبّت تطبيق {platformName}
             </p>
             <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 10, margin: '1px 0 0', lineHeight: 1.3 }}>
               أسرع وأسهل — يشتغل بدون إنترنت

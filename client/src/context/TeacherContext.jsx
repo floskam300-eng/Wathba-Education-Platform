@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect } from 'react';
 import { useParams, Outlet, Navigate } from 'react-router-dom';
+import PWAInstallBanner from '../components/PWAInstallBanner';
 import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
 
@@ -77,7 +78,7 @@ export function TeacherProvider({ children }) {
 }
 
 function TeacherOutlet() {
-  const { isLoading, isError, teacher } = useTeacher();
+  const { isLoading, isError, teacher, logoUrl, platformName } = useTeacher();
 
   if (isLoading) {
     return (
@@ -91,7 +92,12 @@ function TeacherOutlet() {
     return <TeacherNotFound />;
   }
 
-  return <Outlet />;
+  return (
+    <>
+      <Outlet />
+      <PWAInstallBanner logoUrl={logoUrl} platformName={platformName} />
+    </>
+  );
 }
 
 export function TeacherWrapper() {
