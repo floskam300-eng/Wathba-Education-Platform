@@ -366,9 +366,13 @@ export default function StickmanRun({ onClose, academicStage }) {
   const [totalPoints, setTotalPoints] = useState(0);
   const [resultData, setResultData]   = useState(null);
   const [narrow, setNarrow]           = useState(() => window.innerWidth < 520);
+  const [isMobile, setIsMobile]       = useState(() => 'ontouchstart' in window || navigator.maxTouchPoints > 0);
 
   useEffect(() => {
-    const onResize = () => setNarrow(window.innerWidth < 520);
+    const onResize = () => {
+      setNarrow(window.innerWidth < 520);
+      setIsMobile('ontouchstart' in window || navigator.maxTouchPoints > 0);
+    };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
@@ -704,14 +708,17 @@ export default function StickmanRun({ onClose, academicStage }) {
           position: 'absolute', inset: 0,
           background: 'linear-gradient(145deg,#04040e 0%,#180838 100%)',
           display: 'flex', flexDirection: 'column', alignItems: 'center',
-          justifyContent: 'center', gap: 18, padding: '32px 28px', textAlign: 'center',
+          justifyContent: 'flex-start', gap: 18, padding: '32px 28px', textAlign: 'center',
+          overflowY: 'auto', overflowX: 'hidden',
         }}>
           {phase === 'loading' && (
-            <div style={{ width: 44, height: 44, border: '4px solid #7c3aed', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
+              <div style={{ width: 44, height: 44, border: '4px solid #7c3aed', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+            </div>
           )}
 
           {phase === 'intro' && (
-            <div style={{ animation: 'slideUp .45s both', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
+            <div style={{ animation: 'slideUp .45s both', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, width: '100%', maxWidth: 480 }}>
               <div style={{ fontSize: 90, filter: 'drop-shadow(0 0 24px #7c3aed)', animation: 'pulse 2s ease-in-out infinite' }}>🏃</div>
               <div>
                 <h2 style={{ color: '#fff', fontSize: 30, fontWeight: 900, margin: '0 0 8px' }}>تحدي الأسبوعي الرياضي</h2>
@@ -719,14 +726,47 @@ export default function StickmanRun({ onClose, academicStage }) {
                 <p style={{ color: 'rgba(255,255,255,.35)', fontSize: 13, margin: 0 }}>فارق دقيقتين على الأقل بين كل بوس والتاني 💪</p>
               </div>
 
-              {/* Controls */}
-              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
-                {[['⬆️ / Space', 'قفز'], ['⬇️ / S', 'اركع'], ['🧠', 'جاوب السؤال']].map(([ic, lb]) => (
-                  <div key={lb} style={{ background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.12)', borderRadius: 11, padding: '10px 18px', minWidth: 90 }}>
-                    <div style={{ fontSize: 24 }}>{ic}</div>
-                    <div style={{ color: 'rgba(255,255,255,.5)', fontSize: 12, marginTop: 4 }}>{lb}</div>
-                  </div>
-                ))}
+              {/* Controls — device-aware */}
+              <div style={{ width: '100%', background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 14, padding: '14px 16px' }}>
+                <div style={{ color: 'rgba(255,255,255,.4)', fontSize: 12, marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  {isMobile ? '📱 تحكم الموبايل' : '⌨️ تحكم الكيبورد'}
+                </div>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
+                  {isMobile ? (
+                    <>
+                      <div style={{ background: 'rgba(0,255,136,.12)', border: '1px solid rgba(0,255,136,.3)', borderRadius: 11, padding: '10px 16px', minWidth: 100, flex: 1 }}>
+                        <div style={{ fontSize: 28 }}>🔼</div>
+                        <div style={{ color: '#00ff88', fontSize: 13, fontWeight: 700, marginTop: 4 }}>زر الأخضر</div>
+                        <div style={{ color: 'rgba(255,255,255,.4)', fontSize: 11, marginTop: 2 }}>اقفز</div>
+                      </div>
+                      <div style={{ background: 'rgba(6,182,212,.12)', border: '1px solid rgba(6,182,212,.3)', borderRadius: 11, padding: '10px 16px', minWidth: 100, flex: 1 }}>
+                        <div style={{ fontSize: 28 }}>🔽</div>
+                        <div style={{ color: '#06b6d4', fontSize: 13, fontWeight: 700, marginTop: 4 }}>زر الأزرق</div>
+                        <div style={{ color: 'rgba(255,255,255,.4)', fontSize: 11, marginTop: 2 }}>اركع (اضغط مع الاستمرار)</div>
+                      </div>
+                      <div style={{ background: 'rgba(168,85,247,.12)', border: '1px solid rgba(168,85,247,.3)', borderRadius: 11, padding: '10px 16px', minWidth: 100, flex: 1 }}>
+                        <div style={{ fontSize: 28 }}>🧠</div>
+                        <div style={{ color: '#c084fc', fontSize: 13, fontWeight: 700, marginTop: 4 }}>اختر الإجابة</div>
+                        <div style={{ color: 'rgba(255,255,255,.4)', fontSize: 11, marginTop: 2 }}>هزيمة البوس</div>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ background: 'rgba(0,255,136,.12)', border: '1px solid rgba(0,255,136,.3)', borderRadius: 11, padding: '10px 16px', minWidth: 90, flex: 1 }}>
+                        <div style={{ fontSize: 22, fontFamily: 'monospace', fontWeight: 900, color: '#00ff88' }}>↑ / Space</div>
+                        <div style={{ color: 'rgba(255,255,255,.4)', fontSize: 11, marginTop: 4 }}>اقفز</div>
+                      </div>
+                      <div style={{ background: 'rgba(6,182,212,.12)', border: '1px solid rgba(6,182,212,.3)', borderRadius: 11, padding: '10px 16px', minWidth: 90, flex: 1 }}>
+                        <div style={{ fontSize: 22, fontFamily: 'monospace', fontWeight: 900, color: '#06b6d4' }}>↓ / S</div>
+                        <div style={{ color: 'rgba(255,255,255,.4)', fontSize: 11, marginTop: 4 }}>اركع (اضغط مع الاستمرار)</div>
+                      </div>
+                      <div style={{ background: 'rgba(168,85,247,.12)', border: '1px solid rgba(168,85,247,.3)', borderRadius: 11, padding: '10px 16px', minWidth: 90, flex: 1 }}>
+                        <div style={{ fontSize: 24 }}>🖱️</div>
+                        <div style={{ color: 'rgba(255,255,255,.4)', fontSize: 11, marginTop: 4 }}>اختر إجابة البوس</div>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
 
               {/* Boss timeline */}
@@ -763,7 +803,7 @@ export default function StickmanRun({ onClose, academicStage }) {
           )}
 
           {phase === 'already_played' && (
-            <div style={{ animation: 'slideUp .4s both', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, animation: 'slideUp .4s both', width: '100%' }}>
               <div style={{ fontSize: 68 }}>🗓️</div>
               <h2 style={{ color: '#fff', fontSize: 24, fontWeight: 900, margin: 0 }}>لعبت هذا الأسبوع!</h2>
               <p style={{ color: 'rgba(255,255,255,.4)', fontSize: 14, margin: 0 }}>تعالى تاني الأسبوع الجاي 🎮</p>
@@ -772,7 +812,7 @@ export default function StickmanRun({ onClose, academicStage }) {
           )}
 
           {(phase === 'victory' || phase === 'gameover') && resultData && (
-            <div style={{ animation: 'slideUp .4s both', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18 }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18, animation: 'slideUp .4s both', width: '100%' }}>
               <div style={{ fontSize: 90, animation: 'pulse 1.5s ease-in-out infinite' }}>{phase === 'victory' ? '🏆' : '💔'}</div>
               <h2 style={{ color: phase === 'victory' ? '#fbbf24' : '#ef4444', fontSize: 32, fontWeight: 900, margin: 0 }}>
                 {phase === 'victory' ? 'أنت بطل المنهج! 🌟' : 'حاول الأسبوع الجاي!'}
@@ -936,7 +976,11 @@ export default function StickmanRun({ onClose, academicStage }) {
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           padding: '5px 16px', background: 'rgba(0,0,0,.55)', flexShrink: 0,
         }}>
-          <div style={{ color: 'rgba(255,255,255,.3)', fontSize: 12 }}>⬆️ قفز &nbsp;|&nbsp; ⬇️ اركع &nbsp;|&nbsp; 📱 اضغط الأزرار</div>
+          <div style={{ color: 'rgba(255,255,255,.3)', fontSize: 12 }}>
+            {isMobile
+              ? '🟢 اقفز &nbsp;|&nbsp; 🔵 اركع'
+              : '⬆️ / Space قفز &nbsp;|&nbsp; ⬇️ / S اركع'}
+          </div>
           <div style={{ color: '#fbbf24', fontSize: 14, fontWeight: 700 }}>⭐ {totalPoints} نقطة</div>
         </div>
       )}
