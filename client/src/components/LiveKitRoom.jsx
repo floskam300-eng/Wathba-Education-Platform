@@ -213,11 +213,24 @@ export default function LiveKitRoom({ streamId, isTeacher, displayName, style = 
 
     const connect = async () => {
       try {
-        const { data } = await api.post(`/live/${streamId}/livekit-token`);
+        let data;
+        try {
+          const resp = await api.post(`/live/${streamId}/livekit-token`);
+          data = resp.data;
+        } catch (apiErr) {
+          const serverMsg = apiErr?.response?.data?.error || apiErr?.message || 'API error';
+          console.error('[LiveKit] token API error:', serverMsg, apiErr?.response?.status);
+          if (!mounted) return;
+          setError(`خطأ في الحصول على رمز الدخول: ${serverMsg}`);
+          setStatus('error');
+          return;
+        }
         if (!mounted) return;
 
+        console.log('[LiveKit] token received, serverUrl:', data?.serverUrl, 'room:', data?.roomName);
+
         if (!data.token || !data.serverUrl) {
-          setError('خادم البث (LiveKit) غير مهيأ — يرجى ضبط متغيرات LIVEKIT_URL / LIVEKIT_API_KEY / LIVEKIT_API_SECRET على السيرفر.');
+          setError(`خادم البث (LiveKit) غير مهيأ — يرجى ضبط LIVEKIT_URL / LIVEKIT_API_KEY / LIVEKIT_API_SECRET. (got: ${JSON.stringify(data)})`);
           setStatus('error');
           return;
         }
@@ -263,22 +276,29 @@ export default function LiveKitRoom({ streamId, isTeacher, displayName, style = 
           });
         });
 
+        /* Mark as connected BEFORE trying camera/mic */
         setStatus('connected');
 
-        /* Teacher: enable camera + mic */
+        /* Teacher: enable camera + mic (non-fatal — user may deny permission) */
         if (isTeacher) {
-          await room.localParticipant.enableCameraAndMicrophone();
-          setLocalVersion(v => v + 1);
+          try {
+            await room.localParticipant.enableCameraAndMicrophone();
+          } catch (mediaErr) {
+            console.warn('[LiveKit] camera/mic unavailable:', mediaErr?.message);
+          }
+          if (mounted) setLocalVersion(v => v + 1);
         }
 
-      } catch (err) {
-        console.error('[LiveKit]', err);
-        if (mounted) {
-          setError(err?.message?.includes('403') || err?.message?.includes('token')
+      } catch (connErr) {
+        console.error('[LiveKit] connection error:', connErr?.message, connErr);
+        if (!mounted) return;
+        const msg = connErr?.message || 'unknown error';
+        setError(
+          msg.includes('403') || msg.toLowerCase().includes('token') || msg.includes('401')
             ? 'رمز الدخول غير صحيح — تحقق من إعدادات LiveKit.'
-            : 'فشل الاتصال بغرفة البث. تأكد من تشغيل خادم LiveKit.');
-          setStatus('error');
-        }
+            : `فشل الاتصال بـ LiveKit: ${msg}`
+        );
+        setStatus('error');
       }
     };
 
