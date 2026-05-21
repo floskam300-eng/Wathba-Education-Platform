@@ -3,10 +3,61 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
   ClipboardList, RotateCcw, Bell, CheckCircle, XCircle,
-  Clock, Eye
+  Clock, Eye, CreditCard, AlertCircle, Gift
 } from 'lucide-react';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
+
+const METHOD_LABELS = {
+  'Vodafone Cash': 'فودافون كاش',
+  'Instapay': 'إنستاباي',
+  'Cash': 'كاش',
+  'Bank Transfer': 'تحويل بنكي',
+};
+
+function PaymentBadge({ r }) {
+  const price = parseFloat(r.course_price) || 0;
+
+  if (r.course_is_free || price === 0) {
+    return (
+      <div className="flex items-center gap-1.5 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 mt-2">
+        <Gift className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
+        <span className="text-xs font-bold text-blue-700">كورس مجاني — لا يتطلب دفعاً</span>
+      </div>
+    );
+  }
+
+  if (r.payment_status === 'verified') {
+    const paid = parseFloat(r.paid_amount) || 0;
+    const remaining = Math.max(0, price - paid);
+    const fullyPaid = remaining === 0;
+    return (
+      <div className={`flex items-center gap-1.5 rounded-xl px-3 py-2 mt-2 border ${fullyPaid ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
+        <CreditCard className={`w-3.5 h-3.5 flex-shrink-0 ${fullyPaid ? 'text-green-600' : 'text-yellow-600'}`} />
+        <div className="flex-1 min-w-0">
+          <span className={`text-xs font-black ${fullyPaid ? 'text-green-700' : 'text-yellow-700'}`}>
+            {fullyPaid ? '✅ دفع المبلغ كاملاً' : `⚠️ دفع جزئي — باقي ${remaining.toLocaleString()} ج`}
+          </span>
+          <span className="text-[10px] text-gray-500 block mt-0.5">
+            المدفوع: <span className="font-bold">{paid.toLocaleString()} ج</span> من {price.toLocaleString()} ج
+            {r.payment_method && ` — ${METHOD_LABELS[r.payment_method] || r.payment_method}`}
+            {r.payment_date && ` — ${new Date(r.payment_date).toLocaleDateString('ar-EG')}`}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1.5 bg-red-50 border border-red-200 rounded-xl px-3 py-2 mt-2">
+      <AlertCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
+      <div>
+        <span className="text-xs font-black text-red-700">❌ لم يدفع بعد</span>
+        <span className="text-[10px] text-gray-500 block mt-0.5">سعر الكورس: {price.toLocaleString()} ج</span>
+      </div>
+    </div>
+  );
+}
 
 export default function TeacherRequests() {
   const qc = useQueryClient();
@@ -196,6 +247,10 @@ export default function TeacherRequests() {
                       <p className="text-[10px] text-gray-400 mt-0.5">{new Date(r.created_at).toLocaleString('ar-EG')}</p>
                     </div>
                   </div>
+
+                  {/* Payment status indicator */}
+                  <PaymentBadge r={r} />
+
                   {/* Action buttons — full width below on mobile */}
                   {r.status === 'pending' && (
                     <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100">

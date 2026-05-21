@@ -667,11 +667,25 @@ router.get('/enrollment-requests', requireRole('teacher', 'assistant'), async (r
   const teacherId = getTeacherId(req);
   try {
     const result = await pool.query(
-      `SELECT cer.*, s.name as student_name, s.academic_stage, s.phone,
-              c.name as course_name
+      `SELECT cer.*,
+              s.name as student_name, s.academic_stage, s.phone,
+              c.name as course_name, c.price as course_price, c.is_free as course_is_free,
+              pay.payment_status,
+              pay.paid_amount,
+              pay.payment_method,
+              pay.payment_date
        FROM course_enrollment_requests cer
        JOIN students s ON cer.student_id = s.id
        JOIN courses c ON cer.course_id = c.id
+       LEFT JOIN LATERAL (
+         SELECT
+           MAX(p.status)        FILTER (WHERE p.status = 'verified')  AS payment_status,
+           SUM(p.amount)        FILTER (WHERE p.status = 'verified')  AS paid_amount,
+           MAX(p.method)        FILTER (WHERE p.status = 'verified')  AS payment_method,
+           MAX(p.payment_date)  FILTER (WHERE p.status = 'verified')  AS payment_date
+         FROM payments p
+         WHERE p.student_id = cer.student_id AND p.course_id = cer.course_id
+       ) pay ON true
        WHERE c.teacher_id = $1
        ORDER BY cer.created_at DESC`,
       [teacherId]
