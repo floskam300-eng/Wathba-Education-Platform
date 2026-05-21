@@ -560,12 +560,13 @@ router.get('/student/my-courses', requireRole('student'), async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT c.*, sce.enrollment_date, sce.status,
-              COUNT(DISTINCT v.id) as video_count, COUNT(DISTINCT p.id) as pdf_count
+              COUNT(DISTINCT v.id)::int as video_count, COUNT(DISTINCT p.id)::int as pdf_count
        FROM courses c
        JOIN student_course_enrollment sce ON c.id = sce.course_id
        LEFT JOIN videos v ON c.id = v.course_id
        LEFT JOIN pdf_files p ON c.id = p.course_id
        WHERE sce.student_id = $1
+         AND sce.status = 'active'
          AND c.is_published = true
        GROUP BY c.id, sce.enrollment_date, sce.status
        ORDER BY c.created_at DESC`,
@@ -585,7 +586,7 @@ router.get('/student/available-all', requireRole('student'), async (req, res) =>
 
     const result = await pool.query(
       `SELECT c.*,
-              COUNT(DISTINCT v.id) as video_count, COUNT(DISTINCT p.id) as pdf_count,
+              COUNT(DISTINCT v.id)::int as video_count, COUNT(DISTINCT p.id)::int as pdf_count,
               sce.student_id IS NOT NULL as is_enrolled,
               cer.status as request_status, cer.id as request_id
        FROM courses c

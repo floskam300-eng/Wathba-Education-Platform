@@ -437,6 +437,7 @@ router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => ch
   const EGYPTIAN_PHONE_RE = /^01[0125][0-9]{8}$/;
   const client = await pool.connect();
   const results = { success: 0, failed: 0, errors: [], created: [] };
+  const newStudentIds = [];
   try {
     await client.query('BEGIN');
 
@@ -469,10 +470,11 @@ router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => ch
         let retries = 0;
         while (retries < 5) {
           try {
-            await client.query(
-              'INSERT INTO students (username,password,plain_password,name,phone,parent_phone,academic_stage,gender,teacher_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+            const insertRes = await client.query(
+              'INSERT INTO students (username,password,plain_password,name,phone,parent_phone,academic_stage,gender,teacher_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id',
               [username, hashed, finalPassword, name, phone, parent_phone, academic_stage, gender, teacherId]
             );
+            newStudentIds.push(insertRes.rows[0].id);
             results.success++;
             if (!manualPassword || !manualUsername) {
               results.created.push({ name, username, generated_password: finalPassword });
@@ -499,6 +501,21 @@ router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => ch
 
     await client.query('COMMIT');
     invalidateCache(teacherId);
+
+    // Auto-enroll newly created students in the teacher's published free courses
+    if (newStudentIds.length > 0) {
+      pool.query(
+        `INSERT INTO student_course_enrollment (student_id, course_id)
+         SELECT s.id, c.id
+         FROM students s
+         JOIN courses c ON c.teacher_id = $1 AND c.is_free = true AND c.is_published = true
+         WHERE s.id = ANY($2::int[])
+           AND (c.target_stage IS NULL OR c.target_stage = '' OR c.target_stage = s.academic_stage)
+         ON CONFLICT DO NOTHING`,
+        [teacherId, newStudentIds]
+      ).catch(e => console.warn('[bulk auto-enroll]', e.message));
+    }
+
     res.json(results);
   } catch (err) {
     await client.query('ROLLBACK');
@@ -570,7 +587,7 @@ router.get('/me/dashboard', requireRole('student'), async (req, res) => {
   const studentId = req.user.id;
   try {
     const [enrollments, results, progress, badges] = await Promise.all([
-      pool.query('SELECT sce.*, c.name, c.description, c.thumbnail_url FROM student_course_enrollment sce JOIN courses c ON sce.course_id=c.id WHERE sce.student_id=$1', [studentId]),
+      pool.query('SELECT sce.*, c.name, c.description, c.thumbnail_url FROM student_course_enrollment sce JOIN courses c ON sce.course_id=c.id WHERE sce.student_id=$1 AND c.is_published=true', [studentId]),
       pool.query('SELECT er.*, e.title as exam_title, e.total_score, e.pass_score FROM exam_results er JOIN exams e ON er.exam_id=e.id WHERE er.student_id=$1 ORDER BY er.created_at DESC LIMIT 5', [studentId]),
       pool.query('SELECT vp.*, v.title FROM video_progress vp JOIN videos v ON vp.video_id=v.id WHERE vp.student_id=$1', [studentId]),
       pool.query('SELECT * FROM badges WHERE student_id=$1 ORDER BY earned_at DESC', [studentId]),
