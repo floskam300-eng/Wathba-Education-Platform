@@ -65,14 +65,14 @@ function StudentRow({ viewer, streamId, onRefresh }) {
   };
 
   return (
-    <div className={`rounded-xl p-3 border transition-all mb-2 ${viewer.hand_raised ? 'border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50'}`}>
+    <div className={`rounded-xl p-3 border transition-all mb-2 ${viewer.hand_raised ? 'border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20' : 'border-slate-200 dark:border-[rgba(230,175,80,0.12)] bg-white dark:bg-[#17151F]/80'}`}>
       <div className="flex items-center gap-2 mb-2">
         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0 ${viewer.hand_raised ? 'bg-yellow-500' : 'bg-purple-600'}`}>
           {viewer.name?.charAt(0)}
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-slate-800 dark:text-white truncate">{viewer.name}</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400">{viewer.academic_stage || 'غير محدد'} · {viewer.points ?? 0} نقطة</p>
+          <p className="text-xs text-[#8A7E72] dark:text-[#C4B8AC]">{viewer.academic_stage || 'غير محدد'} · {viewer.points ?? 0} نقطة</p>
         </div>
         {viewer.hand_raised && (
           <span className="text-xs font-black text-yellow-700 bg-yellow-100 dark:bg-yellow-900/40 dark:text-yellow-300 px-2 py-0.5 rounded-full flex-shrink-0 animate-pulse">
@@ -89,9 +89,9 @@ function StudentRow({ viewer, streamId, onRefresh }) {
         <div className="space-y-2 mt-1">
           <div className="flex gap-1.5">
             <input type="number" min="1" max="500" value={pts} onChange={e => setPts(e.target.value)}
-              className="w-16 text-center text-sm border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-1.5 bg-white dark:bg-slate-700 text-slate-800 dark:text-white" />
+              className="w-16 text-center text-sm border border-slate-300 dark:border-[rgba(230,175,80,0.18)] rounded-lg px-2 py-1.5 bg-white dark:bg-[#1F1C2C] text-slate-800 dark:text-white" />
             <input type="text" placeholder="السبب (اختياري)" value={reason} onChange={e => setReason(e.target.value)}
-              className="flex-1 text-xs border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-1.5 bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder-slate-400" />
+              className="flex-1 text-xs border border-slate-300 dark:border-[rgba(230,175,80,0.18)] rounded-lg px-2 py-1.5 bg-white dark:bg-[#1F1C2C] text-slate-800 dark:text-white placeholder-[#8A7E72]" />
           </div>
           <div className="flex gap-1.5">
             <button onClick={handleAward} disabled={loading}
@@ -99,7 +99,7 @@ function StudentRow({ viewer, streamId, onRefresh }) {
               {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Star className="w-3 h-3" />} تأكيد
             </button>
             <button onClick={() => { setAwarding(false); setReason(''); setPts(5); }}
-              className="px-2.5 py-1.5 rounded-lg text-xs text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+              className="px-2.5 py-1.5 rounded-lg text-xs text-[#8A7E72] hover:bg-slate-100 dark:hover:bg-[#1F1C2C] transition-colors">
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -132,7 +132,7 @@ function ViewersPanel({ streamId, dark }) {
 
   return (
     <div className="flex flex-col h-full">
-      <div className={`px-3 py-2.5 border-b flex items-center justify-between flex-shrink-0 ${dark ? 'border-slate-700' : 'border-slate-200'}`}>
+      <div className={`px-3 py-2.5 border-b flex items-center justify-between flex-shrink-0 ${dark ? 'border-[rgba(230,175,80,0.12)]' : 'border-slate-200'}`}>
         <div className="flex items-center gap-2">
           <Users className="w-4 h-4 text-purple-500" />
           <span className={`text-sm font-bold ${dark ? 'text-white' : 'text-slate-700'}`}>الحضور</span>
@@ -147,8 +147,8 @@ function ViewersPanel({ streamId, dark }) {
       <div className="flex-1 overflow-y-auto p-3">
         {viewers.length === 0 ? (
           <div className="text-center py-12">
-            <Users className="w-10 h-10 mx-auto mb-2 text-slate-300" />
-            <p className={`text-sm ${dark ? 'text-slate-500' : 'text-slate-400'}`}>لا يوجد طلاب بعد</p>
+            <Users className="w-10 h-10 mx-auto mb-2 text-[#F2EDE5]" />
+            <p className={`text-sm ${dark ? 'text-[#8A7E72]' : 'text-[#C4B8AC]'}`}>لا يوجد طلاب بعد</p>
           </div>
         ) : (
           [...viewers]
@@ -215,7 +215,7 @@ function ChatPanel({ stream, teacherName, dark }) {
 
   return (
     <div className="flex flex-col h-full">
-      <div className={`px-3 py-2.5 border-b flex items-center justify-between flex-shrink-0 ${dark ? 'border-slate-700' : 'border-slate-200'}`}>
+      <div className={`px-3 py-2.5 border-b flex items-center justify-between flex-shrink-0 ${dark ? 'border-[rgba(230,175,80,0.12)]' : 'border-slate-200'}`}>
         <div className="flex items-center gap-2">
           <MessageSquare className="w-4 h-4 text-green-500" />
           <span className={`text-sm font-bold ${dark ? 'text-white' : 'text-slate-700'}`}>الدردشة</span>
@@ -229,27 +229,27 @@ function ChatPanel({ stream, teacherName, dark }) {
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
         {messages.length === 0 ? (
           <div className="text-center py-12">
-            <MessageSquare className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-            <p className={`text-xs ${dark ? 'text-slate-500' : 'text-slate-400'}`}>لا توجد رسائل</p>
+            <MessageSquare className="w-8 h-8 mx-auto mb-2 text-[#F2EDE5]" />
+            <p className={`text-xs ${dark ? 'text-[#8A7E72]' : 'text-[#C4B8AC]'}`}>لا توجد رسائل</p>
           </div>
         ) : messages.map(msg => (
           <div key={msg.id} className={`flex flex-col gap-0.5 ${msg.sender_type === 'teacher' ? 'items-end' : 'items-start'}`}>
-            <span className="text-[10px] text-slate-400 px-1">{msg.sender_name}</span>
+            <span className="text-[10px] text-[#C4B8AC] px-1">{msg.sender_name}</span>
             <div className={`text-sm px-3 py-2 rounded-2xl max-w-[90%] leading-relaxed ${
               msg.sender_type === 'teacher'
                 ? 'bg-purple-600 text-white rounded-bl-sm'
-                : dark ? 'bg-slate-700 text-white rounded-br-sm' : 'bg-slate-100 text-slate-800 rounded-br-sm'
+                : dark ? 'bg-[#1F1C2C] text-white rounded-br-sm' : 'bg-slate-100 text-slate-800 rounded-br-sm'
             }`}>{msg.message}</div>
           </div>
         ))}
         <div ref={bottomRef} />
       </div>
-      <div className={`p-3 border-t flex-shrink-0 ${dark ? 'border-slate-700' : 'border-slate-200'}`}>
+      <div className={`p-3 border-t flex-shrink-0 ${dark ? 'border-[rgba(230,175,80,0.12)]' : 'border-slate-200'}`}>
         <div className="flex gap-2">
           <input value={text} onChange={e => setText(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); } }}
             placeholder="اكتب رسالة..."
-            className={`flex-1 text-sm border rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 ${dark ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-500' : 'bg-white border-slate-300 text-slate-800'}`} />
+            className={`flex-1 text-sm border rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 ${dark ? 'bg-[#1F1C2C] border-[rgba(230,175,80,0.18)] text-white placeholder-[#8A7E72]' : 'bg-white border-slate-300 text-slate-800'}`} />
           <button onClick={sendMsg} disabled={!text.trim() || sending}
             className="p-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl disabled:opacity-50 transition-colors">
             {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
@@ -385,8 +385,8 @@ function LiveView({ stream, user, dark, onEnd }) {
             style={{ height: '100%', width: '100%' }}
           />
         </div>
-        <div className={`flex flex-col flex-shrink-0 w-full h-[42vh] md:h-auto md:w-72 xl:w-80 border-t md:border-t-0 md:border-r ${dark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'}`}>
-          <div className={`flex border-b flex-shrink-0 ${dark ? 'border-slate-700' : 'border-slate-200'}`}>
+        <div className={`flex flex-col flex-shrink-0 w-full h-[42vh] md:h-auto md:w-72 xl:w-80 border-t md:border-t-0 md:border-r ${dark ? 'bg-[#0F0E15] border-[rgba(230,175,80,0.12)]' : 'bg-white border-slate-200'}`}>
+          <div className={`flex border-b flex-shrink-0 ${dark ? 'border-[rgba(230,175,80,0.12)]' : 'border-slate-200'}`}>
             {[
               { key: 'students', label: 'الطلاب',  icon: Users },
               { key: 'chat',     label: 'الدردشة', icon: MessageSquare },
@@ -395,7 +395,7 @@ function LiveView({ stream, user, dark, onEnd }) {
                 className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-bold border-b-2 transition-colors ${
                   tab === key
                     ? 'border-red-500 text-red-600'
-                    : `border-transparent ${dark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-400 hover:text-slate-700'}`
+                    : `border-transparent ${dark ? 'text-[#C4B8AC] hover:text-slate-200' : 'text-[#C4B8AC] hover:text-slate-700'}`
                 }`}>
                 <Icon className="w-3.5 h-3.5" />{label}
               </button>
@@ -423,12 +423,12 @@ function StagesSelector({ selected, onChange, dark }) {
     onChange(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
 
   if (isLoading) return (
-    <div className={`flex items-center gap-2 text-sm py-3 ${dark ? 'text-slate-400' : 'text-slate-500'}`}>
+    <div className={`flex items-center gap-2 text-sm py-3 ${dark ? 'text-[#C4B8AC]' : 'text-[#8A7E72]'}`}>
       <Loader2 className="w-4 h-4 animate-spin" /> جارٍ تحميل الصفوف...
     </div>
   );
   if (stages.length === 0) return (
-    <p className={`text-sm py-2 ${dark ? 'text-slate-500' : 'text-slate-400'}`}>لا توجد صفوف مسجلة حتى الآن.</p>
+    <p className={`text-sm py-2 ${dark ? 'text-[#8A7E72]' : 'text-[#C4B8AC]'}`}>لا توجد صفوف مسجلة حتى الآن.</p>
   );
 
   return (
@@ -441,7 +441,7 @@ function StagesSelector({ selected, onChange, dark }) {
               isOn
                 ? 'bg-red-600 text-white border-red-600'
                 : dark
-                  ? 'border-slate-600 text-slate-300 hover:border-red-400 bg-slate-800/40'
+                  ? 'border-[rgba(230,175,80,0.18)] text-[#F2EDE5] hover:border-red-400 bg-[#17151F]/70'
                   : 'border-slate-300 text-slate-600 hover:border-red-400 bg-white'
             }`}>
             <span className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${isOn ? 'border-white bg-white' : dark ? 'border-slate-500' : 'border-slate-300'}`}>
@@ -481,7 +481,7 @@ function ScheduledStreamCard({ stream, dark, onStart, onCancel, starting }) {
   });
 
   return (
-    <div className={`rounded-2xl border p-4 ${dark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
+    <div className={`rounded-2xl border p-4 ${dark ? 'bg-[#17151F] border-[rgba(230,175,80,0.12)]' : 'bg-white border-slate-200'}`}>
       <div className="flex items-start gap-3">
         <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
              style={{ background: 'rgba(139,92,246,0.12)', border: '2px solid rgba(139,92,246,0.25)' }}>
@@ -489,7 +489,7 @@ function ScheduledStreamCard({ stream, dark, onStart, onCancel, starting }) {
         </div>
         <div className="flex-1 min-w-0">
           <h4 className={`font-black text-sm truncate ${dark ? 'text-white' : 'text-slate-800'}`}>{stream.title}</h4>
-          <p className={`text-xs mt-0.5 ${dark ? 'text-slate-400' : 'text-slate-500'}`}>{dateStr}</p>
+          <p className={`text-xs mt-0.5 ${dark ? 'text-[#C4B8AC]' : 'text-[#8A7E72]'}`}>{dateStr}</p>
           <div className="flex items-center gap-1.5 mt-1.5">
             <Clock className="w-3.5 h-3.5 text-purple-500 flex-shrink-0" />
             <span className="text-xs font-black text-purple-500 font-mono">{timeLabel}</span>
@@ -502,7 +502,7 @@ function ScheduledStreamCard({ stream, dark, onStart, onCancel, starting }) {
             ابدأ
           </button>
           <button onClick={onCancel}
-            className={`flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${dark ? 'text-slate-400 hover:bg-slate-700' : 'text-slate-500 hover:bg-slate-100'}`}>
+            className={`flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${dark ? 'text-[#C4B8AC] hover:bg-[#1F1C2C]' : 'text-[#8A7E72] hover:bg-slate-100'}`}>
             <Trash2 className="w-3.5 h-3.5" /> إلغاء
           </button>
         </div>
@@ -540,41 +540,41 @@ function StreamForm({ onBack, onStarted, dark }) {
     }
   };
 
-  const inp = `w-full rounded-xl border px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 transition-shadow ${dark ? 'bg-slate-800 border-slate-600 text-white placeholder-slate-500' : 'bg-white border-slate-300 text-slate-800 placeholder-slate-400'}`;
+  const inp = `w-full rounded-xl border px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 transition-shadow ${dark ? 'bg-[#17151F] border-[rgba(230,175,80,0.18)] text-white placeholder-[#8A7E72]' : 'bg-white border-slate-300 text-slate-800 placeholder-[#8A7E72]'}`;
 
   return (
     <div className="max-w-xl mx-auto py-8 px-4">
       <div className="flex items-center gap-3 mb-8">
-        <button onClick={onBack} className={`p-2 rounded-xl transition-colors ${dark ? 'text-slate-400 hover:bg-slate-700' : 'text-slate-500 hover:bg-slate-100'}`}>
+        <button onClick={onBack} className={`p-2 rounded-xl transition-colors ${dark ? 'text-[#C4B8AC] hover:bg-[#1F1C2C]' : 'text-[#8A7E72] hover:bg-slate-100'}`}>
           <ChevronLeft className="w-5 h-5" />
         </button>
         <div>
           <h2 className={`text-xl font-black ${dark ? 'text-white' : 'text-slate-800'}`}>إعداد البث المباشر</h2>
-          <p className={`text-sm ${dark ? 'text-slate-400' : 'text-slate-500'}`}>ضبط خصائص الجلسة المباشرة</p>
+          <p className={`text-sm ${dark ? 'text-[#C4B8AC]' : 'text-[#8A7E72]'}`}>ضبط خصائص الجلسة المباشرة</p>
         </div>
       </div>
       <form onSubmit={submit} className="space-y-5">
         <div>
-          <label className={`block text-sm font-bold mb-1.5 ${dark ? 'text-slate-300' : 'text-slate-600'}`}>عنوان البث <span className="text-red-500">*</span></label>
+          <label className={`block text-sm font-bold mb-1.5 ${dark ? 'text-[#F2EDE5]' : 'text-slate-600'}`}>عنوان البث <span className="text-red-500">*</span></label>
           <input className={inp} placeholder="مثال: مراجعة الفصل الثالث" value={title} onChange={e => setTitle(e.target.value)} />
         </div>
         <div>
-          <label className={`block text-sm font-bold mb-1.5 ${dark ? 'text-slate-300' : 'text-slate-600'}`}>وصف الجلسة</label>
+          <label className={`block text-sm font-bold mb-1.5 ${dark ? 'text-[#F2EDE5]' : 'text-slate-600'}`}>وصف الجلسة</label>
           <textarea className={inp} rows={2} placeholder="ماذا ستشرح في هذه الجلسة؟" value={desc} onChange={e => setDesc(e.target.value)} />
         </div>
         <div>
-          <label className={`block text-sm font-bold mb-2 ${dark ? 'text-slate-300' : 'text-slate-600'}`}>من يستطيع المشاهدة؟</label>
+          <label className={`block text-sm font-bold mb-2 ${dark ? 'text-[#F2EDE5]' : 'text-slate-600'}`}>من يستطيع المشاهدة؟</label>
           <div className="grid grid-cols-2 gap-2">
             {[{ v: 'all', l: '📢 كل الطلاب' }, { v: 'stages', l: '📚 مراحل محددة' }].map(({ v, l }) => (
               <button key={v} type="button" onClick={() => setAccess(v)}
-                className={`py-2.5 rounded-xl text-sm font-bold border transition-all ${access === v ? 'bg-red-600 text-white border-red-600' : dark ? 'border-slate-600 text-slate-300 hover:border-red-400' : 'border-slate-300 text-slate-600 hover:border-red-400'}`}>
+                className={`py-2.5 rounded-xl text-sm font-bold border transition-all ${access === v ? 'bg-red-600 text-white border-red-600' : dark ? 'border-[rgba(230,175,80,0.18)] text-[#F2EDE5] hover:border-red-400' : 'border-slate-300 text-slate-600 hover:border-red-400'}`}>
                 {l}
               </button>
             ))}
           </div>
           {access === 'stages' && (
-            <div className={`mt-3 rounded-xl border p-3 ${dark ? 'border-slate-700 bg-slate-800/40' : 'border-slate-200 bg-slate-50'}`}>
-              <p className={`text-xs font-bold mb-2 ${dark ? 'text-slate-400' : 'text-slate-500'}`}>
+            <div className={`mt-3 rounded-xl border p-3 ${dark ? 'border-[rgba(230,175,80,0.12)] bg-[#17151F]/70' : 'border-slate-200 bg-slate-50'}`}>
+              <p className={`text-xs font-bold mb-2 ${dark ? 'text-[#C4B8AC]' : 'text-[#8A7E72]'}`}>
                 اختر الصفوف المسموح لها بالمشاهدة
                 {selStages.length > 0 && <span className="mr-2 text-red-500">({selStages.length} مختار)</span>}
               </p>
@@ -582,18 +582,18 @@ function StreamForm({ onBack, onStarted, dark }) {
             </div>
           )}
         </div>
-        <div className={`rounded-xl border p-4 space-y-4 ${dark ? 'border-slate-700 bg-slate-800/40' : 'border-slate-200 bg-slate-50'}`}>
+        <div className={`rounded-xl border p-4 space-y-4 ${dark ? 'border-[rgba(230,175,80,0.12)] bg-[#17151F]/70' : 'border-slate-200 bg-slate-50'}`}>
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className={`text-sm font-bold ${dark ? 'text-white' : 'text-slate-700'}`}>تفعيل الدردشة</p>
-              <p className={`text-xs ${dark ? 'text-slate-400' : 'text-slate-500'}`}>السماح للطلاب بإرسال رسائل</p>
+              <p className={`text-xs ${dark ? 'text-[#C4B8AC]' : 'text-[#8A7E72]'}`}>السماح للطلاب بإرسال رسائل</p>
             </div>
             <Toggle on={chatOn} onClick={() => setChatOn(p => !p)} />
           </div>
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className={`text-sm font-bold ${dark ? 'text-white' : 'text-slate-700'}`}>رفع اليد</p>
-              <p className={`text-xs ${dark ? 'text-slate-400' : 'text-slate-500'}`}>السماح للطلاب برفع أيديهم</p>
+              <p className={`text-xs ${dark ? 'text-[#C4B8AC]' : 'text-[#8A7E72]'}`}>السماح للطلاب برفع أيديهم</p>
             </div>
             <Toggle on={handOn} onClick={() => setHandOn(p => !p)} />
           </div>
@@ -643,49 +643,49 @@ function ScheduleForm({ onBack, onScheduled, dark }) {
     }
   };
 
-  const inp = `w-full rounded-xl border px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 transition-shadow ${dark ? 'bg-slate-800 border-slate-600 text-white placeholder-slate-500' : 'bg-white border-slate-300 text-slate-800 placeholder-slate-400'}`;
+  const inp = `w-full rounded-xl border px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 transition-shadow ${dark ? 'bg-[#17151F] border-[rgba(230,175,80,0.18)] text-white placeholder-[#8A7E72]' : 'bg-white border-slate-300 text-slate-800 placeholder-[#8A7E72]'}`;
 
   return (
     <div className="max-w-xl mx-auto py-8 px-4">
       <div className="flex items-center gap-3 mb-8">
-        <button onClick={onBack} className={`p-2 rounded-xl transition-colors ${dark ? 'text-slate-400 hover:bg-slate-700' : 'text-slate-500 hover:bg-slate-100'}`}>
+        <button onClick={onBack} className={`p-2 rounded-xl transition-colors ${dark ? 'text-[#C4B8AC] hover:bg-[#1F1C2C]' : 'text-[#8A7E72] hover:bg-slate-100'}`}>
           <ChevronLeft className="w-5 h-5" />
         </button>
         <div>
           <h2 className={`text-xl font-black ${dark ? 'text-white' : 'text-slate-800'}`}>جدولة بث مستقبلي</h2>
-          <p className={`text-sm ${dark ? 'text-slate-400' : 'text-slate-500'}`}>حدد موعداً وسيظهر للطلاب مسبقاً مع عدّاد تنازلي</p>
+          <p className={`text-sm ${dark ? 'text-[#C4B8AC]' : 'text-[#8A7E72]'}`}>حدد موعداً وسيظهر للطلاب مسبقاً مع عدّاد تنازلي</p>
         </div>
       </div>
       <form onSubmit={submit} className="space-y-5">
         <div>
-          <label className={`block text-sm font-bold mb-1.5 ${dark ? 'text-slate-300' : 'text-slate-600'}`}>موعد البث <span className="text-red-500">*</span></label>
+          <label className={`block text-sm font-bold mb-1.5 ${dark ? 'text-[#F2EDE5]' : 'text-slate-600'}`}>موعد البث <span className="text-red-500">*</span></label>
           <input type="datetime-local" className={inp} min={minDT} value={scheduledAt} onChange={e => setScheduledAt(e.target.value)} />
         </div>
         <div>
-          <label className={`block text-sm font-bold mb-1.5 ${dark ? 'text-slate-300' : 'text-slate-600'}`}>عنوان البث <span className="text-red-500">*</span></label>
+          <label className={`block text-sm font-bold mb-1.5 ${dark ? 'text-[#F2EDE5]' : 'text-slate-600'}`}>عنوان البث <span className="text-red-500">*</span></label>
           <input className={inp} placeholder="مثال: مراجعة الفصل الثالث" value={title} onChange={e => setTitle(e.target.value)} />
         </div>
         <div>
-          <label className={`block text-sm font-bold mb-1.5 ${dark ? 'text-slate-300' : 'text-slate-600'}`}>وصف الجلسة</label>
+          <label className={`block text-sm font-bold mb-1.5 ${dark ? 'text-[#F2EDE5]' : 'text-slate-600'}`}>وصف الجلسة</label>
           <textarea className={inp} rows={2} placeholder="ماذا ستشرح؟" value={desc} onChange={e => setDesc(e.target.value)} />
         </div>
         <div>
-          <label className={`block text-sm font-bold mb-2 ${dark ? 'text-slate-300' : 'text-slate-600'}`}>من يستطيع المشاهدة؟</label>
+          <label className={`block text-sm font-bold mb-2 ${dark ? 'text-[#F2EDE5]' : 'text-slate-600'}`}>من يستطيع المشاهدة؟</label>
           <div className="grid grid-cols-2 gap-2">
             {[{ v: 'all', l: '📢 كل الطلاب' }, { v: 'stages', l: '📚 مراحل محددة' }].map(({ v, l }) => (
               <button key={v} type="button" onClick={() => setAccess(v)}
-                className={`py-2.5 rounded-xl text-sm font-bold border transition-all ${access === v ? 'bg-purple-600 text-white border-purple-600' : dark ? 'border-slate-600 text-slate-300 hover:border-purple-400' : 'border-slate-300 text-slate-600 hover:border-purple-400'}`}>
+                className={`py-2.5 rounded-xl text-sm font-bold border transition-all ${access === v ? 'bg-purple-600 text-white border-purple-600' : dark ? 'border-[rgba(230,175,80,0.18)] text-[#F2EDE5] hover:border-purple-400' : 'border-slate-300 text-slate-600 hover:border-purple-400'}`}>
                 {l}
               </button>
             ))}
           </div>
           {access === 'stages' && (
-            <div className={`mt-3 rounded-xl border p-3 ${dark ? 'border-slate-700 bg-slate-800/40' : 'border-slate-200 bg-slate-50'}`}>
+            <div className={`mt-3 rounded-xl border p-3 ${dark ? 'border-[rgba(230,175,80,0.12)] bg-[#17151F]/70' : 'border-slate-200 bg-slate-50'}`}>
               <StagesSelector selected={selStages} onChange={setSelStages} dark={dark} />
             </div>
           )}
         </div>
-        <div className={`rounded-xl border p-4 space-y-4 ${dark ? 'border-slate-700 bg-slate-800/40' : 'border-slate-200 bg-slate-50'}`}>
+        <div className={`rounded-xl border p-4 space-y-4 ${dark ? 'border-[rgba(230,175,80,0.12)] bg-[#17151F]/70' : 'border-slate-200 bg-slate-50'}`}>
           <div className="flex items-center justify-between gap-3">
             <p className={`text-sm font-bold ${dark ? 'text-white' : 'text-slate-700'}`}>تفعيل الدردشة</p>
             <Toggle on={chatOn} onClick={() => setChatOn(p => !p)} />
@@ -748,7 +748,7 @@ function IdleView({ onGoToForm, onSchedule, onStarted, dark }) {
           <Radio className="w-9 h-9 text-red-500" />
         </div>
         <h2 className={`text-2xl font-black mb-2 ${dark ? 'text-white' : 'text-slate-800'}`}>البث المباشر</h2>
-        <p className={`text-sm mb-6 max-w-sm leading-relaxed ${dark ? 'text-slate-400' : 'text-slate-500'}`}>
+        <p className={`text-sm mb-6 max-w-sm leading-relaxed ${dark ? 'text-[#C4B8AC]' : 'text-[#8A7E72]'}`}>
           تواصل مع طلابك مباشرةً أو جدول موعداً مسبقاً فيظهر للطلاب مع عدّاد تنازلي.
         </p>
         <div className="flex gap-3 flex-wrap justify-center">
@@ -771,7 +771,7 @@ function IdleView({ onGoToForm, onSchedule, onStarted, dark }) {
             {scheduled.length > 0 && <span className="mr-2 text-sm font-bold text-purple-500">({scheduled.length})</span>}
           </h3>
           <button onClick={() => refetch()} disabled={isLoading}
-            className={`p-1.5 rounded-lg transition-colors ${dark ? 'text-slate-400 hover:bg-slate-700' : 'text-slate-400 hover:bg-slate-100'}`}>
+            className={`p-1.5 rounded-lg transition-colors ${dark ? 'text-[#C4B8AC] hover:bg-[#1F1C2C]' : 'text-[#C4B8AC] hover:bg-slate-100'}`}>
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
           </button>
         </div>
@@ -779,7 +779,7 @@ function IdleView({ onGoToForm, onSchedule, onStarted, dark }) {
         {isLoading ? (
           <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 text-purple-500 animate-spin" /></div>
         ) : scheduled.length === 0 ? (
-          <div className={`text-center py-10 rounded-2xl border border-dashed ${dark ? 'border-slate-700 text-slate-500' : 'border-slate-300 text-slate-400'}`}>
+          <div className={`text-center py-10 rounded-2xl border border-dashed ${dark ? 'border-[rgba(230,175,80,0.12)] text-[#8A7E72]' : 'border-slate-300 text-[#C4B8AC]'}`}>
             <Calendar className="w-8 h-8 mx-auto mb-2 opacity-40" />
             <p className="text-sm">لا توجد بثوث مجدولة</p>
             <p className="text-xs mt-1 opacity-70">اضغط "جدول موعداً" لإضافة بث مستقبلي</p>
@@ -839,7 +839,7 @@ export default function TeacherLiveStream() {
   }
 
   return (
-    <div className={`h-full overflow-y-auto ${dark ? 'bg-slate-900' : 'bg-gray-50'}`}>
+    <div className={`h-full overflow-y-auto ${dark ? 'bg-[#0F0E15]' : 'bg-gray-50'}`}>
       {view === 'form'
         ? <StreamForm dark={dark} onBack={() => setView('idle')} onStarted={handleStarted} />
         : view === 'schedule'

@@ -66,8 +66,8 @@ function ChatPanel({ stream, studentName, dark, onClose }) {
   };
 
   return (
-    <div className={`flex flex-col h-full ${dark ? 'bg-slate-900' : 'bg-white'}`}>
-      <div className={`px-3 py-2.5 border-b flex items-center justify-between flex-shrink-0 ${dark ? 'border-slate-700' : 'border-slate-200'}`}>
+    <div className={`flex flex-col h-full ${dark ? 'bg-[#0F0E15]' : 'bg-white'}`}>
+      <div className={`px-3 py-2.5 border-b flex items-center justify-between flex-shrink-0 ${dark ? 'border-[rgba(230,175,80,0.12)]' : 'border-slate-200'}`}>
         <div className="flex items-center gap-2">
           <MessageSquare className="w-4 h-4 text-green-500" />
           <span className={`text-sm font-bold ${dark ? 'text-white' : 'text-slate-700'}`}>الدردشة</span>
@@ -78,7 +78,7 @@ function ChatPanel({ stream, studentName, dark, onClose }) {
           )}
         </div>
         {onClose && (
-          <button onClick={onClose} className={`p-1.5 rounded-lg transition-colors ${dark ? 'text-slate-400 hover:bg-slate-700' : 'text-slate-400 hover:bg-slate-100'}`}>
+          <button onClick={onClose} className={`p-1.5 rounded-lg transition-colors ${dark ? 'text-[#C4B8AC] hover:bg-[#1F1C2C]' : 'text-[#C4B8AC] hover:bg-slate-100'}`}>
             <X className="w-4 h-4" />
           </button>
         )}
@@ -87,12 +87,12 @@ function ChatPanel({ stream, studentName, dark, onClose }) {
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
         {messages.length === 0 ? (
           <div className="text-center py-12">
-            <MessageSquare className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-            <p className={`text-xs ${dark ? 'text-slate-500' : 'text-slate-400'}`}>لا توجد رسائل بعد</p>
+            <MessageSquare className="w-8 h-8 mx-auto mb-2 text-[#F2EDE5]" />
+            <p className={`text-xs ${dark ? 'text-[#8A7E72]' : 'text-[#C4B8AC]'}`}>لا توجد رسائل بعد</p>
           </div>
         ) : messages.map(msg => (
           <div key={msg.id} className={`flex flex-col gap-0.5 ${msg.sender_type === 'student' && msg.sender_name === studentName ? 'items-end' : 'items-start'}`}>
-            <span className={`text-[10px] px-1 ${msg.sender_type === 'teacher' ? 'text-orange-400 font-bold' : 'text-slate-400'}`}>
+            <span className={`text-[10px] px-1 ${msg.sender_type === 'teacher' ? 'text-orange-400 font-bold' : 'text-[#C4B8AC]'}`}>
               {msg.sender_type === 'teacher' ? `👨‍🏫 ${msg.sender_name}` : msg.sender_name}
             </span>
             <div className={`text-sm px-3 py-2 rounded-2xl max-w-[90%] leading-relaxed ${
@@ -100,7 +100,7 @@ function ChatPanel({ stream, studentName, dark, onClose }) {
                 ? 'bg-navy-600 text-white rounded-bl-sm'
                 : msg.sender_name === studentName
                   ? 'bg-orange-500 text-white rounded-br-sm'
-                  : dark ? 'bg-slate-700 text-white rounded-br-sm' : 'bg-slate-100 text-slate-800 rounded-br-sm'
+                  : dark ? 'bg-[#1F1C2C] text-white rounded-br-sm' : 'bg-slate-100 text-slate-800 rounded-br-sm'
             }`}>
               {msg.message}
             </div>
@@ -109,9 +109,9 @@ function ChatPanel({ stream, studentName, dark, onClose }) {
         <div ref={bottomRef} />
       </div>
 
-      <div className={`p-3 border-t flex-shrink-0 ${dark ? 'border-slate-700' : 'border-slate-200'}`}>
+      <div className={`p-3 border-t flex-shrink-0 ${dark ? 'border-[rgba(230,175,80,0.12)]' : 'border-slate-200'}`}>
         {!chatEnabled ? (
-          <div className={`text-center text-xs py-2 rounded-xl ${dark ? 'text-slate-500 bg-slate-800' : 'text-slate-400 bg-slate-50'}`}>
+          <div className={`text-center text-xs py-2 rounded-xl ${dark ? 'text-[#8A7E72] bg-[#17151F]' : 'text-[#C4B8AC] bg-slate-50'}`}>
             <MessageCircleOff className="w-4 h-4 mx-auto mb-1" />
             الدردشة معطلة من قِبَل المعلم
           </div>
@@ -122,7 +122,7 @@ function ChatPanel({ stream, studentName, dark, onClose }) {
               onChange={e => setText(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); } }}
               placeholder="اكتب رسالة..."
-              className={`flex-1 text-sm border rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400 ${dark ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-500' : 'bg-white border-slate-300 text-slate-800'}`}
+              className={`flex-1 text-sm border rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400 ${dark ? 'bg-[#1F1C2C] border-[rgba(230,175,80,0.18)] text-white placeholder-[#8A7E72]' : 'bg-white border-slate-300 text-slate-800'}`}
             />
             <button onClick={sendMsg} disabled={!text.trim() || sending}
               className="p-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl disabled:opacity-50 transition-colors">
@@ -291,7 +291,7 @@ function LiveView({ stream, user, dark, onLeave }) {
         {/* Desktop: fixed-width side panel */}
         {chatOpen && (
           <div className={`flex flex-col min-h-0 flex-1 md:flex-none md:w-72 border-t md:border-t-0 md:border-r
-            ${dark ? 'border-slate-700' : 'border-slate-200'}`}>
+            ${dark ? 'border-[rgba(230,175,80,0.12)]' : 'border-slate-200'}`}>
             <ChatPanel stream={stream} studentName={user?.name} dark={dark} onClose={() => setChatOpen(false)} />
           </div>
         )}
@@ -331,7 +331,7 @@ function ScheduledCard({ stream, dark }) {
   const isPast = new Date(stream.scheduled_at).getTime() <= Date.now();
 
   return (
-    <div className={`rounded-2xl border p-5 ${dark ? 'bg-slate-800/60 border-slate-700' : 'bg-white border-slate-200'}`}>
+    <div className={`rounded-2xl border p-5 ${dark ? 'bg-[#17151F]/90 border-[rgba(230,175,80,0.12)]' : 'bg-white border-slate-200'}`}>
       <div className="flex items-start gap-4">
         <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
              style={{ background: 'rgba(139,92,246,0.12)', border: '2px solid rgba(139,92,246,0.25)' }}>
@@ -341,14 +341,14 @@ function ScheduledCard({ stream, dark }) {
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span className="text-xs bg-purple-600 text-white font-black px-2 py-0.5 rounded-full">قادم قريباً</span>
             {stream.teacher_name && (
-              <span className={`text-xs ${dark ? 'text-slate-400' : 'text-slate-500'}`}>👨‍🏫 {stream.teacher_name}</span>
+              <span className={`text-xs ${dark ? 'text-[#C4B8AC]' : 'text-[#8A7E72]'}`}>👨‍🏫 {stream.teacher_name}</span>
             )}
           </div>
           <h3 className={`font-black text-base mb-1 truncate ${dark ? 'text-white' : 'text-slate-800'}`}>{stream.title}</h3>
           {stream.description && (
-            <p className={`text-sm leading-relaxed mb-2 line-clamp-2 ${dark ? 'text-slate-400' : 'text-slate-500'}`}>{stream.description}</p>
+            <p className={`text-sm leading-relaxed mb-2 line-clamp-2 ${dark ? 'text-[#C4B8AC]' : 'text-[#8A7E72]'}`}>{stream.description}</p>
           )}
-          <div className={`flex items-center gap-3 text-xs ${dark ? 'text-slate-400' : 'text-slate-500'}`}>
+          <div className={`flex items-center gap-3 text-xs ${dark ? 'text-[#C4B8AC]' : 'text-[#8A7E72]'}`}>
             <span className="flex items-center gap-1">
               <Clock className="w-3.5 h-3.5" />
               {dateStr}
@@ -390,7 +390,7 @@ function StreamCard({ stream, onJoin, dark }) {
   };
 
   return (
-    <div className={`rounded-2xl border p-5 transition-all hover:shadow-lg ${dark ? 'bg-slate-800 border-slate-700 hover:border-red-500/50' : 'bg-white border-slate-200 hover:border-red-300'}`}>
+    <div className={`rounded-2xl border p-5 transition-all hover:shadow-lg ${dark ? 'bg-[#17151F] border-[rgba(230,175,80,0.12)] hover:border-red-500/50' : 'bg-white border-slate-200 hover:border-red-300'}`}>
       <div className="flex items-start gap-4">
         <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
              style={{ background: 'rgba(239,68,68,0.12)', border: '2px solid rgba(239,68,68,0.25)' }}>
@@ -400,14 +400,14 @@ function StreamCard({ stream, onJoin, dark }) {
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span className="text-xs bg-red-600 text-white font-black px-2 py-0.5 rounded-full">مباشر الآن</span>
             {stream.teacher_name && (
-              <span className={`text-xs ${dark ? 'text-slate-400' : 'text-slate-500'}`}>👨‍🏫 {stream.teacher_name}</span>
+              <span className={`text-xs ${dark ? 'text-[#C4B8AC]' : 'text-[#8A7E72]'}`}>👨‍🏫 {stream.teacher_name}</span>
             )}
           </div>
           <h3 className={`font-black text-base mb-1 truncate ${dark ? 'text-white' : 'text-slate-800'}`}>{stream.title}</h3>
           {stream.description && (
-            <p className={`text-sm leading-relaxed mb-3 line-clamp-2 ${dark ? 'text-slate-400' : 'text-slate-500'}`}>{stream.description}</p>
+            <p className={`text-sm leading-relaxed mb-3 line-clamp-2 ${dark ? 'text-[#C4B8AC]' : 'text-[#8A7E72]'}`}>{stream.description}</p>
           )}
-          <div className={`flex items-center gap-3 text-xs mb-4 ${dark ? 'text-slate-400' : 'text-slate-500'}`}>
+          <div className={`flex items-center gap-3 text-xs mb-4 ${dark ? 'text-[#C4B8AC]' : 'text-[#8A7E72]'}`}>
             <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" />{stream.viewer_count || 0} مشاهد</span>
             <span>⏱ منذ {elapsed}</span>
             {!stream.chat_enabled && <span className="flex items-center gap-1"><MessageCircleOff className="w-3.5 h-3.5" /> دردشة معطلة</span>}
@@ -449,7 +449,7 @@ function LobbyView({ dark, onJoin }) {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h2 className={`text-xl font-black ${dark ? 'text-white' : 'text-slate-800'}`}>البث المباشر</h2>
-          <p className={`text-sm ${dark ? 'text-slate-400' : 'text-slate-500'}`}>
+          <p className={`text-sm ${dark ? 'text-[#C4B8AC]' : 'text-[#8A7E72]'}`}>
             {active.length > 0
               ? `${active.length} بث مباشر الآن`
               : upcoming.length > 0
@@ -458,7 +458,7 @@ function LobbyView({ dark, onJoin }) {
           </p>
         </div>
         <button onClick={() => refetch()} disabled={isLoading}
-          className={`p-2 rounded-xl transition-colors ${dark ? 'text-slate-400 hover:bg-slate-700 hover:text-white' : 'text-slate-500 hover:bg-slate-100'}`}>
+          className={`p-2 rounded-xl transition-colors ${dark ? 'text-[#C4B8AC] hover:bg-[#1F1C2C] hover:text-white' : 'text-[#8A7E72] hover:bg-slate-100'}`}>
           <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
         </button>
       </div>
@@ -466,20 +466,20 @@ function LobbyView({ dark, onJoin }) {
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-20">
           <Loader2 className="w-10 h-10 text-red-500 animate-spin mb-4" />
-          <p className={`text-sm ${dark ? 'text-slate-400' : 'text-slate-500'}`}>جارٍ التحقق من البثوث المتاحة...</p>
+          <p className={`text-sm ${dark ? 'text-[#C4B8AC]' : 'text-[#8A7E72]'}`}>جارٍ التحقق من البثوث المتاحة...</p>
         </div>
       ) : allStreams.length === 0 ? (
-        <div className={`text-center py-20 rounded-2xl border ${dark ? 'border-slate-700 bg-slate-800/40' : 'border-slate-200 bg-slate-50'}`}>
+        <div className={`text-center py-20 rounded-2xl border ${dark ? 'border-[rgba(230,175,80,0.12)] bg-[#17151F]/70' : 'border-slate-200 bg-slate-50'}`}>
           <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4"
                style={{ background: 'rgba(239,68,68,0.08)', border: '2px solid rgba(239,68,68,0.2)' }}>
             <Radio className="w-9 h-9 text-red-400" />
           </div>
           <h3 className={`font-black text-lg mb-2 ${dark ? 'text-white' : 'text-slate-700'}`}>لا يوجد بث مباشر الآن</h3>
-          <p className={`text-sm max-w-xs mx-auto leading-relaxed ${dark ? 'text-slate-400' : 'text-slate-500'}`}>
+          <p className={`text-sm max-w-xs mx-auto leading-relaxed ${dark ? 'text-[#C4B8AC]' : 'text-[#8A7E72]'}`}>
             ستظهر هنا أي جلسة بث مباشر يفتحها معلمك. ستصلك إشعاراً فور بدء البث.
           </p>
           <button onClick={() => refetch()}
-            className={`mt-5 flex items-center gap-1.5 mx-auto text-sm font-bold px-4 py-2 rounded-xl transition-colors ${dark ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-600 hover:bg-slate-200'}`}>
+            className={`mt-5 flex items-center gap-1.5 mx-auto text-sm font-bold px-4 py-2 rounded-xl transition-colors ${dark ? 'text-[#F2EDE5] hover:bg-[#1F1C2C]' : 'text-slate-600 hover:bg-slate-200'}`}>
             <RefreshCw className="w-4 h-4" /> تحديث
           </button>
         </div>
@@ -489,7 +489,7 @@ function LobbyView({ dark, onJoin }) {
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
-                <h3 className={`text-sm font-black ${dark ? 'text-slate-400' : 'text-slate-500'}`}>مباشر الآن</h3>
+                <h3 className={`text-sm font-black ${dark ? 'text-[#C4B8AC]' : 'text-[#8A7E72]'}`}>مباشر الآن</h3>
               </div>
               <div className="space-y-4">
                 {active.map(s => <StreamCard key={s.id} stream={s} dark={dark} onJoin={onJoin} />)}
@@ -500,7 +500,7 @@ function LobbyView({ dark, onJoin }) {
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <Calendar className="w-4 h-4 text-purple-500 flex-shrink-0" />
-                <h3 className={`text-sm font-black ${dark ? 'text-slate-400' : 'text-slate-500'}`}>مواعيد قادمة</h3>
+                <h3 className={`text-sm font-black ${dark ? 'text-[#C4B8AC]' : 'text-[#8A7E72]'}`}>مواعيد قادمة</h3>
               </div>
               <div className="space-y-4">
                 {upcoming.map(s => <ScheduledCard key={s.id} stream={s} dark={dark} />)}
@@ -539,7 +539,7 @@ export default function StudentLiveStream() {
   }
 
   return (
-    <div className={`h-full overflow-y-auto ${dark ? 'bg-slate-900' : 'bg-gray-50'}`}>
+    <div className={`h-full overflow-y-auto ${dark ? 'bg-[#0F0E15]' : 'bg-gray-50'}`}>
       <LobbyView dark={dark} onJoin={handleJoin} />
     </div>
   );
