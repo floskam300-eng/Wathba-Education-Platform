@@ -224,15 +224,19 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
       if (isLandscape && !document.fullscreenElement && !document.webkitFullscreenElement) {
         const fsReq = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen;
         if (fsReq) {
-          fsReq.call(el).catch(() => { setCssFullscreen(true); setIsFullscreen(true); });
+          fsReq.call(el)
+            .then(() => {
+              try { screen.orientation?.lock?.('landscape').catch(() => {}); } catch (_) {}
+            })
+            .catch(() => { setCssFullscreen(true); setIsFullscreen(true); });
         } else {
           setCssFullscreen(true); setIsFullscreen(true);
         }
-        try { screen.orientation?.lock?.('landscape').catch(() => {}); } catch (_) {}
       } else if (!isLandscape) {
         if (document.fullscreenElement || document.webkitFullscreenElement) {
           try { (document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen)?.call(document); } catch (_) {}
         }
+        try { screen.orientation?.unlock?.(); } catch (_) {}
         setCssFullscreen(false); setIsFullscreen(false);
       }
     };
@@ -433,6 +437,7 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
       if (inNativeFs) {
         try { (document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen)?.call(document); } catch (_) {}
       }
+      try { screen.orientation?.unlock?.(); } catch (_) {}
       setCssFullscreen(false);
       setIsFullscreen(false);
       return;
@@ -441,10 +446,14 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
     if (!el) return;
     const fsReq = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen;
     if (fsReq) {
-      fsReq.call(el).catch(() => {
-        setCssFullscreen(true);
-        setIsFullscreen(true);
-      });
+      fsReq.call(el)
+        .then(() => {
+          try { screen.orientation?.lock?.('landscape').catch(() => {}); } catch (_) {}
+        })
+        .catch(() => {
+          setCssFullscreen(true);
+          setIsFullscreen(true);
+        });
     } else {
       setCssFullscreen(true);
       setIsFullscreen(true);
@@ -643,15 +652,19 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
       if (isLandscape && !document.fullscreenElement && !document.webkitFullscreenElement) {
         const fsReq = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen;
         if (fsReq) {
-          fsReq.call(el).catch(() => { setCssFullscreen(true); setIsFullscreen(true); });
+          fsReq.call(el)
+            .then(() => {
+              try { screen.orientation?.lock?.('landscape').catch(() => {}); } catch (_) {}
+            })
+            .catch(() => { setCssFullscreen(true); setIsFullscreen(true); });
         } else {
           setCssFullscreen(true); setIsFullscreen(true);
         }
-        try { screen.orientation?.lock?.('landscape').catch(() => {}); } catch (_) {}
       } else if (!isLandscape) {
         if (document.fullscreenElement || document.webkitFullscreenElement) {
           try { (document.exitFullscreen || document.webkitExitFullscreen)?.call(document); } catch (_) {}
         }
+        try { screen.orientation?.unlock?.(); } catch (_) {}
         setCssFullscreen(false); setIsFullscreen(false);
       }
     };
@@ -724,6 +737,7 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
       if (inNativeFs) {
         try { (document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen)?.call(document); } catch (_) {}
       }
+      try { screen.orientation?.unlock?.(); } catch (_) {}
       setCssFullscreen(false);
       setIsFullscreen(false);
       return;
@@ -732,14 +746,18 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
     if (!el) return;
     const fsReq = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen;
     if (fsReq) {
-      fsReq.call(el).catch(() => {
-        if (videoRef.current?.webkitEnterFullscreen) {
-          videoRef.current.webkitEnterFullscreen();
-        } else {
-          setCssFullscreen(true);
-          setIsFullscreen(true);
-        }
-      });
+      fsReq.call(el)
+        .then(() => {
+          try { screen.orientation?.lock?.('landscape').catch(() => {}); } catch (_) {}
+        })
+        .catch(() => {
+          if (videoRef.current?.webkitEnterFullscreen) {
+            videoRef.current.webkitEnterFullscreen();
+          } else {
+            setCssFullscreen(true);
+            setIsFullscreen(true);
+          }
+        });
     } else if (videoRef.current?.webkitEnterFullscreen) {
       videoRef.current.webkitEnterFullscreen();
     } else {
