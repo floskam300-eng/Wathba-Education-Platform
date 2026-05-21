@@ -215,7 +215,7 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExams
       let studentIds = [];
       if (exam.course_id) {
         const sRes = await pool.query(
-          'SELECT student_id AS id FROM student_course_enrollment WHERE course_id=$1',
+          "SELECT student_id AS id FROM student_course_enrollment WHERE course_id=$1 AND status='active'",
           [exam.course_id]
         );
         studentIds = sRes.rows.map(r => r.id);
