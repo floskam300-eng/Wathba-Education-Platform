@@ -44,6 +44,8 @@ import StudentEvents from './pages/student/Events';
 import StickmanRunPage from './pages/student/games/StickmanRunPage';
 import ExamReviewPage from './pages/ExamReviewPage';
 import ParentPortal from './pages/ParentPortal';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import TermsAndConditions from './pages/TermsAndConditions';
 
 // ─── Error Boundary ────────────────────────────────────────────────────────────
 class ErrorBoundary extends React.Component {
@@ -231,6 +233,8 @@ const AppRoutes = () => {
 
       {/* Root — SaaS marketing page */}
       <Route path="/" element={<PlatformHome />} />
+      <Route path="/privacy" element={<PrivacyPolicy />} />
+      <Route path="/terms" element={<TermsAndConditions />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

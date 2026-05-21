@@ -476,6 +476,8 @@ export default function PlatformHome() {
           <div className="flex items-center gap-4 text-white/40 text-sm">
             <a href={WHATSAPP} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">واتساب</a>
             <a href="mailto:dev@wathba.com" className="hover:text-white transition-colors">البريد الإلكتروني</a>
+            <a href="/terms" className="hover:text-white transition-colors">الشروط والأحكام</a>
+            <a href="/privacy" className="hover:text-white transition-colors">سياسة الخصوصية</a>
           </div>
         </div>
       </footer>
