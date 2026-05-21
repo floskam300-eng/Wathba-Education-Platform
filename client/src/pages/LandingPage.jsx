@@ -366,7 +366,19 @@ export default function LandingPage() {
             <Reveal delay={0.1} className="lg:col-span-2">
               <div className="bg-white/[0.04] border border-white/[0.08] rounded-2xl p-7 text-center">
                 <div className="relative inline-block mb-5">
-                  <div className="w-28 h-28 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-700 flex items-center justify-center text-4xl font-black text-white shadow-xl shadow-orange-500/25 mx-auto">
+                  {teacher?.photo_url ? (
+                    <img
+                      src={teacher.photo_url.startsWith('http') ? teacher.photo_url : `/uploads/${teacher.photo_url}`}
+                      alt={teacher.name}
+                      className="w-28 h-28 rounded-2xl object-cover shadow-xl shadow-orange-500/25 mx-auto border-2 border-orange-500/30"
+                      onError={e => {
+                        e.target.style.display = 'none';
+                        e.target.nextSibling.style.display = 'flex';
+                      }}
+                    />
+                  ) : null}
+                  <div className="w-28 h-28 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-700 items-center justify-center text-4xl font-black text-white shadow-xl shadow-orange-500/25 mx-auto"
+                    style={{ display: teacher?.photo_url ? 'none' : 'flex' }}>
                     {teacher?.name?.charAt(0) || 'م'}
                   </div>
                   <div className="absolute -bottom-2 -left-2 w-8 h-8 rounded-xl bg-emerald-500 flex items-center justify-center shadow-lg border-2 border-[#070b15]">

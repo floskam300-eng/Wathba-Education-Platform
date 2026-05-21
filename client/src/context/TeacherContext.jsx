@@ -17,6 +17,24 @@ function applyFavicon(url) {
   });
 }
 
+function applyManifest(slug, appName) {
+  let link = document.querySelector("link[rel='manifest']");
+  if (!link) {
+    link = document.createElement('link');
+    link.rel = 'manifest';
+    document.head.appendChild(link);
+  }
+  link.href = `/api/public/manifest/${slug}`;
+
+  const setMeta = (name, val) => {
+    let el = document.querySelector(`meta[name='${name}']`);
+    if (!el) { el = document.createElement('meta'); el.name = name; document.head.appendChild(el); }
+    el.content = val;
+  };
+  setMeta('apple-mobile-web-app-title', appName);
+  setMeta('application-name', appName);
+}
+
 export function TeacherProvider({ children }) {
   const { teacherSlug } = useParams();
 
@@ -38,7 +56,8 @@ export function TeacherProvider({ children }) {
     if (!teacher) return;
     document.title = platformName;
     if (logoUrl) applyFavicon(logoUrl);
-  }, [teacher, platformName, logoUrl]);
+    applyManifest(teacherSlug, platformName);
+  }, [teacher, platformName, logoUrl, teacherSlug]);
 
   return (
     <TeacherContext.Provider value={{

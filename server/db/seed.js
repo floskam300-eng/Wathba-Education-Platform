@@ -52,19 +52,23 @@ async function seed() {
   let [adminRow] = await q(`SELECT id FROM teachers WHERE username='admin'`);
   if (!adminRow) {
     [adminRow] = await q(`
-      INSERT INTO teachers (username, password, name, bio, classification, whatsapp_phone, slug, platform_name)
-      VALUES ('admin', $1, 'أ/ محمد عبد الرحمن', 'معلم رياضيات بخبرة 20 عاماً', 'مدرس رياضيات', '+201000000000', 'admin', 'أكاديمية محمد للرياضيات')
+      INSERT INTO teachers (username, password, name, bio, classification, whatsapp_phone, slug, platform_name, logo_url, photo_url)
+      VALUES ('admin', $1, 'أ/ محمد عبد الرحمن', 'معلم رياضيات بخبرة 20 عاماً', 'مدرس رياضيات', '+201000000000', 'admin', 'أكاديمية محمد للرياضيات',
+        'https://ui-avatars.com/api/?name=MA&background=f97316&color=fff&size=256&bold=true',
+        'https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=300&h=300&fit=crop&auto=format')
       RETURNING id
     `, [passAd]);
   } else {
     await q(`
       UPDATE teachers SET
-        name = 'أ/ محمد عبد الرحمن',
-        bio = 'معلم رياضيات بخبرة 20 عاماً، متخصص في الثانوية العامة والإعدادية. نجح على يديه أكثر من 4000 طالب.',
+        name           = 'أ/ محمد عبد الرحمن',
+        bio            = 'معلم رياضيات بخبرة 20 عاماً، متخصص في الثانوية العامة والإعدادية. نجح على يديه أكثر من 4000 طالب.',
         classification = 'مدرس رياضيات — ثانوية عامة وإعدادية',
         whatsapp_phone = '+201000000000',
-        slug = 'admin',
-        platform_name = 'أكاديمية محمد للرياضيات'
+        slug           = 'admin',
+        platform_name  = 'أكاديمية محمد للرياضيات',
+        logo_url       = 'https://ui-avatars.com/api/?name=MA&background=f97316&color=fff&size=256&bold=true',
+        photo_url      = 'https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=300&h=300&fit=crop&auto=format'
       WHERE id = $1
     `, [adminRow.id]);
   }
@@ -73,11 +77,13 @@ async function seed() {
 
   // المدرسة الثانية
   const [t2] = await q(`
-    INSERT INTO teachers (username, password, name, bio, classification, whatsapp_phone, slug, platform_name)
+    INSERT INTO teachers (username, password, name, bio, classification, whatsapp_phone, slug, platform_name, logo_url, photo_url)
     VALUES ('ms_sara', $1, 'أ/ سارة خالد الحسيني',
             'مدرسة علوم متميزة بخبرة 12 عاماً في تدريس الأحياء والكيمياء. خريجة كلية العلوم جامعة عين شمس.',
             'مدرسة علوم — أحياء وكيمياء', '+201100000000',
-            'ms-sara', 'منصة سارة للعلوم')
+            'ms-sara', 'منصة سارة للعلوم',
+            'https://ui-avatars.com/api/?name=SK&background=7c3aed&color=fff&size=256&bold=true',
+            'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=300&h=300&fit=crop&auto=format')
     RETURNING id
   `, [pass6]);
   const T2 = t2.id;
@@ -85,11 +91,13 @@ async function seed() {
 
   // المدرس الثالث
   const [t3] = await q(`
-    INSERT INTO teachers (username, password, name, bio, classification, whatsapp_phone, slug, platform_name)
+    INSERT INTO teachers (username, password, name, bio, classification, whatsapp_phone, slug, platform_name, logo_url, photo_url)
     VALUES ('mr_karim', $1, 'أ/ كريم الشافعي',
             'معلم لغة عربية ومدرب خطابة بخبرة 15 عاماً. متخصص في الثانوية العامة والكفاءة اللغوية.',
             'مدرس لغة عربية — ثانوية وإعدادية', '+201200000000',
-            'mr-karim', 'مركز كريم للغة العربية')
+            'mr-karim', 'مركز كريم للغة العربية',
+            'https://ui-avatars.com/api/?name=KS&background=10b981&color=fff&size=256&bold=true',
+            'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&h=300&fit=crop&auto=format')
     RETURNING id
   `, [pass6]);
   const T3 = t3.id;

@@ -151,4 +151,73 @@ router.get('/parent-lookup', async (req, res) => {
   }
 });
 
+// Dynamic PWA manifest — scoped to a specific teacher slug
+router.get('/manifest/:slug', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT name, platform_name, logo_url FROM teachers WHERE slug = $1',
+      [req.params.slug]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+
+    const t = result.rows[0];
+    const appName  = t.platform_name || t.name || 'منصة تعليمية';
+    const shortName = appName.length > 14 ? appName.slice(0, 14) : appName;
+
+    const rawLogo = t.logo_url;
+    const logoSrc = rawLogo
+      ? (rawLogo.startsWith('http') ? rawLogo : `${req.protocol}://${req.get('host')}${rawLogo.startsWith('/') ? '' : '/'}${rawLogo}`)
+      : null;
+
+    const icons = logoSrc
+      ? [
+          { src: logoSrc, sizes: '48x48',   type: 'image/png', purpose: 'any' },
+          { src: logoSrc, sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: logoSrc, sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+        ]
+      : [
+          { src: '/icon-48.png',  sizes: '48x48',   type: 'image/png', purpose: 'any' },
+          { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+        ];
+
+    const manifest = {
+      name:             appName,
+      short_name:       shortName,
+      description:      `منصة ${appName} التعليمية`,
+      start_url:        `/${req.params.slug}/student`,
+      scope:            `/${req.params.slug}/`,
+      display:          'standalone',
+      orientation:      'portrait',
+      background_color: '#0F0E15',
+      theme_color:      '#f97316',
+      lang:             'ar',
+      dir:              'rtl',
+      icons,
+      categories: ['education'],
+      shortcuts: [
+        {
+          name:      'لوحتي',
+          short_name:'لوحتي',
+          url:       `/${req.params.slug}/student`,
+          icons:     [{ src: logoSrc || '/icon-192.png', sizes: '192x192' }],
+        },
+        {
+          name:      'كورساتي',
+          short_name:'كورسات',
+          url:       `/${req.params.slug}/student/courses`,
+          icons:     [{ src: logoSrc || '/icon-192.png', sizes: '192x192' }],
+        },
+      ],
+    };
+
+    res.setHeader('Content-Type', 'application/manifest+json');
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.json(manifest);
+  } catch (err) {
+    console.error('Manifest error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;

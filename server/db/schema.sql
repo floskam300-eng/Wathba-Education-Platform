@@ -477,3 +477,9 @@ ALTER TABLE teachers ADD COLUMN IF NOT EXISTS platform_name VARCHAR(200);
 UPDATE teachers
    SET slug = regexp_replace(lower(trim(username)), '[^a-z0-9]+', '-', 'g')
  WHERE slug IS NULL OR slug = '';
+
+-- ── Ensure logo_url / photo_url always have fallback values (never NULL) ───────
+ALTER TABLE teachers ALTER COLUMN logo_url SET DEFAULT '/wathba-logo.png';
+ALTER TABLE teachers ALTER COLUMN photo_url SET DEFAULT '/uploads/images/default-avatar.png';
+UPDATE teachers SET logo_url  = '/wathba-logo.png'                       WHERE logo_url  IS NULL OR logo_url  = '';
+UPDATE teachers SET photo_url = '/uploads/images/default-avatar.png'     WHERE photo_url IS NULL OR photo_url = '';
