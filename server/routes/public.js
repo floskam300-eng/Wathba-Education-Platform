@@ -79,16 +79,16 @@ router.get('/parent-lookup', async (req, res) => {
       if (tRes.rows.length > 0) teacherId = tRes.rows[0].id;
     }
 
-    // Find student by parent phone, scoped to teacher
-    const studentRes = teacherId
-      ? await pool.query(
-          'SELECT id, name, phone, parent_phone, academic_stage, gender, points, created_at FROM students WHERE parent_phone = $1 AND teacher_id = $2 AND deleted_at IS NULL',
-          [phone.trim(), teacherId]
-        )
-      : await pool.query(
-          'SELECT id, name, phone, parent_phone, academic_stage, gender, points, created_at FROM students WHERE parent_phone = $1 AND deleted_at IS NULL',
-          [phone.trim()]
-        );
+    // Slug is required — never fall back to cross-teacher search
+    if (!teacherId) {
+      return res.status(400).json({ error: 'معرّف المنصة مطلوب' });
+    }
+
+    // Find student by parent phone, strictly scoped to this teacher
+    const studentRes = await pool.query(
+      'SELECT id, name, phone, parent_phone, academic_stage, gender, points, created_at FROM students WHERE parent_phone = $1 AND teacher_id = $2 AND deleted_at IS NULL',
+      [phone.trim(), teacherId]
+    );
 
     if (studentRes.rows.length === 0) {
       return res.status(404).json({ error: 'لم يتم العثور على طالب مرتبط بهذا الرقم' });
@@ -125,16 +125,11 @@ router.get('/parent-lookup', async (req, res) => {
          WHERE vp.student_id = $1`,
         [sid]
       ),
-      // Rank within the same teacher's students
-      teacherId
-        ? pool.query(
-            'SELECT COUNT(*) + 1 AS rank FROM students WHERE points > $1 AND teacher_id = $2 AND deleted_at IS NULL',
-            [student.points, teacherId]
-          )
-        : pool.query(
-            'SELECT COUNT(*) + 1 AS rank FROM students WHERE points > $1 AND deleted_at IS NULL',
-            [student.points]
-          ),
+      // Rank within this teacher's students only
+      pool.query(
+        'SELECT COUNT(*) + 1 AS rank FROM students WHERE points > $1 AND teacher_id = $2 AND deleted_at IS NULL',
+        [student.points, teacherId]
+      ),
     ]);
 
     res.json({

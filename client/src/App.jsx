@@ -6,6 +6,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { LiveStreamProvider } from './context/LiveStreamContext';
 import { TeacherWrapper, TeacherNotFound } from './context/TeacherContext';
 import Login from './pages/Login';
+import PlatformHome from './pages/PlatformHome';
 import LandingPage from './pages/LandingPage';
 import TeacherLayout from './layouts/TeacherLayout';
 import AssistantLayout from './layouts/AssistantLayout';
@@ -120,39 +121,6 @@ function LegacyParentPortalRedirect() {
   return <Navigate to={`/${slug}/parent-portal`} replace />;
 }
 
-// ─── Root Redirect ───────────────────────────────────────────────────────────
-function RootRedirect() {
-  const { user } = useAuth();
-  const slug = localStorage.getItem('wathba_teacher_slug') || user?.teacher_slug;
-  if (user && slug) return <Navigate to={`/${slug}/${user.role}`} replace />;
-  if (slug) return <Navigate to={`/${slug}`} replace />;
-  // Fetch first teacher from DB and redirect
-  return <FetchFirstTeacher />;
-}
-
-function FetchFirstTeacher() {
-  const [slug, setSlug] = React.useState(null);
-  const [done, setDone] = React.useState(false);
-
-  React.useEffect(() => {
-    fetch('/api/public/info')
-      .then(r => r.json())
-      .then(d => {
-        setSlug(d?.teacher?.slug || null);
-        setDone(true);
-      })
-      .catch(() => setDone(true));
-  }, []);
-
-  if (!done) return (
-    <div className="flex items-center justify-center h-screen bg-[#05080f]">
-      <div className="animate-spin w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full" />
-    </div>
-  );
-  if (slug) return <Navigate to={`/${slug}`} replace />;
-  return <TeacherNotFound />;
-}
-
 // ─── Routes ─────────────────────────────────────────────────────────────────────
 const AppRoutes = () => {
   const { user } = useAuth();
@@ -235,8 +203,8 @@ const AppRoutes = () => {
         } />
       </Route>
 
-      {/* Root */}
-      <Route path="/" element={<RootRedirect />} />
+      {/* Root — SaaS marketing page */}
+      <Route path="/" element={<PlatformHome />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
