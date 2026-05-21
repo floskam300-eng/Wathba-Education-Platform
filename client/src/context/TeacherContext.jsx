@@ -57,11 +57,29 @@ export function TeacherProvider({ children }) {
   );
 }
 
+function TeacherOutlet() {
+  const { isLoading, isError, teacher } = useTeacher();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-[#05080f]">
+        <div className="animate-spin w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
+  if (isError || !teacher) {
+    return <TeacherNotFound />;
+  }
+
+  return <Outlet />;
+}
+
 export function TeacherWrapper() {
   const { teacherSlug } = useParams();
   return (
     <TeacherProvider key={teacherSlug}>
-      <Outlet />
+      <TeacherOutlet />
     </TeacherProvider>
   );
 }

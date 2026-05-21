@@ -2,6 +2,7 @@ import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../context/AuthContext';
+import { useTeacher } from '../context/TeacherContext';
 import {
   ArrowRight, CheckCircle, XCircle, Minus, Clock,
   Award
@@ -50,6 +51,7 @@ export default function ExamReviewPage() {
   const { resultId } = useParams();
   const navigate     = useNavigate();
   const { user }     = useAuth();
+  const { teacherSlug } = useTeacher();
   const { data, isLoading, isError } = useQuery({
     queryKey: ['exam-review', resultId],
     queryFn: () => api.get(`/exams/results/${resultId}/review`).then(r => r.data),
@@ -79,8 +81,8 @@ export default function ExamReviewPage() {
 
   const goBack = () => {
     if (window.history.length > 1) navigate(-1);
-    else if (user?.role === 'student') navigate('/student/exams');
-    else navigate('/teacher/exams');
+    else if (user?.role === 'student') navigate(`/${teacherSlug}/student/exams`);
+    else navigate(`/${teacherSlug}/teacher/exams`);
   };
 
   return (

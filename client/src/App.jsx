@@ -171,7 +171,7 @@ const AppRoutes = () => {
         <Route index element={<LandingPage />} />
 
         <Route path="login"
-          element={user ? <Navigate to={`/${user.teacher_slug}/${user.role}`} replace /> : <Login />} />
+          element={user && user.teacher_slug ? <Navigate to={`/${user.teacher_slug}/${user.role}`} replace /> : <Login />} />
 
         <Route path="parent-portal" element={<ParentPortal />} />
 

@@ -227,9 +227,11 @@ export default function Login() {
             </button>
           </form>
 
-          <div className="lp-hint">
-            الحساب الافتراضي:&nbsp;<span>admin / admin123</span>
-          </div>
+          {teacherSlug === 'admin' && (
+            <div className="lp-hint">
+              الحساب الافتراضي:&nbsp;<span>admin / admin123</span>
+            </div>
+          )}
         </div>
 
         <div className="lp-footer">{displayName} © {new Date().getFullYear()} — منصة التعليم الإلكتروني</div>

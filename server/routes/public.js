@@ -14,7 +14,7 @@ router.get('/info', async (req, res) => {
       );
     } else {
       teacherRes = await pool.query(
-        'SELECT id, name, bio, classification, logo_url, photo_url, whatsapp_phone, platform_name, slug, created_at FROM teachers LIMIT 1'
+        'SELECT id, name, bio, classification, logo_url, photo_url, whatsapp_phone, platform_name, slug, created_at FROM teachers ORDER BY id LIMIT 1'
       );
     }
 
