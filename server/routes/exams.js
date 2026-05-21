@@ -493,16 +493,19 @@ router.put('/retry-requests/:reqId/approve', requireRole('teacher', 'assistant')
       "UPDATE exam_retry_requests SET status='approved', teacher_note=$1, handled_at=NOW() WHERE id=$2",
       [teacher_note || null, req.params.reqId]
     );
+    const row = rr.rows[0];
+    // Always delete the old exam session so the student can start a fresh timed attempt
+    // This MUST run regardless of notification success — do NOT wrap in try-catch
+    await pool.query(
+      'DELETE FROM exam_sessions WHERE student_id=$1 AND exam_id=$2',
+      [row.student_id, row.exam_id]
+    );
+    // Notifications are best-effort — swallow errors so they don't block the response
     try {
-      const row = rr.rows[0];
       await pool.query(
         `INSERT INTO notification_log (teacher_id, student_id, recipient_type, message, type, is_read, source, title)
          VALUES ($1, $2, 'student', 'تمت الموافقة على طلب إعادة الاختبار — يمكنك الآن إعادة تأدية الاختبار', 'retry_approved', false, 'platform', 'قبول إعادة اختبار')`,
         [teacherId, row.student_id]
-      );
-      await pool.query(
-        'DELETE FROM exam_sessions WHERE student_id=$1 AND exam_id=$2',
-        [row.student_id, row.exam_id]
       );
       sendEvent(`student_${row.student_id}`, 'retry_approved', { examId: row.exam_id });
       sendFCMToStudents(pool, [row.student_id], 'قبول إعادة اختبار', 'تمت الموافقة على طلب إعادة الاختبار — يمكنك الآن إعادة تأدية الاختبار').catch(() => {});
@@ -757,9 +760,17 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
     const correctLetter = q.correct_answer_letter ? q.correct_answer_letter.toUpperCase() : null;
     const qType = q.question_type || 'mcq';
     let isCorrect = false;
-    if (!studentAnswer) { unanswered++; }
-    else if (studentAnswer === correctLetter) { score += q.points; correct++; isCorrect = true; }
-    else { wrong++; }
+    if (qType === 'essay') {
+      // Essay questions require manual grading — never count as wrong
+      // Store the answer text but leave scoring to teacher
+      unanswered++;
+    } else if (!studentAnswer) {
+      unanswered++;
+    } else if (studentAnswer === correctLetter) {
+      score += q.points; correct++; isCorrect = true;
+    } else {
+      wrong++;
+    }
     return { question_id: q.id, student_answer: studentAnswer, correct_answer: correctLetter, is_correct: isCorrect, question_type: qType };
   });
   const totalPoints = questionsData.reduce((s, q) => s + q.points, 0);
@@ -811,6 +822,8 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
 
     await client.query('COMMIT');
     invalidateCache(exam.teacher_id);
+    // Clean up the exam session after successful submission (best-effort)
+    pool.query('DELETE FROM exam_sessions WHERE student_id=$1 AND exam_id=$2', [studentId, examId]).catch(() => {});
     res.json({ result: resultRow.rows[0], detailedAnswers, normalizedScore, pointsEarned, pass_score: exam.pass_score });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -883,7 +896,7 @@ router.get('/results/:resultId/review', authenticate, async (req, res) => {
     const resultRes = await pool.query(
       `SELECT er.id, er.student_id, er.exam_id, er.score, er.correct_count, er.wrong_count,
               er.unanswered_count, er.points_earned, er.start_time, er.end_time, er.created_at,
-              er.answers,
+              er.answers, er.essay_graded, er.essay_score_adjustment,
               s.name  AS student_name,
               e.title AS exam_title, e.total_score, e.pass_score, e.teacher_id AS exam_teacher_id,
               e.question_source, e.bank_id
@@ -976,7 +989,10 @@ router.get('/results/:resultId/review', authenticate, async (req, res) => {
       const correctAnswer = correctLetter;
 
       let isCorrect;
-      if (!studentAnswer) {
+      if (qType === 'essay') {
+        // Essay questions need manual grading — null means pending, not wrong
+        isCorrect = null;
+      } else if (!studentAnswer) {
         isCorrect = false;
       } else {
         isCorrect = studentAnswer === correctLetter;
@@ -988,6 +1004,8 @@ router.get('/results/:resultId/review', authenticate, async (req, res) => {
         student_answer: studentAnswer,
         correct_answer: correctAnswer,
         is_correct: isCorrect,
+        // essay_pending = true if this is an essay question AND result not yet graded by teacher
+        essay_pending: qType === 'essay' ? !row.essay_graded : undefined,
       };
     });
 

@@ -375,8 +375,8 @@ export default function StudentExams() {
                 <div key={q.id} className={`card ${answers[q.id] ? 'border-2 border-orange-400' : ''}`}>
                   <div className="flex items-center gap-2 mb-1">
                     <p className="text-xs text-gray-600 font-bold">السؤال {qi + 1}</p>
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${qType === 'true_false' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'}`}>
-                      {qType === 'true_false' ? 'صح/خطأ' : 'MCQ'}
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${qType === 'true_false' ? 'bg-purple-100 text-purple-700' : qType === 'essay' ? 'bg-yellow-100 text-yellow-700' : 'bg-orange-100 text-orange-700'}`}>
+                      {qType === 'true_false' ? 'صح/خطأ' : qType === 'essay' ? 'مقال' : 'MCQ'}
                     </span>
                   </div>
                   <p className="font-semibold text-navy-700 mb-4 text-base leading-relaxed">{q.question_text}</p>

@@ -42,7 +42,7 @@ export function TeacherProvider({ children }) {
     queryKey: ['teacher-public', teacherSlug],
     queryFn: () => axios.get(`/api/public/info?slug=${teacherSlug}`).then(r => r.data),
     enabled: !!teacherSlug,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 60 * 1000,
     retry: 1,
   });
 

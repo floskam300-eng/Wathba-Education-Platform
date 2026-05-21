@@ -30,7 +30,7 @@ const generateUsername = async (teacherId, stage, dbPool) => {
   // Fetch all usernames that match PREFIX followed by digits only
   const { rows } = await dbPool.query(
     `SELECT username FROM students
-     WHERE teacher_id = $1 AND username ~ $2`,
+     WHERE teacher_id = $1 AND username ~ $2 AND deleted_at IS NULL`,
     [teacherId, `^${prefix}[0-9]+$`]
   );
   let maxNum = 0;
@@ -88,7 +88,7 @@ router.get('/', requireRole('teacher', 'assistant'), async (req, res) => {
        GROUP BY s.id ORDER BY s.created_at DESC`,
       params
     );
-    res.json(result.rows.map(({ password: _, ...s }) => s));
+    res.json(result.rows.map(({ password: _, plain_password: __, ...s }) => s));
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }
@@ -169,7 +169,7 @@ router.put('/:id', requireRole('teacher', 'assistant'), (req, res, next) => chec
     }
     const result = await pool.query(query, params);
     if (!result.rows.length) return res.status(404).json({ error: 'Student not found' });
-    const { password: _, ...safe } = result.rows[0];
+    const { password: _, plain_password: __, ...safe } = result.rows[0];
     res.json(safe);
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
