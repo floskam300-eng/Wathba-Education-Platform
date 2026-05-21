@@ -251,7 +251,7 @@ export default function LandingPage() {
       {/* ─────────────── NAVBAR ─────────────── */}
       <nav className="fixed top-0 inset-x-0 z-50 nav-glass border-b border-white/[0.07] bg-[#05080f]/85">
         <div className="max-w-7xl mx-auto px-5 h-16 flex items-center justify-between gap-4">
-          <img src={displayLogo} alt={platformName} className="h-11 w-auto" />
+          <img src={displayLogo} alt={platformName} className="h-11 w-auto rounded-xl" />
 
           <div className="hidden md:flex items-center gap-1">
             {[['about','عن المعلم'],['courses','الكورسات'],['features','المميزات'],['assistants','فريق الدعم']].map(([id, label]) => (
@@ -604,7 +604,7 @@ export default function LandingPage() {
       <footer className="border-t border-white/[0.07] py-8 bg-[#05080f]">
         <div className="max-w-7xl mx-auto px-5 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <img src={displayLogo} alt={platformName} className="h-9 w-auto opacity-80" />
+            <img src={displayLogo} alt={platformName} className="h-9 w-auto opacity-80 rounded-xl" />
             <span className="text-white/25 text-xs">المنصة التعليمية المتكاملة</span>
           </div>
           <div className="flex items-center gap-1">

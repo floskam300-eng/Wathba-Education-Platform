@@ -60,7 +60,7 @@ export default function Login() {
       .lp-orb2 { position: absolute; width: 380px; height: 380px; border-radius: 50%; background: radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 70%); bottom: -80px; left: -60px; pointer-events: none; }
       .lp-right { width: 48%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 3rem 2.5rem; background: #0B0A14; position: relative; }
       .lp-right::before { content: ''; position: absolute; top: 0; right: 0; width: 1px; height: 100%; background: linear-gradient(to bottom, transparent 0%, rgba(245,166,35,0.25) 30%, rgba(245,166,35,0.25) 70%, transparent 100%); }
-      .lp-logo { display: block; width: 200px; max-height: 100px; object-fit: contain; margin-bottom: 1.5rem; filter: drop-shadow(0 0 30px rgba(245,166,35,0.25)); animation: lp-logo-in 0.8s ease both; }
+      .lp-logo { display: block; width: 200px; max-height: 100px; object-fit: contain; margin-bottom: 1.5rem; filter: drop-shadow(0 0 30px rgba(245,166,35,0.25)); animation: lp-logo-in 0.8s ease both; border-radius: 16px; }
       @keyframes lp-logo-in { from { opacity:0; transform:translateY(-16px); } to { opacity:1; transform:translateY(0); } }
       .lp-platform-name { font-size: 2.2rem; font-weight: 900; line-height: 1.2; margin-bottom: 0.5rem; background: linear-gradient(135deg, #F2EDE5 0%, #F5A623 60%, #FCD577 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
       .lp-tagline { font-size: 1.1rem; font-weight: 700; line-height: 1.4; margin-bottom: 0.5rem; color: rgba(196,184,172,0.75); }
@@ -100,7 +100,7 @@ export default function Login() {
       .lp-divider { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem; }
       .lp-divider-line { flex: 1; height: 1px; background: rgba(245,166,35,0.12); }
       .lp-divider-text { font-size: 0.72rem; color: rgba(138,126,114,0.5); white-space: nowrap; }
-      .lp-right-logo { display: none; width: 130px; max-height: 65px; object-fit: contain; margin-bottom: 1.5rem; filter: drop-shadow(0 0 20px rgba(245,166,35,0.2)); }
+      .lp-right-logo { display: none; width: 130px; max-height: 65px; object-fit: contain; margin-bottom: 1.5rem; filter: drop-shadow(0 0 20px rgba(245,166,35,0.2)); border-radius: 12px; }
       .lp-footer { position: absolute; bottom: 1.25rem; font-size: 0.7rem; color: rgba(138,126,114,0.35); text-align: center; width: 100%; }
       @media (max-width: 900px) {
         .lp-left  { display: none; }

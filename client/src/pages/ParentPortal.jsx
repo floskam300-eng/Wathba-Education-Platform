@@ -205,7 +205,7 @@ export default function ParentPortal() {
               رجوع
             </Link>
             <Link to={`/${teacherSlug}`} className="flex items-center">
-              <img src={displayLogo} alt={platformName} className="h-10 w-auto drop-shadow-lg" />
+              <img src={displayLogo} alt={platformName} className="h-10 w-auto drop-shadow-lg rounded-xl" />
             </Link>
           </div>
           <div className="flex items-center gap-3">
@@ -448,7 +448,7 @@ export default function ParentPortal() {
       <footer className="border-t border-white/8 py-8 bg-[#060d1a]">
         <div className="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <img src={displayLogo} alt={platformName} className="h-10 w-auto drop-shadow-lg" />
+            <img src={displayLogo} alt={platformName} className="h-10 w-auto drop-shadow-lg rounded-xl" />
             <span className="text-white/30 text-sm">— المنصة التعليمية المتكاملة</span>
           </div>
           <div className="flex items-center gap-5 text-sm text-white/40 font-semibold">

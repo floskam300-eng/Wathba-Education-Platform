@@ -218,7 +218,7 @@ export default function PlatformHome() {
       {/* ── Navbar ── */}
       <nav style={{ position: 'fixed', top: 0, insetInline: 0, zIndex: 100, background: 'rgba(7,8,15,0.85)', backdropFilter: 'blur(16px)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         <div className="max-w-6xl mx-auto px-5 h-16 flex items-center justify-between">
-          <img src={wathbaLogo} alt="وثبة" className="h-9 object-contain" />
+          <img src={wathbaLogo} alt="وثبة" className="h-9 object-contain rounded-xl" />
           <div className="hidden md:flex items-center gap-6 text-sm text-white/60">
             <a href="#features"  className="hover:text-white transition-colors">المميزات</a>
             <a href="#pricing"   className="hover:text-white transition-colors">الأسعار</a>
@@ -467,7 +467,7 @@ export default function PlatformHome() {
       <footer className="border-t border-white/10 py-8">
         <div className="max-w-6xl mx-auto px-5 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <img src={wathbaLogo} alt="وثبة" className="h-8 object-contain" />
+            <img src={wathbaLogo} alt="وثبة" className="h-8 object-contain rounded-xl" />
             <span className="text-white/30 text-sm">منصة تعليمية متكاملة</span>
           </div>
           <p className="text-white/25 text-sm">
