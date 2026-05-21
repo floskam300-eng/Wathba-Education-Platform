@@ -233,11 +233,23 @@ export default function TeacherStudents() {
   });
 
   const handlePrint = () => {
-    const headers = ['الاسم', 'اسم المستخدم', 'الهاتف', 'المرحلة', 'النقاط'];
+    const headers = ['الاسم', 'اسم المستخدم', 'الهاتف', 'هاتف ولي الأمر', 'المرحلة', 'الجنس', 'الكورسات المسجّلة', 'النقاط'];
     const data = filtered.map(s => [
-      s.name, s.username, s.phone || '—', s.academic_stage || '—', s.points.toString()
+      s.name || '—',
+      s.username || '—',
+      s.phone || '—',
+      s.parent_phone || '—',
+      s.academic_stage || '—',
+      s.gender || '—',
+      (s.enrolled_courses ?? 0).toString(),
+      (s.points ?? 0).toString(),
     ]);
-    generatePDFReport('تقرير الطلاب', headers, data, 'students_report.pdf');
+    generatePDFReport('تقرير الطلاب', headers, data, 'students_report.pdf', {
+      stats: [
+        { label: 'إجمالي الطلاب', value: filtered.length, color: '#1e3a5f' },
+        { label: 'إجمالي النقاط', value: filtered.reduce((a, s) => a + (s.points ?? 0), 0), color: '#f97316' },
+      ],
+    });
   };
 
   return (

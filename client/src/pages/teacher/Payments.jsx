@@ -176,16 +176,27 @@ export default function TeacherPayments() {
   }, [payments]);
 
   const handlePrint = () => {
-    const headers = ['الطالب', 'الكورس', 'المبلغ', 'طريقة الدفع', 'المرجع', 'الحالة'];
+    const headers = ['الطالب', 'هاتف الطالب', 'الكورس', 'المبلغ', 'طريقة الدفع', 'المرجع', 'الحالة', 'التاريخ'];
     const data = filtered.map(p => [
-      p.student_name,
+      p.student_name || '—',
+      p.student_phone || '—',
       p.course_name || '—',
-      `${parseFloat(p.amount).toLocaleString()} ج`,
+      p.amount != null ? `${parseFloat(p.amount).toLocaleString()} ج` : '—',
       p.method ? (METHOD_LABELS[p.method] || p.method) : '—',
       p.reference_number || '—',
-      STATUS_MAP[p.status]?.label || p.status
+      STATUS_MAP[p.status]?.label || p.status,
+      p.payment_date ? new Date(p.payment_date).toLocaleDateString('ar-EG') : '—',
     ]);
-    generatePDFReport('تقرير المدفوعات', headers, data, 'payments_report.pdf');
+    const total = filtered.reduce((a, p) => a + (parseFloat(p.amount) || 0), 0);
+    const verified = filtered.filter(p => p.status === 'verified' || p.status === 'confirmed');
+    generatePDFReport('تقرير المدفوعات', headers, data, 'payments_report.pdf', {
+      stats: [
+        { label: 'إجمالي الدفعات', value: filtered.length, color: '#1e3a5f' },
+        { label: 'مؤكدة', value: verified.length, color: '#16a34a' },
+        { label: 'قيد الانتظار', value: filtered.filter(p => p.status === 'pending').length, color: '#d97706' },
+        { label: 'إجمالي المبالغ', value: `${total.toLocaleString()} ج`, color: '#f97316' },
+      ],
+    });
   };
 
   const openVerify = (payment) => {

@@ -1,8 +1,7 @@
 /**
- * generatePDFReport — Rich HTML print window (RTL/Arabic-safe).
- * Signature unchanged: generatePDFReport(title, headers, data, filename?)
- * Optional 5th arg `opts`:
- *   { subtitle, stats: [{label, value, color?}], note }
+ * generatePDFReport — Rich HTML print window (RTL/Arabic-safe, Cairo font).
+ * Signature: generatePDFReport(title, headers, data, filename?, opts?)
+ * opts: { subtitle, stats: [{label, value, color?}], note }
  */
 export const generatePDFReport = (title, headers, data, filename = 'report.pdf', opts = {}) => {
   const now = new Date().toLocaleDateString('ar-EG', {
@@ -13,13 +12,11 @@ export const generatePDFReport = (title, headers, data, filename = 'report.pdf',
   const renderCell = (raw) => {
     const cell = String(raw ?? '—');
 
-    // Status badges
     const STATUS = [
-      [/(ناجح|نجاح|مؤكدة|مؤكد|مفعّل|نشط|مقبول|مكتمل)/,   '#16a34a', '#f0fdf4', '#bbf7d0'],
-      [/(راسب|رسوب|مرفوضة|مرفوض|محذوف|غير نشط)/,          '#dc2626', '#fef2f2', '#fecaca'],
-      [/(قيد الانتظار|في الانتظار|انتظار|معلّق|معلق)/,     '#d97706', '#fffbeb', '#fde68a'],
-      [/(منشور|مفتوح)/,                                     '#6366f1', '#eef2ff', '#c7d2fe'],
-      [/(غير منشور|مغلق|منتهي)/,                            '#64748b', '#f8fafc', '#e2e8f0'],
+      [/(ناجح|نجاح|مؤكدة|مؤكد|مفعّل|نشط|مقبول|مكتمل|منشور|مفتوح)/,  '#16a34a', '#f0fdf4', '#bbf7d0'],
+      [/(راسب|رسوب|مرفوضة|مرفوض|محذوف|غير نشط)/,                      '#dc2626', '#fef2f2', '#fecaca'],
+      [/(قيد الانتظار|في الانتظار|انتظار|معلّق|معلق)/,                 '#d97706', '#fffbeb', '#fde68a'],
+      [/(مسودة|غير منشور|مغلق|منتهي)/,                                  '#64748b', '#f8fafc', '#e2e8f0'],
     ];
     for (const [rx, color, bg, border] of STATUS) {
       if (rx.test(cell)) {
@@ -27,7 +24,6 @@ export const generatePDFReport = (title, headers, data, filename = 'report.pdf',
       }
     }
 
-    // Percentage → mini progress bar
     if (/^\d+(\.\d+)?%$/.test(cell.trim())) {
       const pct = parseFloat(cell);
       const color = pct >= 75 ? '#16a34a' : pct >= 50 ? '#f59e0b' : '#ef4444';
@@ -39,17 +35,14 @@ export const generatePDFReport = (title, headers, data, filename = 'report.pdf',
       </div>`;
     }
 
-    // Currency (ends with ج or ج.م)
     if (/[\d,\.]+\s*ج/.test(cell)) {
       return `<span style="font-weight:700;color:#1e3a5f;font-family:monospace">${cell}</span>`;
     }
 
-    // Points / stars
     if (/⭐/.test(cell)) {
       return `<span style="color:#d97706;font-weight:700">${cell}</span>`;
     }
 
-    // Dash / empty
     if (cell === '—' || cell === '' || cell === 'null' || cell === 'undefined') {
       return `<span style="color:#cbd5e1">—</span>`;
     }
@@ -57,7 +50,7 @@ export const generatePDFReport = (title, headers, data, filename = 'report.pdf',
     return cell;
   };
 
-  /* ── summary stats bar (optional) ───────────────────────────────── */
+  /* ── summary stats bar ───────────────────────────────────────────── */
   const statsHtml = opts.stats?.length
     ? `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px">
         ${opts.stats.map(s => `
@@ -68,12 +61,10 @@ export const generatePDFReport = (title, headers, data, filename = 'report.pdf',
       </div>`
     : '';
 
-  /* ── auto-derive row count label ─────────────────────────────────── */
   const rowCountLabel = data.length > 0
     ? `<span style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:20px;padding:3px 12px;font-size:12px;font-weight:700;color:#64748b">${data.length} سجل</span>`
     : '';
 
-  /* ── table rows ──────────────────────────────────────────────────── */
   const tableRows = data.map((row, ri) => `
     <tr style="background:${ri % 2 === 0 ? '#fff' : '#f8fafc'}">
       <td style="color:#94a3b8;font-size:11px;font-weight:700;padding:9px 10px;border-bottom:1px solid #f1f5f9;text-align:center">${ri + 1}</td>
@@ -86,10 +77,13 @@ export const generatePDFReport = (title, headers, data, filename = 'report.pdf',
 <head>
 <meta charset="UTF-8">
 <title>${title}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
   body {
-    font-family: Arial, Tahoma, 'Segoe UI', sans-serif;
+    font-family: 'Cairo', Arial, Tahoma, sans-serif;
     direction: rtl;
     color: #1e293b;
     background: #fff;
@@ -97,7 +91,6 @@ export const generatePDFReport = (title, headers, data, filename = 'report.pdf',
   }
   .page { max-width: 1000px; margin: 0 auto; padding: 28px 24px; }
 
-  /* ── Header ── */
   .report-header {
     display: flex;
     align-items: center;
@@ -113,14 +106,13 @@ export const generatePDFReport = (title, headers, data, filename = 'report.pdf',
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
   }
-  .logo-text { color: #f97316; font-size: 22px; font-weight: 900; }
-  .report-title { font-size: 20px; font-weight: 900; color: #1e3a5f; }
+  .logo-text { color: #f97316; font-size: 22px; font-weight: 900; font-family: 'Cairo', sans-serif; }
+  .report-title { font-size: 20px; font-weight: 900; color: #1e3a5f; font-family: 'Cairo', sans-serif; }
   .report-sub   { font-size: 12px; color: #64748b; margin-top: 3px; }
   .report-meta  { margin-right: auto; text-align: left; }
-  .report-meta .platform { font-size: 14px; font-weight: 900; color: #f97316; }
+  .report-meta .platform { font-size: 14px; font-weight: 900; color: #f97316; font-family: 'Cairo', sans-serif; }
   .report-meta .date     { font-size: 11px; color: #94a3b8; margin-top: 2px; }
 
-  /* ── Section title ── */
   .section-bar {
     display: flex; align-items: center; justify-content: space-between;
     margin-bottom: 12px;
@@ -128,13 +120,11 @@ export const generatePDFReport = (title, headers, data, filename = 'report.pdf',
   .section-title {
     font-size: 13px; font-weight: 900; color: #1e3a5f;
     border-right: 4px solid #f97316; padding-right: 10px;
+    font-family: 'Cairo', sans-serif;
   }
 
-  /* ── Table ── */
   table { width: 100%; border-collapse: collapse; border-radius: 12px; overflow: hidden; }
-  thead tr {
-    background: linear-gradient(135deg, #1e3a5f, #2d5080);
-  }
+  thead tr { background: linear-gradient(135deg, #1e3a5f, #2d5080); }
   thead th {
     color: #fff;
     padding: 11px 12px;
@@ -142,10 +132,10 @@ export const generatePDFReport = (title, headers, data, filename = 'report.pdf',
     font-weight: 700;
     text-align: center;
     letter-spacing: 0.3px;
+    font-family: 'Cairo', sans-serif;
   }
   thead th:first-child { color: rgba(255,255,255,0.6); font-size: 10px; }
 
-  /* ── Note ── */
   .note {
     margin-top: 14px;
     background: #fffbeb; border: 1px solid #fde68a;
@@ -153,24 +143,24 @@ export const generatePDFReport = (title, headers, data, filename = 'report.pdf',
     font-size: 12px; color: #92400e; font-weight: 600;
   }
 
-  /* ── Footer ── */
   .report-footer {
     margin-top: 28px; padding-top: 14px;
     border-top: 1px solid #e2e8f0;
     text-align: center; color: #94a3b8; font-size: 11px;
   }
 
-  /* ── Buttons ── */
   .no-print { text-align: center; padding: 24px 0 8px; }
   .btn-print {
     padding: 11px 32px; background: #f97316; color: #fff;
     border: none; border-radius: 8px; cursor: pointer;
     font-size: 14px; font-weight: 700; margin-left: 10px;
+    font-family: 'Cairo', sans-serif;
   }
   .btn-close {
     padding: 11px 32px; background: #64748b; color: #fff;
     border: none; border-radius: 8px; cursor: pointer;
     font-size: 14px; font-weight: 700;
+    font-family: 'Cairo', sans-serif;
   }
 
   @media print {
@@ -183,7 +173,6 @@ export const generatePDFReport = (title, headers, data, filename = 'report.pdf',
 <body>
 <div class="page">
 
-  <!-- Report Header -->
   <div class="report-header">
     <div class="logo-box"><span class="logo-text">و</span></div>
     <div>
@@ -196,10 +185,8 @@ export const generatePDFReport = (title, headers, data, filename = 'report.pdf',
     </div>
   </div>
 
-  <!-- Optional stats bar -->
   ${statsHtml}
 
-  <!-- Table section -->
   <div class="section-bar">
     <div class="section-title">بيانات التقرير</div>
     ${rowCountLabel}
@@ -224,12 +211,10 @@ export const generatePDFReport = (title, headers, data, filename = 'report.pdf',
 
   ${opts.note ? `<div class="note">💡 ${opts.note}</div>` : ''}
 
-  <!-- Footer -->
   <div class="report-footer">
     تقرير صادر آلياً من منصة وثبة التعليمية — ${now}
   </div>
 
-  <!-- Action Buttons -->
   <div class="no-print">
     <button class="btn-print" onclick="window.print()">🖨️ طباعة / حفظ PDF</button>
     <button class="btn-close" onclick="window.close()">إغلاق</button>

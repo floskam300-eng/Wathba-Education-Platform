@@ -271,12 +271,25 @@ export default function TeacherExams() {
   };
 
   const handlePrint = () => {
-    const headers = ['العنوان', 'الكورس', 'المدة', 'الأسئلة', 'المجموع', 'المحاولات'];
+    const headers = ['العنوان', 'الكورس', 'المدة (دقيقة)', 'عدد الأسئلة', 'المجموع الكلي', 'درجة النجاح', 'المحاولات', 'الحالة'];
     const data = exams.map(ex => [
-      ex.title, ex.course_name || 'عام', ex.duration_minutes.toString(),
-      ex.question_count.toString(), ex.total_score.toString(), ex.attempt_count.toString()
+      ex.title || '—',
+      ex.course_name || 'عام',
+      (ex.duration_minutes ?? 0).toString(),
+      (ex.question_count ?? 0).toString(),
+      (ex.total_score ?? 0).toString(),
+      (ex.pass_score ?? 0).toString(),
+      (ex.attempt_count ?? 0).toString(),
+      ex.is_published ? 'منشور' : 'مسودة',
     ]);
-    generatePDFReport('تقرير الاختبارات', headers, data, 'exams_report.pdf');
+    generatePDFReport('تقرير الاختبارات', headers, data, 'exams_report.pdf', {
+      stats: [
+        { label: 'إجمالي الاختبارات', value: exams.length, color: '#1e3a5f' },
+        { label: 'منشور', value: exams.filter(e => e.is_published).length, color: '#16a34a' },
+        { label: 'مسودة', value: exams.filter(e => !e.is_published).length, color: '#64748b' },
+        { label: 'إجمالي المحاولات', value: exams.reduce((a, e) => a + (e.attempt_count ?? 0), 0), color: '#f97316' },
+      ],
+    });
   };
 
   const courseStageMap = {};
