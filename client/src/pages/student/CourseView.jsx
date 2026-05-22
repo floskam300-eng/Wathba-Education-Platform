@@ -519,29 +519,27 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
     >
       <FloatingWatermark name={studentName} code={studentCode} />
 
-      {/* YouTube iframe — scaled to crop native title/logo at edges.
-          overflow:hidden on parent ensures no bleed outside the player box. */}
+      {/* YouTube iframe — full size, no scaling needed; overlay strategy handles UI hiding */}
       <div
         id={playerDivId}
-        className="absolute"
-        style={{
-          top: '-6%', left: '-4%',
-          width: '108%', height: '112%',
-          pointerEvents: 'none',
-        }}
+        className="absolute inset-0 w-full h-full"
+        style={{ pointerEvents: 'none' }}
       />
 
-      {/* Edge masks — thin gradients that permanently hide YouTube title (top) & watermark (bottom-right) */}
-      <div className="absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-black to-transparent" style={{ zIndex: 10, pointerEvents: 'none' }} />
-      <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black to-transparent" style={{ zIndex: 10, pointerEvents: 'none' }} />
-
-      {/* Persistent overlay — opacity-based (no mount/unmount) to prevent flash.
-          Covers YouTube UI whenever the video is NOT actively playing. */}
+      {/* Smart overlay strategy:
+          - When paused/buffering → opacity:1 instantly (150ms) → hides YouTube UI completely
+          - When playing starts  → opacity:0 slowly (2.5s fade-out)
+            YouTube title bar appears for ~2s then disappears on its own.
+            By the time our overlay reaches 0, YouTube UI is already gone.
+            Net effect: YouTube UI is NEVER visible to the user. */}
       <div
-        className="absolute inset-0 bg-black transition-opacity duration-200"
+        className="absolute inset-0 bg-black"
         style={{
           zIndex: 11,
           opacity: (!playing || buffering) ? 1 : 0,
+          transition: (!playing || buffering)
+            ? 'opacity 0.15s ease-out'
+            : 'opacity 2.5s ease-in',
           pointerEvents: 'none',
         }}
       />
