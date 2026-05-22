@@ -519,12 +519,21 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
     >
       <FloatingWatermark name={studentName} code={studentCode} />
 
-      {/* YouTube iframe — pointer-events disabled; container overflow:hidden clips any edge bleed */}
+      {/* YouTube iframe — scaled to crop native title/logo at edges.
+          overflow:hidden on parent ensures no bleed outside the player box. */}
       <div
         id={playerDivId}
-        className="absolute inset-0 w-full h-full"
-        style={{ pointerEvents: 'none' }}
+        className="absolute"
+        style={{
+          top: '-6%', left: '-4%',
+          width: '108%', height: '112%',
+          pointerEvents: 'none',
+        }}
       />
+
+      {/* Edge masks — thin gradients that permanently hide YouTube title (top) & watermark (bottom-right) */}
+      <div className="absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-black to-transparent" style={{ zIndex: 10, pointerEvents: 'none' }} />
+      <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black to-transparent" style={{ zIndex: 10, pointerEvents: 'none' }} />
 
       {/* Persistent overlay — opacity-based (no mount/unmount) to prevent flash.
           Covers YouTube UI whenever the video is NOT actively playing. */}
