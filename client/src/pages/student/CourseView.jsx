@@ -527,11 +527,23 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
     >
       <FloatingWatermark name={studentName} code={studentCode} />
 
-      {/* YouTube iframe — full size, no scaling needed; overlay strategy handles UI hiding */}
+      {/* YouTube iframe — full size */}
       <div
         id={playerDivId}
         className="absolute inset-0 w-full h-full"
         style={{ pointerEvents: 'none' }}
+      />
+
+      {/* Permanent black bar — covers YouTube title + channel name at top */}
+      <div
+        className="absolute top-0 left-0 right-0 bg-black"
+        style={{ height: '72px', zIndex: 13, pointerEvents: 'none' }}
+      />
+
+      {/* Permanent black bar — covers "More videos" row + YouTube logo at bottom */}
+      <div
+        className="absolute bottom-0 left-0 right-0 bg-black"
+        style={{ height: '52px', zIndex: 13, pointerEvents: 'none' }}
       />
 
       {/* Overlay strategy:
