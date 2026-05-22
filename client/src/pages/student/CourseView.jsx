@@ -22,12 +22,14 @@ const STORAGE_MUTED    = 'wathba_player_muted';
 const STORAGE_SPEED    = 'wathba_player_speed';
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
-const loadVolume = () => { try { const v = localStorage.getItem(STORAGE_VOLUME); return v !== null ? parseFloat(v) : 80; } catch { return 80; } };
-const loadMuted  = () => { try { return localStorage.getItem(STORAGE_MUTED) === 'true'; } catch { return false; } };
-const loadSpeed  = () => { try { const s = localStorage.getItem(STORAGE_SPEED);  return s !== null ? parseFloat(s) : 1;  } catch { return 1;  } };
-const saveVolume = (v) => { try { localStorage.setItem(STORAGE_VOLUME, String(v)); } catch {} };
-const saveMuted  = (m) => { try { localStorage.setItem(STORAGE_MUTED,  String(m)); } catch {} };
-const saveSpeed  = (s) => { try { localStorage.setItem(STORAGE_SPEED,  String(s)); } catch {} };
+const loadVolume  = () => { try { const v = localStorage.getItem(STORAGE_VOLUME); return v !== null ? parseFloat(v) : 80; } catch { return 80; } };
+const loadMuted   = () => { try { return localStorage.getItem(STORAGE_MUTED) === 'true'; } catch { return false; } };
+const loadSpeed   = () => { try { const s = localStorage.getItem(STORAGE_SPEED);  return s !== null ? parseFloat(s) : 1;  } catch { return 1;  } };
+const saveVolume  = (v) => { try { localStorage.setItem(STORAGE_VOLUME, String(v)); } catch {} };
+const saveMuted   = (m) => { try { localStorage.setItem(STORAGE_MUTED,  String(m)); } catch {} };
+const saveSpeed   = (s) => { try { localStorage.setItem(STORAGE_SPEED,  String(s)); } catch {} };
+const saveVidPos  = (id, pos) => { try { if (pos > 5) localStorage.setItem(`wathba_vid_pos_${id}`, String(Math.round(pos))); } catch {} };
+const loadVidPos  = (id) => { try { return parseInt(localStorage.getItem(`wathba_vid_pos_${id}`) || '0', 10); } catch { return 0; } };
 
 /* ─── Floating Watermark ───────────────────────────────── */
 const WATERMARK_SLOTS = [
@@ -194,6 +196,7 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
       const ct = playerRef.current?.getCurrentTime?.() || 0;
       const d  = playerRef.current?.getDuration?.() || 0;
       const watchedMin = d > 0 ? (maxPct.current / 100) * (d / 60) : 0;
+      saveVidPos(videoIdRef.current, ct);
       onProgressUpdateRef.current(videoIdRef.current, watchedMin, maxPct.current, false, ct, actualWatched.current);
     } catch (_) {}
   };
@@ -304,12 +307,12 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
                   const dur = playerRef.current.getDuration() || 0;
                   const ct  = playerRef.current.getCurrentTime() || 0;
                   const watchedMin = dur > 0 ? (maxPct.current / 100) * (dur / 60) : 0;
-                  // Send the interval elapsed (not cumulative) to avoid double-counting in DB
+                  saveVidPos(video.id, ct);
                   const intervalSec = playStart.current ? Math.round((Date.now() - playStart.current) / 1000) : 0;
                   playStart.current = Date.now();
                   onProgressUpdate(video.id, watchedMin, maxPct.current, false, ct, intervalSec);
                 } catch (_) {}
-              }, 30000);
+              }, 10000);
             } else if (e.data === S.BUFFERING) {
               setBuffering(true);
             } else {
@@ -325,6 +328,7 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
                 setProgress(100);
                 if (onProgressUpdate && video?.id) {
                   const dur = playerRef.current?.getDuration() || 0;
+                  saveVidPos(video.id, dur);
                   onProgressUpdate(video.id, dur / 60, 100, true, dur, actualWatched.current);
                 }
               } else if (e.data === S.PAUSED) {
@@ -333,6 +337,7 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
                     const dur = playerRef.current?.getDuration() || 0;
                     const ct  = playerRef.current?.getCurrentTime() || 0;
                     const watchedMin = dur > 0 ? (maxPct.current / 100) * (dur / 60) : 0;
+                    saveVidPos(video.id, ct);
                     onProgressUpdate(video.id, watchedMin, maxPct.current, false, ct, actualWatched.current);
                   } catch (_) {}
                 }
@@ -660,6 +665,7 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
     const d  = videoRef.current.duration || 0;
     const ct = videoRef.current.currentTime || 0;
     const watchedMin = d > 0 ? (maxProgress.current / 100) * (d / 60) : 0;
+    saveVidPos(videoIdRef.current, ct);
     onProgressUpdateRef.current(videoIdRef.current, watchedMin, maxProgress.current, false, ct, actualWatched.current);
   };
 
@@ -888,6 +894,7 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
           if (playStart.current) { actualWatched.current += Math.round((Date.now() - playStart.current) / 1000); playStart.current = null; }
           if (onProgressUpdate && video?.id) {
             const d = videoRef.current?.duration || 0;
+            saveVidPos(video.id, d);
             onProgressUpdate(video.id, d / 60, 100, true, d, actualWatched.current);
           }
         }}
@@ -903,8 +910,9 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
             const elapsed = playStart.current ? Math.round((Date.now() - playStart.current) / 1000) : 0;
             actualWatched.current += elapsed;
             playStart.current = Date.now();
+            saveVidPos(video.id, ct);
             if (onProgressUpdate && video?.id) onProgressUpdate(video.id, watchedMin, maxProgress.current, false, ct, actualWatched.current);
-          }, 30000);
+          }, 10000);
         }}
         onPause={() => {
           setPlaying(false);
@@ -914,6 +922,7 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
             const d  = videoRef.current.duration || 0;
             const ct = videoRef.current.currentTime || 0;
             const watchedMin = d > 0 ? (maxProgress.current / 100) * (d / 60) : 0;
+            saveVidPos(video.id, ct);
             onProgressUpdate(video.id, watchedMin, maxProgress.current, false, ct, actualWatched.current);
           }
         }}
@@ -1060,7 +1069,15 @@ export default function CourseView() {
   const [activePdf, setActivePdf] = useState(null);
   const [activeTab, setActiveTab] = useState('videos');
 
+  const getInitialPosition = (video) => {
+    if (!video) return 0;
+    const serverPos = parseFloat(video.saved_position) || 0;
+    const localPos  = loadVidPos(video.id);
+    return Math.max(serverPos, localPos);
+  };
+
   const handleProgressUpdate = (videoId, watchedMinutes, progressPct, completed, lastPosition = 0, actualWatchedSec = 0) => {
+    saveVidPos(videoId, lastPosition);
     api.post('/students/me/video-progress', {
       video_id: videoId,
       watched_minutes: Math.round(watchedMinutes),
@@ -1326,7 +1343,7 @@ export default function CourseView() {
                   onProgressUpdate={handleProgressUpdate}
                   studentName={user?.name}
                   studentCode={user?.username}
-                  initialPosition={parseFloat(currentVideo?.saved_position) || 0}
+                  initialPosition={getInitialPosition(currentVideo)}
                 />
               </div>
 

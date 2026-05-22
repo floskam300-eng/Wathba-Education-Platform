@@ -392,9 +392,9 @@ router.get('/me/stats', requireRole('student'), async (req, res) => {
     const avgScore     = exams.length ? Math.round(exams.reduce((s, e) => s + (e.score / e.total_score * 100), 0) / exams.length) : 0;
     const totalWatchedMinutes = videoProgressRes.rows.reduce((s, v) => s + v.watched_minutes, 0);
 
-    // Rank among teacher's students by points
+    // Rank among teacher's students by points (#1 = most points)
     const rankRow  = rankRes.rows[0];
-    const myRank   = parseInt(rankRow.total) - parseInt(rankRow.above);
+    const myRank   = parseInt(rankRow.above) + 1;
 
     res.json({
       student,
