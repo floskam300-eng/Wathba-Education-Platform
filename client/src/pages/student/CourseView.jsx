@@ -173,6 +173,7 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
 
   const [playing,      setPlaying]      = useState(false);
   const [buffering,    setBuffering]    = useState(true);
+  const [initialLoad,  setInitialLoad]  = useState(true);
   const [progress,     setProgress]     = useState(0);
   const [duration,     setDuration]     = useState(0);
   const [currentTime,  setCurrentTime]  = useState(0);
@@ -219,6 +220,7 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
   useEffect(() => {
     setPlaying(false);
     setBuffering(true);
+    setInitialLoad(true);
     setProgress(0);
     setCurrentTime(0);
     maxPct.current = 0;
@@ -295,6 +297,7 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
             if (e.data === S.PLAYING) {
               setPlaying(true);
               setBuffering(false);
+              setInitialLoad(false);
               playStart.current = Date.now();
               const d = e.target.getDuration();
               if (d > 0) setDuration(d);
@@ -527,15 +530,15 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
       />
 
       {/* Overlay strategy:
-          - Buffering / initial load → full black (opacity 1) to hide blank iframe
-          - Paused → fully transparent (opacity 0) — last frame stays visible, no blackout
-          - Playing → fades out over 2.5s so YouTube title bar disappears before overlay goes */}
+          - initialLoad (before first play) → full black to hide blank iframe
+          - After first play starts → transparent forever, even on pause/re-buffer
+            so the last video frame always stays visible with no blackout */}
       <div
         className="absolute inset-0 bg-black"
         style={{
           zIndex: 11,
-          opacity: buffering ? 1 : 0,
-          transition: buffering ? 'opacity 0.15s ease-out' : 'opacity 2.5s ease-in',
+          opacity: initialLoad ? 1 : 0,
+          transition: initialLoad ? 'opacity 0.15s ease-out' : 'opacity 2s ease-in',
           pointerEvents: 'none',
         }}
       />
