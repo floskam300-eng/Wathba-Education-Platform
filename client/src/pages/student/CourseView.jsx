@@ -519,12 +519,39 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
       onContextMenu={(e) => e.preventDefault()}
     >
       <FloatingWatermark name={studentName} code={studentCode} />
-      <div id={playerDivId} className="absolute inset-0 w-full h-full" />
-      <div className="absolute inset-0" style={{ zIndex: 10 }} onClick={handleScreenTap} onContextMenu={(e) => e.preventDefault()} />
+
+      {/* YouTube iframe — scaled slightly to crop native title/logo/controls at edges */}
+      <div
+        id={playerDivId}
+        className="absolute w-full h-full"
+        style={{
+          top: '-5%', left: '-2.5%',
+          width: '105%', height: '110%',
+          pointerEvents: 'none',
+        }}
+      />
+
+      {/* Dark mask: covers YouTube's own UI when paused / ended */}
+      {!playing && !buffering && (
+        <div className="absolute inset-0 bg-black" style={{ zIndex: 11 }} />
+      )}
+
+      {/* Thumbnail shown while paused — just a solid dark bg (thumbnail would need URL) */}
+      {/* Click interceptor — always on top of iframe */}
+      <div
+        className="absolute inset-0"
+        style={{ zIndex: 12 }}
+        onClick={handleScreenTap}
+        onContextMenu={(e) => e.preventDefault()}
+      />
 
       {!playing && !buffering && (
         <div className="absolute inset-0 flex items-center justify-center" style={{ zIndex: 20, pointerEvents: 'none' }}>
-          <div className="w-20 h-20 rounded-full bg-orange-500/90 flex items-center justify-center shadow-2xl hover:scale-110 transition-transform cursor-pointer" style={{ pointerEvents: 'auto' }} onClick={(e) => { e.stopPropagation(); toggle(); }}>
+          <div
+            className="w-20 h-20 rounded-full bg-orange-500/90 flex items-center justify-center shadow-2xl hover:scale-110 transition-transform cursor-pointer"
+            style={{ pointerEvents: 'auto' }}
+            onClick={(e) => { e.stopPropagation(); toggle(); }}
+          >
             <Play className="w-8 h-8 text-white fill-white mr-[-2px]" />
           </div>
         </div>
