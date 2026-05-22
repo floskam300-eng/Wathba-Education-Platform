@@ -527,19 +527,21 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
       />
 
       {/* Smart overlay strategy:
-          - When paused/buffering → opacity:1 instantly (150ms) → hides YouTube UI completely
-          - When playing starts  → opacity:0 slowly (2.5s fade-out)
-            YouTube title bar appears for ~2s then disappears on its own.
-            By the time our overlay reaches 0, YouTube UI is already gone.
-            Net effect: YouTube UI is NEVER visible to the user. */}
+          - Buffering / initial load → full black (opacity 1) instantly
+          - Paused → semi-transparent (opacity 0.82) — hides YouTube next-video info
+            while keeping the current video frame visible (no "screen off" effect)
+          - Playing → fully transparent (opacity 0) with slow 2.5s fade so YouTube
+            title bar fades away before our overlay disappears */}
       <div
         className="absolute inset-0 bg-black"
         style={{
           zIndex: 11,
-          opacity: (!playing || buffering) ? 1 : 0,
-          transition: (!playing || buffering)
+          opacity: buffering ? 1 : (!playing ? 0.82 : 0),
+          transition: buffering
             ? 'opacity 0.15s ease-out'
-            : 'opacity 2.5s ease-in',
+            : !playing
+              ? 'opacity 0.2s ease-out'
+              : 'opacity 2.5s ease-in',
           pointerEvents: 'none',
         }}
       />
