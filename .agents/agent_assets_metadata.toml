@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "ZOoktE51q4QQEokIBCwuH"
+uri = "file://wathba-platform-overview.md"
+type = "text"
+title = "منصة وثبة — دليل شامل للمنصة ومميزاتها"
