@@ -548,32 +548,6 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
         }}
       />
 
-      {/* Top strip — hides YouTube title / channel info when paused */}
-      <div
-        className="absolute top-0 left-0 right-0 bg-black"
-        style={{
-          height: '13%',
-          minHeight: '60px',
-          zIndex: 13,
-          pointerEvents: 'none',
-          opacity: (!playing && !initialLoad) ? 1 : 0,
-          transition: 'opacity 0.25s ease',
-        }}
-      />
-
-      {/* Bottom strip — hides YouTube branding / "More videos" bar when paused */}
-      <div
-        className="absolute bottom-0 left-0 right-0 bg-black"
-        style={{
-          height: '10%',
-          minHeight: '44px',
-          zIndex: 13,
-          pointerEvents: 'none',
-          opacity: (!playing && !initialLoad) ? 1 : 0,
-          transition: 'opacity 0.25s ease',
-        }}
-      />
-
       {/* Click interceptor — sits above overlay, handles focus-in/out taps */}
       <div
         className="absolute inset-0"
