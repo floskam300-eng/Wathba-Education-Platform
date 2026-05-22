@@ -349,60 +349,73 @@ export default function StudentExams() {
     const answered = Object.keys(answers).filter(k => answers[k]).length;
 
     return (
-      <div className="h-full overflow-y-auto p-4 lg:p-6">
-        <div className="space-y-6">
+      <div className="h-full overflow-y-auto p-3 sm:p-4 lg:p-6">
+        <div className="space-y-4 sm:space-y-6">
+          {/* Exam header bar */}
           <div className="card bg-navy-600 text-white !p-3 sm:!p-5">
             <div className="flex items-center justify-between gap-2">
               <div className="min-w-0 flex-1">
-                <h2 className="text-sm sm:text-xl font-black text-white leading-snug truncate">{exam.title}</h2>
-                <p className="text-navy-100 text-xs sm:text-sm font-medium mt-0.5">{answered}/{questions.length} سؤال أُجيب عليه</p>
+                <h2 className="text-sm sm:text-lg font-black text-white leading-snug line-clamp-2">{exam.title}</h2>
+                <p className="text-navy-100 text-xs font-medium mt-0.5">{answered}/{questions.length} سؤال</p>
               </div>
-              <div className={`flex items-center gap-1.5 flex-shrink-0 px-3 py-1.5 rounded-xl ${timeLeft < 60 ? 'bg-red-500/30 text-red-200 animate-pulse' : 'bg-white/10 text-orange-300'}`}>
-                <Clock className="w-4 h-4 sm:w-5 sm:h-5" />
+              <div className={`flex items-center gap-1 flex-shrink-0 px-2.5 py-1.5 rounded-xl ${timeLeft < 60 ? 'bg-red-500/30 text-red-200 animate-pulse' : 'bg-white/10 text-orange-300'}`}>
+                <Clock className="w-4 h-4" />
                 <span className="text-lg sm:text-2xl font-black tabular-nums">{formatTime(timeLeft)}</span>
               </div>
             </div>
+            {/* Progress bar inline */}
+            <div className="w-full bg-white/20 rounded-full h-1.5 mt-3">
+              <div className="bg-orange-400 h-1.5 rounded-full transition-all" style={{ width: `${(answered / questions.length) * 100}%` }} />
+            </div>
           </div>
 
-          <div className="w-full bg-gray-200 rounded-full h-2.5">
-            <div className="bg-orange-500 h-2.5 rounded-full transition-all" style={{ width: `${(answered / questions.length) * 100}%` }} />
-          </div>
-
-          <div className="space-y-6">
+          <div className="space-y-4">
             {questions.map((q, qi) => {
               const qType = q.question_type || 'mcq';
               return (
-                <div key={q.id} className={`card ${answers[q.id] ? 'border-2 border-orange-400' : ''}`}>
-                  <div className="flex items-center gap-2 mb-1">
-                    <p className="text-xs text-gray-600 font-bold">السؤال {qi + 1}</p>
+                <div key={q.id} className={`card !p-3 sm:!p-5 ${answers[q.id] ? 'border-2 border-orange-400' : 'border border-gray-200'}`}>
+                  {/* Question label row */}
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="w-6 h-6 rounded-full bg-navy-600 text-white text-xs font-black flex items-center justify-center flex-shrink-0">{qi + 1}</span>
                     <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${qType === 'true_false' ? 'bg-purple-100 text-purple-700' : qType === 'essay' ? 'bg-yellow-100 text-yellow-700' : 'bg-orange-100 text-orange-700'}`}>
-                      {qType === 'true_false' ? 'صح/خطأ' : qType === 'essay' ? 'مقال' : 'MCQ'}
+                      {qType === 'true_false' ? 'صح/خطأ' : qType === 'essay' ? 'مقال' : 'اختيار'}
                     </span>
+                    {answers[q.id] && <span className="text-xs text-green-600 font-bold mr-auto">✓ أُجيب</span>}
                   </div>
-                  <p className="font-semibold text-navy-700 mb-4 text-base leading-relaxed">{q.question_text}</p>
+
+                  <p className="font-semibold text-navy-700 mb-3 text-sm sm:text-base leading-relaxed">{q.question_text}</p>
+
                   {q.question_image_url && (
-                    <img src={q.question_image_url} alt="سؤال" className="w-full max-w-xs h-40 object-cover rounded-xl mb-4" />
+                    <img src={q.question_image_url} alt="سؤال" className="w-full max-h-48 object-contain rounded-xl mb-3 border border-gray-100" />
                   )}
 
                   {qType === 'true_false' ? (
-                    <div className="flex gap-4">
+                    <div className="flex gap-3">
                       {[{ opt: 'A', label: '✅ صح' }, { opt: 'B', label: '❌ خطأ' }].map(({ opt, label }) => (
                         <button key={opt} onClick={() => setAnswers({ ...answers, [q.id]: opt })}
-                          className={`flex-1 py-3 rounded-xl text-base font-bold border-2 transition-all ${answers[q.id] === opt ? 'border-orange-500 bg-orange-50 text-orange-800' : 'border-gray-200 hover:border-gray-400 text-gray-700'}`}>
+                          className={`flex-1 py-2.5 rounded-xl text-sm font-bold border-2 transition-all ${answers[q.id] === opt ? 'border-orange-500 bg-orange-50 text-orange-800' : 'border-gray-200 hover:border-gray-400 text-gray-700'}`}>
                           {label}
                         </button>
                       ))}
                     </div>
+                  ) : qType === 'essay' ? (
+                    <textarea
+                      value={answers[q.id] || ''}
+                      onChange={e => setAnswers({ ...answers, [q.id]: e.target.value })}
+                      rows={3}
+                      className="w-full border-2 border-gray-200 rounded-xl p-3 text-sm text-navy-700 resize-none focus:border-orange-400 focus:outline-none transition-colors"
+                      placeholder="اكتب إجابتك هنا..."
+                    />
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                       {(() => {
                         const shuffledOpts = shuffledQuestionsOpts[q.id] || getShuffledOpts(q, studentId, exam.shuffle_options);
                         const displayLabels = ['أ', 'ب', 'ج', 'د'];
                         return shuffledOpts.map((origOpt, idx) => (
                           <button key={origOpt} onClick={() => setAnswers({ ...answers, [q.id]: origOpt })}
-                            className={`p-3 rounded-xl text-sm font-semibold text-right transition-all border-2 ${answers[q.id] === origOpt ? 'border-orange-500 bg-orange-50 text-orange-800' : 'border-gray-300 hover:border-navy-400 hover:bg-navy-50 text-navy-700'}`}>
-                            <span className={`inline-flex w-6 h-6 rounded-full items-center justify-center text-xs font-bold ml-2 ${answers[q.id] === origOpt ? 'bg-orange-500 text-white' : 'bg-gray-200 text-gray-700'}`}>{displayLabels[idx]}</span>
-                            {q[`option_${origOpt.toLowerCase()}`]}
+                            className={`flex items-center gap-2 p-2.5 sm:p-3 rounded-xl text-sm font-semibold text-right transition-all border-2 ${answers[q.id] === origOpt ? 'border-orange-500 bg-orange-50 text-orange-800' : 'border-gray-200 hover:border-navy-300 hover:bg-navy-50 text-navy-700'}`}>
+                            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 ${answers[q.id] === origOpt ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600'}`}>{displayLabels[idx]}</span>
+                            <span className="flex-1 leading-snug">{q[`option_${origOpt.toLowerCase()}`]}</span>
                           </button>
                         ));
                       })()}
@@ -413,11 +426,12 @@ export default function StudentExams() {
             })}
           </div>
 
-          <div className="flex gap-4">
-            <button onClick={() => setShowCancelConfirm(true)} className="btn-secondary flex-1">خروج</button>
+          {/* Submit / Exit buttons — sticky on mobile */}
+          <div className="flex gap-3 pt-2">
+            <button onClick={() => setShowCancelConfirm(true)} className="btn-secondary flex-none px-4">خروج</button>
             <button onClick={() => setShowSubmitConfirm(true)} disabled={submitMut.isPending}
-              className="btn-primary flex-1 py-3 text-base">
-              {submitMut.isPending ? 'جاري الإرسال...' : `تسليم الاختبار (${answered}/${questions.length})`}
+              className="btn-primary flex-1 py-3 text-sm sm:text-base">
+              {submitMut.isPending ? 'جاري الإرسال...' : `تسليم (${answered}/${questions.length})`}
             </button>
           </div>
 
@@ -592,39 +606,47 @@ export default function StudentExams() {
             <p className="text-gray-600 font-medium">لا توجد اختبارات متاحة حالياً</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
             {exams.map(ex => {
               const scheduleStatus = getExamScheduleStatus(ex);
               const isUpcoming = scheduleStatus === 'upcoming';
               const isExpired = scheduleStatus === 'expired';
               return (
-                <div key={ex.id} className={`card ${ex.already_taken ? 'border-2 border-green-300' : isExpired ? 'opacity-60' : ''}`}>
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${ex.already_taken ? 'bg-green-100' : isExpired || isUpcoming ? 'bg-gray-100' : 'bg-gradient-to-br from-orange-500 to-orange-700'}`}>
-                        {ex.already_taken ? <CheckCircle className="w-6 h-6 text-green-700" /> : (isExpired || isUpcoming) ? <Lock className="w-6 h-6 text-gray-400" /> : <FileText className="w-6 h-6 text-white" />}
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-navy-600 text-sm">{ex.title}</h3>
-                        {ex.course_name && <p className="text-xs text-gray-600 font-medium">{ex.course_name}</p>}
-                      </div>
+                <div key={ex.id} className={`card !p-4 ${ex.already_taken ? 'border-2 border-green-300' : isExpired ? 'opacity-60' : ''}`}>
+                  {/* Card Header */}
+                  <div className="flex items-start gap-3 mb-3">
+                    <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${ex.already_taken ? 'bg-green-100' : isExpired || isUpcoming ? 'bg-gray-100' : 'bg-gradient-to-br from-orange-500 to-orange-700'}`}>
+                      {ex.already_taken
+                        ? <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-green-700" />
+                        : (isExpired || isUpcoming)
+                          ? <Lock className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400" />
+                          : <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-white" />}
                     </div>
-                    {ex.already_taken && <Badge variant="success">✓ أُدي</Badge>}
-                    {isUpcoming && <span className="text-xs bg-yellow-100 text-yellow-800 font-bold px-2 py-0.5 rounded-full">⏳ قريباً</span>}
-                    {isExpired && <span className="text-xs bg-red-100 text-red-800 font-bold px-2 py-0.5 rounded-full">🔒 انتهى</span>}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <h3 className="font-bold text-navy-600 text-sm leading-snug">{ex.title}</h3>
+                        <div className="flex-shrink-0">
+                          {ex.already_taken && <Badge variant="success">✓ أُدي</Badge>}
+                          {isUpcoming && <span className="text-[10px] sm:text-xs bg-yellow-100 text-yellow-800 font-bold px-2 py-0.5 rounded-full whitespace-nowrap">⏳ قريباً</span>}
+                          {isExpired && <span className="text-[10px] sm:text-xs bg-red-100 text-red-800 font-bold px-2 py-0.5 rounded-full whitespace-nowrap">🔒 انتهى</span>}
+                        </div>
+                      </div>
+                      {ex.course_name && <p className="text-xs text-gray-500 font-medium mt-0.5">{ex.course_name}</p>}
+                    </div>
                   </div>
 
-                  <div className="flex flex-wrap gap-2 mb-3 text-xs">
-                    <span className="bg-gray-100 text-gray-700 font-semibold px-2 py-1 rounded-lg">⏱ {ex.duration_minutes} دقيقة</span>
-                    <span className="bg-gray-100 text-gray-700 font-semibold px-2 py-1 rounded-lg">📊 من {ex.total_score}</span>
-                    <span className="bg-gray-100 text-gray-700 font-semibold px-2 py-1 rounded-lg">✓ النجاح: {ex.pass_score}</span>
+                  {/* Info chips */}
+                  <div className="flex flex-wrap gap-1.5 mb-3 text-xs">
+                    <span className="bg-gray-100 text-gray-700 font-semibold px-2 py-1 rounded-lg">⏱ {ex.duration_minutes} د</span>
+                    <span className="bg-gray-100 text-gray-700 font-semibold px-2 py-1 rounded-lg">📊 {ex.total_score} درجة</span>
+                    <span className="bg-gray-100 text-gray-700 font-semibold px-2 py-1 rounded-lg">✓ نجاح: {ex.pass_score}</span>
                     {ex.badge_name && <span className="bg-orange-100 text-orange-800 font-semibold px-2 py-1 rounded-lg">🏅 {ex.badge_name}</span>}
                   </div>
 
                   {(ex.start_date || ex.end_date) && (
-                    <div className="flex items-center gap-1.5 mb-3 text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
-                      <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
-                      <span>
+                    <div className="flex items-start gap-1.5 mb-3 text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
+                      <Calendar className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                      <span className="leading-relaxed">
                         {ex.start_date && `من ${new Date(ex.start_date).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}`}
                         {ex.end_date && ` · حتى ${new Date(ex.end_date).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}`}
                       </span>
