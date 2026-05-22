@@ -511,33 +511,33 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-full bg-black select-none"
+      className="relative w-full h-full bg-black select-none overflow-hidden"
       style={fsStyle}
       onMouseMove={resetHide}
       onMouseLeave={() => { if (!seeking.current && playing) setShowControls(false); }}
-      onTouchStart={resetHide}
       onContextMenu={(e) => e.preventDefault()}
     >
       <FloatingWatermark name={studentName} code={studentCode} />
 
-      {/* YouTube iframe — scaled slightly to crop native title/logo/controls at edges */}
+      {/* YouTube iframe — pointer-events disabled; container overflow:hidden clips any edge bleed */}
       <div
         id={playerDivId}
-        className="absolute w-full h-full"
+        className="absolute inset-0 w-full h-full"
+        style={{ pointerEvents: 'none' }}
+      />
+
+      {/* Persistent overlay — opacity-based (no mount/unmount) to prevent flash.
+          Covers YouTube UI whenever the video is NOT actively playing. */}
+      <div
+        className="absolute inset-0 bg-black transition-opacity duration-200"
         style={{
-          top: '-5%', left: '-2.5%',
-          width: '105%', height: '110%',
+          zIndex: 11,
+          opacity: (!playing || buffering) ? 1 : 0,
           pointerEvents: 'none',
         }}
       />
 
-      {/* Dark mask: covers YouTube's own UI when paused / ended */}
-      {!playing && !buffering && (
-        <div className="absolute inset-0 bg-black" style={{ zIndex: 11 }} />
-      )}
-
-      {/* Thumbnail shown while paused — just a solid dark bg (thumbnail would need URL) */}
-      {/* Click interceptor — always on top of iframe */}
+      {/* Click interceptor — sits above overlay, handles focus-in/out taps */}
       <div
         className="absolute inset-0"
         style={{ zIndex: 12 }}
@@ -545,6 +545,7 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
         onContextMenu={(e) => e.preventDefault()}
       />
 
+      {/* Play button — visible when paused and not buffering */}
       {!playing && !buffering && (
         <div className="absolute inset-0 flex items-center justify-center" style={{ zIndex: 20, pointerEvents: 'none' }}>
           <div
@@ -556,6 +557,8 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
           </div>
         </div>
       )}
+
+      {/* Buffering spinner */}
       {buffering && (
         <div className="absolute inset-0 flex items-center justify-center" style={{ zIndex: 20, pointerEvents: 'none' }}>
           <div className="w-12 h-12 border-4 border-white/20 border-t-orange-500 rounded-full animate-spin" />
