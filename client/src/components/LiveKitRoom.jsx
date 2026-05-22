@@ -188,7 +188,7 @@ function AudioUnlockBtn({ room, onUnlocked }) {
 /* ════════════════════════════════════════════════════════════
    Main LiveKitRoom Component
    ════════════════════════════════════════════════════════════ */
-export default function LiveKitRoom({ streamId, isTeacher, displayName, style = {} }) {
+export default function LiveKitRoom({ streamId, isTeacher, displayName, canSpeak = false, canShareScreen = false, style = {} }) {
   const [status, setStatus]   = useState('loading');
   const [error, setError]     = useState(null);
   const [room]                = useState(() => new Room({
@@ -201,6 +201,10 @@ export default function LiveKitRoom({ streamId, isTeacher, displayName, style = 
   const [cameraEnabled, setCameraEnabled] = useState(true);
   const [screenSharing, setScreenSharing] = useState(false);
   const [localVersion,  setLocalVersion]  = useState(0);
+
+  // Student-specific states
+  const [studentMic,    setStudentMic]    = useState(false);
+  const [studentScreen, setStudentScreen] = useState(false);
 
   const [remoteVideoTrack,  setRemoteVideoTrack]  = useState(null);
   const [remoteScreenTrack, setRemoteScreenTrack] = useState(null);
@@ -333,6 +337,32 @@ export default function LiveKitRoom({ streamId, isTeacher, displayName, style = 
     setLocalVersion(v => v + 1);
   }, [room, screenSharing]);
 
+  /* ── Student controls (when permitted) ─────────────────── */
+  const toggleStudentMic = useCallback(async () => {
+    if (!canSpeak) return;
+    const next = !studentMic;
+    try {
+      await room.localParticipant.setMicrophoneEnabled(next);
+      setStudentMic(next);
+    } catch (e) {
+      console.warn('[LiveKit] student mic toggle failed:', e?.message);
+    }
+  }, [room, studentMic, canSpeak]);
+
+  const toggleStudentScreen = useCallback(async () => {
+    if (!canShareScreen) return;
+    if (studentScreen) {
+      await room.localParticipant.setScreenShareEnabled(false);
+      setStudentScreen(false);
+    } else {
+      try {
+        await room.localParticipant.setScreenShareEnabled(true);
+        setStudentScreen(true);
+      } catch (_) {}
+    }
+    setLocalVersion(v => v + 1);
+  }, [room, studentScreen, canShareScreen]);
+
   /* ── Determine what to show ────────────────────────────── */
   const hasLocalVideo = (() => {
     if (!isTeacher || status !== 'connected') return false;
@@ -404,6 +434,38 @@ export default function LiveKitRoom({ streamId, isTeacher, displayName, style = 
                 label={screenSharing ? 'إيقاف العرض' : 'مشاركة الشاشة'}
                 pulse={screenSharing}
               />
+            </div>
+          )}
+
+          {/* ── Student controls (mic / screen — only when teacher grants permission) ── */}
+          {!isTeacher && (canSpeak || canShareScreen) && (
+            <div style={{
+              position: 'absolute', bottom: 14, left: '50%', transform: 'translateX(-50%)',
+              display: 'flex', gap: 8, zIndex: 20,
+              background: 'rgba(0,0,0,0.78)', padding: '8px 12px',
+              borderRadius: 14, backdropFilter: 'blur(10px)',
+            }}>
+              <style>{`@keyframes ctrlPulse { 0%,100%{opacity:1} 50%{opacity:0.6} }`}</style>
+              {canSpeak && (
+                <CtrlBtn
+                  onClick={toggleStudentMic}
+                  active={studentMic}
+                  inactiveColor="#16a34a"
+                  icon={studentMic ? Mic : MicOff}
+                  label={studentMic ? 'كتم صوتك' : 'تحدث'}
+                  pulse={studentMic}
+                />
+              )}
+              {canShareScreen && (
+                <CtrlBtn
+                  onClick={toggleStudentScreen}
+                  active={!studentScreen}
+                  inactiveColor="#2563eb"
+                  icon={studentScreen ? MonitorOff : Monitor}
+                  label={studentScreen ? 'إيقاف الشاشة' : 'شارك شاشتك'}
+                  pulse={studentScreen}
+                />
+              )}
             </div>
           )}
         </>

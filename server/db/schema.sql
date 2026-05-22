@@ -436,6 +436,12 @@ BEGIN
   END IF;
 END $$;
 
+-- ── Live stream viewer permissions & moderation ───────────────────────────────
+ALTER TABLE live_stream_viewers ADD COLUMN IF NOT EXISTS can_speak        BOOLEAN DEFAULT false;
+ALTER TABLE live_stream_viewers ADD COLUMN IF NOT EXISTS can_share_screen BOOLEAN DEFAULT false;
+ALTER TABLE live_stream_viewers ADD COLUMN IF NOT EXISTS is_kicked        BOOLEAN DEFAULT false;
+ALTER TABLE live_streams        ADD COLUMN IF NOT EXISTS is_locked        BOOLEAN DEFAULT false;
+
 -- ── Additional performance indexes ────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_payments_student_status   ON payments(student_id, status);
 CREATE INDEX IF NOT EXISTS idx_exams_teacher_published   ON exams(teacher_id, is_published);

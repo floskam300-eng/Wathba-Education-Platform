@@ -137,12 +137,21 @@ function ChatPanel({ stream, studentName, dark, onClose }) {
 
 /* ── Live view (student) ───────────────────────────────────── */
 function LiveView({ stream, user, dark, onLeave }) {
-  const [chatOpen, setChatOpen]     = useState(true);
-  const [handRaised, setHandRaised] = useState(false);
-  const [raisingHand, setRaisingHand] = useState(false);
-  const [leaving, setLeaving]       = useState(false);
+  const [chatOpen, setChatOpen]         = useState(true);
+  const [handRaised, setHandRaised]     = useState(false);
+  const [raisingHand, setRaisingHand]   = useState(false);
+  const [leaving, setLeaving]           = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [myPermissions, setMyPermissions] = useState({ can_speak: false, can_share_screen: false });
+  const [livekitKey, setLivekitKey]     = useState(0);
   const videoWrapRef = useRef(null);
+
+  // Load initial permissions
+  useEffect(() => {
+    api.get(`/live/${stream.id}/my-permissions`).then(r => {
+      setMyPermissions({ can_speak: !!r.data.can_speak, can_share_screen: !!r.data.can_share_screen });
+    }).catch(() => {});
+  }, [stream.id]);
 
   // Handle live_ended from teacher
   useEffect(() => {
@@ -155,6 +164,30 @@ function LiveView({ stream, user, dark, onLeave }) {
     window.addEventListener('wathba_live_ended', h);
     return () => window.removeEventListener('wathba_live_ended', h);
   }, [stream.id, onLeave]);
+
+  // Handle live_kicked
+  useEffect(() => {
+    const h = (e) => {
+      if (String(e.detail?.streamId) === String(stream.id)) {
+        onLeave();
+      }
+    };
+    window.addEventListener('wathba_live_kicked', h);
+    return () => window.removeEventListener('wathba_live_kicked', h);
+  }, [stream.id, onLeave]);
+
+  // Handle live_permission_update
+  useEffect(() => {
+    const h = (e) => {
+      if (String(e.detail?.streamId) === String(stream.id)) {
+        const { can_speak, can_share_screen } = e.detail;
+        setMyPermissions({ can_speak: !!can_speak, can_share_screen: !!can_share_screen });
+        setLivekitKey(k => k + 1);
+      }
+    };
+    window.addEventListener('wathba_live_permission_update', h);
+    return () => window.removeEventListener('wathba_live_permission_update', h);
+  }, [stream.id]);
 
   const toggleHand = async () => {
     setRaisingHand(true);
@@ -267,9 +300,12 @@ function LiveView({ stream, user, dark, onLeave }) {
             } md:max-h-none md:min-h-0`}
         >
           <LiveKitRoom
+            key={livekitKey}
             streamId={stream.id}
             displayName={user?.name || 'طالب'}
             isTeacher={false}
+            canSpeak={myPermissions.can_speak}
+            canShareScreen={myPermissions.can_share_screen}
             style={{ height: '100%', width: '100%' }}
           />
 

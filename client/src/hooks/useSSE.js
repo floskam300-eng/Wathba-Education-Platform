@@ -188,6 +188,31 @@ export function useSSE(enabled, role) {
             style: { fontFamily: 'inherit', direction: 'rtl', background: '#14532d', color: '#fff' },
           });
         });
+
+        es.addEventListener('live_kicked', (e) => {
+          const data = JSON.parse(e.data);
+          window.dispatchEvent(new CustomEvent('wathba_live_kicked', { detail: data }));
+          toast.error('🚫 تم إخراجك من البث من قِبَل المعلم', {
+            duration: 7000,
+            style: { fontFamily: 'inherit', direction: 'rtl' },
+          });
+        });
+
+        es.addEventListener('live_permission_update', (e) => {
+          const data = JSON.parse(e.data);
+          window.dispatchEvent(new CustomEvent('wathba_live_permission_update', { detail: data }));
+          if (data.can_speak) {
+            toast.success('🎤 منحك المعلم صلاحية التحدث!', {
+              duration: 6000,
+              style: { fontFamily: 'inherit', direction: 'rtl', background: '#1e3a5f', color: '#fff' },
+            });
+          } else if (data.can_share_screen) {
+            toast.success('🖥️ منحك المعلم صلاحية مشاركة الشاشة!', {
+              duration: 6000,
+              style: { fontFamily: 'inherit', direction: 'rtl', background: '#1e3a5f', color: '#fff' },
+            });
+          }
+        });
       }
 
       if (role === 'teacher' || role === 'assistant') {

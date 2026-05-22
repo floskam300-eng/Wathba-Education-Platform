@@ -23,6 +23,10 @@ npm-debug.log*
 uploads/
 uploads/pdfs/
 uploads/videos/
+uploads/images/
+uploads/question-images/
+uploads/thumbnails/
+uploads/videos/
 
 # OS files
 .DS_Store

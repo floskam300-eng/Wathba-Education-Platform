@@ -52,10 +52,16 @@ router.post('/:streamId/livekit-token', async (req, res) => {
         roomAdmin:       true,
       });
     } else {
+      const { rows: permRows } = await pool.query(
+        'SELECT can_speak, can_share_screen FROM live_stream_viewers WHERE stream_id=$1 AND student_id=$2 AND is_active=true AND is_kicked=false',
+        [streamId, id]
+      );
+      const perm = permRows[0] || {};
+      const canPublish = !!(perm.can_speak || perm.can_share_screen);
       at.addGrant({
         roomJoin:       true,
         room:           roomName,
-        canPublish:     false,
+        canPublish,
         canSubscribe:   true,
         canPublishData: false,
       });
@@ -386,6 +392,12 @@ router.post('/:streamId/join', requireRole('student'), async (req, res) => {
     if (!rows.length) return res.status(404).json({ error: 'البث غير موجود أو انتهى' });
 
     const stream = rows[0];
+
+    // Enforce room lock
+    if (stream.is_locked) {
+      return res.status(403).json({ error: 'الغرفة مقفلة حالياً من قِبَل المعلم — انتظر حتى يفتحها' });
+    }
+
     // Enforce per-stream access restrictions
     if (stream.access === 'stages') {
       const allowed = parseJsonbField(stream.allowed_stages).map(String);
@@ -458,6 +470,8 @@ router.get('/:streamId/viewers', requireRole('teacher'), async (req, res) => {
     const { rows } = await pool.query(
       `SELECT s.id, s.name, s.academic_stage, s.points,
          lsv.joined_at,
+         lsv.can_speak,
+         lsv.can_share_screen,
          COALESCE(lhr.is_active, false) AS hand_raised,
          lhr.raised_at
        FROM live_stream_viewers lsv
@@ -524,6 +538,167 @@ router.post('/:streamId/hand-raise', requireRole('student'), async (req, res) =>
     });
 
     res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+/* ──────────────────────────────────────────────────────────────
+   Teacher: kick a student from the stream
+────────────────────────────────────────────────────────────── */
+router.post('/:streamId/kick/:studentId', requireRole('teacher'), async (req, res) => {
+  const teacherId = req.user.id;
+  const { streamId, studentId } = req.params;
+
+  try {
+    const { rows: streamRows } = await pool.query(
+      'SELECT id, title FROM live_streams WHERE id=$1 AND teacher_id=$2 AND status=\'active\'',
+      [streamId, teacherId]
+    );
+    if (!streamRows.length) return res.status(403).json({ error: 'غير مصرح أو البث غير نشط' });
+
+    const { rowCount } = await pool.query(
+      `UPDATE live_stream_viewers
+         SET is_active=false, is_kicked=true, left_at=NOW(),
+             can_speak=false, can_share_screen=false
+       WHERE stream_id=$1 AND student_id=$2 AND is_active=true`,
+      [streamId, studentId]
+    );
+    if (!rowCount) return res.status(404).json({ error: 'الطالب غير موجود في البث' });
+
+    await pool.query(
+      "UPDATE live_hand_raises SET is_active=false, lowered_at=NOW() WHERE stream_id=$1 AND student_id=$2 AND is_active=true",
+      [streamId, studentId]
+    );
+
+    sendEvent(`student_${studentId}`, 'live_kicked', {
+      streamId: parseInt(streamId),
+      message: 'تم إخراجك من البث من قِبَل المعلم',
+    });
+
+    sendEvent(`teacher_${teacherId}`, 'live_viewer_update', {
+      action: 'kicked', studentId: parseInt(studentId),
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[live/kick]', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+/* ──────────────────────────────────────────────────────────────
+   Teacher: grant / revoke student mic & screen permissions
+────────────────────────────────────────────────────────────── */
+router.post('/:streamId/permissions/:studentId', requireRole('teacher'), async (req, res) => {
+  const teacherId = req.user.id;
+  const { streamId, studentId } = req.params;
+  const { can_speak, can_share_screen } = req.body;
+
+  try {
+    const { rows: streamRows } = await pool.query(
+      'SELECT id FROM live_streams WHERE id=$1 AND teacher_id=$2 AND status=\'active\'',
+      [streamId, teacherId]
+    );
+    if (!streamRows.length) return res.status(403).json({ error: 'غير مصرح أو البث غير نشط' });
+
+    const { rowCount } = await pool.query(
+      `UPDATE live_stream_viewers
+         SET can_speak=$1, can_share_screen=$2
+       WHERE stream_id=$3 AND student_id=$4 AND is_active=true`,
+      [!!can_speak, !!can_share_screen, streamId, studentId]
+    );
+    if (!rowCount) return res.status(404).json({ error: 'الطالب غير موجود في البث' });
+
+    sendEvent(`student_${studentId}`, 'live_permission_update', {
+      streamId:         parseInt(streamId),
+      can_speak:        !!can_speak,
+      can_share_screen: !!can_share_screen,
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[live/permissions]', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+/* ──────────────────────────────────────────────────────────────
+   Teacher: mute all students (revoke all can_speak)
+────────────────────────────────────────────────────────────── */
+router.post('/:streamId/mute-all', requireRole('teacher'), async (req, res) => {
+  const teacherId = req.user.id;
+  const { streamId } = req.params;
+
+  try {
+    const { rows: streamRows } = await pool.query(
+      'SELECT id FROM live_streams WHERE id=$1 AND teacher_id=$2 AND status=\'active\'',
+      [streamId, teacherId]
+    );
+    if (!streamRows.length) return res.status(403).json({ error: 'غير مصرح' });
+
+    const { rows: activeViewers } = await pool.query(
+      'SELECT student_id FROM live_stream_viewers WHERE stream_id=$1 AND is_active=true AND can_speak=true',
+      [streamId]
+    );
+
+    await pool.query(
+      'UPDATE live_stream_viewers SET can_speak=false WHERE stream_id=$1 AND is_active=true',
+      [streamId]
+    );
+
+    for (const { student_id } of activeViewers) {
+      const cur = await pool.query(
+        'SELECT can_share_screen FROM live_stream_viewers WHERE stream_id=$1 AND student_id=$2',
+        [streamId, student_id]
+      );
+      sendEvent(`student_${student_id}`, 'live_permission_update', {
+        streamId: parseInt(streamId),
+        can_speak: false,
+        can_share_screen: cur.rows[0]?.can_share_screen || false,
+      });
+    }
+
+    res.json({ success: true, mutedCount: activeViewers.length });
+  } catch (err) {
+    console.error('[live/mute-all]', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+/* ──────────────────────────────────────────────────────────────
+   Teacher: lock / unlock the stream (no new joins)
+────────────────────────────────────────────────────────────── */
+router.post('/:streamId/lock', requireRole('teacher'), async (req, res) => {
+  const teacherId = req.user.id;
+  const { streamId } = req.params;
+  const { locked } = req.body;
+
+  try {
+    const { rowCount } = await pool.query(
+      'UPDATE live_streams SET is_locked=$1 WHERE id=$2 AND teacher_id=$3 AND status=\'active\'',
+      [!!locked, streamId, teacherId]
+    );
+    if (!rowCount) return res.status(404).json({ error: 'البث غير موجود' });
+    res.json({ success: true, is_locked: !!locked });
+  } catch (err) {
+    console.error('[live/lock]', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+/* ──────────────────────────────────────────────────────────────
+   Student: get my permissions in a stream
+────────────────────────────────────────────────────────────── */
+router.get('/:streamId/my-permissions', requireRole('student'), async (req, res) => {
+  const studentId = req.user.id;
+  const { streamId } = req.params;
+  try {
+    const { rows } = await pool.query(
+      'SELECT can_speak, can_share_screen FROM live_stream_viewers WHERE stream_id=$1 AND student_id=$2 AND is_active=true',
+      [streamId, studentId]
+    );
+    res.json(rows[0] || { can_speak: false, can_share_screen: false });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }
