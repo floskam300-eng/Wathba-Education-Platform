@@ -315,6 +315,12 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
               }, 10000);
             } else if (e.data === S.BUFFERING) {
               setBuffering(true);
+            } else if (e.data === -1 || e.data === 5) {
+              /* UNSTARTED / CUED — autoplay blocked or video cued but not playing yet.
+                 Clear the loading state so the play button becomes visible. */
+              setBuffering(false);
+              setInitialLoad(false);
+              setPlaying(false);
             } else {
               setPlaying(false);
               setBuffering(false);
@@ -355,6 +361,8 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
       clearInterval(saveTimer.current);
       clearTimeout(hideTimer.current);
       flushYTProgress();
+      try { playerRef.current?.stopVideo(); } catch (_) {}
+      try { playerRef.current?.destroy(); playerRef.current = null; } catch (_) {}
     };
   }, [ytId]); // eslint-disable-line
 
@@ -674,10 +682,11 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
     return () => { flushProgress(); };
   }, [video?.id]); // eslint-disable-line
 
-  /* ── unmount: save progress when navigating away without pause ── */
+  /* ── unmount: stop video and save progress ── */
   useEffect(() => {
     return () => {
       clearInterval(saveTimer.current);
+      try { videoRef.current?.pause(); } catch (_) {}
       flushProgress();
     };
   }, []); // eslint-disable-line
