@@ -526,22 +526,16 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
         style={{ pointerEvents: 'none' }}
       />
 
-      {/* Smart overlay strategy:
-          - Buffering / initial load → full black (opacity 1) instantly
-          - Paused → semi-transparent (opacity 0.82) — hides YouTube next-video info
-            while keeping the current video frame visible (no "screen off" effect)
-          - Playing → fully transparent (opacity 0) with slow 2.5s fade so YouTube
-            title bar fades away before our overlay disappears */}
+      {/* Overlay strategy:
+          - Buffering / initial load → full black (opacity 1) to hide blank iframe
+          - Paused → fully transparent (opacity 0) — last frame stays visible, no blackout
+          - Playing → fades out over 2.5s so YouTube title bar disappears before overlay goes */}
       <div
         className="absolute inset-0 bg-black"
         style={{
           zIndex: 11,
-          opacity: buffering ? 1 : (!playing ? 0.82 : 0),
-          transition: buffering
-            ? 'opacity 0.15s ease-out'
-            : !playing
-              ? 'opacity 0.2s ease-out'
-              : 'opacity 2.5s ease-in',
+          opacity: buffering ? 1 : 0,
+          transition: buffering ? 'opacity 0.15s ease-out' : 'opacity 2.5s ease-in',
           pointerEvents: 'none',
         }}
       />
