@@ -88,14 +88,35 @@ const uploadVideo = multer({
     else cb(new Error('Only video files allowed'));
   },
 });
+const ACCEPTED_PDF_MIMES = [
+  'application/pdf',
+  'application/x-pdf',
+  'application/acrobat',
+  'application/vnd.pdf',
+  'application/octet-stream',
+];
 const uploadPdf = multer({
   storage: pdfStorage,
   limits: { fileSize: 50 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    if (file.mimetype === 'application/pdf') cb(null, true);
-    else cb(new Error('Only PDF files allowed'));
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    const mimeOk = ACCEPTED_PDF_MIMES.includes(file.mimetype);
+    const extOk  = ext === '.pdf';
+    if (mimeOk || extOk) cb(null, true);
+    else cb(new Error('يُسمح بملفات PDF فقط'));
   },
 });
+
+// Wraps a multer middleware and returns clean JSON errors instead of HTML
+const withMulterErrors = (upload) => (req, res, next) => {
+  upload(req, res, (err) => {
+    if (!err) return next();
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ error: 'حجم الملف يتجاوز الحد المسموح به (50 MB)' });
+    }
+    return res.status(400).json({ error: err.message || 'خطأ في رفع الملف' });
+  });
+};
 
 router.post('/upload-thumbnail', requireRole('teacher', 'assistant'), checkManageCoursesPerm, uploadThumbnail.single('thumbnail'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'لم يتم رفع أي ملف' });
@@ -464,7 +485,7 @@ router.post('/:id/videos/url', requireRole('teacher', 'assistant'), checkManageC
   }
 });
 
-router.post('/:id/videos/upload', requireRole('teacher', 'assistant'), checkManageCoursesPerm, preCheckOwnership, uploadVideo.single('video'), async (req, res) => {
+router.post('/:id/videos/upload', requireRole('teacher', 'assistant'), checkManageCoursesPerm, preCheckOwnership, withMulterErrors(uploadVideo.single('video')), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No video file uploaded' });
     const { title, duration_minutes, sort_order, section_id } = req.body;
@@ -480,7 +501,7 @@ router.post('/:id/videos/upload', requireRole('teacher', 'assistant'), checkMana
   }
 });
 
-router.post('/:id/pdfs/upload', requireRole('teacher', 'assistant'), checkManageCoursesPerm, preCheckOwnership, uploadPdf.single('pdf'), async (req, res) => {
+router.post('/:id/pdfs/upload', requireRole('teacher', 'assistant'), checkManageCoursesPerm, preCheckOwnership, withMulterErrors(uploadPdf.single('pdf')), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No PDF file uploaded' });
     const { title, section_id } = req.body;
