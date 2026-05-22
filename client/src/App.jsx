@@ -51,23 +51,38 @@ import TermsAndConditions from './pages/TermsAndConditions';
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { hasError: false, error: null, info: null };
   }
-  static getDerivedStateFromError() { return { hasError: true }; }
-  componentDidCatch(error, info) { console.error('[ErrorBoundary]', error, info.componentStack); }
+  static getDerivedStateFromError(error) { return { hasError: true, error }; }
+  componentDidCatch(error, info) {
+    console.error('[ErrorBoundary]', error, info.componentStack);
+    this.setState({ info });
+  }
   render() {
     if (this.state.hasError) {
+      const msg = this.state.error?.message || '';
+      const stack = this.state.info?.componentStack || '';
       return (
         <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 p-6 text-center" dir="rtl">
-          <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md w-full">
+          <div className="bg-white rounded-2xl shadow-lg p-8 max-w-2xl w-full text-right">
             <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <AlertTriangle className="w-8 h-8 text-red-500" />
             </div>
-            <h2 className="text-xl font-bold text-gray-800 mb-2">حدث خطأ غير متوقع</h2>
-            <p className="text-gray-500 text-sm mb-6">يرجى إعادة تحميل الصفحة.</p>
-            <button onClick={() => window.location.reload()}
+            <h2 className="text-xl font-bold text-gray-800 mb-2 text-center">حدث خطأ غير متوقع</h2>
+            {msg && (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-4 text-left overflow-auto max-h-32">
+                <p className="text-red-700 text-xs font-mono break-all">{msg}</p>
+              </div>
+            )}
+            {stack && (
+              <details className="mb-4">
+                <summary className="text-xs text-gray-500 cursor-pointer mb-1">تفاصيل الخطأ</summary>
+                <pre className="bg-gray-100 rounded p-2 text-[10px] text-gray-600 overflow-auto max-h-40 text-left">{stack}</pre>
+              </details>
+            )}
+            <button onClick={() => { this.setState({ hasError: false, error: null, info: null }); }}
               className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-5 py-2.5 rounded-xl font-semibold mx-auto transition-colors">
-              <RefreshCw className="w-4 h-4" /> إعادة تحميل
+              <RefreshCw className="w-4 h-4" /> محاولة مرة أخرى
             </button>
           </div>
         </div>
