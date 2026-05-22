@@ -63,10 +63,6 @@ function VideoUrlSection({ courseId, onSuccess, sections = [] }) {
   const [url, setUrl] = useState('');
   const [duration, setDuration] = useState('');
   const [sectionId, setSectionId] = useState('');
-  const [url480, setUrl480] = useState('');
-  const [url720, setUrl720] = useState('');
-  const [url1080, setUrl1080] = useState('');
-  const [showQuality, setShowQuality] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleAdd = async () => {
@@ -79,13 +75,9 @@ function VideoUrlSection({ courseId, onSuccess, sections = [] }) {
         url: url.trim(),
         duration_minutes: duration || '0',
         section_id: sectionId || undefined,
-        url_480: url480.trim() || undefined,
-        url_720: url720.trim() || undefined,
-        url_1080: url1080.trim() || undefined,
       });
       toast.success('تم إضافة الفيديو بنجاح ✅');
       setTitle(''); setUrl(''); setDuration(''); setSectionId('');
-      setUrl480(''); setUrl720(''); setUrl1080(''); setShowQuality(false);
       onSuccess();
     } catch (e) {
       toast.error(e.response?.data?.error || 'فشل إضافة الفيديو');
@@ -114,29 +106,6 @@ function VideoUrlSection({ courseId, onSuccess, sections = [] }) {
         )}
       </div>
 
-      {/* Quality URLs toggle */}
-      <button
-        type="button"
-        onClick={() => setShowQuality(p => !p)}
-        className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1.5 transition-colors"
-      >
-        <span>{showQuality ? '▲' : '▼'}</span>
-        روابط الجودة المتعددة (480p / 720p / 1080p) — اختياري
-      </button>
-
-      {showQuality && (
-        <div className="space-y-2 bg-blue-50 rounded-lg p-3 border border-blue-100">
-          <p className="text-[11px] text-blue-500 font-bold mb-2">
-            أضف روابط بجودات مختلفة لتتيح للطالب اختيار الجودة المناسبة
-          </p>
-          <input value={url480} onChange={e => setUrl480(e.target.value)}
-            className="input-field" placeholder="رابط 480p" dir="ltr" disabled={loading} />
-          <input value={url720} onChange={e => setUrl720(e.target.value)}
-            className="input-field" placeholder="رابط 720p" dir="ltr" disabled={loading} />
-          <input value={url1080} onChange={e => setUrl1080(e.target.value)}
-            className="input-field" placeholder="رابط 1080p" dir="ltr" disabled={loading} />
-        </div>
-      )}
 
       <button onClick={handleAdd} disabled={loading || !title.trim() || !url.trim()}
         className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">

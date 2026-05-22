@@ -20,19 +20,7 @@ const fmt = (min) => min >= 60
 const STORAGE_VOLUME   = 'wathba_player_volume';
 const STORAGE_MUTED    = 'wathba_player_muted';
 const STORAGE_SPEED    = 'wathba_player_speed';
-const STORAGE_QUALITY  = 'wathba_player_quality';
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
-
-/* YouTube quality label ↔ display label */
-const YT_QUALITIES = [
-  { key: 'hd1080', label: '1080p' },
-  { key: 'hd720',  label: '720p'  },
-  { key: 'large',  label: '480p'  },
-  { key: 'default', label: 'تلقائي' },
-];
-
-const loadQuality = () => { try { return localStorage.getItem(STORAGE_QUALITY) || 'default'; } catch { return 'default'; } };
-const saveQuality = (q) => { try { localStorage.setItem(STORAGE_QUALITY, q); } catch {} };
 
 const loadVolume = () => { try { const v = localStorage.getItem(STORAGE_VOLUME); return v !== null ? parseFloat(v) : 80; } catch { return 80; } };
 const loadMuted  = () => { try { return localStorage.getItem(STORAGE_MUTED) === 'true'; } catch { return false; } };
@@ -188,9 +176,6 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
   const [cssLandscape, setCssLandscape] = useState(false);
   const [speed,        setSpeed]        = useState(() => loadSpeed());
   const [showSpeed,    setShowSpeed]    = useState(false);
-  const [quality,      setQuality]      = useState(() => loadQuality());
-  const [showQuality,  setShowQuality]  = useState(false);
-  const [availableQualities, setAvailableQualities] = useState([]);
 
   const ytId = extractYoutubeId(video.file_path_or_url);
 
@@ -287,14 +272,6 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
             if (initialPosition > 5) {
               try { e.target.seekTo(initialPosition, true); } catch (_) {}
             }
-            try {
-              const avail = e.target.getAvailableQualityLevels() || [];
-              setAvailableQualities(avail);
-              const savedQ = loadQuality();
-              if (savedQ && savedQ !== 'default' && avail.includes(savedQ)) {
-                e.target.setPlaybackQuality(savedQ);
-              }
-            } catch (_) {}
           },
           onStateChange: (e) => {
             const S = window.YT.PlayerState;
@@ -427,13 +404,6 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
     try { playerRef.current?.setPlaybackRate(s); } catch (_) {}
   };
 
-  const changeQuality = (q) => {
-    setQuality(q);
-    saveQuality(q);
-    setShowQuality(false);
-    try { playerRef.current?.setPlaybackQuality(q); } catch (_) {}
-  };
-
   const toggleLandscape = () => {
     if (cssLandscape) {
       setCssLandscape(false);
@@ -497,10 +467,6 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
     const m = Math.floor(s / 60);
     return `${m}:${Math.floor(s % 60).toString().padStart(2, '0')}`;
   };
-
-  /* Visible quality options: always show 'default'; add others if available */
-  const visibleQualities = YT_QUALITIES;
-  const qualityLabel = YT_QUALITIES.find(q => q.key === quality)?.label || 'تلقائي';
 
   const pct = `${progress}%`;
   const vol = `${muted ? 0 : volume}%`;
@@ -601,19 +567,6 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
         </div>
       )}
 
-      {/* Quality picker popup */}
-      {showQuality && (
-        <div className="absolute bottom-20 left-20 bg-gray-900/95 border border-white/10 rounded-xl overflow-hidden shadow-2xl" style={{ zIndex: 40 }}>
-          <p className="text-[10px] font-bold text-gray-400 px-3 pt-2 pb-1 border-b border-white/10">جودة الفيديو</p>
-          {visibleQualities.map(q => (
-            <button key={q.key} onClick={() => changeQuality(q.key)}
-              className={`w-full text-center px-5 py-1.5 text-sm font-bold transition-colors ${quality === q.key ? 'bg-orange-500 text-white' : 'text-gray-300 hover:bg-white/10'}`}>
-              {q.label}
-            </button>
-          ))}
-        </div>
-      )}
-
       <div className={`absolute bottom-0 left-0 right-0 transition-opacity duration-300 ${showControls || !playing ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} style={{ zIndex: 30 }}>
         <div className="bg-gradient-to-t from-black/95 via-black/60 to-transparent px-4 pt-10 pb-3">
           <div className="mb-3">
@@ -634,15 +587,8 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
             </button>
             <span className="text-white/70 text-xs font-mono flex-shrink-0">{fmtSec(currentTime)} / {fmtSec(duration)}</span>
             <div className="flex-1" />
-            {/* Quality button */}
-            <button
-              onClick={() => { setShowQuality(p => !p); setShowSpeed(false); }}
-              className={`hidden sm:flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold transition-colors flex-shrink-0 ${quality !== 'default' ? 'text-blue-400 bg-blue-400/10' : 'text-white/70 hover:text-white'}`}>
-              <Settings className="w-3.5 h-3.5" />
-              {qualityLabel}
-            </button>
             {/* Speed button */}
-            <button onClick={() => { setShowSpeed(p => !p); setShowQuality(false); }}
+            <button onClick={() => setShowSpeed(p => !p)}
               className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold transition-colors flex-shrink-0 ${speed !== 1 ? 'text-orange-400 bg-orange-400/10' : 'text-white/70 hover:text-white'}`}>
               <Gauge className="w-3.5 h-3.5" />
               {speed === 1 ? '1x' : `${speed}x`}
@@ -698,8 +644,6 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
   const [cssLandscape, setCssLandscape] = useState(false);
   const [speed,        setSpeed]        = useState(() => loadSpeed());
   const [showSpeed,    setShowSpeed]    = useState(false);
-  const [quality,      setQuality]      = useState('auto');
-  const [showQuality,  setShowQuality]  = useState(false);
   const pendingSeekRef = useRef(null);
 
   /* ── keep prop refs current ── */
@@ -816,15 +760,6 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
     if (videoRef.current) videoRef.current.playbackRate = s;
   };
 
-  const changeQuality = (q) => {
-    if (!videoRef.current) return;
-    const ct = videoRef.current.currentTime;
-    const wasPlaying = !videoRef.current.paused;
-    pendingSeekRef.current = { time: ct, play: wasPlaying };
-    setQuality(q);
-    setShowQuality(false);
-  };
-
   const toggleLandscape = () => {
     if (cssLandscape) {
       setCssLandscape(false);
@@ -885,17 +820,7 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
     return <YoutubePlayer video={video} onProgressUpdate={onProgressUpdate} studentName={studentName} studentCode={studentCode} initialPosition={initialPosition} />;
   }
 
-  /* Determine available quality options for this video */
-  const qualityOptions = [
-    { key: 'auto', label: 'تلقائي', url: video.file_path_or_url },
-    ...(video.url_480  ? [{ key: '480',  label: '480p',  url: video.url_480  }] : []),
-    ...(video.url_720  ? [{ key: '720',  label: '720p',  url: video.url_720  }] : []),
-    ...(video.url_1080 ? [{ key: '1080', label: '1080p', url: video.url_1080 }] : []),
-  ];
-  const hasMultipleQualities = qualityOptions.length > 1;
-  const currentQualityOption = qualityOptions.find(q => q.key === quality) || qualityOptions[0];
-  const currentSrc = currentQualityOption.url;
-  const qualityLabel = currentQualityOption.label;
+  const currentSrc = video.file_path_or_url;
 
   const pct = `${progress}%`;
   const vol = `${(muted ? 0 : volume) * 100}%`;
@@ -924,7 +849,7 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
 
       <video
         ref={videoRef}
-        key={`${video.id}-${quality}`}
+        key={video.id}
         src={currentSrc}
         className="w-full h-full object-contain cursor-pointer"
         muted={muted}
@@ -1016,19 +941,6 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
         </div>
       )}
 
-      {/* Quality picker popup */}
-      {showQuality && hasMultipleQualities && (
-        <div className="absolute bottom-20 left-20 bg-gray-900/95 border border-white/10 rounded-xl overflow-hidden shadow-2xl" style={{ zIndex: 40 }}>
-          <p className="text-[10px] font-bold text-gray-400 px-3 pt-2 pb-1 border-b border-white/10">جودة الفيديو</p>
-          {qualityOptions.map(q => (
-            <button key={q.key} onClick={() => changeQuality(q.key)}
-              className={`w-full text-center px-5 py-1.5 text-sm font-bold transition-colors ${quality === q.key ? 'bg-orange-500 text-white' : 'text-gray-300 hover:bg-white/10'}`}>
-              {q.label}
-            </button>
-          ))}
-        </div>
-      )}
-
       <div className={`absolute bottom-0 left-0 right-0 transition-opacity duration-300 ${showControls || !playing ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
         <div className="bg-gradient-to-t from-black/95 via-black/60 to-transparent px-4 pt-10 pb-3">
           <div className="mb-3">
@@ -1049,17 +961,8 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
             </button>
             <span className="text-white/70 text-xs font-mono flex-shrink-0">{fmtSec(currentTime)} / {fmtSec(duration)}</span>
             <div className="flex-1" />
-            {/* Quality button — only shown when multiple qualities available */}
-            {hasMultipleQualities && (
-              <button
-                onClick={() => { setShowQuality(p => !p); setShowSpeed(false); }}
-                className={`hidden sm:flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold transition-colors flex-shrink-0 ${quality !== 'auto' ? 'text-blue-400 bg-blue-400/10' : 'text-white/70 hover:text-white'}`}>
-                <Settings className="w-3.5 h-3.5" />
-                {qualityLabel}
-              </button>
-            )}
             {/* Speed button */}
-            <button onClick={() => { setShowSpeed(p => !p); setShowQuality(false); }}
+            <button onClick={() => setShowSpeed(p => !p)}
               className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold transition-colors flex-shrink-0 ${speed !== 1 ? 'text-orange-400 bg-orange-400/10' : 'text-white/70 hover:text-white'}`}>
               <Gauge className="w-3.5 h-3.5" />
               {speed === 1 ? '1x' : `${speed}x`}
