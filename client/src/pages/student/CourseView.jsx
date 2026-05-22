@@ -18,6 +18,7 @@ const fmt = (min) => min >= 60
 
 /* ─── Player settings persistence (localStorage) ─────── */
 const STORAGE_VOLUME   = 'wathba_player_volume';
+const STORAGE_MUTED    = 'wathba_player_muted';
 const STORAGE_SPEED    = 'wathba_player_speed';
 const STORAGE_QUALITY  = 'wathba_player_quality';
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
@@ -34,8 +35,10 @@ const loadQuality = () => { try { return localStorage.getItem(STORAGE_QUALITY) |
 const saveQuality = (q) => { try { localStorage.setItem(STORAGE_QUALITY, q); } catch {} };
 
 const loadVolume = () => { try { const v = localStorage.getItem(STORAGE_VOLUME); return v !== null ? parseFloat(v) : 80; } catch { return 80; } };
+const loadMuted  = () => { try { return localStorage.getItem(STORAGE_MUTED) === 'true'; } catch { return false; } };
 const loadSpeed  = () => { try { const s = localStorage.getItem(STORAGE_SPEED);  return s !== null ? parseFloat(s) : 1;  } catch { return 1;  } };
 const saveVolume = (v) => { try { localStorage.setItem(STORAGE_VOLUME, String(v)); } catch {} };
+const saveMuted  = (m) => { try { localStorage.setItem(STORAGE_MUTED,  String(m)); } catch {} };
 const saveSpeed  = (s) => { try { localStorage.setItem(STORAGE_SPEED,  String(s)); } catch {} };
 
 /* ─── Floating Watermark ───────────────────────────────── */
@@ -178,7 +181,7 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
   const [duration,     setDuration]     = useState(0);
   const [currentTime,  setCurrentTime]  = useState(0);
   const [volume,       setVolume]       = useState(() => loadVolume());
-  const [muted,        setMuted]        = useState(false);
+  const [muted,        setMuted]        = useState(() => loadMuted());
   const [showControls, setShowControls] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [cssFullscreen, setCssFullscreen] = useState(false);
@@ -279,6 +282,7 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
             const d = e.target.getDuration();
             if (d > 0) setDuration(d);
             e.target.setVolume(savedVol);
+            if (loadMuted()) { try { e.target.mute(); } catch (_) {} }
             try { e.target.setPlaybackRate(savedSpeed); } catch (_) {}
             if (initialPosition > 5) {
               try { e.target.seekTo(initialPosition, true); } catch (_) {}
@@ -394,6 +398,7 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
     setVolume(v);
     setMuted(v === 0);
     saveVolume(v);
+    saveMuted(v === 0);
     try {
       playerRef.current?.setVolume(v);
       v === 0 ? playerRef.current?.mute() : playerRef.current?.unMute();
@@ -402,8 +407,8 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
 
   const toggleMute = () => {
     try {
-      if (muted) { playerRef.current?.unMute(); setMuted(false); }
-      else        { playerRef.current?.mute();   setMuted(true);  }
+      if (muted) { playerRef.current?.unMute(); setMuted(false); saveMuted(false); }
+      else        { playerRef.current?.mute();   setMuted(true);  saveMuted(true);  }
     } catch (_) {}
   };
 
