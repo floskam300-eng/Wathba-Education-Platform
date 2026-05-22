@@ -142,9 +142,30 @@ function LiveView({ stream, user, dark, onLeave }) {
   const [raisingHand, setRaisingHand]   = useState(false);
   const [leaving, setLeaving]           = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [uiVisible, setUiVisible]       = useState(true);
   const [myPermissions, setMyPermissions] = useState({ can_speak: false, can_share_screen: false });
   const [livekitKey, setLivekitKey]     = useState(0);
-  const videoWrapRef = useRef(null);
+  const videoWrapRef  = useRef(null);
+  const uiHideTimer   = useRef(null);
+
+  const showUiTemporarily = useCallback(() => {
+    setUiVisible(true);
+    clearTimeout(uiHideTimer.current);
+    uiHideTimer.current = setTimeout(() => setUiVisible(false), 4000);
+  }, []);
+
+  const handleVideoTap = useCallback(() => {
+    setUiVisible(v => {
+      if (v) {
+        clearTimeout(uiHideTimer.current);
+        return false;
+      }
+      uiHideTimer.current = setTimeout(() => setUiVisible(false), 4000);
+      return true;
+    });
+  }, []);
+
+  useEffect(() => () => clearTimeout(uiHideTimer.current), []);
 
   // Load initial permissions
   useEffect(() => {
@@ -240,10 +261,12 @@ function LiveView({ stream, user, dark, onLeave }) {
   }, []);
 
   return (
-    <div className="flex flex-col" style={{ height: '100%' }}>
-      {/* Top bar — hidden in fullscreen */}
-      <div className="flex items-center justify-between px-3 py-2 flex-shrink-0"
-           style={{ backgroundColor: '#1a0000', borderBottom: '1px solid rgba(239,68,68,0.3)' }}>
+    <div className="flex flex-col">
+      {/* ── Top bar — fades out in focus mode ── */}
+      <div
+        className={`flex items-center justify-between px-3 py-2 flex-shrink-0 sticky top-0 z-30 transition-all duration-300 ${uiVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+        style={{ backgroundColor: '#1a0000', borderBottom: '1px solid rgba(239,68,68,0.3)' }}
+      >
         <div className="flex items-center gap-2 min-w-0">
           <span className="flex items-center gap-1 bg-red-600 text-white text-[11px] font-black px-2 py-1 rounded-full flex-shrink-0 animate-pulse">
             <Radio className="w-2.5 h-2.5" /> مباشر
@@ -285,19 +308,15 @@ function LiveView({ stream, user, dark, onLeave }) {
         </div>
       </div>
 
-      {/* Body */}
-      <div className="flex flex-col md:flex-row flex-1 overflow-hidden min-h-0">
+      {/* ── Body — stacks on mobile, side-by-side on desktop ── */}
+      <div className="flex flex-col md:flex-row md:items-start">
 
         {/* ── Video ── */}
-        {/* Mobile: fixed compact height when chat open, fills remaining space when closed */}
-        {/* Desktop: always flex-1 side by side */}
         <div
           ref={videoWrapRef}
-          className={`relative bg-black overflow-hidden flex-shrink-0 md:flex-1 md:h-auto
-            ${chatOpen
-              ? 'h-[40vw] min-h-[160px] max-h-[240px]'
-              : 'flex-1 h-full'
-            } md:max-h-none md:min-h-0`}
+          className="relative bg-black w-full md:flex-1 cursor-pointer"
+          style={{ aspectRatio: '16/9' }}
+          onClick={handleVideoTap}
         >
           <LiveKitRoom
             key={livekitKey}
@@ -309,25 +328,32 @@ function LiveView({ stream, user, dark, onLeave }) {
             style={{ height: '100%', width: '100%' }}
           />
 
-          {/* Fullscreen button — bottom-left corner */}
+          {/* Focus-mode hint — shows briefly when hiding UI */}
+          {!uiVisible && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ zIndex: 5 }}>
+              <div className="bg-black/40 text-white text-xs px-3 py-1.5 rounded-full backdrop-blur-sm opacity-70 animate-pulse">
+                اضغط لإظهار الأدوات
+              </div>
+            </div>
+          )}
+
+          {/* Fullscreen button — fades with UI */}
           <button
-            onClick={toggleFullscreen}
+            onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }}
             title={isFullscreen ? 'تصغير' : 'تكبير الشاشة كاملة'}
-            className="absolute bottom-3 left-3 z-10 p-2 rounded-xl bg-black/60 hover:bg-black/80 text-white transition-all shadow-lg backdrop-blur-sm"
+            className={`absolute bottom-3 left-3 z-10 p-2 rounded-xl bg-black/60 hover:bg-black/80 text-white transition-all shadow-lg backdrop-blur-sm duration-300 ${uiVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
           >
-            {isFullscreen
-              ? <Minimize className="w-5 h-5" />
-              : <Maximize className="w-5 h-5" />
-            }
+            {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
           </button>
         </div>
 
-        {/* ── Chat panel ── */}
-        {/* Mobile: fills all remaining vertical space after video */}
-        {/* Desktop: fixed-width side panel */}
+        {/* ── Chat panel — below video on mobile, side panel on desktop ── */}
         {chatOpen && (
-          <div className={`flex flex-col min-h-0 flex-1 md:flex-none md:w-72 border-t md:border-t-0 md:border-r
-            ${dark ? 'border-[rgba(230,175,80,0.12)]' : 'border-slate-200'}`}>
+          <div
+            className={`w-full md:w-72 md:flex-none border-t md:border-t-0 md:border-r flex flex-col
+              ${dark ? 'bg-[#0F0E15] border-[rgba(230,175,80,0.12)]' : 'bg-white border-slate-200'}`}
+            style={{ minHeight: '360px', maxHeight: '520px', height: '420px' }}
+          >
             <ChatPanel stream={stream} studentName={user?.name} dark={dark} onClose={() => setChatOpen(false)} />
           </div>
         )}
@@ -568,7 +594,7 @@ export default function StudentLiveStream() {
 
   if (stream) {
     return (
-      <div className="overflow-hidden" style={{ height: 'calc(100dvh - 56px)' }}>
+      <div className={`min-h-full overflow-y-auto ${dark ? 'bg-[#0F0E15]' : 'bg-gray-900'}`}>
         <LiveView stream={stream} user={user} dark={dark} onLeave={handleLeave} />
       </div>
     );

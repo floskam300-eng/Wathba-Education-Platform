@@ -475,6 +475,16 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
     }, 3000);
   };
 
+  const handleScreenTap = (e) => {
+    e.stopPropagation();
+    if (showControls) {
+      clearTimeout(hideTimer.current);
+      setShowControls(false);
+    } else {
+      resetHide();
+    }
+  };
+
   const fmtSec = (s) => {
     const m = Math.floor(s / 60);
     return `${m}:${Math.floor(s % 60).toString().padStart(2, '0')}`;
@@ -510,7 +520,7 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
     >
       <FloatingWatermark name={studentName} code={studentCode} />
       <div id={playerDivId} className="absolute inset-0 w-full h-full" />
-      <div className="absolute inset-0" style={{ zIndex: 10 }} onClick={toggle} onContextMenu={(e) => e.preventDefault()} />
+      <div className="absolute inset-0" style={{ zIndex: 10 }} onClick={handleScreenTap} onContextMenu={(e) => e.preventDefault()} />
 
       {!playing && !buffering && (
         <div className="absolute inset-0 flex items-center justify-center" style={{ zIndex: 20, pointerEvents: 'none' }}>
@@ -702,6 +712,16 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
     setShowControls(true);
     clearTimeout(hideTimer.current);
     hideTimer.current = setTimeout(() => { if (!seeking.current) setShowControls(false); }, 3000);
+  };
+
+  const handleScreenTap = (e) => {
+    e.stopPropagation();
+    if (showControls) {
+      clearTimeout(hideTimer.current);
+      setShowControls(false);
+    } else {
+      resetHideTimer();
+    }
   };
 
   const toggle = () => {
@@ -919,7 +939,7 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
             onProgressUpdate(video.id, watchedMin, maxProgress.current, false, ct, actualWatched.current);
           }
         }}
-        onClick={toggle}
+        onClick={handleScreenTap}
       />
 
       {!playing && (
