@@ -26,6 +26,7 @@ import TeacherRequests from './pages/teacher/Requests';
 import WrongQuestionsPage from './pages/teacher/WrongQuestions';
 import QuestionBanks from './pages/teacher/QuestionBanks';
 import TeacherLiveStream from './pages/teacher/LiveStream';
+import TeacherActivityLog from './pages/teacher/ActivityLog';
 import StudentLiveStream from './pages/student/LiveStream';
 import AssistantDashboard from './pages/assistant/Dashboard';
 import AssistantStudents from './pages/assistant/Students';
@@ -192,6 +193,7 @@ const AppRoutes = () => {
           <Route path="wrong-questions" element={<WrongQuestionsPage />} />
           <Route path="question-banks" element={<QuestionBanks />} />
           <Route path="livestream" element={<TeacherLiveStream />} />
+          <Route path="activity-log" element={<TeacherActivityLog />} />
         </Route>
 
         {/* Assistant dashboard */}

@@ -4,6 +4,7 @@ const pool = require('../db/connection');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { validateAssistant } = require('../middleware/validate');
 const { invalidatePermissions } = require('../lib/permissionsCache');
+const { logActivity, getActor, getIp } = require('../lib/activityLog');
 
 const router = express.Router();
 router.use(authenticate);
@@ -29,6 +30,12 @@ router.post('/', requireRole('teacher'), validateAssistant, async (req, res) => 
        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id,username,name,phone,can_add_students,can_edit_students,can_delete_students,can_manage_exams,can_view_analytics,can_send_reports,can_manage_payments,can_manage_courses,can_send_notifications`,
       [username, hashed, name, phone, req.user.id, can_add_students ?? true, can_edit_students ?? true, can_delete_students ?? false, can_manage_exams ?? true, can_view_analytics ?? true, can_send_reports ?? true, can_manage_payments ?? false, can_manage_courses ?? false, can_send_notifications ?? false]
     );
+    logActivity({
+      teacherId: req.user.id, actor: getActor(req), ip: getIp(req),
+      action: 'create_assistant',
+      entity: { type: 'assistant', id: result.rows[0].id, name },
+      details: { username },
+    });
     res.status(201).json(result.rows[0]);
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'Username already exists' });
@@ -45,6 +52,11 @@ router.put('/:id/permissions', requireRole('teacher'), async (req, res) => {
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Assistant not found' });
     invalidatePermissions(parseInt(req.params.id));
+    logActivity({
+      teacherId: req.user.id, actor: getActor(req), ip: getIp(req),
+      action: 'edit_assistant_perms',
+      entity: { type: 'assistant', id: result.rows[0].id, name: result.rows[0].name },
+    });
     res.json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
@@ -53,9 +65,15 @@ router.put('/:id/permissions', requireRole('teacher'), async (req, res) => {
 
 router.delete('/:id', requireRole('teacher'), async (req, res) => {
   try {
+    const aInfo = await pool.query('SELECT name FROM assistants WHERE id=$1 AND teacher_id=$2', [req.params.id, req.user.id]);
     const result = await pool.query('DELETE FROM assistants WHERE id=$1 AND teacher_id=$2 RETURNING id', [req.params.id, req.user.id]);
     if (!result.rows.length) return res.status(404).json({ error: 'Assistant not found' });
     invalidatePermissions(parseInt(req.params.id));
+    logActivity({
+      teacherId: req.user.id, actor: getActor(req), ip: getIp(req),
+      action: 'delete_assistant',
+      entity: { type: 'assistant', id: parseInt(req.params.id), name: aInfo.rows[0]?.name },
+    });
     res.json({ message: 'Assistant deleted' });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });

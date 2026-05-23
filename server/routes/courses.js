@@ -7,6 +7,7 @@ const fs = require('fs');
 const pool = require('../db/connection');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { validateCourse } = require('../middleware/validate');
+const { logActivity, getActor, getIp } = require('../lib/activityLog');
 
 const router = express.Router();
 router.use(authenticate);
@@ -175,6 +176,11 @@ router.post('/', requireRole('teacher', 'assistant'), checkManageCoursesPerm, va
       [name, description, isFree ? 0 : (price || 0), thumbnail_url, teacherId, target_stage || null, isFree, points_on_complete || 0]
     );
     const course = result.rows[0];
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'create_course',
+      entity: { type: 'course', id: course.id, name: course.name },
+    });
     res.status(201).json(course);
   } catch (err) {
     console.error(err);
@@ -192,6 +198,11 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageCoursesPerm, 
       [name, description, isFree ? 0 : (price || 0), thumbnail_url, target_stage || null, isFree, points_on_complete || 0, req.params.id, teacherId]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Course not found' });
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'edit_course',
+      entity: { type: 'course', id: result.rows[0].id, name: result.rows[0].name },
+    });
     res.json(result.rows[0]);
   } catch (err) {
     console.error(err);
@@ -325,6 +336,12 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageCours
       name: course.name,
     });
 
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'publish_course',
+      entity: { type: 'course', id: course.id, name: course.name },
+      details: { is_published: newPublished },
+    });
     res.json({ is_published: newPublished });
   } catch (err) {
     console.error(err);
@@ -335,8 +352,14 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageCours
 router.delete('/:id', requireRole('teacher', 'assistant'), checkManageCoursesPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
   try {
+    const courseInfo = await pool.query('SELECT name FROM courses WHERE id=$1 AND teacher_id=$2', [req.params.id, teacherId]);
     const result = await pool.query('DELETE FROM courses WHERE id=$1 AND teacher_id=$2 RETURNING id', [req.params.id, teacherId]);
     if (!result.rows.length) return res.status(404).json({ error: 'Course not found' });
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'delete_course',
+      entity: { type: 'course', id: parseInt(req.params.id), name: courseInfo.rows[0]?.name },
+    });
     res.json({ message: 'Course deleted' });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });

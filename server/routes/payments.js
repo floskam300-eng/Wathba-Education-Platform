@@ -3,6 +3,7 @@ const pool = require('../db/connection');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { getPermissions } = require('../lib/permissionsCache');
 const { validatePayment } = require('../middleware/validate');
+const { logActivity, getActor, getIp } = require('../lib/activityLog');
 
 const router = express.Router();
 router.use(authenticate);
@@ -174,6 +175,13 @@ router.post('/', requireRole('teacher', 'assistant'), (req, res, next) => checkP
       'INSERT INTO payments (student_id,course_id,amount,method,reference_number,notes,status) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *',
       [student_id, course_id || null, amount, method, reference_number || null, notes || null, 'pending']
     );
+    const sName = (await pool.query('SELECT name FROM students WHERE id=$1', [student_id]).catch(() => ({ rows: [] }))).rows[0]?.name;
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'add_payment',
+      entity: { type: 'payment', id: result.rows[0].id, name: sName },
+      details: { amount, method, status: 'pending' },
+    });
     res.status(201).json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
@@ -222,7 +230,15 @@ router.put('/:id/verify', requireRole('teacher', 'assistant'), (req, res, next) 
       params
     );
 
-    res.json(result.rows[0]);
+    const payRow = result.rows[0];
+    const sName = (await pool.query('SELECT name FROM students WHERE id=$1', [payRow.student_id]).catch(() => ({ rows: [] }))).rows[0]?.name;
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'verify_payment',
+      entity: { type: 'payment', id: payRow.id, name: sName },
+      details: { status, amount: payRow.amount },
+    });
+    res.json(payRow);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });

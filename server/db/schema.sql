@@ -491,3 +491,21 @@ ALTER TABLE teachers ALTER COLUMN logo_url SET DEFAULT '/wathba-logo.png';
 ALTER TABLE teachers ALTER COLUMN photo_url SET DEFAULT '/uploads/images/default-avatar.png';
 UPDATE teachers SET logo_url  = '/wathba-logo.png'                       WHERE logo_url  IS NULL OR logo_url  = '';
 UPDATE teachers SET photo_url = '/uploads/images/default-avatar.png'     WHERE photo_url IS NULL OR photo_url = '';
+
+-- ── Activity / Audit Log ─────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS activity_logs (
+  id           SERIAL PRIMARY KEY,
+  teacher_id   INTEGER NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+  actor_type   VARCHAR(20)  NOT NULL,   -- 'teacher' | 'assistant'
+  actor_id     INTEGER      NOT NULL,
+  actor_name   VARCHAR(200),
+  action       VARCHAR(80)  NOT NULL,   -- e.g. 'add_student', 'verify_payment'
+  entity_type  VARCHAR(50),             -- 'student' | 'exam' | 'payment' | 'course' | 'assistant'
+  entity_id    INTEGER,
+  entity_name  VARCHAR(300),
+  details      JSONB,
+  ip_address   VARCHAR(45),
+  created_at   TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_activity_logs_teacher
+  ON activity_logs (teacher_id, created_at DESC);

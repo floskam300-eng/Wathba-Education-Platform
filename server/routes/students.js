@@ -5,6 +5,7 @@ const { authenticate, requireRole, invalidateStudentAuthCache } = require('../mi
 const { invalidateCache } = require('../lib/analyticsCache');
 const { getPermissions } = require('../lib/permissionsCache');
 const { validateStudent } = require('../middleware/validate');
+const { logActivity, getActor, getIp } = require('../lib/activityLog');
 
 const router = express.Router();
 router.use(authenticate);
@@ -138,6 +139,12 @@ router.post('/', requireRole('teacher', 'assistant'), (req, res, next) => checkP
           console.warn('[auto-enroll] Failed to enroll student in free courses:', enrollErr.message);
         }
         const { password: _, plain_password: __, ...safe } = result.rows[0];
+        logActivity({
+          teacherId, actor: getActor(req), ip: getIp(req),
+          action: 'add_student',
+          entity: { type: 'student', id: safe.id, name: safe.name },
+          details: { username: safe.username, academic_stage, gender },
+        });
         return res.status(201).json({ ...safe, generated_password: generatedPassword });
       } catch (err) {
         if (err.code === '23505') {
@@ -170,6 +177,11 @@ router.put('/:id', requireRole('teacher', 'assistant'), (req, res, next) => chec
     const result = await pool.query(query, params);
     if (!result.rows.length) return res.status(404).json({ error: 'Student not found' });
     const { password: _, plain_password: __, ...safe } = result.rows[0];
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'edit_student',
+      entity: { type: 'student', id: safe.id, name: safe.name },
+    });
     res.json(safe);
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
@@ -179,6 +191,10 @@ router.put('/:id', requireRole('teacher', 'assistant'), (req, res, next) => chec
 router.delete('/:id', requireRole('teacher', 'assistant'), (req, res, next) => checkPermission(req, res, next, 'can_delete_students'), async (req, res) => {
   const teacherId = getTeacherId(req);
   try {
+    const studentInfo = await pool.query(
+      'SELECT name FROM students WHERE id=$1 AND teacher_id=$2 AND deleted_at IS NULL',
+      [req.params.id, teacherId]
+    );
     const result = await pool.query(
       'UPDATE students SET deleted_at=NOW() WHERE id=$1 AND teacher_id=$2 AND deleted_at IS NULL RETURNING id',
       [req.params.id, teacherId]
@@ -186,6 +202,11 @@ router.delete('/:id', requireRole('teacher', 'assistant'), (req, res, next) => c
     if (!result.rows.length) return res.status(404).json({ error: 'Student not found' });
     invalidateCache(teacherId);
     invalidateStudentAuthCache(parseInt(req.params.id));
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'delete_student',
+      entity: { type: 'student', id: parseInt(req.params.id), name: studentInfo.rows[0]?.name },
+    });
     res.json({ message: 'Student deleted' });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
@@ -501,6 +522,14 @@ router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => ch
 
     await client.query('COMMIT');
     invalidateCache(teacherId);
+    if (results.success > 0) {
+      logActivity({
+        teacherId, actor: getActor(req), ip: getIp(req),
+        action: 'bulk_import_students',
+        entity: { type: 'student' },
+        details: { count: results.success, failed: results.failed },
+      });
+    }
 
     // Auto-enroll newly created students in the teacher's published free courses
     if (newStudentIds.length > 0) {

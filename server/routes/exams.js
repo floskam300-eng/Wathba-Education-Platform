@@ -5,6 +5,7 @@ const pool = require('../db/connection');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { invalidateCache } = require('../lib/analyticsCache');
 const { validateExam } = require('../middleware/validate');
+const { logActivity, getActor, getIp } = require('../lib/activityLog');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -104,6 +105,11 @@ router.post('/', requireRole('teacher', 'assistant'), checkManageExamsPerm, vali
       'INSERT INTO exams (title,duration_minutes,total_score,course_id,teacher_id,pass_score,badge_name,badge_color,start_date,end_date,shuffle_questions,shuffle_options,question_source,bank_id,bank_question_count,points_on_attempt,points_on_pass) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *',
       [title, duration_minutes || 60, total_score || 100, course_id || null, teacherId, pass_score ?? 50, badge_name, badge_color || '#FF8C00', start_date || null, end_date || null, !!shuffle_questions, !!shuffle_options, question_source || 'manual', (question_source === 'bank' && bank_id) ? bank_id : null, bank_question_count || 10, points_on_attempt || 0, points_on_pass || 0]
     );
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'create_exam',
+      entity: { type: 'exam', id: result.rows[0].id, name: title },
+    });
     res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error(err);
@@ -130,6 +136,11 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageExamsPerm, va
       [title, duration_minutes, total_score, course_id || null, pass_score, badge_name, badge_color, start_date || null, end_date || null, !!shuffle_questions, !!shuffle_options, question_source || 'manual', (question_source === 'bank' && bank_id) ? bank_id : null, bank_question_count || 10, points_on_attempt || 0, points_on_pass || 0, req.params.id, teacherId]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Exam not found' });
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'edit_exam',
+      entity: { type: 'exam', id: result.rows[0].id, name: result.rows[0].title },
+    });
     res.json(result.rows[0]);
   } catch (err) {
     console.error(err);
@@ -285,6 +296,12 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExams
       title: exam.title,
     });
 
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'publish_exam',
+      entity: { type: 'exam', id: exam.id, name: exam.title },
+      details: { is_published: exam.is_published },
+    });
     res.json({ id: exam.id, is_published: exam.is_published });
   } catch (err) {
     console.error(err);
@@ -303,8 +320,14 @@ router.post('/upload-question-image', requireRole('teacher', 'assistant'), check
 router.delete('/:id', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
   try {
+    const examInfo = await pool.query('SELECT title FROM exams WHERE id=$1 AND teacher_id=$2', [req.params.id, teacherId]);
     const result = await pool.query('DELETE FROM exams WHERE id=$1 AND teacher_id=$2 RETURNING id', [req.params.id, teacherId]);
     if (!result.rows.length) return res.status(404).json({ error: 'Exam not found' });
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'delete_exam',
+      entity: { type: 'exam', id: parseInt(req.params.id), name: examInfo.rows[0]?.title },
+    });
     res.json({ message: 'Exam deleted' });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
@@ -510,6 +533,14 @@ router.put('/retry-requests/:reqId/approve', requireRole('teacher', 'assistant')
       sendEvent(`student_${row.student_id}`, 'retry_approved', { examId: row.exam_id });
       sendFCMToStudents(pool, [row.student_id], 'قبول إعادة اختبار', 'تمت الموافقة على طلب إعادة الاختبار — يمكنك الآن إعادة تأدية الاختبار').catch(() => {});
     } catch (_) {}
+    const examTitle = (await pool.query('SELECT title FROM exams WHERE id=$1', [row.exam_id]).catch(() => ({ rows: [] }))).rows[0]?.title;
+    const studentName = (await pool.query('SELECT name FROM students WHERE id=$1', [row.student_id]).catch(() => ({ rows: [] }))).rows[0]?.name;
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'approve_retry',
+      entity: { type: 'exam', id: row.exam_id, name: examTitle },
+      details: { student_name: studentName },
+    });
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
