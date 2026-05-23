@@ -688,11 +688,11 @@ async function seed() {
       await q(`
         INSERT INTO exam_results
           (student_id, exam_id, score, correct_count, wrong_count, unanswered_count,
-           start_time, end_time, points_earned, essay_graded)
+           start_time, end_time, points_earned)
         VALUES ($1,$2,$3,$4,$5,$6,
                 NOW() - INTERVAL '3 hours',
                 NOW() - INTERVAL '2 hours',
-                $7, true)
+                $7)
       `, [sid, examId, score, correct, wrong, unanswered, pointsEarned]);
     }
   };

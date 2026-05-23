@@ -50,9 +50,7 @@ async function fixAnswers() {
         const qType       = q.question_type || 'mcq';
         let isCorrect;
 
-        if (qType === 'essay') {
-          isCorrect = null;
-        } else if (!studentAns) {
+        if (!studentAns) {
           isCorrect = false;
         } else {
           isCorrect = studentAns === correctAns;
