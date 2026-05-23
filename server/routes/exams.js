@@ -434,6 +434,12 @@ router.post('/:id/retry-request', requireRole('student'), async (req, res) => {
   const examId = req.params.id;
   const { message } = req.body;
   try {
+    const examCheck = await pool.query(
+      'SELECT id FROM exams WHERE id=$1 AND teacher_id=(SELECT teacher_id FROM students WHERE id=$2)',
+      [examId, studentId]
+    );
+    if (!examCheck.rows.length) return res.status(403).json({ error: 'Access denied: exam not from your teacher' });
+
     const taken = await pool.query(
       'SELECT id, score FROM exam_results WHERE student_id=$1 AND exam_id=$2 AND is_latest=true',
       [studentId, examId]

@@ -379,7 +379,11 @@ router.get('/:id/content', authenticate, async (req, res) => {
   try {
     if (req.user.role === 'student') {
       const enrollment = await pool.query(
-        "SELECT id FROM student_course_enrollment WHERE student_id=$1 AND course_id=$2 AND status='active'",
+        `SELECT sce.id FROM student_course_enrollment sce
+         JOIN courses c ON c.id = sce.course_id
+         JOIN students s ON s.id = sce.student_id
+         WHERE sce.student_id=$1 AND sce.course_id=$2 AND sce.status='active'
+           AND c.teacher_id = s.teacher_id`,
         [req.user.id, courseId]
       );
       if (!enrollment.rows.length) {

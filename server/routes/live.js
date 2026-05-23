@@ -10,7 +10,7 @@ router.use(authenticate);
 /* ──────────────────────────────────────────────────────────────
    LiveKit: generate a join token for teacher or student
 ────────────────────────────────────────────────────────────── */
-router.post('/:streamId/livekit-token', async (req, res) => {
+router.post('/:streamId/livekit-token', authenticate, async (req, res) => {
   const { streamId } = req.params;
   const { id, role, name } = req.user;
 
@@ -33,6 +33,22 @@ router.post('/:streamId/livekit-token', async (req, res) => {
 
     const stream   = rows[0];
     const roomName = stream.room_id;
+
+    if (role === 'teacher') {
+      if (parseInt(stream.teacher_id) !== parseInt(id)) {
+        return res.status(403).json({ error: 'Access denied: stream not yours' });
+      }
+    } else if (role === 'student') {
+      const { rows: studentRows } = await pool.query(
+        'SELECT teacher_id FROM students WHERE id=$1 AND deleted_at IS NULL',
+        [id]
+      );
+      if (!studentRows.length || parseInt(studentRows[0].teacher_id) !== parseInt(stream.teacher_id)) {
+        return res.status(403).json({ error: 'Access denied: stream not from your teacher' });
+      }
+    } else {
+      return res.status(403).json({ error: 'Access denied' });
+    }
 
     const { AccessToken } = require('livekit-server-sdk');
 
