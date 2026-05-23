@@ -25,8 +25,8 @@ function seededShuffle(arr, seed) {
 function getShuffledOpts(q, studentId, shuffleOptions) {
   const allOpts = ['A', 'B', 'C', 'D'].filter(o => q[`option_${o.toLowerCase()}`]);
   if (!shuffleOptions) return allOpts;
-  const seed = ((studentId * 1000003) ^ (q.id * 999983)) >>> 0;
-  return seededShuffle(allOpts, seed);
+  const seed = (((studentId || 1) * 1000003) ^ ((q.id || 1) * 999983)) >>> 0;
+  return seededShuffle(allOpts, seed || 1);
 }
 
 const getExamScheduleStatus = (ex) => {
@@ -202,6 +202,8 @@ export default function StudentExams() {
   // ── Auto-submit only when browser/tab is CLOSED (not just hidden) ──
   useEffect(() => {
     const sendKeepaliveSubmit = (examId) => {
+      if (submittedRef.current) return;
+      submittedRef.current = true;
       const token = localStorage.getItem('wathba_token');
       if (!token) return;
       const payload = JSON.stringify({ answers: answersRef.current, start_time: startTimeRef.current });

@@ -55,7 +55,7 @@ async function checkAndResetLeaderboard(teacherId) {
     // Atomic claim: only the first concurrent request will get the row back
     const claimed = await pool.query(
       `UPDATE leaderboard_reset_tracker
-          SET next_reset_at = next_reset_at + INTERVAL '30 days', last_reset_at = NOW()
+          SET next_reset_at = DATE_TRUNC('month', NOW()) + INTERVAL '1 month', last_reset_at = NOW()
         WHERE teacher_id = $1 AND next_reset_at <= NOW()
        RETURNING last_reset_at - INTERVAL '30 days' AS prev_last_reset_at`,
       [teacherId]

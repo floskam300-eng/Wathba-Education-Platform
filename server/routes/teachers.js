@@ -119,6 +119,9 @@ router.get('/analytics', requireRole('teacher'), async (req, res) => {
 
 router.get('/analytics/wrong-questions', requireRole('teacher', 'assistant'), async (req, res) => {
   const teacherId = req.user.role === 'teacher' ? req.user.id : req.user.teacher_id;
+  const cacheKey = `t${teacherId}_wrong_questions`;
+  const cached = getCached(cacheKey);
+  if (cached) return res.json(cached);
   try {
     const result = await pool.query(`
       SELECT
@@ -164,7 +167,9 @@ router.get('/analytics/wrong-questions', requireRole('teacher', 'assistant'), as
         byExam[row.exam_id].questions.push(row);
       }
     }
-    res.json(Object.values(byExam));
+    const output = Object.values(byExam);
+    setCache(cacheKey, output);
+    res.json(output);
   } catch (err) {
     console.error('wrong-questions error:', err.message);
     res.status(500).json({ error: 'Server error' });

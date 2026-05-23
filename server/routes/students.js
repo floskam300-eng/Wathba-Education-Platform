@@ -136,6 +136,7 @@ router.post('/', addStudentLimiter, requireRole('teacher', 'assistant'), (req, r
         );
         invalidateCache(teacherId);
         // Auto-enroll new student in teacher's published free courses
+        let enrollWarning = null;
         try {
           await pool.query(
             `INSERT INTO student_course_enrollment (student_id, course_id)
@@ -147,6 +148,7 @@ router.post('/', addStudentLimiter, requireRole('teacher', 'assistant'), (req, r
           );
         } catch (enrollErr) {
           console.warn('[auto-enroll] Failed to enroll student in free courses:', enrollErr.message);
+          enrollWarning = 'تعذّر التسجيل التلقائي في الكورسات المجانية';
         }
         const { password: _, plain_password: __, ...safe } = result.rows[0];
         logActivity({
@@ -155,7 +157,7 @@ router.post('/', addStudentLimiter, requireRole('teacher', 'assistant'), (req, r
           entity: { type: 'student', id: safe.id, name: safe.name },
           details: { username: safe.username, academic_stage, gender },
         });
-        return res.status(201).json({ ...safe, generated_password: generatedPassword });
+        return res.status(201).json({ ...safe, generated_password: generatedPassword, ...(enrollWarning ? { warning: enrollWarning } : {}) });
       } catch (err) {
         if (err.code === '23505') {
           retries++;

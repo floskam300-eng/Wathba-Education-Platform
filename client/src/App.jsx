@@ -175,7 +175,7 @@ const AppRoutes = () => {
 
         {/* Teacher dashboard */}
         <Route path="teacher" element={
-          <ProtectedRoute allowedRoles={['teacher']}><TeacherLayout /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['teacher']}><ErrorBoundary><TeacherLayout /></ErrorBoundary></ProtectedRoute>
         }>
           <Route index element={<TeacherDashboard />} />
           <Route path="students" element={<TeacherStudents />} />
@@ -198,7 +198,7 @@ const AppRoutes = () => {
 
         {/* Assistant dashboard */}
         <Route path="assistant" element={
-          <ProtectedRoute allowedRoles={['assistant']}><AssistantLayout /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['assistant']}><ErrorBoundary><AssistantLayout /></ErrorBoundary></ProtectedRoute>
         }>
           <Route index element={<AssistantDashboard />} />
           <Route path="students" element={<AssistantStudents />} />
@@ -228,7 +228,7 @@ const AppRoutes = () => {
 
         {/* Student dashboard */}
         <Route path="student" element={
-          <ProtectedRoute allowedRoles={['student']}><StudentLayout /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['student']}><ErrorBoundary><StudentLayout /></ErrorBoundary></ProtectedRoute>
         }>
           <Route index element={<StudentDashboard />} />
           <Route path="courses" element={<StudentCourses />} />

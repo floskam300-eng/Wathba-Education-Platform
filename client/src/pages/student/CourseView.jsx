@@ -302,15 +302,15 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
               }, 500);
               clearInterval(saveTimer.current);
               saveTimer.current = setInterval(() => {
-                if (!playerRef.current || !onProgressUpdate || !video?.id) return;
+                if (!playerRef.current || !onProgressUpdateRef.current || !videoIdRef.current) return;
                 try {
                   const dur = playerRef.current.getDuration() || 0;
                   const ct  = playerRef.current.getCurrentTime() || 0;
                   const watchedMin = dur > 0 ? (maxPct.current / 100) * (dur / 60) : 0;
-                  saveVidPos(video.id, ct);
+                  saveVidPos(videoIdRef.current, ct);
                   const intervalSec = playStart.current ? Math.round((Date.now() - playStart.current) / 1000) : 0;
                   playStart.current = Date.now();
-                  onProgressUpdate(video.id, watchedMin, maxPct.current, false, ct, intervalSec);
+                  onProgressUpdateRef.current(videoIdRef.current, watchedMin, maxPct.current, false, ct, intervalSec);
                 } catch (_) {}
               }, 10000);
             } else if (e.data === S.BUFFERING) {

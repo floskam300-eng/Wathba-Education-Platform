@@ -29,7 +29,9 @@ export function LiveStreamProvider({ children }) {
 
   const leaveStudentStream = useCallback(async (streamId) => {
     if (streamId) {
-      try { await api.post(`/live/${streamId}/leave`); } catch (_) {}
+      try { await api.post(`/live/${streamId}/leave`); } catch (err) {
+        console.warn('[LiveStream] leave failed:', err?.message);
+      }
     }
     setStudentStream(null);
   }, []);
@@ -46,7 +48,9 @@ export function LiveStreamProvider({ children }) {
         const streams = r.data.streams || [];
         if (streams.length > 0) setAvailableLive(streams[0]);
         else setAvailableLive(null);
-      } catch (_) {}
+      } catch (err) {
+        console.warn('[LiveStream] checkAvailable failed:', err?.message);
+      }
     };
 
     checkAvailable();

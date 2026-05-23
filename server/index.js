@@ -93,17 +93,21 @@ app.get('/api/sse', (req, res) => {
   addClient(key, res);
   res.write(`event: connected\ndata: ${JSON.stringify({ key })}\n\n`);
 
-  const heartbeat = setInterval(() => {
-    try { res.write(': heartbeat\n\n'); } catch (_) {
-      clearInterval(heartbeat);
-      removeClient(key, res);
-    }
-  }, 25000);
-
-  req.on('close', () => {
+  let heartbeat;
+  let _sseClean = false;
+  const cleanup = () => {
+    if (_sseClean) return;
+    _sseClean = true;
     clearInterval(heartbeat);
     removeClient(key, res);
-  });
+  };
+
+  heartbeat = setInterval(() => {
+    try { res.write(': heartbeat\n\n'); } catch (_) { cleanup(); }
+  }, 25000);
+
+  req.on('close', cleanup);
+  res.on('finish', cleanup);
 });
 // ─────────────────────────────────────────────────────────────
 
@@ -137,12 +141,14 @@ const initDB = async () => {
     const existing = await pool.query("SELECT id FROM teachers WHERE username='admin' LIMIT 1");
     if (existing.rows.length === 0) {
       const bcrypt = require('bcryptjs');
-      const hashed = await bcrypt.hash('admin123', 10);
+      const crypto = require('crypto');
+      const defaultPassword = crypto.randomBytes(6).toString('hex');
+      const hashed = await bcrypt.hash(defaultPassword, 10);
       await pool.query(
         "INSERT INTO teachers (username,password,name,bio,classification,whatsapp_phone,slug) VALUES($1,$2,$3,$4,$5,$6,$7)",
         ['admin', hashed, 'المعلم الافتراضي', 'مرحباً بك في منصة وثبة التعليمية', 'مدرس رياضيات', '+201000000000', 'admin']
       );
-      console.log('Default teacher created: username=admin, password=admin123');
+      console.log(`Default teacher created: username=admin, password=${defaultPassword}`);
       console.warn('⚠️  SECURITY WARNING: Change the default admin password immediately via Settings!');
     } else {
       // Ensure existing admin teacher has a slug

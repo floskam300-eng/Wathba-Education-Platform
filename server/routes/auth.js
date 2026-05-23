@@ -53,19 +53,26 @@ router.post('/login', loginLimiter, async (req, res) => {
           result = await pool.query('SELECT * FROM teachers WHERE username = $1', [username]);
         }
       } else if (r === 'assistant') {
-        const whereExtra = slugTeacherId ? 'AND teacher_id = $2' : '';
-        const params = slugTeacherId ? [username, slugTeacherId] : [username];
-        result = await pool.query(
-          `SELECT * FROM assistants WHERE username = $1 ${whereExtra}`,
-          params
-        );
+        if (slugTeacherId) {
+          result = await pool.query(
+            'SELECT * FROM assistants WHERE username = $1 AND teacher_id = $2',
+            [username, slugTeacherId]
+          );
+        } else {
+          result = await pool.query('SELECT * FROM assistants WHERE username = $1', [username]);
+        }
       } else if (r === 'student') {
-        const whereExtra = slugTeacherId ? 'AND teacher_id = $2' : '';
-        const params = slugTeacherId ? [username, slugTeacherId] : [username];
-        result = await pool.query(
-          `SELECT * FROM students WHERE username = $1 AND deleted_at IS NULL ${whereExtra}`,
-          params
-        );
+        if (slugTeacherId) {
+          result = await pool.query(
+            'SELECT * FROM students WHERE username = $1 AND deleted_at IS NULL AND teacher_id = $2',
+            [username, slugTeacherId]
+          );
+        } else {
+          result = await pool.query(
+            'SELECT * FROM students WHERE username = $1 AND deleted_at IS NULL',
+            [username]
+          );
+        }
       } else {
         continue;
       }
