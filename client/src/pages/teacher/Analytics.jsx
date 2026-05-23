@@ -7,27 +7,12 @@ import {
   Minus, Eye, Search, Filter, X as XIcon, Download, Calendar,
   Activity, Zap, Trophy, AlertTriangle, ChevronLeft, ChevronRight
 } from 'lucide-react';
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend,
-  LineChart, Line, Area, AreaChart, RadialBarChart, RadialBar,
-  ComposedChart,
-} from 'recharts';
+import ReactECharts from 'echarts-for-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../lib/api';
 import StudentProfileModal from '../../components/ui/StudentProfileModal';
 
-const PALETTE = {
-  navy:    '#1A2E4A',
-  orange:  '#FF8C00',
-  indigo:  '#6366f1',
-  emerald: '#10b981',
-  amber:   '#f59e0b',
-  purple:  '#8b5cf6',
-  rose:    '#f43f5e',
-  cyan:    '#06b6d4',
-};
-const CHART_COLORS = Object.values(PALETTE);
+const CHART_COLORS = ['#6366f1','#f97316','#10b981','#f59e0b','#8b5cf6','#06b6d4','#ec4899','#f43f5e'];
 
 const TREND_PERIODS = [
   { label: 'شهر',    value: 1  },
@@ -47,38 +32,6 @@ const PERF_LEVELS = [
   { label: 'ضعيف',   min: 0,  max: 39  },
 ];
 
-const CustomTooltip = ({ active, payload, label }) => {
-  const { dark } = useTheme();
-  if (!active || !payload?.length) return null;
-  return (
-    <div
-      className="rounded-2xl shadow-2xl p-4 text-sm font-cairo min-w-[160px] border"
-      style={{
-        backgroundColor: dark ? 'var(--dk-elevated)' : 'rgba(255,255,255,0.97)',
-        borderColor: dark ? 'var(--dk-border-md)' : '#f1f5f9',
-        backdropFilter: 'blur(8px)',
-        boxShadow: dark ? '0 20px 60px rgba(0,0,0,0.60)' : '0 20px 60px rgba(0,0,0,0.12)',
-      }}>
-      {label && (
-        <p className="font-black mb-2 text-xs pb-2"
-          style={{ color: dark ? 'var(--dk-text-1)' : '#1e293b', borderBottom: `1px solid ${dark ? 'var(--dk-border)' : '#f1f5f9'}` }}>
-          {label}
-        </p>
-      )}
-      {payload.map((p, i) => (
-        <div key={i} className="flex items-center justify-between gap-4 py-0.5">
-          <span className="flex items-center gap-1.5 text-xs font-semibold"
-            style={{ color: dark ? 'var(--dk-text-2)' : '#475569' }}>
-            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: p.color }} />
-            {p.name}
-          </span>
-          <span className="font-black text-xs" style={{ color: p.color }}>{p.value}</span>
-        </div>
-      ))}
-    </div>
-  );
-};
-
 const EmptyState = ({ icon: Icon, text }) => (
   <div className="h-52 flex flex-col items-center justify-center gap-3 text-gray-300">
     <div className="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center">
@@ -88,7 +41,7 @@ const EmptyState = ({ icon: Icon, text }) => (
   </div>
 );
 
-const StatCard = ({ label, value, icon: Icon, gradient, lightBg, textColor, delta }) => (
+const StatCard = ({ label, value, icon: Icon, gradient, lightBg, textColor }) => (
   <div className="relative bg-white rounded-2xl border border-gray-100 p-5 shadow-sm overflow-hidden group hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 cursor-default">
     <div className="absolute inset-0 opacity-0 group-hover:opacity-[0.03] transition-opacity rounded-2xl" style={{ background: gradient }} />
     <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full opacity-[0.06] transition-all group-hover:opacity-[0.10] group-hover:scale-110 duration-500" style={{ background: gradient }} />
@@ -118,42 +71,13 @@ const ChartCard = ({ title, subtitle, icon: Icon, iconBg, iconColor, children, h
   </div>
 );
 
-const GradientDefs = () => (
-  <defs>
-    <linearGradient id="gradIndigo" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%"   stopColor="#6366f1" stopOpacity={0.25} />
-      <stop offset="100%" stopColor="#6366f1" stopOpacity={0.02} />
-    </linearGradient>
-    <linearGradient id="gradOrange" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%"   stopColor="#FF8C00" stopOpacity={0.25} />
-      <stop offset="100%" stopColor="#FF8C00" stopOpacity={0.02} />
-    </linearGradient>
-    <linearGradient id="gradEmerald" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%"   stopColor="#10b981" stopOpacity={0.25} />
-      <stop offset="100%" stopColor="#10b981" stopOpacity={0.02} />
-    </linearGradient>
-    <linearGradient id="gradNavy" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%"   stopColor="#1A2E4A" stopOpacity={0.30} />
-      <stop offset="100%" stopColor="#1A2E4A" stopOpacity={0.02} />
-    </linearGradient>
-    <linearGradient id="barNavy" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stopColor="#1A2E4A" />
-      <stop offset="100%" stopColor="#2d4a7a" />
-    </linearGradient>
-    <linearGradient id="barOrange" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stopColor="#FF8C00" />
-      <stop offset="100%" stopColor="#f97316" />
-    </linearGradient>
-    <linearGradient id="barEmerald" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stopColor="#10b981" />
-      <stop offset="100%" stopColor="#059669" />
-    </linearGradient>
-    <linearGradient id="barIndigo" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stopColor="#6366f1" />
-      <stop offset="100%" stopColor="#4f46e5" />
-    </linearGradient>
-  </defs>
-);
+const tooltipBase = {
+  backgroundColor: '#ffffff',
+  borderColor: '#f1f5f9',
+  borderWidth: 1,
+  textStyle: { fontFamily: 'Cairo', fontSize: 12, color: '#1e293b' },
+  extraCssText: 'box-shadow:0 20px 60px rgba(0,0,0,0.12);border-radius:12px;padding:10px 14px',
+};
 
 export default function TeacherAnalytics() {
   const navigate = useNavigate();
@@ -192,14 +116,13 @@ export default function TeacherAnalytics() {
   const examChartData = (data?.examResults || []).map(e => ({
     name: e.title?.length > 14 ? e.title.substring(0, 14) + '…' : e.title,
     fullName: e.title,
-    'متوسط': Math.round(parseFloat(e.avg_pct) || 0),
-    'أعلى':  Math.round(parseFloat(e.max_pct)  || 0),
-    'محاولات': parseInt(e.attempt_count) || 0,
-    passScore: Math.round(parseFloat(e.pass_score || 0) / parseFloat(e.total_score || 1) * 100),
+    avg: Math.round(parseFloat(e.avg_pct) || 0),
+    max: Math.round(parseFloat(e.max_pct)  || 0),
+    attempts: parseInt(e.attempt_count) || 0,
   }));
 
   const pieData = (data?.examResults || [])
-    .map(e => ({ name: e.title?.substring(0, 14), value: parseInt(e.attempt_count) || 0 }))
+    .map(e => ({ name: e.title?.substring(0, 16), value: parseInt(e.attempt_count) || 0 }))
     .filter(e => e.value > 0);
 
   const totalAttempts = (data?.examResults || []).reduce((s, e) => s + parseInt(e.attempt_count || 0), 0);
@@ -218,21 +141,20 @@ export default function TeacherAnalytics() {
     const fail = results.length - pass;
     if (!results.length) return [];
     return [
-      { name: 'ناجح', value: pass,  fill: PALETTE.emerald },
-      { name: 'راسب', value: fail,  fill: PALETTE.rose    },
+      { name: 'ناجح', value: pass,  fill: '#10b981' },
+      { name: 'راسب', value: fail,  fill: '#f43f5e' },
     ];
   }, [data]);
 
   const scoreDistData = useMemo(() => {
     const results = data?.recentResults || [];
-    const bands = [
-      { name: '0–39',   min: 0,  max: 39,  fill: PALETTE.rose    },
-      { name: '40–59',  min: 40, max: 59,  fill: PALETTE.amber   },
-      { name: '60–74',  min: 60, max: 74,  fill: PALETTE.cyan    },
-      { name: '75–89',  min: 75, max: 89,  fill: PALETTE.indigo  },
-      { name: '90–100', min: 90, max: 100, fill: PALETTE.emerald },
-    ];
-    return bands.map(b => ({
+    return [
+      { name: '0–39',   min: 0,  max: 39,  fill: '#f43f5e', count: 0 },
+      { name: '40–59',  min: 40, max: 59,  fill: '#f59e0b', count: 0 },
+      { name: '60–74',  min: 60, max: 74,  fill: '#06b6d4', count: 0 },
+      { name: '75–89',  min: 75, max: 89,  fill: '#6366f1', count: 0 },
+      { name: '90–100', min: 90, max: 100, fill: '#10b981', count: 0 },
+    ].map(b => ({
       ...b,
       count: results.filter(r => {
         const pct = r.total_score ? Math.round((r.score / r.total_score) * 100) : 0;
@@ -245,10 +167,10 @@ export default function TeacherAnalytics() {
     if (trendMonths === 0) {
       return trendData.map(d => ({
         name: d.label,
-        'متوسط %': parseFloat(d.avg_pct) || 0,
-        'محاولات': d.exam_count,
-        'طلاب':    d.student_count,
-        'ناجح':    d.pass_count,
+        avg: parseFloat(d.avg_pct) || 0,
+        attempts: d.exam_count,
+        students: d.student_count,
+        pass: d.pass_count,
       }));
     }
     const dataMap = {};
@@ -264,10 +186,10 @@ export default function TeacherAnalytics() {
       const shortYear = String(d.getFullYear()).slice(-2);
       result.push({
         name: found ? found.label : `${shortMonth} ${shortYear}`,
-        'متوسط %': found ? parseFloat(found.avg_pct) || 0 : 0,
-        'محاولات': found ? found.exam_count : 0,
-        'طلاب':    found ? found.student_count : 0,
-        'ناجح':    found ? found.pass_count : 0,
+        avg: found ? parseFloat(found.avg_pct) || 0 : 0,
+        attempts: found ? found.exam_count : 0,
+        students: found ? found.student_count : 0,
+        pass: found ? found.pass_count : 0,
       });
     }
     return result;
@@ -346,6 +268,179 @@ export default function TeacherAnalytics() {
   const activeFiltersCount = [genderFilter !== 'الكل', perfFilter !== 'الكل', stageFilter !== 'الكل'].filter(Boolean).length;
   const clearAllFilters = () => { setSearchQuery(''); setStageFilter('الكل'); setGenderFilter('الكل'); setPerfFilter('الكل'); };
 
+  // ── ECharts Options ───────────────────────────────────────────────────────
+  const examBarOption = useMemo(() => ({
+    tooltip: {
+      ...tooltipBase,
+      trigger: 'axis',
+      axisPointer: { type: 'shadow', shadowStyle: { color: 'rgba(99,102,241,0.06)' } },
+      formatter: params => {
+        let s = `<div style="font-family:Cairo;font-weight:900;color:#1e293b;border-bottom:1px solid #f1f5f9;padding-bottom:6px;margin-bottom:6px">${params[0]?.name}</div>`;
+        params.forEach(p => { s += `<div style="font-family:Cairo;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:2px 0">${p.marker}${p.seriesName}: <b style="color:${p.color}">${p.value}%</b></div>`; });
+        return s;
+      }
+    },
+    grid: { left: 8, right: 8, top: 12, bottom: 4, containLabel: true },
+    xAxis: {
+      type: 'category',
+      data: examChartData.map(e => e.name),
+      axisLine: { show: false }, axisTick: { show: false },
+      axisLabel: { fontFamily: 'Cairo', color: '#94a3b8', fontSize: 9 }
+    },
+    yAxis: {
+      type: 'value', max: 100,
+      splitLine: { lineStyle: { color: '#f1f5f9', type: 'dashed' } },
+      axisLabel: { fontFamily: 'Cairo', color: '#94a3b8', formatter: '{value}%', fontSize: 9 },
+      axisLine: { show: false }, axisTick: { show: false }
+    },
+    series: [
+      {
+        name: 'متوسط الدرجات',
+        type: 'bar', barMaxWidth: 22,
+        data: examChartData.map(e => e.avg),
+        itemStyle: { borderRadius: [6,6,0,0], color: { type:'linear',x:0,y:0,x2:0,y2:1, colorStops:[{offset:0,color:'#6366f1'},{offset:1,color:'#4f46e5'}] } },
+        emphasis: { itemStyle: { color: { type:'linear',x:0,y:0,x2:0,y2:1, colorStops:[{offset:0,color:'#818cf8'},{offset:1,color:'#6366f1'}] } } }
+      },
+      {
+        name: 'أعلى درجة',
+        type: 'bar', barMaxWidth: 22,
+        data: examChartData.map(e => e.max),
+        itemStyle: { borderRadius: [6,6,0,0], color: { type:'linear',x:0,y:0,x2:0,y2:1, colorStops:[{offset:0,color:'#f97316'},{offset:1,color:'#ea580c'}] } },
+        emphasis: { itemStyle: { color: { type:'linear',x:0,y:0,x2:0,y2:1, colorStops:[{offset:0,color:'#fb923c'},{offset:1,color:'#f97316'}] } } }
+      }
+    ]
+  }), [examChartData]);
+
+  const attemptsDonutOption = useMemo(() => ({
+    tooltip: {
+      ...tooltipBase,
+      trigger: 'item',
+      formatter: params => `<div style="font-family:Cairo"><b>${params.name}</b><br/>${params.marker} ${params.value} محاولة <b style="color:${params.color}">(${params.percent}%)</b></div>`,
+    },
+    series: [{
+      type: 'pie',
+      radius: ['52%','80%'],
+      center: ['50%','50%'],
+      padAngle: 3,
+      data: pieData.map((item, i) => ({ value: item.value, name: item.name, itemStyle: { color: CHART_COLORS[i % CHART_COLORS.length] } })),
+      label: { show: false },
+      labelLine: { show: false },
+      emphasis: { scale: true, scaleSize: 6, itemStyle: { shadowBlur: 16, shadowColor: 'rgba(0,0,0,0.15)' } },
+      animationType: 'scale',
+      animationEasing: 'elasticOut',
+      animationDelay: 100,
+    }]
+  }), [pieData]);
+
+  const passFailOption = useMemo(() => ({
+    tooltip: {
+      ...tooltipBase,
+      trigger: 'item',
+      formatter: params => `<div style="font-family:Cairo"><b>${params.name}</b><br/>${params.marker} ${params.value} طالب <b style="color:${params.color}">(${params.percent}%)</b></div>`,
+    },
+    series: [{
+      type: 'pie',
+      radius: ['50%','78%'],
+      center: ['50%','50%'],
+      padAngle: 4,
+      data: passFailData.map(d => ({ value: d.value, name: d.name, itemStyle: { color: d.fill } })),
+      label: { show: false },
+      labelLine: { show: false },
+      emphasis: { scale: true, scaleSize: 6, itemStyle: { shadowBlur: 16, shadowColor: 'rgba(0,0,0,0.15)' } },
+      animationType: 'scale',
+      animationEasing: 'elasticOut',
+    }]
+  }), [passFailData]);
+
+  const scoreDistOption = useMemo(() => ({
+    tooltip: {
+      ...tooltipBase,
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      formatter: params => {
+        const p = params[0];
+        return `<div style="font-family:Cairo"><b style="color:#1e293b">${p.name}</b><br/>${p.marker} عدد الطلاب: <b style="color:${p.color}">${p.value}</b></div>`;
+      }
+    },
+    grid: { left: 8, right: 8, top: 12, bottom: 4, containLabel: true },
+    xAxis: {
+      type: 'category',
+      data: scoreDistData.map(d => d.name),
+      axisLine: { show: false }, axisTick: { show: false },
+      axisLabel: { fontFamily: 'Cairo', color: '#94a3b8', fontSize: 10 }
+    },
+    yAxis: {
+      type: 'value', minInterval: 1,
+      splitLine: { lineStyle: { color: '#f1f5f9', type: 'dashed' } },
+      axisLabel: { fontFamily: 'Cairo', color: '#94a3b8', fontSize: 10 },
+      axisLine: { show: false }, axisTick: { show: false }
+    },
+    series: [{
+      type: 'bar', name: 'عدد الطلاب', barMaxWidth: 52,
+      data: scoreDistData.map(d => ({
+        value: d.count,
+        itemStyle: { borderRadius: [8,8,0,0], color: { type:'linear',x:0,y:0,x2:0,y2:1, colorStops:[{offset:0,color:d.fill},{offset:1,color:d.fill+'99'}] } }
+      })),
+      emphasis: { itemStyle: { shadowBlur: 12, shadowColor: 'rgba(0,0,0,0.12)' } }
+    }]
+  }), [scoreDistData]);
+
+  const trendOption = useMemo(() => ({
+    tooltip: {
+      ...tooltipBase,
+      trigger: 'axis',
+      formatter: params => {
+        let s = `<div style="font-family:Cairo;font-weight:900;color:#1e293b;border-bottom:1px solid #f1f5f9;padding-bottom:6px;margin-bottom:6px">${params[0]?.axisValue}</div>`;
+        params.forEach(p => { s += `<div style="font-family:Cairo;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:2px 0">${p.marker}${p.seriesName}: <b style="color:${p.color}">${p.value}${p.seriesName.includes('%') ? '%' : ''}</b></div>`; });
+        return s;
+      }
+    },
+    legend: {
+      bottom: 0, icon: 'circle', itemWidth: 8, itemHeight: 8,
+      textStyle: { fontFamily: 'Cairo', fontSize: 11, color: '#64748b' }
+    },
+    grid: { left: 8, right: 8, top: 12, bottom: 32, containLabel: true },
+    xAxis: {
+      type: 'category',
+      data: trendChartData.map(d => d.name),
+      boundaryGap: false,
+      axisLine: { show: false }, axisTick: { show: false },
+      axisLabel: { fontFamily: 'Cairo', color: '#94a3b8', fontSize: 11 }
+    },
+    yAxis: [
+      {
+        type: 'value', max: 100,
+        splitLine: { lineStyle: { color: '#f1f5f9', type: 'dashed' } },
+        axisLabel: { fontFamily: 'Cairo', color: '#94a3b8', fontSize: 10, formatter: '{value}%' },
+        axisLine: { show: false }, axisTick: { show: false }
+      },
+      {
+        type: 'value',
+        splitLine: { show: false },
+        axisLabel: { show: false }, axisLine: { show: false }, axisTick: { show: false }
+      }
+    ],
+    series: [
+      {
+        name: 'متوسط %', type: 'line', yAxisIndex: 0,
+        data: trendChartData.map(d => d.avg),
+        smooth: true, symbol: 'circle', symbolSize: 8,
+        lineStyle: { color: '#6366f1', width: 2.5 },
+        itemStyle: { color: '#6366f1', borderColor: '#fff', borderWidth: 2.5 },
+        areaStyle: { color: { type:'linear',x:0,y:0,x2:0,y2:1, colorStops:[{offset:0,color:'rgba(99,102,241,0.22)'},{offset:1,color:'rgba(99,102,241,0.01)'}] } }
+      },
+      {
+        name: 'محاولات', type: 'line', yAxisIndex: 1,
+        data: trendChartData.map(d => d.attempts),
+        smooth: true, symbol: 'circle', symbolSize: 7,
+        lineStyle: { color: '#f97316', width: 2 },
+        itemStyle: { color: '#f97316', borderColor: '#fff', borderWidth: 2 },
+        areaStyle: { color: { type:'linear',x:0,y:0,x2:0,y2:1, colorStops:[{offset:0,color:'rgba(249,115,22,0.16)'},{offset:1,color:'rgba(249,115,22,0.01)'}] } }
+      }
+    ]
+  }), [trendChartData]);
+  // ─────────────────────────────────────────────────────────────────────────
+
   if (isError) return (
     <div className="flex flex-col items-center justify-center h-64 gap-3 text-center">
       <div className="w-16 h-16 rounded-2xl bg-red-50 flex items-center justify-center">
@@ -389,17 +484,15 @@ export default function TeacherAnalytics() {
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
-          {/* Exam Performance Card — Redesigned */}
+
+          {/* Exam Performance Card */}
           {examChartData.length > 0 ? (
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow duration-300 flex flex-col">
-              {/* Top accent */}
-              <div className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 flex-shrink-0" />
-
-              {/* Header */}
+              <div className="h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 flex-shrink-0" />
               <div className="p-5 pb-3 flex-shrink-0">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-sm flex-shrink-0">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm flex-shrink-0">
                       <BarChart3 className="w-5 h-5 text-white" />
                     </div>
                     <div>
@@ -413,46 +506,33 @@ export default function TeacherAnalytics() {
                       <p className="text-[9px] text-slate-400 font-semibold">محاولة</p>
                     </div>
                     <div className="text-center px-2.5 py-1.5 bg-emerald-50 rounded-xl border border-emerald-100">
-                      <p className="text-xs font-black text-emerald-600">{examChartData.length ? Math.max(...examChartData.map(e => e['متوسط'])) : 0}%</p>
+                      <p className="text-xs font-black text-emerald-600">{examChartData.length ? Math.max(...examChartData.map(e => e.avg)) : 0}%</p>
                       <p className="text-[9px] text-emerald-400 font-semibold">أعلى متوسط</p>
                     </div>
                     <div className="text-center px-2.5 py-1.5 bg-rose-50 rounded-xl border border-rose-100">
-                      <p className="text-xs font-black text-rose-500">{examChartData.length ? Math.min(...examChartData.map(e => e['متوسط'])) : 0}%</p>
+                      <p className="text-xs font-black text-rose-500">{examChartData.length ? Math.min(...examChartData.map(e => e.avg)) : 0}%</p>
                       <p className="text-[9px] text-rose-300 font-semibold">أدنى متوسط</p>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Chart */}
-              <div className="px-2 pb-1 flex-shrink-0">
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={examChartData} margin={{ top: 4, right: 8, left: -14, bottom: 0 }} barGap={2} barCategoryGap="18%">
-                    <GradientDefs />
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                    <XAxis dataKey="name" tick={{ fontSize: 9, fontFamily: 'Cairo', fill: '#94a3b8' }} axisLine={false} tickLine={false} interval={0} />
-                    <YAxis tick={{ fontSize: 9, fontFamily: 'Cairo', fill: '#94a3b8' }} axisLine={false} tickLine={false} domain={[0, 100]} tickFormatter={v => `${v}%`} tickCount={5} />
-                    <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(99,102,241,0.05)', radius: 8 }} />
-                    <Bar dataKey="متوسط" fill="#1A2E4A" radius={[5,5,0,0]} animationDuration={1200} animationEasing="ease-out" />
-                    <Bar dataKey="أعلى"  fill="#FF8C00" radius={[5,5,0,0]} animationDuration={1400} animationEasing="ease-out" />
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className="px-3 pb-1 flex-shrink-0">
+                <ReactECharts option={examBarOption} style={{ height: '210px' }} notMerge opts={{ renderer: 'svg' }} />
               </div>
 
-              {/* Legend */}
-              <div className="px-5 pb-3 flex items-center gap-4 flex-shrink-0">
+              <div className="px-5 pb-3 flex items-center gap-5 flex-shrink-0">
                 <span className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-500">
-                  <span className="w-3 h-3 rounded-sm" style={{ background: '#1A2E4A' }} />متوسط الدرجات
+                  <span className="w-3 h-3 rounded-sm" style={{ background: '#6366f1' }} />متوسط الدرجات
                 </span>
                 <span className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-500">
-                  <span className="w-3 h-3 rounded-sm" style={{ background: '#FF8C00' }} />أعلى درجة
+                  <span className="w-3 h-3 rounded-sm" style={{ background: '#f97316' }} />أعلى درجة
                 </span>
               </div>
 
-              {/* Exam rows — use fullName so nothing is cut off */}
               <div className="border-t border-gray-50 flex-1 overflow-y-auto">
                 {examChartData.map((e, i) => {
-                  const avg = e['متوسط'];
+                  const avg = e.avg;
                   const sc = avg >= 70 ? { text:'#10b981', bg:'#dcfce7' } : avg >= 50 ? { text:'#6366f1', bg:'#ede9fe' } : { text:'#f43f5e', bg:'#ffe4e6' };
                   return (
                     <div key={i} className="flex items-center justify-between px-5 py-2.5 hover:bg-gray-50/70 transition-colors border-b border-gray-50 last:border-0">
@@ -464,7 +544,7 @@ export default function TeacherAnalytics() {
                         <span className="text-xs font-semibold text-gray-700 truncate">{e.fullName}</span>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0 mr-2">
-                        <span className="text-[10px] text-gray-400 font-medium">{e['محاولات']} محاولة</span>
+                        <span className="text-[10px] text-gray-400 font-medium">{e.attempts} محاولة</span>
                         <span className="text-[11px] font-black px-2 py-0.5 rounded-lg" style={{ color: sc.text, background: sc.bg }}>
                           {avg}%
                         </span>
@@ -488,24 +568,12 @@ export default function TeacherAnalytics() {
               icon={Target} iconBg="bg-orange-50" iconColor="text-orange-500">
               {pieData.length > 0 ? (
                 <div className="flex items-center gap-4">
-                  <div className="flex-shrink-0 w-[180px]">
-                    <ResponsiveContainer width={180} height={180}>
-                      <PieChart>
-                        <GradientDefs />
-                        <Pie data={pieData} cx="50%" cy="50%" innerRadius={52} outerRadius={82}
-                          paddingAngle={3} dataKey="value"
-                          animationBegin={100} animationDuration={1200} animationEasing="ease-out"
-                          stroke="none">
-                          {pieData.map((_, i) => (
-                            <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip content={<CustomTooltip />} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                    <p className="text-center -mt-2 text-[11px] font-bold text-gray-400">
-                      {totalAttempts} محاولة إجمالاً
-                    </p>
+                  <div className="flex-shrink-0 w-[180px] relative">
+                    <ReactECharts option={attemptsDonutOption} style={{ height: '180px', width: '180px' }} notMerge opts={{ renderer: 'svg' }} />
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                      <p className="text-base font-black text-gray-700">{totalAttempts}</p>
+                      <p className="text-[10px] text-gray-400 font-semibold">محاولة</p>
+                    </div>
                   </div>
                   <div className="flex-1 space-y-2 overflow-y-auto max-h-[200px] pl-1">
                     {pieData.map((item, i) => {
@@ -520,8 +588,7 @@ export default function TeacherAnalytics() {
                               <span className="text-[11px] font-black flex-shrink-0 mr-1" style={{ color }}>{item.value}</span>
                             </div>
                             <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
-                              <div className="h-full rounded-full transition-all duration-700"
-                                style={{ width: `${pct}%`, background: color }} />
+                              <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: color }} />
                             </div>
                           </div>
                           <span className="text-[10px] font-bold text-gray-400 flex-shrink-0 w-7 text-left">{pct}%</span>
@@ -555,11 +622,7 @@ export default function TeacherAnalytics() {
                   <div className="border-t border-gray-50">
                     {top5.map((s, i) => {
                       const avg = Math.round(parseFloat(s.avg_score) || 0);
-                      const sc = avg >= 70
-                        ? { text: '#10b981', bg: '#dcfce7' }
-                        : avg >= 50
-                        ? { text: '#6366f1', bg: '#ede9fe' }
-                        : { text: '#f43f5e', bg: '#ffe4e6' };
+                      const sc = avg >= 70 ? { text: '#10b981', bg: '#dcfce7' } : avg >= 50 ? { text: '#6366f1', bg: '#ede9fe' } : { text: '#f43f5e', bg: '#ffe4e6' };
                       return (
                         <div key={s.id}
                           className="flex items-center justify-between px-5 py-2.5 hover:bg-gray-50/70 transition-colors border-b border-gray-50 last:border-0 cursor-pointer"
@@ -602,17 +665,13 @@ export default function TeacherAnalytics() {
             icon={Trophy} iconBg="bg-emerald-50" iconColor="text-emerald-500">
             {passFailData.length > 0 ? (
               <div className="flex items-center gap-4">
-                <ResponsiveContainer width="50%" height={200}>
-                  <PieChart>
-                    <Pie data={passFailData} cx="50%" cy="50%" innerRadius={50} outerRadius={80}
-                      dataKey="value" paddingAngle={4}
-                      animationBegin={200} animationDuration={1200} animationEasing="ease-out"
-                      stroke="none">
-                      {passFailData.map((d, i) => <Cell key={i} fill={d.fill} />)}
-                    </Pie>
-                    <Tooltip content={<CustomTooltip />} />
-                  </PieChart>
-                </ResponsiveContainer>
+                <div className="flex-shrink-0 relative" style={{ width: '200px' }}>
+                  <ReactECharts option={passFailOption} style={{ height: '200px', width: '200px' }} notMerge opts={{ renderer: 'svg' }} />
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <p className="text-lg font-black text-gray-700">{passFailData.reduce((s,x)=>s+x.value,0)}</p>
+                    <p className="text-[10px] text-gray-400 font-semibold">نتيجة</p>
+                  </div>
+                </div>
                 <div className="flex-1 space-y-3">
                   {passFailData.map((d, i) => (
                     <div key={i} className="flex items-center justify-between p-3 rounded-xl border border-gray-100 bg-gray-50/50">
@@ -638,19 +697,7 @@ export default function TeacherAnalytics() {
           <ChartCard title="توزيع الدرجات" subtitle="تصنيف النتائج حسب مستوى الأداء"
             icon={Zap} iconBg="bg-purple-50" iconColor="text-purple-500">
             {scoreDistData.some(d => d.count > 0) ? (
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={scoreDistData} margin={{ top: 5, right: 5, left: -25, bottom: 5 }} barCategoryGap="30%">
-                  <GradientDefs />
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                  <XAxis dataKey="name" tick={{ fontSize: 10, fontFamily: 'Cairo', fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 10, fontFamily: 'Cairo', fill: '#94a3b8' }} axisLine={false} tickLine={false} allowDecimals={false} />
-                  <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(139,92,246,0.05)', radius: 8 }} />
-                  <Bar dataKey="count" name="عدد الطلاب" radius={[8, 8, 0, 0]} maxBarSize={40}
-                    animationDuration={1300} animationEasing="ease-out">
-                    {scoreDistData.map((d, i) => <Cell key={i} fill={d.fill} />)}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              <ReactECharts option={scoreDistOption} style={{ height: '200px' }} notMerge opts={{ renderer: 'svg' }} />
             ) : <EmptyState icon={Zap} text="لا توجد بيانات كافية" />}
           </ChartCard>
         </div>
@@ -659,7 +706,7 @@ export default function TeacherAnalytics() {
       {/* Trend Chart */}
       <ChartCard
         title="تطور الأداء عبر الزمن"
-        subtitle={`متوسط الدرجات والمحاولات - ${TREND_PERIODS.find(p => p.value === trendMonths)?.label}`}
+        subtitle={`متوسط الدرجات والمحاولات — ${TREND_PERIODS.find(p => p.value === trendMonths)?.label}`}
         icon={TrendingUp}
         iconBg="bg-indigo-50"
         iconColor="text-indigo-500"
@@ -681,37 +728,7 @@ export default function TeacherAnalytics() {
         }>
         <div className={`transition-opacity duration-300 ${trendLoading ? 'opacity-50' : 'opacity-100'}`}>
           {trendChartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={250}>
-              <ComposedChart data={trendChartData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
-                <GradientDefs />
-                <defs>
-                  <linearGradient id="trendGradIndigo" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%"   stopColor="#6366f1" stopOpacity={0.20} />
-                    <stop offset="100%" stopColor="#6366f1" stopOpacity={0.01} />
-                  </linearGradient>
-                  <linearGradient id="trendGradOrange" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%"   stopColor="#FF8C00" stopOpacity={0.20} />
-                    <stop offset="100%" stopColor="#FF8C00" stopOpacity={0.01} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="4 4" stroke="#f1f5f9" vertical={false} />
-                <XAxis dataKey="name" tick={{ fontSize: 11, fontFamily: 'Cairo', fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                <YAxis yAxisId="pct" tick={{ fontSize: 11, fontFamily: 'Cairo', fill: '#94a3b8' }} axisLine={false} tickLine={false} domain={[0, 100]} />
-                <YAxis yAxisId="cnt" orientation="left" tick={{ fontSize: 11, fontFamily: 'Cairo', fill: '#94a3b8' }} axisLine={false} tickLine={false} hide />
-                <Tooltip content={<CustomTooltip />} />
-                <Legend iconType="circle" wrapperStyle={{ fontFamily: 'Cairo', fontSize: '11px', paddingTop: '8px' }} />
-                <Area yAxisId="pct" type="monotone" dataKey="متوسط %" stroke="#6366f1" strokeWidth={2.5}
-                  fill="url(#trendGradIndigo)"
-                  dot={{ r: 4, fill: '#6366f1', strokeWidth: 2.5, stroke: '#fff' }}
-                  activeDot={{ r: 7, fill: '#6366f1', stroke: '#fff', strokeWidth: 2 }}
-                  animationDuration={1500} animationEasing="ease-out" />
-                <Area yAxisId="cnt" type="monotone" dataKey="محاولات" stroke="#FF8C00" strokeWidth={2}
-                  fill="url(#trendGradOrange)"
-                  dot={{ r: 3.5, fill: '#FF8C00', strokeWidth: 2, stroke: '#fff' }}
-                  activeDot={{ r: 6, fill: '#FF8C00', stroke: '#fff', strokeWidth: 2 }}
-                  animationDuration={1700} animationEasing="ease-out" />
-              </ComposedChart>
-            </ResponsiveContainer>
+            <ReactECharts option={trendOption} style={{ height: '260px' }} notMerge opts={{ renderer: 'svg' }} />
           ) : (
             <EmptyState icon={TrendingUp} text={trendLoading ? 'جاري تحميل البيانات…' : 'لا توجد بيانات للفترة المختارة'} />
           )}
@@ -769,9 +786,7 @@ export default function TeacherAnalytics() {
                         <span className="text-[10px] font-black text-red-500">{idx + 1}</span>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-800 leading-relaxed mb-2">
-                          {q.question_text}
-                        </p>
+                        <p className="text-sm font-semibold text-gray-800 leading-relaxed mb-2">{q.question_text}</p>
                         <div className="grid grid-cols-2 gap-1.5 mb-3">
                           {optionLetters.map((letter, li) => (
                             optionTexts[li] ? (
@@ -795,15 +810,10 @@ export default function TeacherAnalytics() {
                         </div>
                         <div className="flex items-center gap-2">
                           <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
-                            <div className="h-full rounded-full transition-all duration-700"
-                              style={{ width: `${pct}%`, background: barColor }} />
+                            <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: barColor }} />
                           </div>
-                          <span className="text-xs font-black flex-shrink-0" style={{ color: barColor }}>
-                            {pct}% خطأ
-                          </span>
-                          <span className="text-[10px] text-gray-400 flex-shrink-0">
-                            ({q.wrong_count}/{q.total_attempts})
-                          </span>
+                          <span className="text-xs font-black flex-shrink-0" style={{ color: barColor }}>{pct}% خطأ</span>
+                          <span className="text-[10px] text-gray-400 flex-shrink-0">({q.wrong_count}/{q.total_attempts})</span>
                         </div>
                       </div>
                     </div>
@@ -811,7 +821,6 @@ export default function TeacherAnalytics() {
                 );
               })}
             </div>
-            {/* View All button */}
             <div className="p-4 border-t border-gray-100 bg-gray-50/50">
               <button
                 onClick={() => navigate('/teacher/wrong-questions')}
@@ -834,8 +843,7 @@ export default function TeacherAnalytics() {
               placeholder="ابحث عن طالب بالاسم..."
               className="w-full pr-9 pl-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 placeholder-gray-400 focus:outline-none focus:border-orange-300 focus:ring-2 focus:ring-orange-100 transition" />
             {searchQuery && (
-              <button onClick={() => setSearchQuery('')}
-                className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 hover:text-gray-600">
+              <button onClick={() => setSearchQuery('')} className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 hover:text-gray-600">
                 <XIcon className="w-4 h-4" />
               </button>
             )}
@@ -873,39 +881,31 @@ export default function TeacherAnalytics() {
                   <button key={stage} onClick={() => setStageFilter(stage)}
                     className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
                       stageFilter === stage
-                        ? 'bg-[#1A2E4A] text-white shadow'
-                        : 'bg-gray-50 border border-gray-200 text-gray-500 hover:border-[#1A2E4A]/30 hover:text-[#1A2E4A]'
+                        ? 'bg-indigo-600 text-white shadow'
+                        : 'bg-gray-50 border border-gray-200 text-gray-500 hover:border-indigo-300 hover:text-indigo-600'
                     }`}>{stage}</button>
                 ))}
               </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <p className="text-[11px] font-black text-gray-400 mb-2 flex items-center gap-1.5">
-                  <Users className="w-3.5 h-3.5 text-blue-500" /> الجنس
-                </p>
+                <p className="text-[11px] font-black text-gray-400 mb-2">الجنس</p>
                 <div className="flex gap-2">
                   {GENDERS.map(g => (
                     <button key={g} onClick={() => setGenderFilter(g)}
-                      className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all flex-1 ${
-                        genderFilter === g
-                          ? 'bg-blue-500 text-white shadow'
-                          : 'bg-gray-50 border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-500'
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        genderFilter === g ? 'bg-indigo-600 text-white shadow' : 'bg-gray-50 border border-gray-200 text-gray-500'
                       }`}>{g}</button>
                   ))}
                 </div>
               </div>
               <div>
-                <p className="text-[11px] font-black text-gray-400 mb-2 flex items-center gap-1.5">
-                  <TrendingUp className="w-3.5 h-3.5 text-emerald-500" /> مستوى الأداء
-                </p>
-                <div className="flex gap-2 flex-wrap">
+                <p className="text-[11px] font-black text-gray-400 mb-2">مستوى الأداء</p>
+                <div className="flex flex-wrap gap-1.5">
                   {PERF_LEVELS.map(p => (
                     <button key={p.label} onClick={() => setPerfFilter(p.label)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
-                        perfFilter === p.label
-                          ? 'bg-emerald-500 text-white shadow'
-                          : 'bg-gray-50 border border-gray-200 text-gray-500 hover:border-emerald-300 hover:text-emerald-600'
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                        perfFilter === p.label ? 'bg-indigo-600 text-white shadow' : 'bg-gray-50 border border-gray-200 text-gray-500'
                       }`}>{p.label}</button>
                   ))}
                 </div>
@@ -917,198 +917,198 @@ export default function TeacherAnalytics() {
 
       {/* Students Table */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="p-5 border-b border-gray-50 flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
-              <Users className="w-4 h-4 text-emerald-500" />
+        <div className="p-5 border-b border-gray-50 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
+              <Users className="w-4 h-4 text-blue-500" />
             </div>
             <div>
-              <h2 className="font-black text-gray-800 text-sm">أداء الطلاب</h2>
-              <p className="text-[11px] text-gray-400">
+              <h2 className="font-black text-gray-800 text-sm">تحليل أداء الطلاب</h2>
+              <p className="text-[11px] text-gray-400 mt-0.5">
                 {filteredStudents.length} طالب
-                {stageFilter !== 'الكل' && <span className="text-orange-500 mr-1">· {stageFilter}</span>}
-                {searchQuery && <span className="text-blue-500 mr-1">· نتائج البحث</span>}
+                {activeFiltersCount > 0 || searchQuery ? ' (بعد الفلترة)' : ''}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-semibold text-orange-500 bg-orange-50 px-2 py-1 rounded-full flex items-center gap-1">
-              <Eye className="w-3 h-3" /> اضغط على الطالب لعرض ملفه
-            </span>
-            {filteredStudents.length > 0 && (
-              <button onClick={exportCSV}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors shadow-sm">
-                <Download className="w-3.5 h-3.5" /> تصدير CSV
-              </button>
-            )}
-          </div>
+          <button onClick={exportCSV}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-xs font-bold text-gray-600 hover:border-indigo-300 hover:text-indigo-600 transition-all">
+            <Download className="w-3.5 h-3.5" /> تصدير CSV
+          </button>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[560px]">
+          <table className="w-full" style={{ minWidth: '600px' }}>
             <thead>
               <tr className="bg-gray-50/50">
-                <th className="px-4 py-3 text-right text-[11px] font-black text-gray-500 w-10">#</th>
-                <th className="px-4 py-3 text-right text-[11px] font-black text-gray-500">الطالب</th>
-                <th className="px-4 py-3 text-right text-[11px] font-black text-gray-500">المرحلة</th>
-                <th className="px-4 py-3 text-[11px] font-black text-gray-500 cursor-pointer hover:text-orange-500 transition-colors" onClick={() => handleSort('points')}>
-                  <span className="flex items-center justify-center gap-1">النقاط <SortIcon field="points" /></span>
-                </th>
-                <th className="px-4 py-3 text-[11px] font-black text-gray-500 cursor-pointer hover:text-orange-500 transition-colors" onClick={() => handleSort('exams_taken')}>
-                  <span className="flex items-center justify-center gap-1">الاختبارات <SortIcon field="exams_taken" /></span>
-                </th>
-                <th className="px-4 py-3 text-[11px] font-black text-gray-500 cursor-pointer hover:text-orange-500 transition-colors" onClick={() => handleSort('avg_score')}>
-                  <span className="flex items-center justify-center gap-1">المتوسط <SortIcon field="avg_score" /></span>
-                </th>
+                {[
+                  { key: 'name', label: 'الطالب' },
+                  { key: 'academic_stage', label: 'المرحلة' },
+                  { key: 'points', label: 'النقاط' },
+                  { key: 'exams_taken', label: 'اختبارات' },
+                  { key: 'avg_score', label: 'متوسط %' },
+                ].map(col => (
+                  <th key={col.key}
+                    className="px-4 py-3 text-right text-[11px] font-black text-gray-500 cursor-pointer hover:text-indigo-600 select-none"
+                    onClick={() => handleSort(col.key)}>
+                    <span className="flex items-center gap-1">{col.label} <SortIcon field={col.key} /></span>
+                  </th>
+                ))}
+                <th className="px-4 py-3 text-center text-[11px] font-black text-gray-500">إجراء</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
-              {filteredStudents.length > 0 ? filteredStudents.slice(0, studentsPage).map((s, i) => {
+            <tbody>
+              {isLoading ? (
+                [...Array(5)].map((_, i) => (
+                  <tr key={i}><td colSpan={6}><div className="h-10 bg-gray-100 animate-pulse m-2 rounded" /></td></tr>
+                ))
+              ) : filteredStudents.slice(0, studentsPage).map((s, i) => {
                 const avg = Math.round(parseFloat(s.avg_score) || 0);
-                const avgColor = avg >= 80 ? '#10b981' : avg >= 60 ? '#6366f1' : avg >= 40 ? '#f59e0b' : '#f43f5e';
-                const rankColors = ['from-yellow-400 to-yellow-500', 'from-gray-300 to-gray-400', 'from-orange-400 to-orange-500'];
+                const sc = avg >= 70 ? { text:'#10b981', bg:'#dcfce7' } : avg >= 50 ? { text:'#6366f1', bg:'#ede9fe' } : { text:'#f43f5e', bg:'#ffe4e6' };
                 return (
-                  <tr key={s.id} onClick={() => setSelectedStudentId(s.id)}
-                    className="hover:bg-orange-50/40 transition-colors cursor-pointer group">
-                    <td className="px-4 py-3.5">
-                      <span className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-black text-white mx-auto bg-gradient-to-b ${rankColors[i] || 'from-navy-400 to-navy-600'}`}>
-                        {i + 1}
-                      </span>
+                  <tr key={s.id} className="border-t border-gray-50 hover:bg-gray-50/60 transition-colors group">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2.5">
+                        <span className="w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black text-white flex-shrink-0"
+                          style={{ background: CHART_COLORS[i % CHART_COLORS.length] }}>{i + 1}</span>
+                        <div>
+                          <p className="text-sm font-bold text-gray-800">{s.name}</p>
+                          <p className="text-[10px] text-gray-400">{s.username}</p>
+                        </div>
+                      </div>
                     </td>
-                    <td className="px-4 py-3.5">
-                      <span className="font-bold text-gray-800 text-sm group-hover:text-orange-600 transition-colors flex items-center gap-2">
-                        {s.name}
-                        <Eye className="w-3.5 h-3.5 text-orange-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </span>
-                    </td>
-                    <td className="px-4 py-3.5">
-                      <span className="text-[11px] bg-blue-50 text-blue-600 font-semibold px-2 py-0.5 rounded-full whitespace-nowrap">
-                        {s.academic_stage || '—'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3.5 text-center">
-                      <span className="flex items-center justify-center gap-1 text-amber-500 font-bold text-sm">
+                    <td className="px-4 py-3 text-xs text-gray-500 font-medium">{s.academic_stage || '—'}</td>
+                    <td className="px-4 py-3">
+                      <span className="flex items-center gap-1 text-sm font-black text-amber-500">
                         <Star className="w-3.5 h-3.5 fill-amber-400 stroke-amber-400" /> {s.points}
                       </span>
                     </td>
-                    <td className="px-4 py-3.5 text-center font-semibold text-gray-600 text-sm">{s.exams_taken}</td>
-                    <td className="px-4 py-3.5">
-                      <div className="flex items-center gap-2 min-w-[100px]">
-                        <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                          <div className="h-1.5 rounded-full transition-all duration-700"
-                            style={{ width: `${avg}%`, background: avgColor }} />
+                    <td className="px-4 py-3 text-sm font-bold text-gray-600 text-center">{s.exams_taken}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden min-w-[40px]">
+                          <div className="h-1.5 rounded-full" style={{ width: `${avg}%`, background: sc.text }} />
                         </div>
-                        <span className="text-xs font-black w-8 text-right" style={{ color: avgColor }}>{avg}%</span>
+                        <span className="text-[11px] font-black px-2 py-0.5 rounded-lg flex-shrink-0"
+                          style={{ color: sc.text, background: sc.bg }}>{avg}%</span>
                       </div>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <button onClick={() => setSelectedStudentId(s.id)}
+                        className="opacity-0 group-hover:opacity-100 flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 hover:bg-indigo-600 text-indigo-600 hover:text-white text-xs font-bold rounded-lg transition-all border border-indigo-200 hover:border-indigo-600 mx-auto">
+                        <Eye className="w-3.5 h-3.5" /> عرض
+                      </button>
                     </td>
                   </tr>
                 );
-              }) : (
-                <tr><td colSpan={6} className="text-center py-10 text-gray-400 text-sm font-semibold">لا توجد نتائج مطابقة</td></tr>
+              })}
+              {!isLoading && filteredStudents.length === 0 && (
+                <tr><td colSpan={6} className="text-center py-10 text-gray-400 text-sm font-semibold">لا توجد نتائج</td></tr>
               )}
             </tbody>
           </table>
         </div>
         {filteredStudents.length > studentsPage && (
-          <div className="p-4 border-t border-gray-50 text-center">
+          <div className="px-5 py-3 border-t border-gray-50 bg-gray-50/50 flex items-center justify-between">
+            <p className="text-xs text-gray-500 font-medium">يُعرض {studentsPage} من {filteredStudents.length}</p>
             <button onClick={() => setStudentsPage(p => p + 10)}
-              className="px-6 py-2 rounded-xl border-2 border-dashed border-gray-200 text-gray-500 text-sm font-bold hover:border-orange-300 hover:text-orange-500 hover:bg-orange-50/50 transition-all">
-              عرض المزيد ({filteredStudents.length - studentsPage} طالب آخر)
+              className="text-xs font-bold text-indigo-600 hover:text-indigo-700 px-3 py-1.5 rounded-lg hover:bg-indigo-50 transition">
+              عرض المزيد
             </button>
           </div>
         )}
       </div>
 
-      {/* Recent Results */}
+      {/* Results Table */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="p-5 border-b border-gray-50 flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center">
-              <Clock className="w-4 h-4 text-indigo-500" />
+        <div className="p-5 border-b border-gray-50 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-purple-50 flex items-center justify-center flex-shrink-0">
+              <Award className="w-4 h-4 text-purple-500" />
             </div>
             <div>
-              <h2 className="font-black text-gray-800 text-sm">آخر النتائج</h2>
-              <p className="text-[11px] text-gray-400">{filteredResults.length} نتيجة</p>
+              <h2 className="font-black text-gray-800 text-sm">سجل النتائج</h2>
+              <p className="text-[11px] text-gray-400 mt-0.5">{filteredResults.length} نتيجة</p>
             </div>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="relative">
-              <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
-              <input type="text" value={resultsSearch} onChange={e => setResultsSearch(e.target.value)}
-                placeholder="بحث..." className="pr-8 pl-3 py-2 rounded-xl border border-gray-200 text-xs font-semibold w-36 focus:outline-none focus:border-indigo-300 transition" />
-            </div>
-            <select value={resultsExamFilter} onChange={e => setResultsExamFilter(e.target.value)}
-              className="px-3 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-600 focus:outline-none focus:border-indigo-300 transition bg-white">
-              {examOptions.map(o => <option key={o}>{o}</option>)}
-            </select>
-            {['الكل', 'ناجح', 'راسب'].map(s => (
-              <button key={s} onClick={() => setResultsStatus(s)}
-                className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
-                  resultsStatus === s
-                    ? s === 'ناجح' ? 'bg-emerald-500 text-white' : s === 'راسب' ? 'bg-rose-500 text-white' : 'bg-indigo-500 text-white'
-                    : 'bg-gray-50 border border-gray-200 text-gray-500 hover:border-indigo-200'
-                }`}>{s}</button>
-            ))}
           </div>
         </div>
+
+        {/* Results Filters */}
+        <div className="px-5 py-3 border-b border-gray-50 flex flex-wrap gap-2">
+          <div className="relative flex-1 min-w-[160px]">
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+            <input type="text" value={resultsSearch} onChange={e => setResultsSearch(e.target.value)}
+              placeholder="بحث في النتائج..."
+              className="w-full pr-8 pl-3 py-2 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 placeholder-gray-400 focus:outline-none focus:border-orange-300 transition" />
+          </div>
+          <select value={resultsExamFilter} onChange={e => setResultsExamFilter(e.target.value)}
+            className="py-2 px-3 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600 focus:outline-none focus:border-orange-300 transition">
+            {examOptions.map(o => <option key={o} value={o}>{o}</option>)}
+          </select>
+          {['الكل','ناجح','راسب'].map(s => (
+            <button key={s} onClick={() => setResultsStatus(s)}
+              className={`px-3 py-2 rounded-lg text-xs font-bold transition-all ${
+                resultsStatus === s
+                  ? s === 'ناجح' ? 'bg-emerald-500 text-white' : s === 'راسب' ? 'bg-rose-500 text-white' : 'bg-gray-700 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}>{s}</button>
+          ))}
+        </div>
+
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[600px]">
+          <table className="w-full" style={{ minWidth: '560px' }}>
             <thead>
               <tr className="bg-gray-50/50">
                 <th className="px-4 py-3 text-right text-[11px] font-black text-gray-500">الطالب</th>
                 <th className="px-4 py-3 text-right text-[11px] font-black text-gray-500">الاختبار</th>
                 <th className="px-4 py-3 text-center text-[11px] font-black text-gray-500">الدرجة</th>
                 <th className="px-4 py-3 text-center text-[11px] font-black text-gray-500">الحالة</th>
-                <th className="px-4 py-3 text-center text-[11px] font-black text-gray-500">الصواب / الخطأ</th>
-                <th className="px-4 py-3 text-center text-[11px] font-black text-gray-500"></th>
+                <th className="px-4 py-3 text-center text-[11px] font-black text-gray-500 hidden sm:table-cell">صواب / خطأ</th>
+                <th className="px-4 py-3 text-center text-[11px] font-black text-gray-500 hidden sm:table-cell">التاريخ</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
-              {filteredResults.length > 0 ? filteredResults.slice(0, resultsPage).map(r => {
+            <tbody>
+              {filteredResults.slice(0, resultsPage).map(r => {
                 const passed = r.score >= r.pass_score;
                 const pct = r.total_score ? Math.round((r.score / r.total_score) * 100) : 0;
                 return (
-                  <tr key={r.id} className="hover:bg-gray-50/70 transition-colors group">
-                    <td className="px-4 py-3.5 font-bold text-gray-800 text-sm">{r.student_name}</td>
-                    <td className="px-4 py-3.5 text-gray-600 text-sm max-w-[160px] truncate">{r.exam_title}</td>
-                    <td className="px-4 py-3.5 text-center">
+                  <tr key={r.id} className="border-t border-gray-50 hover:bg-gray-50/60 transition-colors group">
+                    <td className="px-4 py-3 font-bold text-gray-800 text-sm">{r.student_name}</td>
+                    <td className="px-4 py-3 text-gray-600 text-xs max-w-[150px] truncate font-medium">{r.exam_title}</td>
+                    <td className="px-4 py-3 text-center">
                       <div className="flex flex-col items-center gap-0.5">
                         <span className={`font-black text-sm ${passed ? 'text-emerald-600' : 'text-rose-500'}`}>{r.score}/{r.total_score}</span>
-                        <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                          <div className="h-1.5 rounded-full transition-all" style={{ width: `${pct}%`, background: passed ? '#10b981' : '#f43f5e' }} />
+                        <div className="w-14 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-1.5 rounded-full" style={{ width: `${pct}%`, background: passed ? '#10b981' : '#f43f5e' }} />
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3.5 text-center">
-                      <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full ${
-                        passed ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-600'}`}>
-                        {passed ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
-                        {passed ? 'ناجح' : 'راسب'}
+                    <td className="px-4 py-3 text-center">
+                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${passed ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-600'}`}>
+                        {passed ? '✓ ناجح' : '✗ راسب'}
                       </span>
                     </td>
-                    <td className="px-4 py-3.5 text-center">
-                      <span className="text-xs font-semibold text-emerald-600">✓ {r.correct_count}</span>
+                    <td className="px-4 py-3 text-center text-xs font-semibold hidden sm:table-cell">
+                      <span className="text-emerald-600">✓ {r.correct_count}</span>
                       <span className="mx-1.5 text-gray-300">|</span>
-                      <span className="text-xs font-semibold text-rose-500">✗ {r.wrong_count}</span>
+                      <span className="text-rose-500">✗ {r.wrong_count}</span>
                     </td>
-                    <td className="px-4 py-3.5 text-center">
-                      <button onClick={() => navigate(`/teacher/exam-review/${r.id}`)}
-                        className="opacity-0 group-hover:opacity-100 flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 hover:bg-indigo-600 text-indigo-600 hover:text-white text-xs font-bold rounded-lg transition-all border border-indigo-200 hover:border-indigo-600 mx-auto">
-                        <Eye className="w-3.5 h-3.5" /> مراجعة
-                      </button>
+                    <td className="px-4 py-3 text-center text-[11px] text-gray-400 font-medium hidden sm:table-cell">
+                      {r.submitted_at ? new Date(r.submitted_at).toLocaleDateString('ar-EG') : '—'}
                     </td>
                   </tr>
                 );
-              }) : (
-                <tr><td colSpan={6} className="text-center py-10 text-gray-400 text-sm font-semibold">لا توجد نتائج مطابقة</td></tr>
+              })}
+              {filteredResults.length === 0 && (
+                <tr><td colSpan={6} className="text-center py-10 text-gray-400 text-sm font-semibold">لا توجد نتائج</td></tr>
               )}
             </tbody>
           </table>
         </div>
         {filteredResults.length > resultsPage && (
-          <div className="p-4 border-t border-gray-50 text-center">
+          <div className="px-5 py-3 border-t border-gray-50 bg-gray-50/50 flex items-center justify-between">
+            <p className="text-xs text-gray-500 font-medium">يُعرض {resultsPage} من {filteredResults.length}</p>
             <button onClick={() => setResultsPage(p => p + 10)}
-              className="px-6 py-2 rounded-xl border-2 border-dashed border-gray-200 text-gray-500 text-sm font-bold hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50/50 transition-all">
-              عرض المزيد ({filteredResults.length - resultsPage} نتيجة أخرى)
+              className="text-xs font-bold text-indigo-600 hover:text-indigo-700 px-3 py-1.5 rounded-lg hover:bg-indigo-50 transition">
+              عرض المزيد
             </button>
           </div>
         )}

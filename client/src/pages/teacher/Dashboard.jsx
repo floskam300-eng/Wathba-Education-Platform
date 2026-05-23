@@ -2,46 +2,11 @@ import React, { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Users, BookOpen, FileText, UserCog, TrendingUp, Eye, Star, Activity } from 'lucide-react';
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  Legend, Cell, AreaChart, Area,
-} from 'recharts';
+import ReactECharts from 'echarts-for-react';
 import StatCard from '../../components/ui/StatCard';
 import api from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
-import { useTheme } from '../../context/ThemeContext';
 
-const CustomTooltip = ({ active, payload, label }) => {
-  const { dark } = useTheme();
-  if (!active || !payload?.length) return null;
-  return (
-    <div
-      className="rounded-2xl shadow-2xl p-3 text-sm font-cairo min-w-[150px] border"
-      style={{
-        backgroundColor: dark ? 'var(--dk-elevated)' : 'rgba(255,255,255,0.97)',
-        borderColor: dark ? 'var(--dk-border-md)' : '#f1f5f9',
-        backdropFilter: 'blur(8px)',
-        boxShadow: dark ? '0 20px 60px rgba(0,0,0,0.60)' : '0 20px 60px rgba(0,0,0,0.12)',
-      }}>
-      {label && (
-        <p className="font-black mb-2 text-xs pb-1.5"
-          style={{ color: dark ? 'var(--dk-text-1)' : '#1e293b', borderBottom: `1px solid ${dark ? 'var(--dk-border)' : '#f1f5f9'}` }}>
-          {label}
-        </p>
-      )}
-      {payload.map((p, i) => (
-        <div key={i} className="flex items-center justify-between gap-4 py-0.5">
-          <span className="flex items-center gap-1.5 text-xs font-semibold"
-            style={{ color: dark ? 'var(--dk-text-2)' : '#475569' }}>
-            <span className="w-2 h-2 rounded-full" style={{ background: p.color }} />
-            {p.name}
-          </span>
-          <span className="font-black text-xs" style={{ color: p.color }}>{p.value}</span>
-        </div>
-      ))}
-    </div>
-  );
-};
 
 export default function TeacherDashboard() {
   const { user } = useAuth();
@@ -115,33 +80,58 @@ export default function TeacherDashboard() {
             <span className="text-[11px] font-medium text-gray-400 mr-1">— متوسط الدرجات والمحاولات</span>
           </h2>
           {chartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={chartData} margin={{ top: 5, right: 5, left: -15, bottom: 5 }} barGap={4} barCategoryGap="28%">
-                <defs>
-                  <linearGradient id="dbBarNavy" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#1A2E4A" />
-                    <stop offset="100%" stopColor="#2d4a7a" />
-                  </linearGradient>
-                  <linearGradient id="dbBarOrange" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#FF8C00" />
-                    <stop offset="100%" stopColor="#f97316" />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                <XAxis dataKey="name"
-                  tick={{ fontSize: 11, fontFamily: 'Cairo', fill: '#94a3b8' }}
-                  axisLine={false} tickLine={false} dy={8} />
-                <YAxis tick={{ fontSize: 11, fontFamily: 'Cairo', fill: '#94a3b8' }}
-                  axisLine={false} tickLine={false} dx={-5} />
-                <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(26,46,74,0.04)', radius: 8 }} />
-                <Legend iconType="circle"
-                  wrapperStyle={{ fontFamily: 'Cairo', fontSize: '11px', paddingTop: '12px' }} />
-                <Bar dataKey="متوسط الدرجات" fill="#1A2E4A" radius={[6, 6, 0, 0]}
-                  maxBarSize={28} animationDuration={1400} animationEasing="ease-out" />
-                <Bar dataKey="محاولات" fill="#FF8C00" radius={[6, 6, 0, 0]}
-                  maxBarSize={28} animationDuration={1600} animationEasing="ease-out" />
-              </BarChart>
-            </ResponsiveContainer>
+            <ReactECharts
+              option={{
+                tooltip: {
+                  trigger: 'axis',
+                  axisPointer: { type: 'shadow', shadowStyle: { color: 'rgba(99,102,241,0.06)' } },
+                  backgroundColor: '#fff',
+                  borderColor: '#f1f5f9',
+                  borderWidth: 1,
+                  textStyle: { fontFamily: 'Cairo', fontSize: 12, color: '#1e293b' },
+                  extraCssText: 'box-shadow:0 20px 60px rgba(0,0,0,0.12);border-radius:12px;padding:10px 14px',
+                  formatter: params => {
+                    let s = `<div style="font-family:Cairo;font-weight:900;color:#1e293b;border-bottom:1px solid #f1f5f9;padding-bottom:6px;margin-bottom:6px">${params[0]?.name}</div>`;
+                    params.forEach(p => { s += `<div style="font-family:Cairo;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:2px 0">${p.marker}${p.seriesName}: <b style="color:${p.color}">${p.value}</b></div>`; });
+                    return s;
+                  }
+                },
+                legend: {
+                  bottom: 0, icon: 'circle', itemWidth: 8, itemHeight: 8,
+                  textStyle: { fontFamily: 'Cairo', fontSize: 11, color: '#64748b' }
+                },
+                grid: { left: 8, right: 8, top: 10, bottom: 32, containLabel: true },
+                xAxis: {
+                  type: 'category',
+                  data: chartData.map(d => d.name),
+                  axisLine: { show: false }, axisTick: { show: false },
+                  axisLabel: { fontFamily: 'Cairo', color: '#94a3b8', fontSize: 10, interval: 0 }
+                },
+                yAxis: {
+                  type: 'value',
+                  splitLine: { lineStyle: { color: '#f1f5f9', type: 'dashed' } },
+                  axisLabel: { fontFamily: 'Cairo', color: '#94a3b8', fontSize: 10 },
+                  axisLine: { show: false }, axisTick: { show: false }
+                },
+                series: [
+                  {
+                    name: 'متوسط الدرجات', type: 'bar', barMaxWidth: 26,
+                    data: chartData.map(d => d['متوسط الدرجات']),
+                    itemStyle: { borderRadius: [6,6,0,0], color: { type:'linear',x:0,y:0,x2:0,y2:1, colorStops:[{offset:0,color:'#6366f1'},{offset:1,color:'#4f46e5'}] } },
+                    emphasis: { itemStyle: { color: { type:'linear',x:0,y:0,x2:0,y2:1, colorStops:[{offset:0,color:'#818cf8'},{offset:1,color:'#6366f1'}] } } }
+                  },
+                  {
+                    name: 'محاولات', type: 'bar', barMaxWidth: 26,
+                    data: chartData.map(d => d['محاولات']),
+                    itemStyle: { borderRadius: [6,6,0,0], color: { type:'linear',x:0,y:0,x2:0,y2:1, colorStops:[{offset:0,color:'#f97316'},{offset:1,color:'#ea580c'}] } },
+                    emphasis: { itemStyle: { color: { type:'linear',x:0,y:0,x2:0,y2:1, colorStops:[{offset:0,color:'#fb923c'},{offset:1,color:'#f97316'}] } } }
+                  }
+                ]
+              }}
+              style={{ height: '260px' }}
+              notMerge
+              opts={{ renderer: 'svg' }}
+            />
           ) : (
             <div className="h-52 flex flex-col items-center justify-center gap-3">
               <div className="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center">

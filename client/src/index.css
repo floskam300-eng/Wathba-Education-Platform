@@ -540,23 +540,6 @@ html.dark .divide-gray-200 > * + * {
   border-color: var(--dk-border);
 }
 
-/* ── Chart overrides ── */
-html.dark .recharts-cartesian-grid-horizontal line,
-html.dark .recharts-cartesian-grid-vertical line {
-  stroke: var(--dk-border-md);
-}
-html.dark .recharts-tooltip-wrapper .recharts-default-tooltip {
-  background-color: var(--dk-elevated) !important;
-  border-color: var(--dk-border-md) !important;
-  color: var(--dk-text-1) !important;
-}
-html.dark .recharts-tooltip-item-name,
-html.dark .recharts-tooltip-item-value {
-  color: var(--dk-text-1) !important;
-}
-html.dark .recharts-legend-item-text {
-  color: var(--dk-text-2) !important;
-}
 
 /* ═══════════════════════════════════════════════════════
    UTILITIES

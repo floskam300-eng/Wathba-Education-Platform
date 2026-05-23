@@ -10,7 +10,6 @@
     "start": "NODE_ENV=production node server/index.js"
   },
   "dependencies": {
-    "apexcharts": "^5.10.6",
     "bcryptjs": "^2.4.3",
     "concurrently": "^8.2.2",
     "cors": "^2.8.5",
@@ -22,7 +21,6 @@
     "jsonwebtoken": "^9.0.2",
     "livekit-server-sdk": "^2.15.3",
     "multer": "^1.4.5-lts.1",
-    "pg": "^8.11.3",
-    "react-apexcharts": "^2.1.0"
+    "pg": "^8.11.3"
   }
 }

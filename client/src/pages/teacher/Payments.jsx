@@ -15,7 +15,7 @@ function FieldError({ error }) {
   );
 }
 
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import ReactECharts from 'echarts-for-react';
 import Modal from '../../components/ui/Modal';
 import Badge from '../../components/ui/Badge';
 import api from '../../lib/api';
@@ -256,27 +256,47 @@ export default function TeacherPayments() {
             <span className="text-emerald-700 font-black text-sm">{totals.verified.toLocaleString()} ج</span>
           </div>
         </div>
-        <ResponsiveContainer width="100%" height={200}>
-          <AreaChart data={monthlyRevenue} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
-            <defs>
-              <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%"  stopColor="#10b981" stopOpacity={0.25} />
-                <stop offset="95%" stopColor="#10b981" stopOpacity={0.02} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-            <XAxis dataKey="name" tick={{ fontSize: 11, fontFamily: 'Cairo', fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 11, fontFamily: 'Cairo', fill: '#94a3b8' }} axisLine={false} tickLine={false} width={55}
-              tickFormatter={v => v > 0 ? `${v.toLocaleString()}` : '0'} />
-            <Tooltip
-              contentStyle={{ fontFamily: 'Cairo', borderRadius: '12px', border: 'none', boxShadow: '0 8px 24px rgba(0,0,0,0.10)', fontSize: '12px' }}
-              formatter={(val) => [`${val.toLocaleString()} جنيه`, 'الإيرادات']}
-            />
-            <Area type="monotone" dataKey="الإيرادات" stroke="#10b981" strokeWidth={2.5}
-              fill="url(#revenueGradient)" dot={{ r: 4, fill: '#10b981', strokeWidth: 2, stroke: '#fff' }}
-              activeDot={{ r: 6, fill: '#10b981' }} />
-          </AreaChart>
-        </ResponsiveContainer>
+        <ReactECharts
+          option={{
+            tooltip: {
+              trigger: 'axis',
+              backgroundColor: '#fff',
+              borderColor: '#f1f5f9',
+              borderWidth: 1,
+              textStyle: { fontFamily: 'Cairo', fontSize: 12, color: '#1e293b' },
+              extraCssText: 'box-shadow:0 20px 60px rgba(0,0,0,0.12);border-radius:12px;padding:10px 14px',
+              formatter: params => {
+                const p = params[0];
+                return `<div style="font-family:Cairo"><b style="color:#1e293b">${p.axisValue}</b><br/>${p.marker} الإيرادات: <b style="color:#10b981">${(p.value||0).toLocaleString()} جنيه</b></div>`;
+              }
+            },
+            grid: { left: 10, right: 10, top: 10, bottom: 4, containLabel: true },
+            xAxis: {
+              type: 'category',
+              data: monthlyRevenue.map(d => d.name),
+              boundaryGap: false,
+              axisLine: { show: false }, axisTick: { show: false },
+              axisLabel: { fontFamily: 'Cairo', color: '#94a3b8', fontSize: 11 }
+            },
+            yAxis: {
+              type: 'value',
+              splitLine: { lineStyle: { color: '#f1f5f9', type: 'dashed' } },
+              axisLabel: { fontFamily: 'Cairo', color: '#94a3b8', fontSize: 10, formatter: v => v > 0 ? v.toLocaleString() : '0' },
+              axisLine: { show: false }, axisTick: { show: false }
+            },
+            series: [{
+              name: 'الإيرادات', type: 'line',
+              data: monthlyRevenue.map(d => d['الإيرادات']),
+              smooth: true, symbol: 'circle', symbolSize: 8,
+              lineStyle: { color: '#10b981', width: 2.5 },
+              itemStyle: { color: '#10b981', borderColor: '#fff', borderWidth: 2.5 },
+              areaStyle: { color: { type:'linear',x:0,y:0,x2:0,y2:1, colorStops:[{offset:0,color:'rgba(16,185,129,0.25)'},{offset:1,color:'rgba(16,185,129,0.02)'}] } }
+            }]
+          }}
+          style={{ height: '200px' }}
+          notMerge
+          opts={{ renderer: 'svg' }}
+        />
       </div>
 
       {/* ── Filters ── */}
