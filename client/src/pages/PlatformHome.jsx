@@ -147,7 +147,7 @@ export default function PlatformHome() {
 
   const features = [
     { icon: BookOpen,    title: 'كورسات تفاعلية',     desc: 'رفع فيديوهات وملفات PDF منظّمة في أقسام مع تتبع تقدم كل طالب تلقائياً.',       color: 'bg-orange-500',   delay: 0 },
-    { icon: FileText,    title: 'امتحانات ذكية',       desc: 'بنك أسئلة متنوع — اختيار متعدد، صح/غلط، مقالي — مع تصحيح فوري وتحليل تفصيلي.', color: 'bg-violet-600',   delay: 0.05 },
+    { icon: FileText,    title: 'امتحانات ذكية',       desc: 'بنك أسئلة متنوع — اختيار متعدد وصح/غلط — مع تصحيح فوري وتحليل تفصيلي.', color: 'bg-violet-600',   delay: 0.05 },
     { icon: BarChart3,   title: 'تحليلات متقدمة',     desc: 'لوحة بيانات شاملة لأداء كل طالب والكورسات والامتحانات بالرسوم البيانية.',         color: 'bg-blue-600',     delay: 0.10 },
     { icon: Users,       title: 'إدارة المساعدين',    desc: 'أضف مساعدين بصلاحيات مخصصة لكل وظيفة — طلاب، مدفوعات، امتحانات وأكثر.',         color: 'bg-emerald-600',  delay: 0.15 },
     { icon: CreditCard,  title: 'إدارة المدفوعات',    desc: 'تتبع طلبات التسجيل وإيصالات الدفع والتحقق منها في لحظات.',                        color: 'bg-pink-600',     delay: 0.20 },

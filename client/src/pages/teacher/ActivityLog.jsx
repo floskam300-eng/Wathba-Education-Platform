@@ -59,7 +59,6 @@ const ACTION_LABELS = {
   edit_exam:            'تعديل اختبار',
   delete_exam:          'حذف اختبار',
   publish_exam:         'نشر اختبار',
-  grade_essay:          'تصحيح مقالية',
   approve_retry:        'قبول إعادة',
   reject_retry:         'رفض إعادة',
   verify_payment:       'تحقق من دفعة',

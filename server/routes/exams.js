@@ -798,11 +798,7 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
     const correctLetter = q.correct_answer_letter ? q.correct_answer_letter.toUpperCase() : null;
     const qType = q.question_type || 'mcq';
     let isCorrect = false;
-    if (qType === 'essay') {
-      // Essay questions require manual grading — never count as wrong
-      // Store the answer text but leave scoring to teacher
-      unanswered++;
-    } else if (!studentAnswer) {
+    if (!studentAnswer) {
       unanswered++;
     } else if (studentAnswer === correctLetter) {
       score += q.points; correct++; isCorrect = true;
@@ -940,7 +936,7 @@ router.get('/results/:resultId/review', authenticate, async (req, res) => {
     const resultRes = await pool.query(
       `SELECT er.id, er.student_id, er.exam_id, er.score, er.correct_count, er.wrong_count,
               er.unanswered_count, er.points_earned, er.start_time, er.end_time, er.created_at,
-              er.answers, er.essay_graded, er.essay_score_adjustment,
+              er.answers,
               s.name  AS student_name,
               e.title AS exam_title, e.total_score, e.pass_score, e.teacher_id AS exam_teacher_id,
               e.question_source, e.bank_id
@@ -1032,15 +1028,7 @@ router.get('/results/:resultId/review', authenticate, async (req, res) => {
       const correctLetter    = q.correct_answer_letter ? q.correct_answer_letter.toUpperCase() : null;
       const correctAnswer = correctLetter;
 
-      let isCorrect;
-      if (qType === 'essay') {
-        // Essay questions need manual grading — null means pending, not wrong
-        isCorrect = null;
-      } else if (!studentAnswer) {
-        isCorrect = false;
-      } else {
-        isCorrect = studentAnswer === correctLetter;
-      }
+      const isCorrect = !studentAnswer ? false : studentAnswer === correctLetter;
 
       return {
         ...q,
@@ -1048,8 +1036,6 @@ router.get('/results/:resultId/review', authenticate, async (req, res) => {
         student_answer: studentAnswer,
         correct_answer: correctAnswer,
         is_correct: isCorrect,
-        // essay_pending = true if this is an essay question AND result not yet graded by teacher
-        essay_pending: qType === 'essay' ? !row.essay_graded : undefined,
       };
     });
 

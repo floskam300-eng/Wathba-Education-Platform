@@ -44,9 +44,8 @@ export default function ExamReviewModal({ resultId, onClose }) {
   const passed = result && result.score >= result.pass_score;
   const pct = result ? Math.round((result.score / result.total_score) * 100) : 0;
   const correctCount  = questions.filter(q => q.is_correct === true).length;
-  const wrongCount    = questions.filter(q => q.is_correct === false && q.student_answer && q.question_type !== 'essay').length;
-  const skippedCount  = questions.filter(q => !q.student_answer && q.question_type !== 'essay').length;
-  const essayCount    = questions.filter(q => q.question_type === 'essay').length;
+  const wrongCount    = questions.filter(q => q.is_correct === false && q.student_answer).length;
+  const skippedCount  = questions.filter(q => !q.student_answer).length;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/50 backdrop-blur-sm">
@@ -134,18 +133,16 @@ export default function ExamReviewModal({ resultId, onClose }) {
             const studentAns = q.student_answer;
             const correctAns = q.correct_answer;
             const answered   = !!studentAns;
-            const isEssay = q.question_type === 'essay';
             return (
               <div key={q.id} className={`rounded-2xl border-2 p-4 ${
-                isEssay         ? 'border-yellow-200 bg-yellow-50/30'
-                : !answered     ? 'border-gray-200 bg-gray-50/50'
+                !answered     ? 'border-gray-200 bg-gray-50/50'
                 : q.is_correct  ? 'border-green-200 bg-green-50/30'
                 :                  'border-red-200 bg-red-50/30'
               }`}>
                 {/* Question header */}
                 <div className="flex items-start gap-3 mb-4">
                   <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 text-xs font-black text-white ${
-                    isEssay ? 'bg-yellow-500' : !answered ? 'bg-gray-400' : q.is_correct ? 'bg-green-500' : 'bg-red-500'
+                    !answered ? 'bg-gray-400' : q.is_correct ? 'bg-green-500' : 'bg-red-500'
                   }`}>
                     {qi + 1}
                   </div>
@@ -182,8 +179,8 @@ export default function ExamReviewModal({ resultId, onClose }) {
                       })}
                     </div>
 
-                    {/* Correction note for wrong answers — MCQ/True-False only */}
-                    {answered && q.is_correct === false && !isEssay && (
+                    {/* Correction note for wrong answers */}
+                    {answered && q.is_correct === false && (
                       <div className="mt-3 flex flex-wrap gap-3 text-xs font-semibold">
                         <span className="flex items-center gap-1 text-red-600">
                           <XCircle className="w-3.5 h-3.5" />

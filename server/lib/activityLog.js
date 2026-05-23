@@ -18,7 +18,6 @@ const ACTION_LABELS = {
   edit_exam:            'تعديل اختبار',
   delete_exam:          'حذف اختبار',
   publish_exam:         'نشر/إلغاء نشر اختبار',
-  grade_essay:          'تصحيح إجابة مقالية',
   approve_retry:        'الموافقة على إعادة اختبار',
   reject_retry:         'رفض إعادة اختبار',
   verify_payment:       'تحقق من دفعة',

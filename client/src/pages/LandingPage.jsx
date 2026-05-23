@@ -195,7 +195,7 @@ export default function LandingPage() {
 
   const features = [
     { icon: Play,          title: 'فيديوهات تعليمية',   desc: 'محتوى فيديو منظم داخل كل كورس مع تتبع تقدم مشاهدة كل طالب بدقة.',              variant: 'orange' },
-    { icon: Target,        title: 'امتحانات تفاعلية',   desc: 'أسئلة MCQ وصح/خطأ ومقالي — نتائج فورية مع تحليل تفصيلي لكل إجابة.',            variant: 'purple' },
+    { icon: Target,        title: 'امتحانات تفاعلية',   desc: 'أسئلة MCQ وصح/خطأ — نتائج فورية مع تحليل تفصيلي لكل إجابة.',            variant: 'purple' },
     { icon: Video,         title: 'بث مباشر',            desc: 'حصص أونلاين مع شات وعرض اليد وتتبع الحضور والغياب في الوقت الفعلي.',            variant: 'orange' },
     { icon: BarChart3,     title: 'تحليلات متقدمة',     desc: 'رسوم بيانية تفاعلية لمتابعة أداء كل طالب وتحديد نقاط الضعف والقوة.',           variant: 'purple' },
     { icon: Trophy,        title: 'نقاط ولوحة الشرف',   desc: 'نظام مكافآت يحفّز الطلاب مع لوحة متصدرين شهرية تُعاد تلقائياً.',               variant: 'orange' },

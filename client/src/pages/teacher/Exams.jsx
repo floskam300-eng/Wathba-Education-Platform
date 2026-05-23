@@ -319,7 +319,7 @@ export default function TeacherExams() {
     return null;
   };
 
-  const qTypeLabel = (t) => ({ mcq: 'MCQ', true_false: 'صح/خطأ', essay: 'مقال' })[t] || 'MCQ';
+  const qTypeLabel = (t) => ({ mcq: 'MCQ', true_false: 'صح/خطأ' })[t] || 'MCQ';
 
   return (
     <div className="space-y-5">
@@ -563,7 +563,7 @@ export default function TeacherExams() {
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${q.question_type === 'true_false' ? 'bg-purple-100 text-purple-700' : q.question_type === 'essay' ? 'bg-yellow-100 text-yellow-700' : 'bg-orange-100 text-orange-700'}`}>
+                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${q.question_type === 'true_false' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'}`}>
                               {qTypeLabel(q.question_type)}
                             </span>
                             <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800">

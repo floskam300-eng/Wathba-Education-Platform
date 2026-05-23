@@ -379,8 +379,8 @@ export default function StudentExams() {
                   {/* Question label row */}
                   <div className="flex items-center gap-2 mb-2">
                     <span className="w-6 h-6 rounded-full bg-navy-600 text-white text-xs font-black flex items-center justify-center flex-shrink-0">{qi + 1}</span>
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${qType === 'true_false' ? 'bg-purple-100 text-purple-700' : qType === 'essay' ? 'bg-yellow-100 text-yellow-700' : 'bg-orange-100 text-orange-700'}`}>
-                      {qType === 'true_false' ? 'صح/خطأ' : qType === 'essay' ? 'مقال' : 'اختيار'}
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${qType === 'true_false' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'}`}>
+                      {qType === 'true_false' ? 'صح/خطأ' : 'اختيار'}
                     </span>
                     {answers[q.id] && <span className="text-xs text-green-600 font-bold mr-auto">✓ أُجيب</span>}
                   </div>
@@ -400,14 +400,6 @@ export default function StudentExams() {
                         </button>
                       ))}
                     </div>
-                  ) : qType === 'essay' ? (
-                    <textarea
-                      value={answers[q.id] || ''}
-                      onChange={e => setAnswers({ ...answers, [q.id]: e.target.value })}
-                      rows={3}
-                      className="w-full border-2 border-gray-200 rounded-xl p-3 text-sm text-navy-700 resize-none focus:border-orange-400 focus:outline-none transition-colors"
-                      placeholder="اكتب إجابتك هنا..."
-                    />
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                       {(() => {

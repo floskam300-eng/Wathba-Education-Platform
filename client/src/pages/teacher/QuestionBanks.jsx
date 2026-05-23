@@ -218,7 +218,7 @@ export default function QuestionBanks() {
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-2">
                                 <span className="text-xs font-black bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">{idx + 1}</span>
-                                <span className="text-xs text-gray-500 font-medium">{q.question_type === 'true_false' ? 'صح/خطأ' : q.question_type === 'essay' ? 'مقال' : 'MCQ'} · {q.points} نقطة</span>
+                                <span className="text-xs text-gray-500 font-medium">{q.question_type === 'true_false' ? 'صح/خطأ' : 'MCQ'} · {q.points} نقطة</span>
                               </div>
                               {q.question_image_url && <img src={q.question_image_url} alt="" className="max-h-32 rounded-lg mb-2 border border-gray-200" />}
                               {q.question_text && <p className="font-semibold text-navy-700 text-sm mb-2">{q.question_text}</p>}

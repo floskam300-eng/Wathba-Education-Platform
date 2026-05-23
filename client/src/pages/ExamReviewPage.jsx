@@ -71,12 +71,11 @@ export default function ExamReviewPage() {
     ? questions.filter(q => q.is_correct === true).length
     : (result?.correct_count ?? 0);
   const wrongCount = hasDetailedAnswers
-    ? questions.filter(q => q.is_correct === false && q.student_answer && q.question_type !== 'essay').length
+    ? questions.filter(q => q.is_correct === false && q.student_answer).length
     : (result?.wrong_count ?? 0);
   const skippedCount = hasDetailedAnswers
-    ? questions.filter(q => !q.student_answer && q.question_type !== 'essay').length
+    ? questions.filter(q => !q.student_answer).length
     : (result?.unanswered_count ?? 0);
-  const essayCount = questions.filter(q => q.question_type === 'essay').length;
 
   const isTeacher = user?.role === 'teacher' || user?.role === 'assistant';
 
@@ -157,7 +156,7 @@ export default function ExamReviewPage() {
                     style={{ width: `${pct}%` }} />
                 </div>
               </div>
-              <div className={`grid gap-2 ${essayCount > 0 ? 'grid-cols-5' : 'grid-cols-4'}`}>
+              <div className="grid gap-2 grid-cols-4">
                 <div className="flex flex-col items-center gap-1 bg-green-50 border border-green-100 rounded-xl py-3">
                   <CheckCircle className="w-5 h-5 text-green-600" />
                   <span className="text-green-800 text-xl font-black">{correctCount}</span>
@@ -173,13 +172,6 @@ export default function ExamReviewPage() {
                   <span className="text-gray-600 text-xl font-black">{skippedCount}</span>
                   <span className="text-gray-500 text-xs font-semibold">متروك</span>
                 </div>
-                {essayCount > 0 && (
-                  <div className="flex flex-col items-center gap-1 bg-yellow-50 border border-yellow-100 rounded-xl py-3">
-                    <Clock className="w-5 h-5 text-yellow-600" />
-                    <span className="text-yellow-700 text-xl font-black">{essayCount}</span>
-                    <span className="text-yellow-600 text-xs font-semibold">مقال</span>
-                  </div>
-                )}
                 <div className="flex flex-col items-center gap-1 bg-orange-50 border border-orange-100 rounded-xl py-3">
                   <Award className="w-5 h-5 text-orange-500" />
                   <span className="text-orange-700 text-xl font-black">+{result.points_earned || 0}</span>
@@ -208,23 +200,20 @@ export default function ExamReviewPage() {
                 const correctAns  = q.correct_answer;
                 const answered    = !!studentAns;
 
-                const isEssay = q.question_type === 'essay';
                 return (
                   <div key={q.id} className={`bg-white rounded-2xl border-2 shadow-sm overflow-hidden ${
-                    isEssay         ? 'border-yellow-300'
-                    : !answered     ? 'border-gray-200'
+                    !answered     ? 'border-gray-200'
                     : q.is_correct  ? 'border-green-300'
                     :                  'border-red-300'
                   }`}>
                     {/* Question header */}
                     <div className={`px-5 py-3 flex items-center gap-3 border-b ${
-                      isEssay         ? 'bg-yellow-50 border-yellow-100'
-                      : !answered     ? 'bg-gray-50 border-gray-100'
+                      !answered     ? 'bg-gray-50 border-gray-100'
                       : q.is_correct  ? 'bg-green-50 border-green-100'
                       :                  'bg-red-50 border-red-100'
                     }`}>
                       <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-sm font-black text-white shadow-sm ${
-                        isEssay ? 'bg-yellow-500' : !answered ? 'bg-gray-400' : q.is_correct ? 'bg-green-500' : 'bg-red-500'
+                        !answered ? 'bg-gray-400' : q.is_correct ? 'bg-green-500' : 'bg-red-500'
                       }`}>
                         {qi + 1}
                       </div>
@@ -233,22 +222,17 @@ export default function ExamReviewPage() {
                         {q.question_type === 'true_false' && (
                           <span className="text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">صح/خطأ</span>
                         )}
-                        {isEssay && (
-                          <span className="flex items-center gap-1 text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded-full">
-                            مقال — في انتظار التصحيح
-                          </span>
-                        )}
-                        {!isEssay && !answered && (
+                        {!answered && (
                           <span className="flex items-center gap-1 text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
                             <Clock className="w-3 h-3" /> لم تُجَب
                           </span>
                         )}
-                        {!isEssay && answered && q.is_correct === true && (
+                        {answered && q.is_correct === true && (
                           <span className="flex items-center gap-1 text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
                             <CheckCircle className="w-3 h-3" /> صحيحة ✓
                           </span>
                         )}
-                        {!isEssay && answered && q.is_correct === false && (
+                        {answered && q.is_correct === false && (
                           <span className="flex items-center gap-1 text-red-600 bg-red-100 px-2 py-0.5 rounded-full">
                             <XCircle className="w-3 h-3" /> خاطئة ✗
                           </span>
@@ -264,52 +248,27 @@ export default function ExamReviewPage() {
                       )}
 
                       {/* Options — MCQ / True-False */}
-                      {q.question_type !== 'essay' && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-4">
-                          {OPTS.map(opt => {
-                            const text = q[`option_${opt.toLowerCase()}`];
-                            if (!text || text === '-') return null;
-                            return (
-                              <div key={opt}
-                                className={`flex items-center gap-3 p-3.5 rounded-xl border-2 transition-all ${optStyle(opt, studentAns, correctAns)}`}>
-                                <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 ${optBadge(opt, studentAns, correctAns)}`}>
-                                  {optLabel[opt]}
-                                </span>
-                                <span className={`text-sm flex-1 leading-snug ${optTextColor(opt, studentAns, correctAns)}`}>
-                                  {text}
-                                </span>
-                                {optIcon(opt, studentAns, correctAns)}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-
-                      {/* Essay question display */}
-                      {q.question_type === 'essay' && (
-                        <div className="mt-4 space-y-2.5">
-                          <div className={`rounded-xl border px-4 py-3 text-sm ${studentAns ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
-                            <p className="text-xs font-bold text-gray-500 mb-1">إجابة الطالب</p>
-                            <p className={`font-medium leading-relaxed ${studentAns ? 'text-blue-800' : 'text-gray-400 italic'}`}>
-                              {studentAns || 'لم تُجَب'}
-                            </p>
-                          </div>
-                          {q.essay_answer_key && (
-                            <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm">
-                              <p className="text-xs font-bold text-green-600 mb-1">نموذج الإجابة</p>
-                              <p className="text-green-800 font-medium leading-relaxed whitespace-pre-wrap">{q.essay_answer_key}</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-4">
+                        {OPTS.map(opt => {
+                          const text = q[`option_${opt.toLowerCase()}`];
+                          if (!text || text === '-') return null;
+                          return (
+                            <div key={opt}
+                              className={`flex items-center gap-3 p-3.5 rounded-xl border-2 transition-all ${optStyle(opt, studentAns, correctAns)}`}>
+                              <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 ${optBadge(opt, studentAns, correctAns)}`}>
+                                {optLabel[opt]}
+                              </span>
+                              <span className={`text-sm flex-1 leading-snug ${optTextColor(opt, studentAns, correctAns)}`}>
+                                {text}
+                              </span>
+                              {optIcon(opt, studentAns, correctAns)}
                             </div>
-                          )}
-                          {q.essay_pending && (
-                            <div className="rounded-xl border border-yellow-200 bg-yellow-50 px-4 py-2.5 text-xs font-semibold text-yellow-700">
-                              ⏳ في انتظار تصحيح المعلم
-                            </div>
-                          )}
-                        </div>
-                      )}
+                          );
+                        })}
+                      </div>
 
-                      {/* Correction note — MCQ/True-False only */}
-                      {q.question_type !== 'essay' && !answered && correctAns && (
+                      {/* Correction note */}
+                      {!answered && correctAns && (
                         <div className="mt-3 flex flex-wrap items-center gap-4 text-xs font-semibold bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5">
                           <span className="flex items-center gap-1.5 text-gray-500">
                             <Minus className="w-3.5 h-3.5" />
@@ -321,7 +280,7 @@ export default function ExamReviewPage() {
                           </span>
                         </div>
                       )}
-                      {q.question_type !== 'essay' && answered && !q.is_correct && (
+                      {answered && !q.is_correct && (
                         <div className="mt-3 flex flex-wrap items-center gap-4 text-xs font-semibold bg-orange-50 border border-orange-200 rounded-xl px-4 py-2.5">
                           <span className="flex items-center gap-1.5 text-red-700">
                             <XCircle className="w-3.5 h-3.5" />
