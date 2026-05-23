@@ -27,6 +27,7 @@ async function seed() {
   // ══════════════════════════════════════════════════════════
   console.log('\n⟳  مسح البيانات القديمة...');
   const tables = [
+    'activity_logs',
     'exam_sessions',
     'event_plays',
     'live_hand_raises',
@@ -876,7 +877,235 @@ async function seed() {
   console.log(`  ✓ ${notifs.length} إشعارات`);
 
   // ══════════════════════════════════════════════════════════
-  // 16. متتبّع إعادة ضبط المتصدرين
+  // 16. سجل النشاط — activity_logs
+  // ══════════════════════════════════════════════════════════
+  console.log('\n⟳  إضافة سجل النشاط...');
+
+  // جلب IDs المساعدين
+  const [asstNour]  = await q(`SELECT id, name FROM assistants WHERE username='asst_nour'`);
+  const [asstKarim] = await q(`SELECT id, name FROM assistants WHERE username='asst_karim'`);
+  const [asstDina]  = await q(`SELECT id, name FROM assistants WHERE username='asst_dina'`);
+  const [asstYara]  = await q(`SELECT id, name FROM assistants WHERE username='asst_yara'`);
+
+  // جلب أسماء الطلاب
+  const fetchStudent = async (username) => {
+    const [s] = await q(`SELECT id, name FROM students WHERE username=$1`, [username]);
+    return s;
+  };
+  const stdAli     = await fetchStudent('std_ali');
+  const stdFatma   = await fetchStudent('std_fatma');
+  const stdYoussef = await fetchStudent('std_youssef');
+  const stdNada    = await fetchStudent('std_nada');
+  const stdOmar    = await fetchStudent('std_omar');
+  const stdMostafa = await fetchStudent('std_mostafa');
+  const sciHana    = await fetchStudent('sci_hana');
+  const sciHassan  = await fetchStudent('sci_hassan');
+  const araNourd   = await fetchStudent('ara_nour');
+
+  const logAct = async (teacherId, actorType, actorId, actorName, action,
+                        entityType, entityId, entityName, details, daysAgo, hoursAgo = 0) => {
+    const ts = new Date(now.getTime() - daysAgo * 86400000 - hoursAgo * 3600000);
+    await q(
+      `INSERT INTO activity_logs
+         (teacher_id, actor_type, actor_id, actor_name, action,
+          entity_type, entity_id, entity_name, details, ip_address, created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'196.220.10.15',$10)`,
+      [
+        teacherId, actorType, actorId, actorName, action,
+        entityType, entityId ? String(entityId) : null, entityName,
+        details ? JSON.stringify(details) : null,
+        ts.toISOString(),
+      ]
+    );
+  };
+
+  const T = 'teacher';
+  const A = 'assistant';
+
+  // ── أ/ محمد (T1) — سجل نشاط 30 يوماً ──────────────────────
+  // إنشاء الكورسات
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'create_course',
+    'course', c1a.id, 'رياضيات الثالث الثانوي — الجبر والمثلثات',
+    { price: 250, stage: 'الصف الثالث الثانوي' }, 28, 9);
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'create_course',
+    'course', c1b.id, 'رياضيات الثاني الثانوي — الهندسة التحليلية',
+    { price: 200, stage: 'الصف الثاني الثانوي' }, 27, 14);
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'create_course',
+    'course', c1free.id, 'مقدمة مجانية — أساسيات الجبر للثانوية',
+    { price: 0, is_free: true }, 26, 10);
+
+  // نشر الكورسات
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'publish_course',
+    'course', c1a.id, 'رياضيات الثالث الثانوي — الجبر والمثلثات',
+    { is_published: true }, 25, 8);
+
+  // إضافة الطلاب (معلم بنفسه)
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'add_student',
+    'student', stdAli.id, stdAli.name, { stage: 'الصف الثالث الثانوي' }, 25, 7);
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'add_student',
+    'student', stdFatma.id, stdFatma.name, { stage: 'الصف الثالث الثانوي' }, 25, 6);
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'add_student',
+    'student', stdYoussef.id, stdYoussef.name, { stage: 'الصف الثالث الثانوي' }, 25, 5);
+
+  // المساعد نور يضيف طلاب
+  await logAct(T1, A, asstNour.id, asstNour.name, 'add_student',
+    'student', stdNada.id, stdNada.name, { stage: 'الصف الثالث الثانوي' }, 24, 11);
+  await logAct(T1, A, asstNour.id, asstNour.name, 'add_student',
+    'student', stdOmar.id, stdOmar.name, { stage: 'الصف الثالث الثانوي' }, 24, 10);
+  await logAct(T1, A, asstNour.id, asstNour.name, 'add_student',
+    'student', stdMostafa.id, stdMostafa.name, { stage: 'الصف الثاني الثانوي' }, 24, 9);
+
+  // المساعد كريم يتحقق من المدفوعات
+  await logAct(T1, A, asstKarim.id, asstKarim.name, 'verify_payment',
+    'payment', null, stdAli.name,
+    { amount: 250, method: 'instapay', status: 'verified' }, 22, 13);
+  await logAct(T1, A, asstKarim.id, asstKarim.name, 'verify_payment',
+    'payment', null, stdFatma.name,
+    { amount: 250, method: 'vodafone_cash', status: 'verified' }, 22, 12);
+  await logAct(T1, A, asstKarim.id, asstKarim.name, 'verify_payment',
+    'payment', null, stdYoussef.name,
+    { amount: 250, method: 'instapay', status: 'verified' }, 21, 9);
+
+  // إنشاء الامتحانات
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'create_exam',
+    'exam', e1.id, 'امتحان الجبر — الوحدة الأولى',
+    { total_score: 30, duration: 45 }, 20, 10);
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'publish_exam',
+    'exam', e1.id, 'امتحان الجبر — الوحدة الأولى',
+    { is_published: true }, 20, 9);
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'create_exam',
+    'exam', e2.id, 'مراجعة المثلثات النهائية',
+    { total_score: 50, duration: 60 }, 15, 11);
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'publish_exam',
+    'exam', e2.id, 'مراجعة المثلثات النهائية',
+    { is_published: true }, 15, 10);
+
+  // المساعد نور ينشئ امتحان الهندسة
+  await logAct(T1, A, asstNour.id, asstNour.name, 'create_exam',
+    'exam', e3.id, 'اختبار الهندسة التحليلية',
+    { total_score: 20, duration: 30 }, 10, 14);
+
+  // الموافقة على إعادة الامتحان
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'approve_retry',
+    'exam', e1.id, 'امتحان الجبر — الوحدة الأولى',
+    { student: stdNada.name, decision: 'accepted' }, 7, 8);
+
+  // تعديل بيانات طالب
+  await logAct(T1, A, asstNour.id, asstNour.name, 'edit_student',
+    'student', stdOmar.id, stdOmar.name,
+    { changed: ['phone', 'parent_phone'] }, 5, 11);
+
+  // إرسال إشعارات
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'send_notification',
+    'student', null, 'طلاب الثالث الثانوي',
+    { title: 'تذكير بالامتحان', recipients: 5 }, 4, 9);
+  await logAct(T1, A, asstNour.id, asstNour.name, 'send_notification',
+    'student', null, 'طلاب الثاني الثانوي',
+    { title: 'كورس جديد', recipients: 4 }, 2, 15);
+
+  // تعديل الكورس
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'edit_course',
+    'course', c1a.id, 'رياضيات الثالث الثانوي — الجبر والمثلثات',
+    { changed: ['description'] }, 3, 10);
+
+  // تحقق من دفعة (معلم نفسه)
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'verify_payment',
+    'payment', null, stdNada.name,
+    { amount: 250, method: 'fawry', status: 'pending→verified' }, 1, 7);
+
+  // ── أ/ سارة (T2) — سجل نشاط ──────────────────────────────
+  await logAct(T2, T, T2, 'أ/ سارة خالد الحسيني', 'create_course',
+    'course', c2a.id, 'أحياء الثالث الثانوي — الشامل',
+    { price: 280, stage: 'الصف الثالث الثانوي' }, 29, 10);
+  await logAct(T2, T, T2, 'أ/ سارة خالد الحسيني', 'create_course',
+    'course', c2b.id, 'كيمياء الثاني الثانوي — التفاعلات والموازين',
+    { price: 220, stage: 'الصف الثاني الثانوي' }, 29, 8);
+  await logAct(T2, T, T2, 'أ/ سارة خالد الحسيني', 'publish_course',
+    'course', c2a.id, 'أحياء الثالث الثانوي — الشامل',
+    { is_published: true }, 28, 9);
+
+  await logAct(T2, T, T2, 'أ/ سارة خالد الحسيني', 'add_student',
+    'student', sciHana.id, sciHana.name,
+    { stage: 'الصف الثالث الثانوي' }, 27, 11);
+  await logAct(T2, T, T2, 'أ/ سارة خالد الحسيني', 'add_student',
+    'student', sciHassan.id, sciHassan.name,
+    { stage: 'الصف الثالث الثانوي' }, 27, 10);
+
+  await logAct(T2, A, asstDina.id, asstDina.name, 'add_student',
+    'student', null, 'sci_mona — منى رامي',
+    { stage: 'الصف الثاني الثانوي' }, 26, 14);
+  await logAct(T2, A, asstDina.id, asstDina.name, 'verify_payment',
+    'payment', null, sciHana.name,
+    { amount: 280, method: 'instapay', status: 'verified' }, 23, 9);
+
+  await logAct(T2, T, T2, 'أ/ سارة خالد الحسيني', 'create_exam',
+    'exam', e4.id, 'امتحان الخلية والوراثة',
+    { total_score: 25, duration: 40 }, 18, 12);
+  await logAct(T2, T, T2, 'أ/ سارة خالد الحسيني', 'publish_exam',
+    'exam', e4.id, 'امتحان الخلية والوراثة',
+    { is_published: true }, 18, 11);
+  await logAct(T2, A, asstDina.id, asstDina.name, 'create_exam',
+    'exam', e5.id, 'اختبار الكيمياء التمهيدي',
+    { total_score: 20, duration: 35 }, 12, 13);
+
+  await logAct(T2, T, T2, 'أ/ سارة خالد الحسيني', 'send_notification',
+    'student', null, 'طلاب الثالث الثانوي',
+    { title: 'نتيجة ممتازة', recipients: 3 }, 3, 8);
+  await logAct(T2, A, asstDina.id, asstDina.name, 'send_notification',
+    'student', null, 'طلاب الثاني الثانوي',
+    { title: 'تذكير اختبار الكيمياء', recipients: 3 }, 1, 10);
+
+  // ── أ/ كريم (T3) — سجل نشاط ──────────────────────────────
+  await logAct(T3, T, T3, 'أ/ كريم الشافعي', 'create_course',
+    'course', c3a.id, 'لغة عربية الثالث الثانوي — النصوص والأدب',
+    { price: 200, stage: 'الصف الثالث الثانوي' }, 30, 11);
+  await logAct(T3, T, T3, 'أ/ كريم الشافعي', 'create_course',
+    'course', c3b.id, 'قواعد اللغة العربية — النحو والصرف للثاني الثانوي',
+    { price: 150, stage: 'الصف الثاني الثانوي' }, 30, 9);
+  await logAct(T3, T, T3, 'أ/ كريم الشافعي', 'publish_course',
+    'course', c3a.id, 'لغة عربية الثالث الثانوي — النصوص والأدب',
+    { is_published: true }, 29, 10);
+  await logAct(T3, T, T3, 'أ/ كريم الشافعي', 'publish_course',
+    'course', c3b.id, 'قواعد اللغة العربية — النحو والصرف للثاني الثانوي',
+    { is_published: true }, 29, 8);
+
+  await logAct(T3, T, T3, 'أ/ كريم الشافعي', 'add_student',
+    'student', araNourd.id, araNourd.name,
+    { stage: 'الصف الثالث الثانوي' }, 28, 12);
+
+  await logAct(T3, A, asstYara.id, asstYara.name, 'add_student',
+    'student', null, 'ara_yasmin — ياسمين رأفت',
+    { stage: 'الصف الثالث الثانوي' }, 27, 14);
+  await logAct(T3, A, asstYara.id, asstYara.name, 'add_student',
+    'student', null, 'ara_tarek — طارق ماهر',
+    { stage: 'الصف الثاني الثانوي' }, 27, 13);
+
+  await logAct(T3, T, T3, 'أ/ كريم الشافعي', 'create_exam',
+    'exam', e6.id, 'امتحان النصوص الأدبية',
+    { total_score: 30, duration: 50 }, 20, 10);
+  await logAct(T3, T, T3, 'أ/ كريم الشافعي', 'publish_exam',
+    'exam', e6.id, 'امتحان النصوص الأدبية',
+    { is_published: true }, 20, 9);
+
+  await logAct(T3, T, T3, 'أ/ كريم الشافعي', 'verify_payment',
+    'payment', null, araNourd.name,
+    { amount: 200, method: 'vodafone_cash', status: 'verified' }, 16, 11);
+
+  await logAct(T3, T, T3, 'أ/ كريم الشافعي', 'create_assistant',
+    'assistant', asstYara.id, asstYara.name,
+    { permissions: ['can_add_students', 'can_view_analytics'] }, 25, 15);
+  await logAct(T3, T, T3, 'أ/ كريم الشافعي', 'edit_course',
+    'course', c3a.id, 'لغة عربية الثالث الثانوي — النصوص والأدب',
+    { changed: ['description', 'thumbnail_url'] }, 8, 9);
+  await logAct(T3, T, T3, 'أ/ كريم الشافعي', 'send_notification',
+    'student', null, 'طلاب الثالث الثانوي',
+    { title: 'نتيجة امتحان النصوص', recipients: 2 }, 1, 12);
+
+  const totalLogs = await q(`SELECT COUNT(*) FROM activity_logs`);
+  console.log(`  ✓ ${totalLogs[0].count} سجل نشاط`);
+
+  // ══════════════════════════════════════════════════════════
+  // 17. متتبّع إعادة ضبط المتصدرين
   // ══════════════════════════════════════════════════════════
   console.log('\n⟳  إضافة متتبّع المتصدرين...');
 
