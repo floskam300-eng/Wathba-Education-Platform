@@ -119,24 +119,29 @@ router.get('/analytics', requireRole('teacher', 'assistant'), checkAnalyticsPerm
       teacherId = aRes.rows[0].teacher_id;
     }
 
-    const [examResults, topStudents, recentResults, stageStats] = await Promise.all([
+    const [examResults, topStudents, recentResults, stageStats, totalStudentsRes] = await Promise.all([
       pool.query(`
-        SELECT e.title, AVG(er.score) as avg_score, COUNT(er.id) as attempt_count,
-               MAX(er.score) as max_score, MIN(er.score) as min_score, e.total_score
+        SELECT e.id, e.title, e.total_score,
+               ROUND(AVG(er.score::numeric / NULLIF(e.total_score,0) * 100), 1) AS avg_pct,
+               ROUND(MAX(er.score::numeric / NULLIF(e.total_score,0) * 100), 1) AS max_pct,
+               ROUND(MIN(er.score::numeric / NULLIF(e.total_score,0) * 100), 1) AS min_pct,
+               COUNT(er.id) as attempt_count
         FROM exam_results er
         JOIN exams e ON er.exam_id = e.id
-        WHERE e.teacher_id = $1
+        WHERE e.teacher_id = $1 AND er.is_latest = true
         GROUP BY e.id, e.title, e.total_score
         ORDER BY attempt_count DESC LIMIT 10
       `, [teacherId]),
       pool.query(`
-        SELECT s.id, s.name, s.points, s.academic_stage,
-               COUNT(er.id) as exams_taken, COALESCE(AVG(er.score), 0) as avg_score
+        SELECT s.id, s.name, s.username, s.points, s.academic_stage, s.gender,
+               COUNT(er.id) as exams_taken,
+               COALESCE(ROUND(AVG(er.score::numeric / NULLIF(e.total_score,0) * 100), 1), 0) as avg_score
         FROM students s
-        LEFT JOIN exam_results er ON s.id = er.student_id
-        WHERE s.teacher_id = $1
-        GROUP BY s.id, s.name, s.points, s.academic_stage
-        ORDER BY s.points DESC LIMIT 20
+        LEFT JOIN exam_results er ON s.id = er.student_id AND er.is_latest = true
+        LEFT JOIN exams e ON er.exam_id = e.id
+        WHERE s.teacher_id = $1 AND s.deleted_at IS NULL
+        GROUP BY s.id, s.name, s.username, s.points, s.academic_stage, s.gender
+        ORDER BY s.points DESC LIMIT 50
       `, [teacherId]),
       pool.query(`
         SELECT er.id, er.score, er.correct_count, er.wrong_count,
@@ -146,18 +151,23 @@ router.get('/analytics', requireRole('teacher', 'assistant'), checkAnalyticsPerm
         FROM exam_results er
         JOIN students s ON er.student_id = s.id
         JOIN exams e ON er.exam_id = e.id
-        WHERE e.teacher_id = $1
-        ORDER BY er.created_at DESC LIMIT 30
-        
+        WHERE e.teacher_id = $1 AND er.is_latest = true
+        ORDER BY er.created_at DESC LIMIT 100
       `, [teacherId]),
       pool.query(`
-        SELECT s.academic_stage, COUNT(s.id) as student_count, COALESCE(AVG(er.score),0) as avg_score
+        SELECT s.academic_stage, COUNT(s.id)::int as student_count,
+               COALESCE(ROUND(AVG(er.score::numeric / NULLIF(e.total_score,0) * 100), 1), 0) as avg_score
         FROM students s
-        LEFT JOIN exam_results er ON s.id = er.student_id
-        WHERE s.teacher_id = $1
+        LEFT JOIN exam_results er ON s.id = er.student_id AND er.is_latest = true
+        LEFT JOIN exams e ON er.exam_id = e.id
+        WHERE s.teacher_id = $1 AND s.deleted_at IS NULL
         GROUP BY s.academic_stage
         ORDER BY student_count DESC
       `, [teacherId]),
+      pool.query(
+        `SELECT COUNT(*)::int AS count FROM students WHERE teacher_id = $1 AND deleted_at IS NULL`,
+        [teacherId]
+      ),
     ]);
 
     res.json({
@@ -165,6 +175,7 @@ router.get('/analytics', requireRole('teacher', 'assistant'), checkAnalyticsPerm
       topStudents: topStudents.rows,
       recentResults: recentResults.rows,
       stageStats: stageStats.rows,
+      totalStudents: totalStudentsRes.rows[0].count,
     });
   } catch (err) {
     console.error(err);

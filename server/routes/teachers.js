@@ -85,31 +85,41 @@ router.get('/analytics', requireRole('teacher'), async (req, res) => {
       ORDER BY attempt_count DESC LIMIT 10
     `, [teacherId]);
 
-    const topStudents = await pool.query(`
-      SELECT s.id, s.name, s.username, s.points, s.academic_stage, s.gender,
-             COUNT(er.id) as exams_taken,
-             COALESCE(ROUND(AVG(er.score::numeric / NULLIF(e.total_score,0) * 100), 1), 0) as avg_score
-      FROM students s
-      LEFT JOIN exam_results er ON s.id = er.student_id
-      LEFT JOIN exams e ON er.exam_id = e.id
-      WHERE s.teacher_id = $1 AND s.deleted_at IS NULL
-      GROUP BY s.id, s.name, s.username, s.points, s.academic_stage, s.gender
-      ORDER BY s.points DESC LIMIT 20
-    `, [teacherId]);
+    const [topStudents, recentResults, totalStudentsRes] = await Promise.all([
+      pool.query(`
+        SELECT s.id, s.name, s.username, s.points, s.academic_stage, s.gender,
+               COUNT(er.id) as exams_taken,
+               COALESCE(ROUND(AVG(er.score::numeric / NULLIF(e.total_score,0) * 100), 1), 0) as avg_score
+        FROM students s
+        LEFT JOIN exam_results er ON s.id = er.student_id AND er.is_latest = true
+        LEFT JOIN exams e ON er.exam_id = e.id
+        WHERE s.teacher_id = $1 AND s.deleted_at IS NULL
+        GROUP BY s.id, s.name, s.username, s.points, s.academic_stage, s.gender
+        ORDER BY s.points DESC LIMIT 50
+      `, [teacherId]),
+      pool.query(`
+        SELECT er.id, er.student_id, er.score, er.correct_count, er.wrong_count,
+               er.unanswered_count, er.created_at,
+               s.name as student_name, s.academic_stage,
+               e.title as exam_title, e.total_score, e.pass_score
+        FROM exam_results er
+        JOIN students s ON er.student_id = s.id
+        JOIN exams e ON er.exam_id = e.id
+        WHERE e.teacher_id = $1 AND er.is_latest = true
+        ORDER BY er.created_at DESC LIMIT 100
+      `, [teacherId]),
+      pool.query(
+        `SELECT COUNT(*)::int AS count FROM students WHERE teacher_id = $1 AND deleted_at IS NULL`,
+        [teacherId]
+      ),
+    ]);
 
-    const recentResults = await pool.query(`
-      SELECT er.id, er.student_id, er.score, er.correct_count, er.wrong_count,
-             er.unanswered_count, er.created_at,
-             s.name as student_name, s.academic_stage,
-             e.title as exam_title, e.total_score, e.pass_score
-      FROM exam_results er
-      JOIN students s ON er.student_id = s.id
-      JOIN exams e ON er.exam_id = e.id
-      WHERE e.teacher_id = $1
-      ORDER BY er.created_at DESC LIMIT 30
-    `, [teacherId]);
-
-    const result = { examResults: examResults.rows, topStudents: topStudents.rows, recentResults: recentResults.rows };
+    const result = {
+      examResults: examResults.rows,
+      topStudents: topStudents.rows,
+      recentResults: recentResults.rows,
+      totalStudents: totalStudentsRes.rows[0].count,
+    };
     setCache(cacheKey, result);
     res.json(result);
   } catch (err) {
@@ -119,7 +129,8 @@ router.get('/analytics', requireRole('teacher'), async (req, res) => {
 
 router.get('/analytics/wrong-questions', requireRole('teacher', 'assistant'), async (req, res) => {
   const teacherId = req.user.role === 'teacher' ? req.user.id : req.user.teacher_id;
-  const cacheKey = `t${teacherId}_wrong_questions`;
+  const full = req.query.full === 'true';
+  const cacheKey = `t${teacherId}_wrong_questions_${full}`;
   const cached = getCached(cacheKey);
   if (cached) return res.json(cached);
   try {
@@ -156,7 +167,6 @@ router.get('/analytics/wrong-questions', requireRole('teacher', 'assistant'), as
       ORDER BY e.id, wrong_pct DESC, wrong_count DESC
     `, [teacherId]);
 
-    const full = req.query.full === 'true';
     const limit = full ? Infinity : 5;
     const byExam = {};
     for (const row of result.rows) {
@@ -196,7 +206,7 @@ router.get('/analytics/trend', requireRole('teacher'), async (req, res) => {
         COUNT(CASE WHEN er.score >= e.pass_score THEN 1 END)::int AS pass_count
       FROM exam_results er
       JOIN exams e ON er.exam_id = e.id
-      WHERE e.teacher_id = $1
+      WHERE e.teacher_id = $1 AND er.is_latest = true
         ${intervalClause}
       GROUP BY DATE_TRUNC('month', er.created_at)
       ORDER BY DATE_TRUNC('month', er.created_at) ASC

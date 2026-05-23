@@ -126,8 +126,18 @@ export default function TeacherAnalytics() {
     .filter(e => e.value > 0);
 
   const totalAttempts = (data?.examResults || []).reduce((s, e) => s + parseInt(e.attempt_count || 0), 0);
-  const avgScore = data?.examResults?.length
-    ? Math.round((data.examResults || []).reduce((s, e) => s + parseFloat(e.avg_pct || 0), 0) / data.examResults.length) : 0;
+  const avgScore = (() => {
+    const results = data?.recentResults || [];
+    if (results.length) {
+      const total = results.reduce((s, r) => s + (r.total_score ? (r.score / r.total_score * 100) : 0), 0);
+      return Math.round(total / results.length);
+    }
+    const exams = data?.examResults || [];
+    if (!exams.length) return 0;
+    const weighted = exams.reduce((s, e) => s + parseFloat(e.avg_pct || 0) * parseInt(e.attempt_count || 1), 0);
+    const totalW = exams.reduce((s, e) => s + parseInt(e.attempt_count || 1), 0);
+    return totalW ? Math.round(weighted / totalW) : 0;
+  })();
 
   const passRate = (() => {
     const results = data?.recentResults || [];
@@ -200,7 +210,7 @@ export default function TeacherAnalytics() {
     { label: 'إجمالي المحاولات',   value: totalAttempts,                    icon: Target,    gradient: 'linear-gradient(135deg,#f97316,#ef4444)', lightBg: 'bg-orange-50',  textColor: '#f97316' },
     { label: 'متوسط الدرجات',      value: `${avgScore}%`,                   icon: TrendingUp,gradient: 'linear-gradient(135deg,#10b981,#06b6d4)', lightBg: 'bg-emerald-50', textColor: '#10b981' },
     { label: 'نسبة النجاح',         value: `${passRate}%`,                   icon: Award,     gradient: 'linear-gradient(135deg,#8b5cf6,#ec4899)', lightBg: 'bg-purple-50',  textColor: '#8b5cf6' },
-    { label: 'إجمالي الطلاب',       value: data?.topStudents?.length || 0,   icon: Users,     gradient: 'linear-gradient(135deg,#f59e0b,#f97316)', lightBg: 'bg-amber-50',   textColor: '#f59e0b' },
+    { label: 'إجمالي الطلاب',       value: data?.totalStudents ?? 0,          icon: Users,     gradient: 'linear-gradient(135deg,#f59e0b,#f97316)', lightBg: 'bg-amber-50',   textColor: '#f59e0b' },
   ];
 
   const exportCSV = () => {
@@ -1092,7 +1102,7 @@ export default function TeacherAnalytics() {
                       <span className="text-rose-500">✗ {r.wrong_count}</span>
                     </td>
                     <td className="px-4 py-3 text-center text-[11px] text-gray-400 font-medium hidden sm:table-cell">
-                      {r.submitted_at ? new Date(r.submitted_at).toLocaleDateString('ar-EG') : '—'}
+                      {r.created_at ? new Date(r.created_at).toLocaleDateString('ar-EG') : '—'}
                     </td>
                   </tr>
                 );
