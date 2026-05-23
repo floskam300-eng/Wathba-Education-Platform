@@ -3,7 +3,7 @@ import {
   GraduationCap, BookOpen, BarChart3, Users, CheckCircle,
   Sparkles, Trophy, MessageCircle, Target, CreditCard,
   Video, Gamepad2, Shield, Star, Zap, Mail,
-  ChevronDown, ArrowLeft, Play, FileText, Bell, Award
+  ChevronDown, ArrowLeft, Play, FileText, Bell, Award, Phone
 } from 'lucide-react';
 import wathbaLogo from '../assets/wathba_logo_transparent.png';
 
@@ -81,49 +81,6 @@ function FeatureCard({ icon: Icon, title, desc, color, delay }) {
       </div>
       <h3 className="text-white font-bold text-base mb-2">{title}</h3>
       <p className="text-white/50 text-sm leading-relaxed">{desc}</p>
-    </div>
-  );
-}
-
-/* ── Pricing Card ── */
-function PricingCard({ title, price, period, features, highlight, badge }) {
-  return (
-    <div className={`relative rounded-2xl p-7 border transition-all duration-300 hover:-translate-y-1 ${
-      highlight
-        ? 'bg-gradient-to-b from-orange-500/20 to-orange-500/5 border-orange-500/40'
-        : 'bg-white/[0.04] border-white/10'
-    }`}>
-      {badge && (
-        <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-orange-500 text-white text-xs font-bold px-4 py-1 rounded-full">
-          {badge}
-        </div>
-      )}
-      <h3 className="text-white font-bold text-xl mb-1">{title}</h3>
-      <div className="flex items-end gap-1 mb-1">
-        <span className="text-4xl font-black text-orange-400">{price}</span>
-        <span className="text-white/40 text-sm mb-1.5">{period}</span>
-      </div>
-      <div className="border-t border-white/10 my-4" />
-      <ul className="space-y-3 mb-6">
-        {features.map((f, i) => (
-          <li key={i} className="flex items-start gap-2.5 text-white/70 text-sm">
-            <CheckCircle className="w-4 h-4 text-orange-400 mt-0.5 shrink-0" />
-            {f}
-          </li>
-        ))}
-      </ul>
-      <a
-        href="https://wa.me/201000000000?text=أريد الاستفسار عن منصة وثبة"
-        target="_blank"
-        rel="noopener noreferrer"
-        className={`w-full block text-center py-2.5 rounded-xl font-bold text-sm transition-all ${
-          highlight
-            ? 'bg-orange-500 hover:bg-orange-600 text-white'
-            : 'bg-white/10 hover:bg-white/15 text-white'
-        }`}
-      >
-        تواصل معنا
-      </a>
     </div>
   );
 }
@@ -221,7 +178,6 @@ export default function PlatformHome() {
           <img src={wathbaLogo} alt="وثبة" className="h-9 object-contain rounded-xl" />
           <div className="hidden md:flex items-center gap-6 text-sm text-white/60">
             <a href="#features"  className="hover:text-white transition-colors">المميزات</a>
-            <a href="#pricing"   className="hover:text-white transition-colors">الأسعار</a>
             <a href="#about"     className="hover:text-white transition-colors">عن المطور</a>
             <a href="#faq"       className="hover:text-white transition-colors">الأسئلة الشائعة</a>
           </div>
@@ -329,60 +285,6 @@ export default function PlatformHome() {
               </div>
             </Reveal>
           ))}
-        </div>
-      </section>
-
-      {/* ── Pricing ── */}
-      <section id="pricing" className="max-w-5xl mx-auto px-5 py-16">
-        <Reveal className="text-center mb-12">
-          <div className="inline-flex items-center gap-2 bg-orange-500/10 border border-orange-500/25 text-orange-400 text-xs font-bold px-4 py-1.5 rounded-full mb-4 tracking-widest uppercase">
-            <CreditCard className="w-3.5 h-3.5" />
-            الأسعار
-          </div>
-          <h2 className="text-4xl font-black text-white mb-3">اختار الباقة المناسبة</h2>
-          <p className="text-white/40">تواصل معنا للحصول على السعر الدقيق حسب احتياجاتك.</p>
-        </Reveal>
-        <div className="grid md:grid-cols-3 gap-5">
-          <PricingCard
-            title="ستارتر"
-            price="تواصل"
-            period="/ شهرياً"
-            features={[
-              'حتى ٢٠٠ طالب',
-              'كورسات غير محدودة',
-              'امتحانات وتحليلات',
-              'مساعد واحد',
-              'دومين فرعي مجاني',
-            ]}
-          />
-          <PricingCard
-            title="برو"
-            price="تواصل"
-            period="/ شهرياً"
-            highlight
-            badge="الأكثر طلباً"
-            features={[
-              'طلاب غير محدودين',
-              'كل مميزات ستارتر',
-              'بث مباشر مدمج',
-              'مساعدين غير محدودين',
-              'دومين خاص بيك',
-              'دعم فني أولوية',
-            ]}
-          />
-          <PricingCard
-            title="إنتربرايز"
-            price="تواصل"
-            period="/ مخصص"
-            features={[
-              'كل مميزات برو',
-              'سيرفر مستقل خاص',
-              'تخصيص كامل للواجهة',
-              'تكامل مع الواتساب',
-              'تقارير PDF مخصصة',
-              'SLA مضمون',
-            ]}
-          />
         </div>
       </section>
 
