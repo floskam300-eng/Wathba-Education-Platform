@@ -12,6 +12,7 @@ export default function StudentDashboard() {
   const { data, isLoading } = useQuery({
     queryKey: ['student-dashboard'],
     queryFn: () => api.get('/students/me/dashboard').then(r => r.data),
+    staleTime: 0,
   });
 
 

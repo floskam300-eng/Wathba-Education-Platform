@@ -113,20 +113,21 @@ export default function TeacherAnalytics() {
   });
   const [wrongQExamIdx, setWrongQExamIdx] = useState(0);
 
-  const examChartData = (data?.examResults || []).map(e => ({
+  const examChartData = useMemo(() => (data?.examResults || []).map(e => ({
     name: e.title?.length > 14 ? e.title.substring(0, 14) + '…' : e.title,
     fullName: e.title,
     avg: Math.round(parseFloat(e.avg_pct) || 0),
     max: Math.round(parseFloat(e.max_pct)  || 0),
     attempts: parseInt(e.attempt_count) || 0,
-  }));
+  })), [data]);
 
-  const pieData = (data?.examResults || [])
+  const pieData = useMemo(() => (data?.examResults || [])
     .map(e => ({ name: e.title?.substring(0, 16), value: parseInt(e.attempt_count) || 0 }))
-    .filter(e => e.value > 0);
+    .filter(e => e.value > 0), [data]);
 
-  const totalAttempts = (data?.examResults || []).reduce((s, e) => s + parseInt(e.attempt_count || 0), 0);
-  const avgScore = (() => {
+  const totalAttempts = useMemo(() => (data?.examResults || []).reduce((s, e) => s + parseInt(e.attempt_count || 0), 0), [data]);
+
+  const avgScore = useMemo(() => {
     const results = data?.recentResults || [];
     if (results.length) {
       const total = results.reduce((s, r) => s + (r.total_score ? (r.score / r.total_score * 100) : 0), 0);
@@ -137,13 +138,13 @@ export default function TeacherAnalytics() {
     const weighted = exams.reduce((s, e) => s + parseFloat(e.avg_pct || 0) * parseInt(e.attempt_count || 1), 0);
     const totalW = exams.reduce((s, e) => s + parseInt(e.attempt_count || 1), 0);
     return totalW ? Math.round(weighted / totalW) : 0;
-  })();
+  }, [data]);
 
-  const passRate = (() => {
+  const passRate = useMemo(() => {
     const results = data?.recentResults || [];
     if (!results.length) return 0;
     return Math.round((results.filter(r => r.score >= r.pass_score).length / results.length) * 100);
-  })();
+  }, [data]);
 
   const passFailData = useMemo(() => {
     const results = data?.recentResults || [];

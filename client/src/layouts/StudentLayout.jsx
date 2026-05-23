@@ -177,7 +177,14 @@ function NotificationBell({ dark }) {
                 {preview.map(n => (
                   <div
                     key={n.id}
-                    onClick={() => { if (!n.is_read) readOneMut.mutate(n.id); }}
+                    onClick={() => {
+                      if (!n.is_read) readOneMut.mutate(n.id);
+                      setOpen(false);
+                      const t = n.type || '';
+                      if (t.includes('exam') || t.includes('result') || t.includes('retry')) navigate(`/${teacherSlug}/student/exams`);
+                      else if (t.includes('course') || t.includes('enroll')) navigate(`/${teacherSlug}/student/courses`);
+                      else if (t.includes('live') || t.includes('stream')) navigate(`/${teacherSlug}/student/live`);
+                    }}
                     className={`px-4 py-3 cursor-pointer transition-all ${
                       !n.is_read
                         ? dark ? 'bg-amber-400/8 hover:bg-amber-400/12' : 'bg-indigo-50/70 hover:bg-indigo-100/60'

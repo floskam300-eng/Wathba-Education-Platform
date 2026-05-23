@@ -164,6 +164,14 @@ export default function TeacherExams() {
       toast.error('لا يمكن نشر اختبار بدون أسئلة — أضف أسئلة أولاً');
       return;
     }
+    // Block publish if question points sum ≠ total_score (only when questions are loaded for this exam)
+    if (ex.question_source !== 'bank' && expandedExam === ex.id && questions.length > 0) {
+      const pointsSum = questions.reduce((s, q) => s + (parseInt(q.points) || 0), 0);
+      if (pointsSum !== parseInt(ex.total_score)) {
+        toast.error(`مجموع نقاط الأسئلة (${pointsSum}) لا يساوي الدرجة الكلية (${ex.total_score}) — عدّل النقاط أو الدرجة الكلية قبل النشر`);
+        return;
+      }
+    }
     // Show confirmation before publishing
     setPublishConfirm(ex);
   };
@@ -592,7 +600,7 @@ export default function TeacherExams() {
                             setQForm({ ...q, question_type: q.question_type || 'mcq' });
                             setImageFile(null);
                             setImagePreview('');
-                            setImageInputMode(q.question_image_url ? 'url' : 'url');
+                            setImageInputMode(q.question_image_url?.startsWith('/uploads') ? 'file' : 'url');
                             if (imageFileRef.current) imageFileRef.current.value = '';
                           }} className="p-1.5 text-navy-600 hover:bg-navy-50 rounded-lg"><Pencil className="w-3.5 h-3.5" /></button>
                           <button onClick={() => deleteQMut.mutate(q.id)} className="p-1.5 text-red-700 hover:bg-red-50 rounded-lg"><Trash2 className="w-3.5 h-3.5" /></button>

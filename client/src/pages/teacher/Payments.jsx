@@ -72,7 +72,7 @@ export default function TeacherPayments() {
   const { data: payments = [], isLoading } = useQuery({
     queryKey: ['payments'],
     queryFn: () => api.get('/payments').then(r => r.data),
-    refetchInterval: 8000,
+    refetchInterval: 30000,
     staleTime: 0,
   });
 

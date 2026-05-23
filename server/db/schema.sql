@@ -592,3 +592,22 @@ CREATE INDEX IF NOT EXISTS idx_enrollment_course_status
 ALTER TABLE leaderboard_reset_tracker
   ALTER COLUMN next_reset_at
     SET DEFAULT (DATE_TRUNC('month', NOW()) + INTERVAL '1 month');
+
+-- ── Data integrity: CHECK constraints on score/percentage columns ─────────────
+-- These use DO $$ blocks so they are idempotent (no error if constraint already exists)
+DO $$ BEGIN
+  ALTER TABLE exams ADD CONSTRAINT chk_exams_total_score_nn   CHECK (total_score >= 0);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE exams ADD CONSTRAINT chk_exams_pass_score_nn    CHECK (pass_score >= 0);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE exams ADD CONSTRAINT chk_exams_duration_pos     CHECK (duration_minutes > 0);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE exam_results ADD CONSTRAINT chk_results_score_nn CHECK (score >= 0);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE video_progress ADD CONSTRAINT chk_vidprog_pct_range
+    CHECK (progress_percentage >= 0 AND progress_percentage <= 100);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;

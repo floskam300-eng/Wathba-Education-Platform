@@ -142,7 +142,7 @@ function PdfUploadSection({ courseId, onSuccess, sections = [] }) {
     setProgress(0);
     controllerRef.current = new AbortController();
     try {
-      await api.post(`/api/courses/${courseId}/pdfs/upload`, fd, {
+      await api.post(`/courses/${courseId}/pdfs/upload`, fd, {
         signal: controllerRef.current.signal,
         onUploadProgress: e => {
           const pct = Math.round((e.loaded / e.total) * 100);
@@ -345,7 +345,7 @@ export default function TeacherCourses() {
   const updateSectionMut = useMutation({
     mutationFn: ({ courseId, sectionId, title }) => api.put(`/courses/${courseId}/sections/${sectionId}`, { title }),
     onSuccess: () => { qc.invalidateQueries(['course-content', expandedCourse]); toast.success('تم تحديث الفصل'); setEditingSectionId(null); },
-    onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
+    onError: (e) => { toast.error(e.response?.data?.error || 'حدث خطأ'); setEditingSectionId(null); },
   });
 
   const deleteSectionMut = useMutation({

@@ -167,15 +167,20 @@ export default function TeacherStudents() {
     }
   };
 
+  const sanitizeCell = (val) => {
+    if (typeof val === 'string' && val.length > 0 && /^[=+\-@|]/.test(val)) return `'${val}`;
+    return val;
+  };
+
   const handleExportExcel = () => {
     const exportData = filtered.map(s => ({
-      'الاسم': s.name,
-      'اسم المستخدم': s.username,
-      'كلمة المرور': s.plain_password || '',
-      'الهاتف': s.phone || '',
-      'هاتف ولي الأمر': s.parent_phone || '',
-      'المرحلة': s.academic_stage || '',
-      'الجنس': s.gender || '',
+      'الاسم': sanitizeCell(s.name),
+      'اسم المستخدم': sanitizeCell(s.username),
+      'كلمة المرور': sanitizeCell(s.plain_password || ''),
+      'الهاتف': sanitizeCell(s.phone || ''),
+      'هاتف ولي الأمر': sanitizeCell(s.parent_phone || ''),
+      'المرحلة': sanitizeCell(s.academic_stage || ''),
+      'الجنس': sanitizeCell(s.gender || ''),
       'النقاط': s.points ?? 0,
     }));
     const ws = XLSX.utils.json_to_sheet(exportData);

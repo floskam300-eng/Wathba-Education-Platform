@@ -258,7 +258,7 @@ export default function StudentCourses() {
                   <CourseCard
                     key={c.id}
                     course={c}
-                    onClick={() => navigate(`/student/courses/${c.id}`)}
+                    onClick={() => navigate(`/${user?.teacher_slug}/student/courses/${c.id}`)}
                   >
                     <span className="mr-auto inline-flex items-center gap-1 text-[10px] font-black text-white bg-orange-500 group-hover:bg-navy-600 transition-colors px-2 py-0.5 rounded-lg">
                       ادخل <ArrowLeft className="w-2.5 h-2.5" />

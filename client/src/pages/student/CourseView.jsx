@@ -701,6 +701,13 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
     };
   }, []); // eslint-disable-line
 
+  /* ── flush progress when tab/window is closed ── */
+  useEffect(() => {
+    const handleBeforeUnload = () => { flushProgress(); };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []); // eslint-disable-line
+
   /* ── reset state when video changes ── */
   useEffect(() => {
     clearInterval(saveTimer.current);
