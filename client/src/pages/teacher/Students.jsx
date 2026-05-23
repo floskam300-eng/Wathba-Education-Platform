@@ -188,7 +188,7 @@ export default function TeacherStudents() {
   const canAdd = user?.role === 'teacher' || user?.can_add_students;
   const canEdit = user?.role === 'teacher' || user?.can_edit_students;
   const canDelete = user?.role === 'teacher' || user?.can_delete_students;
-  const canPrint = user?.role === 'teacher' || user?.can_send_reports;
+  const canPrint = user?.role === 'teacher' || user?.can_view_analytics;
 
   const openAdd = () => { setEditData(null); setForm(emptyForm); setPreviewUsername(''); setFormErrors({}); setModal(true); };
   const openEdit = (s) => { setEditData(s); setForm({ ...s, password: '' }); setPreviewUsername(''); setFormErrors({}); setModal(true); };

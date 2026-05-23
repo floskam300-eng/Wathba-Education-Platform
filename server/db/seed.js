@@ -140,17 +140,17 @@ async function seed() {
     INSERT INTO assistants
       (username, password, name, phone, teacher_id,
        can_add_students, can_edit_students, can_delete_students,
-       can_manage_exams, can_view_analytics, can_send_reports,
+       can_manage_exams, can_view_analytics,
        can_manage_payments, can_manage_courses, can_send_notifications)
     VALUES
       ('asst_nour',  $1, 'نور أحمد',    '+201111111101', $2,
-       true,  true,  false, true,  true,  true,  true,  true,  true),
+       true,  true,  false, true,  true,  true,  true,  true),
       ('asst_karim', $1, 'كريم محمود',  '+201111111102', $2,
-       true,  true,  false, false, true,  false, false, false, false),
+       true,  true,  false, false, true,  false, false, false),
       ('asst_dina',  $1, 'دينا سعيد',   '+201111111103', $3,
-       true,  true,  false, true,  true,  true,  true,  true,  true),
+       true,  true,  false, true,  true,  true,  true,  true),
       ('asst_yara',  $1, 'يارا محمد',   '+201111111104', $4,
-       true,  false, false, false, true,  false, false, false, false)
+       true,  false, false, false, true,  false, false, false)
   `, [pass6, T1, T2, T3]);
   console.log('  ✓ 4 مساعدين');
 

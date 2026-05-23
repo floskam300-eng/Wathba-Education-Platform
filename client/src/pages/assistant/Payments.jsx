@@ -24,7 +24,7 @@ const STATUS_MAP = {
 export default function AssistantPayments() {
   const qc = useQueryClient();
   const { user } = useAuth();
-  const canPrint = user?.role === 'teacher' || user?.can_send_reports;
+  const canPrint = user?.role === 'teacher' || user?.can_manage_payments;
   const [statusFilter, setStatusFilter] = useState('all');
   const [search, setSearch] = useState('');
 

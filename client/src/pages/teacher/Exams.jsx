@@ -39,7 +39,7 @@ export default function TeacherExams() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const canPrint = user?.role === 'teacher' || user?.can_send_reports;
+  const canPrint = user?.role === 'teacher' || user?.can_view_analytics;
   const canManageExams = user?.role === 'teacher' || user?.can_manage_exams;
   const [modal, setModal] = useState(false);
   const [editData, setEditData] = useState(null);
