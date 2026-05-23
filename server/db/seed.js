@@ -877,7 +877,7 @@ async function seed() {
   console.log(`  ✓ ${notifs.length} إشعارات`);
 
   // ══════════════════════════════════════════════════════════
-  // 16. سجل النشاط — activity_logs
+  // 16. سجل النشاط — activity_logs (شامل لكل الأحداث الجديدة)
   // ══════════════════════════════════════════════════════════
   console.log('\n⟳  إضافة سجل النشاط...');
 
@@ -898,9 +898,14 @@ async function seed() {
   const stdNada    = await fetchStudent('std_nada');
   const stdOmar    = await fetchStudent('std_omar');
   const stdMostafa = await fetchStudent('std_mostafa');
+  const stdRana    = await fetchStudent('std_rana');
+  const stdLina    = await fetchStudent('std_lina');
   const sciHana    = await fetchStudent('sci_hana');
   const sciHassan  = await fetchStudent('sci_hassan');
+  const sciMariam  = await fetchStudent('sci_mariam');
+  const sciKhaled  = await fetchStudent('sci_khaled');
   const araNourd   = await fetchStudent('ara_nour');
+  const araYasmin  = await fetchStudent('ara_yasmin');
 
   const logAct = async (teacherId, actorType, actorId, actorName, action,
                         entityType, entityId, entityName, details, daysAgo, hoursAgo = 0) => {
@@ -922,7 +927,36 @@ async function seed() {
   const T = 'teacher';
   const A = 'assistant';
 
-  // ── أ/ محمد (T1) — سجل نشاط 30 يوماً ──────────────────────
+  // ══════════════════════════════════════════════════════════
+  // ── أ/ محمد (T1) — أكاديمية الرياضيات (30 يوماً)
+  // ══════════════════════════════════════════════════════════
+
+  // تسجيل دخول
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'login_teacher',
+    'teacher', T1, 'أ/ محمد عبد الرحمن', { ip: '196.220.10.15' }, 30, 8);
+  await logAct(T1, A, asstNour.id, asstNour.name, 'login_assistant',
+    'assistant', asstNour.id, asstNour.name, { ip: '196.220.10.20' }, 29, 9);
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'login_teacher',
+    'teacher', T1, 'أ/ محمد عبد الرحمن', { ip: '196.220.10.15' }, 14, 8);
+  await logAct(T1, A, asstKarim.id, asstKarim.name, 'login_assistant',
+    'assistant', asstKarim.id, asstKarim.name, { ip: '196.220.11.5' }, 13, 10);
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'login_teacher',
+    'teacher', T1, 'أ/ محمد عبد الرحمن', { ip: '196.220.10.15' }, 1, 7);
+
+  // إضافة المساعدين وتعديل صلاحياتهم
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'create_assistant',
+    'assistant', asstNour.id, asstNour.name,
+    { username: 'asst_nour' }, 29, 7);
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'create_assistant',
+    'assistant', asstKarim.id, asstKarim.name,
+    { username: 'asst_karim' }, 29, 6);
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'edit_assistant_perms',
+    'assistant', asstKarim.id, asstKarim.name,
+    { granted: ['إدارة مدفوعات'], revoked: [] }, 20, 11);
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'edit_assistant_perms',
+    'assistant', asstNour.id, asstNour.name,
+    { granted: ['إرسال إشعارات', 'إدارة كورسات'], revoked: ['حذف طلاب'] }, 8, 14);
+
   // إنشاء الكورسات
   await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'create_course',
     'course', c1a.id, 'رياضيات الثالث الثانوي — الجبر والمثلثات',
@@ -938,33 +972,97 @@ async function seed() {
   await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'publish_course',
     'course', c1a.id, 'رياضيات الثالث الثانوي — الجبر والمثلثات',
     { is_published: true }, 25, 8);
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'publish_course',
+    'course', c1b.id, 'رياضيات الثاني الثانوي — الهندسة التحليلية',
+    { is_published: true }, 25, 7);
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'publish_course',
+    'course', c1free.id, 'مقدمة مجانية — أساسيات الجبر للثانوية',
+    { is_published: true }, 25, 6);
 
-  // إضافة الطلاب (معلم بنفسه)
-  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'add_student',
-    'student', stdAli.id, stdAli.name, { stage: 'الصف الثالث الثانوي' }, 25, 7);
-  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'add_student',
-    'student', stdFatma.id, stdFatma.name, { stage: 'الصف الثالث الثانوي' }, 25, 6);
-  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'add_student',
-    'student', stdYoussef.id, stdYoussef.name, { stage: 'الصف الثالث الثانوي' }, 25, 5);
+  // رفع فيديوهات وملفات PDF (أ/ محمد)
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'upload_video',
+    'course', c1a.id, 'مقدمة الجبر — حل المعادلات من الدرجة الأولى',
+    { video_id: 1, file: 'algebra_intro.mp4' }, 24, 13);
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'upload_video',
+    'course', c1a.id, 'المعادلات التربيعية وطرق الحل',
+    { video_id: 2, file: 'quadratic_eq.mp4' }, 24, 12);
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'add_video_url',
+    'course', c1a.id, 'النسب المثلثية الأساسية',
+    { video_id: 4, url: 'youtube.com' }, 23, 10);
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'upload_pdf',
+    'course', c1a.id, 'ملخص المعادلات والمتباينات PDF',
+    { pdf_id: 1, file: 'equations_summary.pdf' }, 23, 9);
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'upload_pdf',
+    'course', c1b.id, 'ملخص الإحداثيات وتمارين محلولة',
+    { pdf_id: 2, file: 'coordinates.pdf' }, 22, 11);
+  // المساعد نور يرفع فيديو
+  await logAct(T1, A, asstNour.id, asstNour.name, 'add_video_url',
+    'course', c1b.id, 'معادلة المستقيم — الميل وصور المعادلة',
+    { video_id: 8, url: 'youtube.com' }, 18, 15);
+  // حذف فيديو قديم وإستبداله
+  await logAct(T1, A, asstNour.id, asstNour.name, 'delete_video',
+    'course', c1b.id, 'الدائرة — مسودة قديمة',
+    { video_id: 99 }, 17, 9);
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'upload_pdf',
+    'course', c1a.id, 'جدول النسب المثلثية + تدريبات محلولة',
+    { pdf_id: 3, file: 'trig_table.pdf' }, 17, 8);
+  await logAct(T1, A, asstNour.id, asstNour.name, 'delete_pdf',
+    'course', c1a.id, 'ملاحظات قديمة — مسودة',
+    { pdf_id: 88 }, 16, 14);
 
-  // المساعد نور يضيف طلاب
-  await logAct(T1, A, asstNour.id, asstNour.name, 'add_student',
-    'student', stdNada.id, stdNada.name, { stage: 'الصف الثالث الثانوي' }, 24, 11);
-  await logAct(T1, A, asstNour.id, asstNour.name, 'add_student',
-    'student', stdOmar.id, stdOmar.name, { stage: 'الصف الثالث الثانوي' }, 24, 10);
-  await logAct(T1, A, asstNour.id, asstNour.name, 'add_student',
-    'student', stdMostafa.id, stdMostafa.name, { stage: 'الصف الثاني الثانوي' }, 24, 9);
+  // إضافة الطلاب — أ/ محمد بنفسه
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'add_student',
+    'student', stdAli.id, stdAli.name, { username: 'std_ali', academic_stage: 'الصف الثالث الثانوي' }, 25, 7);
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'add_student',
+    'student', stdFatma.id, stdFatma.name, { username: 'std_fatma', academic_stage: 'الصف الثالث الثانوي' }, 25, 6);
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'add_student',
+    'student', stdYoussef.id, stdYoussef.name, { username: 'std_youssef', academic_stage: 'الصف الثالث الثانوي' }, 25, 5);
 
-  // المساعد كريم يتحقق من المدفوعات
-  await logAct(T1, A, asstKarim.id, asstKarim.name, 'verify_payment',
+  // استيراد جماعي — المساعد نور
+  await logAct(T1, A, asstNour.id, asstNour.name, 'bulk_import_students',
+    'student', null, null,
+    { count: 4, failed: 0 }, 24, 11);
+  // استيراد جزئي مع بعض الإخفاقات
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'bulk_import_students',
+    'student', null, null,
+    { count: 7, failed: 2 }, 10, 13);
+  // استيراد فاشل كلياً
+  await logAct(T1, A, asstNour.id, asstNour.name, 'bulk_import_students',
+    'student', null, null,
+    { count: 0, failed: 5 }, 6, 16);
+
+  // تعديل بيانات طالب
+  await logAct(T1, A, asstNour.id, asstNour.name, 'edit_student',
+    'student', stdOmar.id, stdOmar.name, { changed: ['phone', 'parent_phone'] }, 18, 11);
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'edit_student',
+    'student', stdNada.id, stdNada.name, { changed: ['academic_stage'] }, 12, 9);
+
+  // حذف طالب
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'delete_student',
+    'student', null, 'طالب اختبار مكرر', null, 15, 10);
+
+  // المدفوعات — قبول ورفض
+  await logAct(T1, A, asstKarim.id, asstKarim.name, 'approve_payment',
     'payment', null, stdAli.name,
     { amount: 250, method: 'instapay', status: 'verified' }, 22, 13);
-  await logAct(T1, A, asstKarim.id, asstKarim.name, 'verify_payment',
+  await logAct(T1, A, asstKarim.id, asstKarim.name, 'approve_payment',
     'payment', null, stdFatma.name,
     { amount: 250, method: 'vodafone_cash', status: 'verified' }, 22, 12);
-  await logAct(T1, A, asstKarim.id, asstKarim.name, 'verify_payment',
+  await logAct(T1, A, asstKarim.id, asstKarim.name, 'reject_payment',
+    'payment', null, stdMostafa.name,
+    { amount: 250, method: 'instapay', status: 'rejected' }, 21, 15);
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'approve_payment',
     'payment', null, stdYoussef.name,
     { amount: 250, method: 'instapay', status: 'verified' }, 21, 9);
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'reject_payment',
+    'payment', null, stdRana.name,
+    { amount: 200, method: 'fawry', status: 'rejected' }, 19, 11);
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'approve_payment',
+    'payment', null, stdNada.name,
+    { amount: 250, method: 'fawry', status: 'verified' }, 1, 7);
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'add_payment',
+    'payment', null, stdLina.name,
+    { amount: 200, method: 'cash', status: 'pending' }, 3, 10);
 
   // إنشاء الامتحانات
   await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'create_exam',
@@ -979,41 +1077,71 @@ async function seed() {
   await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'publish_exam',
     'exam', e2.id, 'مراجعة المثلثات النهائية',
     { is_published: true }, 15, 10);
-
-  // المساعد نور ينشئ امتحان الهندسة
   await logAct(T1, A, asstNour.id, asstNour.name, 'create_exam',
     'exam', e3.id, 'اختبار الهندسة التحليلية',
     { total_score: 20, duration: 30 }, 10, 14);
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'edit_exam',
+    'exam', e1.id, 'امتحان الجبر — الوحدة الأولى',
+    { changed: ['duration_minutes', 'pass_score'] }, 19, 8);
 
-  // الموافقة على إعادة الامتحان
+  // إعادة تعيين نتائج الامتحان
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'force_reset_exam_results',
+    'exam', e1.id, 'امتحان الجبر — الوحدة الأولى',
+    { deleted_results: 4 }, 7, 16);
+  await logAct(T1, A, asstNour.id, asstNour.name, 'force_reset_exam_results',
+    'exam', e3.id, 'اختبار الهندسة التحليلية',
+    { deleted_results: 2 }, 5, 13);
+
+  // الموافقة على/رفض إعادة الامتحان
   await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'approve_retry',
     'exam', e1.id, 'امتحان الجبر — الوحدة الأولى',
     { student: stdNada.name, decision: 'accepted' }, 7, 8);
-
-  // تعديل بيانات طالب
-  await logAct(T1, A, asstNour.id, asstNour.name, 'edit_student',
-    'student', stdOmar.id, stdOmar.name,
-    { changed: ['phone', 'parent_phone'] }, 5, 11);
-
-  // إرسال إشعارات
-  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'send_notification',
-    'student', null, 'طلاب الثالث الثانوي',
-    { title: 'تذكير بالامتحان', recipients: 5 }, 4, 9);
-  await logAct(T1, A, asstNour.id, asstNour.name, 'send_notification',
-    'student', null, 'طلاب الثاني الثانوي',
-    { title: 'كورس جديد', recipients: 4 }, 2, 15);
+  await logAct(T1, A, asstNour.id, asstNour.name, 'reject_retry',
+    'exam', e2.id, 'مراجعة المثلثات النهائية',
+    { student: stdOmar.name, decision: 'rejected' }, 4, 11);
 
   // تعديل الكورس
   await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'edit_course',
     'course', c1a.id, 'رياضيات الثالث الثانوي — الجبر والمثلثات',
-    { changed: ['description'] }, 3, 10);
+    { changed: ['description', 'thumbnail_url'] }, 3, 10);
 
-  // تحقق من دفعة (معلم نفسه)
-  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'verify_payment',
-    'payment', null, stdNada.name,
-    { amount: 250, method: 'fawry', status: 'pending→verified' }, 1, 7);
+  // إرسال الإشعارات
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'send_notification',
+    'notification', null, null,
+    { type: 'new_exam', title: 'امتحان الجبر الجديد متاح الآن', recipients: 9 }, 20, 8);
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'send_notification',
+    'notification', null, null,
+    { type: 'reminder', title: 'تذكير بالامتحان القادم', recipients: 5 }, 4, 9);
+  await logAct(T1, A, asstNour.id, asstNour.name, 'send_notification',
+    'notification', null, null,
+    { type: 'general', title: 'كورس الهندسة التحليلية — تحديث جديد', recipients: 4 }, 2, 15);
 
-  // ── أ/ سارة (T2) — سجل نشاط ──────────────────────────────
+  // تصفير المتصدرين
+  await logAct(T1, T, T1, 'أ/ محمد عبد الرحمن', 'reset_leaderboard',
+    'leaderboard', null, null,
+    { month: 'أبريل 2025', students_affected: 9 }, 5, 10);
+
+  // ══════════════════════════════════════════════════════════
+  // ── أ/ سارة (T2) — منصة العلوم
+  // ══════════════════════════════════════════════════════════
+
+  // تسجيل دخول
+  await logAct(T2, T, T2, 'أ/ سارة خالد الحسيني', 'login_teacher',
+    'teacher', T2, 'أ/ سارة خالد الحسيني', { ip: '197.34.5.88' }, 30, 7);
+  await logAct(T2, A, asstDina.id, asstDina.name, 'login_assistant',
+    'assistant', asstDina.id, asstDina.name, { ip: '197.34.5.90' }, 28, 9);
+  await logAct(T2, T, T2, 'أ/ سارة خالد الحسيني', 'login_teacher',
+    'teacher', T2, 'أ/ سارة خالد الحسيني', { ip: '197.34.5.88' }, 7, 8);
+
+  // إضافة المساعد وتعديل صلاحياته
+  await logAct(T2, T, T2, 'أ/ سارة خالد الحسيني', 'create_assistant',
+    'assistant', asstDina.id, asstDina.name,
+    { username: 'asst_dina' }, 29, 5);
+  await logAct(T2, T, T2, 'أ/ سارة خالد الحسيني', 'edit_assistant_perms',
+    'assistant', asstDina.id, asstDina.name,
+    { granted: ['إدارة كورسات', 'إرسال إشعارات'], revoked: [] }, 15, 13);
+
+  // إنشاء الكورسات ورفع المحتوى
   await logAct(T2, T, T2, 'أ/ سارة خالد الحسيني', 'create_course',
     'course', c2a.id, 'أحياء الثالث الثانوي — الشامل',
     { price: 280, stage: 'الصف الثالث الثانوي' }, 29, 10);
@@ -1021,41 +1149,100 @@ async function seed() {
     'course', c2b.id, 'كيمياء الثاني الثانوي — التفاعلات والموازين',
     { price: 220, stage: 'الصف الثاني الثانوي' }, 29, 8);
   await logAct(T2, T, T2, 'أ/ سارة خالد الحسيني', 'publish_course',
-    'course', c2a.id, 'أحياء الثالث الثانوي — الشامل',
-    { is_published: true }, 28, 9);
+    'course', c2a.id, 'أحياء الثالث الثانوي — الشامل', { is_published: true }, 28, 9);
+  await logAct(T2, T, T2, 'أ/ سارة خالد الحسيني', 'publish_course',
+    'course', c2b.id, 'كيمياء الثاني الثانوي — التفاعلات والموازين', { is_published: true }, 28, 7);
 
+  await logAct(T2, T, T2, 'أ/ سارة خالد الحسيني', 'upload_video',
+    'course', c2a.id, 'بنية الخلية ووظائف العضيات',
+    { video_id: 10, file: 'cell_structure.mp4' }, 27, 14);
+  await logAct(T2, T, T2, 'أ/ سارة خالد الحسيني', 'add_video_url',
+    'course', c2a.id, 'الانقسام الخلوي المتساوي (Mitosis)',
+    { video_id: 11, url: 'youtube.com' }, 26, 12);
+  await logAct(T2, T, T2, 'أ/ سارة خالد الحسيني', 'upload_pdf',
+    'course', c2a.id, 'ملخص الخلية والوراثة',
+    { pdf_id: 5, file: 'genetics_summary.pdf' }, 26, 10);
+  await logAct(T2, A, asstDina.id, asstDina.name, 'upload_video',
+    'course', c2b.id, 'مقدمة الكيمياء — الجدول الدوري',
+    { video_id: 15, file: 'periodic_table.mp4' }, 21, 13);
+  await logAct(T2, A, asstDina.id, asstDina.name, 'upload_pdf',
+    'course', c2b.id, 'معادلات التفاعل الكيميائي',
+    { pdf_id: 6, file: 'reactions.pdf' }, 20, 11);
+  await logAct(T2, A, asstDina.id, asstDina.name, 'delete_video',
+    'course', c2b.id, 'مقدمة قديمة — مسودة',
+    { video_id: 98 }, 19, 15);
+
+  // إضافة الطلاب
   await logAct(T2, T, T2, 'أ/ سارة خالد الحسيني', 'add_student',
-    'student', sciHana.id, sciHana.name,
-    { stage: 'الصف الثالث الثانوي' }, 27, 11);
+    'student', sciHana.id, sciHana.name, { academic_stage: 'الصف الثالث الثانوي' }, 27, 11);
   await logAct(T2, T, T2, 'أ/ سارة خالد الحسيني', 'add_student',
-    'student', sciHassan.id, sciHassan.name,
-    { stage: 'الصف الثالث الثانوي' }, 27, 10);
+    'student', sciHassan.id, sciHassan.name, { academic_stage: 'الصف الثالث الثانوي' }, 27, 10);
+  await logAct(T2, T, T2, 'أ/ سارة خالد الحسيني', 'add_student',
+    'student', sciMariam.id, sciMariam.name, { academic_stage: 'الصف الثالث الثانوي' }, 27, 9);
+  await logAct(T2, A, asstDina.id, asstDina.name, 'bulk_import_students',
+    'student', null, null, { count: 5, failed: 1 }, 26, 14);
+  await logAct(T2, T, T2, 'أ/ سارة خالد الحسيني', 'edit_student',
+    'student', sciKhaled.id, sciKhaled.name, { changed: ['phone'] }, 14, 9);
 
-  await logAct(T2, A, asstDina.id, asstDina.name, 'add_student',
-    'student', null, 'sci_mona — منى رامي',
-    { stage: 'الصف الثاني الثانوي' }, 26, 14);
-  await logAct(T2, A, asstDina.id, asstDina.name, 'verify_payment',
-    'payment', null, sciHana.name,
-    { amount: 280, method: 'instapay', status: 'verified' }, 23, 9);
+  // المدفوعات
+  await logAct(T2, A, asstDina.id, asstDina.name, 'approve_payment',
+    'payment', null, sciHana.name, { amount: 280, method: 'instapay', status: 'verified' }, 23, 9);
+  await logAct(T2, T, T2, 'أ/ سارة خالد الحسيني', 'approve_payment',
+    'payment', null, sciHassan.name, { amount: 280, method: 'vodafone_cash', status: 'verified' }, 22, 11);
+  await logAct(T2, A, asstDina.id, asstDina.name, 'reject_payment',
+    'payment', null, sciKhaled.name, { amount: 220, method: 'fawry', status: 'rejected' }, 21, 13);
+  await logAct(T2, T, T2, 'أ/ سارة خالد الحسيني', 'add_payment',
+    'payment', null, sciMariam.name, { amount: 280, method: 'cash', status: 'pending' }, 5, 9);
 
+  // الامتحانات
   await logAct(T2, T, T2, 'أ/ سارة خالد الحسيني', 'create_exam',
-    'exam', e4.id, 'امتحان الخلية والوراثة',
-    { total_score: 25, duration: 40 }, 18, 12);
+    'exam', e4.id, 'امتحان الخلية والوراثة', { total_score: 25, duration: 40 }, 18, 12);
   await logAct(T2, T, T2, 'أ/ سارة خالد الحسيني', 'publish_exam',
-    'exam', e4.id, 'امتحان الخلية والوراثة',
-    { is_published: true }, 18, 11);
+    'exam', e4.id, 'امتحان الخلية والوراثة', { is_published: true }, 18, 11);
   await logAct(T2, A, asstDina.id, asstDina.name, 'create_exam',
-    'exam', e5.id, 'اختبار الكيمياء التمهيدي',
-    { total_score: 20, duration: 35 }, 12, 13);
+    'exam', e5.id, 'اختبار الكيمياء التمهيدي', { total_score: 20, duration: 35 }, 12, 13);
+  await logAct(T2, A, asstDina.id, asstDina.name, 'publish_exam',
+    'exam', e5.id, 'اختبار الكيمياء التمهيدي', { is_published: true }, 12, 12);
+  await logAct(T2, T, T2, 'أ/ سارة خالد الحسيني', 'force_reset_exam_results',
+    'exam', e4.id, 'امتحان الخلية والوراثة', { deleted_results: 3 }, 9, 10);
+  await logAct(T2, T, T2, 'أ/ سارة خالد الحسيني', 'approve_retry',
+    'exam', e4.id, 'امتحان الخلية والوراثة',
+    { student: sciHassan.name, decision: 'accepted' }, 6, 9);
 
+  // إشعارات
   await logAct(T2, T, T2, 'أ/ سارة خالد الحسيني', 'send_notification',
-    'student', null, 'طلاب الثالث الثانوي',
-    { title: 'نتيجة ممتازة', recipients: 3 }, 3, 8);
+    'notification', null, null,
+    { type: 'exam_result', title: 'نتيجة امتحان الخلية والوراثة', recipients: 3 }, 3, 8);
   await logAct(T2, A, asstDina.id, asstDina.name, 'send_notification',
-    'student', null, 'طلاب الثاني الثانوي',
-    { title: 'تذكير اختبار الكيمياء', recipients: 3 }, 1, 10);
+    'notification', null, null,
+    { type: 'reminder', title: 'تذكير: اختبار الكيمياء غداً', recipients: 3 }, 1, 10);
 
-  // ── أ/ كريم (T3) — سجل نشاط ──────────────────────────────
+  // تصفير المتصدرين
+  await logAct(T2, T, T2, 'أ/ سارة خالد الحسيني', 'reset_leaderboard',
+    'leaderboard', null, null,
+    { month: 'مارس 2025', students_affected: 8 }, 12, 8);
+
+  // ══════════════════════════════════════════════════════════
+  // ── أ/ كريم (T3) — مركز اللغة العربية
+  // ══════════════════════════════════════════════════════════
+
+  // تسجيل دخول
+  await logAct(T3, T, T3, 'أ/ كريم الشافعي', 'login_teacher',
+    'teacher', T3, 'أ/ كريم الشافعي', { ip: '105.196.77.4' }, 30, 6);
+  await logAct(T3, A, asstYara.id, asstYara.name, 'login_assistant',
+    'assistant', asstYara.id, asstYara.name, { ip: '105.196.77.9' }, 27, 10);
+  await logAct(T3, T, T3, 'أ/ كريم الشافعي', 'login_teacher',
+    'teacher', T3, 'أ/ كريم الشافعي', { ip: '105.196.77.4' }, 3, 9);
+
+  // إضافة المساعد
+  await logAct(T3, T, T3, 'أ/ كريم الشافعي', 'create_assistant',
+    'assistant', asstYara.id, asstYara.name,
+    { username: 'asst_yara' }, 28, 13);
+  await logAct(T3, T, T3, 'أ/ كريم الشافعي', 'edit_assistant_perms',
+    'assistant', asstYara.id, asstYara.name,
+    { granted: ['إضافة طلاب', 'عرض تحليلات'], revoked: [] }, 20, 11);
+
+  // الكورسات
   await logAct(T3, T, T3, 'أ/ كريم الشافعي', 'create_course',
     'course', c3a.id, 'لغة عربية الثالث الثانوي — النصوص والأدب',
     { price: 200, stage: 'الصف الثالث الثانوي' }, 30, 11);
@@ -1069,40 +1256,80 @@ async function seed() {
     'course', c3b.id, 'قواعد اللغة العربية — النحو والصرف للثاني الثانوي',
     { is_published: true }, 29, 8);
 
+  // رفع محتوى
+  await logAct(T3, T, T3, 'أ/ كريم الشافعي', 'add_video_url',
+    'course', c3a.id, 'شرح قصيدة البردة',
+    { video_id: 20, url: 'youtube.com' }, 27, 11);
+  await logAct(T3, T, T3, 'أ/ كريم الشافعي', 'upload_pdf',
+    'course', c3a.id, 'ملخص النصوص الأدبية كاملاً',
+    { pdf_id: 8, file: 'literature_summary.pdf' }, 26, 10);
+  await logAct(T3, A, asstYara.id, asstYara.name, 'add_video_url',
+    'course', c3b.id, 'درس الإعراب — المبتدأ والخبر',
+    { video_id: 22, url: 'youtube.com' }, 25, 14);
+  await logAct(T3, A, asstYara.id, asstYara.name, 'upload_pdf',
+    'course', c3b.id, 'جداول الإعراب والقواعد النحوية',
+    { pdf_id: 9, file: 'grammar_tables.pdf' }, 24, 12);
+  await logAct(T3, A, asstYara.id, asstYara.name, 'delete_pdf',
+    'course', c3a.id, 'ملاحظات غير مكتملة',
+    { pdf_id: 77 }, 23, 15);
+
+  // الطلاب
   await logAct(T3, T, T3, 'أ/ كريم الشافعي', 'add_student',
-    'student', araNourd.id, araNourd.name,
-    { stage: 'الصف الثالث الثانوي' }, 28, 12);
-
+    'student', araNourd.id, araNourd.name, { academic_stage: 'الصف الثالث الثانوي' }, 28, 12);
   await logAct(T3, A, asstYara.id, asstYara.name, 'add_student',
-    'student', null, 'ara_yasmin — ياسمين رأفت',
-    { stage: 'الصف الثالث الثانوي' }, 27, 14);
-  await logAct(T3, A, asstYara.id, asstYara.name, 'add_student',
-    'student', null, 'ara_tarek — طارق ماهر',
-    { stage: 'الصف الثاني الثانوي' }, 27, 13);
+    'student', araYasmin.id, araYasmin.name, { academic_stage: 'الصف الثالث الثانوي' }, 27, 14);
+  await logAct(T3, A, asstYara.id, asstYara.name, 'bulk_import_students',
+    'student', null, null, { count: 4, failed: 0 }, 26, 13);
 
+  // المدفوعات
+  await logAct(T3, T, T3, 'أ/ كريم الشافعي', 'approve_payment',
+    'payment', null, araNourd.name, { amount: 200, method: 'vodafone_cash', status: 'verified' }, 16, 11);
+  await logAct(T3, T, T3, 'أ/ كريم الشافعي', 'reject_payment',
+    'payment', null, araYasmin.name, { amount: 200, method: 'instapay', status: 'rejected' }, 15, 9);
+  await logAct(T3, A, asstYara.id, asstYara.name, 'add_payment',
+    'payment', null, araNourd.name, { amount: 150, method: 'cash', status: 'pending' }, 7, 11);
+
+  // الامتحانات
   await logAct(T3, T, T3, 'أ/ كريم الشافعي', 'create_exam',
-    'exam', e6.id, 'امتحان النصوص الأدبية',
-    { total_score: 30, duration: 50 }, 20, 10);
+    'exam', e6.id, 'امتحان النصوص الأدبية', { total_score: 30, duration: 50 }, 20, 10);
   await logAct(T3, T, T3, 'أ/ كريم الشافعي', 'publish_exam',
+    'exam', e6.id, 'امتحان النصوص الأدبية', { is_published: true }, 20, 9);
+  await logAct(T3, T, T3, 'أ/ كريم الشافعي', 'edit_exam',
+    'exam', e6.id, 'امتحان النصوص الأدبية', { changed: ['total_score', 'pass_score'] }, 19, 11);
+  await logAct(T3, T, T3, 'أ/ كريم الشافعي', 'force_reset_exam_results',
+    'exam', e6.id, 'امتحان النصوص الأدبية', { deleted_results: 2 }, 11, 8);
+  await logAct(T3, T, T3, 'أ/ كريم الشافعي', 'approve_retry',
     'exam', e6.id, 'امتحان النصوص الأدبية',
-    { is_published: true }, 20, 9);
+    { student: araNourd.name, decision: 'accepted' }, 9, 13);
 
-  await logAct(T3, T, T3, 'أ/ كريم الشافعي', 'verify_payment',
-    'payment', null, araNourd.name,
-    { amount: 200, method: 'vodafone_cash', status: 'verified' }, 16, 11);
-
-  await logAct(T3, T, T3, 'أ/ كريم الشافعي', 'create_assistant',
-    'assistant', asstYara.id, asstYara.name,
-    { permissions: ['can_add_students', 'can_view_analytics'] }, 25, 15);
+  // تعديل الكورس
   await logAct(T3, T, T3, 'أ/ كريم الشافعي', 'edit_course',
     'course', c3a.id, 'لغة عربية الثالث الثانوي — النصوص والأدب',
     { changed: ['description', 'thumbnail_url'] }, 8, 9);
+
+  // الإشعارات
   await logAct(T3, T, T3, 'أ/ كريم الشافعي', 'send_notification',
-    'student', null, 'طلاب الثالث الثانوي',
-    { title: 'نتيجة امتحان النصوص', recipients: 2 }, 1, 12);
+    'notification', null, null,
+    { type: 'announcement', title: 'إعلان هام: مراجعة نهائية قبل الامتحان', recipients: 6 }, 4, 10);
+  await logAct(T3, A, asstYara.id, asstYara.name, 'send_notification',
+    'notification', null, null,
+    { type: 'exam_result', title: 'نتيجة امتحان النصوص الأدبية', recipients: 2 }, 1, 12);
+
+  // تصفير المتصدرين
+  await logAct(T3, T, T3, 'أ/ كريم الشافعي', 'reset_leaderboard',
+    'leaderboard', null, null,
+    { month: 'أبريل 2025', students_affected: 6 }, 2, 11);
 
   const totalLogs = await q(`SELECT COUNT(*) FROM activity_logs`);
-  console.log(`  ✓ ${totalLogs[0].count} سجل نشاط`);
+  console.log(`  ✓ ${totalLogs[0].count} سجل نشاط (${[
+    'login_teacher', 'login_assistant', 'create_course', 'publish_course',
+    'upload_video', 'add_video_url', 'upload_pdf', 'delete_video', 'delete_pdf',
+    'add_student', 'edit_student', 'delete_student', 'bulk_import_students',
+    'approve_payment', 'reject_payment', 'add_payment',
+    'create_exam', 'edit_exam', 'publish_exam', 'force_reset_exam_results',
+    'approve_retry', 'reject_retry', 'send_notification', 'reset_leaderboard',
+    'create_assistant', 'edit_assistant_perms'
+  ].length} نوع إجراء مغطى`);
 
   // ══════════════════════════════════════════════════════════
   // 17. متتبّع إعادة ضبط المتصدرين
