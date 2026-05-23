@@ -5,6 +5,7 @@ const { authenticate, requireRole } = require('../middleware/auth');
 const { sendEvent } = require('../sse');
 const { sendFCMToStudents } = require('../lib/fcm');
 const { getPermissions } = require('../lib/permissionsCache');
+const { logActivity, getActor, getIp } = require('../lib/activityLog');
 
 const router = express.Router();
 router.use(authenticate);
@@ -134,6 +135,12 @@ router.post('/platform', requireRole('teacher', 'assistant'), checkNotifPermissi
 
     const fcmBody = message.replace(/\{name\}/g, '').replace(/\s+/g, ' ').trim();
     sendFCMToStudents(pool, validIds, resolvedTitle, fcmBody, { type }).catch(() => {});
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'send_notification',
+      entity: { type: 'notification' },
+      details: { type, title: resolvedTitle, recipients: validIds.length },
+    });
     res.status(201).json({ sent: validIds.length });
   } catch (err) {
     console.error(err);

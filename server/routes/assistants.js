@@ -46,16 +46,31 @@ router.post('/', requireRole('teacher'), validateAssistant, async (req, res) => 
 router.put('/:id/permissions', requireRole('teacher'), async (req, res) => {
   const { can_add_students, can_edit_students, can_delete_students, can_manage_exams, can_view_analytics, can_manage_payments, can_manage_courses, can_send_notifications } = req.body;
   try {
+    const oldPerms = await pool.query(
+      'SELECT name,can_add_students,can_edit_students,can_delete_students,can_manage_exams,can_view_analytics,can_manage_payments,can_manage_courses,can_send_notifications FROM assistants WHERE id=$1 AND teacher_id=$2',
+      [req.params.id, req.user.id]
+    );
     const result = await pool.query(
       'UPDATE assistants SET can_add_students=$1,can_edit_students=$2,can_delete_students=$3,can_manage_exams=$4,can_view_analytics=$5,can_manage_payments=$6,can_manage_courses=$7,can_send_notifications=$8 WHERE id=$9 AND teacher_id=$10 RETURNING id,username,name,can_add_students,can_edit_students,can_delete_students,can_manage_exams,can_view_analytics,can_manage_payments,can_manage_courses,can_send_notifications',
       [can_add_students, can_edit_students, can_delete_students, can_manage_exams, can_view_analytics, can_manage_payments ?? false, can_manage_courses ?? false, can_send_notifications ?? false, req.params.id, req.user.id]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Assistant not found' });
     invalidatePermissions(parseInt(req.params.id));
+    const PERM_LABELS = {
+      can_add_students: 'إضافة طلاب', can_edit_students: 'تعديل طلاب',
+      can_delete_students: 'حذف طلاب', can_manage_exams: 'إدارة اختبارات',
+      can_view_analytics: 'عرض تحليلات', can_manage_payments: 'إدارة مدفوعات',
+      can_manage_courses: 'إدارة كورسات', can_send_notifications: 'إرسال إشعارات',
+    };
+    const PERM_KEYS = Object.keys(PERM_LABELS);
+    const old = oldPerms.rows[0] || {};
+    const granted = PERM_KEYS.filter(k => !old[k] && result.rows[0][k]).map(k => PERM_LABELS[k]);
+    const revoked = PERM_KEYS.filter(k => old[k] && !result.rows[0][k]).map(k => PERM_LABELS[k]);
     logActivity({
       teacherId: req.user.id, actor: getActor(req), ip: getIp(req),
       action: 'edit_assistant_perms',
       entity: { type: 'assistant', id: result.rows[0].id, name: result.rows[0].name },
+      details: { granted: granted.length ? granted : undefined, revoked: revoked.length ? revoked : undefined },
     });
     res.json(result.rows[0]);
   } catch (err) {

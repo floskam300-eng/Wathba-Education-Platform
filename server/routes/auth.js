@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const rateLimit = require('express-rate-limit');
 const pool = require('../db/connection');
 const { generateToken, authenticate } = require('../middleware/auth');
+const { logActivity, getIp } = require('../lib/activityLog');
 
 const router = express.Router();
 
@@ -100,6 +101,25 @@ router.post('/login', loginLimiter, async (req, res) => {
 
       const token = generateToken(payload);
       const { password: _, plain_password: __, fcm_token: ___, ...safeUser } = user;
+
+      if (r === 'teacher') {
+        logActivity({
+          teacherId: user.id,
+          actor: { type: 'teacher', id: user.id, name: user.name || user.username },
+          ip: getIp(req),
+          action: 'login_teacher',
+          entity: { type: 'teacher', id: user.id, name: user.name || user.username },
+        });
+      } else if (r === 'assistant') {
+        logActivity({
+          teacherId: user.teacher_id,
+          actor: { type: 'assistant', id: user.id, name: user.name || user.username },
+          ip: getIp(req),
+          action: 'login_assistant',
+          entity: { type: 'assistant', id: user.id, name: user.name || user.username },
+        });
+      }
+
       return res.json({
         token,
         user: { ...safeUser, role: r, teacher_slug: payload.teacher_slug },

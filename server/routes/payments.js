@@ -232,9 +232,10 @@ router.put('/:id/verify', requireRole('teacher', 'assistant'), (req, res, next) 
 
     const payRow = result.rows[0];
     const sName = (await pool.query('SELECT name FROM students WHERE id=$1', [payRow.student_id]).catch(() => ({ rows: [] }))).rows[0]?.name;
+    const payAction = status === 'verified' ? 'approve_payment' : status === 'rejected' ? 'reject_payment' : 'verify_payment';
     logActivity({
       teacherId, actor: getActor(req), ip: getIp(req),
-      action: 'verify_payment',
+      action: payAction,
       entity: { type: 'payment', id: payRow.id, name: sName },
       details: { status, amount: payRow.amount },
     });

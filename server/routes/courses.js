@@ -513,6 +513,12 @@ router.post('/:id/videos/url', requireRole('teacher', 'assistant'), checkManageC
       'INSERT INTO videos (title,file_path_or_url,duration_minutes,course_id,sort_order,section_id,url_480,url_720,url_1080) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',
       [title.trim(), url.trim(), parseInt(duration_minutes) || 0, req.params.id, parseInt(sort_order) || 0, section_id || null, url_480?.trim() || null, url_720?.trim() || null, url_1080?.trim() || null]
     );
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'add_video_url',
+      entity: { type: 'course', id: parseInt(req.params.id), name: title.trim() },
+      details: { video_id: result.rows[0].id },
+    });
     res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error(err);
@@ -521,14 +527,22 @@ router.post('/:id/videos/url', requireRole('teacher', 'assistant'), checkManageC
 });
 
 router.post('/:id/videos/upload', requireRole('teacher', 'assistant'), checkManageCoursesPerm, preCheckOwnership, withMulterErrors(uploadVideo.single('video'), '500 MB'), async (req, res) => {
+  const teacherId = getTeacherId(req);
   try {
     if (!req.file) return res.status(400).json({ error: 'No video file uploaded' });
     const { title, duration_minutes, sort_order, section_id } = req.body;
     const filePath = `/uploads/videos/${req.file.filename}`;
+    const videoTitle = title || req.file.originalname;
     const result = await pool.query(
       'INSERT INTO videos (title,file_path_or_url,duration_minutes,course_id,sort_order,section_id) VALUES($1,$2,$3,$4,$5,$6) RETURNING *',
-      [title || req.file.originalname, filePath, parseInt(duration_minutes) || 0, req.params.id, parseInt(sort_order) || 0, section_id || null]
+      [videoTitle, filePath, parseInt(duration_minutes) || 0, req.params.id, parseInt(sort_order) || 0, section_id || null]
     );
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'upload_video',
+      entity: { type: 'course', id: parseInt(req.params.id), name: videoTitle },
+      details: { video_id: result.rows[0].id, file: req.file.originalname },
+    });
     res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error(err);
@@ -537,14 +551,22 @@ router.post('/:id/videos/upload', requireRole('teacher', 'assistant'), checkMana
 });
 
 router.post('/:id/pdfs/upload', requireRole('teacher', 'assistant'), checkManageCoursesPerm, preCheckOwnership, withMulterErrors(uploadPdf.single('pdf')), async (req, res) => {
+  const teacherId = getTeacherId(req);
   try {
     if (!req.file) return res.status(400).json({ error: 'No PDF file uploaded' });
     const { title, section_id } = req.body;
     const filePath = `/uploads/pdfs/${req.file.filename}`;
+    const pdfTitle = title || req.file.originalname;
     const result = await pool.query(
       'INSERT INTO pdf_files (title,file_url,course_id,section_id) VALUES($1,$2,$3,$4) RETURNING *',
-      [title || req.file.originalname, filePath, req.params.id, section_id || null]
+      [pdfTitle, filePath, req.params.id, section_id || null]
     );
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'upload_pdf',
+      entity: { type: 'course', id: parseInt(req.params.id), name: pdfTitle },
+      details: { pdf_id: result.rows[0].id, file: req.file.originalname },
+    });
     res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error(err);
@@ -558,7 +580,7 @@ router.delete('/:id/videos/:videoId', requireRole('teacher', 'assistant'), check
     if (!(await verifyCoursOwnership(req.params.id, teacherId))) {
       return res.status(403).json({ error: 'Access denied: course not yours' });
     }
-    const v = await pool.query('SELECT file_path_or_url FROM videos WHERE id=$1 AND course_id=$2', [req.params.videoId, req.params.id]);
+    const v = await pool.query('SELECT title, file_path_or_url FROM videos WHERE id=$1 AND course_id=$2', [req.params.videoId, req.params.id]);
     if (!v.rows.length) return res.status(404).json({ error: 'Video not found' });
     if (v.rows[0].file_path_or_url?.startsWith('/uploads/')) {
       const uploadsRoot = path.resolve(__dirname, '../../uploads');
@@ -566,6 +588,12 @@ router.delete('/:id/videos/:videoId', requireRole('teacher', 'assistant'), check
       if (fp.startsWith(uploadsRoot) && fs.existsSync(fp)) fs.unlinkSync(fp);
     }
     await pool.query('DELETE FROM videos WHERE id=$1 AND course_id=$2', [req.params.videoId, req.params.id]);
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'delete_video',
+      entity: { type: 'course', id: parseInt(req.params.id), name: v.rows[0].title },
+      details: { video_id: parseInt(req.params.videoId) },
+    });
     res.json({ message: 'Video deleted' });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
@@ -578,7 +606,7 @@ router.delete('/:id/pdfs/:pdfId', requireRole('teacher', 'assistant'), checkMana
     if (!(await verifyCoursOwnership(req.params.id, teacherId))) {
       return res.status(403).json({ error: 'Access denied: course not yours' });
     }
-    const p = await pool.query('SELECT file_url FROM pdf_files WHERE id=$1 AND course_id=$2', [req.params.pdfId, req.params.id]);
+    const p = await pool.query('SELECT title, file_url FROM pdf_files WHERE id=$1 AND course_id=$2', [req.params.pdfId, req.params.id]);
     if (!p.rows.length) return res.status(404).json({ error: 'PDF not found' });
     if (p.rows[0].file_url?.startsWith('/uploads/')) {
       const uploadsRoot = path.resolve(__dirname, '../../uploads');
@@ -586,6 +614,12 @@ router.delete('/:id/pdfs/:pdfId', requireRole('teacher', 'assistant'), checkMana
       if (fp.startsWith(uploadsRoot) && fs.existsSync(fp)) fs.unlinkSync(fp);
     }
     await pool.query('DELETE FROM pdf_files WHERE id=$1 AND course_id=$2', [req.params.pdfId, req.params.id]);
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'delete_pdf',
+      entity: { type: 'course', id: parseInt(req.params.id), name: p.rows[0].title },
+      details: { pdf_id: parseInt(req.params.pdfId) },
+    });
     res.json({ message: 'PDF deleted' });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });

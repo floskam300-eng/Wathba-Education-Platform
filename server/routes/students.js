@@ -541,14 +541,12 @@ router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => ch
 
     await client.query('COMMIT');
     invalidateCache(teacherId);
-    if (results.success > 0) {
-      logActivity({
-        teacherId, actor: getActor(req), ip: getIp(req),
-        action: 'bulk_import_students',
-        entity: { type: 'student' },
-        details: { count: results.success, failed: results.failed },
-      });
-    }
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'bulk_import_students',
+      entity: { type: 'student' },
+      details: { count: results.success, failed: results.failed },
+    });
 
     // Auto-enroll newly created students in the teacher's published free courses
     if (newStudentIds.length > 0) {
