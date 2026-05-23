@@ -88,11 +88,18 @@ router.get('/', requireRole('teacher', 'assistant'), async (req, res) => {
     const params = [teacherId];
     let searchClause = '';
     if (search && search.trim()) {
-      params.push(`%${search.trim()}%`);
-      searchClause = `AND (s.name ILIKE $2 OR s.username ILIKE $2 OR s.phone ILIKE $2)`;
+      // Escape LIKE special characters so user input like "%" or "_" is treated
+      // as literal characters rather than wildcards, preventing unintended
+      // full-table scans or surprising match results.
+      const escaped = search.trim()
+        .replace(/\\/g, '\\\\')
+        .replace(/%/g, '\\%')
+        .replace(/_/g, '\\_');
+      params.push(`%${escaped}%`);
+      searchClause = `AND (s.name ILIKE $2 ESCAPE '\\' OR s.username ILIKE $2 ESCAPE '\\' OR s.phone ILIKE $2 ESCAPE '\\')`;
     }
     const result = await pool.query(
-      `SELECT s.*, COUNT(sce.course_id)::int as enrolled_courses
+      `SELECT s.*, COUNT(CASE WHEN sce.status = 'active' THEN sce.course_id END)::int as enrolled_courses
        FROM students s
        LEFT JOIN student_course_enrollment sce ON s.id = sce.student_id
        WHERE s.teacher_id = $1 AND s.deleted_at IS NULL ${searchClause}

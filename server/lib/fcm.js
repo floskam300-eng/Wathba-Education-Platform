@@ -27,7 +27,11 @@ async function sendFCMToTokens(tokens, title, body, data = {}) {
   try {
     const stringData = {};
     for (const [k, v] of Object.entries(data)) {
-      if (v != null) stringData[k] = String(v);
+      if (v != null) {
+        // FCM data values must be strings; use JSON.stringify for objects to
+        // avoid the useless "[object Object]" produced by plain String()
+        stringData[k] = typeof v === 'object' ? JSON.stringify(v) : String(v);
+      }
     }
     const response = await messaging.sendEachForMulticast({
       notification: { title, body },

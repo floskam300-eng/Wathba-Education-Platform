@@ -130,6 +130,12 @@ router.delete('/upload-thumbnail', requireRole('teacher', 'assistant'), checkMan
   if (!url || !url.startsWith('/uploads/thumbnails/')) {
     return res.status(400).json({ error: 'مسار غير صالح' });
   }
+  // Guard against path traversal: normalize and re-verify the prefix.
+  // e.g. "/uploads/thumbnails/../../server/index.js" would be caught here.
+  const normalized = path.normalize(url);
+  if (!normalized.startsWith('/uploads/thumbnails/') || normalized.includes('..')) {
+    return res.status(400).json({ error: 'مسار غير صالح' });
+  }
   try {
     const teacherId = getTeacherId(req);
     // Only delete if not referenced by any of this teacher's courses
@@ -138,7 +144,7 @@ router.delete('/upload-thumbnail', requireRole('teacher', 'assistant'), checkMan
       [url, teacherId]
     );
     if (inUse.rows.length) return res.json({ ok: true }); // in use, don't delete
-    const filePath = path.join(__dirname, '../../', url);
+    const filePath = path.join(__dirname, '../../', normalized);
     fs.unlink(filePath, () => {});
     res.json({ ok: true });
   } catch {
@@ -150,7 +156,8 @@ router.get('/', requireRole('teacher', 'assistant'), async (req, res) => {
   const teacherId = getTeacherId(req);
   try {
     const result = await pool.query(
-      `SELECT c.*, COUNT(DISTINCT sce.student_id)::int as enrolled_count,
+      `SELECT c.*,
+              COUNT(DISTINCT CASE WHEN sce.status = 'active' THEN sce.student_id END)::int as enrolled_count,
               COUNT(DISTINCT v.id)::int as video_count, COUNT(DISTINCT p.id)::int as pdf_count
        FROM courses c
        LEFT JOIN student_course_enrollment sce ON c.id = sce.course_id

@@ -28,8 +28,11 @@ const loadSpeed   = () => { try { const s = localStorage.getItem(STORAGE_SPEED);
 const saveVolume  = (v) => { try { localStorage.setItem(STORAGE_VOLUME, String(v)); } catch {} };
 const saveMuted   = (m) => { try { localStorage.setItem(STORAGE_MUTED,  String(m)); } catch {} };
 const saveSpeed   = (s) => { try { localStorage.setItem(STORAGE_SPEED,  String(s)); } catch {} };
-const saveVidPos  = (id, pos) => { try { if (pos > 5) localStorage.setItem(`wathba_vid_pos_${id}`, String(Math.round(pos))); } catch {} };
-const loadVidPos  = (id) => { try { return parseInt(localStorage.getItem(`wathba_vid_pos_${id}`) || '0', 10); } catch { return 0; } };
+// Scope the video position key by the logged-in user's ID so that multiple
+// students sharing the same browser don't overwrite each other's position.
+const _vidUserId = () => { try { return JSON.parse(localStorage.getItem('wathba_user') || '{}').id || ''; } catch { return ''; } };
+const saveVidPos  = (id, pos) => { try { if (pos > 5) localStorage.setItem(`wathba_vid_pos_${_vidUserId()}_${id}`, String(Math.round(pos))); } catch {} };
+const loadVidPos  = (id) => { try { return parseInt(localStorage.getItem(`wathba_vid_pos_${_vidUserId()}_${id}`) || '0', 10); } catch { return 0; } };
 
 /* ─── Floating Watermark ───────────────────────────────── */
 const WATERMARK_SLOTS = [
@@ -47,9 +50,13 @@ function WatermarkBadge({ name, code, slotIndex }) {
 
   useEffect(() => {
     const interval = (slotIndex + 1) * 5000;
+    // Track the inner timeout so it can be cancelled if the component unmounts
+    // during the 700 ms fade-out window (prevents setState on unmounted component).
+    let fadeTimeoutId = null;
     const id = setInterval(() => {
       setVisible(false);
-      setTimeout(() => {
+      fadeTimeoutId = setTimeout(() => {
+        fadeTimeoutId = null;
         setPosIdx(prev => {
           let next;
           do { next = Math.floor(Math.random() * WATERMARK_SLOTS.length); } while (next === prev);
@@ -58,7 +65,10 @@ function WatermarkBadge({ name, code, slotIndex }) {
         setVisible(true);
       }, 700);
     }, interval);
-    return () => clearInterval(id);
+    return () => {
+      clearInterval(id);
+      if (fadeTimeoutId !== null) clearTimeout(fadeTimeoutId);
+    };
   }, [slotIndex]);
 
   const pos = WATERMARK_SLOTS[posIdx];

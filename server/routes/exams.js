@@ -703,6 +703,12 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
     return res.status(400).json({ error: 'بيانات الإجابات غير صحيحة' });
   if (Object.keys(answers).length > 500)
     return res.status(400).json({ error: 'عدد الإجابات يتجاوز الحد المسموح (500)' });
+  // Cap individual answer value length to prevent oversized payloads
+  // (e.g. a student sending a 1 MB essay as a single answer field)
+  for (const v of Object.values(answers)) {
+    if (typeof v === 'string' && v.length > 5000)
+      return res.status(400).json({ error: 'طول إحدى الإجابات يتجاوز الحد المسموح (5000 حرف)' });
+  }
 
   // ── Pre-flight eligibility check (outside transaction for speed) ──
   let eligibilityRow, questionsData, serverSession;

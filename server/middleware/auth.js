@@ -28,9 +28,9 @@ const authenticate = async (req, res, next) => {
   let token = null;
   if (authHeader && authHeader.startsWith('Bearer ')) {
     token = authHeader.split(' ')[1];
-  } else if (req.query && req.query.token) {
-    token = req.query.token;
   }
+  // Note: req.query.token is intentionally NOT supported — URL tokens leak into
+  // server access logs and HTTP Referer headers, which is a security risk.
   if (!token) {
     return res.status(401).json({ error: 'No token provided' });
   }

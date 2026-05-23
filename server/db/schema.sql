@@ -527,3 +527,22 @@ CREATE TABLE IF NOT EXISTS game_session_tokens (
 );
 CREATE INDEX IF NOT EXISTS idx_game_tokens_student
   ON game_session_tokens (student_id, event_id, created_at DESC);
+
+-- ── Bug-fix: indexes missing from second-round audit ──────────────────────────
+-- Teacher notification history queries (ORDER BY sent_at DESC, WHERE teacher_id=?)
+CREATE INDEX IF NOT EXISTS idx_notification_log_teacher_sent
+  ON notification_log (teacher_id, sent_at DESC);
+
+-- Teacher exam-results view: all results for one exam
+CREATE INDEX IF NOT EXISTS idx_exam_results_exam_latest
+  ON exam_results (exam_id, is_latest);
+
+-- Course participant list / enrolled-count aggregation
+CREATE INDEX IF NOT EXISTS idx_enrollment_course_status
+  ON student_course_enrollment (course_id, status);
+
+-- ── Bug-fix: leaderboard_reset_tracker should default to first day of NEXT
+--    calendar month, not "30 days from now", so resets stay aligned to months.
+ALTER TABLE leaderboard_reset_tracker
+  ALTER COLUMN next_reset_at
+    SET DEFAULT (DATE_TRUNC('month', NOW()) + INTERVAL '1 month');

@@ -1,4 +1,5 @@
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const pool = require('../db/connection');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { sendEvent } = require('../sse');
@@ -6,6 +7,16 @@ const { sendFCMToStudents } = require('../lib/fcm');
 
 const router = express.Router();
 router.use(authenticate);
+
+// Rate limit bulk notification sends: max 10 per minute per IP to prevent
+// spamming students with notifications or abusing FCM credits.
+const sendNotifLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'محاولات إرسال كثيرة جداً، انتظر دقيقة ثم أعد المحاولة' },
+});
 
 const getTeacherId = (req) => req.user.role === 'teacher' ? req.user.id : req.user.teacher_id;
 
@@ -105,7 +116,7 @@ router.post('/log', requireRole('teacher', 'assistant'), checkNotifPermission, a
 // ── Send platform (in-app) notification to selected students ────────
 const MAX_NOTIFICATION_STUDENTS = 500;
 
-router.post('/platform', requireRole('teacher', 'assistant'), checkNotifPermission, async (req, res) => {
+router.post('/platform', requireRole('teacher', 'assistant'), checkNotifPermission, sendNotifLimiter, async (req, res) => {
   const teacherId = getTeacherId(req);
   const { student_ids, message, type = 'general', title } = req.body;
   if (!message?.trim()) return res.status(400).json({ error: 'الرسالة مطلوبة' });
