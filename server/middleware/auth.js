@@ -8,18 +8,20 @@ if (!process.env.JWT_SECRET) {
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
-// Simple TTL cache — avoids a DB query on every student request
+// Simple TTL cache — avoids a DB query on every student/assistant request
 // Entry: { valid: boolean, at: number (ms) }
 const _studentCache = new Map();
+const _assistantCache = new Map();
 const CACHE_TTL_MS = 30_000; // 30 seconds
 
 // Purge stale/expired entries every 5 minutes to prevent memory leak
 setInterval(() => {
   const now = Date.now();
   for (const [key, entry] of _studentCache.entries()) {
-    if (now - entry.at > CACHE_TTL_MS * 10) {
-      _studentCache.delete(key);
-    }
+    if (now - entry.at > CACHE_TTL_MS * 10) _studentCache.delete(key);
+  }
+  for (const [key, entry] of _assistantCache.entries()) {
+    if (now - entry.at > CACHE_TTL_MS * 10) _assistantCache.delete(key);
   }
 }, 5 * 60 * 1000);
 
@@ -54,6 +56,23 @@ const authenticate = async (req, res, next) => {
       }
     }
 
+    // For assistants: verify the account still exists (catches deleted assistants)
+    if (decoded.role === 'assistant') {
+      const now = Date.now();
+      const cached = _assistantCache.get(decoded.id);
+      if (!cached || now - cached.at > CACHE_TTL_MS) {
+        const check = await pool.query(
+          'SELECT id FROM assistants WHERE id=$1',
+          [decoded.id]
+        );
+        const valid = check.rows.length > 0;
+        _assistantCache.set(decoded.id, { valid, at: now });
+        if (!valid) return res.status(401).json({ error: 'الحساب غير نشط أو تم حذفه' });
+      } else if (!cached.valid) {
+        return res.status(401).json({ error: 'الحساب غير نشط أو تم حذفه' });
+      }
+    }
+
     req.user = decoded;
     next();
   } catch (err) {
@@ -61,9 +80,13 @@ const authenticate = async (req, res, next) => {
   }
 };
 
-// Expose cache invalidation so delete endpoint can immediately block the token
+// Expose cache invalidation so delete endpoints can immediately block the token
 const invalidateStudentAuthCache = (studentId) => {
   _studentCache.set(studentId, { valid: false, at: Date.now() });
+};
+
+const invalidateAssistantAuthCache = (assistantId) => {
+  _assistantCache.set(assistantId, { valid: false, at: Date.now() });
 };
 
 const requireRole = (...roles) => (req, res, next) => {
@@ -75,4 +98,4 @@ const requireRole = (...roles) => (req, res, next) => {
 
 const generateToken = (payload) => jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
 
-module.exports = { authenticate, requireRole, generateToken, invalidateStudentAuthCache };
+module.exports = { authenticate, requireRole, generateToken, invalidateStudentAuthCache, invalidateAssistantAuthCache };

@@ -5,6 +5,7 @@ const pool = require('../db/connection');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { invalidateCache } = require('../lib/analyticsCache');
 const { validateExam } = require('../middleware/validate');
+const { getPermissions } = require('../lib/permissionsCache');
 const { logActivity, getActor, getIp } = require('../lib/activityLog');
 const multer = require('multer');
 const path = require('path');
@@ -39,8 +40,8 @@ const getTeacherId = (req) => req.user.role === 'teacher' ? req.user.id : req.us
 const checkManageExamsPerm = async (req, res, next) => {
   if (req.user.role === 'teacher') return next();
   try {
-    const r = await pool.query('SELECT can_manage_exams FROM assistants WHERE id=$1', [req.user.id]);
-    if (!r.rows.length || !r.rows[0].can_manage_exams)
+    const perms = await getPermissions(req.user.id, pool);
+    if (!perms || !perms.can_manage_exams)
       return res.status(403).json({ error: 'Access denied: missing permission (can_manage_exams)' });
     next();
   } catch {

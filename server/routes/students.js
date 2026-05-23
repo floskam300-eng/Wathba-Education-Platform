@@ -577,9 +577,26 @@ router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => ch
 // ── Save video progress ──
 router.post('/me/video-progress', requireRole('student'), async (req, res) => {
   const studentId = req.user.id;
-  const { video_id, watched_minutes, progress_percentage, watch_count_increment, last_position, actual_watched_seconds } = req.body;
+  const { video_id, watched_minutes, watch_count_increment, last_position, actual_watched_seconds } = req.body;
   if (!video_id) return res.status(400).json({ error: 'video_id required' });
   try {
+    // Fetch video duration from DB — never trust client-provided progress_percentage
+    const videoRow = await pool.query(
+      'SELECT duration_minutes FROM videos WHERE id=$1',
+      [video_id]
+    );
+    const durationMinutes = parseFloat(videoRow.rows[0]?.duration_minutes) || 0;
+    const safeWatchedSeconds = Math.max(0, Math.min(actual_watched_seconds || 0, 86400));
+    const safeWatchedMinutes = Math.max(0, watched_minutes || 0);
+
+    // Compute progress server-side: use actual_watched_seconds if duration is known
+    let serverProgress = 0;
+    if (durationMinutes > 0 && safeWatchedSeconds > 0) {
+      serverProgress = Math.min(100, (safeWatchedSeconds / (durationMinutes * 60)) * 100);
+    } else if (durationMinutes > 0 && safeWatchedMinutes > 0) {
+      serverProgress = Math.min(100, (safeWatchedMinutes / durationMinutes) * 100);
+    }
+
     await pool.query(
       `INSERT INTO video_progress (student_id, video_id, watch_count, watched_minutes, progress_percentage, last_watched_at, last_position, actual_watched_seconds)
        VALUES ($1, $2, $3, $4, $5, NOW(), $6, $7)
@@ -590,14 +607,14 @@ router.post('/me/video-progress', requireRole('student'), async (req, res) => {
          last_watched_at = NOW(),
          last_position = $6,
          actual_watched_seconds = video_progress.actual_watched_seconds + $7`,
-      [studentId, video_id, watch_count_increment || 0, watched_minutes || 0, progress_percentage || 0, last_position || 0, Math.max(0, Math.min(actual_watched_seconds || 0, 3600))]
+      [studentId, video_id, watch_count_increment || 0, safeWatchedMinutes, serverProgress, last_position || 0, safeWatchedSeconds]
     );
 
     // ── Award course completion points if all videos watched (race-safe) ──
     try {
-      const videoRow = await pool.query('SELECT course_id FROM videos WHERE id=$1', [video_id]);
-      if (videoRow.rows.length && videoRow.rows[0].course_id) {
-        const courseId = videoRow.rows[0].course_id;
+      const courseRow = await pool.query('SELECT course_id FROM videos WHERE id=$1', [video_id]);
+      if (courseRow.rows.length && courseRow.rows[0].course_id) {
+        const courseId = courseRow.rows[0].course_id;
         const [courseRes, videosRes] = await Promise.all([
           pool.query('SELECT points_on_complete FROM courses WHERE id=$1', [courseId]),
           pool.query('SELECT id FROM videos WHERE course_id=$1', [courseId]),

@@ -4,6 +4,7 @@ const pool = require('../db/connection');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { sendEvent } = require('../sse');
 const { sendFCMToStudents } = require('../lib/fcm');
+const { getPermissions } = require('../lib/permissionsCache');
 
 const router = express.Router();
 router.use(authenticate);
@@ -20,13 +21,26 @@ const sendNotifLimiter = rateLimit({
 
 const getTeacherId = (req) => req.user.role === 'teacher' ? req.user.id : req.user.teacher_id;
 
-// ── Permission guard: can_send_notifications ────────────────────────
+// ── Permission guard: can_send_notifications (platform bulk notifications) ──
 const checkNotifPermission = async (req, res, next) => {
   if (req.user.role === 'teacher') return next();
   try {
-    const r = await pool.query('SELECT can_send_notifications FROM assistants WHERE id=$1', [req.user.id]);
-    if (!r.rows.length || !r.rows[0].can_send_notifications)
+    const perms = await getPermissions(req.user.id, pool);
+    if (!perms || !perms.can_send_notifications)
       return res.status(403).json({ error: 'Access denied: missing permission (can_send_notifications)' });
+    next();
+  } catch {
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+// ── Permission guard: can_send_reports (WhatsApp / individual student reports) ──
+const checkSendReportsPermission = async (req, res, next) => {
+  if (req.user.role === 'teacher') return next();
+  try {
+    const perms = await getPermissions(req.user.id, pool);
+    if (!perms || !perms.can_send_reports)
+      return res.status(403).json({ error: 'Access denied: missing permission (can_send_reports)' });
     next();
   } catch {
     res.status(500).json({ error: 'Server error' });
@@ -82,7 +96,7 @@ router.post('/fcm-token', requireRole('student'), async (req, res) => {
 });
 
 // ── Log a WhatsApp notification ─────────────────────────────────────
-router.post('/log', requireRole('teacher', 'assistant'), checkNotifPermission, async (req, res) => {
+router.post('/log', requireRole('teacher', 'assistant'), checkSendReportsPermission, async (req, res) => {
   const teacherId = getTeacherId(req);
   const { student_id, recipient_phone, recipient_type, message } = req.body;
   if (!message?.trim()) return res.status(400).json({ error: 'الرسالة مطلوبة' });
