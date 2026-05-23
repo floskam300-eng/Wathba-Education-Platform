@@ -378,6 +378,10 @@ CREATE INDEX IF NOT EXISTS idx_courses_teacher_id ON courses(teacher_id);
 CREATE INDEX IF NOT EXISTS idx_enrollment_student_id ON student_course_enrollment(student_id);
 CREATE INDEX IF NOT EXISTS idx_enrollment_course_id ON student_course_enrollment(course_id);
 
+-- ── Exam result attempt tracking (preserve retry history) — must come before index ──
+ALTER TABLE exam_results ADD COLUMN IF NOT EXISTS attempt_number INTEGER DEFAULT 1;
+ALTER TABLE exam_results ADD COLUMN IF NOT EXISTS is_latest BOOLEAN DEFAULT true;
+
 -- ── Prevent duplicate LATEST submissions (partial unique index) ──────────────
 -- Drop the old full UNIQUE constraint that blocked retry history rows
 DO $$
@@ -540,9 +544,7 @@ CREATE TABLE IF NOT EXISTS activity_logs (
 CREATE INDEX IF NOT EXISTS idx_activity_logs_teacher
   ON activity_logs (teacher_id, created_at DESC);
 
--- ── Exam result attempt tracking (preserve retry history) ────────────────────
-ALTER TABLE exam_results ADD COLUMN IF NOT EXISTS attempt_number INTEGER DEFAULT 1;
-ALTER TABLE exam_results ADD COLUMN IF NOT EXISTS is_latest BOOLEAN DEFAULT true;
+-- ── Additional index for exam result attempt tracking ────────────────────────
 CREATE INDEX IF NOT EXISTS idx_exam_results_latest
   ON exam_results (student_id, exam_id, is_latest);
 
