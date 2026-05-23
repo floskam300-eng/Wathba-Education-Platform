@@ -7,8 +7,8 @@ export default {
       colors: {
         navy: {
           DEFAULT: '#1A2E4A',
-          50: '#B8CCDB',
-          100: '#A0B8CC',
+          50: '#E4E8EC',
+          100: '#D6DCE2',
           200: '#9FBBD5',
           300: '#6B93B8',
           400: '#3A6A99',
