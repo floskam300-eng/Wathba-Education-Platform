@@ -509,3 +509,21 @@ CREATE TABLE IF NOT EXISTS activity_logs (
 );
 CREATE INDEX IF NOT EXISTS idx_activity_logs_teacher
   ON activity_logs (teacher_id, created_at DESC);
+
+-- ── Exam result attempt tracking (preserve retry history) ────────────────────
+ALTER TABLE exam_results ADD COLUMN IF NOT EXISTS attempt_number INTEGER DEFAULT 1;
+ALTER TABLE exam_results ADD COLUMN IF NOT EXISTS is_latest BOOLEAN DEFAULT true;
+CREATE INDEX IF NOT EXISTS idx_exam_results_latest
+  ON exam_results (student_id, exam_id, is_latest);
+
+-- ── Game session tokens (anti-cheat for Stickman Run) ────────────────────────
+CREATE TABLE IF NOT EXISTS game_session_tokens (
+  id          SERIAL PRIMARY KEY,
+  student_id  INTEGER REFERENCES students(id) ON DELETE CASCADE,
+  token       VARCHAR(64) UNIQUE NOT NULL,
+  event_id    VARCHAR(50) NOT NULL,
+  created_at  TIMESTAMP DEFAULT NOW(),
+  used_at     TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_game_tokens_student
+  ON game_session_tokens (student_id, event_id, created_at DESC);

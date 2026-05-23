@@ -4,6 +4,16 @@
 
 const EGYPTIAN_PHONE_RE = /^01[0125][0-9]{8}$/;
 
+const VALID_STAGES = [
+  'الصف الأول الثانوي',
+  'الصف الثاني الثانوي',
+  'الصف الثالث الثانوي',
+  'الصف الأول الإعدادي',
+  'الصف الثاني الإعدادي',
+  'الصف الثالث الإعدادي',
+];
+const VALID_GENDERS = ['ذكر', 'أنثى'];
+
 function checkPhone(phone) {
   if (!phone || !String(phone).trim()) return null;
   const cleaned = String(phone).replace(/[\s\-]/g, '');
@@ -21,9 +31,17 @@ function validateStudent(req, res, next) {
   const { name, phone, parent_phone, password } = req.body;
   const errors = {};
 
+  const { academic_stage, gender } = req.body;
+
   if (!name || !String(name).trim()) errors.name = 'اسم الطالب مطلوب';
   else if (String(name).trim().length < 2) errors.name = 'الاسم يجب أن يكون حرفين على الأقل';
   else if (String(name).trim().length > 100) errors.name = 'الاسم طويل جداً (الحد الأقصى 100 حرف)';
+
+  if (academic_stage && !VALID_STAGES.includes(academic_stage))
+    errors.academic_stage = `المرحلة الدراسية غير صالحة — القيم المسموح بها: ${VALID_STAGES.join('، ')}`;
+
+  if (gender && !VALID_GENDERS.includes(gender))
+    errors.gender = `الجنس يجب أن يكون: ${VALID_GENDERS.join(' أو ')}`;
 
   const phoneErr = checkPhone(phone);
   if (phoneErr) errors.phone = phoneErr;

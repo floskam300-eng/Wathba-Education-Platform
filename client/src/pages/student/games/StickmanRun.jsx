@@ -354,6 +354,7 @@ export default function StickmanRun({ onClose, academicStage }) {
   const handleAnswerRef = useRef(null);
   const startFightRef   = useRef(null);
   const teacherImgs = useRef({});
+  const sessionTokenRef = useRef(null);
 
   const [phase, setPhase]             = useState('loading');
   const [dialogueUI, setDialogueUI]   = useState(null);
@@ -467,7 +468,7 @@ export default function StickmanRun({ onClose, academicStage }) {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ pointsEarned: pts, bossesDefeated: def }),
+        body: JSON.stringify({ pointsEarned: pts, bossesDefeated: def, sessionToken: sessionTokenRef.current }),
         keepalive: true,
       })
         .then(r => r.json())
@@ -658,7 +659,18 @@ export default function StickmanRun({ onClose, academicStage }) {
     };
   }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const startGame = () => {
+  const startGame = async () => {
+    try {
+      const res = await api.post('/events/weekly-run/start');
+      if (!res.data.success) {
+        setPhase('already_played');
+        return;
+      }
+      sessionTokenRef.current = res.data.sessionToken;
+    } catch {
+      toast.error('تعذّر بدء اللعبة — تأكد من اتصالك بالإنترنت');
+      return;
+    }
     stateRef.current = makeInitState();
     setLives(3); setBossesDefeated(0); setTotalPoints(0);
     bossActiveRef.current = false;

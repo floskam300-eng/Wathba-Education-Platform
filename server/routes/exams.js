@@ -434,7 +434,7 @@ router.post('/:id/retry-request', requireRole('student'), async (req, res) => {
   const { message } = req.body;
   try {
     const taken = await pool.query(
-      'SELECT id, score FROM exam_results WHERE student_id=$1 AND exam_id=$2',
+      'SELECT id, score FROM exam_results WHERE student_id=$1 AND exam_id=$2 AND is_latest=true',
       [studentId, examId]
     );
     if (!taken.rows.length) return res.status(400).json({ error: 'لم تؤدِ هذا الاختبار بعد' });
@@ -589,7 +589,7 @@ router.get('/student/available', requireRole('student'), async (req, res) => {
        FROM exams e
        LEFT JOIN courses c ON e.course_id = c.id
        LEFT JOIN student_course_enrollment sce ON e.course_id = sce.course_id AND sce.student_id = $1
-       LEFT JOIN exam_results er ON e.id = er.exam_id AND er.student_id = $1
+       LEFT JOIN exam_results er ON e.id = er.exam_id AND er.student_id = $1 AND er.is_latest = true
          AND NOT EXISTS (
            SELECT 1 FROM exam_retry_requests rr
            WHERE rr.student_id = $1 AND rr.exam_id = e.id AND rr.status = 'approved'
@@ -708,7 +708,7 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
   let eligibilityRow, questionsData, serverSession;
   try {
     const existing = await pool.query(
-      'SELECT id FROM exam_results WHERE student_id=$1 AND exam_id=$2',
+      'SELECT id FROM exam_results WHERE student_id=$1 AND exam_id=$2 AND is_latest=true',
       [studentId, examId]
     );
     if (existing.rows.length > 0) {
@@ -814,16 +814,22 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    // Retry path: deduct old points + remove old result + mark retry as used
+    // Retry path: deduct old points + archive old result + mark retry as used
     const existingCheck = await client.query(
-      'SELECT points_earned FROM exam_results WHERE student_id=$1 AND exam_id=$2 FOR UPDATE',
+      'SELECT id, points_earned, attempt_number FROM exam_results WHERE student_id=$1 AND exam_id=$2 AND is_latest=true FOR UPDATE',
       [studentId, examId]
     );
+    let nextAttemptNumber = 1;
     if (existingCheck.rows.length > 0) {
       const oldPts = existingCheck.rows[0].points_earned || 0;
+      nextAttemptNumber = (existingCheck.rows[0].attempt_number || 1) + 1;
       if (oldPts > 0)
         await client.query('UPDATE students SET points = GREATEST(0, points - $1) WHERE id=$2', [oldPts, studentId]);
-      await client.query('DELETE FROM exam_results WHERE student_id=$1 AND exam_id=$2', [studentId, examId]);
+      // Archive old result instead of deleting — preserves history
+      await client.query(
+        'UPDATE exam_results SET is_latest=false WHERE student_id=$1 AND exam_id=$2',
+        [studentId, examId]
+      );
       await client.query(
         "UPDATE exam_retry_requests SET status='used', handled_at=NOW() WHERE student_id=$1 AND exam_id=$2 AND status='approved'",
         [studentId, examId]
@@ -836,10 +842,10 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
       ? new Date(serverSession.started_at)
       : new Date(Date.now() - durationMs);
 
-    // Insert new result
+    // Insert new result with incremented attempt number
     const resultRow = await client.query(
-      'INSERT INTO exam_results (student_id,exam_id,score,correct_count,wrong_count,unanswered_count,start_time,end_time,answers,points_earned) VALUES($1,$2,$3,$4,$5,$6,$7,NOW(),$8,$9) RETURNING *',
-      [studentId, examId, normalizedScore, correct, wrong, unanswered, safeStartTime, JSON.stringify(detailedAnswers), pointsEarned]
+      'INSERT INTO exam_results (student_id,exam_id,score,correct_count,wrong_count,unanswered_count,start_time,end_time,answers,points_earned,attempt_number,is_latest) VALUES($1,$2,$3,$4,$5,$6,$7,NOW(),$8,$9,$10,true) RETURNING *',
+      [studentId, examId, normalizedScore, correct, wrong, unanswered, safeStartTime, JSON.stringify(detailedAnswers), pointsEarned, nextAttemptNumber]
     );
 
     if (pointsEarned > 0)
@@ -881,7 +887,7 @@ router.get('/student/course-results/:courseId', requireRole('student'), async (r
               e.title as exam_title, e.total_score, e.pass_score, e.id as exam_id
        FROM exam_results er
        JOIN exams e ON er.exam_id = e.id
-       WHERE er.student_id = $1 AND e.course_id = $2
+       WHERE er.student_id = $1 AND e.course_id = $2 AND er.is_latest = true
        ORDER BY er.created_at DESC`,
       [req.user.id, req.params.courseId]
     );

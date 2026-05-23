@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const pool = require('../db/connection');
 const { authenticate, requireRole } = require('../middleware/auth');
 
@@ -21,6 +22,34 @@ const getWeekStart = () => {
   return cairoMidnightUtc;
 };
 
+// ── Start game session — issues a one-time token to verify real play ──
+router.post('/weekly-run/start', requireRole('student'), async (req, res) => {
+  try {
+    const weekStart = getWeekStart();
+    // Check if already played this week
+    const { rows: played } = await pool.query(
+      `SELECT id FROM event_plays WHERE student_id=$1 AND event_id='weekly_run' AND played_at >= $2`,
+      [req.user.id, weekStart.toISOString()]
+    );
+    if (played.length > 0) {
+      return res.json({ success: false, message: 'already_played' });
+    }
+    // Clean up expired tokens for this student (older than 2 hours)
+    await pool.query(
+      `DELETE FROM game_session_tokens WHERE student_id=$1 AND event_id='weekly_run' AND created_at < NOW() - INTERVAL '2 hours'`,
+      [req.user.id]
+    );
+    const token = crypto.randomBytes(32).toString('hex');
+    await pool.query(
+      `INSERT INTO game_session_tokens (student_id, token, event_id) VALUES ($1, $2, 'weekly_run')`,
+      [req.user.id, token]
+    );
+    res.json({ success: true, sessionToken: token });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/weekly-run/status', requireRole('student'), async (req, res) => {
   try {
     const weekStart = getWeekStart();
@@ -41,6 +70,11 @@ router.get('/weekly-run/status', requireRole('student'), async (req, res) => {
 });
 
 router.post('/weekly-run/finish', requireRole('student'), async (req, res) => {
+  const { sessionToken } = req.body;
+  if (!sessionToken) {
+    return res.status(400).json({ error: 'مطلوب رمز جلسة اللعبة — ابدأ اللعبة من الصفحة الرسمية' });
+  }
+
   // Server-side validation: cap values to prevent cheating
   const MAX_BOSSES = 3;
   const MAX_POINTS_PER_BOSS = 200;
@@ -51,6 +85,25 @@ router.post('/weekly-run/finish', requireRole('student'), async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+
+    // Validate session token — must exist, unused, belong to this student, and be < 2 hours old
+    const tokenCheck = await client.query(
+      `SELECT id FROM game_session_tokens
+       WHERE token=$1 AND student_id=$2 AND event_id='weekly_run'
+         AND used_at IS NULL AND created_at > NOW() - INTERVAL '2 hours'
+       FOR UPDATE`,
+      [sessionToken, req.user.id]
+    );
+    if (!tokenCheck.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ error: 'رمز جلسة اللعبة غير صالح أو منتهي الصلاحية — ابدأ اللعبة من جديد' });
+    }
+    // Mark token as used
+    await client.query(
+      `UPDATE game_session_tokens SET used_at=NOW() WHERE id=$1`,
+      [tokenCheck.rows[0].id]
+    );
+
     const weekStart = getWeekStart();
     const existing = await client.query(
       `SELECT id FROM event_plays

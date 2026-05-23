@@ -13,6 +13,16 @@ const JWT_SECRET = process.env.JWT_SECRET;
 const _studentCache = new Map();
 const CACHE_TTL_MS = 30_000; // 30 seconds
 
+// Purge stale/expired entries every 5 minutes to prevent memory leak
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of _studentCache.entries()) {
+    if (now - entry.at > CACHE_TTL_MS * 10) {
+      _studentCache.delete(key);
+    }
+  }
+}, 5 * 60 * 1000);
+
 const authenticate = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   let token = null;

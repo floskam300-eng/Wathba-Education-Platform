@@ -11,9 +11,11 @@ const { sendFCMToStudents } = require('./lib/fcm');
 
 let _pool = null;
 let _intervalId = null;
+let _isRunning = false;
 
 async function runCheck() {
-  if (!_pool) return;
+  if (!_pool || _isRunning) return;
+  _isRunning = true;
   try {
     const { rows: exams } = await _pool.query(`
       SELECT id, title, course_id, teacher_id
@@ -48,12 +50,12 @@ async function runCheck() {
           });
         }
 
-        sendFCMToStudents(_pool, studentIds, 'بدأ الاختبار الآن!', `⏰ يمكنك الدخول الآن لأداء اختبار: "${exam.title}"`, { examId: String(exam.id) }).catch(() => {});
-
         await _pool.query(
           'UPDATE exams SET start_notified = true WHERE id = $1',
           [exam.id]
         );
+
+        sendFCMToStudents(_pool, studentIds, 'بدأ الاختبار الآن!', `⏰ يمكنك الدخول الآن لأداء اختبار: "${exam.title}"`, { examId: String(exam.id) }).catch(() => {});
 
         console.log(`[Scheduler] Notified ${studentIds.length} students: exam "${exam.title}" (id=${exam.id}) started`);
       } catch (examErr) {
@@ -62,6 +64,8 @@ async function runCheck() {
     }
   } catch (err) {
     console.error('[Scheduler] DB error during check:', err.message);
+  } finally {
+    _isRunning = false;
   }
 }
 

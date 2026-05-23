@@ -109,11 +109,11 @@ const uploadPdf = multer({
 });
 
 // Wraps a multer middleware and returns clean JSON errors instead of HTML
-const withMulterErrors = (upload) => (req, res, next) => {
+const withMulterErrors = (upload, limitLabel) => (req, res, next) => {
   upload(req, res, (err) => {
     if (!err) return next();
     if (err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ error: 'حجم الملف يتجاوز الحد المسموح به (50 MB)' });
+      return res.status(400).json({ error: `حجم الملف يتجاوز الحد المسموح به (${limitLabel || '50 MB'})` });
     }
     return res.status(400).json({ error: err.message || 'خطأ في رفع الملف' });
   });
@@ -508,7 +508,7 @@ router.post('/:id/videos/url', requireRole('teacher', 'assistant'), checkManageC
   }
 });
 
-router.post('/:id/videos/upload', requireRole('teacher', 'assistant'), checkManageCoursesPerm, preCheckOwnership, withMulterErrors(uploadVideo.single('video')), async (req, res) => {
+router.post('/:id/videos/upload', requireRole('teacher', 'assistant'), checkManageCoursesPerm, preCheckOwnership, withMulterErrors(uploadVideo.single('video'), '500 MB'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No video file uploaded' });
     const { title, duration_minutes, sort_order, section_id } = req.body;

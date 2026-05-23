@@ -55,9 +55,12 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
+    const slug = localStorage.getItem('wathba_teacher_slug');
     localStorage.removeItem('wathba_token');
     localStorage.removeItem('wathba_user');
+    localStorage.removeItem('wathba_teacher_slug');
     setUser(null);
+    navigate(slug ? `/${slug}/login` : '/', { replace: true });
   };
 
   const updateUser = (updates) => {

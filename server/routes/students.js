@@ -1,5 +1,6 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const rateLimit = require('express-rate-limit');
 const pool = require('../db/connection');
 const { authenticate, requireRole, invalidateStudentAuthCache } = require('../middleware/auth');
 const { invalidateCache } = require('../lib/analyticsCache');
@@ -9,6 +10,15 @@ const { logActivity, getActor, getIp } = require('../lib/activityLog');
 
 const router = express.Router();
 router.use(authenticate);
+
+// Rate limiter for student creation — 30 per minute per IP
+const addStudentLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'محاولات إضافة طلاب كثيرة جداً، حاول مرة أخرى بعد دقيقة' },
+});
 
 const getTeacherId = (req) => {
   if (req.user.role === 'teacher') return req.user.id;
@@ -107,7 +117,7 @@ const checkPermission = async (req, res, next, perm) => {
   }
 };
 
-router.post('/', requireRole('teacher', 'assistant'), (req, res, next) => checkPermission(req, res, next, 'can_add_students'), validateStudent, async (req, res) => {
+router.post('/', addStudentLimiter, requireRole('teacher', 'assistant'), (req, res, next) => checkPermission(req, res, next, 'can_add_students'), validateStudent, async (req, res) => {
   const teacherId = getTeacherId(req);
   const { name, phone, parent_phone, academic_stage, gender } = req.body;
   // Auto-generate 6-digit numeric password
