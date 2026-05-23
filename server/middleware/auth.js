@@ -6,24 +6,23 @@ if (!process.env.JWT_SECRET) {
   process.exit(1);
 }
 
-const JWT_SECRET = process.env.JWT_SECRET;
-
-// Simple TTL cache — avoids a DB query on every student/assistant request
-// Entry: { valid: boolean, at: number (ms) }
-const _studentCache = new Map();
-const _assistantCache = new Map();
+const JWT_SECRET  = process.env.JWT_SECRET;
 const CACHE_TTL_MS = 30_000; // 30 seconds
 
-// Purge stale/expired entries every 5 minutes to prevent memory leak
+// Simple TTL cache — avoids a DB query on every request
+// Entry: { valid: boolean, at: number (ms) }
+const _studentCache  = new Map();
+const _assistantCache = new Map();
+const _teacherCache   = new Map();
+
+// Purge stale entries every 5 minutes to prevent unbounded growth
 setInterval(() => {
-  const now = Date.now();
-  for (const [key, entry] of _studentCache.entries()) {
-    if (now - entry.at > CACHE_TTL_MS * 10) _studentCache.delete(key);
-  }
-  for (const [key, entry] of _assistantCache.entries()) {
-    if (now - entry.at > CACHE_TTL_MS * 10) _assistantCache.delete(key);
-  }
-}, 5 * 60 * 1000);
+  const now    = Date.now();
+  const cutoff = CACHE_TTL_MS * 10;
+  for (const [k, e] of _studentCache.entries())  if (now - e.at > cutoff) _studentCache.delete(k);
+  for (const [k, e] of _assistantCache.entries()) if (now - e.at > cutoff) _assistantCache.delete(k);
+  for (const [k, e] of _teacherCache.entries())   if (now - e.at > cutoff) _teacherCache.delete(k);
+}, 5 * 60 * 1000).unref();
 
 const authenticate = async (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -31,21 +30,33 @@ const authenticate = async (req, res, next) => {
   if (authHeader && authHeader.startsWith('Bearer ')) {
     token = authHeader.split(' ')[1];
   }
-  // Note: req.query.token is intentionally NOT supported — URL tokens leak into
-  // server access logs and HTTP Referer headers, which is a security risk.
   if (!token) {
     return res.status(401).json({ error: 'No token provided' });
   }
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
 
-    // For students: verify the account hasn't been soft-deleted since token was issued
+    // ── Teacher: verify account still exists in DB ──────────────────────────
+    if (decoded.role === 'teacher') {
+      const now    = Date.now();
+      const cached = _teacherCache.get(decoded.id);
+      if (!cached || now - cached.at > CACHE_TTL_MS) {
+        const check = await pool.query('SELECT id FROM teachers WHERE id = $1', [decoded.id]);
+        const valid = check.rows.length > 0;
+        _teacherCache.set(decoded.id, { valid, at: now });
+        if (!valid) return res.status(401).json({ error: 'الحساب غير نشط أو تم حذفه' });
+      } else if (!cached.valid) {
+        return res.status(401).json({ error: 'الحساب غير نشط أو تم حذفه' });
+      }
+    }
+
+    // ── Student: verify account hasn't been soft-deleted ───────────────────
     if (decoded.role === 'student') {
-      const now = Date.now();
+      const now    = Date.now();
       const cached = _studentCache.get(decoded.id);
       if (!cached || now - cached.at > CACHE_TTL_MS) {
         const check = await pool.query(
-          'SELECT id FROM students WHERE id=$1 AND deleted_at IS NULL',
+          'SELECT id FROM students WHERE id = $1 AND deleted_at IS NULL',
           [decoded.id]
         );
         const valid = check.rows.length > 0;
@@ -56,15 +67,12 @@ const authenticate = async (req, res, next) => {
       }
     }
 
-    // For assistants: verify the account still exists (catches deleted assistants)
+    // ── Assistant: verify account still exists ──────────────────────────────
     if (decoded.role === 'assistant') {
-      const now = Date.now();
+      const now    = Date.now();
       const cached = _assistantCache.get(decoded.id);
       if (!cached || now - cached.at > CACHE_TTL_MS) {
-        const check = await pool.query(
-          'SELECT id FROM assistants WHERE id=$1',
-          [decoded.id]
-        );
+        const check = await pool.query('SELECT id FROM assistants WHERE id = $1', [decoded.id]);
         const valid = check.rows.length > 0;
         _assistantCache.set(decoded.id, { valid, at: now });
         if (!valid) return res.status(401).json({ error: 'الحساب غير نشط أو تم حذفه' });
@@ -80,13 +88,17 @@ const authenticate = async (req, res, next) => {
   }
 };
 
-// Expose cache invalidation so delete endpoints can immediately block the token
+// Expose cache invalidation so delete endpoints can immediately block tokens
 const invalidateStudentAuthCache = (studentId) => {
   _studentCache.set(studentId, { valid: false, at: Date.now() });
 };
 
 const invalidateAssistantAuthCache = (assistantId) => {
   _assistantCache.set(assistantId, { valid: false, at: Date.now() });
+};
+
+const invalidateTeacherAuthCache = (teacherId) => {
+  _teacherCache.set(teacherId, { valid: false, at: Date.now() });
 };
 
 const requireRole = (...roles) => (req, res, next) => {
@@ -98,4 +110,11 @@ const requireRole = (...roles) => (req, res, next) => {
 
 const generateToken = (payload) => jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
 
-module.exports = { authenticate, requireRole, generateToken, invalidateStudentAuthCache, invalidateAssistantAuthCache };
+module.exports = {
+  authenticate,
+  requireRole,
+  generateToken,
+  invalidateStudentAuthCache,
+  invalidateAssistantAuthCache,
+  invalidateTeacherAuthCache,
+};

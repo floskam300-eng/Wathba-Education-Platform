@@ -4,6 +4,7 @@ import { Trophy, GraduationCap, History, RotateCcw, ChevronDown, ChevronUp, Cloc
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
 import { useTheme } from '../../context/ThemeContext';
+import ConfirmDialog from '../../components/ui/ConfirmDialog';
 
 const MEDAL = ['🥇', '🥈', '🥉'];
 
@@ -109,6 +110,7 @@ export default function TeacherLeaderboard() {
   const { dark } = useTheme();
   const [stageFilter, setStageFilter] = useState('الكل');
   const [tab, setTab] = useState('current');
+  const [confirmReset, setConfirmReset] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: lbData = {}, isLoading } = useQuery({
@@ -155,10 +157,7 @@ export default function TeacherLeaderboard() {
 
   const top3 = filtered.slice(0, 3);
 
-  const handleReset = () => {
-    if (!window.confirm('هل أنت متأكد؟ سيتم حفظ ترتيب الشهر الحالي ثم تصفير جميع نقاط الطلاب.')) return;
-    resetMutation.mutate();
-  };
+  const handleReset = () => setConfirmReset(true);
 
   return (
     <div className="space-y-6">
@@ -330,6 +329,16 @@ export default function TeacherLeaderboard() {
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmReset}
+        onClose={() => setConfirmReset(false)}
+        title="تصفير لوحة المتصدرين"
+        message="سيتم حفظ ترتيب الشهر الحالي في السجل التاريخي ثم تصفير جميع نقاط الطلاب. هل أنت متأكد؟"
+        confirmLabel="نعم، تصفير الآن"
+        danger
+        onConfirm={() => { setConfirmReset(false); resetMutation.mutate(); }}
+      />
     </div>
   );
 }

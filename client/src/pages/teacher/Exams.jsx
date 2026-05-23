@@ -172,6 +172,7 @@ export default function TeacherExams() {
     mutationFn: ({ id, data }) => api.post(`/exams/${id}/questions`, data),
     onSuccess: () => {
       qc.invalidateQueries(['questions', expandedExam]);
+      qc.invalidateQueries(['exams']);
       toast.success('تم إضافة السؤال');
       setQForm(emptyQ);
       setImageFile(null);
@@ -185,6 +186,7 @@ export default function TeacherExams() {
     mutationFn: ({ qid, data }) => api.put(`/exams/questions/${qid}`, data),
     onSuccess: () => {
       qc.invalidateQueries(['questions', expandedExam]);
+      qc.invalidateQueries(['exams']);
       toast.success('تم تحديث السؤال');
       setEditQ(null);
       setQForm(emptyQ);
@@ -197,7 +199,11 @@ export default function TeacherExams() {
 
   const deleteQMut = useMutation({
     mutationFn: (qid) => api.delete(`/exams/questions/${qid}`),
-    onSuccess: () => { qc.invalidateQueries(['questions', expandedExam]); toast.success('تم حذف السؤال'); },
+    onSuccess: () => {
+      qc.invalidateQueries(['questions', expandedExam]);
+      qc.invalidateQueries(['exams']);
+      toast.success('تم حذف السؤال');
+    },
   });
 
   const [formErrors, setFormErrors] = useState({});

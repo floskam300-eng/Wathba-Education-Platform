@@ -65,8 +65,9 @@ const uploadsAuthMiddleware = (req, res, next) => {
     return res.status(401).send('Unauthorized');
   }
 };
-app.use('/uploads/pdfs',   uploadsAuthMiddleware, express.static(path.join(__dirname, '../uploads/pdfs')));
-app.use('/uploads/videos', uploadsAuthMiddleware, express.static(path.join(__dirname, '../uploads/videos')));
+app.use('/uploads/pdfs',             uploadsAuthMiddleware, express.static(path.join(__dirname, '../uploads/pdfs')));
+app.use('/uploads/videos',           uploadsAuthMiddleware, express.static(path.join(__dirname, '../uploads/videos')));
+app.use('/uploads/question-images',  uploadsAuthMiddleware, express.static(path.join(__dirname, '../uploads/question-images')));
 // Images and thumbnails remain public (needed for login page / course cards)
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import axios from 'axios';
+import axios from 'axios'; // kept for axios.isCancel only
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   BookOpen, Plus, Pencil, Trash2, Video, FileText, Users,
@@ -142,8 +142,7 @@ function PdfUploadSection({ courseId, onSuccess, sections = [] }) {
     setProgress(0);
     controllerRef.current = new AbortController();
     try {
-      await axios.post(`/api/courses/${courseId}/pdfs/upload`, fd, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('wathba_token')}` },
+      await api.post(`/api/courses/${courseId}/pdfs/upload`, fd, {
         signal: controllerRef.current.signal,
         onUploadProgress: e => {
           const pct = Math.round((e.loaded / e.total) * 100);

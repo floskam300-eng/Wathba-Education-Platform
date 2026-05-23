@@ -125,8 +125,7 @@ CREATE TABLE IF NOT EXISTS video_progress (
   actual_watched_seconds INTEGER DEFAULT 0,
   UNIQUE(student_id, video_id)
 );
-ALTER TABLE video_progress ADD COLUMN IF NOT EXISTS last_position DECIMAL(10,2) DEFAULT 0;
-ALTER TABLE video_progress ADD COLUMN IF NOT EXISTS actual_watched_seconds INTEGER DEFAULT 0;
+-- last_position and actual_watched_seconds already defined in CREATE TABLE above — no ALTER needed
 
 CREATE TABLE IF NOT EXISTS payments (
   id SERIAL PRIMARY KEY,
@@ -494,12 +493,27 @@ CREATE INDEX IF NOT EXISTS idx_payments_date             ON payments(payment_dat
 CREATE INDEX IF NOT EXISTS idx_live_chat_stream_id       ON live_chat_messages(stream_id);
 
 -- ── Partial unique index: allow username reuse after soft-delete ──────────────
+-- Drop the old global UNIQUE constraint so the partial index below can take over
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'students_username_key') THEN
+    ALTER TABLE students DROP CONSTRAINT students_username_key;
+  END IF;
+END $$;
+
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'uq_students_username_active') THEN
     CREATE UNIQUE INDEX uq_students_username_active ON students(username) WHERE deleted_at IS NULL;
   END IF;
 END $$;
+
+-- ── Missing performance indexes (audit fix) ────────────────────────────────
+CREATE INDEX IF NOT EXISTS idx_students_phone         ON students(phone);
+CREATE INDEX IF NOT EXISTS idx_students_parent_phone  ON students(parent_phone);
+CREATE INDEX IF NOT EXISTS idx_exams_dates            ON exams(start_date, end_date);
+CREATE INDEX IF NOT EXISTS idx_enrollment_req_status  ON course_enrollment_requests(status);
+CREATE INDEX IF NOT EXISTS idx_exam_results_is_latest ON exam_results(student_id, exam_id) WHERE is_latest = true;
 
 -- ── CHECK constraint: enforce valid payment status values ─────────────────────
 DO $$

@@ -7,24 +7,79 @@ const { logActivity, getIp } = require('../lib/activityLog');
 
 const router = express.Router();
 
+// ── IP-level rate limiter (outer defense) ──────────────────────────────────
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 15,
+  max: 30,
   message: { error: 'محاولات تسجيل دخول كثيرة، حاول مرة أخرى بعد 15 دقيقة' },
   standardHeaders: true,
   legacyHeaders: false,
-  skipSuccessfulRequests: false,
+  skipSuccessfulRequests: true,
 });
 
+// ── Per-username brute-force protection (5 attempts → 60s lockout) ─────────
+const MAX_ATTEMPTS  = 5;
+const LOCKOUT_MS    = 60 * 1000; // 1 minute
+const loginAttempts = new Map(); // key: `${slug|'_'}:${username}`
+
+// Purge stale entries every 10 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of loginAttempts.entries()) {
+    const expiry = (val.lockedUntil || val.firstAttempt) + LOCKOUT_MS * 20;
+    if (now > expiry) loginAttempts.delete(key);
+  }
+}, 10 * 60 * 1000).unref();
+
+function getAttemptKey(slug, username) {
+  return `${slug || '_'}:${(username || '').toLowerCase()}`;
+}
+
+// Returns remaining lockout seconds, or null if not locked
+function checkLockout(key) {
+  const entry = loginAttempts.get(key);
+  if (!entry || !entry.lockedUntil) return null;
+  if (Date.now() < entry.lockedUntil) {
+    return Math.ceil((entry.lockedUntil - Date.now()) / 1000);
+  }
+  loginAttempts.delete(key); // expired — clear
+  return null;
+}
+
+function recordFailure(key) {
+  const now  = Date.now();
+  const entry = loginAttempts.get(key) || { count: 0, firstAttempt: now, lockedUntil: null };
+  entry.count += 1;
+  if (entry.count >= MAX_ATTEMPTS) {
+    entry.lockedUntil = now + LOCKOUT_MS;
+  }
+  loginAttempts.set(key, entry);
+}
+
+function clearAttempts(key) {
+  loginAttempts.delete(key);
+}
+
+// ── POST /api/auth/login ────────────────────────────────────────────────────
 router.post('/login', loginLimiter, async (req, res) => {
   const { username, password, role, slug } = req.body;
   if (!username || !password) {
     return res.status(400).json({ error: 'Username and password are required' });
   }
 
+  // Check per-username lockout BEFORE hitting the DB
+  const attemptKey   = getAttemptKey(slug, username);
+  const lockedSecs   = checkLockout(attemptKey);
+  if (lockedSecs !== null) {
+    return res.status(429).json({
+      error: `تم تجميد الحساب مؤقتاً بسبب ${MAX_ATTEMPTS} محاولات فاشلة. حاول مرة أخرى بعد ${lockedSecs} ثانية`,
+      locked_seconds: lockedSecs,
+    });
+  }
+
   try {
     // Resolve teacher from slug (for tenant scoping)
-    let slugTeacherId = null;
+    let slugTeacherId   = null;
     let slugTeacherSlug = null;
     if (slug) {
       const tRes = await pool.query(
@@ -32,9 +87,10 @@ router.post('/login', loginLimiter, async (req, res) => {
         [slug]
       );
       if (tRes.rows.length === 0) {
+        recordFailure(attemptKey);
         return res.status(401).json({ error: 'بيانات الدخول غير صحيحة' });
       }
-      slugTeacherId = tRes.rows[0].id;
+      slugTeacherId   = tRes.rows[0].id;
       slugTeacherSlug = tRes.rows[0].slug;
     }
 
@@ -44,7 +100,6 @@ router.post('/login', loginLimiter, async (req, res) => {
       let result;
 
       if (r === 'teacher') {
-        // Scope teacher login to the slug if provided
         if (slugTeacherId) {
           result = await pool.query(
             'SELECT * FROM teachers WHERE username = $1 AND id = $2',
@@ -80,9 +135,15 @@ router.post('/login', loginLimiter, async (req, res) => {
 
       if (result.rows.length === 0) continue;
 
-      const user = result.rows[0];
+      const user  = result.rows[0];
       const valid = await bcrypt.compare(password, user.password);
-      if (!valid) return res.status(401).json({ error: 'بيانات الدخول غير صحيحة' });
+      if (!valid) {
+        recordFailure(attemptKey);
+        return res.status(401).json({ error: 'بيانات الدخول غير صحيحة' });
+      }
+
+      // Successful login — clear lockout tracker
+      clearAttempts(attemptKey);
 
       // Build payload with teacher_slug for all roles
       const payload = { id: user.id, role: r, username: user.username, name: user.name };
@@ -91,7 +152,6 @@ router.post('/login', loginLimiter, async (req, res) => {
         payload.teacher_slug = user.slug || slugTeacherSlug;
       } else {
         payload.teacher_id = user.teacher_id;
-        // Fetch teacher slug for student/assistant
         const teacherRes = await pool.query(
           'SELECT slug FROM teachers WHERE id = $1',
           [user.teacher_id]
@@ -126,6 +186,8 @@ router.post('/login', loginLimiter, async (req, res) => {
       });
     }
 
+    // No matching user found
+    recordFailure(attemptKey);
     return res.status(401).json({ error: 'بيانات الدخول غير صحيحة' });
   } catch (err) {
     console.error(err);
@@ -133,14 +195,14 @@ router.post('/login', loginLimiter, async (req, res) => {
   }
 });
 
+// ── GET /api/auth/me ────────────────────────────────────────────────────────
 router.get('/me', authenticate, async (req, res) => {
   try {
     const { id, role } = req.user;
 
     let result;
     if (role === 'teacher') {
-      const whereClause = 'WHERE id = $1';
-      result = await pool.query(`SELECT * FROM teachers ${whereClause}`, [id]);
+      result = await pool.query('SELECT * FROM teachers WHERE id = $1', [id]);
     } else if (role === 'assistant') {
       result = await pool.query(
         `SELECT a.*, t.slug as teacher_slug FROM assistants a
@@ -161,7 +223,6 @@ router.get('/me', authenticate, async (req, res) => {
 
     const { password: _, plain_password: __, fcm_token: ___, ...safeUser } = result.rows[0];
 
-    // For teacher, ensure teacher_slug is included
     if (role === 'teacher') {
       safeUser.teacher_slug = safeUser.slug;
     }
