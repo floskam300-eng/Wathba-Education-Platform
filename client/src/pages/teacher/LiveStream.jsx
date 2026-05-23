@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
@@ -46,17 +46,17 @@ function Toggle({ on, onClick }) {
 
 /* ── Student row (viewer list) ─────────────────────────────── */
 function StudentRow({ viewer, streamId, onRefresh }) {
-  const [awarding, setAwarding]     = useState(false);
-  const [pts, setPts]               = useState(5);
-  const [reason, setReason]         = useState('');
-  const [loading, setLoading]       = useState(false);
+  const [awarding, setAwarding]       = useState(false);
+  const [pts, setPts]                 = useState(5);
+  const [reason, setReason]           = useState('');
+  const [loading, setLoading]         = useState(false);
   const [permLoading, setPermLoading] = useState(false);
   const [kickLoading, setKickLoading] = useState(false);
   const [confirmKick, setConfirmKick] = useState(false);
 
   const handleAward = async () => {
     const p = parseInt(pts);
-    if (!p || p < 1) return;
+    if (!p || p < 1 || p > 1000) { toast.error('أدخل قيمة بين 1 و 1000'); return; }
     setLoading(true);
     try {
       await api.post(`/live/${streamId}/award-points`, { studentId: viewer.id, points: p, reason: reason || undefined });
@@ -104,7 +104,6 @@ function StudentRow({ viewer, streamId, onRefresh }) {
 
   return (
     <div className={`rounded-xl p-3 border transition-all mb-2 ${viewer.hand_raised ? 'border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20' : 'border-slate-200 dark:border-[rgba(230,175,80,0.12)] bg-white dark:bg-[#17151F]/80'}`}>
-      {/* ── Header row ── */}
       <div className="flex items-center gap-2 mb-2">
         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0 ${viewer.hand_raised ? 'bg-yellow-500' : 'bg-purple-600'}`}>
           {viewer.name?.charAt(0)}
@@ -124,7 +123,6 @@ function StudentRow({ viewer, streamId, onRefresh }) {
         )}
       </div>
 
-      {/* ── Permission + Kick controls ── */}
       <div className="flex gap-1 mb-2">
         <button
           onClick={() => handlePermission('can_speak', !canSpeak)}
@@ -170,7 +168,6 @@ function StudentRow({ viewer, streamId, onRefresh }) {
         )}
       </div>
 
-      {/* ── Award points ── */}
       {!awarding ? (
         <button onClick={() => setAwarding(true)}
           className="w-full flex items-center justify-center gap-1.5 text-xs font-bold py-1.5 rounded-lg bg-green-500 hover:bg-green-600 text-white transition-colors">
@@ -179,7 +176,7 @@ function StudentRow({ viewer, streamId, onRefresh }) {
       ) : (
         <div className="space-y-2 mt-1">
           <div className="flex gap-1.5">
-            <input type="number" min="1" max="500" value={pts} onChange={e => setPts(e.target.value)}
+            <input type="number" min="1" max="1000" value={pts} onChange={e => setPts(e.target.value)}
               className="w-16 text-center text-sm border border-slate-300 dark:border-[rgba(230,175,80,0.18)] rounded-lg px-2 py-1.5 bg-white dark:bg-[#1F1C2C] text-slate-800 dark:text-white" />
             <input type="text" placeholder="السبب (اختياري)" value={reason} onChange={e => setReason(e.target.value)}
               className="flex-1 text-xs border border-slate-300 dark:border-[rgba(230,175,80,0.18)] rounded-lg px-2 py-1.5 bg-white dark:bg-[#1F1C2C] text-slate-800 dark:text-white placeholder-[#8A7E72]" />
@@ -202,18 +199,23 @@ function StudentRow({ viewer, streamId, onRefresh }) {
 
 /* ── Viewers panel ─────────────────────────────────────────── */
 function ViewersPanel({ streamId, dark }) {
-  const [locked, setLocked]         = useState(false);
+  // FIX: locked state is now loaded from the server response (not guessed as false)
+  const [locked,      setLocked]      = useState(null);
   const [lockLoading, setLockLoading] = useState(false);
   const [muteLoading, setMuteLoading] = useState(false);
 
   const { data, refetch } = useQuery({
     queryKey: ['live-viewers', streamId],
-    queryFn:  () => api.get(`/live/${streamId}/viewers`).then(r => r.data.viewers),
+    queryFn:  () => api.get(`/live/${streamId}/viewers`).then(r => {
+      // Sync lock state from server
+      if (r.data.is_locked !== undefined) setLocked(!!r.data.is_locked);
+      return r.data.viewers;
+    }),
     refetchInterval: 6000,
     enabled:  !!streamId,
   });
-  const viewers = data || [];
-  const raised  = viewers.filter(v => v.hand_raised).length;
+  const viewers  = data || [];
+  const raised   = viewers.filter(v => v.hand_raised).length;
   const speaking = viewers.filter(v => v.can_speak).length;
 
   useEffect(() => {
@@ -252,9 +254,10 @@ function ViewersPanel({ streamId, dark }) {
     } finally { setLockLoading(false); }
   };
 
+  const isLocked = locked === true;
+
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
       <div className={`px-3 py-2 border-b flex-shrink-0 ${dark ? 'border-[rgba(230,175,80,0.12)]' : 'border-slate-200'}`}>
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
@@ -268,7 +271,6 @@ function ViewersPanel({ streamId, dark }) {
             </span>
           )}
         </div>
-        {/* Quick actions */}
         <div className="flex gap-1.5">
           <button
             onClick={handleMuteAll}
@@ -284,15 +286,15 @@ function ViewersPanel({ streamId, dark }) {
           </button>
           <button
             onClick={handleLock}
-            disabled={lockLoading}
-            title={locked ? 'فتح الغرفة للانضمام' : 'قفل الغرفة — منع طلاب جدد'}
+            disabled={lockLoading || locked === null}
+            title={isLocked ? 'فتح الغرفة للانضمام' : 'قفل الغرفة — منع طلاب جدد'}
             className={`flex-1 flex items-center justify-center gap-1 text-[11px] font-bold py-1.5 rounded-lg transition-colors disabled:opacity-50 ${
-              locked
+              isLocked
                 ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200'
                 : 'bg-slate-100 dark:bg-[#1F1C2C] text-slate-500 dark:text-[#C4B8AC] hover:bg-slate-200 dark:hover:bg-[#2a2740]'
             }`}>
-            {lockLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : locked ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
-            {locked ? 'مقفل' : 'قفل الغرفة'}
+            {lockLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : isLocked ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
+            {isLocked ? 'مقفل' : 'قفل الغرفة'}
           </button>
         </div>
       </div>
@@ -318,24 +320,55 @@ function ChatPanel({ stream, teacherName, dark }) {
   const [text, setText]                 = useState('');
   const [chatEnabled, setChatEnabled]   = useState(stream.chat_enabled !== false);
   const [sending, setSending]           = useState(false);
+  // FIX: track the timestamp of the last received message for incremental fetching
+  const lastMsgTimeRef = useRef(null);
   const bottomRef = useRef(null);
 
-  useQuery({
-    queryKey: ['live-chat', stream.id],
-    queryFn:  async () => {
-      const r = await api.get(`/live/${stream.id}/chat`);
-      setMessages(r.data.messages || []);
-      return r.data.messages;
-    },
-    refetchInterval: 3500,
-    enabled: !!stream.id,
-  });
+  // Initial fetch — get all messages
+  useEffect(() => {
+    api.get(`/live/${stream.id}/chat`).then(r => {
+      const msgs = r.data.messages || [];
+      setMessages(msgs);
+      if (msgs.length) {
+        lastMsgTimeRef.current = new Date(msgs[msgs.length - 1].sent_at).getTime();
+      }
+    }).catch(() => {});
+  }, [stream.id]);
 
+  // FIX: Poll only for NEW messages using `since` parameter — reduces server load significantly
+  useEffect(() => {
+    const fetchNew = async () => {
+      try {
+        const since = lastMsgTimeRef.current;
+        const url   = since ? `/live/${stream.id}/chat?since=${since}` : `/live/${stream.id}/chat`;
+        const r     = await api.get(url);
+        const newMsgs = r.data.messages || [];
+        if (newMsgs.length) {
+          setMessages(prev => {
+            const existingIds = new Set(prev.map(m => m.id));
+            const toAdd = newMsgs.filter(m => !existingIds.has(m.id));
+            if (!toAdd.length) return prev;
+            lastMsgTimeRef.current = new Date(newMsgs[newMsgs.length - 1].sent_at).getTime();
+            return [...prev, ...toAdd];
+          });
+        }
+      } catch (_) {}
+    };
+    const iv = setInterval(fetchNew, 4000);
+    return () => clearInterval(iv);
+  }, [stream.id]);
+
+  // SSE: instant chat messages
   useEffect(() => {
     const h = (e) => {
       const msg = e.detail;
-      if (String(msg.stream_id) === String(stream.id))
-        setMessages(prev => prev.find(m => m.id === msg.id) ? prev : [...prev, msg]);
+      if (String(msg.stream_id) === String(stream.id)) {
+        setMessages(prev => {
+          if (prev.find(m => m.id === msg.id)) return prev;
+          lastMsgTimeRef.current = new Date(msg.sent_at).getTime();
+          return [...prev, msg];
+        });
+      }
     };
     window.addEventListener('wathba_live_chat', h);
     return () => window.removeEventListener('wathba_live_chat', h);
@@ -418,7 +451,6 @@ function LiveView({ stream, user, dark, onEnd }) {
   const [ending, setEnding] = useState(false);
   const elapsed             = useElapsed(stream.started_at);
 
-  // ── Screen recording ────────────────────────────────────────
   const [recording, setRecording] = useState(false);
   const recorderRef  = useRef(null);
   const chunksRef    = useRef([]);
@@ -479,6 +511,7 @@ function LiveView({ stream, user, dark, onEnd }) {
   const handleEnd = async () => {
     if (!window.confirm('إنهاء البث المباشر الآن؟')) return;
     setEnding(true);
+    // FIX: always stop recording before ending stream
     if (recording) stopRecording();
     try {
       await api.post(`/live/${stream.id}/end`);
@@ -492,7 +525,6 @@ function LiveView({ stream, user, dark, onEnd }) {
 
   return (
     <div className="flex flex-col" style={{ height: '100%' }}>
-      {/* Top bar */}
       <div className="flex items-center justify-between px-3 py-2 flex-shrink-0 gap-2"
            style={{ backgroundColor: '#1a0000', borderBottom: '1px solid rgba(239,68,68,0.3)' }}>
         <div className="flex items-center gap-2 min-w-0">
@@ -503,7 +535,6 @@ function LiveView({ stream, user, dark, onEnd }) {
           <span className="text-red-300 text-xs font-mono flex-shrink-0 hidden sm:block">{elapsed}</span>
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0">
-          {/* Recording button */}
           {recording ? (
             <button onClick={stopRecording}
               className="flex items-center gap-1 text-xs font-black px-2.5 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-700 text-white transition-colors animate-pulse">
@@ -518,7 +549,6 @@ function LiveView({ stream, user, dark, onEnd }) {
               <span className="hidden sm:inline">تسجيل</span>
             </button>
           )}
-          {/* End stream button */}
           <button onClick={handleEnd} disabled={ending}
             className="flex items-center gap-1.5 text-xs font-black px-2.5 sm:px-3 py-1.5 rounded-lg bg-red-700 hover:bg-red-800 text-white transition-colors disabled:opacity-60">
             {ending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <StopCircle className="w-3.5 h-3.5" />}
@@ -527,7 +557,6 @@ function LiveView({ stream, user, dark, onEnd }) {
         </div>
       </div>
 
-      {/* Body: Jitsi + Sidebar */}
       <div className="flex flex-col md:flex-row flex-1 overflow-hidden min-h-0">
         <div className="bg-black overflow-hidden flex-shrink-0 md:flex-1 aspect-video md:aspect-auto">
           <LiveKitRoom
@@ -893,7 +922,6 @@ function IdleView({ onGoToForm, onSchedule, onStarted, dark }) {
 
   return (
     <div className="max-w-2xl mx-auto py-8 px-4">
-      {/* Hero */}
       <div className="flex flex-col items-center text-center mb-10">
         <div className="w-20 h-20 rounded-full flex items-center justify-center mb-5"
              style={{ background: 'rgba(239,68,68,0.1)', border: '2px solid rgba(239,68,68,0.25)' }}>
@@ -915,7 +943,6 @@ function IdleView({ onGoToForm, onSchedule, onStarted, dark }) {
         </div>
       </div>
 
-      {/* Scheduled streams list */}
       <div>
         <div className="flex items-center justify-between mb-4">
           <h3 className={`text-base font-black ${dark ? 'text-white' : 'text-slate-700'}`}>

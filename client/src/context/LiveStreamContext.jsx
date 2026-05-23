@@ -8,13 +8,8 @@ export function LiveStreamProvider({ children }) {
   const auth = useContext(AuthContext);
   const user = auth?.user ?? null;
 
-  // Teacher's active stream (set when teacher starts)
-  const [teacherLive, setTeacherLive] = useState(null);
-
-  // Stream the student has joined
+  const [teacherLive,   setTeacherLive]   = useState(null);
   const [studentStream, setStudentStream] = useState(null);
-
-  // Active stream available for student to join (set via SSE or polling)
   const [availableLive, setAvailableLive] = useState(null);
 
   /* ── Teacher helpers ─────────────────────────────────────── */
@@ -22,17 +17,14 @@ export function LiveStreamProvider({ children }) {
   const endTeacherStream   = useCallback(() => setTeacherLive(null), []);
 
   /* ── Student helpers ─────────────────────────────────────── */
-  const joinStudentStream  = useCallback((stream) => {
+  const joinStudentStream = useCallback((stream) => {
     setStudentStream(stream);
     setAvailableLive(null);
   }, []);
 
-  const leaveStudentStream = useCallback(async (streamId) => {
-    if (streamId) {
-      try { await api.post(`/live/${streamId}/leave`); } catch (err) {
-        console.warn('[LiveStream] leave failed:', err?.message);
-      }
-    }
+  // FIX: removed duplicate API call — the leave endpoint is called by the
+  // individual page component (LiveView); context only clears local state
+  const leaveStudentStream = useCallback(() => {
     setStudentStream(null);
   }, []);
 

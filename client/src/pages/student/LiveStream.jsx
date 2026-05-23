@@ -14,29 +14,60 @@ import {
 } from 'lucide-react';
 
 /* ── Chat Panel (student) ──────────────────────────────────── */
-function ChatPanel({ stream, studentName, dark, onClose }) {
+function ChatPanel({ stream, myId, studentName, dark, onClose }) {
   const [messages, setMessages]       = useState([]);
   const [text, setText]               = useState('');
   const [chatEnabled, setChatEnabled] = useState(stream.chat_enabled !== false);
   const [sending, setSending]         = useState(false);
+  // FIX: track timestamp of last received message for incremental polling
+  const lastMsgTimeRef = useRef(null);
   const bottomRef = useRef(null);
 
-  useQuery({
-    queryKey: ['live-chat-student', stream.id],
-    queryFn:  async () => {
-      const r = await api.get(`/live/${stream.id}/chat`);
-      setMessages(r.data.messages || []);
-      return r.data.messages;
-    },
-    refetchInterval: 3500,
-    enabled: !!stream.id,
-  });
+  // Initial fetch
+  useEffect(() => {
+    api.get(`/live/${stream.id}/chat`).then(r => {
+      const msgs = r.data.messages || [];
+      setMessages(msgs);
+      if (msgs.length) {
+        lastMsgTimeRef.current = new Date(msgs[msgs.length - 1].sent_at).getTime();
+      }
+    }).catch(() => {});
+  }, [stream.id]);
 
+  // FIX: poll only NEW messages via `since` — dramatically reduces server load
+  useEffect(() => {
+    const fetchNew = async () => {
+      try {
+        const since = lastMsgTimeRef.current;
+        const url   = since ? `/live/${stream.id}/chat?since=${since}` : `/live/${stream.id}/chat`;
+        const r     = await api.get(url);
+        const newMsgs = r.data.messages || [];
+        if (newMsgs.length) {
+          setMessages(prev => {
+            const existingIds = new Set(prev.map(m => m.id));
+            const toAdd = newMsgs.filter(m => !existingIds.has(m.id));
+            if (!toAdd.length) return prev;
+            lastMsgTimeRef.current = new Date(newMsgs[newMsgs.length - 1].sent_at).getTime();
+            return [...prev, ...toAdd];
+          });
+        }
+      } catch (_) {}
+    };
+    const iv = setInterval(fetchNew, 4000);
+    return () => clearInterval(iv);
+  }, [stream.id]);
+
+  // SSE: instant new messages
   useEffect(() => {
     const onMsg = (e) => {
       const msg = e.detail;
-      if (String(msg.stream_id) === String(stream.id))
-        setMessages(prev => prev.find(m => m.id === msg.id) ? prev : [...prev, msg]);
+      if (String(msg.stream_id) === String(stream.id)) {
+        setMessages(prev => {
+          if (prev.find(m => m.id === msg.id)) return prev;
+          lastMsgTimeRef.current = new Date(msg.sent_at).getTime();
+          return [...prev, msg];
+        });
+      }
     };
     const onToggle = (e) => {
       if (String(e.detail.streamId) === String(stream.id))
@@ -90,22 +121,26 @@ function ChatPanel({ stream, studentName, dark, onClose }) {
             <MessageSquare className="w-8 h-8 mx-auto mb-2 text-[#F2EDE5]" />
             <p className={`text-xs ${dark ? 'text-[#8A7E72]' : 'text-[#C4B8AC]'}`}>لا توجد رسائل بعد</p>
           </div>
-        ) : messages.map(msg => (
-          <div key={msg.id} className={`flex flex-col gap-0.5 ${msg.sender_type === 'student' && msg.sender_name === studentName ? 'items-end' : 'items-start'}`}>
-            <span className={`text-[10px] px-1 ${msg.sender_type === 'teacher' ? 'text-orange-400 font-bold' : 'text-[#C4B8AC]'}`}>
-              {msg.sender_type === 'teacher' ? `👨‍🏫 ${msg.sender_name}` : msg.sender_name}
-            </span>
-            <div className={`text-sm px-3 py-2 rounded-2xl max-w-[90%] leading-relaxed ${
-              msg.sender_type === 'teacher'
-                ? 'bg-navy-600 text-white rounded-bl-sm'
-                : msg.sender_name === studentName
-                  ? 'bg-orange-500 text-white rounded-br-sm'
-                  : dark ? 'bg-[#1F1C2C] text-white rounded-br-sm' : 'bg-slate-100 text-slate-800 rounded-br-sm'
-            }`}>
-              {msg.message}
+        ) : messages.map(msg => {
+          // FIX: use sender_id for identity — not sender_name (avoids same-name collision)
+          const isMe = msg.sender_type !== 'teacher' && String(msg.sender_id) === String(myId);
+          return (
+            <div key={msg.id} className={`flex flex-col gap-0.5 ${isMe || msg.sender_type === 'teacher' ? 'items-end' : 'items-start'}`}>
+              <span className={`text-[10px] px-1 ${msg.sender_type === 'teacher' ? 'text-orange-400 font-bold' : 'text-[#C4B8AC]'}`}>
+                {msg.sender_type === 'teacher' ? `👨‍🏫 ${msg.sender_name}` : msg.sender_name}
+              </span>
+              <div className={`text-sm px-3 py-2 rounded-2xl max-w-[90%] leading-relaxed ${
+                msg.sender_type === 'teacher'
+                  ? 'bg-purple-700 text-white rounded-bl-sm'
+                  : isMe
+                    ? 'bg-orange-500 text-white rounded-br-sm'
+                    : dark ? 'bg-[#1F1C2C] text-white rounded-br-sm' : 'bg-slate-100 text-slate-800 rounded-br-sm'
+              }`}>
+                {msg.message}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
         <div ref={bottomRef} />
       </div>
 
@@ -137,16 +172,16 @@ function ChatPanel({ stream, studentName, dark, onClose }) {
 
 /* ── Live view (student) ───────────────────────────────────── */
 function LiveView({ stream, user, dark, onLeave }) {
-  const [chatOpen, setChatOpen]         = useState(true);
-  const [handRaised, setHandRaised]     = useState(false);
-  const [raisingHand, setRaisingHand]   = useState(false);
-  const [leaving, setLeaving]           = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [uiVisible, setUiVisible]       = useState(true);
+  const [chatOpen, setChatOpen]           = useState(true);
+  const [handRaised, setHandRaised]       = useState(false);
+  const [raisingHand, setRaisingHand]     = useState(false);
+  const [leaving, setLeaving]             = useState(false);
+  const [isFullscreen, setIsFullscreen]   = useState(false);
+  const [uiVisible, setUiVisible]         = useState(true);
   const [myPermissions, setMyPermissions] = useState({ can_speak: false, can_share_screen: false });
-  const [livekitKey, setLivekitKey]     = useState(0);
-  const videoWrapRef  = useRef(null);
-  const uiHideTimer   = useRef(null);
+  const [livekitKey, setLivekitKey]       = useState(0);
+  const videoWrapRef = useRef(null);
+  const uiHideTimer  = useRef(null);
 
   const showUiTemporarily = useCallback(() => {
     setUiVisible(true);
@@ -190,6 +225,9 @@ function LiveView({ stream, user, dark, onLeave }) {
   useEffect(() => {
     const h = (e) => {
       if (String(e.detail?.streamId) === String(stream.id)) {
+        toast.error('🚫 ' + (e.detail?.message || 'تم إخراجك من البث'), {
+          duration: 6000, style: { fontFamily: 'inherit', direction: 'rtl' },
+        });
         onLeave();
       }
     };
@@ -203,6 +241,7 @@ function LiveView({ stream, user, dark, onLeave }) {
       if (String(e.detail?.streamId) === String(stream.id)) {
         const { can_speak, can_share_screen } = e.detail;
         setMyPermissions({ can_speak: !!can_speak, can_share_screen: !!can_share_screen });
+        // Remount LiveKitRoom to reconnect with updated permissions token
         setLivekitKey(k => k + 1);
       }
     };
@@ -217,29 +256,27 @@ function LiveView({ stream, user, dark, onLeave }) {
       await api.post(`/live/${stream.id}/hand-raise`, { raised: next });
       setHandRaised(next);
       toast(next ? '✋ رفعت يدك' : '✅ أخفضت يدك', { duration: 2500, style: { fontFamily: 'inherit', direction: 'rtl' } });
-    } catch (_) {} finally { setRaisingHand(false); }
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'تعذّر رفع اليد');
+    } finally { setRaisingHand(false); }
   };
 
+  // FIX: leave API call is here only (not duplicated in context)
   const handleLeave = async () => {
     setLeaving(true);
     try {
       await api.post(`/live/${stream.id}/leave`);
-      if (handRaised) {
-        try { await api.post(`/live/${stream.id}/hand-raise`, { raised: false }); } catch (_) {}
-      }
     } catch (_) {}
     onLeave();
   };
 
-  // ── Fullscreen + orientation lock ──────────────────────────
+  // Fullscreen + orientation lock
   const toggleFullscreen = useCallback(async () => {
     const el = videoWrapRef.current;
     if (!el) return;
-
     if (!document.fullscreenElement) {
       try {
         await el.requestFullscreen();
-        // Lock to landscape on mobile
         if (screen?.orientation?.lock) {
           try { await screen.orientation.lock('landscape'); } catch (_) {}
         }
@@ -262,7 +299,7 @@ function LiveView({ stream, user, dark, onLeave }) {
 
   return (
     <div className="flex flex-col">
-      {/* ── Top bar — fades out in focus mode ── */}
+      {/* Top bar — fades out in focus mode */}
       <div
         className={`flex items-center justify-between px-3 py-2 flex-shrink-0 sticky top-0 z-30 transition-all duration-300 ${uiVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
         style={{ backgroundColor: '#1a0000', borderBottom: '1px solid rgba(239,68,68,0.3)' }}
@@ -308,10 +345,9 @@ function LiveView({ stream, user, dark, onLeave }) {
         </div>
       </div>
 
-      {/* ── Body — stacks on mobile, side-by-side on desktop ── */}
+      {/* Body — stacks on mobile, side-by-side on desktop */}
       <div className="flex flex-col md:flex-row md:items-start">
-
-        {/* ── Video ── */}
+        {/* Video */}
         <div
           ref={videoWrapRef}
           className="relative bg-black w-full md:flex-1 cursor-pointer"
@@ -328,7 +364,6 @@ function LiveView({ stream, user, dark, onLeave }) {
             style={{ height: '100%', width: '100%' }}
           />
 
-          {/* Focus-mode hint — shows briefly when hiding UI */}
           {!uiVisible && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ zIndex: 5 }}>
               <div className="bg-black/40 text-white text-xs px-3 py-1.5 rounded-full backdrop-blur-sm opacity-70 animate-pulse">
@@ -337,7 +372,6 @@ function LiveView({ stream, user, dark, onLeave }) {
             </div>
           )}
 
-          {/* Fullscreen button — fades with UI */}
           <button
             onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }}
             title={isFullscreen ? 'تصغير' : 'تكبير الشاشة كاملة'}
@@ -347,14 +381,20 @@ function LiveView({ stream, user, dark, onLeave }) {
           </button>
         </div>
 
-        {/* ── Chat panel — below video on mobile, side panel on desktop ── */}
+        {/* Chat panel */}
         {chatOpen && (
           <div
             className={`w-full md:w-72 md:flex-none border-t md:border-t-0 md:border-r flex flex-col
               ${dark ? 'bg-[#0F0E15] border-[rgba(230,175,80,0.12)]' : 'bg-white border-slate-200'}`}
             style={{ minHeight: '360px', maxHeight: '520px', height: '420px' }}
           >
-            <ChatPanel stream={stream} studentName={user?.name} dark={dark} onClose={() => setChatOpen(false)} />
+            <ChatPanel
+              stream={stream}
+              myId={user?.id}
+              studentName={user?.name}
+              dark={dark}
+              onClose={() => setChatOpen(false)}
+            />
           </div>
         )}
       </div>
@@ -382,6 +422,24 @@ function Countdown({ target }) {
     return () => clearInterval(iv);
   }, [target]);
   return <span className="font-mono">{label}</span>;
+}
+
+/* ── FIX: reactive elapsed timer hook ─────────────────────── */
+function useReactiveElapsed(startedAt) {
+  const [elapsed, setElapsed] = useState('');
+  useEffect(() => {
+    if (!startedAt) return;
+    const tick = () => {
+      const secs = Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000);
+      const h = Math.floor(secs / 3600);
+      const m = Math.floor((secs % 3600) / 60);
+      setElapsed(h > 0 ? `${h}س ${m}د` : `${m} دقيقة`);
+    };
+    tick();
+    const iv = setInterval(tick, 60000);
+    return () => clearInterval(iv);
+  }, [startedAt]);
+  return elapsed;
 }
 
 /* ── Upcoming scheduled stream card ───────────────────────── */
@@ -416,7 +474,6 @@ function ScheduledCard({ stream, dark }) {
               {dateStr}
             </span>
           </div>
-          {/* Countdown */}
           <div className={`mt-3 flex items-center gap-2 px-3 py-2 rounded-xl ${dark ? 'bg-purple-900/30 text-purple-300' : 'bg-purple-50 text-purple-700'}`}>
             <Clock className="w-4 h-4 flex-shrink-0" />
             <span className="text-sm font-bold">
@@ -429,16 +486,11 @@ function ScheduledCard({ stream, dark }) {
   );
 }
 
-/* ── Stream card (lobby) ───────────────────────────────────── */
+/* ── Stream card (lobby) — FIX: reactive elapsed timer ────── */
 function StreamCard({ stream, onJoin, dark }) {
   const [joining, setJoining] = useState(false);
-
-  const elapsed = (() => {
-    const secs = Math.floor((Date.now() - new Date(stream.started_at).getTime()) / 1000);
-    const h = Math.floor(secs / 3600);
-    const m = Math.floor((secs % 3600) / 60);
-    return h > 0 ? `${h}س ${m}د` : `${m} دقيقة`;
-  })();
+  // FIX: use reactive timer instead of static computation at render time
+  const elapsed = useReactiveElapsed(stream.started_at);
 
   const handleJoin = async () => {
     setJoining(true);
@@ -471,7 +523,7 @@ function StreamCard({ stream, onJoin, dark }) {
           )}
           <div className={`flex items-center gap-3 text-xs mb-4 ${dark ? 'text-[#C4B8AC]' : 'text-[#8A7E72]'}`}>
             <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" />{stream.viewer_count || 0} مشاهد</span>
-            <span>⏱ منذ {elapsed}</span>
+            {elapsed && <span>⏱ منذ {elapsed}</span>}
             {!stream.chat_enabled && <span className="flex items-center gap-1"><MessageCircleOff className="w-3.5 h-3.5" /> دردشة معطلة</span>}
           </div>
           <button onClick={handleJoin} disabled={joining}
@@ -515,59 +567,37 @@ function LobbyView({ dark, onJoin }) {
             {active.length > 0
               ? `${active.length} بث مباشر الآن`
               : upcoming.length > 0
-              ? `${upcoming.length} بث قادم`
-              : 'لا يوجد بث حالياً'}
+                ? `${upcoming.length} بث قادم`
+                : 'لا يوجد بث حالياً'}
           </p>
         </div>
         <button onClick={() => refetch()} disabled={isLoading}
-          className={`p-2 rounded-xl transition-colors ${dark ? 'text-[#C4B8AC] hover:bg-[#1F1C2C] hover:text-white' : 'text-[#8A7E72] hover:bg-slate-100'}`}>
+          className={`p-2 rounded-xl transition-colors ${dark ? 'text-[#C4B8AC] hover:bg-[#1F1C2C]' : 'text-[#C4B8AC] hover:bg-slate-100'}`}>
           <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
       {isLoading ? (
-        <div className="flex flex-col items-center justify-center py-20">
-          <Loader2 className="w-10 h-10 text-red-500 animate-spin mb-4" />
-          <p className={`text-sm ${dark ? 'text-[#C4B8AC]' : 'text-[#8A7E72]'}`}>جارٍ التحقق من البثوث المتاحة...</p>
-        </div>
-      ) : allStreams.length === 0 ? (
-        <div className={`text-center py-20 rounded-2xl border ${dark ? 'border-[rgba(230,175,80,0.12)] bg-[#17151F]/70' : 'border-slate-200 bg-slate-50'}`}>
-          <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4"
-               style={{ background: 'rgba(239,68,68,0.08)', border: '2px solid rgba(239,68,68,0.2)' }}>
-            <Radio className="w-9 h-9 text-red-400" />
-          </div>
-          <h3 className={`font-black text-lg mb-2 ${dark ? 'text-white' : 'text-slate-700'}`}>لا يوجد بث مباشر الآن</h3>
-          <p className={`text-sm max-w-xs mx-auto leading-relaxed ${dark ? 'text-[#C4B8AC]' : 'text-[#8A7E72]'}`}>
-            ستظهر هنا أي جلسة بث مباشر يفتحها معلمك. ستصلك إشعاراً فور بدء البث.
-          </p>
-          <button onClick={() => refetch()}
-            className={`mt-5 flex items-center gap-1.5 mx-auto text-sm font-bold px-4 py-2 rounded-xl transition-colors ${dark ? 'text-[#F2EDE5] hover:bg-[#1F1C2C]' : 'text-slate-600 hover:bg-slate-200'}`}>
-            <RefreshCw className="w-4 h-4" /> تحديث
-          </button>
+        <div className="flex justify-center py-16"><Loader2 className="w-8 h-8 text-red-500 animate-spin" /></div>
+      ) : active.length === 0 && upcoming.length === 0 ? (
+        <div className={`text-center py-16 rounded-2xl border border-dashed ${dark ? 'border-[rgba(230,175,80,0.12)] text-[#8A7E72]' : 'border-slate-200 text-[#C4B8AC]'}`}>
+          <Radio className="w-12 h-12 mx-auto mb-3 opacity-30" />
+          <p className={`text-base font-bold mb-1 ${dark ? 'text-[#C4B8AC]' : 'text-slate-500'}`}>لا يوجد بث حالياً</p>
+          <p className="text-sm">سيظهر هنا عند بدء المعلم للبث</p>
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-4">
           {active.length > 0 && (
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
-                <h3 className={`text-sm font-black ${dark ? 'text-[#C4B8AC]' : 'text-[#8A7E72]'}`}>مباشر الآن</h3>
-              </div>
-              <div className="space-y-4">
-                {active.map(s => <StreamCard key={s.id} stream={s} dark={dark} onJoin={onJoin} />)}
-              </div>
-            </div>
+            <>
+              <h3 className={`text-sm font-black uppercase tracking-wide ${dark ? 'text-red-400' : 'text-red-600'}`}>🔴 يبث الآن</h3>
+              {active.map(s => <StreamCard key={s.id} stream={s} onJoin={onJoin} dark={dark} />)}
+            </>
           )}
           {upcoming.length > 0 && (
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <Calendar className="w-4 h-4 text-purple-500 flex-shrink-0" />
-                <h3 className={`text-sm font-black ${dark ? 'text-[#C4B8AC]' : 'text-[#8A7E72]'}`}>مواعيد قادمة</h3>
-              </div>
-              <div className="space-y-4">
-                {upcoming.map(s => <ScheduledCard key={s.id} stream={s} dark={dark} />)}
-              </div>
-            </div>
+            <>
+              <h3 className={`text-sm font-black uppercase tracking-wide mt-6 ${dark ? 'text-purple-400' : 'text-purple-600'}`}>📅 بثوث قادمة</h3>
+              {upcoming.map(s => <ScheduledCard key={s.id} stream={s} dark={dark} />)}
+            </>
           )}
         </div>
       )}
@@ -580,22 +610,23 @@ export default function StudentLiveStream() {
   const { dark }  = useTheme();
   const { user }  = useAuth();
   const { joinStudentStream, leaveStudentStream } = useLiveStream();
-  const [stream, setStream] = useState(null);
+  const [activeStream, setActiveStream] = useState(null);
 
-  const handleJoin = (s) => {
-    setStream(s);
-    joinStudentStream(s);
-  };
+  const handleJoin = useCallback((stream) => {
+    setActiveStream(stream);
+    joinStudentStream(stream);
+  }, [joinStudentStream]);
 
-  const handleLeave = () => {
-    if (stream) leaveStudentStream(stream.id);
-    setStream(null);
-  };
+  const handleLeave = useCallback(() => {
+    setActiveStream(null);
+    // FIX: context only clears local state — API was already called in LiveView
+    leaveStudentStream();
+  }, [leaveStudentStream]);
 
-  if (stream) {
+  if (activeStream) {
     return (
-      <div className={`min-h-full overflow-y-auto ${dark ? 'bg-[#0F0E15]' : 'bg-gray-900'}`}>
-        <LiveView stream={stream} user={user} dark={dark} onLeave={handleLeave} />
+      <div className={`h-full overflow-y-auto ${dark ? 'bg-[#0A0910]' : 'bg-slate-50'}`}>
+        <LiveView stream={activeStream} user={user} dark={dark} onLeave={handleLeave} />
       </div>
     );
   }
