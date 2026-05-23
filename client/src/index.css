@@ -59,7 +59,7 @@
   }
 
   body {
-    background-color: #C9D4DE;
+    background-color: #8FA8BE;
     color: #1A2E4A;
     min-height: 100vh;
     font-family: 'Cairo', sans-serif;
@@ -110,6 +110,7 @@
 
   .card {
     @apply bg-white rounded-2xl border border-slate-300 p-6 transition-all duration-200;
+    box-shadow: 0 2px 8px rgba(26, 46, 74, 0.18), 0 1px 3px rgba(26, 46, 74, 0.12);
   }
 
   .input-field {
@@ -150,6 +151,7 @@
 
   .modal-box {
     @apply bg-white rounded-2xl border border-slate-300 w-full max-w-lg max-h-[90vh] overflow-y-auto;
+    box-shadow: 0 20px 60px rgba(26, 46, 74, 0.35), 0 4px 16px rgba(26, 46, 74, 0.20);
   }
 
   .section-title {
@@ -837,4 +839,90 @@ html:not(.dark) .text-navy-700 { color: #101C32; }
 .student-protected video {
   pointer-events: none;
   -webkit-user-drag: none;
+}
+
+/* ═══════════════════════════════════════════════════════
+   LIGHT MODE — CONTRAST IMPROVEMENTS
+   خلفية أغمق = العناصر البيضاء محتاجة shadow أقوى عشان تتمايز
+═══════════════════════════════════════════════════════ */
+
+/* ── تعميق خلفية الـ layout wrapper (navy-50) ── */
+html:not(.dark) .bg-navy-50 {
+  background-color: #B8CCDB !important;
+}
+
+/* ── Shadow أقوى على كل العناصر البيضاء المتوسطة والكبيرة ── */
+html:not(.dark) .shadow-sm {
+  box-shadow: 0 2px 6px rgba(26, 46, 74, 0.18),
+              0 1px 2px rgba(26, 46, 74, 0.10) !important;
+}
+html:not(.dark) .shadow-md {
+  box-shadow: 0 4px 16px rgba(26, 46, 74, 0.22),
+              0 2px 6px rgba(26, 46, 74, 0.14) !important;
+}
+html:not(.dark) .shadow-lg {
+  box-shadow: 0 8px 32px rgba(26, 46, 74, 0.28),
+              0 4px 12px rgba(26, 46, 74, 0.16) !important;
+}
+
+/* ── Header في الـ layouts (bg-white) يحتاج shadow أقوى ── */
+html:not(.dark) header.border-b {
+  box-shadow: 0 2px 8px rgba(26, 46, 74, 0.16) !important;
+}
+
+/* ── Mobile card table في light mode تباين أحسن ── */
+html:not(.dark) .mobile-card-table tbody tr {
+  border-color: #b8ccd8 !important;
+  box-shadow: 0 2px 6px rgba(26, 46, 74, 0.14) !important;
+}
+
+/* ── Sidebar في light mode حد واضح مع الـ content area ── */
+html:not(.dark) aside {
+  box-shadow: -3px 0 12px rgba(26, 46, 74, 0.25);
+}
+
+/* ── الجداول في light mode ── */
+html:not(.dark) .table-row {
+  border-color: #c5d5e2 !important;
+}
+
+/* ── bg-white مع rounded في light mode ── */
+html:not(.dark) .bg-white.rounded-2xl,
+html:not(.dark) .bg-white.rounded-xl,
+html:not(.dark) .bg-white.rounded-lg {
+  box-shadow: 0 2px 8px rgba(26, 46, 74, 0.16),
+              0 1px 3px rgba(26, 46, 74, 0.10);
+}
+
+/* ── bg-gray-50 و bg-slate-50 في light mode ── */
+html:not(.dark) .bg-gray-50.rounded-2xl,
+html:not(.dark) .bg-gray-50.rounded-xl,
+html:not(.dark) .bg-gray-50.rounded-lg,
+html:not(.dark) .bg-slate-50.rounded-2xl,
+html:not(.dark) .bg-slate-50.rounded-xl,
+html:not(.dark) .bg-slate-50.rounded-lg {
+  background-color: #f0f5f8 !important;
+  box-shadow: 0 1px 4px rgba(26, 46, 74, 0.10);
+}
+
+/* ── Scrollbar في light mode تناسب الخلفية الجديدة ── */
+html:not(.dark) ::-webkit-scrollbar-track {
+  background: #a8bfcf;
+}
+html:not(.dark) ::-webkit-scrollbar-thumb {
+  background: #1A2E4A;
+}
+
+/* ── border-slate-300 أغمق شوية عشان تتمايز ── */
+html:not(.dark) .border-slate-300 {
+  border-color: #a8c0d0 !important;
+}
+html:not(.dark) .border-slate-200 {
+  border-color: #b8ccd8 !important;
+}
+html:not(.dark) .border-gray-200 {
+  border-color: #b8ccd8 !important;
+}
+html:not(.dark) .border-gray-300 {
+  border-color: #a8c0d0 !important;
 }
