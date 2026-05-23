@@ -51,7 +51,7 @@ export default function StudentDashboard() {
       <div className="grid grid-cols-3 gap-2 sm:gap-4">
         {[
           { icon: BookOpen, label: 'كورساتي',        value: data?.enrollments?.length   || 0, bg: 'bg-blue-100',   ic: 'text-blue-800' },
-          { icon: FileText, label: 'اختباراتي', value: data?.recentResults?.length || 0, bg: 'bg-green-100',  ic: 'text-green-800' },
+          { icon: FileText, label: 'اختباراتي', value: data?.totalExams ?? data?.recentResults?.length ?? 0, bg: 'bg-green-100',  ic: 'text-green-800' },
           { icon: Award,    label: 'شاراتي',          value: data?.badges?.length        || 0, bg: 'bg-orange-100', ic: 'text-orange-800' },
         ].map(({ icon: Icon, label, value, bg, ic }) => (
           <div key={label} className="card text-center !p-3 sm:!p-4">

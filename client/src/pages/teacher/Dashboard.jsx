@@ -30,7 +30,7 @@ export default function TeacherDashboard() {
   const chartData = useMemo(() => (
     analytics?.examResults?.map(e => ({
       name: e.title || `#${e.id}`,
-      'متوسط الدرجات': Math.round(parseFloat(e.avg_score) || 0),
+      'متوسط الدرجات': Math.round(parseFloat(e.avg_pct) || 0),
       'محاولات': parseInt(e.attempt_count) || 0,
     })) || []
   ), [analytics]);

@@ -292,14 +292,15 @@ router.get('/leaderboard', requireRole('teacher', 'assistant', 'student'), async
 
     const result = await pool.query(
       `SELECT s.id, s.name, s.points, s.academic_stage, s.gender,
-              COUNT(DISTINCT er.exam_id) as exams_taken,
-              COALESCE(AVG(er.score), 0) as avg_score,
-              COUNT(DISTINCT b.id) as badge_count
+              COUNT(DISTINCT er.exam_id)::int as exams_taken,
+              COALESCE(ROUND(AVG(er.score::numeric / NULLIF(e.total_score,0) * 100), 1), 0) as avg_score,
+              COUNT(DISTINCT b.id)::int as badge_count
        FROM students s
-       LEFT JOIN exam_results er ON s.id=er.student_id
+       LEFT JOIN exam_results er ON s.id=er.student_id AND er.is_latest = true
+       LEFT JOIN exams e ON er.exam_id = e.id
        LEFT JOIN badges b ON s.id=b.student_id
        WHERE s.teacher_id=$1 AND s.deleted_at IS NULL
-       GROUP BY s.id ORDER BY s.points DESC LIMIT 10`,
+       GROUP BY s.id ORDER BY s.points DESC LIMIT 50`,
       [teacherId]
     );
 
