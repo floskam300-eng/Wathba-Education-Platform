@@ -9,8 +9,26 @@ import {
 } from 'lucide-react';
 import api from '../lib/api';
 
-const OPTS = ['A', 'B', 'C', 'D'];
-const optLabel = { A: 'أ', B: 'ب', C: 'ج', D: 'د' };
+function seededShuffle(arr, seed) {
+  const result = [...arr];
+  let s = seed >>> 0;
+  const rand = () => {
+    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+    return s / 0x100000000;
+  };
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
+function getShuffledOpts(q, studentId, shuffleOptions) {
+  const allOpts = ['A', 'B', 'C', 'D'].filter(o => q[`option_${o.toLowerCase()}`]);
+  if (!shuffleOptions) return allOpts;
+  const seed = (((studentId || 1) * 1000003) ^ ((q.id || 1) * 999983)) >>> 0;
+  return seededShuffle(allOpts, seed || 1);
+}
 
 function optStyle(opt, studentAnswer, correctAnswer) {
   const isCorrect       = opt === correctAnswer;
@@ -63,7 +81,9 @@ export default function ExamReviewPage() {
   const passed = result && result.score >= result.pass_score;
   const pct    = result ? Math.round((result.score / result.total_score) * 100) : 0;
 
-  // Use detailed answers when available, otherwise fall back to DB-stored counts
+  const shuffleOptions = result?.shuffle_options || false;
+  const studentId      = result?.student_id || 0;
+
   const hasDetailedAnswers = questions.some(
     q => q.student_answer !== null && q.student_answer !== '' && q.student_answer !== undefined
   );
@@ -102,6 +122,9 @@ export default function ExamReviewPage() {
               <h1 className={`font-black text-lg leading-tight ${passed ? 'text-green-800' : 'text-red-800'}`}>
                 {result.exam_title}
               </h1>
+              {result.attempt_number > 1 && (
+                <p className="text-xs text-orange-600 font-bold mt-1">المحاولة #{result.attempt_number}</p>
+              )}
             </div>
             <div className="text-center flex-shrink-0">
               <div className={`text-3xl font-black ${passed ? 'text-green-700' : 'text-red-600'}`}>
@@ -191,6 +214,11 @@ export default function ExamReviewPage() {
               <span className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-200 text-gray-600 rounded-full">
                 <Minus className="w-3.5 h-3.5 text-gray-400" /> لم تُجَب
               </span>
+              {shuffleOptions && (
+                <span className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-full">
+                  🔀 الخيارات بنفس ترتيب الاختبار
+                </span>
+              )}
             </div>
 
             {/* ── Questions ── */}
@@ -199,6 +227,18 @@ export default function ExamReviewPage() {
                 const studentAns  = q.student_answer;
                 const correctAns  = q.correct_answer;
                 const answered    = !!studentAns;
+                const isTrueFalse = q.question_type === 'true_false';
+
+                const displayOpts = isTrueFalse
+                  ? ['A', 'B']
+                  : getShuffledOpts(q, studentId, shuffleOptions);
+
+                const displayLabels = isTrueFalse
+                  ? { A: '✅ صح', B: '❌ خطأ' }
+                  : (() => {
+                      const labels = ['أ', 'ب', 'ج', 'د'];
+                      return Object.fromEntries(displayOpts.map((o, i) => [o, labels[i]]));
+                    })();
 
                 return (
                   <div key={q.id} className={`bg-white rounded-2xl border-2 shadow-sm overflow-hidden ${
@@ -219,7 +259,7 @@ export default function ExamReviewPage() {
                       </div>
                       <div className="flex items-center gap-2 text-xs font-bold">
                         <span className="text-gray-500">{q.points} نقطة</span>
-                        {q.question_type === 'true_false' && (
+                        {isTrueFalse && (
                           <span className="text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">صح/خطأ</span>
                         )}
                         {!answered && (
@@ -247,19 +287,21 @@ export default function ExamReviewPage() {
                         <img src={q.question_image_url} alt="" className="mt-2 mb-3 max-w-sm rounded-xl border border-gray-200" />
                       )}
 
-                      {/* Options — MCQ / True-False */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-4">
-                        {OPTS.map(opt => {
-                          const text = q[`option_${opt.toLowerCase()}`];
+                      <div className={`grid gap-2.5 mt-4 ${isTrueFalse ? 'grid-cols-2' : 'grid-cols-1 sm:grid-cols-2'}`}>
+                        {displayOpts.map(opt => {
+                          const text = isTrueFalse
+                            ? (opt === 'A' ? 'صح' : 'خطأ')
+                            : q[`option_${opt.toLowerCase()}`];
                           if (!text || text === '-') return null;
+                          const label = displayLabels[opt];
                           return (
                             <div key={opt}
                               className={`flex items-center gap-3 p-3.5 rounded-xl border-2 transition-all ${optStyle(opt, studentAns, correctAns)}`}>
                               <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 ${optBadge(opt, studentAns, correctAns)}`}>
-                                {optLabel[opt]}
+                                {isTrueFalse ? (opt === 'A' ? '✓' : '✗') : label}
                               </span>
                               <span className={`text-sm flex-1 leading-snug ${optTextColor(opt, studentAns, correctAns)}`}>
-                                {text}
+                                {isTrueFalse ? label : text}
                               </span>
                               {optIcon(opt, studentAns, correctAns)}
                             </div>
@@ -276,7 +318,7 @@ export default function ExamReviewPage() {
                           </span>
                           <span className="flex items-center gap-1.5 text-green-800">
                             <CheckCircle className="w-3.5 h-3.5" />
-                            الصحيح: <strong>{optLabel[correctAns]} — {q[`option_${correctAns?.toLowerCase()}`] || correctAns}</strong>
+                            الصحيح: <strong>{displayLabels[correctAns] || correctAns}{!isTrueFalse && ` — ${q[`option_${correctAns?.toLowerCase()}`] || ''}`}</strong>
                           </span>
                         </div>
                       )}
@@ -284,11 +326,11 @@ export default function ExamReviewPage() {
                         <div className="mt-3 flex flex-wrap items-center gap-4 text-xs font-semibold bg-orange-50 border border-orange-200 rounded-xl px-4 py-2.5">
                           <span className="flex items-center gap-1.5 text-red-700">
                             <XCircle className="w-3.5 h-3.5" />
-                            اخترت: <strong>{optLabel[studentAns]} — {q[`option_${studentAns?.toLowerCase()}`] || studentAns}</strong>
+                            اخترت: <strong>{displayLabels[studentAns] || studentAns}{!isTrueFalse && ` — ${q[`option_${studentAns?.toLowerCase()}`] || ''}`}</strong>
                           </span>
                           <span className="flex items-center gap-1.5 text-green-800">
                             <CheckCircle className="w-3.5 h-3.5" />
-                            الصحيح: <strong>{optLabel[correctAns]} — {q[`option_${correctAns?.toLowerCase()}`] || correctAns}</strong>
+                            الصحيح: <strong>{displayLabels[correctAns] || correctAns}{!isTrueFalse && ` — ${q[`option_${correctAns?.toLowerCase()}`] || ''}`}</strong>
                           </span>
                         </div>
                       )}

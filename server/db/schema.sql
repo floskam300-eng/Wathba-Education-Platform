@@ -167,8 +167,7 @@ ALTER TABLE exams ADD COLUMN IF NOT EXISTS end_date    TIMESTAMP;
 ALTER TABLE exams ADD COLUMN IF NOT EXISTS is_published BOOLEAN DEFAULT false;
 ALTER TABLE questions ALTER COLUMN question_text DROP NOT NULL;
 
-ALTER TABLE exam_results ADD COLUMN IF NOT EXISTS essay_graded          BOOLEAN DEFAULT false;
-ALTER TABLE exam_results ADD COLUMN IF NOT EXISTS essay_score_adjustment INTEGER DEFAULT 0;
+-- essay_graded and essay_score_adjustment removed — essay questions not supported
 
 ALTER TABLE assistants ADD COLUMN IF NOT EXISTS can_manage_payments BOOLEAN DEFAULT false;
 ALTER TABLE assistants ADD COLUMN IF NOT EXISTS can_manage_courses  BOOLEAN DEFAULT true;
@@ -186,7 +185,7 @@ CREATE TABLE IF NOT EXISTS course_enrollment_requests (
 );
 
 ALTER TABLE questions ADD COLUMN IF NOT EXISTS question_type      VARCHAR(20) DEFAULT 'mcq';
-ALTER TABLE questions ADD COLUMN IF NOT EXISTS essay_answer_key   TEXT;
+-- essay_answer_key removed — essay questions not supported
 
 CREATE TABLE IF NOT EXISTS notification_log (
   id SERIAL PRIMARY KEY,
@@ -379,13 +378,45 @@ CREATE INDEX IF NOT EXISTS idx_courses_teacher_id ON courses(teacher_id);
 CREATE INDEX IF NOT EXISTS idx_enrollment_student_id ON student_course_enrollment(student_id);
 CREATE INDEX IF NOT EXISTS idx_enrollment_course_id ON student_course_enrollment(course_id);
 
--- ── Prevent duplicate exam submissions ──────────────────────────────────────
+-- ── Prevent duplicate LATEST submissions (partial unique index) ──────────────
+-- Drop the old full UNIQUE constraint that blocked retry history rows
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'uq_exam_results_student_exam'
+  ) THEN
+    ALTER TABLE exam_results DROP CONSTRAINT uq_exam_results_student_exam;
+  END IF;
+END $$;
+-- Only one is_latest=true row per (student, exam) — history rows (is_latest=false) are unrestricted
+CREATE UNIQUE INDEX IF NOT EXISTS uidx_exam_results_latest
+  ON exam_results (student_id, exam_id)
+  WHERE is_latest = true;
+
+-- ── Prevent duplicate badges per student per exam ────────────────────────────
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'uq_exam_results_student_exam'
+    SELECT 1 FROM pg_constraint WHERE conname = 'uq_badges_student_exam'
   ) THEN
-    ALTER TABLE exam_results ADD CONSTRAINT uq_exam_results_student_exam UNIQUE (student_id, exam_id);
+    ALTER TABLE badges ADD CONSTRAINT uq_badges_student_exam UNIQUE (student_id, exam_id);
+  END IF;
+END $$;
+
+-- ── Remove essay columns (no longer used) ────────────────────────────────────
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='exam_results' AND column_name='essay_graded') THEN
+    ALTER TABLE exam_results DROP COLUMN essay_graded;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='exam_results' AND column_name='essay_score_adjustment') THEN
+    ALTER TABLE exam_results DROP COLUMN essay_score_adjustment;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='questions' AND column_name='essay_answer_key') THEN
+    ALTER TABLE questions DROP COLUMN essay_answer_key;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='bank_questions' AND column_name='essay_answer_key') THEN
+    ALTER TABLE bank_questions DROP COLUMN essay_answer_key;
   END IF;
 END $$;
 
@@ -475,8 +506,7 @@ BEGIN
   END IF;
 END $$;
 
--- ── Add essay_answer_key to bank_questions to match questions table ───────────
-ALTER TABLE bank_questions ADD COLUMN IF NOT EXISTS essay_answer_key TEXT;
+-- essay_answer_key removed from bank_questions — essay questions not supported
 
 -- ── SaaS multi-tenant: teacher slug + platform branding ───────────────────────
 ALTER TABLE teachers ADD COLUMN IF NOT EXISTS slug VARCHAR(100) UNIQUE;

@@ -492,12 +492,54 @@ export default function StudentExams() {
     );
   }
 
+  // Detect any lingering exam sessions in localStorage (stuck state after error)
+  const stuckExamIds = React.useMemo(() => {
+    try {
+      return Object.keys(localStorage)
+        .filter(k => k.startsWith('exam_start_'))
+        .map(k => parseInt(k.replace('exam_start_', ''), 10))
+        .filter(id => !isNaN(id));
+    } catch (_) { return []; }
+  }, []);
+
+  const clearStuckSession = (examId) => {
+    try {
+      localStorage.removeItem(`exam_start_${examId}`);
+      localStorage.removeItem(`exam_answers_${examId}`);
+    } catch (_) {}
+    window.location.reload();
+  };
+
   return (
     <div className="h-full overflow-y-auto p-4 lg:p-6">
       <div className="space-y-6">
         <h1 className="text-2xl font-black text-navy-600 flex items-center gap-2">
           <FileText className="w-7 h-7 text-orange-500" /> الاختبارات
         </h1>
+
+        {/* ── Stuck session warning ── */}
+        {stuckExamIds.length > 0 && !taking && (
+          <div className="bg-yellow-50 border-2 border-yellow-300 rounded-2xl p-4 space-y-3">
+            <p className="font-bold text-yellow-800 text-sm">
+              ⚠️ يوجد {stuckExamIds.length === 1 ? 'اختبار' : `${stuckExamIds.length} اختبارات`} بجلسة معلّقة من زيارة سابقة
+            </p>
+            <p className="text-yellow-700 text-xs">
+              إذا كنت لا تستطيع فتح الاختبار أو تظهر مشكلة، امسح الجلسة المعلّقة:
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {stuckExamIds.map(id => {
+                const examTitle = exams.find(e => e.id === id)?.title || `اختبار #${id}`;
+                return (
+                  <button key={id}
+                    onClick={() => clearStuckSession(id)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-200 hover:bg-yellow-300 text-yellow-900 font-bold text-xs rounded-xl transition-colors">
+                    <X className="w-3.5 h-3.5" /> مسح: {examTitle}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {result && (() => {
           const passScore = result.pass_score ?? result.result?.pass_score ?? 50;

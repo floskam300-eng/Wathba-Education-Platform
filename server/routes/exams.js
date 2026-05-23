@@ -67,11 +67,13 @@ router.get('/', requireRole('teacher', 'assistant'), async (req, res) => {
   const teacherId = getTeacherId(req);
   try {
     const result = await pool.query(
-      `SELECT e.*, c.name as course_name, COUNT(q.id)::int as question_count,
-              COUNT(er.id)::int as attempt_count
+      `SELECT e.*, c.name as course_name,
+              CASE WHEN e.question_source = 'bank' THEN e.bank_question_count
+                   ELSE COUNT(DISTINCT q.id)::int END as question_count,
+              COUNT(DISTINCT er.id)::int as attempt_count
        FROM exams e
        LEFT JOIN courses c ON e.course_id = c.id
-       LEFT JOIN questions q ON e.id = q.exam_id
+       LEFT JOIN questions q ON e.id = q.exam_id AND e.question_source != 'bank'
        LEFT JOIN exam_results er ON e.id = er.exam_id
        WHERE e.teacher_id = $1
        GROUP BY e.id, c.name ORDER BY e.created_at DESC`,
@@ -214,6 +216,12 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExams
         } finally {
           resetClient.release();
         }
+        logActivity({
+          teacherId, actor: getActor(req), ip: getIp(req),
+          action: 'force_reset_exam_results',
+          entity: { type: 'exam', id: parseInt(req.params.id), name: currentExam.title },
+          details: { deleted_results: resultCount },
+        });
       }
     }
 
@@ -357,7 +365,7 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageEx
     if (!(await verifyExamOwnership(req.params.id, teacherId))) {
       return res.status(403).json({ error: 'Access denied: exam not yours' });
     }
-    const qType = question_type || 'mcq';
+    const qType = (question_type === 'true_false') ? 'true_false' : 'mcq';
     let optA = option_a, optB = option_b, correctLetter = correct_answer_letter;
 
     if (qType === 'true_false') {
@@ -383,7 +391,7 @@ router.put('/questions/:qid', requireRole('teacher', 'assistant'), checkManageEx
     if (!(await verifyQuestionOwnership(req.params.qid, teacherId))) {
       return res.status(403).json({ error: 'Access denied: question not yours' });
     }
-    const qType = question_type || 'mcq';
+    const qType = (question_type === 'true_false') ? 'true_false' : 'mcq';
     let optA = option_a, optB = option_b, correctLetter = correct_answer_letter;
     if (qType === 'true_false') { optA = 'صح'; optB = 'خطأ'; }
 
@@ -862,7 +870,7 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
 
     if (passed && exam.badge_name)
       await client.query(
-        'INSERT INTO badges (student_id,exam_id,badge_name,badge_color) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING',
+        'INSERT INTO badges (student_id,exam_id,badge_name,badge_color) VALUES($1,$2,$3,$4) ON CONFLICT (student_id,exam_id) DO UPDATE SET badge_name=EXCLUDED.badge_name, badge_color=EXCLUDED.badge_color',
         [studentId, examId, exam.badge_name, exam.badge_color]
       );
 
@@ -942,10 +950,10 @@ router.get('/results/:resultId/review', authenticate, async (req, res) => {
     const resultRes = await pool.query(
       `SELECT er.id, er.student_id, er.exam_id, er.score, er.correct_count, er.wrong_count,
               er.unanswered_count, er.points_earned, er.start_time, er.end_time, er.created_at,
-              er.answers,
+              er.answers, er.attempt_number,
               s.name  AS student_name,
               e.title AS exam_title, e.total_score, e.pass_score, e.teacher_id AS exam_teacher_id,
-              e.question_source, e.bank_id
+              e.question_source, e.bank_id, e.shuffle_options
        FROM exam_results er
        JOIN students s ON er.student_id = s.id
        JOIN exams e    ON er.exam_id    = e.id
