@@ -253,7 +253,7 @@ router.get('/export', requireRole('teacher'), async (req, res) => {
   try {
     const [teacher, students, courses, sections, videos, pdfs, exams, questions, results, payments, enrollments, videoProgress] = await Promise.all([
       pool.query('SELECT id,username,name,bio,classification,logo_url,photo_url,whatsapp_phone,created_at FROM teachers WHERE id=$1', [teacherId]),
-      pool.query('SELECT id,username,name,phone,parent_phone,academic_stage,gender,points,created_at FROM students WHERE teacher_id=$1 AND deleted_at IS NULL ORDER BY name', [teacherId]),
+      pool.query('SELECT id,username,plain_password,name,phone,parent_phone,academic_stage,gender,points,created_at FROM students WHERE teacher_id=$1 AND deleted_at IS NULL ORDER BY name', [teacherId]),
       pool.query('SELECT * FROM courses WHERE teacher_id=$1 ORDER BY created_at', [teacherId]),
       pool.query('SELECT s.* FROM sections s JOIN courses c ON s.course_id=c.id WHERE c.teacher_id=$1 ORDER BY s.course_id, s.sort_order', [teacherId]),
       pool.query('SELECT v.* FROM videos v JOIN courses c ON v.course_id=c.id WHERE c.teacher_id=$1 ORDER BY v.course_id, v.sort_order, v.id', [teacherId]),
@@ -349,10 +349,11 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
       await client.query('SAVEPOINT sp');
       try {
         const r = await client.query(
-          `INSERT INTO courses (name,description,price,thumbnail_url,teacher_id,target_stage,is_free,created_at)
-           VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+          `INSERT INTO courses (name,description,price,thumbnail_url,teacher_id,target_stage,is_free,is_published,points_on_complete,created_at)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
           [c.name, c.description || null, c.price || 0, c.thumbnail_url || null, teacherId,
-           c.target_stage || null, c.is_free || false, c.created_at || new Date()]
+           c.target_stage || null, c.is_free || false, c.is_published || false,
+           c.points_on_complete || 0, c.created_at || new Date()]
         );
         courseMap[c.id] = r.rows[0].id;
         stats.courses++;
@@ -389,10 +390,11 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
       await client.query('SAVEPOINT sp');
       try {
         await client.query(
-          `INSERT INTO videos (title,file_path_or_url,duration_minutes,course_id,sort_order,section_id,created_at)
-           VALUES($1,$2,$3,$4,$5,$6,$7)`,
+          `INSERT INTO videos (title,file_path_or_url,duration_minutes,course_id,sort_order,section_id,url_480,url_720,url_1080,created_at)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
           [v.title, v.file_path_or_url || null, v.duration_minutes || 0, newCourseId,
-           v.sort_order || 0, v.section_id ? (sectionMap[v.section_id] || null) : null, v.created_at || new Date()]
+           v.sort_order || 0, v.section_id ? (sectionMap[v.section_id] || null) : null,
+           v.url_480 || null, v.url_720 || null, v.url_1080 || null, v.created_at || new Date()]
         );
         stats.videos++;
         await client.query('RELEASE SAVEPOINT sp');
@@ -427,11 +429,14 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
       try {
         const newCourseId = e.course_id ? (courseMap[e.course_id] || null) : null;
         const r = await client.query(
-          `INSERT INTO exams (title,duration_minutes,total_score,course_id,teacher_id,pass_score,badge_name,badge_color,start_date,end_date,created_at)
-           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+          `INSERT INTO exams (title,duration_minutes,total_score,course_id,teacher_id,pass_score,badge_name,badge_color,
+             start_date,end_date,is_published,shuffle_questions,shuffle_options,points_on_attempt,points_on_pass,created_at)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`,
           [e.title, e.duration_minutes || 60, e.total_score || 100, newCourseId, teacherId,
            e.pass_score ?? 50, e.badge_name || null, e.badge_color || '#FF8C00',
-           e.start_date || null, e.end_date || null, e.created_at || new Date()]
+           e.start_date || null, e.end_date || null,
+           e.is_published || false, e.shuffle_questions || false, e.shuffle_options || false,
+           e.points_on_attempt || 0, e.points_on_pass || 0, e.created_at || new Date()]
         );
         examMap[e.id] = r.rows[0].id;
         stats.exams++;
@@ -515,17 +520,22 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
     }
 
     // 9. Import payments
+    const VALID_PAYMENT_STATUSES = new Set(['pending', 'verified', 'rejected']);
     for (const p of (data.payments || [])) {
       const newStudentId = studentMap[p.student_id];
       if (!newStudentId) continue;
       await client.query('SAVEPOINT sp');
       try {
+        // Normalize status: 'confirmed' → 'verified', anything unknown → 'pending'
+        const safeStatus = VALID_PAYMENT_STATUSES.has(p.status)
+          ? p.status
+          : (p.status === 'confirmed' ? 'verified' : 'pending');
         await client.query(
           `INSERT INTO payments (student_id,course_id,amount,method,payment_date,status,reference_number,notes)
            VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
           [newStudentId, p.course_id ? (courseMap[p.course_id] || null) : null,
-           p.amount, p.method || 'Cash', p.payment_date || new Date(),
-           p.status || 'pending', p.reference_number || null, p.notes || null]
+           p.amount, p.method || '', p.payment_date || new Date(),
+           safeStatus, p.reference_number || null, p.notes || null]
         );
         stats.payments++;
         await client.query('RELEASE SAVEPOINT sp');
@@ -533,25 +543,54 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
     }
 
     // 10. Import exam results
+    // Insert all with is_latest=false first to avoid the partial-unique-index conflict
+    // (uidx_exam_results_latest only allows one is_latest=true per student+exam).
+    // After all inserts, promote the most-recent result per (student_id, exam_id) to is_latest=true.
+    const insertedResults = []; // { id, student_id, exam_id, created_at }
     for (const r of (data.exam_results || [])) {
       const newStudentId = studentMap[r.student_id];
       const newExamId    = examMap[r.exam_id];
       if (!newStudentId || !newExamId) continue;
       await client.query('SAVEPOINT sp');
       try {
-        await client.query(
+        const ins = await client.query(
           `INSERT INTO exam_results (student_id,exam_id,score,correct_count,wrong_count,
-             unanswered_count,start_time,end_time,answers,points_earned,created_at)
-           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+             unanswered_count,start_time,end_time,answers,points_earned,created_at,is_latest)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,false) RETURNING id,student_id,exam_id,created_at`,
           [newStudentId, newExamId, r.score || 0, r.correct_count || 0,
            r.wrong_count || 0, r.unanswered_count || 0,
            r.start_time || null, r.end_time || null,
            r.answers ? JSON.stringify(r.answers) : null,
            r.points_earned || 0, r.created_at || new Date()]
         );
+        insertedResults.push(ins.rows[0]);
         stats.results++;
         await client.query('RELEASE SAVEPOINT sp');
       } catch (e) { await client.query('ROLLBACK TO SAVEPOINT sp'); }
+    }
+
+    // Promote the most-recent inserted result per (student_id, exam_id) to is_latest=true.
+    // First reset any existing is_latest=true rows for those pairs, then set the new latest.
+    if (insertedResults.length > 0) {
+      const latestMap = {};
+      for (const row of insertedResults) {
+        const key = `${row.student_id}_${row.exam_id}`;
+        if (!latestMap[key] || new Date(row.created_at) > new Date(latestMap[key].created_at)) {
+          latestMap[key] = row;
+        }
+      }
+      for (const row of Object.values(latestMap)) {
+        // Reset all existing is_latest=true for this pair (could conflict with older data)
+        await client.query(
+          'UPDATE exam_results SET is_latest=false WHERE student_id=$1 AND exam_id=$2 AND is_latest=true',
+          [row.student_id, row.exam_id]
+        );
+        // Mark the newly imported latest result
+        await client.query(
+          'UPDATE exam_results SET is_latest=true WHERE id=$1',
+          [row.id]
+        );
+      }
     }
 
     await client.query('COMMIT');
