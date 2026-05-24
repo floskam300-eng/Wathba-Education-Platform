@@ -19,10 +19,9 @@ const loginLimiter = rateLimit({
 
 // ── Per-username brute-force protection (5 attempts → 60s lockout) ─────────
 const MAX_ATTEMPTS  = 5;
-const LOCKOUT_MS    = 60 * 1000; // 1 minute
-const loginAttempts = new Map(); // key: `${slug|'_'}:${username}`
+const LOCKOUT_MS    = 60 * 1000;
+const loginAttempts = new Map();
 
-// Purge stale entries every 10 minutes
 setInterval(() => {
   const now = Date.now();
   for (const [key, val] of loginAttempts.entries()) {
@@ -35,24 +34,21 @@ function getAttemptKey(slug, username) {
   return `${slug || '_'}:${(username || '').toLowerCase()}`;
 }
 
-// Returns remaining lockout seconds, or null if not locked
 function checkLockout(key) {
   const entry = loginAttempts.get(key);
   if (!entry || !entry.lockedUntil) return null;
   if (Date.now() < entry.lockedUntil) {
     return Math.ceil((entry.lockedUntil - Date.now()) / 1000);
   }
-  loginAttempts.delete(key); // expired — clear
+  loginAttempts.delete(key);
   return null;
 }
 
 function recordFailure(key) {
-  const now  = Date.now();
+  const now   = Date.now();
   const entry = loginAttempts.get(key) || { count: 0, firstAttempt: now, lockedUntil: null };
   entry.count += 1;
-  if (entry.count >= MAX_ATTEMPTS) {
-    entry.lockedUntil = now + LOCKOUT_MS;
-  }
+  if (entry.count >= MAX_ATTEMPTS) entry.lockedUntil = now + LOCKOUT_MS;
   loginAttempts.set(key, entry);
 }
 
@@ -60,16 +56,42 @@ function clearAttempts(key) {
   loginAttempts.delete(key);
 }
 
+// ── Parse a readable device name from User-Agent ───────────────────────────
+function parseDeviceName(userAgent) {
+  if (!userAgent) return 'جهاز غير معروف';
+  let os = 'غير معروف';
+  let browser = 'غير معروف';
+  if (/Windows NT 10/i.test(userAgent))      os = 'Windows 10/11';
+  else if (/Windows NT 6\.3/i.test(userAgent)) os = 'Windows 8.1';
+  else if (/Windows/i.test(userAgent))         os = 'Windows';
+  else if (/Android/i.test(userAgent)) {
+    const m = userAgent.match(/Android ([0-9.]+)/i);
+    os = m ? `Android ${m[1]}` : 'Android';
+  } else if (/iPhone/i.test(userAgent)) {
+    const m = userAgent.match(/OS ([0-9_]+)/i);
+    os = m ? `iOS ${m[1].replace(/_/g,'.')}` : 'iPhone';
+  } else if (/iPad/i.test(userAgent)) os = 'iPad';
+  else if (/Mac OS/i.test(userAgent))  os = 'Mac';
+  else if (/Linux/i.test(userAgent))   os = 'Linux';
+
+  if (/Edg\//i.test(userAgent))        browser = 'Edge';
+  else if (/OPR\//i.test(userAgent))   browser = 'Opera';
+  else if (/Chrome\//i.test(userAgent)) browser = 'Chrome';
+  else if (/Firefox\//i.test(userAgent)) browser = 'Firefox';
+  else if (/Safari\//i.test(userAgent))  browser = 'Safari';
+
+  return `${os} — ${browser}`;
+}
+
 // ── POST /api/auth/login ────────────────────────────────────────────────────
 router.post('/login', loginLimiter, async (req, res) => {
-  const { username, password, role, slug } = req.body;
+  const { username, password, role, slug, device_id } = req.body;
   if (!username || !password) {
     return res.status(400).json({ error: 'Username and password are required' });
   }
 
-  // Check per-username lockout BEFORE hitting the DB
-  const attemptKey   = getAttemptKey(slug, username);
-  const lockedSecs   = checkLockout(attemptKey);
+  const attemptKey = getAttemptKey(slug, username);
+  const lockedSecs = checkLockout(attemptKey);
   if (lockedSecs !== null) {
     return res.status(429).json({
       error: `تم تجميد الحساب مؤقتاً بسبب ${MAX_ATTEMPTS} محاولات فاشلة. حاول مرة أخرى بعد ${lockedSecs} ثانية`,
@@ -78,14 +100,10 @@ router.post('/login', loginLimiter, async (req, res) => {
   }
 
   try {
-    // Resolve teacher from slug (for tenant scoping)
     let slugTeacherId   = null;
     let slugTeacherSlug = null;
     if (slug) {
-      const tRes = await pool.query(
-        'SELECT id, slug FROM teachers WHERE slug = $1',
-        [slug]
-      );
+      const tRes = await pool.query('SELECT id, slug FROM teachers WHERE slug = $1', [slug]);
       if (tRes.rows.length === 0) {
         recordFailure(attemptKey);
         return res.status(401).json({ error: 'بيانات الدخول غير صحيحة' });
@@ -100,38 +118,18 @@ router.post('/login', loginLimiter, async (req, res) => {
       let result;
 
       if (r === 'teacher') {
-        if (slugTeacherId) {
-          result = await pool.query(
-            'SELECT * FROM teachers WHERE username = $1 AND id = $2',
-            [username, slugTeacherId]
-          );
-        } else {
-          result = await pool.query('SELECT * FROM teachers WHERE username = $1', [username]);
-        }
+        result = slugTeacherId
+          ? await pool.query('SELECT * FROM teachers WHERE username = $1 AND id = $2', [username, slugTeacherId])
+          : await pool.query('SELECT * FROM teachers WHERE username = $1', [username]);
       } else if (r === 'assistant') {
-        if (slugTeacherId) {
-          result = await pool.query(
-            'SELECT * FROM assistants WHERE username = $1 AND teacher_id = $2',
-            [username, slugTeacherId]
-          );
-        } else {
-          result = await pool.query('SELECT * FROM assistants WHERE username = $1', [username]);
-        }
+        result = slugTeacherId
+          ? await pool.query('SELECT * FROM assistants WHERE username = $1 AND teacher_id = $2', [username, slugTeacherId])
+          : await pool.query('SELECT * FROM assistants WHERE username = $1', [username]);
       } else if (r === 'student') {
-        if (slugTeacherId) {
-          result = await pool.query(
-            'SELECT * FROM students WHERE username = $1 AND deleted_at IS NULL AND teacher_id = $2',
-            [username, slugTeacherId]
-          );
-        } else {
-          result = await pool.query(
-            'SELECT * FROM students WHERE username = $1 AND deleted_at IS NULL',
-            [username]
-          );
-        }
-      } else {
-        continue;
-      }
+        result = slugTeacherId
+          ? await pool.query('SELECT * FROM students WHERE username = $1 AND deleted_at IS NULL AND teacher_id = $2', [username, slugTeacherId])
+          : await pool.query('SELECT * FROM students WHERE username = $1 AND deleted_at IS NULL', [username]);
+      } else continue;
 
       if (result.rows.length === 0) continue;
 
@@ -142,20 +140,76 @@ router.post('/login', loginLimiter, async (req, res) => {
         return res.status(401).json({ error: 'بيانات الدخول غير صحيحة' });
       }
 
-      // Successful login — clear lockout tracker
       clearAttempts(attemptKey);
 
-      // Build payload with teacher_slug for all roles
+      // ── Student-specific: device limit enforcement ─────────────────────
+      if (r === 'student') {
+        // Block if account is already suspended
+        if (user.is_suspended) {
+          return res.status(403).json({
+            error: 'تم إيقاف حسابك مؤقتاً بسبب تسجيل الدخول من أكثر من جهازين. يرجى التواصل مع المدرس لإعادة التفعيل.',
+            account_suspended: true,
+          });
+        }
+
+        // Track device if device_id provided
+        if (device_id) {
+          const ip         = getIp(req);
+          const ua         = req.headers['user-agent'] || '';
+          const deviceName = parseDeviceName(ua);
+
+          // Get current registered devices
+          const devicesRes = await pool.query(
+            'SELECT device_id FROM student_devices WHERE student_id = $1',
+            [user.id]
+          );
+          const knownIds = devicesRes.rows.map(d => d.device_id);
+          const isKnown  = knownIds.includes(device_id);
+
+          if (!isKnown) {
+            if (knownIds.length >= 2) {
+              // 3rd device → suspend account + create alert
+              await pool.query(
+                'UPDATE students SET is_suspended = true WHERE id = $1',
+                [user.id]
+              );
+              await pool.query(
+                `INSERT INTO device_alerts
+                   (teacher_id, student_id, alert_type, device_id, device_name, ip_address, status)
+                 VALUES ($1, $2, 'device_limit_exceeded', $3, $4, $5, 'pending')`,
+                [user.teacher_id, user.id, device_id, deviceName, ip]
+              );
+              return res.status(403).json({
+                error: 'تم إيقاف حسابك بسبب محاولة تسجيل الدخول من جهاز ثالث. تم إشعار المدرس — يرجى التواصل معه لإعادة التفعيل.',
+                account_suspended: true,
+              });
+            }
+            // New device, still within limit → register it
+            await pool.query(
+              `INSERT INTO student_devices (student_id, device_id, device_name, user_agent, ip_address)
+               VALUES ($1, $2, $3, $4, $5)
+               ON CONFLICT (student_id, device_id) DO UPDATE
+                 SET last_seen = NOW(), device_name = $3`,
+              [user.id, device_id, deviceName, ua, ip]
+            );
+          } else {
+            // Known device → just update last_seen
+            await pool.query(
+              'UPDATE student_devices SET last_seen = NOW() WHERE student_id = $1 AND device_id = $2',
+              [user.id, device_id]
+            );
+          }
+        }
+      }
+      // ──────────────────────────────────────────────────────────────────────
+
       const payload = { id: user.id, role: r, username: user.username, name: user.name };
 
       if (r === 'teacher') {
         payload.teacher_slug = user.slug || slugTeacherSlug;
       } else {
         payload.teacher_id = user.teacher_id;
-        const teacherRes = await pool.query(
-          'SELECT slug FROM teachers WHERE id = $1',
-          [user.teacher_id]
-        );
+        const teacherRes = await pool.query('SELECT slug FROM teachers WHERE id = $1', [user.teacher_id]);
         payload.teacher_slug = teacherRes.rows[0]?.slug || null;
       }
 
@@ -186,7 +240,6 @@ router.post('/login', loginLimiter, async (req, res) => {
       });
     }
 
-    // No matching user found
     recordFailure(attemptKey);
     return res.status(401).json({ error: 'بيانات الدخول غير صحيحة' });
   } catch (err) {
@@ -221,11 +274,19 @@ router.get('/me', authenticate, async (req, res) => {
 
     if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
 
-    const { password: _, plain_password: __, fcm_token: ___, ...safeUser } = result.rows[0];
+    const user = result.rows[0];
 
-    if (role === 'teacher') {
-      safeUser.teacher_slug = safeUser.slug;
+    // Block suspended students on token refresh too
+    if (role === 'student' && user.is_suspended) {
+      return res.status(403).json({
+        error: 'تم إيقاف حسابك مؤقتاً. يرجى التواصل مع المدرس لإعادة التفعيل.',
+        account_suspended: true,
+      });
     }
+
+    const { password: _, plain_password: __, fcm_token: ___, ...safeUser } = user;
+
+    if (role === 'teacher') safeUser.teacher_slug = safeUser.slug;
 
     res.json({ ...safeUser, role });
   } catch (err) {

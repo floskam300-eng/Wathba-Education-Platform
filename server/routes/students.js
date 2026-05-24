@@ -759,4 +759,133 @@ router.get('/attendance/:courseId', requireRole('teacher', 'assistant'), async (
   }
 });
 
+// ── GET /students/device-alerts — teacher views all pending alerts ─────────
+router.get('/device-alerts', requireRole('teacher', 'assistant'), async (req, res) => {
+  const teacherId = getTeacherId(req);
+  try {
+    const result = await pool.query(
+      `SELECT da.*, s.name AS student_name, s.username AS student_username,
+              s.academic_stage, s.is_suspended
+       FROM device_alerts da
+       JOIN students s ON s.id = da.student_id
+       WHERE da.teacher_id = $1
+       ORDER BY da.created_at DESC`,
+      [teacherId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── GET /students/:id/devices — list registered devices for a student ───────
+router.get('/:id/devices', requireRole('teacher', 'assistant'), async (req, res) => {
+  const teacherId = getTeacherId(req);
+  const studentId = parseInt(req.params.id, 10);
+  try {
+    const check = await pool.query(
+      'SELECT id FROM students WHERE id=$1 AND teacher_id=$2 AND deleted_at IS NULL',
+      [studentId, teacherId]
+    );
+    if (!check.rows.length) return res.status(403).json({ error: 'Access denied' });
+    const result = await pool.query(
+      'SELECT id, device_id, device_name, ip_address, first_seen, last_seen FROM student_devices WHERE student_id=$1 ORDER BY last_seen DESC',
+      [studentId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── POST /students/:id/suspend — suspend or reactivate a student ────────────
+router.post('/:id/suspend', requireRole('teacher', 'assistant'), async (req, res) => {
+  const teacherId = getTeacherId(req);
+  const studentId = parseInt(req.params.id, 10);
+  const { action } = req.body; // 'suspend' | 'reactivate' | 'reactivate_reset_devices'
+  if (!['suspend', 'reactivate', 'reactivate_reset_devices'].includes(action)) {
+    return res.status(400).json({ error: 'Invalid action' });
+  }
+  try {
+    const check = await pool.query(
+      'SELECT id, name FROM students WHERE id=$1 AND teacher_id=$2 AND deleted_at IS NULL',
+      [studentId, teacherId]
+    );
+    if (!check.rows.length) return res.status(403).json({ error: 'Access denied' });
+
+    if (action === 'suspend') {
+      await pool.query('UPDATE students SET is_suspended=true WHERE id=$1', [studentId]);
+    } else if (action === 'reactivate') {
+      await pool.query('UPDATE students SET is_suspended=false WHERE id=$1', [studentId]);
+      await pool.query(
+        "UPDATE device_alerts SET status='reactivated', resolved_at=NOW() WHERE student_id=$1 AND status='pending'",
+        [studentId]
+      );
+    } else if (action === 'reactivate_reset_devices') {
+      await pool.query('UPDATE students SET is_suspended=false WHERE id=$1', [studentId]);
+      await pool.query('DELETE FROM student_devices WHERE student_id=$1', [studentId]);
+      await pool.query(
+        "UPDATE device_alerts SET status='reactivated', resolved_at=NOW() WHERE student_id=$1 AND status='pending'",
+        [studentId]
+      );
+    }
+
+    logActivity({
+      teacherId,
+      actor: getActor(req),
+      ip: getIp(req),
+      action: action === 'suspend' ? 'suspend_student' : 'reactivate_student',
+      entity: { type: 'student', id: studentId, name: check.rows[0].name },
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── POST /students/device-alerts/:alertId/action ─────────────────────────────
+router.post('/device-alerts/:alertId/action', requireRole('teacher', 'assistant'), async (req, res) => {
+  const teacherId = getTeacherId(req);
+  const alertId   = parseInt(req.params.alertId, 10);
+  const { action } = req.body; // 'reactivate' | 'reactivate_reset_devices' | 'dismiss'
+  if (!['reactivate', 'reactivate_reset_devices', 'dismiss'].includes(action)) {
+    return res.status(400).json({ error: 'Invalid action' });
+  }
+  try {
+    const alertRes = await pool.query(
+      'SELECT * FROM device_alerts WHERE id=$1 AND teacher_id=$2',
+      [alertId, teacherId]
+    );
+    if (!alertRes.rows.length) return res.status(403).json({ error: 'Access denied' });
+    const alert = alertRes.rows[0];
+
+    if (action === 'reactivate') {
+      await pool.query('UPDATE students SET is_suspended=false WHERE id=$1', [alert.student_id]);
+      await pool.query(
+        "UPDATE device_alerts SET status='reactivated', resolved_at=NOW() WHERE id=$1",
+        [alertId]
+      );
+    } else if (action === 'reactivate_reset_devices') {
+      await pool.query('UPDATE students SET is_suspended=false WHERE id=$1', [alert.student_id]);
+      await pool.query('DELETE FROM student_devices WHERE student_id=$1', [alert.student_id]);
+      await pool.query(
+        "UPDATE device_alerts SET status='reactivated', resolved_at=NOW() WHERE id=$1",
+        [alertId]
+      );
+    } else if (action === 'dismiss') {
+      await pool.query(
+        "UPDATE device_alerts SET status='dismissed', resolved_at=NOW() WHERE id=$1",
+        [alertId]
+      );
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;

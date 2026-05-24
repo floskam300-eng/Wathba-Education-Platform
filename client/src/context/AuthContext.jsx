@@ -58,10 +58,11 @@ export const AuthProvider = ({ children }) => {
     return () => window.removeEventListener('wathba_unauthorized', handleUnauthorized);
   }, [navigate]);
 
-  const login = async (username, password, role, slug) => {
+  const login = async (username, password, role, slug, deviceId) => {
     const body = { username, password };
     if (role) body.role = role;
     if (slug) body.slug = slug;
+    if (deviceId) body.device_id = deviceId;
     const res = await api.post('/auth/login', body);
     const { token, user } = res.data;
     localStorage.setItem('wathba_token', token);

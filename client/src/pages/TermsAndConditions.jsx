@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FileText, ArrowRight, Mail, MessageCircle, BookOpen, CreditCard, Shield, AlertTriangle, Users, Video, Trophy, Settings, XCircle } from 'lucide-react';
+import { FileText, ArrowRight, Mail, MessageCircle, BookOpen, CreditCard, Shield, AlertTriangle, Users, Video, Trophy, Settings, XCircle, Smartphone } from 'lucide-react';
 import wathbaLogo from '../assets/wathba_logo_transparent.png';
 
 const Section = ({ icon: Icon, title, children, accent = 'orange' }) => (
@@ -178,7 +178,20 @@ export default function TermsAndConditions() {
             ]} color="red" />
           </Section>
 
-          <Section icon={XCircle} title="تاسعاً: إيقاف الحسابات والإنهاء">
+          <Section icon={Smartphone} title="تاسعاً: قيود الأجهزة وحماية الحساب" accent="purple">
+            <p>لضمان أمان المحتوى التعليمي ومنع مشاركة الحسابات، تطبّق المنصة نظام تتبع الأجهزة التالي:</p>
+            <BulletList items={[
+              'يُسمح بتسجيل حساب الطالب الواحد على جهازين (2) كحد أقصى',
+              'عند محاولة تسجيل الدخول من جهاز ثالث، يُوقَف الحساب تلقائياً ويُشعَر المدرس فوراً',
+              'لا يحق للطالب مشاركة بيانات دخوله مع أي شخص آخر — هذا يُعدّ انتهاكاً صريحاً للشروط',
+              'في حالة تغيير الجهاز أو الهاتف، يجب التواصل مع المدرس لإعادة ضبط الأجهزة المسجّلة',
+              'المدرس يملك صلاحية إعادة تفعيل الحساب وإعادة ضبط الأجهزة في أي وقت',
+              'المنصة تسجّل نوع الجهاز وعنوان IP لكل جلسة دخول لأغراض الأمان فقط',
+            ]} color="red" />
+            <p className="mt-3">الهدف من هذا النظام هو حماية المحتوى التعليمي الذي أنشأه المدرس ومنع إعادة بيع بيانات الدخول.</p>
+          </Section>
+
+          <Section icon={XCircle} title="عاشراً: إيقاف الحسابات والإنهاء">
             <BulletList items={[
               'يحق لنا إيقاف أو إغلاق أي حساب يثبت انتهاكه لهذه الشروط وذلك فوراً وبدون إشعار مسبق',
               'انتهاء اشتراك المعلم يؤدي إلى إيقاف مؤقت للمنصة حتى تجديد الاشتراك',
@@ -201,7 +214,7 @@ export default function TermsAndConditions() {
             </div>
           </div>
 
-          <Section icon={FileText} title="عاشراً: التعديلات على الشروط" accent="purple">
+          <Section icon={FileText} title="حادي عشر: التعديلات على الشروط" accent="purple">
             <BulletList items={[
               'نحتفظ بحقنا في تعديل هذه الشروط في أي وقت',
               'سيتم إشعارك بالتغييرات الجوهرية عبر الإشعارات داخل المنصة',

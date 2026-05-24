@@ -611,3 +611,34 @@ DO $$ BEGIN
   ALTER TABLE video_progress ADD CONSTRAINT chk_vidprog_pct_range
     CHECK (progress_percentage >= 0 AND progress_percentage <= 100);
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- ── Device-based account protection ──────────────────────────────────────────
+ALTER TABLE students ADD COLUMN IF NOT EXISTS is_suspended BOOLEAN DEFAULT false;
+
+CREATE TABLE IF NOT EXISTS student_devices (
+  id         SERIAL PRIMARY KEY,
+  student_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
+  device_id  VARCHAR(128) NOT NULL,
+  device_name VARCHAR(300),
+  user_agent TEXT,
+  ip_address VARCHAR(45),
+  first_seen TIMESTAMP DEFAULT NOW(),
+  last_seen  TIMESTAMP DEFAULT NOW(),
+  UNIQUE(student_id, device_id)
+);
+CREATE INDEX IF NOT EXISTS idx_student_devices_student ON student_devices(student_id);
+
+CREATE TABLE IF NOT EXISTS device_alerts (
+  id          SERIAL PRIMARY KEY,
+  teacher_id  INTEGER REFERENCES teachers(id) ON DELETE CASCADE,
+  student_id  INTEGER REFERENCES students(id) ON DELETE CASCADE,
+  alert_type  VARCHAR(50) DEFAULT 'device_limit_exceeded',
+  device_id   VARCHAR(128),
+  device_name VARCHAR(300),
+  ip_address  VARCHAR(45),
+  status      VARCHAR(20) DEFAULT 'pending',
+  created_at  TIMESTAMP DEFAULT NOW(),
+  resolved_at TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_device_alerts_teacher ON device_alerts(teacher_id, status);
+CREATE INDEX IF NOT EXISTS idx_device_alerts_student ON device_alerts(student_id);

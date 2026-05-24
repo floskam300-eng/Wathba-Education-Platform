@@ -1,6 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Users, Plus, Pencil, Trash2, Search, Eye, EyeOff, Printer, GraduationCap, Upload, FileSpreadsheet, Download, X, Loader2, Copy, CheckCircle, AlertCircle } from 'lucide-react';
+import {
+  Users, Plus, Pencil, Trash2, Search, Eye, EyeOff, Printer,
+  GraduationCap, Upload, FileSpreadsheet, Download, X, Loader2,
+  Copy, CheckCircle, AlertCircle, Ban, Lock, Unlock, ShieldAlert,
+  Smartphone, Monitor, RefreshCw, AlertTriangle, ChevronRight,
+} from 'lucide-react';
 import * as XLSX from 'xlsx';
 import Modal from '../../components/ui/Modal';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
@@ -45,6 +50,7 @@ function PasswordCell({ password, onCopy }) {
     </div>
   );
 }
+
 const emptyForm = { name: '', phone: '', parent_phone: '', academic_stage: '', gender: '' };
 
 const STAGE_PREFIX_LABELS = {
@@ -56,29 +62,253 @@ const STAGE_PREFIX_LABELS = {
   'الصف الثالث الإعدادي': 'C',
 };
 
+// ── Device Alerts Panel ───────────────────────────────────────────────────────
+function DeviceAlertsPanel({ canEdit }) {
+  const qc = useQueryClient();
+  const [devicesModal, setDevicesModal] = useState(null); // student object for viewing devices
+  const [actionAlert, setActionAlert]   = useState(null); // alert being actioned
+
+  const { data: alerts = [], isLoading } = useQuery({
+    queryKey: ['device-alerts'],
+    queryFn: () => api.get('/students/device-alerts').then(r => r.data),
+    refetchInterval: 30000,
+  });
+
+  const { data: devices = [] } = useQuery({
+    queryKey: ['student-devices', devicesModal?.student_id || devicesModal?.id],
+    queryFn: () => api.get(`/students/${devicesModal?.student_id || devicesModal?.id}/devices`).then(r => r.data),
+    enabled: !!devicesModal,
+  });
+
+  const actionMut = useMutation({
+    mutationFn: ({ alertId, action }) => api.post(`/students/device-alerts/${alertId}/action`, { action }),
+    onSuccess: () => {
+      qc.invalidateQueries(['device-alerts']);
+      qc.invalidateQueries(['students']);
+      toast.success('تم تنفيذ الإجراء بنجاح');
+      setActionAlert(null);
+    },
+    onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
+  });
+
+  const pending   = alerts.filter(a => a.status === 'pending');
+  const resolved  = alerts.filter(a => a.status !== 'pending');
+
+  const statusLabel = (s) => {
+    if (s === 'pending')   return { text: 'معلّق', cls: 'bg-red-100 text-red-700' };
+    if (s === 'reactivated') return { text: 'تم إعادة التفعيل', cls: 'bg-green-100 text-green-700' };
+    if (s === 'dismissed') return { text: 'تم التجاهل', cls: 'bg-gray-100 text-gray-600' };
+    return { text: s, cls: 'bg-gray-100 text-gray-600' };
+  };
+
+  if (isLoading) return (
+    <div className="card flex items-center justify-center py-16">
+      <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+    </div>
+  );
+
+  return (
+    <div className="space-y-5">
+      {/* Summary */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="card !p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center">
+            <ShieldAlert className="w-5 h-5 text-red-600" />
+          </div>
+          <div>
+            <p className="text-2xl font-black text-red-600">{pending.length}</p>
+            <p className="text-xs text-gray-500 font-semibold">تحذيرات معلّقة</p>
+          </div>
+        </div>
+        <div className="card !p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center">
+            <Ban className="w-5 h-5 text-orange-600" />
+          </div>
+          <div>
+            <p className="text-2xl font-black text-orange-600">
+              {alerts.filter(a => a.is_suspended).length}
+            </p>
+            <p className="text-xs text-gray-500 font-semibold">حسابات موقوفة</p>
+          </div>
+        </div>
+        <div className="card !p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
+            <CheckCircle className="w-5 h-5 text-green-600" />
+          </div>
+          <div>
+            <p className="text-2xl font-black text-green-600">{resolved.length}</p>
+            <p className="text-xs text-gray-500 font-semibold">تم معالجتها</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Pending Alerts */}
+      {pending.length > 0 && (
+        <div className="card !p-0 overflow-hidden">
+          <div className="p-4 border-b border-red-100 bg-red-50 flex items-center gap-2">
+            <ShieldAlert className="w-4 h-4 text-red-600" />
+            <span className="font-black text-red-700 text-sm">تحذيرات تستوجب الإجراء الفوري</span>
+            <span className="bg-red-600 text-white text-xs font-black px-2 py-0.5 rounded-full">{pending.length}</span>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {pending.map(alert => (
+              <div key={alert.id} className="p-4 hover:bg-orange-50/30 transition-colors">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <AlertTriangle className="w-4 h-4 text-red-600" />
+                    </div>
+                    <div>
+                      <p className="font-black text-navy-700 text-sm">
+                        {alert.student_name}
+                        <span className="font-mono text-xs text-gray-500 mr-2">({alert.student_username})</span>
+                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5">{alert.academic_stage}</p>
+                      <p className="text-xs text-orange-700 font-semibold mt-1">
+                        محاولة دخول من جهاز ثالث: {alert.device_name}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {new Date(alert.created_at).toLocaleString('ar-EG')}
+                        {alert.ip_address && <span className="mr-2 font-mono">IP: {alert.ip_address}</span>}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2 flex-shrink-0">
+                    <button
+                      onClick={() => setDevicesModal({ id: alert.student_id, student_id: alert.student_id, name: alert.student_name })}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 text-xs font-bold hover:bg-blue-100 transition-colors"
+                    >
+                      <Smartphone className="w-3.5 h-3.5" /> الأجهزة
+                    </button>
+                    {canEdit && (
+                      <>
+                        <button
+                          onClick={() => actionMut.mutate({ alertId: alert.id, action: 'reactivate' })}
+                          disabled={actionMut.isPending}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-50 text-green-700 text-xs font-bold hover:bg-green-100 transition-colors"
+                          title="إعادة التفعيل مع الإبقاء على الأجهزة المسجّلة"
+                        >
+                          <Unlock className="w-3.5 h-3.5" /> تفعيل
+                        </button>
+                        <button
+                          onClick={() => actionMut.mutate({ alertId: alert.id, action: 'reactivate_reset_devices' })}
+                          disabled={actionMut.isPending}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-50 text-orange-700 text-xs font-bold hover:bg-orange-100 transition-colors"
+                          title="إعادة التفعيل وحذف كل الأجهزة المسجّلة (يبدأ من صفر)"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" /> تفعيل + مسح الأجهزة
+                        </button>
+                        <button
+                          onClick={() => actionMut.mutate({ alertId: alert.id, action: 'dismiss' })}
+                          disabled={actionMut.isPending}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-50 text-gray-600 text-xs font-bold hover:bg-gray-100 transition-colors"
+                        >
+                          <X className="w-3.5 h-3.5" /> تجاهل
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Resolved History */}
+      {resolved.length > 0 && (
+        <div className="card !p-0 overflow-hidden">
+          <div className="p-4 border-b border-gray-100 flex items-center gap-2">
+            <CheckCircle className="w-4 h-4 text-gray-500" />
+            <span className="font-black text-gray-600 text-sm">السجل السابق</span>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {resolved.slice(0, 20).map(alert => {
+              const st = statusLabel(alert.status);
+              return (
+                <div key={alert.id} className="p-4 flex items-center justify-between gap-3 opacity-75">
+                  <div>
+                    <p className="font-bold text-navy-700 text-sm">{alert.student_name}
+                      <span className="font-mono text-xs text-gray-500 mr-2">({alert.student_username})</span>
+                    </p>
+                    <p className="text-xs text-gray-400 mt-0.5">{new Date(alert.created_at).toLocaleString('ar-EG')} — {alert.device_name}</p>
+                  </div>
+                  <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${st.cls}`}>{st.text}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {alerts.length === 0 && (
+        <div className="card flex flex-col items-center justify-center py-16 gap-3">
+          <div className="w-14 h-14 rounded-2xl bg-green-50 flex items-center justify-center">
+            <CheckCircle className="w-7 h-7 text-green-500" />
+          </div>
+          <p className="font-bold text-gray-600">لا توجد تحذيرات حتى الآن</p>
+          <p className="text-xs text-gray-400">ستظهر هنا أي محاولات تسجيل دخول مشبوهة</p>
+        </div>
+      )}
+
+      {/* Devices Modal */}
+      <Modal open={!!devicesModal} onClose={() => setDevicesModal(null)} title={`الأجهزة المسجّلة — ${devicesModal?.name}`}>
+        <div className="space-y-3">
+          {devices.length === 0 ? (
+            <p className="text-center text-gray-500 py-6 text-sm">لم يُسجَّل أي جهاز بعد</p>
+          ) : devices.map((d, i) => (
+            <div key={d.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
+              <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                {d.device_name?.includes('Android') || d.device_name?.includes('iOS') || d.device_name?.includes('iPhone')
+                  ? <Smartphone className="w-4 h-4 text-blue-600" />
+                  : <Monitor className="w-4 h-4 text-blue-600" />
+                }
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-sm text-navy-700">{d.device_name || 'جهاز غير معروف'}</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  أول دخول: {new Date(d.first_seen).toLocaleDateString('ar-EG')}
+                  &nbsp;·&nbsp;آخر دخول: {new Date(d.last_seen).toLocaleDateString('ar-EG')}
+                </p>
+                {d.ip_address && <p className="text-xs text-gray-400 font-mono mt-0.5">IP: {d.ip_address}</p>}
+              </div>
+              <span className="text-xs bg-navy-100 text-navy-700 font-black px-2 py-0.5 rounded-full flex-shrink-0">جهاز {i + 1}</span>
+            </div>
+          ))}
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+// ── Main Component ────────────────────────────────────────────────────────────
 export default function TeacherStudents() {
   const qc = useQueryClient();
   const { user } = useAuth();
-  const [search, setSearch] = useState('');
+  const [mainView, setMainView]           = useState('students'); // 'students' | 'alerts'
+  const [search, setSearch]               = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [stageFilter, setStageFilter] = useState('الكل');
+  const [stageFilter, setStageFilter]     = useState('الكل');
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 400);
     return () => clearTimeout(t);
   }, [search]);
-  const [modal, setModal] = useState(false);
-  const [editData, setEditData] = useState(null);
-  const [form, setForm] = useState(emptyForm);
-  const [deleteId, setDeleteId] = useState(null);
-  const [viewStudent, setViewStudent] = useState(null);
-  const [importModal, setImportModal] = useState(false);
-  const [importRows, setImportRows] = useState([]);
+
+  const [modal, setModal]               = useState(false);
+  const [editData, setEditData]         = useState(null);
+  const [form, setForm]                 = useState(emptyForm);
+  const [deleteId, setDeleteId]         = useState(null);
+  const [importModal, setImportModal]   = useState(false);
+  const [importRows, setImportRows]     = useState([]);
   const [importLoading, setImportLoading] = useState(false);
-  const importFileRef = useRef();
+  const importFileRef                   = useRef();
   const [previewUsername, setPreviewUsername] = useState('');
-  const [previewLoading, setPreviewLoading] = useState(false);
-  const [createdStudent, setCreatedStudent] = useState(null);
+  const [previewLoading, setPreviewLoading]   = useState(false);
+  const [createdStudent, setCreatedStudent]   = useState(null);
+
+  // Suspend / unsuspend state
+  const [suspendTarget, setSuspendTarget] = useState(null); // { id, name, is_suspended }
 
   const { data: students = [], isLoading, isFetching } = useQuery({
     queryKey: ['students', debouncedSearch],
@@ -86,19 +316,17 @@ export default function TeacherStudents() {
     placeholderData: (prev) => prev,
   });
 
-  const { data: results = [] } = useQuery({
-    queryKey: ['student-results', viewStudent?.id],
-    queryFn: () => api.get(`/students/${viewStudent?.id}/results`).then(r => r.data),
-    enabled: !!viewStudent,
+  // Pending alerts count for badge
+  const { data: deviceAlerts = [] } = useQuery({
+    queryKey: ['device-alerts'],
+    queryFn: () => api.get('/students/device-alerts').then(r => r.data),
+    refetchInterval: 60000,
   });
+  const pendingAlertsCount = deviceAlerts.filter(a => a.status === 'pending').length;
 
   const createMut = useMutation({
     mutationFn: (data) => api.post('/students', data),
-    onSuccess: (res) => {
-      qc.invalidateQueries(['students']);
-      setCreatedStudent(res.data);
-      closeModal();
-    },
+    onSuccess: (res) => { qc.invalidateQueries(['students']); setCreatedStudent(res.data); closeModal(); },
     onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
   });
 
@@ -111,6 +339,17 @@ export default function TeacherStudents() {
   const deleteMut = useMutation({
     mutationFn: (id) => api.delete(`/students/${id}`),
     onSuccess: () => { qc.invalidateQueries(['students']); toast.success('تم حذف الطالب'); setDeleteId(null); },
+    onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
+  });
+
+  const suspendMut = useMutation({
+    mutationFn: ({ id, action }) => api.post(`/students/${id}/suspend`, { action }),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries(['students']);
+      qc.invalidateQueries(['device-alerts']);
+      toast.success(vars.action === 'suspend' ? 'تم إيقاف الحساب' : 'تم إعادة تفعيل الحساب');
+      setSuspendTarget(null);
+    },
     onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
   });
 
@@ -139,19 +378,11 @@ export default function TeacherStudents() {
     try {
       const res = await api.post('/students/bulk', { students: importRows });
       const { success, failed, errors, created } = res.data;
-      if (success > 0) {
-        qc.invalidateQueries(['students']);
-        toast.success(`تم إضافة ${success} طالب بنجاح${failed > 0 ? ` (${failed} فشل)` : ''}`);
-      }
+      if (success > 0) { qc.invalidateQueries(['students']); toast.success(`تم إضافة ${success} طالب بنجاح${failed > 0 ? ` (${failed} فشل)` : ''}`); }
       if (failed > 0 && success === 0) toast.error(`فشل استيراد جميع الصفوف (${failed})`);
       if (errors?.length) errors.slice(0, 3).forEach(e => toast.error(e, { duration: 4000 }));
-      // If any credentials were auto-generated, download them as Excel
       if (created?.length) {
-        const exportData = created.map(s => ({
-          'الاسم': s.name,
-          'اسم المستخدم': s.username,
-          'كلمة المرور': s.generated_password,
-        }));
+        const exportData = created.map(s => ({ 'الاسم': s.name, 'اسم المستخدم': s.username, 'كلمة المرور': s.generated_password }));
         const ws = XLSX.utils.json_to_sheet(exportData);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'بيانات الدخول');
@@ -190,17 +421,16 @@ export default function TeacherStudents() {
     toast.success(`تم تصدير ${exportData.length} طالب`);
   };
 
-  const canAdd = user?.role === 'teacher' || user?.can_add_students;
-  const canEdit = user?.role === 'teacher' || user?.can_edit_students;
+  const canAdd    = user?.role === 'teacher' || user?.can_add_students;
+  const canEdit   = user?.role === 'teacher' || user?.can_edit_students;
   const canDelete = user?.role === 'teacher' || user?.can_delete_students;
-  const canPrint = user?.role === 'teacher' || user?.can_view_analytics;
+  const canPrint  = user?.role === 'teacher' || user?.can_view_analytics;
 
-  const openAdd = () => { setEditData(null); setForm(emptyForm); setPreviewUsername(''); setFormErrors({}); setModal(true); };
+  const openAdd  = () => { setEditData(null); setForm(emptyForm); setPreviewUsername(''); setFormErrors({}); setModal(true); };
   const openEdit = (s) => { setEditData(s); setForm({ ...s, password: '' }); setPreviewUsername(''); setFormErrors({}); setModal(true); };
   const closeModal = () => { setModal(false); setEditData(null); setForm(emptyForm); setPreviewUsername(''); setFormErrors({}); };
   const copyToClipboard = (text) => { navigator.clipboard.writeText(text).then(() => toast.success('تم النسخ!')); };
 
-  // Fetch preview username when stage changes (only when adding a new student)
   useEffect(() => {
     if (editData || !modal) return;
     if (!form.academic_stage) { setPreviewUsername(''); return; }
@@ -208,12 +438,7 @@ export default function TeacherStudents() {
     setPreviewLoading(true);
     api.get('/students/next-username', { params: { stage: form.academic_stage } })
       .then(r => { if (!cancelled) setPreviewUsername(r.data.username); })
-      .catch(() => {
-        if (!cancelled) {
-          const p = STAGE_PREFIX_LABELS[form.academic_stage] || 'S';
-          setPreviewUsername(`${p}???`);
-        }
-      })
+      .catch(() => { if (!cancelled) { const p = STAGE_PREFIX_LABELS[form.academic_stage] || 'S'; setPreviewUsername(`${p}???`); } })
       .finally(() => { if (!cancelled) setPreviewLoading(false); });
     return () => { cancelled = true; };
   }, [form.academic_stage, editData, modal]);
@@ -230,27 +455,19 @@ export default function TeacherStudents() {
     else createMut.mutate(form);
   };
 
-  // Stage counts for tabs
   const stageCounts = ['الكل', ...STAGES].reduce((acc, s) => {
     acc[s] = s === 'الكل' ? students.length : students.filter(st => st.academic_stage === s).length;
     return acc;
   }, {});
 
-  const filtered = students.filter(s => {
-    return stageFilter === 'الكل' || s.academic_stage === stageFilter;
-  });
+  const filtered = students.filter(s => stageFilter === 'الكل' || s.academic_stage === stageFilter);
 
   const handlePrint = () => {
     const headers = ['الاسم', 'اسم المستخدم', 'الهاتف', 'هاتف ولي الأمر', 'المرحلة', 'الجنس', 'الكورسات المسجّلة', 'النقاط'];
     const data = filtered.map(s => [
-      s.name || '—',
-      s.username || '—',
-      s.phone || '—',
-      s.parent_phone || '—',
-      s.academic_stage || '—',
-      s.gender || '—',
-      (s.enrolled_courses ?? 0).toString(),
-      (s.points ?? 0).toString(),
+      s.name || '—', s.username || '—', s.phone || '—', s.parent_phone || '—',
+      s.academic_stage || '—', s.gender || '—',
+      (s.enrolled_courses ?? 0).toString(), (s.points ?? 0).toString(),
     ]);
     generatePDFReport('تقرير الطلاب', headers, data, 'students_report.pdf', {
       stats: [
@@ -262,6 +479,7 @@ export default function TeacherStudents() {
 
   return (
     <div className="space-y-5">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <h1 className="text-2xl font-black text-navy-600 flex items-center gap-2">
           <Users className="w-7 h-7 text-orange-500" /> الطلاب
@@ -292,206 +510,268 @@ export default function TeacherStudents() {
         </div>
       </div>
 
-      {/* Created Student Password Modal */}
-      {createdStudent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center">
-            <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CheckCircle className="w-8 h-8 text-green-600" />
+      {/* Main view tabs: Students | Alerts */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => setMainView('students')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+            mainView === 'students'
+              ? 'bg-navy-600 text-white shadow-sm'
+              : 'bg-white border border-slate-200 text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          <Users className="w-4 h-4" /> قائمة الطلاب
+        </button>
+        <button
+          onClick={() => setMainView('alerts')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all relative ${
+            mainView === 'alerts'
+              ? 'bg-red-600 text-white shadow-sm'
+              : 'bg-white border border-slate-200 text-gray-600 hover:bg-red-50'
+          }`}
+        >
+          <ShieldAlert className="w-4 h-4" />
+          التحذيرات الأمنية
+          {pendingAlertsCount > 0 && (
+            <span className={`text-xs font-black px-1.5 py-0.5 rounded-full ${
+              mainView === 'alerts' ? 'bg-white text-red-600' : 'bg-red-600 text-white'
+            }`}>
+              {pendingAlertsCount}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* ─── Alerts view ─── */}
+      {mainView === 'alerts' && (
+        <DeviceAlertsPanel canEdit={canEdit} />
+      )}
+
+      {/* ─── Students view ─── */}
+      {mainView === 'students' && (
+        <>
+          {/* Created Student Modal */}
+          {createdStudent && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center">
+                <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle className="w-8 h-8 text-green-600" />
+                </div>
+                <h3 className="text-lg font-black text-navy-700 mb-1">تم إضافة الطالب بنجاح!</h3>
+                <p className="text-sm text-gray-500 mb-5">احتفظ بهذه البيانات وسلّمها للطالب</p>
+                <div className="bg-gray-50 rounded-xl p-4 space-y-3 text-right mb-5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-500">اسم الطالب</span>
+                    <span className="font-bold text-navy-700 text-sm">{createdStudent.name}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-500">اسم المستخدم (الكود)</span>
+                    <span className="font-mono font-black text-orange-600 tracking-widest text-sm">{createdStudent.username}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-500">كلمة المرور</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-black text-green-700 tracking-widest text-xl">{createdStudent.generated_password}</span>
+                      <button onClick={() => copyToClipboard(createdStudent.generated_password)} className="text-gray-400 hover:text-green-600 transition-colors">
+                        <Copy className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <button onClick={() => setCreatedStudent(null)} className="btn-primary w-full">حسناً، تم الحفظ</button>
+              </div>
             </div>
-            <h3 className="text-lg font-black text-navy-700 mb-1">تم إضافة الطالب بنجاح!</h3>
-            <p className="text-sm text-gray-500 mb-5">احتفظ بهذه البيانات وسلّمها للطالب</p>
-            <div className="bg-gray-50 rounded-xl p-4 space-y-3 text-right mb-5">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-500">اسم الطالب</span>
-                <span className="font-bold text-navy-700 text-sm">{createdStudent.name}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-500">اسم المستخدم (الكود)</span>
-                <span className="font-mono font-black text-orange-600 tracking-widest text-sm">{createdStudent.username}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-500">كلمة المرور</span>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono font-black text-green-700 tracking-widest text-xl">{createdStudent.generated_password}</span>
-                  <button onClick={() => copyToClipboard(createdStudent.generated_password)} className="text-gray-400 hover:text-green-600 transition-colors">
-                    <Copy className="w-4 h-4" />
+          )}
+
+          {/* Import Modal */}
+          {importModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+                <div className="flex items-center justify-between p-5 border-b border-gray-100">
+                  <div>
+                    <h2 className="font-black text-gray-800">معاينة الاستيراد</h2>
+                    <p className="text-xs text-gray-500 mt-0.5">{importRows.length} صف سيتم استيراده</p>
+                  </div>
+                  <button onClick={() => { setImportModal(false); setImportRows([]); }} className="text-gray-400 hover:text-gray-600">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="overflow-auto flex-1 p-4">
+                  <div className="text-xs text-gray-600 mb-3 bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-1">
+                    <p><strong>الأعمدة المدعومة:</strong> الاسم، اسم المستخدم، كلمة المرور، الهاتف، هاتف ولي الأمر، المرحلة، الجنس</p>
+                    <p className="text-blue-700">✨ <strong>الاسم فقط مطلوب</strong> — اسم المستخدم وكلمة المرور يُولَّدان تلقائياً إن لم يُحدَّدا.</p>
+                  </div>
+                  <table className="w-full text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-gray-50">
+                        {importRows[0] && Object.keys(importRows[0]).map(k => (
+                          <th key={k} className="border border-gray-200 px-2 py-1.5 text-right font-semibold text-gray-600">{k}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {importRows.slice(0, 10).map((row, i) => (
+                        <tr key={i} className="hover:bg-gray-50">
+                          {Object.values(row).map((v, j) => (
+                            <td key={j} className="border border-gray-200 px-2 py-1.5 text-gray-700">{String(v)}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {importRows.length > 10 && (
+                    <p className="text-center text-xs text-gray-400 mt-2">... و {importRows.length - 10} صف آخر</p>
+                  )}
+                </div>
+                <div className="p-4 border-t border-gray-100 flex gap-3 justify-end">
+                  <button onClick={() => { setImportModal(false); setImportRows([]); }} className="btn-secondary">إلغاء</button>
+                  <button onClick={handleBulkImport} disabled={importLoading} className="btn-primary flex items-center gap-2">
+                    {importLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> جاري الاستيراد...</> : <><Upload className="w-4 h-4" /> استيراد {importRows.length} طالب</>}
                   </button>
                 </div>
               </div>
             </div>
-            <button onClick={() => setCreatedStudent(null)} className="btn-primary w-full">حسناً، تم الحفظ</button>
-          </div>
-        </div>
-      )}
+          )}
 
-      {/* Import Preview Modal */}
-      {importModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
-            <div className="flex items-center justify-between p-5 border-b border-gray-100">
-              <div>
-                <h2 className="font-black text-gray-800">معاينة الاستيراد</h2>
-                <p className="text-xs text-gray-500 mt-0.5">{importRows.length} صف سيتم استيراده</p>
-              </div>
-              <button onClick={() => { setImportModal(false); setImportRows([]); }} className="text-gray-400 hover:text-gray-600">
-                <X className="w-5 h-5" />
-              </button>
+          {/* Search */}
+          <div className="card !p-4">
+            <div className="relative">
+              {isFetching && !isLoading
+                ? <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-orange-500 animate-spin" />
+                : <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              }
+              <input value={search} onChange={(e) => setSearch(e.target.value)}
+                placeholder="بحث بالاسم أو اسم المستخدم أو الهاتف..."
+                className="input-field pr-10" />
             </div>
-            <div className="overflow-auto flex-1 p-4">
-              <div className="text-xs text-gray-600 mb-3 bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-1">
-                <p><strong>الأعمدة المدعومة:</strong> الاسم، اسم المستخدم، كلمة المرور، الهاتف، هاتف ولي الأمر، المرحلة، الجنس</p>
-                <p className="text-blue-700">✨ <strong>الاسم فقط مطلوب</strong> — اسم المستخدم وكلمة المرور يُولَّدان تلقائياً إن لم يُحدَّدا. بعد الاستيراد ستُنزَّل بيانات الدخول تلقائياً.</p>
-              </div>
-              <table className="w-full text-xs border-collapse">
+          </div>
+
+          {/* Stage Filter Tabs */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+            <div className="flex items-center gap-2 mb-3">
+              <GraduationCap className="w-4 h-4 text-gray-500" />
+              <span className="text-xs font-bold text-gray-500">تصفية حسب المرحلة الدراسية</span>
+            </div>
+            <div className="filter-scroll">
+              {['الكل', ...STAGES].map(stage => (
+                <button
+                  key={stage}
+                  onClick={() => setStageFilter(stage)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all duration-200 ${
+                    stageFilter === stage
+                      ? 'bg-navy-600 text-white shadow-sm'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {stage}
+                  {stageCounts[stage] > 0 && (
+                    <span className={`text-xs rounded-full px-1.5 py-0.5 font-black ${
+                      stageFilter === stage ? 'bg-white/20 text-white' : 'bg-white text-gray-700'
+                    }`}>
+                      {stageCounts[stage]}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className="card !p-0 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full mobile-card-table min-w-0 sm:min-w-[700px]">
                 <thead>
-                  <tr className="bg-gray-50">
-                    {importRows[0] && Object.keys(importRows[0]).map(k => (
-                      <th key={k} className="border border-gray-200 px-2 py-1.5 text-right font-semibold text-gray-600">{k}</th>
-                    ))}
+                  <tr>
+                    <th className="table-header rounded-r-lg hidden sm:table-cell">#</th>
+                    <th className="table-header">الاسم</th>
+                    <th className="table-header">اسم المستخدم</th>
+                    <th className="table-header hidden md:table-cell">كلمة المرور</th>
+                    <th className="table-header hidden md:table-cell">الهاتف</th>
+                    <th className="table-header hidden lg:table-cell">رقم ولي الأمر</th>
+                    <th className="table-header hidden sm:table-cell">المرحلة</th>
+                    <th className="table-header hidden sm:table-cell">النقاط</th>
+                    <th className="table-header hidden lg:table-cell">الكورسات</th>
+                    <th className="table-header rounded-l-lg">إجراءات</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {importRows.slice(0, 10).map((row, i) => (
-                    <tr key={i} className="hover:bg-gray-50">
-                      {Object.values(row).map((v, j) => (
-                        <td key={j} className="border border-gray-200 px-2 py-1.5 text-gray-700">{String(v)}</td>
-                      ))}
+                  {isLoading ? (
+                    [...Array(5)].map((_, i) => (
+                      <tr key={i}><td colSpan={10} className="table-cell"><div className="h-8 bg-gray-100 rounded animate-pulse" /></td></tr>
+                    ))
+                  ) : filtered.length === 0 ? (
+                    <tr><td colSpan={10} className="table-cell text-center py-14 col-span-all">
+                      <Users className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                      <p className="font-medium text-gray-500">
+                        {search || stageFilter !== 'الكل' ? 'لا توجد نتائج مطابقة' : 'لا يوجد طلاب بعد'}
+                      </p>
+                    </td></tr>
+                  ) : filtered.map((s, i) => (
+                    <tr key={s.id} className={`table-row ${s.is_suspended ? 'bg-red-50/40' : ''}`}>
+                      <td data-label="#" className="table-cell text-gray-600 font-semibold hidden sm:table-cell">{i + 1}</td>
+                      <td data-label="الاسم" className="table-cell font-bold text-navy-600">
+                        <div className="flex items-center gap-2">
+                          {s.is_suspended && (
+                            <span title="الحساب موقوف">
+                              <Ban className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
+                            </span>
+                          )}
+                          {s.name}
+                        </div>
+                      </td>
+                      <td data-label="المستخدم" className="table-cell font-mono text-sm text-gray-700">{s.username}</td>
+                      <td data-label="كلمة المرور" className="table-cell hidden md:table-cell">
+                        {s.plain_password ? (
+                          <PasswordCell password={s.plain_password} onCopy={copyToClipboard} />
+                        ) : (
+                          <span className="text-gray-400 text-xs">—</span>
+                        )}
+                      </td>
+                      <td data-label="الهاتف" className="table-cell text-gray-700 hidden md:table-cell">{s.phone || '—'}</td>
+                      <td data-label="ولي الأمر" className="table-cell text-gray-700 hidden lg:table-cell">{s.parent_phone || '—'}</td>
+                      <td data-label="المرحلة" className="table-cell hidden sm:table-cell">
+                        <span className="text-xs bg-blue-50 text-blue-700 font-semibold px-2 py-1 rounded-full">
+                          {s.academic_stage || '—'}
+                        </span>
+                      </td>
+                      <td data-label="النقاط" className="table-cell hidden sm:table-cell"><span className="text-orange-700 font-bold">⭐ {s.points}</span></td>
+                      <td data-label="الكورسات" className="table-cell hidden lg:table-cell"><Badge variant="info">{s.enrolled_courses || 0} كورس</Badge></td>
+                      <td data-label="إجراءات" className="table-cell">
+                        <div className="flex items-center gap-1.5">
+                          {/* Suspend / Reactivate button (replaces old Eye/results button) */}
+                          {canEdit && (
+                            <button
+                              onClick={() => setSuspendTarget(s)}
+                              className={`p-1.5 rounded-lg transition-colors ${
+                                s.is_suspended
+                                  ? 'text-green-700 hover:bg-green-50'
+                                  : 'text-red-600 hover:bg-red-50'
+                              }`}
+                              title={s.is_suspended ? 'إعادة تفعيل الحساب' : 'إيقاف الحساب'}
+                            >
+                              {s.is_suspended ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                            </button>
+                          )}
+                          {canEdit && (
+                            <button onClick={() => openEdit(s)} className="p-1.5 rounded-lg text-navy-600 hover:bg-navy-50"><Pencil className="w-4 h-4" /></button>
+                          )}
+                          {canDelete && (
+                            <button onClick={() => setDeleteId(s.id)} className="p-1.5 rounded-lg text-red-700 hover:bg-red-50"><Trash2 className="w-4 h-4" /></button>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              {importRows.length > 10 && (
-                <p className="text-center text-xs text-gray-400 mt-2">... و {importRows.length - 10} صف آخر</p>
-              )}
-            </div>
-            <div className="p-4 border-t border-gray-100 flex gap-3 justify-end">
-              <button onClick={() => { setImportModal(false); setImportRows([]); }} className="btn-secondary">إلغاء</button>
-              <button onClick={handleBulkImport} disabled={importLoading} className="btn-primary flex items-center gap-2">
-                {importLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> جاري الاستيراد...</> : <><Upload className="w-4 h-4" /> استيراد {importRows.length} طالب</>}
-              </button>
             </div>
           </div>
-        </div>
+        </>
       )}
-
-      {/* Search */}
-      <div className="card !p-4">
-        <div className="relative">
-          {isFetching && !isLoading
-            ? <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-orange-500 animate-spin" />
-            : <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-          }
-          <input value={search} onChange={(e) => setSearch(e.target.value)}
-            placeholder="بحث بالاسم أو اسم المستخدم أو الهاتف..."
-            className="input-field pr-10" />
-        </div>
-      </div>
-
-      {/* Stage Filter Tabs */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
-        <div className="flex items-center gap-2 mb-3">
-          <GraduationCap className="w-4 h-4 text-gray-500" />
-          <span className="text-xs font-bold text-gray-500">تصفية حسب المرحلة الدراسية</span>
-        </div>
-        <div className="filter-scroll">
-          {['الكل', ...STAGES].map(stage => (
-            <button
-              key={stage}
-              onClick={() => setStageFilter(stage)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all duration-200 ${
-                stageFilter === stage
-                  ? 'bg-navy-600 text-white shadow-sm'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              {stage}
-              {stageCounts[stage] > 0 && (
-                <span className={`text-xs rounded-full px-1.5 py-0.5 font-black ${
-                  stageFilter === stage ? 'bg-white/20 text-white' : 'bg-white text-gray-700'
-                }`}>
-                  {stageCounts[stage]}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Table */}
-      <div className="card !p-0 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full mobile-card-table min-w-0 sm:min-w-[700px]">
-            <thead>
-              <tr>
-                <th className="table-header rounded-r-lg hidden sm:table-cell">#</th>
-                <th className="table-header">الاسم</th>
-                <th className="table-header">اسم المستخدم</th>
-                <th className="table-header hidden md:table-cell">كلمة المرور</th>
-                <th className="table-header hidden md:table-cell">الهاتف</th>
-                <th className="table-header hidden lg:table-cell">رقم ولي الأمر</th>
-                <th className="table-header hidden sm:table-cell">المرحلة</th>
-                <th className="table-header hidden sm:table-cell">النقاط</th>
-                <th className="table-header hidden lg:table-cell">الكورسات</th>
-                <th className="table-header rounded-l-lg">إجراءات</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                [...Array(5)].map((_, i) => (
-                  <tr key={i}><td colSpan={10} className="table-cell"><div className="h-8 bg-gray-100 rounded animate-pulse" /></td></tr>
-                ))
-              ) : filtered.length === 0 ? (
-                <tr><td colSpan={10} className="table-cell text-center py-14 col-span-all">
-                  <Users className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                  <p className="font-medium text-gray-500">
-                    {search || stageFilter !== 'الكل' ? 'لا توجد نتائج مطابقة' : 'لا يوجد طلاب بعد'}
-                  </p>
-                </td></tr>
-              ) : filtered.map((s, i) => (
-                <tr key={s.id} className="table-row">
-                  <td data-label="#" className="table-cell text-gray-600 font-semibold hidden sm:table-cell">{i + 1}</td>
-                  <td data-label="الاسم" className="table-cell font-bold text-navy-600">{s.name}</td>
-                  <td data-label="المستخدم" className="table-cell font-mono text-sm text-gray-700">{s.username}</td>
-                  <td data-label="كلمة المرور" className="table-cell hidden md:table-cell">
-                    {s.plain_password ? (
-                      <PasswordCell password={s.plain_password} onCopy={copyToClipboard} />
-                    ) : (
-                      <span className="text-gray-400 text-xs">—</span>
-                    )}
-                  </td>
-                  <td data-label="الهاتف" className="table-cell text-gray-700 hidden md:table-cell">{s.phone || '—'}</td>
-                  <td data-label="ولي الأمر" className="table-cell text-gray-700 hidden lg:table-cell">{s.parent_phone || '—'}</td>
-                  <td data-label="المرحلة" className="table-cell hidden sm:table-cell">
-                    <span className="text-xs bg-blue-50 text-blue-700 font-semibold px-2 py-1 rounded-full">
-                      {s.academic_stage || '—'}
-                    </span>
-                  </td>
-                  <td data-label="النقاط" className="table-cell hidden sm:table-cell"><span className="text-orange-700 font-bold">⭐ {s.points}</span></td>
-                  <td data-label="الكورسات" className="table-cell hidden lg:table-cell"><Badge variant="info">{s.enrolled_courses || 0} كورس</Badge></td>
-                  <td data-label="إجراءات" className="table-cell">
-                    <div className="flex items-center gap-1.5">
-                      <button onClick={() => setViewStudent(s)} className="p-1.5 rounded-lg text-blue-700 hover:bg-blue-50"><Eye className="w-4 h-4" /></button>
-                      {canEdit && (
-                        <button onClick={() => openEdit(s)} className="p-1.5 rounded-lg text-navy-600 hover:bg-navy-50"><Pencil className="w-4 h-4" /></button>
-                      )}
-                      {canDelete && (
-                        <button onClick={() => setDeleteId(s.id)} className="p-1.5 rounded-lg text-red-700 hover:bg-red-50"><Trash2 className="w-4 h-4" /></button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
 
       {/* Add/Edit Modal */}
       <Modal open={modal} onClose={closeModal} title={editData ? 'تعديل بيانات طالب' : 'إضافة طالب جديد'}>
         <form onSubmit={handleSubmit} className="space-y-4">
-
-          {/* Username display */}
           {editData ? (
             <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
               <span className="text-xs font-bold text-slate-500">كود الطالب</span>
@@ -576,27 +856,56 @@ export default function TeacherStudents() {
         </form>
       </Modal>
 
-      {/* View Results Modal */}
-      <Modal open={!!viewStudent} onClose={() => setViewStudent(null)} title={`نتائج ${viewStudent?.name}`} size="lg">
-        <div className="space-y-3">
-          {results.length === 0 ? (
-            <p className="text-center text-gray-600 font-medium py-8">لم يؤدِ هذا الطالب أي اختبارات بعد</p>
-          ) : results.map(r => (
-            <div key={r.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100">
-              <div>
-                <p className="font-semibold text-navy-600">{r.exam_title}</p>
-                <p className="text-xs text-gray-600 font-medium mt-0.5">{new Date(r.created_at).toLocaleDateString('ar-EG')}</p>
-              </div>
-              <div className="text-left">
-                <p className={`text-lg font-black ${r.score >= r.pass_score ? 'text-green-700' : 'text-red-700'}`}>
-                  {r.score}/{r.total_score}
-                </p>
-                <p className="text-xs text-gray-600 font-medium">✓{r.correct_count} ✗{r.wrong_count}</p>
-              </div>
+      {/* Suspend / Reactivate Dialog */}
+      {suspendTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-4 ${
+              suspendTarget.is_suspended ? 'bg-green-100' : 'bg-red-100'
+            }`}>
+              {suspendTarget.is_suspended
+                ? <Unlock className="w-6 h-6 text-green-600" />
+                : <Lock className="w-6 h-6 text-red-600" />
+              }
             </div>
-          ))}
+            <h3 className="text-lg font-black text-center text-navy-700 mb-1">
+              {suspendTarget.is_suspended ? 'إعادة تفعيل الحساب' : 'إيقاف الحساب'}
+            </h3>
+            <p className="text-sm text-gray-500 text-center mb-5">
+              الطالب: <strong>{suspendTarget.name}</strong>
+            </p>
+
+            {suspendTarget.is_suspended ? (
+              <div className="space-y-2">
+                <button
+                  onClick={() => suspendMut.mutate({ id: suspendTarget.id, action: 'reactivate' })}
+                  disabled={suspendMut.isPending}
+                  className="w-full btn-primary flex items-center justify-center gap-2"
+                >
+                  <Unlock className="w-4 h-4" /> إعادة التفعيل (مع الأجهزة المسجّلة)
+                </button>
+                <button
+                  onClick={() => suspendMut.mutate({ id: suspendTarget.id, action: 'reactivate_reset_devices' })}
+                  disabled={suspendMut.isPending}
+                  className="w-full btn-secondary flex items-center justify-center gap-2 !border-orange-300 !text-orange-700"
+                >
+                  <RefreshCw className="w-4 h-4" /> إعادة التفعيل + مسح الأجهزة
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => suspendMut.mutate({ id: suspendTarget.id, action: 'suspend' })}
+                disabled={suspendMut.isPending}
+                className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2"
+              >
+                <Lock className="w-4 h-4" /> إيقاف الحساب
+              </button>
+            )}
+
+            <button onClick={() => setSuspendTarget(null)} className="w-full mt-2 btn-secondary">إلغاء</button>
+          </div>
         </div>
-      </Modal>
+      )}
 
       <ConfirmDialog
         open={!!deleteId}
