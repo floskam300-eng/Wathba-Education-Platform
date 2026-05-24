@@ -649,6 +649,21 @@ function seededShuffle(arr, seed) {
 router.get('/:id/take', requireRole('student'), async (req, res) => {
   const studentId = req.user.id;
   try {
+    // Block students who already submitted without an approved retry
+    const [existingRes, retryRes] = await Promise.all([
+      pool.query(
+        'SELECT id FROM exam_results WHERE student_id=$1 AND exam_id=$2 AND is_latest=true',
+        [studentId, req.params.id]
+      ),
+      pool.query(
+        "SELECT id FROM exam_retry_requests WHERE student_id=$1 AND exam_id=$2 AND status='approved'",
+        [studentId, req.params.id]
+      ),
+    ]);
+    if (existingRes.rows.length > 0 && retryRes.rows.length === 0) {
+      return res.status(403).json({ error: 'لقد أديت هذا الاختبار بالفعل — يُرجى طلب الإعادة من المعلم' });
+    }
+
     const now = new Date();
     const eligibilityCheck = await pool.query(
       `SELECT e.id, e.title, e.duration_minutes, e.total_score, e.pass_score,
@@ -703,7 +718,8 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
         questions = seededShuffle(picked, seed + 3);
       } else {
         const shuffled = seededShuffle(bankQRes.rows, seed);
-        const count = Math.min(exam.bank_question_count || 10, shuffled.length);
+        // BUG-8 fix: use explicit count > 0 check, avoid falsy 0 silently defaulting to 10
+        const count = Math.min(exam.bank_question_count > 0 ? exam.bank_question_count : 10, shuffled.length);
         questions = shuffled.slice(0, count);
       }
     } else {
@@ -815,20 +831,29 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
     if (eligibilityRow.question_source === 'bank' && eligibilityRow.bank_id) {
       const questionIds = Object.keys(answers || {}).map(Number).filter(id => id > 0);
       if (questionIds.length === 0) return res.status(400).json({ error: 'لم يتم إرسال أي إجابات' });
-      // Use stored snapshot to prevent changed-question scoring bug
+      // SEC-2: Always use snapshot as authoritative source when available.
+      // Do NOT fall back to DB if snapshot exists — this would allow forged question IDs.
       if (serverSession?.questions_snapshot?.length > 0) {
+        // Only score questions that were actually served to this student
         questionsData = serverSession.questions_snapshot.filter(q => questionIds.includes(q.id));
-        if (questionsData.length === 0) {
-          const bqr = await pool.query('SELECT * FROM bank_questions WHERE id = ANY($1) AND bank_id = $2', [questionIds, eligibilityRow.bank_id]);
-          questionsData = bqr.rows;
-        }
+        // Any submitted IDs not in snapshot are silently ignored (scored as unanswered)
       } else {
+        // No snapshot (legacy / session cleared before submit) — fall back to DB
         const bqr = await pool.query('SELECT * FROM bank_questions WHERE id = ANY($1) AND bank_id = $2', [questionIds, eligibilityRow.bank_id]);
         questionsData = bqr.rows;
       }
     } else {
-      const qr = await pool.query('SELECT * FROM questions WHERE exam_id=$1', [examId]);
-      questionsData = qr.rows;
+      // Manual exam: use snapshot if available for fair scoring,
+      // otherwise fall back to current DB questions
+      if (serverSession?.questions_snapshot?.length > 0) {
+        // Snapshot stores questions as-shown; re-attach correct_answer_letter from DB for scoring
+        const snapshotIds = serverSession.questions_snapshot.map(q => q.id);
+        const qr = await pool.query('SELECT * FROM questions WHERE exam_id=$1 AND id = ANY($2)', [examId, snapshotIds]);
+        questionsData = qr.rows;
+      } else {
+        const qr = await pool.query('SELECT * FROM questions WHERE exam_id=$1', [examId]);
+        questionsData = qr.rows;
+      }
     }
   } catch (err) {
     console.error(err);

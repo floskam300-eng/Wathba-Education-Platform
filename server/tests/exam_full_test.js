@@ -868,6 +868,394 @@ async function run() {
   }
 
   // ──────────────────────────────────────────────────────────────────────────
+  // GROUP 14 — SEC-1: Block /take for already-submitted students
+  // ──────────────────────────────────────────────────────────────────────────
+  console.log(head('GROUP 14 — SEC-1: /take blocked after submission (no retry)'));
+
+  // Set up a dedicated exam for these security tests
+  const secExamR = await req('POST', '/exams', {
+    title: '[TEST-SEC] اختبار أمان SEC-1',
+    duration_minutes: 10, total_score: 100, pass_score: 50,
+    question_source: 'manual', points_on_attempt: 0, points_on_pass: 0,
+  }, teacherToken);
+  const secExamId = secExamR.data?.id;
+
+  if (secExamId) {
+    await req('POST', `/exams/${secExamId}/questions`, {
+      question_text: 'سؤال أمني', option_a: 'أ', option_b: 'ب',
+      correct_answer_letter: 'A', points: 1, question_type: 'mcq',
+    }, teacherToken);
+    await req('PUT', `/exams/${secExamId}/publish`, {}, teacherToken);
+
+    // Student takes exam
+    const secTake1 = await req('GET', `/exams/${secExamId}/take`, null, studentToken);
+    assert('TC63: First /take returns 200', secTake1.status === 200, `status=${secTake1.status}`);
+
+    // Student submits
+    const secQ = secTake1.data?.questions?.[0];
+    const secAns = secQ ? { [secQ.id]: 'A' } : {};
+    const secSub1 = await req('POST', `/exams/${secExamId}/submit`, { answers: secAns }, studentToken);
+    assert('TC63b: First submit → 200', secSub1.status === 200, `status=${secSub1.status}`);
+
+    // SEC-1 FIX: Student tries /take again without retry approval → must get 403
+    const secTake2 = await req('GET', `/exams/${secExamId}/take`, null, studentToken);
+    assert('TC63c: /take after submission without retry approval → 403 (SEC-1 fix)',
+      secTake2.status === 403,
+      `status=${secTake2.status} err=${secTake2.data?.error}`);
+
+    // Submit must also be blocked (already handled by existing logic)
+    const secSub2 = await req('POST', `/exams/${secExamId}/submit`, { answers: secAns }, studentToken);
+    assert('TC63d: Second submit without retry → 409', secSub2.status === 409, `status=${secSub2.status}`);
+
+    // After retry approved → /take must succeed again
+    const secRetryR = await req('POST', `/exams/${secExamId}/retry-request`, { message: '' }, studentToken);
+    assert('TC63e: Retry request → 201', secRetryR.status === 201, `status=${secRetryR.status}`);
+    if (secRetryR.status === 201) {
+      await req('PUT', `/exams/retry-requests/${secRetryR.data?.id}/approve`, {}, teacherToken);
+      const secTake3 = await req('GET', `/exams/${secExamId}/take`, null, studentToken);
+      assert('TC63f: /take after retry approval → 200', secTake3.status === 200, `status=${secTake3.status}`);
+    } else {
+      assertSkip('TC63f: /take after retry', 'Retry request failed');
+    }
+
+    await req('DELETE', `/exams/${secExamId}`, null, teacherToken);
+  } else {
+    assertSkip('TC63-TC63f: SEC-1 tests', 'Could not create security test exam');
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // GROUP 15 — SEC-2: Bank exam — forged question IDs cannot inflate score
+  // ──────────────────────────────────────────────────────────────────────────
+  console.log(head('GROUP 15 — SEC-2: Forged question IDs in bank exam submit'));
+
+  const sec2BankR = await req('POST', '/question-banks', {
+    name: '[TEST-SEC2] بنك أمان', subject: 'أمان', academic_stage: 'test',
+  }, teacherToken);
+  const sec2BankId = sec2BankR.data?.id;
+
+  if (sec2BankId) {
+    // Add 2 questions: correct=A for both
+    const s2q1 = await req('POST', `/question-banks/${sec2BankId}/questions`, {
+      question_text: 'سؤال 1 للأمان', difficulty: 'easy',
+      option_a: 'صواب', option_b: 'خطأ', correct_answer_letter: 'A', points: 1, question_type: 'mcq',
+    }, teacherToken);
+    const s2q2 = await req('POST', `/question-banks/${sec2BankId}/questions`, {
+      question_text: 'سؤال 2 للأمان', difficulty: 'easy',
+      option_a: 'صواب', option_b: 'خطأ', correct_answer_letter: 'A', points: 1, question_type: 'mcq',
+    }, teacherToken);
+
+    const sec2ExamR = await req('POST', '/exams', {
+      title: '[TEST-SEC2] اختبار بنك أمان',
+      duration_minutes: 10, total_score: 100, pass_score: 50,
+      question_source: 'bank', bank_id: sec2BankId, bank_question_count: 1,
+      bank_easy_count: 0, bank_medium_count: 0, bank_hard_count: 0,
+    }, teacherToken);
+    const sec2ExamId = sec2ExamR.data?.id;
+
+    if (sec2ExamId && s2q1.data?.id && s2q2.data?.id) {
+      await req('PUT', `/exams/${sec2ExamId}/publish`, {}, teacherToken);
+
+      // Student takes — gets 1 question (seeded shuffle picks first)
+      const sec2Take = await req('GET', `/exams/${sec2ExamId}/take`, null, studentToken);
+      assert('TC64: Take bank exam (1 question) → 200', sec2Take.status === 200, `status=${sec2Take.status}`);
+      const sec2Qs = sec2Take.data?.questions || [];
+      assert('TC64b: Exactly 1 question returned', sec2Qs.length === 1, `count=${sec2Qs.length}`);
+
+      // Identify which question student got and which they did NOT get
+      const servedId = sec2Qs[0]?.id;
+      const foreignId = [s2q1.data.id, s2q2.data.id].find(id => id !== servedId);
+      assert('TC64c: Can identify forged (unserved) question ID', !!foreignId, `served=${servedId} foreign=${foreignId}`);
+
+      if (foreignId) {
+        // SEC-2: Submit ONLY the foreign (unserved) question ID — should score 0, not inflated
+        const forgedAnswers = { [foreignId]: 'A' };
+        const sec2Sub = await req('POST', `/exams/${sec2ExamId}/submit`, { answers: forgedAnswers }, studentToken);
+        assert('TC64d: Submit with forged question ID → 200 (accepted but scored)', sec2Sub.status === 200, `status=${sec2Sub.status} err=${sec2Sub.data?.error}`);
+        // Score must be 0 because forged ID is not in snapshot → scored as unanswered
+        assert('TC64e: Forged question ID scores 0 (SEC-2 fix — snapshot guards against bypass)',
+          sec2Sub.data?.normalizedScore === 0,
+          `score=${sec2Sub.data?.normalizedScore} (expected 0)`);
+        assert('TC64f: correct_count = 0 (forged ID ignored)',
+          sec2Sub.data?.result?.correct_count === 0,
+          `correct=${sec2Sub.data?.result?.correct_count}`);
+      } else {
+        assertSkip('TC64d-f: Forged ID test', 'Both questions have same ID (unexpected)');
+      }
+
+      await req('DELETE', `/exams/${sec2ExamId}`, null, teacherToken);
+    } else {
+      assertSkip('TC64-TC64f: SEC-2 bank tests', 'Could not create security bank exam');
+    }
+
+    await req('DELETE', `/question-banks/${sec2BankId}`, null, teacherToken);
+  } else {
+    assertSkip('TC64-TC64f: SEC-2 tests', 'Could not create security bank');
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // GROUP 16 — Access Control: Cross-role & Cross-user violations
+  // ──────────────────────────────────────────────────────────────────────────
+  console.log(head('GROUP 16 — Access Control: Cross-role & Cross-user'));
+
+  // Create a second student to test cross-student access.
+  // POST /students always auto-generates a random password — use generated_password from response.
+  const stu2R = await req('POST', '/students', {
+    name: '[TEST] طالب أمان ثاني',
+    academic_stage: 'الصف الثالث الثانوي',
+  }, teacherToken);
+  const stu2Id = stu2R.data?.id;
+  let stu2Token = null;
+  if (stu2Id) {
+    const stu2Login = await req('POST', '/auth/login', {
+      username: stu2R.data?.username,
+      password: stu2R.data?.generated_password,
+    });
+    stu2Token = stu2Login.data?.token;
+  }
+
+  // Setup a small exam for cross-access tests (reuse existing examId from earlier groups)
+  // TC65: Student 2 cannot access student 1's result via /results/:id
+  const accessExamR = await req('POST', '/exams', {
+    title: '[TEST-ACCESS] اختبار عزل الطلاب', duration_minutes: 5,
+    total_score: 100, pass_score: 50, question_source: 'manual',
+    points_on_attempt: 0, points_on_pass: 0,
+  }, teacherToken);
+  const accessExamId = accessExamR.data?.id;
+
+  if (accessExamId && stu2Token) {
+    await req('POST', `/exams/${accessExamId}/questions`, {
+      question_text: 'سؤال عزل', option_a: 'أ', option_b: 'ب',
+      correct_answer_letter: 'A', points: 1, question_type: 'mcq',
+    }, teacherToken);
+    await req('PUT', `/exams/${accessExamId}/publish`, {}, teacherToken);
+
+    // Student 1 takes and submits
+    const accTake1 = await req('GET', `/exams/${accessExamId}/take`, null, studentToken);
+    const accQ = accTake1.data?.questions?.[0];
+    const accSubR = await req('POST', `/exams/${accessExamId}/submit`, { answers: accQ ? { [accQ.id]: 'A' } : {} }, studentToken);
+    const accResultId = accSubR.data?.result?.id;
+    assert('TC65: Student 1 submits for cross-access test → 200', accSubR.status === 200, `status=${accSubR.status}`);
+
+    if (accResultId) {
+      // Student 2 tries to access student 1's result → 403
+      const crossR = await req('GET', `/exams/results/${accResultId}`, null, stu2Token);
+      assert('TC65b: Student 2 cannot access student 1 result → 403',
+        crossR.status === 403,
+        `status=${crossR.status} err=${crossR.data?.error}`);
+
+      // Student 2 tries to review student 1's result → 403
+      const crossRevR = await req('GET', `/exams/results/${accResultId}/review`, null, stu2Token);
+      assert('TC65c: Student 2 cannot review student 1 result → 403',
+        crossRevR.status === 403,
+        `status=${crossRevR.status} err=${crossRevR.data?.error}`);
+
+      // Student 1 CAN access their own result
+      const ownR = await req('GET', `/exams/results/${accResultId}`, null, studentToken);
+      assert('TC65d: Student 1 can access own result → 200', ownR.status === 200, `status=${ownR.status}`);
+
+      // Teacher CAN access result for their own exam
+      const teacherAccR = await req('GET', `/exams/results/${accResultId}`, null, teacherToken);
+      assert('TC65e: Teacher can access result for own exam → 200', teacherAccR.status === 200, `status=${teacherAccR.status}`);
+    } else {
+      assertSkip('TC65b-e: Cross-access tests', 'Could not get result ID');
+    }
+
+    // TC66: Student 2 cannot take Student 1's exam through teacher's account boundary
+    // (Student 2 IS from same teacher, so CAN take it — but can't see student 1's results)
+    const stu2TakeR = await req('GET', `/exams/${accessExamId}/take`, null, stu2Token);
+    assert('TC66: Student 2 (same teacher) CAN take same exam → 200', stu2TakeR.status === 200, `status=${stu2TakeR.status}`);
+
+    // TC67: Student 2 cannot manipulate student 1's retry request
+    // First get a retry request from student 1
+    const s1RetryR = await req('POST', `/exams/${accessExamId}/retry-request`, { message: '' }, studentToken);
+    if (s1RetryR.status === 201) {
+      const s1RetryId = s1RetryR.data?.id;
+      // Student 2 tries to approve student 1's retry — only teacher/assistant can
+      const stuApproveR = await req('PUT', `/exams/retry-requests/${s1RetryId}/approve`, {}, stu2Token);
+      assert('TC67: Student cannot approve retry requests → 403', stuApproveR.status === 403, `status=${stuApproveR.status}`);
+    } else {
+      assertSkip('TC67: Retry approve by student', 'Could not create retry request');
+    }
+
+    await req('DELETE', `/exams/${accessExamId}`, null, teacherToken);
+  } else {
+    assertSkip('TC65-TC67: Cross-access tests', `Could not set up: exam=${accessExamId} stu2Token=${!!stu2Token}`);
+  }
+
+  // Clean up student 2
+  if (stu2Id) await req('DELETE', `/students/${stu2Id}`, null, teacherToken);
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // GROUP 17 — Input Validation Edge Cases
+  // ──────────────────────────────────────────────────────────────────────────
+  console.log(head('GROUP 17 — Input Validation Edge Cases'));
+
+  // Create a small exam for validation tests
+  const valExamR = await req('POST', '/exams', {
+    title: '[TEST-VAL] اختبار التحقق', duration_minutes: 10, total_score: 100, pass_score: 50,
+    question_source: 'manual', points_on_attempt: 0, points_on_pass: 0,
+  }, teacherToken);
+  const valExamId = valExamR.data?.id;
+
+  if (valExamId) {
+    const valQR = await req('POST', `/exams/${valExamId}/questions`, {
+      question_text: 'سؤال تحقق', option_a: 'أ', option_b: 'ب',
+      correct_answer_letter: 'A', points: 1, question_type: 'mcq',
+    }, teacherToken);
+    await req('PUT', `/exams/${valExamId}/publish`, {}, teacherToken);
+
+    // TC68: Submit with null answers body → 400
+    const nullAnsR = await req('POST', `/exams/${valExamId}/submit`, { answers: null }, studentToken);
+    assert('TC68: Submit with null answers → 400', nullAnsR.status === 400, `status=${nullAnsR.status} err=${nullAnsR.data?.error}`);
+
+    // TC69: Submit with array answers → 400
+    const arrAnsR = await req('POST', `/exams/${valExamId}/submit`, { answers: ['A', 'B'] }, studentToken);
+    assert('TC69: Submit with array answers → 400', arrAnsR.status === 400, `status=${arrAnsR.status}`);
+
+    // TC70: Submit with answer value > 5000 chars → 400
+    const longAns = { 1: 'x'.repeat(5001) };
+    const longAnsR = await req('POST', `/exams/${valExamId}/submit`, { answers: longAns }, studentToken);
+    assert('TC70: Submit answer > 5000 chars → 400', longAnsR.status === 400, `status=${longAnsR.status} err=${longAnsR.data?.error}`);
+
+    // TC71: Submit with no body → 400
+    const noBodyR = await req('POST', `/exams/${valExamId}/submit`, {}, studentToken);
+    assert('TC71: Submit with no answers field → 400', noBodyR.status === 400, `status=${noBodyR.status}`);
+
+    // TC72: /take non-existent exam → 403 (not found = no access)
+    const notFoundTake = await req('GET', '/exams/99999999/take', null, studentToken);
+    assert('TC72: /take non-existent exam → 403', notFoundTake.status === 403, `status=${notFoundTake.status}`);
+
+    // TC73: Retry request without having taken exam → 400
+    const noTakenRetry = await req('POST', `/exams/${valExamId}/retry-request`, { message: '' }, studentToken);
+    assert('TC73: Retry without taking exam → 400', noTakenRetry.status === 400, `status=${noTakenRetry.status} err=${noTakenRetry.data?.error}`);
+
+    // TC74: create exam with negative pass_score → 400
+    const negPass = await req('POST', '/exams', { title: 'T', duration_minutes: 10, total_score: 100, pass_score: -5 }, teacherToken);
+    assert('TC74: pass_score negative → 400', negPass.status === 400, `status=${negPass.status}`);
+
+    // TC75: create exam with total_score > 1000 → 400
+    const bigScore = await req('POST', '/exams', { title: 'T', duration_minutes: 10, total_score: 1001, pass_score: 50 }, teacherToken);
+    assert('TC75: total_score > 1000 → 400', bigScore.status === 400, `status=${bigScore.status}`);
+
+    // TC76: Update question with lowercase correct_answer → server uppercases it
+    if (valQR.data?.id) {
+      const lowerCaseR = await req('PUT', `/exams/questions/${valQR.data.id}`, {
+        question_text: 'سؤال معدّل', option_a: 'أ', option_b: 'ب',
+        correct_answer_letter: 'a', points: 1, question_type: 'mcq',
+      }, teacherToken);
+      assert('TC76: Lowercase correct_answer_letter → uppercased by server',
+        lowerCaseR.data?.correct_answer_letter === 'A',
+        `letter=${lowerCaseR.data?.correct_answer_letter}`);
+    } else {
+      assertSkip('TC76: Lowercase letter normalization', 'No question ID');
+    }
+
+    await req('DELETE', `/exams/${valExamId}`, null, teacherToken);
+  } else {
+    assertSkip('TC68-TC76: Validation tests', 'Could not create validation exam');
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // GROUP 18 — Retry Abuse Prevention
+  // ──────────────────────────────────────────────────────────────────────────
+  console.log(head('GROUP 18 — Retry Abuse Prevention'));
+
+  const abuseExamR = await req('POST', '/exams', {
+    title: '[TEST-ABUSE] اختبار منع الإساءة', duration_minutes: 5,
+    total_score: 100, pass_score: 50, question_source: 'manual',
+    points_on_attempt: 0, points_on_pass: 0,
+  }, teacherToken);
+  const abuseExamId = abuseExamR.data?.id;
+
+  if (abuseExamId) {
+    await req('POST', `/exams/${abuseExamId}/questions`, {
+      question_text: 'سؤال إساءة', option_a: 'أ', option_b: 'ب',
+      correct_answer_letter: 'A', points: 1, question_type: 'mcq',
+    }, teacherToken);
+    await req('PUT', `/exams/${abuseExamId}/publish`, {}, teacherToken);
+    const abuseTake = await req('GET', `/exams/${abuseExamId}/take`, null, studentToken);
+    const abuseQ = abuseTake.data?.questions?.[0];
+    await req('POST', `/exams/${abuseExamId}/submit`, { answers: abuseQ ? { [abuseQ.id]: 'B' } : {} }, studentToken);
+
+    // TC77: Two rapid retry requests → second must be 409 (pending exists)
+    const abuse1 = await req('POST', `/exams/${abuseExamId}/retry-request`, { message: '' }, studentToken);
+    assert('TC77: First retry request → 201', abuse1.status === 201, `status=${abuse1.status}`);
+    const abuse2 = await req('POST', `/exams/${abuseExamId}/retry-request`, { message: '' }, studentToken);
+    assert('TC77b: Second retry request (pending exists) → 409', abuse2.status === 409, `status=${abuse2.status} err=${abuse2.data?.error}`);
+
+    // Reject the retry
+    if (abuse1.status === 201) {
+      const rejectR = await req('PUT', `/exams/retry-requests/${abuse1.data?.id}/reject`, { teacher_note: 'لا' }, teacherToken);
+      assert('TC77c: Teacher rejects retry → 200', rejectR.status === 200, `status=${rejectR.status}`);
+
+      // TC78: After rejection, cannot request again immediately (24h cooldown)
+      const afterReject = await req('POST', `/exams/${abuseExamId}/retry-request`, { message: '' }, studentToken);
+      assert('TC78: Retry immediately after rejection → 429 (24h cooldown)',
+        afterReject.status === 429,
+        `status=${afterReject.status} err=${afterReject.data?.error}`);
+    } else {
+      assertSkip('TC77c-TC78: Rejection & cooldown', 'First retry failed');
+    }
+
+    // TC79: Re-action on already-approved retry doesn't crash
+    // Use a separate exam so the 24h cooldown from TC78 doesn't interfere
+    const exam79R = await req('POST', '/exams', {
+      title: '[TEST-TC79] اختبار إعادة المعالجة', duration_minutes: 5,
+      total_score: 100, pass_score: 50, question_source: 'manual',
+      points_on_attempt: 0, points_on_pass: 0,
+    }, teacherToken);
+    const exam79Id = exam79R.data?.id;
+    if (exam79Id) {
+      await req('POST', `/exams/${exam79Id}/questions`, {
+        question_text: 'سؤال 79', option_a: 'أ', option_b: 'ب',
+        correct_answer_letter: 'A', points: 1, question_type: 'mcq',
+      }, teacherToken);
+      await req('PUT', `/exams/${exam79Id}/publish`, {}, teacherToken);
+      const take79 = await req('GET', `/exams/${exam79Id}/take`, null, studentToken);
+      const q79 = take79.data?.questions?.[0];
+      await req('POST', `/exams/${exam79Id}/submit`, { answers: q79 ? { [q79.id]: 'B' } : {} }, studentToken);
+      const rr79 = await req('POST', `/exams/${exam79Id}/retry-request`, { message: '' }, studentToken);
+      if (rr79.status === 201) {
+        await req('PUT', `/exams/retry-requests/${rr79.data.id}/approve`, {}, teacherToken);
+        // Now try to reject the already-approved request — should not crash
+        const badRejectR = await req('PUT', `/exams/retry-requests/${rr79.data.id}/reject`, {}, teacherToken);
+        assert('TC79: Re-action on already-approved retry doesn\'t crash → 200 or 404',
+          badRejectR.status === 200 || badRejectR.status === 404,
+          `status=${badRejectR.status}`);
+      } else {
+        assertSkip('TC79: Re-action on processed retry', `Could not create retry: ${rr79.status}`);
+      }
+      await req('DELETE', `/exams/${exam79Id}`, null, teacherToken);
+    } else {
+      assertSkip('TC79: Re-action on processed retry', 'Could not create TC79 exam');
+    }
+
+    // TC80: Student cannot publish/unpublish exam (role guard)
+    const stuPubR = await req('PUT', `/exams/${abuseExamId}/publish`, {}, studentToken);
+    assert('TC80: Student cannot publish exam → 403', stuPubR.status === 403, `status=${stuPubR.status}`);
+
+    // TC81: Student cannot update exam settings
+    const stuUpdR = await req('PUT', `/exams/${abuseExamId}`, { title: 'Hacked', duration_minutes: 1, total_score: 100, pass_score: 50, question_source: 'manual' }, studentToken);
+    assert('TC81: Student cannot update exam → 403', stuUpdR.status === 403, `status=${stuUpdR.status}`);
+
+    // TC82: Student cannot get teacher exam list
+    const stuListR = await req('GET', '/exams', null, studentToken);
+    assert('TC82: Student cannot list teacher exams → 403', stuListR.status === 403, `status=${stuListR.status}`);
+
+    // TC83: Unauthenticated /take → 401
+    const unauthTakeR = await req('GET', `/exams/${abuseExamId}/take`, null, null);
+    assert('TC83: Unauthenticated /take → 401', unauthTakeR.status === 401, `status=${unauthTakeR.status}`);
+
+    // TC84: Unauthenticated /submit → 401
+    const unauthSubR = await req('POST', `/exams/${abuseExamId}/submit`, { answers: {} }, null);
+    assert('TC84: Unauthenticated /submit → 401', unauthSubR.status === 401, `status=${unauthSubR.status}`);
+
+    await req('DELETE', `/exams/${abuseExamId}`, null, teacherToken);
+  } else {
+    assertSkip('TC77-TC84: Abuse prevention tests', 'Could not create abuse test exam');
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
   // CLEANUP
   // ──────────────────────────────────────────────────────────────────────────
   console.log(head('CLEANUP'));

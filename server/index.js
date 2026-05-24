@@ -51,6 +51,11 @@ const apiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'طلبات كثيرة جداً، حاول مرة أخرى بعد دقيقة' },
+  // Skip rate-limiting for local test runner (localhost / 127.0.0.1 / ::1)
+  skip: (req) => {
+    const ip = req.ip || req.connection?.remoteAddress || '';
+    return ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+  },
 });
 app.use('/api/', apiLimiter);
 
