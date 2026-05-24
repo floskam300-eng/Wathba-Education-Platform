@@ -27,6 +27,8 @@ import WrongQuestionsPage from './pages/teacher/WrongQuestions';
 import QuestionBanks from './pages/teacher/QuestionBanks';
 import TeacherLiveStream from './pages/teacher/LiveStream';
 import TeacherActivityLog from './pages/teacher/ActivityLog';
+import CourseContent from './pages/teacher/CourseContent';
+import ExamQuestions from './pages/teacher/ExamQuestions';
 import StudentLiveStream from './pages/student/LiveStream';
 import AssistantDashboard from './pages/assistant/Dashboard';
 import AssistantStudents from './pages/assistant/Students';
@@ -194,6 +196,8 @@ const AppRoutes = () => {
           <Route path="question-banks" element={<QuestionBanks />} />
           <Route path="livestream" element={<TeacherLiveStream />} />
           <Route path="activity-log" element={<TeacherActivityLog />} />
+          <Route path="courses/:courseId/content" element={<CourseContent />} />
+          <Route path="exams/:examId/questions" element={<ExamQuestions />} />
         </Route>
 
         {/* Assistant dashboard */}
@@ -224,6 +228,12 @@ const AppRoutes = () => {
             <AssistantPermissionRoute anyOf={['can_manage_exams', 'can_manage_courses']}><TeacherRequests /></AssistantPermissionRoute>
           } />
           <Route path="exam-review/:resultId" element={<ExamReviewPage />} />
+          <Route path="courses/:courseId/content" element={
+            <AssistantPermissionRoute permission="can_manage_courses"><CourseContent /></AssistantPermissionRoute>
+          } />
+          <Route path="exams/:examId/questions" element={
+            <AssistantPermissionRoute permission="can_manage_exams"><ExamQuestions /></AssistantPermissionRoute>
+          } />
         </Route>
 
         {/* Student dashboard */}
