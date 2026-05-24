@@ -321,9 +321,9 @@ export default function CourseContent() {
   };
 
   return (
-    <div dir="rtl">
-      {/* Sticky Header — negative margins break out of main's p-4 lg:p-6 padding */}
-      <div className="-mx-4 lg:-mx-6 -mt-4 lg:-mt-6 sticky top-0 z-20 bg-white border-b border-gray-200 shadow-sm">
+    <div className="-m-4 lg:-m-6 h-[calc(100%+2rem)] lg:h-[calc(100%+3rem)] flex flex-col overflow-hidden" dir="rtl">
+      {/* Fixed Header — flex-shrink-0 keeps it always visible above scroll */}
+      <div className="flex-shrink-0 bg-white border-b border-gray-200 shadow-sm">
         <div className="px-4 lg:px-6 py-3 flex items-center gap-2 sm:gap-3">
           <button
             onClick={() => navigate(`/${teacherSlug}/${baseRole}/courses`)}
@@ -354,8 +354,8 @@ export default function CourseContent() {
         </div>
       </div>
 
-      {/* Sticky Tab Bar — sticks below the header (header ~57px tall) */}
-      <div className="-mx-4 lg:-mx-6 sticky top-[57px] z-10 bg-white border-b border-gray-100 shadow-sm">
+      {/* Tab Bar — always visible, no sticky needed */}
+      <div className="flex-shrink-0 bg-white border-b border-gray-100">
         <div className="px-4 lg:px-6">
           <div className="flex gap-0 overflow-x-auto">
             {[
@@ -379,8 +379,8 @@ export default function CourseContent() {
         </div>
       </div>
 
-      {/* Content */}
-      <div className="py-4 sm:py-6">
+      {/* Scrollable Content — owns the scroll, so header stays fixed */}
+      <div className="flex-1 overflow-y-auto min-h-0 p-4 lg:p-6">
         {isLoading ? (
           <div className="space-y-3">
             {[...Array(4)].map((_, i) => (

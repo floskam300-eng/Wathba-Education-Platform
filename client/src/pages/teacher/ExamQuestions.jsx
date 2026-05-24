@@ -38,6 +38,7 @@ export default function ExamQuestions() {
   const [imagePreview, setImagePreview] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
   const imageFileRef = useRef(null);
+  const scrollContainerRef = useRef(null);
 
   const { data: exam } = useQuery({
     queryKey: ['exam-single', examId],
@@ -129,9 +130,9 @@ export default function ExamQuestions() {
   const pointsMismatch = questions.length > 0 && examTotal > 0 && totalPoints !== examTotal;
 
   return (
-    <div dir="rtl">
-      {/* Sticky Header — negative margins break out of main's p-4 lg:p-6 padding */}
-      <div className="-mx-4 lg:-mx-6 -mt-4 lg:-mt-6 sticky top-0 z-20 bg-white border-b border-gray-200 shadow-sm">
+    <div className="-m-4 lg:-m-6 h-[calc(100%+2rem)] lg:h-[calc(100%+3rem)] flex flex-col overflow-hidden" dir="rtl">
+      {/* Fixed Header — flex-shrink-0 keeps it always visible above scroll */}
+      <div className="flex-shrink-0 bg-white border-b border-gray-200 shadow-sm">
         <div className="px-4 lg:px-6 py-3 flex items-center gap-2 sm:gap-3">
           <button
             onClick={() => navigate(`/${teacherSlug}/${baseRole}/exams`)}
@@ -164,7 +165,8 @@ export default function ExamQuestions() {
         </div>
       </div>
 
-      <div className="py-4 sm:py-6 grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6 items-start">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto min-h-0 p-4 lg:p-6">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6 items-start">
 
         {/* Questions List — left on LG */}
         <div className="lg:col-span-3 space-y-4 order-2 lg:order-1">
@@ -237,7 +239,7 @@ export default function ExamQuestions() {
                         setImagePreview('');
                         setImageInputMode(q.question_image_url?.startsWith('/uploads') ? 'file' : 'url');
                         if (imageFileRef.current) imageFileRef.current.value = '';
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                        scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
                       }}
                       className="p-1.5 text-navy-600 hover:bg-navy-50 rounded-lg transition-colors">
                       <Pencil className="w-3.5 h-3.5" />
@@ -255,7 +257,7 @@ export default function ExamQuestions() {
         </div>
 
         {/* Add/Edit Question Form — right on LG */}
-        <div className="lg:col-span-2 order-1 lg:order-2 lg:sticky lg:top-20">
+        <div className="lg:col-span-2 order-1 lg:order-2 lg:sticky lg:top-4">
           <div className="bg-white rounded-2xl border-2 border-dashed border-orange-300 p-5 shadow-sm">
             <h3 className="font-black text-navy-700 mb-4 flex items-center gap-2">
               <Plus className="w-4 h-4 text-orange-500" />
@@ -417,6 +419,7 @@ export default function ExamQuestions() {
             </form>
           </div>
         </div>
+      </div>
       </div>
 
       <ConfirmDialog
