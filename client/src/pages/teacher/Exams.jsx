@@ -670,21 +670,67 @@ export default function TeacherExams() {
             )}
           </div>
 
-          {/* Shuffle options (only for manual) */}
+          {/* Shuffle options (only for manual) — nice toggle cards */}
           {form.question_source !== 'bank' && (
-            <div className="flex flex-col gap-2">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={form.shuffle_questions}
-                  onChange={e => setForm({ ...form, shuffle_questions: e.target.checked })}
-                  className="w-4 h-4 accent-orange-500" />
-                <span className="text-sm font-bold text-navy-700">خلط ترتيب الأسئلة لكل طالب</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={form.shuffle_options}
-                  onChange={e => setForm({ ...form, shuffle_options: e.target.checked })}
-                  className="w-4 h-4 accent-orange-500" />
-                <span className="text-sm font-bold text-navy-700">خلط ترتيب الإجابات لكل سؤال</span>
-              </label>
+            <div>
+              <p className="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wide">خيارات الخلط</p>
+              <div className="grid grid-cols-2 gap-3">
+                {/* Shuffle Questions Card */}
+                <button type="button"
+                  onClick={() => setForm({ ...form, shuffle_questions: !form.shuffle_questions })}
+                  className={`flex items-start gap-3 p-3 sm:p-4 rounded-2xl border-2 text-right transition-all ${
+                    form.shuffle_questions
+                      ? 'border-orange-400 bg-orange-50 shadow-sm shadow-orange-100'
+                      : 'border-gray-200 bg-white hover:border-gray-300'
+                  }`}>
+                  <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0 transition-all ${
+                    form.shuffle_questions ? 'bg-orange-500' : 'bg-gray-100'
+                  }`}>🔀</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                      <span className={`font-black text-xs sm:text-sm leading-tight ${form.shuffle_questions ? 'text-orange-800' : 'text-navy-700'}`}>
+                        خلط الأسئلة
+                      </span>
+                      <span className={`text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-full leading-none ${
+                        form.shuffle_questions ? 'bg-orange-500 text-white' : 'bg-gray-200 text-gray-500'
+                      }`}>
+                        {form.shuffle_questions ? 'مفعّل' : 'معطّل'}
+                      </span>
+                    </div>
+                    <p className="text-[10px] sm:text-xs text-gray-500 leading-relaxed hidden sm:block">
+                      كل طالب يشوف الأسئلة بترتيب مختلف
+                    </p>
+                  </div>
+                </button>
+
+                {/* Shuffle Options Card */}
+                <button type="button"
+                  onClick={() => setForm({ ...form, shuffle_options: !form.shuffle_options })}
+                  className={`flex items-start gap-3 p-3 sm:p-4 rounded-2xl border-2 text-right transition-all ${
+                    form.shuffle_options
+                      ? 'border-indigo-400 bg-indigo-50 shadow-sm shadow-indigo-100'
+                      : 'border-gray-200 bg-white hover:border-gray-300'
+                  }`}>
+                  <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0 transition-all ${
+                    form.shuffle_options ? 'bg-indigo-500' : 'bg-gray-100'
+                  }`}>🎲</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                      <span className={`font-black text-xs sm:text-sm leading-tight ${form.shuffle_options ? 'text-indigo-800' : 'text-navy-700'}`}>
+                        خلط الإجابات
+                      </span>
+                      <span className={`text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-full leading-none ${
+                        form.shuffle_options ? 'bg-indigo-500 text-white' : 'bg-gray-200 text-gray-500'
+                      }`}>
+                        {form.shuffle_options ? 'مفعّل' : 'معطّل'}
+                      </span>
+                    </div>
+                    <p className="text-[10px] sm:text-xs text-gray-500 leading-relaxed hidden sm:block">
+                      ترتيب الخيارات يتغير لكل طالب
+                    </p>
+                  </div>
+                </button>
+              </div>
             </div>
           )}
 

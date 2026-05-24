@@ -321,52 +321,56 @@ export default function CourseContent() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50" dir="rtl">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
-        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center gap-3">
+    <div dir="rtl">
+      {/* Sticky Header — negative margins break out of main's p-4 lg:p-6 padding */}
+      <div className="-mx-4 lg:-mx-6 -mt-4 lg:-mt-6 sticky top-0 z-20 bg-white border-b border-gray-200 shadow-sm">
+        <div className="px-4 lg:px-6 py-3 flex items-center gap-2 sm:gap-3">
           <button
             onClick={() => navigate(`/${teacherSlug}/${baseRole}/courses`)}
-            className="flex items-center gap-2 px-3 py-2 rounded-xl text-gray-600 hover:bg-gray-100 transition-all font-bold text-sm flex-shrink-0">
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-xl text-gray-600 hover:bg-gray-100 transition-all font-bold text-sm flex-shrink-0">
             <ArrowRight className="w-4 h-4" />
             <span className="hidden sm:inline">رجوع للكورسات</span>
           </button>
           <div className="h-5 w-px bg-gray-200 flex-shrink-0" />
-          <div className="flex items-center gap-2 min-w-0">
-            <BookOpen className="w-5 h-5 text-orange-500 flex-shrink-0" />
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 text-orange-500 flex-shrink-0" />
             <div className="min-w-0">
-              <p className="text-xs text-gray-400 font-medium">إدارة محتوى الكورس</p>
-              <h1 className="font-black text-navy-700 text-sm truncate">{course?.name || '...'}</h1>
+              <p className="text-[10px] sm:text-xs text-gray-400 font-medium">إدارة محتوى الكورس</p>
+              <h1 className="font-black text-navy-700 text-xs sm:text-sm truncate">{course?.name || '...'}</h1>
             </div>
           </div>
-          <div className="mr-auto flex items-center gap-3 flex-shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
             <span className="text-xs text-gray-500 font-bold hidden sm:flex items-center gap-1">
               <Video className="w-3.5 h-3.5" /> {videos.length} فيديو
             </span>
             <span className="text-xs text-gray-500 font-bold hidden sm:flex items-center gap-1">
               <FileText className="w-3.5 h-3.5" /> {pdfs.length} ملف
             </span>
+            {/* Mobile counts */}
+            <span className="sm:hidden text-xs font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+              {videos.length}🎬 · {pdfs.length}📄
+            </span>
           </div>
         </div>
       </div>
 
-      {/* Tab Bar */}
-      <div className="bg-white border-b border-gray-100">
-        <div className="max-w-4xl mx-auto px-4">
-          <div className="flex gap-1">
+      {/* Sticky Tab Bar — sticks below the header (header ~57px tall) */}
+      <div className="-mx-4 lg:-mx-6 sticky top-[57px] z-10 bg-white border-b border-gray-100 shadow-sm">
+        <div className="px-4 lg:px-6">
+          <div className="flex gap-0 overflow-x-auto">
             {[
               { key: 'videos', label: '🎬 الفيديوهات', count: videos.length },
               { key: 'pdfs', label: '📄 الملفات', count: pdfs.length },
               { key: 'sections', label: '📂 الفصول', count: sections.length },
             ].map(tab => (
               <button key={tab.key} onClick={() => setContentTab(tab.key)}
-                className={`flex items-center gap-1.5 px-4 py-3 text-sm font-bold border-b-2 transition-all ${
+                className={`flex items-center gap-1.5 px-3 sm:px-5 py-3 text-xs sm:text-sm font-bold border-b-2 whitespace-nowrap transition-all ${
                   contentTab === tab.key
                     ? 'border-orange-500 text-orange-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-200'
                 }`}>
                 {tab.label}
-                <span className={`text-xs rounded-full px-1.5 py-0.5 font-black ${
+                <span className={`text-[10px] sm:text-xs rounded-full px-1.5 py-0.5 font-black ${
                   contentTab === tab.key ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-500'
                 }`}>{tab.count}</span>
               </button>
@@ -376,7 +380,7 @@ export default function CourseContent() {
       </div>
 
       {/* Content */}
-      <div className="max-w-4xl mx-auto px-4 py-6">
+      <div className="py-4 sm:py-6">
         {isLoading ? (
           <div className="space-y-3">
             {[...Array(4)].map((_, i) => (
