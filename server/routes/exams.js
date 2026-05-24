@@ -68,8 +68,12 @@ router.get('/', requireRole('teacher', 'assistant'), async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT e.*, c.name as course_name,
-              CASE WHEN e.question_source = 'bank' THEN e.bank_question_count
-                   ELSE COUNT(DISTINCT q.id)::int END as question_count,
+              CASE
+                WHEN e.question_source = 'bank' AND (COALESCE(e.bank_easy_count,0) + COALESCE(e.bank_medium_count,0) + COALESCE(e.bank_hard_count,0)) > 0
+                  THEN (COALESCE(e.bank_easy_count,0) + COALESCE(e.bank_medium_count,0) + COALESCE(e.bank_hard_count,0))
+                WHEN e.question_source = 'bank' THEN e.bank_question_count
+                ELSE COUNT(DISTINCT q.id)::int
+              END as question_count,
               COUNT(DISTINCT er.id)::int as attempt_count
        FROM exams e
        LEFT JOIN courses c ON e.course_id = c.id
@@ -649,7 +653,8 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
     const eligibilityCheck = await pool.query(
       `SELECT e.id, e.title, e.duration_minutes, e.total_score, e.pass_score,
               e.start_date, e.end_date, e.shuffle_questions, e.shuffle_options,
-              e.question_source, e.bank_id, e.bank_question_count
+              e.question_source, e.bank_id, e.bank_question_count,
+              e.bank_easy_count, e.bank_medium_count, e.bank_hard_count
        FROM exams e
        LEFT JOIN student_course_enrollment sce ON e.course_id = sce.course_id AND sce.student_id = $1
        WHERE e.id = $2
@@ -672,7 +677,7 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
     let questions;
     if (exam.question_source === 'bank' && exam.bank_id) {
       const bankQRes = await pool.query(
-        'SELECT id,question_text,question_image_url,option_a,option_b,option_c,option_d,points,question_type,difficulty FROM bank_questions WHERE bank_id=$1',
+        'SELECT id,question_text,question_image_url,option_a,option_b,option_c,option_d,correct_answer_letter,points,question_type,difficulty FROM bank_questions WHERE bank_id=$1',
         [exam.bank_id]
       );
       if (bankQRes.rows.length === 0) {
@@ -727,7 +732,9 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
       );
     } catch (_) {}
 
-    res.json({ exam, questions });
+    // Strip correct_answer_letter from client response to prevent answer leaking
+    const clientQuestions = questions.map(({ correct_answer_letter: _omit, ...q }) => q);
+    res.json({ exam, questions: clientQuestions });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }
@@ -903,7 +910,7 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
     invalidateCache(exam.teacher_id);
     // Clean up the exam session after successful submission (best-effort)
     pool.query('DELETE FROM exam_sessions WHERE student_id=$1 AND exam_id=$2', [studentId, examId]).catch(() => {});
-    res.json({ result: resultRow.rows[0], detailedAnswers, normalizedScore, pointsEarned, pass_score: exam.pass_score });
+    res.json({ result: resultRow.rows[0], detailedAnswers, normalizedScore, pointsEarned, pass_score: exam.pass_score, total_score: exam.total_score });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error(err);

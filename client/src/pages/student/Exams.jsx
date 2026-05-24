@@ -309,6 +309,11 @@ export default function StudentExams() {
     const status = getExamScheduleStatus(exam);
     if (status === 'upcoming') return toast.error('الاختبار لم يبدأ بعد');
     if (status === 'expired') return toast.error('انتهى وقت هذا الاختبار');
+    // Clear any stale session keys so retry/fresh-start isn't poisoned by old timer
+    try {
+      localStorage.removeItem(`exam_start_${exam.id}`);
+      localStorage.removeItem(`exam_answers_${exam.id}`);
+    } catch (_) {}
     setAnswers({}); setResult(null);
     submittedRef.current = false; // reset guard for new exam attempt
     setPendingExam(exam);
@@ -551,7 +556,7 @@ export default function StudentExams() {
               <div className="text-5xl mb-3">{passed ? '🎉' : '📚'}</div>
               <h2 className="text-2xl font-black text-navy-700 mb-1">النتيجة</h2>
               <p className={`text-4xl font-black mb-3 ${passed ? 'text-green-800' : 'text-red-800'}`}>
-                {result.normalizedScore}/{result.result?.total_score ?? 100}
+                {result.normalizedScore}/{result.total_score ?? result.result?.total_score ?? 100}
               </p>
               <div className="flex justify-center gap-6 text-sm flex-wrap">
                 <span className="text-green-800 font-bold">✓ صواب: {result.result.correct_count}</span>
@@ -560,7 +565,16 @@ export default function StudentExams() {
               {result.pointsEarned > 0 && <p className="mt-3 text-orange-700 font-bold">+{result.pointsEarned} نقطة! ⭐</p>}
 
               {passed ? (
-                <button onClick={() => setResult(null)} className="btn-primary mt-4">حسناً 🎉</button>
+                <div className="mt-4 flex gap-3 justify-center flex-wrap">
+                  <button onClick={() => setResult(null)} className="btn-primary">حسناً 🎉</button>
+                  {result.result?.id && (
+                    <button
+                      onClick={() => { navigate(`/student/exam-review/${result.result.id}`); setResult(null); }}
+                      className="flex items-center gap-2 px-4 py-2 rounded-xl border-2 border-navy-200 hover:border-navy-400 hover:bg-navy-50 text-navy-700 font-bold text-sm transition-all">
+                      <Eye className="w-4 h-4" /> مراجعة الإجابات
+                    </button>
+                  )}
+                </div>
               ) : (
                 <div className="mt-5 space-y-3">
                   <div className="bg-white/80 border border-red-200 rounded-xl px-4 py-3">
@@ -572,8 +586,7 @@ export default function StudentExams() {
                   <div className="flex gap-3">
                     <button
                       onClick={() => {
-                        retryRequestMut.mutate({ examId, message: '' });
-                        setResult(null);
+                        retryRequestMut.mutate({ examId, message: '' }, { onSuccess: () => setResult(null) });
                       }}
                       disabled={retryRequestMut.isPending}
                       className="flex-1 py-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-black text-sm transition-all flex items-center justify-center gap-2"

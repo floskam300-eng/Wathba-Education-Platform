@@ -605,6 +605,269 @@ async function run() {
   assert('TC50: question_count in list = 3 (manual exam)', parseInt(myExam?.question_count) === 3, `count=${myExam?.question_count}`);
 
   // ──────────────────────────────────────────────────────────────────────────
+  // GROUP 11 — Bug Regression Tests (verifying all 6 fixed bugs)
+  // ──────────────────────────────────────────────────────────────────────────
+  console.log(head('GROUP 11 — Bug Regression (Fixed Bugs Verification)'));
+
+  // BUG-2 FIX: Submit response must include top-level `total_score`
+  // Create an exam with total_score ≠ 100, submit, verify
+  const bugExamR = await req('POST', '/exams', {
+    title: '[TEST] اختبار تحقق من total_score', duration_minutes: 20,
+    total_score: 50, pass_score: 25, question_source: 'manual',
+    points_on_attempt: 0, points_on_pass: 0,
+  }, teacherToken);
+  assert('TC51: Create exam with total_score=50 → 201', bugExamR.status === 201, `status=${bugExamR.status}`);
+  const bugExamId = bugExamR.data?.id;
+  assert('TC51b: total_score=50 stored correctly', bugExamR.data?.total_score === 50, `total_score=${bugExamR.data?.total_score}`);
+
+  if (bugExamId) {
+    // Add one question (5 pts — but total_score is 50, so normalized = round(5/5*50) = 50 if correct)
+    const bq1R = await req('POST', `/exams/${bugExamId}/questions`, {
+      question_text: 'ما عاصمة مصر؟',
+      option_a: 'القاهرة', option_b: 'الإسكندرية', option_c: 'أسيوط', option_d: 'طنطا',
+      correct_answer_letter: 'A', points: 5, question_type: 'mcq',
+    }, teacherToken);
+    assert('TC52: Add question to bug-test exam → 201', bq1R.status === 201, `status=${bq1R.status}`);
+
+    // Publish
+    const bugPubR = await req('PUT', `/exams/${bugExamId}/publish`, {}, teacherToken);
+    assert('TC52b: Publish bug-test exam → 200', bugPubR.status === 200, `status=${bugPubR.status}`);
+
+    // Take exam
+    const bugTakeR = await req('GET', `/exams/${bugExamId}/take`, null, studentToken);
+    assert('TC52c: Student can take bug-test exam → 200', bugTakeR.status === 200, `status=${bugTakeR.status}`);
+
+    // Submit all correct
+    const bugQs = bugTakeR.data?.questions || [];
+    const bugCorrectAnswers = {};
+    bugQs.forEach(q => { bugCorrectAnswers[q.id] = 'A'; }); // correct is A
+
+    const bugSubmitR = await req('POST', `/exams/${bugExamId}/submit`, { answers: bugCorrectAnswers }, studentToken);
+    assert('TC52d: Submit bug-test exam → 200', bugSubmitR.status === 200, `status=${bugSubmitR.status} err=${bugSubmitR.data?.error}`);
+
+    // BUG-2 FIX VERIFICATION: top-level total_score must be present and = 50
+    assert('TC52e: Submit response has top-level total_score (BUG-2 fix)',
+      bugSubmitR.data?.total_score !== undefined,
+      `total_score=${bugSubmitR.data?.total_score}`);
+    assert('TC52f: total_score = 50 (matches exam, NOT hardcoded 100)',
+      bugSubmitR.data?.total_score === 50,
+      `total_score=${bugSubmitR.data?.total_score} (expected 50)`);
+
+    // BUG-2 FIX: normalizedScore should be out of total_score=50
+    assert('TC52g: normalizedScore = 50 (all correct, out of 50)',
+      bugSubmitR.data?.normalizedScore === 50,
+      `normalizedScore=${bugSubmitR.data?.normalizedScore}`);
+
+    // pass_score in response
+    assert('TC52h: pass_score in submit response = 25',
+      bugSubmitR.data?.pass_score === 25,
+      `pass_score=${bugSubmitR.data?.pass_score}`);
+
+    await req('DELETE', `/exams/${bugExamId}`, null, teacherToken);
+  } else {
+    assertSkip('TC52-52h: Bug-2 regression tests', 'Could not create test exam');
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // GROUP 12 — Bank Exam with Difficulty Split
+  // ──────────────────────────────────────────────────────────────────────────
+  console.log(head('GROUP 12 — Bank Exam with Difficulty Split (BUG-1 & BUG-4 Fix)'));
+
+  // Create a question bank
+  const bankR = await req('POST', '/question-banks', {
+    name: '[TEST] بنك أسئلة الفيزياء',
+    subject: 'فيزياء', academic_stage: 'ثانوي عام',
+  }, teacherToken);
+  assert('TC53: Create question bank → 201', bankR.status === 201, `status=${bankR.status} err=${bankR.data?.error}`);
+  const bankId = bankR.data?.id;
+  assert('TC53b: Bank ID returned', !!bankId, `id=${bankId}`);
+
+  if (bankId) {
+    // Add 4 easy, 3 medium, 2 hard questions to the bank
+    const addBankQ = async (text, diff, correct = 'A') => req('POST', `/question-banks/${bankId}/questions`, {
+      question_text: text, difficulty: diff,
+      option_a: 'صواب', option_b: 'خطأ', option_c: 'ربما', option_d: 'لا شيء',
+      correct_answer_letter: correct, points: 1, question_type: 'mcq',
+    }, teacherToken);
+
+    const bqResults = await Promise.all([
+      addBankQ('سؤال سهل 1', 'easy'),
+      addBankQ('سؤال سهل 2', 'easy'),
+      addBankQ('سؤال سهل 3', 'easy'),
+      addBankQ('سؤال سهل 4', 'easy'),
+      addBankQ('سؤال متوسط 1', 'medium'),
+      addBankQ('سؤال متوسط 2', 'medium'),
+      addBankQ('سؤال متوسط 3', 'medium'),
+      addBankQ('سؤال صعب 1', 'hard'),
+      addBankQ('سؤال صعب 2', 'hard'),
+    ]);
+    const allBankQsOk = bqResults.every(r => r.status === 201);
+    assert('TC54: Add 9 bank questions (4easy+3medium+2hard) → all 201', allBankQsOk,
+      `statuses=${bqResults.map(r => r.status).join(',')}`);
+
+    // Create bank exam with difficulty split: 2 easy + 2 medium + 1 hard = 5 total
+    const bankExamR = await req('POST', '/exams', {
+      title: '[TEST] اختبار بنك بالصعوبة',
+      duration_minutes: 20, total_score: 100, pass_score: 50,
+      question_source: 'bank', bank_id: bankId,
+      bank_easy_count: 2, bank_medium_count: 2, bank_hard_count: 1,
+      bank_question_count: 0,
+    }, teacherToken);
+    assert('TC55: Create bank exam with difficulty split → 201', bankExamR.status === 201, `status=${bankExamR.status} err=${bankExamR.data?.error}`);
+    const bankExamId = bankExamR.data?.id;
+    assert('TC55b: bank_easy_count = 2 stored', bankExamR.data?.bank_easy_count === 2, `easy=${bankExamR.data?.bank_easy_count}`);
+    assert('TC55c: bank_medium_count = 2 stored', bankExamR.data?.bank_medium_count === 2, `medium=${bankExamR.data?.bank_medium_count}`);
+    assert('TC55d: bank_hard_count = 1 stored', bankExamR.data?.bank_hard_count === 1, `hard=${bankExamR.data?.bank_hard_count}`);
+
+    if (bankExamId) {
+      // TC56: question_count in exam list = 2+2+1 = 5 (BUG-4 fix)
+      const bankListR = await req('GET', '/exams', null, teacherToken);
+      const myBankExam = bankListR.data?.find?.(e => e.id === bankExamId);
+      assert('TC56: question_count for difficulty-split exam = 5 (BUG-4 fix)',
+        parseInt(myBankExam?.question_count) === 5,
+        `question_count=${myBankExam?.question_count} (expected 5 = 2+2+1)`);
+
+      // Publish
+      const bankPubR = await req('PUT', `/exams/${bankExamId}/publish`, {}, teacherToken);
+      assert('TC57: Publish bank exam → 200', bankPubR.status === 200, `status=${bankPubR.status} err=${bankPubR.data?.error}`);
+
+      // TC58: Student takes bank exam — BUG-1 fix verification
+      const bankTakeR = await req('GET', `/exams/${bankExamId}/take`, null, studentToken);
+      assert('TC58: Student takes bank difficulty-split exam → 200', bankTakeR.status === 200, `status=${bankTakeR.status} err=${bankTakeR.data?.error}`);
+
+      const bankQs = bankTakeR.data?.questions || [];
+      // BUG-1 FIX: should return exactly 5 questions (2 easy + 2 medium + 1 hard)
+      assert('TC58b: Exactly 5 questions returned (2+2+1 difficulty split — BUG-1 fix)',
+        bankQs.length === 5,
+        `questions=${bankQs.length} (expected 5)`);
+
+      // BUG-1 FIX: Verify difficulty distribution
+      const easyCount  = bankQs.filter(q => q.difficulty === 'easy').length;
+      const medCount   = bankQs.filter(q => q.difficulty === 'medium').length;
+      const hardCount  = bankQs.filter(q => q.difficulty === 'hard').length;
+      assert('TC58c: 2 easy questions selected (BUG-1 fix)', easyCount === 2, `easy=${easyCount}`);
+      assert('TC58d: 2 medium questions selected (BUG-1 fix)', medCount === 2, `medium=${medCount}`);
+      assert('TC58e: 1 hard question selected (BUG-1 fix)', hardCount === 1, `hard=${hardCount}`);
+
+      // TC59: bank_easy/medium/hard_count returned in /take exam object (BUG-1: columns were missing from SELECT)
+      const takeExamObj = bankTakeR.data?.exam || {};
+      assert('TC59: bank_easy_count in /take response (BUG-1 fix)',
+        takeExamObj.bank_easy_count !== undefined,
+        `bank_easy_count=${takeExamObj.bank_easy_count}`);
+      assert('TC59b: bank_medium_count in /take response (BUG-1 fix)',
+        takeExamObj.bank_medium_count !== undefined,
+        `bank_medium_count=${takeExamObj.bank_medium_count}`);
+      assert('TC59c: bank_hard_count in /take response (BUG-1 fix)',
+        takeExamObj.bank_hard_count !== undefined,
+        `bank_hard_count=${takeExamObj.bank_hard_count}`);
+      assert('TC59d: bank_easy_count = 2',  takeExamObj.bank_easy_count === 2,  `val=${takeExamObj.bank_easy_count}`);
+      assert('TC59e: bank_medium_count = 2', takeExamObj.bank_medium_count === 2, `val=${takeExamObj.bank_medium_count}`);
+      assert('TC59f: bank_hard_count = 1',  takeExamObj.bank_hard_count === 1,  `val=${takeExamObj.bank_hard_count}`);
+
+      // TC60: Submit bank exam (all 'A' — correct for all our bank questions)
+      const bankAnswers = {};
+      bankQs.forEach(q => { bankAnswers[q.id] = 'A'; });
+      const bankSubmitR = await req('POST', `/exams/${bankExamId}/submit`, { answers: bankAnswers }, studentToken);
+      assert('TC60: Submit bank exam → 200', bankSubmitR.status === 200, `status=${bankSubmitR.status} err=${bankSubmitR.data?.error}`);
+      assert('TC60b: Score = 100 (all correct, bank exam)', bankSubmitR.data?.normalizedScore === 100, `score=${bankSubmitR.data?.normalizedScore}`);
+      assert('TC60c: correct_count = 5', bankSubmitR.data?.result?.correct_count === 5, `correct=${bankSubmitR.data?.result?.correct_count}`);
+      // BUG-2 fix verification for bank exam too
+      assert('TC60d: total_score in bank exam submit response (BUG-2 fix)',
+        bankSubmitR.data?.total_score === 100,
+        `total_score=${bankSubmitR.data?.total_score}`);
+
+      // TC61: Each retry of bank exam gives different random selection (deterministic per-student)
+      // Request retry and retake to verify questions are freshly selected
+      const bankRetryR = await req('POST', `/exams/${bankExamId}/retry-request`, { message: '' }, studentToken);
+      assert('TC61: Request retry on bank exam → 201', bankRetryR.status === 201, `status=${bankRetryR.status}`);
+      if (bankRetryR.status === 201) {
+        await req('PUT', `/exams/retry-requests/${bankRetryR.data?.id}/approve`, {}, teacherToken);
+        const bankTake2R = await req('GET', `/exams/${bankExamId}/take`, null, studentToken);
+        assert('TC61b: Student can retake bank exam after approval → 200', bankTake2R.status === 200, `status=${bankTake2R.status}`);
+        const bankQs2 = bankTake2R.data?.questions || [];
+        assert('TC61c: Second attempt also returns 5 questions', bankQs2.length === 5, `len=${bankQs2.length}`);
+        // All must still be correct difficulty counts
+        const e2 = bankQs2.filter(q => q.difficulty === 'easy').length;
+        const m2 = bankQs2.filter(q => q.difficulty === 'medium').length;
+        const h2 = bankQs2.filter(q => q.difficulty === 'hard').length;
+        assert('TC61d: Retry also respects difficulty split (2 easy)', e2 === 2, `easy=${e2}`);
+        assert('TC61e: Retry also respects difficulty split (2 medium)', m2 === 2, `medium=${m2}`);
+        assert('TC61f: Retry also respects difficulty split (1 hard)', h2 === 1, `hard=${h2}`);
+      } else {
+        assertSkip('TC61b-f: Bank exam retry', `Retry request status: ${bankRetryR.status}`);
+      }
+
+      await req('DELETE', `/exams/${bankExamId}`, null, teacherToken);
+    } else {
+      assertSkip('TC56-TC61: Bank difficulty-split tests', 'Could not create bank exam');
+    }
+
+    await req('DELETE', `/question-banks/${bankId}`, null, teacherToken);
+  } else {
+    assertSkip('TC54-TC61: Bank difficulty-split tests', 'Could not create question bank');
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // GROUP 13 — BUG-3: localStorage Timer Poisoning (API-level verification)
+  // ──────────────────────────────────────────────────────────────────────────
+  console.log(head('GROUP 13 — BUG-3 localStorage / Exam Session Isolation'));
+
+  // The localStorage bug (BUG-3) is browser-only, but we can verify the server-side
+  // session behaviour that underpins the fix:
+  // When a retry is approved, the server deletes the exam_session row.
+  // A fresh /take must create a new session (not reuse a stale one).
+
+  // Set up: create a simple exam, publish, student takes + submits, requests retry, approve, retake
+  const sessionExamR = await req('POST', '/exams', {
+    title: '[TEST] اختبار عزل الجلسة', duration_minutes: 10,
+    total_score: 100, pass_score: 50, question_source: 'manual',
+    points_on_attempt: 0, points_on_pass: 0,
+  }, teacherToken);
+  const sessionExamId = sessionExamR.data?.id;
+  if (sessionExamId) {
+    await req('POST', `/exams/${sessionExamId}/questions`, {
+      question_text: 'سؤال جلسة', option_a: 'أ', option_b: 'ب',
+      correct_answer_letter: 'A', points: 1, question_type: 'mcq',
+    }, teacherToken);
+    await req('PUT', `/exams/${sessionExamId}/publish`, {}, teacherToken);
+    const sT1 = await req('GET', `/exams/${sessionExamId}/take`, null, studentToken);
+    assert('TC62: Fresh /take creates session → 200', sT1.status === 200, `status=${sT1.status}`);
+
+    // Submit
+    const sQ1 = sT1.data?.questions?.[0];
+    const sAns1 = sQ1 ? { [sQ1.id]: 'A' } : {};
+    const sS1 = await req('POST', `/exams/${sessionExamId}/submit`, { answers: sAns1 }, studentToken);
+    assert('TC62b: Submit session exam → 200', sS1.status === 200, `status=${sS1.status}`);
+
+    // Request & approve retry
+    const sRR = await req('POST', `/exams/${sessionExamId}/retry-request`, { message: '' }, studentToken);
+    assert('TC62c: Retry request → 201', sRR.status === 201, `status=${sRR.status}`);
+    if (sRR.status === 201) {
+      const appR = await req('PUT', `/exams/retry-requests/${sRR.data?.id}/approve`, {}, teacherToken);
+      assert('TC62d: Retry approved → 200', appR.status === 200, `status=${appR.status}`);
+
+      // After approval, a fresh /take should succeed (server session was cleared)
+      const sT2 = await req('GET', `/exams/${sessionExamId}/take`, null, studentToken);
+      assert('TC62e: /take after retry approval succeeds (server session cleared — BUG-3 context)',
+        sT2.status === 200, `status=${sT2.status}`);
+      assert('TC62f: New session has fresh questions', (sT2.data?.questions || []).length > 0,
+        `questions=${sT2.data?.questions?.length}`);
+
+      // Verify student can submit on the retry without 409
+      const sQ2 = sT2.data?.questions?.[0];
+      const sAns2 = sQ2 ? { [sQ2.id]: 'A' } : {};
+      const sS2 = await req('POST', `/exams/${sessionExamId}/submit`, { answers: sAns2 }, studentToken);
+      assert('TC62g: Retry submission accepted (not duplicate 409) → 200', sS2.status === 200, `status=${sS2.status} err=${sS2.data?.error}`);
+      assert('TC62h: attempt_number = 2 on retry submit', sS2.data?.result?.attempt_number === 2, `attempt=${sS2.data?.result?.attempt_number}`);
+    } else {
+      assertSkip('TC62d-h: Retry session isolation', `Retry request failed: ${sRR.status}`);
+    }
+    await req('DELETE', `/exams/${sessionExamId}`, null, teacherToken);
+  } else {
+    assertSkip('TC62: Session isolation tests', 'Could not create session exam');
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
   // CLEANUP
   // ──────────────────────────────────────────────────────────────────────────
   console.log(head('CLEANUP'));
