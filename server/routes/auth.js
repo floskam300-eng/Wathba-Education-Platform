@@ -158,46 +158,86 @@ router.post('/login', loginLimiter, async (req, res) => {
           const ua         = req.headers['user-agent'] || '';
           const deviceName = parseDeviceName(ua);
 
-          // Get current registered devices
-          const devicesRes = await pool.query(
-            'SELECT device_id FROM student_devices WHERE student_id = $1',
-            [user.id]
-          );
-          const knownIds = devicesRes.rows.map(d => d.device_id);
-          const isKnown  = knownIds.includes(device_id);
+          // Use a transaction + SELECT FOR UPDATE to prevent race conditions
+          // when two concurrent logins from different unknown devices happen
+          // simultaneously (without the lock, both could slip under the limit).
+          const client = await pool.connect();
+          try {
+            await client.query('BEGIN');
 
-          if (!isKnown) {
-            if (knownIds.length >= 2) {
-              // 3rd device → suspend account + create alert
-              await pool.query(
-                'UPDATE students SET is_suspended = true WHERE id = $1',
-                [user.id]
-              );
-              await pool.query(
-                `INSERT INTO device_alerts
-                   (teacher_id, student_id, alert_type, device_id, device_name, ip_address, status)
-                 VALUES ($1, $2, 'device_limit_exceeded', $3, $4, $5, 'pending')`,
-                [user.teacher_id, user.id, device_id, deviceName, ip]
-              );
+            // Lock the student row for the duration of the device check
+            const lockRes = await client.query(
+              'SELECT id, is_suspended FROM students WHERE id = $1 FOR UPDATE',
+              [user.id]
+            );
+            // Re-check suspension inside the transaction (another concurrent
+            // login might have just suspended this account)
+            if (lockRes.rows[0]?.is_suspended) {
+              await client.query('ROLLBACK');
               return res.status(403).json({
-                error: 'تم إيقاف حسابك بسبب محاولة تسجيل الدخول من جهاز ثالث. تم إشعار المدرس — يرجى التواصل معه لإعادة التفعيل.',
+                error: 'تم إيقاف حسابك مؤقتاً بسبب تسجيل الدخول من أكثر من جهازين. يرجى التواصل مع المدرس لإعادة التفعيل.',
                 account_suspended: true,
               });
             }
-            // New device, still within limit → register it
-            await pool.query(
-              `INSERT INTO student_devices (student_id, device_id, device_name, user_agent, ip_address)
-               VALUES ($1, $2, $3, $4, $5)
-               ON CONFLICT (student_id, device_id) DO UPDATE
-                 SET last_seen = NOW(), device_name = $3`,
-              [user.id, device_id, deviceName, ua, ip]
+
+            // Get current registered devices (inside the lock)
+            const devicesRes = await client.query(
+              'SELECT device_id FROM student_devices WHERE student_id = $1',
+              [user.id]
             );
-          } else {
-            // Known device → just update last_seen
-            await pool.query(
-              'UPDATE student_devices SET last_seen = NOW() WHERE student_id = $1 AND device_id = $2',
-              [user.id, device_id]
-            );
+            const knownIds = devicesRes.rows.map(d => d.device_id);
+            const isKnown  = knownIds.includes(device_id);
+
+            if (!isKnown) {
+              if (knownIds.length >= 2) {
+                // 3rd device → suspend account + create alert (no duplicate alerts)
+                await client.query(
+                  'UPDATE students SET is_suspended = true WHERE id = $1',
+                  [user.id]
+                );
+                // Only create alert if there is no pending alert for this student
+                // already (prevents duplicate alerts from race-condition remnants)
+                await client.query(
+                  `INSERT INTO device_alerts
+                     (teacher_id, student_id, alert_type, device_id, device_name, ip_address, status)
+                   SELECT $1,$2,'device_limit_exceeded',$3,$4,$5,'pending'
+                   WHERE NOT EXISTS (
+                     SELECT 1 FROM device_alerts
+                     WHERE student_id=$2 AND status='pending'
+                   )`,
+                  [user.teacher_id, user.id, device_id, deviceName, ip]
+                );
+                await client.query('COMMIT');
+                // Immediately block any cached session for this student
+                const { invalidateStudentAuthCache } = require('../middleware/auth');
+                invalidateStudentAuthCache(user.id);
+                return res.status(403).json({
+                  error: 'تم إيقاف حسابك بسبب محاولة تسجيل الدخول من جهاز ثالث. تم إشعار المدرس — يرجى التواصل معه لإعادة التفعيل.',
+                  account_suspended: true,
+                });
+              }
+              // New device, still within limit → register it
+              await client.query(
+                `INSERT INTO student_devices (student_id, device_id, device_name, user_agent, ip_address)
+                 VALUES ($1, $2, $3, $4, $5)
+                 ON CONFLICT (student_id, device_id) DO UPDATE
+                   SET last_seen = NOW(), device_name = $3`,
+                [user.id, device_id, deviceName, ua, ip]
+              );
+            } else {
+              // Known device → just update last_seen
+              await client.query(
+                'UPDATE student_devices SET last_seen = NOW() WHERE student_id = $1 AND device_id = $2',
+                [user.id, device_id]
+              );
+            }
+
+            await client.query('COMMIT');
+          } catch (txErr) {
+            await client.query('ROLLBACK');
+            throw txErr;
+          } finally {
+            client.release();
           }
         }
       }

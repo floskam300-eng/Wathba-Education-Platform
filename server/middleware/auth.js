@@ -50,18 +50,28 @@ const authenticate = async (req, res, next) => {
       }
     }
 
-    // ── Student: verify account hasn't been soft-deleted ───────────────────
+    // ── Student: verify account hasn't been soft-deleted AND isn't suspended ─
     if (decoded.role === 'student') {
       const now    = Date.now();
       const cached = _studentCache.get(decoded.id);
       if (!cached || now - cached.at > CACHE_TTL_MS) {
         const check = await pool.query(
-          'SELECT id FROM students WHERE id = $1 AND deleted_at IS NULL',
+          'SELECT id, is_suspended FROM students WHERE id = $1 AND deleted_at IS NULL',
           [decoded.id]
         );
-        const valid = check.rows.length > 0;
+        // valid = exists AND not suspended
+        const valid = check.rows.length > 0 && !check.rows[0]?.is_suspended;
         _studentCache.set(decoded.id, { valid, at: now });
-        if (!valid) return res.status(401).json({ error: 'الحساب غير نشط أو تم حذفه' });
+        if (!valid) {
+          const row = check.rows[0];
+          if (row?.is_suspended) {
+            return res.status(403).json({
+              error: 'تم إيقاف حسابك مؤقتاً. يرجى التواصل مع المدرس لإعادة التفعيل.',
+              account_suspended: true,
+            });
+          }
+          return res.status(401).json({ error: 'الحساب غير نشط أو تم حذفه' });
+        }
       } else if (!cached.valid) {
         return res.status(401).json({ error: 'الحساب غير نشط أو تم حذفه' });
       }
