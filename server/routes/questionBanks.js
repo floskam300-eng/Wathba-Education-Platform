@@ -47,7 +47,11 @@ router.get('/', requireRole('teacher', 'assistant'), async (req, res) => {
   const teacherId = getTeacherId(req);
   try {
     const result = await pool.query(
-      `SELECT qb.*, c.name AS course_name, COUNT(bq.id) AS question_count
+      `SELECT qb.*, c.name AS course_name,
+              COUNT(bq.id) AS question_count,
+              COUNT(bq.id) FILTER (WHERE bq.difficulty = 'easy')   AS easy_count,
+              COUNT(bq.id) FILTER (WHERE bq.difficulty = 'medium') AS medium_count,
+              COUNT(bq.id) FILTER (WHERE bq.difficulty = 'hard')   AS hard_count
        FROM question_banks qb
        LEFT JOIN bank_questions bq ON bq.bank_id = qb.id
        LEFT JOIN courses c ON c.id = qb.course_id
@@ -135,7 +139,7 @@ router.get('/:id/questions', requireRole('teacher', 'assistant'), async (req, re
 // ── Add question to bank ──
 router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
-  const { question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, question_type } = req.body;
+  const { question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, question_type, difficulty } = req.body;
   try {
     const bank = await pool.query('SELECT id FROM question_banks WHERE id=$1 AND teacher_id=$2', [req.params.id, teacherId]);
     if (!bank.rows.length) return res.status(403).json({ error: 'Access denied' });
@@ -147,9 +151,12 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageEx
     if (!optA || !optB) return res.status(400).json({ error: 'الخيار الأول والثاني مطلوبان' });
     if (!correctLetter) return res.status(400).json({ error: 'الإجابة الصحيحة مطلوبة' });
 
+    const validDifficulties = ['easy', 'medium', 'hard'];
+    const qDifficulty = validDifficulties.includes(difficulty) ? difficulty : 'medium';
+
     const result = await pool.query(
-      'INSERT INTO bank_questions (bank_id, question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, question_type) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *',
-      [req.params.id, question_text || null, question_image_url || null, optA, optB, option_c || null, option_d || null, correctLetter.toUpperCase(), points || 1, qType]
+      'INSERT INTO bank_questions (bank_id, question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, question_type, difficulty) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *',
+      [req.params.id, question_text || null, question_image_url || null, optA, optB, option_c || null, option_d || null, correctLetter.toUpperCase(), points || 1, qType, qDifficulty]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -161,7 +168,7 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageEx
 // ── Update bank question ──
 router.put('/questions/:qid', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
-  const { question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, question_type } = req.body;
+  const { question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, question_type, difficulty } = req.body;
   try {
     const ownership = await pool.query(
       `SELECT bq.id FROM bank_questions bq
@@ -175,9 +182,12 @@ router.put('/questions/:qid', requireRole('teacher', 'assistant'), checkManageEx
     let optA = option_a, optB = option_b, correctLetter = correct_answer_letter;
     if (qType === 'true_false') { optA = 'صح'; optB = 'خطأ'; }
 
+    const validDifficulties = ['easy', 'medium', 'hard'];
+    const qDifficulty = validDifficulties.includes(difficulty) ? difficulty : 'medium';
+
     const result = await pool.query(
-      'UPDATE bank_questions SET question_text=$1, question_image_url=$2, option_a=$3, option_b=$4, option_c=$5, option_d=$6, correct_answer_letter=$7, points=$8, question_type=$9 WHERE id=$10 RETURNING *',
-      [question_text || null, question_image_url || null, optA, optB, option_c || null, option_d || null, correctLetter.toUpperCase(), points || 1, qType, req.params.qid]
+      'UPDATE bank_questions SET question_text=$1, question_image_url=$2, option_a=$3, option_b=$4, option_c=$5, option_d=$6, correct_answer_letter=$7, points=$8, question_type=$9, difficulty=$10 WHERE id=$11 RETURNING *',
+      [question_text || null, question_image_url || null, optA, optB, option_c || null, option_d || null, correctLetter.toUpperCase(), points || 1, qType, qDifficulty, req.params.qid]
     );
     res.json(result.rows[0]);
   } catch (err) {

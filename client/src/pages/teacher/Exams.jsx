@@ -22,7 +22,7 @@ function FieldError({ error }) {
 
 const STAGES = ['الصف الأول الثانوي', 'الصف الثاني الثانوي', 'الصف الثالث الثانوي', 'الصف الأول الإعدادي', 'الصف الثاني الإعدادي', 'الصف الثالث الإعدادي'];
 
-const emptyExam = { title: '', duration_minutes: 60, total_score: 100, course_id: '', pass_score: 50, badge_name: '', badge_color: '#995400', start_date: '', end_date: '', shuffle_questions: false, shuffle_options: false, question_source: 'manual', bank_id: '', bank_question_count: 10, points_on_attempt: 0, points_on_pass: 0 };
+const emptyExam = { title: '', duration_minutes: 60, total_score: 100, course_id: '', pass_score: 50, badge_name: '', badge_color: '#995400', start_date: '', end_date: '', shuffle_questions: false, shuffle_options: false, question_source: 'manual', bank_id: '', bank_question_count: 10, points_on_attempt: 0, points_on_pass: 0, bank_easy_count: 0, bank_medium_count: 0, bank_hard_count: 0, use_difficulty_split: false };
 const emptyQ = { question_text: '', question_image_url: '', option_a: '', option_b: '', option_c: '', option_d: '', correct_answer_letter: 'A', points: 1, question_type: 'mcq' };
 
 const QUESTION_TYPES = [
@@ -220,6 +220,9 @@ export default function TeacherExams() {
   const openAdd = () => { setEditData(null); setForm(emptyExam); setFormErrors({}); setModal(true); };
   const openEdit = (e) => {
     setEditData(e);
+    const easyC   = parseInt(e.bank_easy_count)   || 0;
+    const mediumC = parseInt(e.bank_medium_count) || 0;
+    const hardC   = parseInt(e.bank_hard_count)   || 0;
     setForm({
       title: e.title, duration_minutes: e.duration_minutes, total_score: e.total_score,
       course_id: e.course_id || '', pass_score: e.pass_score,
@@ -231,6 +234,10 @@ export default function TeacherExams() {
       bank_question_count: e.bank_question_count || 10,
       points_on_attempt: e.points_on_attempt || 0,
       points_on_pass: e.points_on_pass || 0,
+      bank_easy_count: easyC,
+      bank_medium_count: mediumC,
+      bank_hard_count: hardC,
+      use_difficulty_split: (easyC + mediumC + hardC) > 0,
     });
     setFormErrors({});
     setModal(true);
@@ -541,11 +548,26 @@ export default function TeacherExams() {
                       </h4>
                       {(() => {
                         const bank = questionBanks.find(b => String(b.id) === String(ex.bank_id));
+                        const easyC   = parseInt(ex.bank_easy_count)   || 0;
+                        const mediumC = parseInt(ex.bank_medium_count) || 0;
+                        const hardC   = parseInt(ex.bank_hard_count)   || 0;
+                        const useDiff = (easyC + mediumC + hardC) > 0;
                         return bank ? (
                           <div className="text-sm text-blue-700 space-y-1">
                             <p><span className="font-bold">البنك:</span> {bank.name}{bank.subject ? ` (${bank.subject})` : ''}</p>
-                            <p><span className="font-bold">عدد الأسئلة في البنك:</span> {bank.question_count} سؤال</p>
-                            <p><span className="font-bold">عدد الأسئلة لكل طالب:</span> {ex.bank_question_count} سؤال عشوائي</p>
+                            <p><span className="font-bold">عدد الأسئلة في البنك:</span> {bank.question_count} سؤال
+                              {' '}(<span className="text-green-600">{bank.easy_count || 0} سهل</span> · <span className="text-yellow-600">{bank.medium_count || 0} متوسط</span> · <span className="text-red-600">{bank.hard_count || 0} صعب</span>)
+                            </p>
+                            {useDiff ? (
+                              <p><span className="font-bold">توزيع الأسئلة لكل طالب:</span>
+                                {' '}<span className="text-green-700 font-bold">{easyC} سهل</span> +
+                                {' '}<span className="text-yellow-700 font-bold">{mediumC} متوسط</span> +
+                                {' '}<span className="text-red-700 font-bold">{hardC} صعب</span>
+                                {' '}= {easyC + mediumC + hardC} سؤال
+                              </p>
+                            ) : (
+                              <p><span className="font-bold">عدد الأسئلة لكل طالب:</span> {ex.bank_question_count} سؤال عشوائي</p>
+                            )}
                             <p className="text-xs text-blue-500 mt-2">💡 كل طالب يحصل على مجموعة مختلفة من الأسئلة بشكل تلقائي وعشوائي</p>
                           </div>
                         ) : (
@@ -828,18 +850,71 @@ export default function TeacherExams() {
                     </select>
                   )}
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-blue-800 mb-1">عدد الأسئلة المسحوبة لكل طالب *</label>
-                  <input type="number" min="1" max="200" value={form.bank_question_count}
-                    onChange={e => setForm({ ...form, bank_question_count: parseInt(e.target.value) || 10 })}
-                    className="input-field text-sm w-28" />
-                  {form.bank_id && (() => {
-                    const bank = questionBanks.find(b => String(b.id) === String(form.bank_id));
-                    if (bank && form.bank_question_count > bank.question_count) {
-                      return <p className="text-xs text-amber-600 font-semibold mt-1">⚠️ البنك يحتوي على {bank.question_count} سؤال فقط — سيتم سحب الكل</p>;
-                    }
-                    return null;
-                  })()}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <button type="button"
+                      onClick={() => setForm({ ...form, use_difficulty_split: false, bank_easy_count: 0, bank_medium_count: 0, bank_hard_count: 0 })}
+                      className={`flex-1 py-2.5 rounded-xl border-2 font-bold text-sm transition-all ${!form.use_difficulty_split ? 'border-blue-500 bg-blue-100 text-blue-800' : 'border-gray-200 bg-white text-gray-600 hover:border-blue-300'}`}>
+                      🎲 عشوائي بالكامل
+                    </button>
+                    <button type="button"
+                      onClick={() => setForm({ ...form, use_difficulty_split: true })}
+                      className={`flex-1 py-2.5 rounded-xl border-2 font-bold text-sm transition-all ${form.use_difficulty_split ? 'border-blue-500 bg-blue-100 text-blue-800' : 'border-gray-200 bg-white text-gray-600 hover:border-blue-300'}`}>
+                      🎯 حسب الصعوبة
+                    </button>
+                  </div>
+
+                  {!form.use_difficulty_split ? (
+                    <div>
+                      <label className="block text-xs font-bold text-blue-800 mb-1">عدد الأسئلة المسحوبة لكل طالب *</label>
+                      <input type="number" min="1" max="200" value={form.bank_question_count}
+                        onChange={e => setForm({ ...form, bank_question_count: parseInt(e.target.value) || 10 })}
+                        className="input-field text-sm w-28" />
+                      {form.bank_id && (() => {
+                        const bank = questionBanks.find(b => String(b.id) === String(form.bank_id));
+                        if (bank && form.bank_question_count > bank.question_count) {
+                          return <p className="text-xs text-amber-600 font-semibold mt-1">⚠️ البنك يحتوي على {bank.question_count} سؤال فقط — سيتم سحب الكل</p>;
+                        }
+                        return null;
+                      })()}
+                    </div>
+                  ) : (
+                    <div className="bg-white rounded-xl border border-blue-200 p-3 space-y-2">
+                      <p className="text-xs font-black text-blue-800 mb-2">🎯 حدد عدد الأسئلة من كل مستوى صعوبة:</p>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <label className="block text-xs font-bold text-green-700 mb-1">🟢 سهل</label>
+                          <input type="number" min="0" max="200" value={form.bank_easy_count}
+                            onChange={e => setForm({ ...form, bank_easy_count: parseInt(e.target.value) || 0 })}
+                            className="input-field text-sm text-center" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-yellow-700 mb-1">🟡 متوسط</label>
+                          <input type="number" min="0" max="200" value={form.bank_medium_count}
+                            onChange={e => setForm({ ...form, bank_medium_count: parseInt(e.target.value) || 0 })}
+                            className="input-field text-sm text-center" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-red-700 mb-1">🔴 صعب</label>
+                          <input type="number" min="0" max="200" value={form.bank_hard_count}
+                            onChange={e => setForm({ ...form, bank_hard_count: parseInt(e.target.value) || 0 })}
+                            className="input-field text-sm text-center" />
+                        </div>
+                      </div>
+                      {(form.bank_easy_count + form.bank_medium_count + form.bank_hard_count) > 0 && (
+                        <p className="text-xs text-blue-700 font-bold pt-1 border-t border-blue-100">
+                          إجمالي الأسئلة لكل طالب: <span className="text-blue-900">{form.bank_easy_count + form.bank_medium_count + form.bank_hard_count} سؤال</span>
+                        </p>
+                      )}
+                      {form.bank_id && (() => {
+                        const bank = questionBanks.find(b => String(b.id) === String(form.bank_id));
+                        if (!bank) return null;
+                        return (
+                          <p className="text-xs text-gray-500">البنك يحتوي على: <span className="font-bold text-green-600">{bank.easy_count || 0} سهل</span> · <span className="font-bold text-yellow-600">{bank.medium_count || 0} متوسط</span> · <span className="font-bold text-red-600">{bank.hard_count || 0} صعب</span></p>
+                        );
+                      })()}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

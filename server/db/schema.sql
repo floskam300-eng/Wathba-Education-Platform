@@ -526,6 +526,14 @@ END $$;
 
 -- essay_answer_key removed from bank_questions — essay questions not supported
 
+-- ── Difficulty level for bank questions ──────────────────────────────────────
+ALTER TABLE bank_questions ADD COLUMN IF NOT EXISTS difficulty VARCHAR(10) DEFAULT 'medium';
+
+-- ── Difficulty-based question count columns for bank exams ───────────────────
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS bank_easy_count   INTEGER DEFAULT 0;
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS bank_medium_count INTEGER DEFAULT 0;
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS bank_hard_count   INTEGER DEFAULT 0;
+
 -- ── SaaS multi-tenant: teacher slug + platform branding ───────────────────────
 ALTER TABLE teachers ADD COLUMN IF NOT EXISTS slug VARCHAR(100) UNIQUE;
 ALTER TABLE teachers ADD COLUMN IF NOT EXISTS platform_name VARCHAR(200);

@@ -89,7 +89,7 @@ router.get('/', requireRole('teacher', 'assistant'), async (req, res) => {
 // ── Create exam ──
 router.post('/', requireRole('teacher', 'assistant'), checkManageExamsPerm, validateExam, async (req, res) => {
   const teacherId = getTeacherId(req);
-  const { title, duration_minutes, total_score, course_id, pass_score, badge_name, badge_color, start_date, end_date, shuffle_questions, shuffle_options, question_source, bank_id, bank_question_count, points_on_attempt, points_on_pass } = req.body;
+  const { title, duration_minutes, total_score, course_id, pass_score, badge_name, badge_color, start_date, end_date, shuffle_questions, shuffle_options, question_source, bank_id, bank_question_count, points_on_attempt, points_on_pass, bank_easy_count, bank_medium_count, bank_hard_count } = req.body;
   try {
     if (course_id) {
       const courseCheck = await pool.query('SELECT id FROM courses WHERE id=$1 AND teacher_id=$2', [course_id, teacherId]);
@@ -104,9 +104,12 @@ router.post('/', requireRole('teacher', 'assistant'), checkManageExamsPerm, vali
       if (diffMin < parseInt(duration_minutes || 60))
         return res.status(400).json({ error: `الفترة بين البداية والنهاية (${Math.round(diffMin)} دقيقة) أقل من مدة الاختبار (${duration_minutes || 60} دقيقة)` });
     }
+    const easyCount   = parseInt(bank_easy_count)   || 0;
+    const mediumCount = parseInt(bank_medium_count) || 0;
+    const hardCount   = parseInt(bank_hard_count)   || 0;
     const result = await pool.query(
-      'INSERT INTO exams (title,duration_minutes,total_score,course_id,teacher_id,pass_score,badge_name,badge_color,start_date,end_date,shuffle_questions,shuffle_options,question_source,bank_id,bank_question_count,points_on_attempt,points_on_pass) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *',
-      [title, duration_minutes || 60, total_score || 100, course_id || null, teacherId, pass_score ?? 50, badge_name, badge_color || '#FF8C00', start_date || null, end_date || null, !!shuffle_questions, !!shuffle_options, question_source || 'manual', (question_source === 'bank' && bank_id) ? bank_id : null, bank_question_count || 10, points_on_attempt || 0, points_on_pass || 0]
+      'INSERT INTO exams (title,duration_minutes,total_score,course_id,teacher_id,pass_score,badge_name,badge_color,start_date,end_date,shuffle_questions,shuffle_options,question_source,bank_id,bank_question_count,points_on_attempt,points_on_pass,bank_easy_count,bank_medium_count,bank_hard_count) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING *',
+      [title, duration_minutes || 60, total_score || 100, course_id || null, teacherId, pass_score ?? 50, badge_name, badge_color || '#FF8C00', start_date || null, end_date || null, !!shuffle_questions, !!shuffle_options, question_source || 'manual', (question_source === 'bank' && bank_id) ? bank_id : null, bank_question_count || 10, points_on_attempt || 0, points_on_pass || 0, easyCount, mediumCount, hardCount]
     );
     logActivity({
       teacherId, actor: getActor(req), ip: getIp(req),
@@ -123,7 +126,7 @@ router.post('/', requireRole('teacher', 'assistant'), checkManageExamsPerm, vali
 // ── Update exam ──
 router.put('/:id', requireRole('teacher', 'assistant'), checkManageExamsPerm, validateExam, async (req, res) => {
   const teacherId = getTeacherId(req);
-  const { title, duration_minutes, total_score, course_id, pass_score, badge_name, badge_color, start_date, end_date, shuffle_questions, shuffle_options, question_source, bank_id, bank_question_count, points_on_attempt, points_on_pass } = req.body;
+  const { title, duration_minutes, total_score, course_id, pass_score, badge_name, badge_color, start_date, end_date, shuffle_questions, shuffle_options, question_source, bank_id, bank_question_count, points_on_attempt, points_on_pass, bank_easy_count, bank_medium_count, bank_hard_count } = req.body;
   try {
     if (question_source === 'bank' && bank_id) {
       const bankCheck = await pool.query('SELECT id FROM question_banks WHERE id=$1 AND teacher_id=$2', [bank_id, teacherId]);
@@ -134,9 +137,12 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageExamsPerm, va
       if (diffMin < parseInt(duration_minutes || 60))
         return res.status(400).json({ error: `الفترة بين البداية والنهاية (${Math.round(diffMin)} دقيقة) أقل من مدة الاختبار (${duration_minutes || 60} دقيقة)` });
     }
+    const easyCount   = parseInt(bank_easy_count)   || 0;
+    const mediumCount = parseInt(bank_medium_count) || 0;
+    const hardCount   = parseInt(bank_hard_count)   || 0;
     const result = await pool.query(
-      'UPDATE exams SET title=$1,duration_minutes=$2,total_score=$3,course_id=$4,pass_score=$5,badge_name=$6,badge_color=$7,start_date=$8,end_date=$9,shuffle_questions=$10,shuffle_options=$11,question_source=$12,bank_id=$13,bank_question_count=$14,points_on_attempt=$15,points_on_pass=$16 WHERE id=$17 AND teacher_id=$18 RETURNING *',
-      [title, duration_minutes, total_score, course_id || null, pass_score, badge_name, badge_color, start_date || null, end_date || null, !!shuffle_questions, !!shuffle_options, question_source || 'manual', (question_source === 'bank' && bank_id) ? bank_id : null, bank_question_count || 10, points_on_attempt || 0, points_on_pass || 0, req.params.id, teacherId]
+      'UPDATE exams SET title=$1,duration_minutes=$2,total_score=$3,course_id=$4,pass_score=$5,badge_name=$6,badge_color=$7,start_date=$8,end_date=$9,shuffle_questions=$10,shuffle_options=$11,question_source=$12,bank_id=$13,bank_question_count=$14,points_on_attempt=$15,points_on_pass=$16,bank_easy_count=$17,bank_medium_count=$18,bank_hard_count=$19 WHERE id=$20 AND teacher_id=$21 RETURNING *',
+      [title, duration_minutes, total_score, course_id || null, pass_score, badge_name, badge_color, start_date || null, end_date || null, !!shuffle_questions, !!shuffle_options, question_source || 'manual', (question_source === 'bank' && bank_id) ? bank_id : null, bank_question_count || 10, points_on_attempt || 0, points_on_pass || 0, easyCount, mediumCount, hardCount, req.params.id, teacherId]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Exam not found' });
     logActivity({
@@ -666,16 +672,35 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
     let questions;
     if (exam.question_source === 'bank' && exam.bank_id) {
       const bankQRes = await pool.query(
-        'SELECT id,question_text,question_image_url,option_a,option_b,option_c,option_d,points,question_type FROM bank_questions WHERE bank_id=$1',
+        'SELECT id,question_text,question_image_url,option_a,option_b,option_c,option_d,points,question_type,difficulty FROM bank_questions WHERE bank_id=$1',
         [exam.bank_id]
       );
       if (bankQRes.rows.length === 0) {
         return res.status(400).json({ error: 'بنك الأسئلة فارغ' });
       }
       const seed = (studentId * 999983 + parseInt(req.params.id) * 999979) >>> 0;
-      const shuffled = seededShuffle(bankQRes.rows, seed);
-      const count = Math.min(exam.bank_question_count || 10, shuffled.length);
-      questions = shuffled.slice(0, count);
+      const easyCount   = parseInt(exam.bank_easy_count)   || 0;
+      const mediumCount = parseInt(exam.bank_medium_count) || 0;
+      const hardCount   = parseInt(exam.bank_hard_count)   || 0;
+      const useDifficulty = (easyCount + mediumCount + hardCount) > 0;
+      if (useDifficulty) {
+        const easyQs   = seededShuffle(bankQRes.rows.filter(q => q.difficulty === 'easy'),   seed);
+        const mediumQs = seededShuffle(bankQRes.rows.filter(q => q.difficulty === 'medium'), seed + 1);
+        const hardQs   = seededShuffle(bankQRes.rows.filter(q => q.difficulty === 'hard'),   seed + 2);
+        const picked = [
+          ...easyQs.slice(0, easyCount),
+          ...mediumQs.slice(0, mediumCount),
+          ...hardQs.slice(0, hardCount),
+        ];
+        if (picked.length === 0) {
+          return res.status(400).json({ error: 'لا توجد أسئلة كافية بالصعوبات المطلوبة في البنك' });
+        }
+        questions = seededShuffle(picked, seed + 3);
+      } else {
+        const shuffled = seededShuffle(bankQRes.rows, seed);
+        const count = Math.min(exam.bank_question_count || 10, shuffled.length);
+        questions = shuffled.slice(0, count);
+      }
     } else {
       const questionsRes = await pool.query(
         'SELECT id,question_text,question_image_url,option_a,option_b,option_c,option_d,points,question_type FROM questions WHERE exam_id=$1 ORDER BY id',

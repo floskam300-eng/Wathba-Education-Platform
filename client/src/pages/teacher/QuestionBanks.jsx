@@ -7,7 +7,18 @@ import api from '../../lib/api';
 import toast from 'react-hot-toast';
 
 const emptyBank = { name: '', course_id: '' };
-const emptyQ = { question_text: '', question_image_url: '', option_a: '', option_b: '', option_c: '', option_d: '', correct_answer_letter: 'A', points: 1, question_type: 'mcq' };
+const emptyQ = { question_text: '', question_image_url: '', option_a: '', option_b: '', option_c: '', option_d: '', correct_answer_letter: 'A', points: 1, question_type: 'mcq', difficulty: 'medium' };
+
+const DIFFICULTIES = [
+  { value: 'easy',   label: 'سهل',   color: 'bg-green-100 text-green-700 border-green-300' },
+  { value: 'medium', label: 'متوسط', color: 'bg-yellow-100 text-yellow-700 border-yellow-300' },
+  { value: 'hard',   label: 'صعب',   color: 'bg-red-100 text-red-700 border-red-300' },
+];
+
+const difficultyBadge = (d) => {
+  const map = { easy: { label: 'سهل 🟢', cls: 'bg-green-100 text-green-700' }, medium: { label: 'متوسط 🟡', cls: 'bg-yellow-100 text-yellow-700' }, hard: { label: 'صعب 🔴', cls: 'bg-red-100 text-red-700' } };
+  return map[d] || map['medium'];
+};
 
 const Q_TYPES = [
   { value: 'mcq', label: '🔘 اختيار متعدد (MCQ)' },
@@ -112,6 +123,7 @@ export default function QuestionBanks() {
       correct_answer_letter: q.correct_answer_letter || 'A',
       points: q.points || 1,
       question_type: q.question_type || 'mcq',
+      difficulty: q.difficulty || 'medium',
     });
     setImagePreview(q.question_image_url || '');
     setImageInputMode('url');
@@ -193,6 +205,9 @@ export default function QuestionBanks() {
                       </span>
                     )}
                     <span className="text-xs text-gray-500 font-medium">{bank.question_count} سؤال</span>
+                    <span className="text-xs font-bold px-2 py-0.5 bg-green-100 text-green-700 rounded-full">{bank.easy_count || 0} سهل</span>
+                    <span className="text-xs font-bold px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded-full">{bank.medium_count || 0} متوسط</span>
+                    <span className="text-xs font-bold px-2 py-0.5 bg-red-100 text-red-700 rounded-full">{bank.hard_count || 0} صعب</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -216,9 +231,10 @@ export default function QuestionBanks() {
                         <div key={q.id} className="bg-gray-50 rounded-xl p-4 border border-gray-200">
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-2">
+                              <div className="flex items-center gap-2 mb-2 flex-wrap">
                                 <span className="text-xs font-black bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">{idx + 1}</span>
                                 <span className="text-xs text-gray-500 font-medium">{q.question_type === 'true_false' ? 'صح/خطأ' : 'MCQ'} · {q.points} نقطة</span>
+                                {(() => { const d = difficultyBadge(q.difficulty); return <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${d.cls}`}>{d.label}</span>; })()}
                               </div>
                               {q.question_image_url && <img src={q.question_image_url} alt="" className="max-h-32 rounded-lg mb-2 border border-gray-200" />}
                               {q.question_text && <p className="font-semibold text-navy-700 text-sm mb-2">{q.question_text}</p>}
@@ -317,6 +333,19 @@ export default function QuestionBanks() {
                           ))}
                         </div>
                       )}
+
+                      <div>
+                        <label className="block text-xs font-bold text-gray-600 mb-1">مستوى الصعوبة</label>
+                        <div className="flex gap-2">
+                          {DIFFICULTIES.map(d => (
+                            <button key={d.value} type="button"
+                              onClick={() => setQForm({ ...qForm, difficulty: d.value })}
+                              className={`flex-1 py-2 rounded-xl border-2 font-bold text-sm transition-all ${qForm.difficulty === d.value ? `${d.color} border-current` : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}>
+                              {d.value === 'easy' ? '🟢' : d.value === 'medium' ? '🟡' : '🔴'} {d.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
 
                       <div>
                         <label className="block text-xs font-bold text-gray-600 mb-1">النقاط</label>
