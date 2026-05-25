@@ -3,6 +3,16 @@
  * Signature: generatePDFReport(title, headers, data, filename?, opts?)
  * opts: { subtitle, stats: [{label, value, color?}], note }
  */
+
+const escapeHtml = (str) => {
+  return String(str ?? '—')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+};
+
 export const generatePDFReport = (title, headers, data, filename = 'report.pdf', opts = {}) => {
   const now = new Date().toLocaleDateString('ar-EG', {
     year: 'numeric', month: 'long', day: 'numeric',
@@ -10,7 +20,7 @@ export const generatePDFReport = (title, headers, data, filename = 'report.pdf',
 
   /* ── smart cell renderer ─────────────────────────────────────────── */
   const renderCell = (raw) => {
-    const cell = String(raw ?? '—');
+    const cell = escapeHtml(raw);
 
     const STATUS = [
       [/(ناجح|نجاح|مؤكدة|مؤكد|مفعّل|نشط|مقبول|مكتمل|منشور|مفتوح)/,  '#16a34a', '#f0fdf4', '#bbf7d0'],
@@ -55,8 +65,8 @@ export const generatePDFReport = (title, headers, data, filename = 'report.pdf',
     ? `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px">
         ${opts.stats.map(s => `
           <div style="flex:1;min-width:100px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;text-align:center">
-            <div style="font-size:20px;font-weight:900;color:${s.color || '#1e3a5f'}">${s.value}</div>
-            <div style="font-size:10px;color:#64748b;font-weight:700;margin-top:2px">${s.label}</div>
+            <div style="font-size:20px;font-weight:900;color:${escapeHtml(s.color || '#1e3a5f')}">${escapeHtml(s.value)}</div>
+            <div style="font-size:10px;color:#64748b;font-weight:700;margin-top:2px">${escapeHtml(s.label)}</div>
           </div>`).join('')}
       </div>`
     : '';
@@ -176,8 +186,8 @@ export const generatePDFReport = (title, headers, data, filename = 'report.pdf',
   <div class="report-header">
     <div class="logo-box"><span class="logo-text">و</span></div>
     <div>
-      <div class="report-title">${title}</div>
-      <div class="report-sub">${opts.subtitle || 'تقرير شامل — منصة وثبة التعليمية'}</div>
+      <div class="report-title">${escapeHtml(title)}</div>
+      <div class="report-sub">${escapeHtml(opts.subtitle || 'تقرير شامل — منصة وثبة التعليمية')}</div>
     </div>
     <div class="report-meta">
       <div class="platform">منصة وثبة</div>
@@ -200,7 +210,7 @@ export const generatePDFReport = (title, headers, data, filename = 'report.pdf',
         <thead>
           <tr>
             <th>#</th>
-            ${headers.map(h => `<th>${h}</th>`).join('')}
+            ${headers.map(h => `<th>${escapeHtml(h)}</th>`).join('')}
           </tr>
         </thead>
         <tbody>
@@ -209,7 +219,7 @@ export const generatePDFReport = (title, headers, data, filename = 'report.pdf',
        </table>`
   }
 
-  ${opts.note ? `<div class="note">💡 ${opts.note}</div>` : ''}
+  ${opts.note ? `<div class="note">💡 ${escapeHtml(opts.note)}</div>` : ''}
 
   <div class="report-footer">
     تقرير صادر آلياً من منصة وثبة التعليمية — ${now}

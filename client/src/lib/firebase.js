@@ -2,13 +2,13 @@ import { initializeApp } from 'firebase/app';
 import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 
 const firebaseConfig = {
-  apiKey: 'AIzaSyBd0Oc_kNJig2VhP91bI90x4XrcXHhqU04',
-  authDomain: 'wathba-education-platform.firebaseapp.com',
-  projectId: 'wathba-education-platform',
-  storageBucket: 'wathba-education-platform.firebasestorage.app',
-  messagingSenderId: '827312209667',
-  appId: '1:827312209667:web:399a23817bd2a51fa1b336',
-  measurementId: 'G-K7N8D7W9PD',
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
 const app = initializeApp(firebaseConfig);

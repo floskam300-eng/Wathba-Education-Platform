@@ -1,6 +1,15 @@
 import React from 'react';
 import { Printer } from 'lucide-react';
 
+const escapeHtml = (str) => {
+  return String(str ?? '—')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+};
+
 const PrintReportButton = ({
   data,
   columns,
@@ -110,14 +119,14 @@ const PrintReportButton = ({
     <thead>
       <tr>
         <th>#</th>
-        ${headers.map(h => `<th>${h}</th>`).join('')}
+        ${headers.map(h => `<th>${escapeHtml(h)}</th>`).join('')}
       </tr>
     </thead>
     <tbody>
       ${tableData.map((row, i) => `
         <tr>
           <td style="color:#94a3b8;font-size:11px;font-weight:700">${i + 1}</td>
-          ${row.map(cell => `<td>${cell}</td>`).join('')}
+          ${row.map(cell => `<td>${escapeHtml(cell)}</td>`).join('')}
         </tr>`).join('')}
     </tbody>
   </table>

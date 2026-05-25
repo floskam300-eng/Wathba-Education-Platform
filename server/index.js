@@ -154,8 +154,9 @@ const initDB = async () => {
         "INSERT INTO teachers (username,password,name,bio,classification,whatsapp_phone,slug) VALUES($1,$2,$3,$4,$5,$6,$7)",
         ['admin', hashed, 'المعلم الافتراضي', 'مرحباً بك في منصة وثبة التعليمية', 'مدرس رياضيات', '+201000000000', 'admin']
       );
-      console.log(`Default teacher created: username=admin, password=${defaultPassword}`);
+      console.log(`Default teacher created: username=admin — password written to ADMIN_INITIAL_PASSWORD env var`);
       console.warn('⚠️  SECURITY WARNING: Change the default admin password immediately via Settings!');
+      process.env.ADMIN_INITIAL_PASSWORD = defaultPassword;
     } else {
       // Ensure existing admin teacher has a slug
       await pool.query(
