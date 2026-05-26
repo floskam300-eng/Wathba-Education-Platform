@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "node server/index.js",
-    "client": "cd client && npm run dev -- --port 5000",
+    "client": "cd client && npm run dev",
     "build": "cd client && npm run build",
     "start": "NODE_ENV=production node server/index.js"
   },
