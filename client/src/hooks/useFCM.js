@@ -26,8 +26,8 @@ export function useFCM(enabled) {
       return;
     }
 
-    if (!VAPID_KEY) {
-      console.warn('[FCM] VITE_FIREBASE_VAPID_KEY not set — push notifications disabled');
+    if (!VAPID_KEY || !messaging) {
+      console.warn('[FCM] Firebase not configured — push notifications disabled');
       return;
     }
 

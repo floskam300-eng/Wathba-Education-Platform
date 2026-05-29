@@ -11,6 +11,23 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
-const app = initializeApp(firebaseConfig);
-export const messaging = getMessaging(app);
-export { getToken, onMessage };
+const isConfigured = !!(
+  firebaseConfig.apiKey &&
+  firebaseConfig.projectId &&
+  firebaseConfig.appId
+);
+
+let messaging = null;
+
+if (isConfigured) {
+  try {
+    const app = initializeApp(firebaseConfig);
+    messaging = getMessaging(app);
+  } catch (err) {
+    console.warn('[FCM] Firebase init failed:', err.message);
+  }
+} else {
+  console.info('[FCM] Firebase client config not set — push notifications disabled');
+}
+
+export { messaging, getToken, onMessage };
