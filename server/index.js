@@ -131,10 +131,16 @@ app.use('/api/live', require('./routes/live'));
 app.use('/api/events', require('./routes/events'));
 app.use('/api/activity-logs', require('./routes/activityLogs'));
 
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../client/dist')));
+const clientDist = path.join(__dirname, '../client/dist');
+if (process.env.NODE_ENV === 'production' || fs.existsSync(clientDist)) {
+  app.use(express.static(clientDist));
   app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../client/dist/index.html'));
+    const index = path.join(clientDist, 'index.html');
+    if (fs.existsSync(index)) {
+      res.sendFile(index);
+    } else {
+      res.status(404).send('Client build not found. Run: cd client && npm run build');
+    }
   });
 }
 
