@@ -665,3 +665,28 @@ ALTER TABLE bank_questions ADD COLUMN IF NOT EXISTS group_context_image  TEXT   
 -- (used by wrong-questions analytics and exam review queries)
 CREATE INDEX IF NOT EXISTS idx_exam_results_answers_gin
   ON exam_results USING GIN (answers jsonb_path_ops);
+
+-- ── JWT token revocation — persistent across server restarts ──────────────────
+CREATE TABLE IF NOT EXISTS revoked_tokens (
+  id         SERIAL PRIMARY KEY,
+  token_hash VARCHAR(64) UNIQUE NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  revoked_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_revoked_tokens_expires ON revoked_tokens (expires_at);
+
+-- ── Missing performance indexes ───────────────────────────────────────────────
+CREATE INDEX IF NOT EXISTS idx_students_stage_teacher
+  ON students (teacher_id, academic_stage);
+
+CREATE INDEX IF NOT EXISTS idx_videos_section
+  ON videos (section_id);
+
+CREATE INDEX IF NOT EXISTS idx_pdfs_section
+  ON pdf_files (section_id);
+
+CREATE INDEX IF NOT EXISTS idx_live_chat_stream_sent
+  ON live_chat_messages (stream_id, sent_at DESC);
+
+-- Cleanup job: purge expired revoked tokens (runs safely every restart)
+DELETE FROM revoked_tokens WHERE expires_at < NOW();

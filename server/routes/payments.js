@@ -79,6 +79,18 @@ async function doLeaderboardReset(teacherId, monthLabel, skipTrackerUpdate = fal
   try {
     await client.query('BEGIN');
 
+    // Lock tracker row to prevent concurrent manual resets from creating duplicate history
+    await client.query(
+      `INSERT INTO leaderboard_reset_tracker (teacher_id, last_reset_at, next_reset_at)
+       VALUES ($1, NOW(), NOW() + INTERVAL '30 days')
+       ON CONFLICT (teacher_id) DO NOTHING`,
+      [teacherId]
+    );
+    await client.query(
+      'SELECT teacher_id FROM leaderboard_reset_tracker WHERE teacher_id=$1 FOR UPDATE',
+      [teacherId]
+    );
+
     // 1. snapshot current rankings
     const snapshot = await client.query(
       `SELECT s.id as student_id, s.name, s.points, s.academic_stage,
@@ -231,6 +243,17 @@ router.put('/:id/verify', requireRole('teacher', 'assistant'), (req, res, next) 
     );
 
     const payRow = result.rows[0];
+
+    // Auto-enroll student in course when payment is verified
+    if (status === 'verified' && payRow.course_id) {
+      await pool.query(
+        `INSERT INTO student_course_enrollment (student_id, course_id, status)
+         VALUES ($1, $2, 'active')
+         ON CONFLICT (student_id, course_id) DO UPDATE SET status = 'active'`,
+        [payRow.student_id, payRow.course_id]
+      ).catch(e => console.warn('[payments] auto-enroll failed:', e.message));
+    }
+
     const sName = (await pool.query('SELECT name FROM students WHERE id=$1', [payRow.student_id]).catch(() => ({ rows: [] }))).rows[0]?.name;
     const payAction = status === 'verified' ? 'approve_payment' : status === 'rejected' ? 'reject_payment' : 'verify_payment';
     logActivity({

@@ -214,6 +214,19 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExams
         const resetClient = await pool.connect();
         try {
           await resetClient.query('BEGIN');
+          // Deduct points earned from this exam before deleting results
+          const earnedRows = await resetClient.query(
+            `SELECT student_id, COALESCE(points_earned, 0) AS pts
+             FROM exam_results
+             WHERE exam_id = $1 AND COALESCE(points_earned, 0) > 0 AND is_latest = true`,
+            [req.params.id]
+          );
+          for (const row of earnedRows.rows) {
+            await resetClient.query(
+              'UPDATE students SET points = GREATEST(0, points - $1) WHERE id = $2',
+              [row.pts, row.student_id]
+            );
+          }
           await resetClient.query('DELETE FROM exam_results WHERE exam_id=$1', [req.params.id]);
           await resetClient.query(
             "UPDATE exam_retry_requests SET status='used', handled_at=NOW() WHERE exam_id=$1 AND status='pending'",
@@ -329,11 +342,24 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExams
 });
 
 // ── Upload question image ──
-router.post('/upload-question-image', requireRole('teacher', 'assistant'), checkManageExamsPerm, uploadQuestionImage.single('image'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'لم يتم رفع أي ملف' });
-  const url = `/uploads/question-images/${req.file.filename}`;
-  res.json({ url });
-});
+router.post('/upload-question-image', requireRole('teacher', 'assistant'), checkManageExamsPerm,
+  (req, res, next) => {
+    uploadQuestionImage.single('image')(req, res, (err) => {
+      if (err) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({ error: 'حجم الصورة أكبر من الحد المسموح (5 ميجابايت)' });
+        }
+        return res.status(400).json({ error: err.message || 'خطأ في رفع الملف' });
+      }
+      next();
+    });
+  },
+  (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'لم يتم رفع أي ملف' });
+    const url = `/uploads/question-images/${req.file.filename}`;
+    res.json({ url });
+  }
+);
 
 // ── Delete exam ──
 router.delete('/:id', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {

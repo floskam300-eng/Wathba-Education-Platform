@@ -1,0 +1,3 @@
+- [JWT token uniqueness](jwt-token-uniqueness.md) — generateToken must include jti to avoid same-second token collision causing accidental logout of other sessions
+- [Bulk import manualPassword scope](bulk-import-scope.md) — Phase 2 of bulk import needs manualPassword in prepared object; omitting it causes silent ReferenceError that double-counts failures
+- [Admin password is random](admin-password-random.md) — admin account created with crypto.randomBytes password on first startup; "admin123" does NOT work; use DB or ADMIN_INITIAL_PASSWORD env

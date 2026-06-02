@@ -394,7 +394,12 @@ export default function StudentExams() {
                       </div>
                       <div className="p-4 space-y-3">
                         {q.group_context_image && (
-                          <img src={q.group_context_image} alt="سياق المجموعة" className="w-full max-h-64 object-contain rounded-xl border border-blue-200" />
+                          <img
+                            src={q.group_context_image}
+                            alt="سياق المجموعة"
+                            className="w-full max-h-64 object-contain rounded-xl border border-blue-200"
+                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                          />
                         )}
                         {q.group_context && (
                           <p className="text-sm text-navy-800 leading-relaxed whitespace-pre-wrap font-medium">{q.group_context}</p>
@@ -421,7 +426,12 @@ export default function StudentExams() {
                     )}
 
                     {q.question_image_url && (
-                      <img src={q.question_image_url} alt="سؤال" className="w-full max-h-48 object-contain rounded-xl mb-3 border border-gray-100" />
+                      <img
+                        src={q.question_image_url}
+                        alt="سؤال"
+                        className="w-full max-h-48 object-contain rounded-xl mb-3 border border-gray-100"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      />
                     )}
 
                     {qType === 'true_false' ? (

@@ -93,7 +93,9 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('wathba_user', JSON.stringify(pickStorable(fresh)));
       if (fresh.teacher_slug) localStorage.setItem('wathba_teacher_slug', fresh.teacher_slug);
       setUser(fresh);
-    }).catch(() => {});
+    }).catch((err) => {
+      console.warn('[auth] Background user refresh failed:', err?.response?.status, err?.message);
+    });
   };
 
   return (

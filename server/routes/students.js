@@ -475,38 +475,52 @@ router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => ch
   }
 
   const EGYPTIAN_PHONE_RE = /^01[0125][0-9]{8}$/;
-  const client = await pool.connect();
   const results = { success: 0, failed: 0, errors: [], created: [] };
   const newStudentIds = [];
+
+  // ── Phase 1: Parse all rows and hash passwords BEFORE opening a DB transaction.
+  //    bcrypt is CPU-bound and can take 100-300ms per hash. Holding a pool connection
+  //    open during this time (especially for 100-200 students) exhausts the pool.
+  const prepared = [];
+  for (const s of students) {
+    const name           = (s['الاسم'] || s['name'] || '').toString().trim();
+    const manualUsername = (s['اسم المستخدم'] || s['username'] || '').toString().trim();
+    const manualPassword = (s['كلمة المرور'] || s['password'] || '').toString().trim();
+    const rawPhone       = (s['الهاتف'] || s['phone'] || '').toString().trim();
+    const rawParentPhone = (s['هاتف ولي الأمر'] || s['parent_phone'] || '').toString().trim();
+    const cleanPhone       = rawPhone ? rawPhone.replace(/[\s\-]/g, '') : '';
+    const cleanParentPhone = rawParentPhone ? rawParentPhone.replace(/[\s\-]/g, '') : '';
+    const phone          = cleanPhone && EGYPTIAN_PHONE_RE.test(cleanPhone) ? cleanPhone : null;
+    const parent_phone   = cleanParentPhone && EGYPTIAN_PHONE_RE.test(cleanParentPhone) ? cleanParentPhone : null;
+    if (rawPhone && !phone)       results.errors.push(`${name || '?'}: رقم الهاتف "${rawPhone}" غير صحيح — تم تجاهله`);
+    if (rawParentPhone && !parent_phone) results.errors.push(`${name || '?'}: هاتف ولي الأمر "${rawParentPhone}" غير صحيح — تم تجاهله`);
+    const academic_stage = (s['المرحلة'] || s['academic_stage'] || '').toString().trim() || null;
+    const gender         = (s['الجنس'] || s['gender'] || '').toString().trim() || null;
+
+    if (!name) {
+      results.failed++;
+      results.errors.push(`(صف فارغ): الاسم مطلوب`);
+      prepared.push(null);
+      continue;
+    }
+
+    const finalPassword = manualPassword || Math.floor(100000 + Math.random() * 900000).toString();
+    const hashed        = await bcrypt.hash(finalPassword, 10); // OUTSIDE transaction — intentional
+    prepared.push({ name, manualUsername, manualPassword, finalPassword, hashed, phone, parent_phone, academic_stage, gender });
+  }
+
+  // ── Phase 2: Open transaction and do all DB writes with pre-computed hashes
+  const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-    for (const s of students) {
-      const name           = (s['الاسم'] || s['name'] || '').toString().trim();
-      const manualUsername = (s['اسم المستخدم'] || s['username'] || '').toString().trim();
-      const manualPassword = (s['كلمة المرور'] || s['password'] || '').toString().trim();
-      const rawPhone       = (s['الهاتف'] || s['phone'] || '').toString().trim();
-      const rawParentPhone = (s['هاتف ولي الأمر'] || s['parent_phone'] || '').toString().trim();
-      const cleanPhone       = rawPhone ? rawPhone.replace(/[\s\-]/g, '') : '';
-      const cleanParentPhone = rawParentPhone ? rawParentPhone.replace(/[\s\-]/g, '') : '';
-      const phone          = cleanPhone && EGYPTIAN_PHONE_RE.test(cleanPhone) ? cleanPhone : null;
-      const parent_phone   = cleanParentPhone && EGYPTIAN_PHONE_RE.test(cleanParentPhone) ? cleanParentPhone : null;
-      if (rawPhone && !phone) results.errors.push(`${name || '?'}: رقم الهاتف "${rawPhone}" غير صحيح — تم تجاهله`);
-      if (rawParentPhone && !parent_phone) results.errors.push(`${name || '?'}: هاتف ولي الأمر "${rawParentPhone}" غير صحيح — تم تجاهله`);
-      const academic_stage = (s['المرحلة'] || s['academic_stage'] || '').toString().trim() || null;
-      const gender         = (s['الجنس'] || s['gender'] || '').toString().trim() || null;
+    for (const row of prepared) {
+      if (!row) continue; // was a validation error in phase 1
 
-      if (!name) {
-        results.failed++;
-        results.errors.push(`(صف فارغ): الاسم مطلوب`);
-        continue;
-      }
-
-      const finalPassword = manualPassword || Math.floor(100000 + Math.random() * 900000).toString();
+      const { name, manualUsername, manualPassword, finalPassword, hashed, phone, parent_phone, academic_stage, gender } = row;
 
       try {
         let username = manualUsername || await generateUsername(teacherId, academic_stage || '', client);
-        const hashed = await bcrypt.hash(finalPassword, 10);
         let retries = 0;
         while (retries < 5) {
           try {
