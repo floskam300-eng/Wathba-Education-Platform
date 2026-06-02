@@ -1,13 +1,13 @@
 import React, { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { BookMarked, Plus, Pencil, Trash2, ChevronDown, ChevronUp, Upload, Link, AlertCircle, BookOpen } from 'lucide-react';
+import { BookMarked, Plus, Pencil, Trash2, ChevronDown, ChevronUp, Upload, Link, BookOpen, Layers, X } from 'lucide-react';
 import Modal from '../../components/ui/Modal';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
 
 const emptyBank = { name: '', course_id: '' };
-const emptyQ = { question_text: '', question_image_url: '', option_a: '', option_b: '', option_c: '', option_d: '', correct_answer_letter: 'A', points: 1, question_type: 'mcq', difficulty: 'medium' };
+const emptyQ = { question_text: '', question_image_url: '', option_a: '', option_b: '', option_c: '', option_d: '', correct_answer_letter: 'A', points: 1, question_type: 'mcq', difficulty: 'medium', group_id: null, group_context: '', group_context_image: '' };
 
 const DIFFICULTIES = [
   { value: 'easy',   label: 'سهل',   color: 'bg-green-100 text-green-700 border-green-300' },
@@ -40,6 +40,15 @@ export default function QuestionBanks() {
   const [imagePreview, setImagePreview] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
   const imageFileRef = useRef(null);
+
+  // grouped-question state
+  const [isGrouped, setIsGrouped] = useState(false);
+  const [nextGroupId, setNextGroupId] = useState(() => Date.now());
+  const [ctxImageInputMode, setCtxImageInputMode] = useState('url');
+  const [ctxImageFile, setCtxImageFile] = useState(null);
+  const [ctxImagePreview, setCtxImagePreview] = useState('');
+  const [ctxUploadProgress, setCtxUploadProgress] = useState(0);
+  const ctxImageFileRef = useRef(null);
 
   const { data: banks = [], isLoading } = useQuery({
     queryKey: ['question-banks'],
@@ -76,7 +85,27 @@ export default function QuestionBanks() {
 
   const addQMut = useMutation({
     mutationFn: ({ bankId, data }) => api.post(`/question-banks/${bankId}/questions`, data),
-    onSuccess: () => { qc.invalidateQueries(['bank-questions', expandedBank]); qc.invalidateQueries(['question-banks']); toast.success('تم إضافة السؤال'); resetQForm(); },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries(['bank-questions', expandedBank]);
+      qc.invalidateQueries(['question-banks']);
+      toast.success('تم إضافة السؤال');
+      if (vars.data.group_id) {
+        // keep context and group_id so sibling questions can be added
+        setQForm(prev => ({
+          ...emptyQ,
+          group_id: prev.group_id,
+          group_context: prev.group_context,
+          group_context_image: prev.group_context_image,
+        }));
+        setEditQ(null);
+        setImageFile(null); setImagePreview(''); setImageInputMode('url');
+        if (imageFileRef.current) imageFileRef.current.value = '';
+        setCtxImageFile(null);
+        if (ctxImageFileRef.current) ctxImageFileRef.current.value = '';
+      } else {
+        resetQForm();
+      }
+    },
     onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
   });
 
@@ -108,7 +137,12 @@ export default function QuestionBanks() {
     setImageFile(null);
     setImagePreview('');
     setImageInputMode('url');
+    setIsGrouped(false);
+    setCtxImageFile(null);
+    setCtxImagePreview('');
+    setCtxImageInputMode('url');
     if (imageFileRef.current) imageFileRef.current.value = '';
+    if (ctxImageFileRef.current) ctxImageFileRef.current.value = '';
   };
 
   const startEditQ = (q) => {
@@ -124,14 +158,21 @@ export default function QuestionBanks() {
       points: q.points || 1,
       question_type: q.question_type || 'mcq',
       difficulty: q.difficulty || 'medium',
+      group_id: q.group_id || null,
+      group_context: q.group_context || '',
+      group_context_image: q.group_context_image || '',
     });
+    setIsGrouped(!!q.group_id);
     setImagePreview(q.question_image_url || '');
     setImageInputMode('url');
+    setCtxImagePreview(q.group_context_image || '');
+    setCtxImageInputMode('url');
   };
 
   const handleQSubmit = async (e) => {
     e.preventDefault();
     let finalImageUrl = qForm.question_image_url || '';
+    let finalCtxImageUrl = qForm.group_context_image || '';
 
     if (imageFile) {
       const fd = new FormData();
@@ -151,7 +192,31 @@ export default function QuestionBanks() {
       }
     }
 
-    const finalForm = { ...qForm, question_image_url: finalImageUrl };
+    if (ctxImageFile) {
+      const fd = new FormData();
+      fd.append('image', ctxImageFile);
+      try {
+        setCtxUploadProgress(1);
+        const res = await api.post('/question-banks/upload-image', fd, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          onUploadProgress: (evt) => { if (evt.total) setCtxUploadProgress(Math.round((evt.loaded / evt.total) * 100)); },
+        });
+        finalCtxImageUrl = res.data.url;
+        setCtxUploadProgress(100);
+        setTimeout(() => setCtxUploadProgress(0), 800);
+      } catch {
+        setCtxUploadProgress(0);
+        return toast.error('فشل رفع صورة السياق');
+      }
+    }
+
+    let finalGroupId = qForm.group_id;
+    if (isGrouped && !finalGroupId && !editQ) {
+      finalGroupId = nextGroupId;
+      setNextGroupId(Date.now());
+    }
+
+    const finalForm = { ...qForm, question_image_url: finalImageUrl, group_context_image: finalCtxImageUrl, group_id: finalGroupId };
     if (!finalForm.question_text && !finalImageUrl) return toast.error('أدخل نص السؤال أو صورة');
     if (finalForm.question_type === 'mcq' && (!finalForm.option_a || !finalForm.option_b)) return toast.error('الخيار الأول والثاني مطلوبان');
     if (editQ) updateQMut.mutate({ qid: editQ.id, data: finalForm });
@@ -227,36 +292,108 @@ export default function QuestionBanks() {
                 <div className="border-t border-gray-100 p-4 space-y-4">
                   {bankQuestions.length > 0 && (
                     <div className="space-y-3">
-                      {bankQuestions.map((q, idx) => (
-                        <div key={q.id} className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-2 flex-wrap">
-                                <span className="text-xs font-black bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">{idx + 1}</span>
-                                <span className="text-xs text-gray-500 font-medium">{q.question_type === 'true_false' ? 'صح/خطأ' : 'MCQ'} · {q.points} نقطة</span>
-                                {(() => { const d = difficultyBadge(q.difficulty); return <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${d.cls}`}>{d.label}</span>; })()}
-                              </div>
-                              {q.question_image_url && <img src={q.question_image_url} alt="" className="max-h-32 rounded-lg mb-2 border border-gray-200" />}
-                              {q.question_text && <p className="font-semibold text-navy-700 text-sm mb-2">{q.question_text}</p>}
-                              <div className="grid grid-cols-2 gap-1.5">
-                                {['a','b','c','d'].map(opt => q[`option_${opt}`] && (
-                                  <div key={opt} className={`px-2 py-1 rounded-lg text-xs font-medium border ${q.correct_answer_letter?.toUpperCase() === opt.toUpperCase() ? 'border-green-400 bg-green-50 text-green-800 font-bold' : 'border-gray-200 text-gray-600'}`}>
-                                    <span className="font-black ml-1">{opt.toUpperCase()}.</span>{q[`option_${opt}`]}
+                      {(() => {
+                        // Build display list: singles + groups
+                        const groups = {};
+                        const displayList = [];
+                        bankQuestions.forEach(q => {
+                          if (q.group_id) {
+                            if (!groups[q.group_id]) {
+                              groups[q.group_id] = { type: 'group', group_id: q.group_id, questions: [], context: q.group_context, contextImage: q.group_context_image };
+                              displayList.push(groups[q.group_id]);
+                            }
+                            groups[q.group_id].questions.push(q);
+                          } else {
+                            displayList.push({ type: 'single', q });
+                          }
+                        });
+
+                        let counter = 0;
+                        return displayList.map((entry, ei) => {
+                          if (entry.type === 'single') {
+                            counter++;
+                            const q = entry.q;
+                            const num = counter;
+                            const d = difficultyBadge(q.difficulty);
+                            return (
+                              <div key={q.id} className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                      <span className="text-xs font-black bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">{num}</span>
+                                      <span className="text-xs text-gray-500 font-medium">{q.question_type === 'true_false' ? 'صح/خطأ' : 'MCQ'} · {q.points} نقطة</span>
+                                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${d.cls}`}>{d.label}</span>
+                                    </div>
+                                    {q.question_image_url && <img src={q.question_image_url} alt="" className="max-h-32 rounded-lg mb-2 border border-gray-200" />}
+                                    {q.question_text && <p className="font-semibold text-navy-700 text-sm mb-2">{q.question_text}</p>}
+                                    <div className="grid grid-cols-2 gap-1.5">
+                                      {['a','b','c','d'].map(opt => q[`option_${opt}`] && (
+                                        <div key={opt} className={`px-2 py-1 rounded-lg text-xs font-medium border ${q.correct_answer_letter?.toUpperCase() === opt.toUpperCase() ? 'border-green-400 bg-green-50 text-green-800 font-bold' : 'border-gray-200 text-gray-600'}`}>
+                                          <span className="font-black ml-1">{opt.toUpperCase()}.</span>{q[`option_${opt}`]}
+                                        </div>
+                                      ))}
+                                    </div>
                                   </div>
-                                ))}
+                                  <div className="flex gap-1 flex-shrink-0">
+                                    <button onClick={() => startEditQ(q)} className="p-1.5 text-gray-400 hover:text-navy-600 hover:bg-white rounded-lg transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
+                                    <button onClick={() => setDeleteQId(q.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          // group entry
+                          const startNum = counter + 1;
+                          counter += entry.questions.length;
+                          return (
+                            <div key={`grp-${entry.group_id}`} className="rounded-xl border-2 border-blue-200 bg-blue-50/30 overflow-hidden">
+                              <div className="px-3 py-2 bg-blue-100 border-b border-blue-200 flex items-center gap-2">
+                                <Layers className="w-3.5 h-3.5 text-blue-700" />
+                                <span className="text-xs font-black text-blue-800">مجموعة أسئلة — {entry.questions.length} سؤال</span>
+                                <span className="text-[10px] text-blue-600 mr-auto">س{startNum} – س{startNum + entry.questions.length - 1}</span>
+                              </div>
+                              {(entry.context || entry.contextImage) && (
+                                <div className="px-3 pt-2 pb-2 border-b border-blue-200">
+                                  {entry.contextImage && <img src={entry.contextImage} alt="" className="max-h-32 rounded-lg border border-blue-200 w-full object-contain mb-2" />}
+                                  {entry.context && <p className="text-xs text-navy-700 leading-relaxed whitespace-pre-wrap bg-white rounded-lg px-2 py-1.5 border border-blue-100">{entry.context}</p>}
+                                </div>
+                              )}
+                              <div className="p-2 space-y-2">
+                                {entry.questions.map((q, si) => {
+                                  const d = difficultyBadge(q.difficulty);
+                                  return (
+                                    <div key={q.id} className="bg-white rounded-lg p-3 border border-blue-100">
+                                      <div className="flex items-start justify-between gap-2">
+                                        <div className="flex-1 min-w-0">
+                                          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                                            <span className="text-xs font-black text-blue-700">س{startNum + si}</span>
+                                            <span className="text-xs text-gray-500 font-medium">{q.question_type === 'true_false' ? 'صح/خطأ' : 'MCQ'} · {q.points} نقطة</span>
+                                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${d.cls}`}>{d.label}</span>
+                                          </div>
+                                          {q.question_image_url && <img src={q.question_image_url} alt="" className="max-h-24 rounded-lg mb-1.5 border border-gray-200" />}
+                                          {q.question_text && <p className="font-semibold text-navy-700 text-sm mb-1.5">{q.question_text}</p>}
+                                          <div className="grid grid-cols-2 gap-1">
+                                            {['a','b','c','d'].map(opt => q[`option_${opt}`] && (
+                                              <div key={opt} className={`px-2 py-0.5 rounded-lg text-xs font-medium border ${q.correct_answer_letter?.toUpperCase() === opt.toUpperCase() ? 'border-green-400 bg-green-50 text-green-800 font-bold' : 'border-gray-200 text-gray-600'}`}>
+                                                <span className="font-black ml-1">{opt.toUpperCase()}.</span>{q[`option_${opt}`]}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </div>
+                                        <div className="flex gap-1 flex-shrink-0">
+                                          <button onClick={() => startEditQ(q)} className="p-1.5 text-gray-400 hover:text-navy-600 hover:bg-gray-100 rounded-lg transition-colors"><Pencil className="w-3 h-3" /></button>
+                                          <button onClick={() => setDeleteQId(q.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-3 h-3" /></button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </div>
-                            <div className="flex gap-1 flex-shrink-0">
-                              <button onClick={() => startEditQ(q)} className="p-1.5 text-gray-400 hover:text-navy-600 hover:bg-white rounded-lg transition-colors">
-                                <Pencil className="w-3.5 h-3.5" />
-                              </button>
-                              <button onClick={() => setDeleteQId(q.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
+                          );
+                        });
+                      })()}
                     </div>
                   )}
 
@@ -265,6 +402,80 @@ export default function QuestionBanks() {
                       <Plus className="w-4 h-4" /> {editQ ? 'تعديل السؤال' : 'إضافة سؤال جديد'}
                     </h4>
                     <form onSubmit={handleQSubmit} className="space-y-3">
+
+                      {/* ── Grouped toggle ── */}
+                      {!editQ && (
+                        <div className="flex items-center gap-3 p-2.5 rounded-xl bg-blue-50 border border-blue-200">
+                          <Layers className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-bold text-blue-800">سؤال مجمّع (متعدد الأجزاء)</p>
+                          </div>
+                          <button type="button"
+                            onClick={() => {
+                              const next = !isGrouped;
+                              setIsGrouped(next);
+                              if (!next) {
+                                setQForm(prev => ({ ...prev, group_id: null, group_context: '', group_context_image: '' }));
+                                setCtxImageFile(null); setCtxImagePreview(''); setCtxImageInputMode('url');
+                                if (ctxImageFileRef.current) ctxImageFileRef.current.value = '';
+                              }
+                            }}
+                            className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${isGrouped ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                            <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${isGrouped ? 'right-0.5' : 'left-0.5'}`} />
+                          </button>
+                        </div>
+                      )}
+
+                      {/* ── Group context ── */}
+                      {(isGrouped || (editQ && editQ.group_id)) && (
+                        <div className="rounded-xl border-2 border-blue-200 bg-blue-50 p-3 space-y-2">
+                          <p className="text-xs font-black text-blue-800 flex items-center gap-1">
+                            <Layers className="w-3 h-3" /> السياق المشترك للمجموعة
+                          </p>
+                          <textarea value={qForm.group_context}
+                            onChange={e => setQForm({ ...qForm, group_context: e.target.value })}
+                            className="input-field text-xs resize-none h-16" placeholder="النص المشترك (اختياري)..." />
+                          <div className="flex gap-2 mb-1">
+                            <button type="button"
+                              onClick={() => { setCtxImageInputMode('url'); setCtxImageFile(null); setCtxImagePreview(''); }}
+                              className={`px-2 py-1 text-[10px] font-bold rounded-lg border transition-all flex items-center gap-1 ${ctxImageInputMode === 'url' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300'}`}>
+                              <Link className="w-2.5 h-2.5" /> رابط
+                            </button>
+                            <button type="button"
+                              onClick={() => { setCtxImageInputMode('file'); setQForm({ ...qForm, group_context_image: '' }); }}
+                              className={`px-2 py-1 text-[10px] font-bold rounded-lg border transition-all flex items-center gap-1 ${ctxImageInputMode === 'file' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300'}`}>
+                              <Upload className="w-2.5 h-2.5" /> رفع صورة
+                            </button>
+                          </div>
+                          {ctxImageInputMode === 'url' ? (
+                            <input value={qForm.group_context_image || ''} onChange={e => setQForm({ ...qForm, group_context_image: e.target.value })}
+                              className="input-field text-xs" placeholder="رابط صورة السياق..." dir="ltr" />
+                          ) : (
+                            <input ref={ctxImageFileRef} type="file" accept="image/*"
+                              onChange={e => { const f = e.target.files[0]; if (f) { setCtxImageFile(f); setCtxImagePreview(URL.createObjectURL(f)); } else { setCtxImageFile(null); setCtxImagePreview(''); } }}
+                              className="block w-full text-xs text-gray-600 file:mr-1 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-blue-100 file:text-blue-700 border border-gray-200 rounded-xl p-1.5 cursor-pointer" />
+                          )}
+                          {ctxUploadProgress > 0 && ctxUploadProgress < 100 && (
+                            <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                              <div className="h-1.5 bg-blue-500 rounded-full transition-all" style={{ width: `${ctxUploadProgress}%` }} />
+                            </div>
+                          )}
+                          {(ctxImagePreview || qForm.group_context_image) && (
+                            <img src={ctxImagePreview || qForm.group_context_image} alt="" className="max-h-24 rounded-lg border border-blue-200 w-full object-contain" onError={e => e.target.style.display='none'} />
+                          )}
+                          {!editQ && qForm.group_id && (
+                            <div className="flex items-center gap-2 pt-1">
+                              <span className="text-[10px] font-bold text-blue-700 bg-blue-100 px-2 py-1 rounded-lg flex-1 text-center">📎 تضيف إلى نفس المجموعة</span>
+                              <button type="button"
+                                onClick={() => { setQForm(prev => ({ ...emptyQ, group_context: prev.group_context, group_context_image: prev.group_context_image })); setNextGroupId(Date.now()); }}
+                                className="text-[10px] font-bold text-orange-700 bg-orange-100 px-2 py-1 rounded-lg flex items-center gap-1">
+                                <X className="w-2.5 h-2.5" /> مجموعة جديدة
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       <div>
                         <label className="block text-xs font-bold text-gray-600 mb-1">نوع السؤال</label>
                         <select value={qForm.question_type} onChange={e => { setQForm({ ...qForm, question_type: e.target.value, option_a: '', option_b: '', correct_answer_letter: 'A' }); }}

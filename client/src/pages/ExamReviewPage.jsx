@@ -282,7 +282,28 @@ export default function ExamReviewPage() {
 
                     {/* Question body */}
                     <div className="px-5 py-4">
-                      <p className="font-bold text-navy-700 text-base leading-relaxed mb-1">{q.question_text}</p>
+                      {/* ── Group context (shown once per group) ── */}
+                      {q.group_id && (q.group_context || q.group_context_image) && (() => {
+                        const idx = questions.indexOf(q);
+                        const isFirst = idx === 0 || questions[idx - 1]?.group_id !== q.group_id;
+                        if (!isFirst) return null;
+                        return (
+                          <div className="mb-4 rounded-xl border-2 border-blue-200 bg-blue-50 overflow-hidden">
+                            <div className="px-3 py-2 bg-blue-100 border-b border-blue-200">
+                              <span className="text-xs font-black text-blue-800">📎 السياق المشترك للمجموعة</span>
+                            </div>
+                            <div className="p-3 space-y-2">
+                              {q.group_context_image && (
+                                <img src={q.group_context_image} alt="" className="w-full max-h-56 object-contain rounded-lg border border-blue-200" />
+                              )}
+                              {q.group_context && (
+                                <p className="text-sm text-navy-800 leading-relaxed whitespace-pre-wrap">{q.group_context}</p>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                      {q.question_text && <p className="font-bold text-navy-700 text-base leading-relaxed mb-1">{q.question_text}</p>}
                       {q.question_image_url && (
                         <img src={q.question_image_url} alt="" className="mt-2 mb-3 max-w-sm rounded-xl border border-gray-200" />
                       )}

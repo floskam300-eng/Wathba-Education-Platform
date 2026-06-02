@@ -650,3 +650,13 @@ CREATE TABLE IF NOT EXISTS device_alerts (
 );
 CREATE INDEX IF NOT EXISTS idx_device_alerts_teacher ON device_alerts(teacher_id, status);
 CREATE INDEX IF NOT EXISTS idx_device_alerts_student ON device_alerts(student_id);
+
+-- ── Grouped (multi-part) questions ────────────────────────────────────────────
+-- A group_id ties multiple sub-questions to one shared context (text + image).
+-- group_context / group_context_image hold the shared passage/image shown above every sub-question in the group.
+ALTER TABLE questions      ADD COLUMN IF NOT EXISTS group_id             INTEGER DEFAULT NULL;
+ALTER TABLE questions      ADD COLUMN IF NOT EXISTS group_context        TEXT    DEFAULT NULL;
+ALTER TABLE questions      ADD COLUMN IF NOT EXISTS group_context_image  TEXT    DEFAULT NULL;
+ALTER TABLE bank_questions ADD COLUMN IF NOT EXISTS group_id             INTEGER DEFAULT NULL;
+ALTER TABLE bank_questions ADD COLUMN IF NOT EXISTS group_context        TEXT    DEFAULT NULL;
+ALTER TABLE bank_questions ADD COLUMN IF NOT EXISTS group_context_image  TEXT    DEFAULT NULL;

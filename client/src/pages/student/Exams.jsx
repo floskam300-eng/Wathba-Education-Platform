@@ -379,47 +379,76 @@ export default function StudentExams() {
           <div className="space-y-4">
             {questions.map((q, qi) => {
               const qType = q.question_type || 'mcq';
+              const isGrouped = !!q.group_id;
+              // show group context only on the first sub-question of a group
+              const showGroupContext = isGrouped && (qi === 0 || questions[qi - 1]?.group_id !== q.group_id);
+
               return (
-                <div key={q.id} className={`card !p-3 sm:!p-5 ${answers[q.id] ? 'border-2 border-orange-400' : 'border border-gray-200'}`}>
-                  {/* Question label row */}
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="w-6 h-6 rounded-full bg-navy-600 text-white text-xs font-black flex items-center justify-center flex-shrink-0">{qi + 1}</span>
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${qType === 'true_false' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'}`}>
-                      {qType === 'true_false' ? 'صح/خطأ' : 'اختيار'}
-                    </span>
-                    {answers[q.id] && <span className="text-xs text-green-600 font-bold mr-auto">✓ أُجيب</span>}
-                  </div>
-
-                  <p className="font-semibold text-navy-700 mb-3 text-sm sm:text-base leading-relaxed">{q.question_text}</p>
-
-                  {q.question_image_url && (
-                    <img src={q.question_image_url} alt="سؤال" className="w-full max-h-48 object-contain rounded-xl mb-3 border border-gray-100" />
+                <div key={q.id}>
+                  {/* ── Grouped context banner (shown once per group) ── */}
+                  {showGroupContext && (q.group_context || q.group_context_image) && (
+                    <div className="mb-2 rounded-2xl border-2 border-blue-300 bg-blue-50 overflow-hidden">
+                      <div className="px-4 py-2 bg-blue-100 border-b border-blue-200 flex items-center gap-2">
+                        <span className="text-xs font-black text-blue-800">📎 اقرأ الآتي ثم أجب على الأسئلة</span>
+                        <span className="text-[10px] text-blue-500 font-semibold mr-auto">مجموعة أسئلة مترابطة</span>
+                      </div>
+                      <div className="p-4 space-y-3">
+                        {q.group_context_image && (
+                          <img src={q.group_context_image} alt="سياق المجموعة" className="w-full max-h-64 object-contain rounded-xl border border-blue-200" />
+                        )}
+                        {q.group_context && (
+                          <p className="text-sm text-navy-800 leading-relaxed whitespace-pre-wrap font-medium">{q.group_context}</p>
+                        )}
+                      </div>
+                    </div>
                   )}
 
-                  {qType === 'true_false' ? (
-                    <div className="flex gap-3">
-                      {[{ opt: 'A', label: '✅ صح' }, { opt: 'B', label: '❌ خطأ' }].map(({ opt, label }) => (
-                        <button key={opt} onClick={() => setAnswers({ ...answers, [q.id]: opt })}
-                          className={`flex-1 py-2.5 rounded-xl text-sm font-bold border-2 transition-all ${answers[q.id] === opt ? 'border-orange-500 bg-orange-50 text-orange-800' : 'border-gray-200 hover:border-gray-400 text-gray-700'}`}>
-                          {label}
-                        </button>
-                      ))}
+                  <div className={`card !p-3 sm:!p-5 ${answers[q.id] ? 'border-2 border-orange-400' : isGrouped ? 'border-2 border-blue-200' : 'border border-gray-200'}`}>
+                    {/* Question label row */}
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className={`w-6 h-6 rounded-full text-white text-xs font-black flex items-center justify-center flex-shrink-0 ${isGrouped ? 'bg-blue-600' : 'bg-navy-600'}`}>{qi + 1}</span>
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${qType === 'true_false' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'}`}>
+                        {qType === 'true_false' ? 'صح/خطأ' : 'اختيار'}
+                      </span>
+                      {isGrouped && (
+                        <span className="text-[10px] font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">جزء من مجموعة</span>
+                      )}
+                      {answers[q.id] && <span className="text-xs text-green-600 font-bold mr-auto">✓ أُجيب</span>}
                     </div>
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
-                      {(() => {
-                        const shuffledOpts = shuffledQuestionsOpts[q.id] || getShuffledOpts(q, studentId, exam.shuffle_options);
-                        const displayLabels = ['أ', 'ب', 'ج', 'د'];
-                        return shuffledOpts.map((origOpt, idx) => (
-                          <button key={origOpt} onClick={() => setAnswers({ ...answers, [q.id]: origOpt })}
-                            className={`flex items-center gap-2 p-2.5 sm:p-3 rounded-xl text-sm font-semibold text-right transition-all border-2 ${answers[q.id] === origOpt ? 'border-orange-500 bg-orange-50 text-orange-800' : 'border-gray-200 hover:border-navy-300 hover:bg-navy-50 text-navy-700'}`}>
-                            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 ${answers[q.id] === origOpt ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600'}`}>{displayLabels[idx]}</span>
-                            <span className="flex-1 leading-snug">{q[`option_${origOpt.toLowerCase()}`]}</span>
+
+                    {q.question_text && (
+                      <p className="font-semibold text-navy-700 mb-3 text-sm sm:text-base leading-relaxed">{q.question_text}</p>
+                    )}
+
+                    {q.question_image_url && (
+                      <img src={q.question_image_url} alt="سؤال" className="w-full max-h-48 object-contain rounded-xl mb-3 border border-gray-100" />
+                    )}
+
+                    {qType === 'true_false' ? (
+                      <div className="flex gap-3">
+                        {[{ opt: 'A', label: '✅ صح' }, { opt: 'B', label: '❌ خطأ' }].map(({ opt, label }) => (
+                          <button key={opt} onClick={() => setAnswers({ ...answers, [q.id]: opt })}
+                            className={`flex-1 py-2.5 rounded-xl text-sm font-bold border-2 transition-all ${answers[q.id] === opt ? 'border-orange-500 bg-orange-50 text-orange-800' : 'border-gray-200 hover:border-gray-400 text-gray-700'}`}>
+                            {label}
                           </button>
-                        ));
-                      })()}
-                    </div>
-                  )}
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+                        {(() => {
+                          const shuffledOpts = shuffledQuestionsOpts[q.id] || getShuffledOpts(q, studentId, exam.shuffle_options);
+                          const displayLabels = ['أ', 'ب', 'ج', 'د'];
+                          return shuffledOpts.map((origOpt, idx) => (
+                            <button key={origOpt} onClick={() => setAnswers({ ...answers, [q.id]: origOpt })}
+                              className={`flex items-center gap-2 p-2.5 sm:p-3 rounded-xl text-sm font-semibold text-right transition-all border-2 ${answers[q.id] === origOpt ? 'border-orange-500 bg-orange-50 text-orange-800' : 'border-gray-200 hover:border-navy-300 hover:bg-navy-50 text-navy-700'}`}>
+                              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 ${answers[q.id] === origOpt ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600'}`}>{displayLabels[idx]}</span>
+                              <span className="flex-1 leading-snug">{q[`option_${origOpt.toLowerCase()}`]}</span>
+                            </button>
+                          ));
+                        })()}
+                      </div>
+                    )}
+                  </div>
                 </div>
               );
             })}

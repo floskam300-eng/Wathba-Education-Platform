@@ -139,7 +139,7 @@ router.get('/:id/questions', requireRole('teacher', 'assistant'), async (req, re
 // ── Add question to bank ──
 router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
-  const { question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, question_type, difficulty } = req.body;
+  const { question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, question_type, difficulty, group_id, group_context, group_context_image } = req.body;
   try {
     const bank = await pool.query('SELECT id FROM question_banks WHERE id=$1 AND teacher_id=$2', [req.params.id, teacherId]);
     if (!bank.rows.length) return res.status(403).json({ error: 'Access denied' });
@@ -155,8 +155,8 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageEx
     const qDifficulty = validDifficulties.includes(difficulty) ? difficulty : 'medium';
 
     const result = await pool.query(
-      'INSERT INTO bank_questions (bank_id, question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, question_type, difficulty) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *',
-      [req.params.id, question_text || null, question_image_url || null, optA, optB, option_c || null, option_d || null, correctLetter.toUpperCase(), points || 1, qType, qDifficulty]
+      'INSERT INTO bank_questions (bank_id, question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, question_type, difficulty, group_id, group_context, group_context_image) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *',
+      [req.params.id, question_text || null, question_image_url || null, optA, optB, option_c || null, option_d || null, correctLetter.toUpperCase(), points || 1, qType, qDifficulty, group_id || null, group_context || null, group_context_image || null]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -168,7 +168,7 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageEx
 // ── Update bank question ──
 router.put('/questions/:qid', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
-  const { question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, question_type, difficulty } = req.body;
+  const { question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, question_type, difficulty, group_id, group_context, group_context_image } = req.body;
   try {
     const ownership = await pool.query(
       `SELECT bq.id FROM bank_questions bq
@@ -186,8 +186,8 @@ router.put('/questions/:qid', requireRole('teacher', 'assistant'), checkManageEx
     const qDifficulty = validDifficulties.includes(difficulty) ? difficulty : 'medium';
 
     const result = await pool.query(
-      'UPDATE bank_questions SET question_text=$1, question_image_url=$2, option_a=$3, option_b=$4, option_c=$5, option_d=$6, correct_answer_letter=$7, points=$8, question_type=$9, difficulty=$10 WHERE id=$11 RETURNING *',
-      [question_text || null, question_image_url || null, optA, optB, option_c || null, option_d || null, correctLetter.toUpperCase(), points || 1, qType, qDifficulty, req.params.qid]
+      'UPDATE bank_questions SET question_text=$1, question_image_url=$2, option_a=$3, option_b=$4, option_c=$5, option_d=$6, correct_answer_letter=$7, points=$8, question_type=$9, difficulty=$10, group_id=$11, group_context=$12, group_context_image=$13 WHERE id=$14 RETURNING *',
+      [question_text || null, question_image_url || null, optA, optB, option_c || null, option_d || null, correctLetter.toUpperCase(), points || 1, qType, qDifficulty, group_id || null, group_context || null, group_context_image || null, req.params.qid]
     );
     res.json(result.rows[0]);
   } catch (err) {

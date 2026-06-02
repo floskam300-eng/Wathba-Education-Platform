@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowRight, FileText, HelpCircle, Plus, Pencil, Trash2,
-  AlertCircle, Link, Upload,
+  AlertCircle, Link, Upload, Layers, ChevronDown, ChevronUp, X,
 } from 'lucide-react';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
@@ -19,9 +19,34 @@ const emptyQ = {
   question_text: '', question_image_url: '',
   option_a: '', option_b: '', option_c: '', option_d: '',
   correct_answer_letter: 'A', points: 1, question_type: 'mcq',
+  group_id: null, group_context: '', group_context_image: '',
 };
 
 const qTypeLabel = (t) => ({ mcq: 'MCQ', true_false: 'صح/خطأ' })[t] || 'MCQ';
+
+// ── Group-context banner shown above each sub-question card in the list ──────
+function GroupContextBanner({ context, image }) {
+  const [open, setOpen] = useState(false);
+  if (!context && !image) return null;
+  return (
+    <div className="mb-2 rounded-xl border border-blue-200 bg-blue-50 overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-blue-800 hover:bg-blue-100 transition-colors">
+        <Layers className="w-3.5 h-3.5 flex-shrink-0" />
+        <span className="flex-1 text-right truncate">📎 السياق المشترك للمجموعة</span>
+        {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+      </button>
+      {open && (
+        <div className="px-3 pb-3 space-y-2">
+          {image && <img src={image} alt="group context" className="max-h-40 rounded-lg border border-blue-200 w-full object-contain" />}
+          {context && <p className="text-xs text-blue-900 leading-relaxed whitespace-pre-wrap">{context}</p>}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function ExamQuestions() {
   const { teacherSlug, examId } = useParams();
@@ -30,6 +55,7 @@ export default function ExamQuestions() {
   const qc = useQueryClient();
   const baseRole = user?.role === 'assistant' ? 'assistant' : 'teacher';
 
+  // ── form state ────────────────────────────────────────────────────────────
   const [qForm, setQForm] = useState(emptyQ);
   const [editQ, setEditQ] = useState(null);
   const [deleteQId, setDeleteQId] = useState(null);
@@ -39,6 +65,18 @@ export default function ExamQuestions() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const imageFileRef = useRef(null);
   const scrollContainerRef = useRef(null);
+
+  // context image upload state
+  const [ctxImageInputMode, setCtxImageInputMode] = useState('url');
+  const [ctxImageFile, setCtxImageFile] = useState(null);
+  const [ctxImagePreview, setCtxImagePreview] = useState('');
+  const [ctxUploadProgress, setCtxUploadProgress] = useState(0);
+  const ctxImageFileRef = useRef(null);
+
+  // grouped-question mode
+  const [isGrouped, setIsGrouped] = useState(false);
+  // nextGroupId is kept across submissions so sibling questions share the same group_id
+  const [nextGroupId, setNextGroupId] = useState(() => Date.now());
 
   const { data: exam } = useQuery({
     queryKey: ['exam-single', examId],
@@ -56,16 +94,34 @@ export default function ExamQuestions() {
     setImageFile(null);
     setImagePreview('');
     setImageInputMode('url');
+    setCtxImageFile(null);
+    setCtxImagePreview('');
+    setCtxImageInputMode('url');
+    setIsGrouped(false);
     if (imageFileRef.current) imageFileRef.current.value = '';
+    if (ctxImageFileRef.current) ctxImageFileRef.current.value = '';
   };
 
   const addQMut = useMutation({
     mutationFn: (data) => api.post(`/exams/${examId}/questions`, data),
-    onSuccess: () => {
+    onSuccess: (_, vars) => {
       qc.invalidateQueries(['questions', examId]);
       qc.invalidateQueries(['exams']);
       toast.success('تم إضافة السؤال ✅');
-      resetQForm();
+      // if grouped: keep context fields & group_id, only clear per-question fields
+      if (vars.group_id) {
+        setQForm(prev => ({
+          ...emptyQ,
+          group_id: prev.group_id,
+          group_context: prev.group_context,
+          group_context_image: prev.group_context_image,
+        }));
+        setImageFile(null); setImagePreview(''); setImageInputMode('url');
+        if (imageFileRef.current) imageFileRef.current.value = '';
+        // don't reset isGrouped — teacher is still adding sibling questions
+      } else {
+        resetQForm();
+      }
     },
     onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
   });
@@ -92,34 +148,62 @@ export default function ExamQuestions() {
     onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
   });
 
+  // upload a question image (per-question)
+  const uploadQuestionImage = async () => {
+    if (!imageFile) return qForm.question_image_url || '';
+    const fd = new FormData();
+    fd.append('image', imageFile);
+    setUploadProgress(1);
+    const res = await api.post('/exams/upload-question-image', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: (evt) => { if (evt.total) setUploadProgress(Math.round((evt.loaded / evt.total) * 100)); },
+    });
+    setUploadProgress(100);
+    setTimeout(() => setUploadProgress(0), 800);
+    return res.data.url;
+  };
+
+  // upload group context image
+  const uploadCtxImage = async () => {
+    if (!ctxImageFile) return qForm.group_context_image || '';
+    const fd = new FormData();
+    fd.append('image', ctxImageFile);
+    setCtxUploadProgress(1);
+    const res = await api.post('/exams/upload-question-image', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: (evt) => { if (evt.total) setCtxUploadProgress(Math.round((evt.loaded / evt.total) * 100)); },
+    });
+    setCtxUploadProgress(100);
+    setTimeout(() => setCtxUploadProgress(0), 800);
+    return res.data.url;
+  };
+
   const handleQSubmit = async (e) => {
     e.preventDefault();
-    let finalImageUrl = qForm.question_image_url || '';
 
-    if (imageFile) {
-      const fd = new FormData();
-      fd.append('image', imageFile);
-      try {
-        setUploadProgress(1);
-        const res = await api.post('/exams/upload-question-image', fd, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-          onUploadProgress: (evt) => {
-            if (evt.total) setUploadProgress(Math.round((evt.loaded / evt.total) * 100));
-          },
-        });
-        finalImageUrl = res.data.url;
-        setUploadProgress(100);
-        setTimeout(() => setUploadProgress(0), 800);
-      } catch {
-        setUploadProgress(0);
-        return toast.error('فشل رفع الصورة، حاول مرة أخرى');
-      }
+    let finalImageUrl = '';
+    let finalCtxImageUrl = '';
+    try {
+      finalImageUrl = await uploadQuestionImage();
+      if (isGrouped || qForm.group_id) finalCtxImageUrl = await uploadCtxImage();
+    } catch {
+      setUploadProgress(0);
+      setCtxUploadProgress(0);
+      return toast.error('فشل رفع الصورة، حاول مرة أخرى');
     }
 
-    const finalForm = { ...qForm, question_image_url: finalImageUrl };
+    const finalForm = { ...qForm, question_image_url: finalImageUrl, group_context_image: finalCtxImageUrl };
+
     if (!finalForm.question_text && !finalImageUrl) return toast.error('أدخل نص السؤال أو ارفع صورة السؤال');
     if (finalForm.question_type === 'mcq' && (!finalForm.option_a || !finalForm.option_b))
       return toast.error('الخياران الأول والثاني مطلوبان');
+
+    if (isGrouped && !finalForm.group_id) {
+      // first question of a new group — assign group_id
+      const gid = nextGroupId;
+      setNextGroupId(Date.now());
+      finalForm.group_id = gid;
+    }
 
     if (editQ) updateQMut.mutate({ qid: editQ.id, data: finalForm });
     else addQMut.mutate(finalForm);
@@ -129,9 +213,30 @@ export default function ExamQuestions() {
   const examTotal = parseInt(exam?.total_score) || 0;
   const pointsMismatch = questions.length > 0 && examTotal > 0 && totalPoints !== examTotal;
 
+  // ── Group the questions list for display ─────────────────────────────────
+  // Each entry is either { type:'single', q } or { type:'group', group_id, questions[] }
+  const displayList = (() => {
+    const groups = {};
+    const result = [];
+    questions.forEach(q => {
+      if (q.group_id) {
+        if (!groups[q.group_id]) {
+          groups[q.group_id] = { type: 'group', group_id: q.group_id, questions: [], context: q.group_context, contextImage: q.group_context_image };
+          result.push(groups[q.group_id]);
+        }
+        groups[q.group_id].questions.push(q);
+      } else {
+        result.push({ type: 'single', q });
+      }
+    });
+    return result;
+  })();
+
+  let qCounter = 0;
+
   return (
     <div className="-m-4 lg:-m-6 h-[calc(100%+2rem)] lg:h-[calc(100%+3rem)] flex flex-col overflow-hidden" dir="rtl">
-      {/* Fixed Header — flex-shrink-0 keeps it always visible above scroll */}
+      {/* Fixed Header */}
       <div className="flex-shrink-0 bg-white border-b border-gray-200 shadow-sm">
         <div className="px-4 lg:px-6 py-3 flex items-center gap-2 sm:gap-3">
           <button
@@ -168,9 +273,8 @@ export default function ExamQuestions() {
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto min-h-0 p-4 lg:p-6">
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6 items-start">
 
-        {/* Questions List — left on LG */}
+        {/* Questions List */}
         <div className="lg:col-span-3 space-y-4 order-2 lg:order-1">
-          {/* Points mismatch warning */}
           {pointsMismatch && (
             <div className="flex items-center gap-2 px-4 py-3 bg-amber-50 border border-amber-300 rounded-xl text-sm text-amber-800 font-semibold">
               <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0" />
@@ -196,67 +300,55 @@ export default function ExamQuestions() {
               <p className="text-gray-400 font-medium">لا توجد أسئلة بعد — أضف أول سؤال من النموذج</p>
             </div>
           ) : (
-            questions.map((q, qi) => (
-              <div key={q.id} className={`bg-white rounded-xl p-4 shadow-sm border transition-all ${editQ?.id === q.id ? 'border-orange-400 ring-2 ring-orange-100' : 'border-gray-100 hover:border-gray-200'}`}>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-2 flex-wrap">
-                      <span className="text-xs font-black text-gray-500">س{qi + 1}</span>
-                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                        q.question_type === 'true_false' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'
-                      }`}>{qTypeLabel(q.question_type)}</span>
-                      <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800">
-                        {q.points} درجة
-                      </span>
-                    </div>
-                    {q.question_text && (
-                      <p className="font-semibold text-navy-600 text-sm mb-2 leading-relaxed">{q.question_text}</p>
-                    )}
-                    {q.question_image_url && (
-                      <img src={q.question_image_url} alt="question" className="w-40 h-24 object-cover rounded-lg mb-2 border border-gray-100" />
-                    )}
-                    <div className="grid grid-cols-2 gap-1 text-xs">
-                      {(q.question_type === 'true_false' ? ['A', 'B'] : ['A', 'B', 'C', 'D']).map(opt =>
-                        q[`option_${opt.toLowerCase()}`] && q[`option_${opt.toLowerCase()}`] !== '-' && (
-                          <div key={opt} className={`p-1.5 rounded-lg font-semibold flex items-center gap-1 ${
-                            q.correct_answer_letter === opt ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'
-                          }`}>
-                            <span className={`w-4 h-4 rounded-full text-[10px] flex items-center justify-center font-black flex-shrink-0 ${
-                              q.correct_answer_letter === opt ? 'bg-green-600 text-white' : 'bg-gray-300 text-gray-600'
-                            }`}>{opt}</span>
-                            {q[`option_${opt.toLowerCase()}`]}
-                          </div>
-                        )
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-1 flex-shrink-0">
-                    <button
-                      onClick={() => {
-                        setEditQ(q);
-                        setQForm({ ...q, question_type: q.question_type || 'mcq' });
-                        setImageFile(null);
-                        setImagePreview('');
-                        setImageInputMode(q.question_image_url?.startsWith('/uploads') ? 'file' : 'url');
-                        if (imageFileRef.current) imageFileRef.current.value = '';
-                        scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-                      }}
-                      className="p-1.5 text-navy-600 hover:bg-navy-50 rounded-lg transition-colors">
-                      <Pencil className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => setDeleteQId(q.id)}
-                      className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))
+            displayList.map((entry, ei) => {
+              if (entry.type === 'single') {
+                const q = entry.q;
+                qCounter++;
+                const qNum = qCounter;
+                return (
+                  <SingleQuestionCard
+                    key={q.id}
+                    q={q}
+                    qNum={qNum}
+                    editQ={editQ}
+                    onEdit={() => {
+                      setEditQ(q);
+                      setQForm({ ...q, question_type: q.question_type || 'mcq', group_context: q.group_context || '', group_context_image: q.group_context_image || '' });
+                      setIsGrouped(!!q.group_id);
+                      setImageFile(null); setImagePreview(''); setImageInputMode(q.question_image_url?.startsWith('/uploads') ? 'file' : 'url');
+                      if (imageFileRef.current) imageFileRef.current.value = '';
+                      scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    onDelete={() => setDeleteQId(q.id)}
+                  />
+                );
+              }
+
+              // group entry
+              const groupStartNum = qCounter + 1;
+              qCounter += entry.questions.length;
+              return (
+                <GroupQuestionCard
+                  key={`group-${entry.group_id}`}
+                  entry={entry}
+                  startNum={groupStartNum}
+                  editQ={editQ}
+                  onEdit={(q) => {
+                    setEditQ(q);
+                    setQForm({ ...q, question_type: q.question_type || 'mcq', group_context: q.group_context || '', group_context_image: q.group_context_image || '' });
+                    setIsGrouped(true);
+                    setImageFile(null); setImagePreview(''); setImageInputMode(q.question_image_url?.startsWith('/uploads') ? 'file' : 'url');
+                    if (imageFileRef.current) imageFileRef.current.value = '';
+                    scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  onDelete={(qid) => setDeleteQId(qid)}
+                />
+              );
+            })
           )}
         </div>
 
-        {/* Add/Edit Question Form — right on LG */}
+        {/* Add/Edit Question Form */}
         <div className="lg:col-span-2 order-1 lg:order-2 lg:sticky lg:top-4">
           <div className="bg-white rounded-2xl border-2 border-dashed border-orange-300 p-5 shadow-sm">
             <h3 className="font-black text-navy-700 mb-4 flex items-center gap-2">
@@ -264,6 +356,105 @@ export default function ExamQuestions() {
               {editQ ? 'تعديل السؤال' : 'إضافة سؤال جديد'}
             </h3>
             <form onSubmit={handleQSubmit} className="space-y-4">
+
+              {/* ── Grouped toggle ─────────────────────────────────────── */}
+              {!editQ && (
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-blue-50 border border-blue-200">
+                  <Layers className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-blue-800">سؤال مجمّع (متعدد الأجزاء)</p>
+                    <p className="text-[10px] text-blue-600 mt-0.5">صورة أو نص مشترك فوق عدة أسئلة</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = !isGrouped;
+                      setIsGrouped(next);
+                      if (!next) {
+                        setQForm(prev => ({ ...prev, group_id: null, group_context: '', group_context_image: '' }));
+                        setCtxImageFile(null); setCtxImagePreview(''); setCtxImageInputMode('url');
+                        if (ctxImageFileRef.current) ctxImageFileRef.current.value = '';
+                      }
+                    }}
+                    className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${isGrouped ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                    <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${isGrouped ? 'right-0.5' : 'left-0.5'}`} />
+                  </button>
+                </div>
+              )}
+
+              {/* ── Group context fields (shown when grouped) ───────── */}
+              {(isGrouped || (editQ && editQ.group_id)) && (
+                <div className="rounded-xl border-2 border-blue-300 bg-blue-50 p-3 space-y-3">
+                  <p className="text-xs font-black text-blue-800 flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5" /> السياق المشترك للمجموعة
+                  </p>
+                  <p className="text-[10px] text-blue-600">النص/الصورة اللي هيظهر فوق كل سؤال في المجموعة دي</p>
+
+                  {/* context text */}
+                  <div>
+                    <label className="block text-xs font-bold text-blue-800 mb-1">النص المشترك <span className="font-normal text-blue-500">(اختياري)</span></label>
+                    <textarea
+                      value={qForm.group_context}
+                      onChange={e => setQForm({ ...qForm, group_context: e.target.value })}
+                      className="input-field h-20 resize-none text-sm"
+                      placeholder="مثلاً: اقرأ الفقرة التالية ثم أجب عن الأسئلة..." />
+                  </div>
+
+                  {/* context image */}
+                  <div>
+                    <label className="block text-xs font-bold text-blue-800 mb-1">الصورة المشتركة <span className="font-normal text-blue-500">(اختياري)</span></label>
+                    <div className="flex gap-2 mb-2">
+                      <button type="button"
+                        onClick={() => { setCtxImageInputMode('url'); setCtxImageFile(null); setCtxImagePreview(''); if (ctxImageFileRef.current) ctxImageFileRef.current.value = ''; }}
+                        className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold border-2 transition-all ${ctxImageInputMode === 'url' ? 'border-blue-500 bg-blue-100 text-blue-800' : 'border-gray-200 text-gray-600'}`}>
+                        <Link className="w-3 h-3" /> رابط
+                      </button>
+                      <button type="button"
+                        onClick={() => { setCtxImageInputMode('file'); setQForm({ ...qForm, group_context_image: '' }); }}
+                        className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold border-2 transition-all ${ctxImageInputMode === 'file' ? 'border-blue-500 bg-blue-100 text-blue-800' : 'border-gray-200 text-gray-600'}`}>
+                        <Upload className="w-3 h-3" /> رفع صورة
+                      </button>
+                    </div>
+                    {ctxImageInputMode === 'url' ? (
+                      <>
+                        <input value={qForm.group_context_image || ''} onChange={e => setQForm({ ...qForm, group_context_image: e.target.value })}
+                          className="input-field text-sm" placeholder="الصق رابط الصورة هنا..." dir="ltr" />
+                        {qForm.group_context_image && (
+                          <img src={qForm.group_context_image} alt="ctx preview" className="mt-2 h-24 rounded-lg object-contain border border-blue-200 w-full" onError={e => e.target.style.display = 'none'} />
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <input ref={ctxImageFileRef} type="file" accept="image/*"
+                          onChange={e => { const f = e.target.files[0]; if (f) { setCtxImageFile(f); setCtxImagePreview(URL.createObjectURL(f)); } else { setCtxImageFile(null); setCtxImagePreview(''); } }}
+                          className="block w-full text-sm text-gray-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 border border-gray-200 rounded-xl p-2 cursor-pointer"
+                        />
+                        {ctxUploadProgress > 0 && ctxUploadProgress < 100 && (
+                          <div className="mt-2 w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                            <div className="h-2 bg-gradient-to-r from-blue-400 to-blue-600 rounded-full transition-all" style={{ width: `${ctxUploadProgress}%` }} />
+                          </div>
+                        )}
+                        {ctxImagePreview && <img src={ctxImagePreview} alt="ctx preview" className="mt-2 h-24 rounded-lg object-contain border border-blue-200 w-full" />}
+                      </>
+                    )}
+                  </div>
+
+                  {/* continue group OR start new group buttons */}
+                  {!editQ && qForm.group_id && (
+                    <div className="flex items-center gap-2 pt-1">
+                      <span className="text-[10px] font-bold text-blue-700 bg-blue-100 px-2 py-1 rounded-lg flex-1 text-center">
+                        📎 أنت تضيف إلى نفس المجموعة
+                      </span>
+                      <button type="button"
+                        onClick={() => { setQForm(prev => ({ ...emptyQ, group_context: prev.group_context, group_context_image: prev.group_context_image })); setNextGroupId(Date.now()); }}
+                        className="text-[10px] font-bold text-orange-700 bg-orange-100 px-2 py-1 rounded-lg hover:bg-orange-200 transition-colors flex items-center gap-1">
+                        <X className="w-3 h-3" /> مجموعة جديدة
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Question type */}
               <div>
                 <label className="block text-xs font-bold text-navy-700 mb-1.5">نوع السؤال</label>
@@ -322,13 +513,8 @@ export default function ExamQuestions() {
                   </>
                 ) : (
                   <>
-                    <input
-                      ref={imageFileRef} type="file" accept="image/*"
-                      onChange={e => {
-                        const f = e.target.files[0];
-                        if (f) { setImageFile(f); setImagePreview(URL.createObjectURL(f)); }
-                        else { setImageFile(null); setImagePreview(''); }
-                      }}
+                    <input ref={imageFileRef} type="file" accept="image/*"
+                      onChange={e => { const f = e.target.files[0]; if (f) { setImageFile(f); setImagePreview(URL.createObjectURL(f)); } else { setImageFile(null); setImagePreview(''); } }}
                       className="block w-full text-sm text-gray-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100 border border-gray-200 rounded-xl p-2 cursor-pointer"
                     />
                     {uploadProgress > 0 && uploadProgress < 100 && (
@@ -413,7 +599,11 @@ export default function ExamQuestions() {
                 )}
                 <button type="submit" className="btn-primary flex-1 flex items-center justify-center gap-2"
                   disabled={addQMut.isPending || updateQMut.isPending}>
-                  {editQ ? 'تحديث السؤال' : <><Plus className="w-4 h-4" /> إضافة السؤال</>}
+                  {editQ ? 'تحديث السؤال' : (
+                    isGrouped && qForm.group_id
+                      ? <><Layers className="w-4 h-4" /> إضافة للمجموعة</>
+                      : <><Plus className="w-4 h-4" /> إضافة السؤال</>
+                  )}
                 </button>
               </div>
             </form>
@@ -430,6 +620,125 @@ export default function ExamQuestions() {
         message="هل أنت متأكد من حذف هذا السؤال نهائياً؟"
         danger
       />
+    </div>
+  );
+}
+
+// ── Single question card ───────────────────────────────────────────────────
+function SingleQuestionCard({ q, qNum, editQ, onEdit, onDelete }) {
+  return (
+    <div className={`bg-white rounded-xl p-4 shadow-sm border transition-all ${editQ?.id === q.id ? 'border-orange-400 ring-2 ring-orange-100' : 'border-gray-100 hover:border-gray-200'}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
+            <span className="text-xs font-black text-gray-500">س{qNum}</span>
+            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+              q.question_type === 'true_false' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'
+            }`}>{qTypeLabel(q.question_type)}</span>
+            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800">
+              {q.points} درجة
+            </span>
+          </div>
+          {q.question_text && (
+            <p className="font-semibold text-navy-600 text-sm mb-2 leading-relaxed">{q.question_text}</p>
+          )}
+          {q.question_image_url && (
+            <img src={q.question_image_url} alt="question" className="w-40 h-24 object-cover rounded-lg mb-2 border border-gray-100" />
+          )}
+          <div className="grid grid-cols-2 gap-1 text-xs">
+            {(q.question_type === 'true_false' ? ['A', 'B'] : ['A', 'B', 'C', 'D']).map(opt =>
+              q[`option_${opt.toLowerCase()}`] && q[`option_${opt.toLowerCase()}`] !== '-' && (
+                <div key={opt} className={`p-1.5 rounded-lg font-semibold flex items-center gap-1 ${
+                  q.correct_answer_letter === opt ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'
+                }`}>
+                  <span className={`w-4 h-4 rounded-full text-[10px] flex items-center justify-center font-black flex-shrink-0 ${
+                    q.correct_answer_letter === opt ? 'bg-green-600 text-white' : 'bg-gray-300 text-gray-600'
+                  }`}>{opt}</span>
+                  {q[`option_${opt.toLowerCase()}`]}
+                </div>
+              )
+            )}
+          </div>
+        </div>
+        <div className="flex flex-col gap-1 flex-shrink-0">
+          <button onClick={onEdit} className="p-1.5 text-navy-600 hover:bg-navy-50 rounded-lg transition-colors">
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+          <button onClick={onDelete} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Grouped question card ──────────────────────────────────────────────────
+function GroupQuestionCard({ entry, startNum, editQ, onEdit, onDelete }) {
+  return (
+    <div className="rounded-xl border-2 border-blue-200 bg-blue-50/30 overflow-hidden shadow-sm">
+      {/* Group header */}
+      <div className="px-4 py-2.5 bg-blue-100 border-b border-blue-200 flex items-center gap-2">
+        <Layers className="w-4 h-4 text-blue-700 flex-shrink-0" />
+        <span className="text-xs font-black text-blue-800">مجموعة أسئلة — {entry.questions.length} سؤال</span>
+        <span className="text-[10px] font-semibold text-blue-600 mr-auto">س{startNum} – س{startNum + entry.questions.length - 1}</span>
+      </div>
+
+      {/* Shared context */}
+      {(entry.context || entry.contextImage) && (
+        <div className="px-4 pt-3 pb-2 border-b border-blue-200">
+          <p className="text-[10px] font-bold text-blue-600 mb-2 uppercase tracking-wide">السياق المشترك</p>
+          {entry.contextImage && (
+            <img src={entry.contextImage} alt="context" className="max-h-48 rounded-xl border border-blue-200 w-full object-contain mb-2" />
+          )}
+          {entry.context && (
+            <p className="text-sm text-navy-700 leading-relaxed whitespace-pre-wrap bg-white rounded-xl px-3 py-2 border border-blue-100">{entry.context}</p>
+          )}
+        </div>
+      )}
+
+      {/* Sub-questions */}
+      <div className="p-3 space-y-2">
+        {entry.questions.map((q, si) => (
+          <div key={q.id} className={`bg-white rounded-xl p-3 border transition-all ${editQ?.id === q.id ? 'border-orange-400 ring-2 ring-orange-100' : 'border-blue-100 hover:border-blue-200'}`}>
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                  <span className="text-xs font-black text-blue-600">س{startNum + si}</span>
+                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                    q.question_type === 'true_false' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'
+                  }`}>{qTypeLabel(q.question_type)}</span>
+                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800">{q.points} درجة</span>
+                </div>
+                {q.question_text && <p className="font-semibold text-navy-600 text-sm mb-1.5 leading-relaxed">{q.question_text}</p>}
+                {q.question_image_url && <img src={q.question_image_url} alt="q" className="w-32 h-20 object-cover rounded-lg mb-1.5 border border-gray-100" />}
+                <div className="grid grid-cols-2 gap-1 text-xs">
+                  {(q.question_type === 'true_false' ? ['A', 'B'] : ['A', 'B', 'C', 'D']).map(opt =>
+                    q[`option_${opt.toLowerCase()}`] && (
+                      <div key={opt} className={`p-1 rounded-lg font-semibold flex items-center gap-1 ${
+                        q.correct_answer_letter === opt ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'
+                      }`}>
+                        <span className={`w-3.5 h-3.5 rounded-full text-[9px] flex items-center justify-center font-black flex-shrink-0 ${
+                          q.correct_answer_letter === opt ? 'bg-green-600 text-white' : 'bg-gray-300 text-gray-600'
+                        }`}>{opt}</span>
+                        {q[`option_${opt.toLowerCase()}`]}
+                      </div>
+                    )
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-col gap-1 flex-shrink-0">
+                <button onClick={() => onEdit(q)} className="p-1.5 text-navy-600 hover:bg-navy-50 rounded-lg transition-colors">
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+                <button onClick={() => onDelete(q.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
