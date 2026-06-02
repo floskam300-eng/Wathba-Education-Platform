@@ -1,6 +1,15 @@
-const express = require('express');
-const pool = require('../db/connection');
-const router = express.Router();
+const express   = require('express');
+const rateLimit = require('express-rate-limit');
+const pool      = require('../db/connection');
+const router    = express.Router();
+
+const parentLookupLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'طلبات كثيرة جداً — انتظر دقيقة ثم حاول مجدداً' },
+});
 
 // Public landing page info — scoped by teacher slug
 router.get('/info', async (req, res) => {
@@ -38,7 +47,7 @@ router.get('/info', async (req, res) => {
         [tid]
       ),
       pool.query(
-        'SELECT id, name, phone FROM assistants WHERE teacher_id=$1 ORDER BY id LIMIT 10',
+        'SELECT id, name FROM assistants WHERE teacher_id=$1 ORDER BY id LIMIT 10',
         [tid]
       ),
     ]);
@@ -65,7 +74,7 @@ router.get('/teacher/:slug', async (req, res) => {
 });
 
 // Parent portal — lookup student results by parent phone, scoped to teacher slug
-router.get('/parent-lookup', async (req, res) => {
+router.get('/parent-lookup', parentLookupLimiter, async (req, res) => {
   const { phone, slug } = req.query;
   if (!phone || phone.trim().length < 7) {
     return res.status(400).json({ error: 'رقم الهاتف غير صحيح' });

@@ -194,7 +194,27 @@ router.post('/scheduled/:streamId/start', requireRole('teacher'), async (req, re
   const { streamId } = req.params;
 
   try {
-    // End any currently active stream first
+    // Notify active viewers of any currently running stream before ending it
+    const { rows: activeStreams } = await pool.query(
+      "SELECT id FROM live_streams WHERE teacher_id=$1 AND status='active'",
+      [teacherId]
+    );
+    for (const active of activeStreams) {
+      const { rows: activeViewers } = await pool.query(
+        'SELECT student_id FROM live_stream_viewers WHERE stream_id=$1 AND is_active=true',
+        [active.id]
+      );
+      await pool.query(
+        "UPDATE live_stream_viewers SET is_active=false, left_at=NOW() WHERE stream_id=$1 AND is_active=true",
+        [active.id]
+      );
+      for (const { student_id } of activeViewers) {
+        sendEvent(`student_${student_id}`, 'live_ended', {
+          streamId: active.id,
+          message: 'انتهى البث المباشر',
+        });
+      }
+    }
     await pool.query(
       "UPDATE live_streams SET status='ended', ended_at=NOW() WHERE teacher_id=$1 AND status='active'",
       [teacherId]
@@ -258,7 +278,27 @@ router.post('/start', requireRole('teacher'), async (req, res) => {
   if (!title?.trim()) return res.status(400).json({ error: 'عنوان البث مطلوب' });
 
   try {
-    // End any existing active stream first
+    // Notify active viewers of any currently running stream before ending it
+    const { rows: activeStreams } = await pool.query(
+      "SELECT id FROM live_streams WHERE teacher_id=$1 AND status='active'",
+      [teacherId]
+    );
+    for (const active of activeStreams) {
+      const { rows: activeViewers } = await pool.query(
+        'SELECT student_id FROM live_stream_viewers WHERE stream_id=$1 AND is_active=true',
+        [active.id]
+      );
+      await pool.query(
+        "UPDATE live_stream_viewers SET is_active=false, left_at=NOW() WHERE stream_id=$1 AND is_active=true",
+        [active.id]
+      );
+      for (const { student_id } of activeViewers) {
+        sendEvent(`student_${student_id}`, 'live_ended', {
+          streamId: active.id,
+          message: 'انتهى البث المباشر',
+        });
+      }
+    }
     await pool.query(
       "UPDATE live_streams SET status='ended', ended_at=NOW() WHERE teacher_id=$1 AND status='active'",
       [teacherId]

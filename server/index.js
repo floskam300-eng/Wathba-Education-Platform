@@ -74,7 +74,15 @@ app.use('/uploads/pdfs',             uploadsAuthMiddleware, express.static(path.
 app.use('/uploads/videos',           uploadsAuthMiddleware, express.static(path.join(__dirname, '../uploads/videos')));
 app.use('/uploads/question-images',  uploadsAuthMiddleware, express.static(path.join(__dirname, '../uploads/question-images')));
 // Images and thumbnails remain public (needed for login page / course cards)
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// Safety guard: block direct access to protected subdirs through the general handler
+app.use('/uploads', (req, res, next) => {
+  const normalized = req.path.replace(/\/+/g, '/');
+  const protected_ = ['/pdfs/', '/videos/', '/question-images/'];
+  if (protected_.some(p => normalized.startsWith(p) || normalized === p.slice(0, -1))) {
+    return res.status(401).send('Unauthorized');
+  }
+  next();
+}, express.static(path.join(__dirname, '../uploads')));
 
 // ── SSE endpoint ──────────────────────────────────────────────
 app.get('/api/sse', (req, res) => {
