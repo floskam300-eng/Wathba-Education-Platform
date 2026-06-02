@@ -335,7 +335,8 @@ function ChatPanel({ stream, teacherName, dark }) {
     }).catch(() => {});
   }, [stream.id]);
 
-  // FIX: Poll only for NEW messages using `since` parameter — reduces server load significantly
+  // SSE delivers chat messages instantly — this poll is a safety net only
+  // (catches any messages missed during SSE reconnection)
   useEffect(() => {
     const fetchNew = async () => {
       try {
@@ -354,7 +355,7 @@ function ChatPanel({ stream, teacherName, dark }) {
         }
       } catch (_) {}
     };
-    const iv = setInterval(fetchNew, 4000);
+    const iv = setInterval(fetchNew, 60000);
     return () => clearInterval(iv);
   }, [stream.id]);
 
