@@ -2,7 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const rateLimit = require('express-rate-limit');
 const pool = require('../db/connection');
-const { generateToken, authenticate } = require('../middleware/auth');
+const { generateToken, authenticate, blacklistToken } = require('../middleware/auth');
 const { logActivity, getIp } = require('../lib/activityLog');
 
 const router = express.Router();
@@ -286,6 +286,16 @@ router.post('/login', loginLimiter, async (req, res) => {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
   }
+});
+
+// ── POST /api/auth/logout — revoke current token immediately ────────────────
+router.post('/logout', authenticate, (req, res) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (token) {
+    const expiresAt = (req.user.exp || 0) * 1000 || Date.now() + 7 * 24 * 60 * 60 * 1000;
+    blacklistToken(token, expiresAt);
+  }
+  res.json({ success: true });
 });
 
 // ── GET /api/auth/me ────────────────────────────────────────────────────────

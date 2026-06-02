@@ -42,14 +42,32 @@ function sendEvent(key, event, payload) {
 }
 
 /**
+ * Returns the set of student IDs currently connected via SSE.
+ * Used to avoid DB queries when nobody is online.
+ */
+function getConnectedStudentIds() {
+  const ids = [];
+  for (const key of clients.keys()) {
+    if (key.startsWith('student_')) {
+      const id = parseInt(key.slice(8), 10);
+      if (!isNaN(id)) ids.push(id);
+    }
+  }
+  return ids;
+}
+
+/**
  * Broadcast an event to every student belonging to a teacher.
- * Requires a pool query to find all student IDs.
+ * Skips the DB query entirely when no students are connected.
  */
 async function broadcastToTeacherStudents(pool, teacherId, event, payload) {
   try {
+    const connectedIds = getConnectedStudentIds();
+    if (connectedIds.length === 0) return;
+
     const { rows } = await pool.query(
-      'SELECT id FROM students WHERE teacher_id=$1 AND deleted_at IS NULL',
-      [teacherId]
+      'SELECT id FROM students WHERE teacher_id=$1 AND deleted_at IS NULL AND id = ANY($2)',
+      [teacherId, connectedIds]
     );
     for (const { id } of rows) {
       sendEvent(`student_${id}`, event, payload);
@@ -59,12 +77,16 @@ async function broadcastToTeacherStudents(pool, teacherId, event, payload) {
 
 /**
  * Broadcast to all students enrolled in a specific course.
+ * Skips the DB query entirely when no students are connected.
  */
 async function broadcastToCourseStudents(pool, courseId, event, payload) {
   try {
+    const connectedIds = getConnectedStudentIds();
+    if (connectedIds.length === 0) return;
+
     const { rows } = await pool.query(
-      'SELECT student_id FROM student_course_enrollment WHERE course_id=$1',
-      [courseId]
+      'SELECT student_id FROM student_course_enrollment WHERE course_id=$1 AND student_id = ANY($2)',
+      [courseId, connectedIds]
     );
     for (const { student_id } of rows) {
       sendEvent(`student_${student_id}`, event, payload);

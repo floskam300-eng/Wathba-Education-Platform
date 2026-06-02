@@ -139,6 +139,8 @@ router.post('/schedule', requireRole('teacher'), async (req, res) => {
   } = req.body;
 
   if (!title?.trim()) return res.status(400).json({ error: 'عنوان البث مطلوب' });
+  if (title.trim().length > 200) return res.status(400).json({ error: 'عنوان البث طويل جداً (200 حرف كحد أقصى)' });
+  if (description && description.length > 1000) return res.status(400).json({ error: 'وصف البث طويل جداً (1000 حرف كحد أقصى)' });
   if (!scheduled_at) return res.status(400).json({ error: 'موعد البث مطلوب' });
   if (new Date(scheduled_at).getTime() <= Date.now())
     return res.status(400).json({ error: 'يجب أن يكون الموعد في المستقبل' });
@@ -276,6 +278,8 @@ router.post('/start', requireRole('teacher'), async (req, res) => {
   } = req.body;
 
   if (!title?.trim()) return res.status(400).json({ error: 'عنوان البث مطلوب' });
+  if (title.trim().length > 200) return res.status(400).json({ error: 'عنوان البث طويل جداً (200 حرف كحد أقصى)' });
+  if (description && description.length > 1000) return res.status(400).json({ error: 'وصف البث طويل جداً (1000 حرف كحد أقصى)' });
 
   try {
     // Notify active viewers of any currently running stream before ending it

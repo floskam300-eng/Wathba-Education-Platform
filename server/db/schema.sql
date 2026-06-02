@@ -660,3 +660,8 @@ ALTER TABLE questions      ADD COLUMN IF NOT EXISTS group_context_image  TEXT   
 ALTER TABLE bank_questions ADD COLUMN IF NOT EXISTS group_id             INTEGER DEFAULT NULL;
 ALTER TABLE bank_questions ADD COLUMN IF NOT EXISTS group_context        TEXT    DEFAULT NULL;
 ALTER TABLE bank_questions ADD COLUMN IF NOT EXISTS group_context_image  TEXT    DEFAULT NULL;
+
+-- GIN index to speed up JSONB lateral expansion on exam_results.answers
+-- (used by wrong-questions analytics and exam review queries)
+CREATE INDEX IF NOT EXISTS idx_exam_results_answers_gin
+  ON exam_results USING GIN (answers jsonb_path_ops);
