@@ -353,6 +353,20 @@ export default function TeacherStudents() {
     onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
   });
 
+  const EXCLUDED_IMPORT_COLS = new Set([
+    'اسم المستخدم', 'username', 'كلمة المرور', 'password',
+    'اسم_المستخدم', 'كلمة_المرور',
+  ]);
+
+  const stripAutoFields = (rows) =>
+    rows.map(row => {
+      const clean = {};
+      for (const [k, v] of Object.entries(row)) {
+        if (!EXCLUDED_IMPORT_COLS.has(k.trim())) clean[k] = v;
+      }
+      return clean;
+    });
+
   const handleExcelFile = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -362,7 +376,7 @@ export default function TeacherStudents() {
         const wb = XLSX.read(evt.target.result, { type: 'array' });
         const ws = wb.Sheets[wb.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
-        setImportRows(rows);
+        setImportRows(stripAutoFields(rows));
         setImportModal(true);
       } catch {
         toast.error('تعذّر قراءة الملف — تأكد أنه Excel أو CSV');
@@ -370,6 +384,20 @@ export default function TeacherStudents() {
     };
     reader.readAsArrayBuffer(file);
     if (importFileRef.current) importFileRef.current.value = '';
+  };
+
+  const downloadImportTemplate = () => {
+    const templateData = [
+      { 'الاسم': 'أحمد محمد علي', 'الهاتف': '01012345678', 'هاتف ولي الأمر': '01098765432', 'المرحلة': 'الصف الثالث الثانوي', 'الجنس': 'ذكر' },
+      { 'الاسم': 'فاطمة أحمد حسن', 'الهاتف': '01123456789', 'هاتف ولي الأمر': '', 'المرحلة': 'الصف الثاني الثانوي', 'الجنس': 'أنثى' },
+      { 'الاسم': 'محمود إبراهيم', 'الهاتف': '', 'هاتف ولي الأمر': '01056789012', 'المرحلة': 'الصف الأول الثانوي', 'الجنس': 'ذكر' },
+    ];
+    const ws = XLSX.utils.json_to_sheet(templateData);
+    ws['!cols'] = [{ wch: 25 }, { wch: 15 }, { wch: 18 }, { wch: 28 }, { wch: 10 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'الطلاب');
+    XLSX.writeFile(wb, 'قالب_استيراد_الطلاب.xlsx');
+    toast.success('تم تنزيل قالب الاستيراد');
   };
 
   const handleBulkImport = async () => {
@@ -499,6 +527,9 @@ export default function TeacherStudents() {
           {canAdd && (
             <>
               <input ref={importFileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleExcelFile} />
+              <button onClick={downloadImportTemplate} className="btn-secondary flex items-center gap-2 !border-teal-300 !text-teal-700 hover:!bg-teal-50">
+                <Download className="w-4 h-4" /> قالب الاستيراد
+              </button>
               <button onClick={() => importFileRef.current?.click()} className="btn-secondary flex items-center gap-2 !border-green-300 !text-green-700 hover:!bg-green-50">
                 <FileSpreadsheet className="w-4 h-4" /> استيراد Excel
               </button>
@@ -597,9 +628,10 @@ export default function TeacherStudents() {
                   </button>
                 </div>
                 <div className="overflow-auto flex-1 p-4">
-                  <div className="text-xs text-gray-600 mb-3 bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-1">
-                    <p><strong>الأعمدة المدعومة:</strong> الاسم، اسم المستخدم، كلمة المرور، الهاتف، هاتف ولي الأمر، المرحلة، الجنس</p>
-                    <p className="text-blue-700">✨ <strong>الاسم فقط مطلوب</strong> — اسم المستخدم وكلمة المرور يُولَّدان تلقائياً إن لم يُحدَّدا.</p>
+                  <div className="text-xs text-gray-600 mb-3 bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-1.5">
+                    <p><strong>الأعمدة المدعومة:</strong> الاسم، الهاتف، هاتف ولي الأمر، المرحلة، الجنس</p>
+                    <p className="text-green-700 font-semibold">✅ <strong>الاسم فقط مطلوب</strong> — اسم المستخدم وكلمة المرور يُولَّدان تلقائياً لكل طالب.</p>
+                    <p className="text-amber-700">⬇️ بعد الاستيراد ستُنزَّل ملف Excel يحتوي على بيانات دخول كل طالب.</p>
                   </div>
                   <table className="w-full text-xs border-collapse">
                     <thead>
