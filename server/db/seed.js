@@ -395,7 +395,56 @@ async function seed() {
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
     `, [bank2.id, text, a||'صح', b||'خطأ', c, d, ans, pts, type==='TF'?'true_false':'mcq', diff]);
   }
-  console.log('  ✓ 2 بنك أسئلة (18 سؤال جبر، 6 تفاضل)');
+  // ══════════════════════════════════════════════════════════
+  // أسئلة مجمّعة في البنك 1 — بنك الجبر والمثلثات
+  // المجموعة: مسألة في مثلث قائم (3 أسئلة مترابطة)
+  // ══════════════════════════════════════════════════════════
+  const GB1_1 = 20011; // group_id ثابت رقمياً للبنك 1
+  const GB1_1_CTX =
+    'في مثلث ABC قائم الزاوية عند C، الضلعان المحيطان بالزاوية القائمة هما:\n' +
+    'a = BC = 3 سم، و b = AC = 4 سم.\n' +
+    'احسب ما يُطلب في الأسئلة التالية باستخدام هذه المعطيات.';
+
+  const bankGroupedRows1 = [
+    ['ما طول الوتر AB في هذا المثلث؟',    '5 سم',      '6 سم',      '7 سم',    '√7 سم',   'A', 2, 'medium'],
+    ['ما قيمة sin(A) في هذا المثلث؟',       '3/5',       '4/5',       '4/3',     '3/4',     'A', 2, 'medium'],
+    ['ما قيمة cos(A) في هذا المثلث؟',       '3/5',       '4/5',       '3/4',     '4/3',     'B', 2, 'medium'],
+  ];
+  for (const [text, a, b, c, d, ans, pts, diff] of bankGroupedRows1) {
+    await q(`
+      INSERT INTO bank_questions
+        (bank_id,question_text,option_a,option_b,option_c,option_d,
+         correct_answer_letter,points,question_type,difficulty,group_id,group_context,group_context_image)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'mcq',$9,$10,$11,$12)
+    `, [bank1.id, text, a, b, c, d, ans, pts, diff, GB1_1, GB1_1_CTX, null]);
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // أسئلة مجمّعة في البنك 2 — بنك التفاضل والتكامل
+  // المجموعة: تحليل دالة ومشتقتها (3 أسئلة مترابطة)
+  // ══════════════════════════════════════════════════════════
+  const GB2_1 = 20021; // group_id ثابت رقمياً للبنك 2
+  const GB2_1_CTX =
+    'لتكن الدالة f(x) = x³ − 3x² + 2\n' +
+    '• مشتقة الدالة: f\'(x) = 3x² − 6x = 3x(x − 2)\n' +
+    '• الدالة لها نقطتا قصوى عند x = 0 و x = 2\n' +
+    'استخدم هذه المعلومات للإجابة عن الأسئلة التالية.';
+
+  const bankGroupedRows2 = [
+    ['ما قيمة f(0) للدالة المعطاة؟',                   '2',  '0',  '-2',  '3', 'A', 2, 'medium'],
+    ['ما قيمة f\'(x) عند x = 1؟',                      '-3', '0',  '3',   '-1','A', 2, 'medium'],
+    ['الدالة f(x) متناقصة في الفترة التي تقع في',       '[0,2]','[1,3]','[-1,0]','[2,4]','A', 3, 'hard'],
+  ];
+  for (const [text, a, b, c, d, ans, pts, diff] of bankGroupedRows2) {
+    await q(`
+      INSERT INTO bank_questions
+        (bank_id,question_text,option_a,option_b,option_c,option_d,
+         correct_answer_letter,points,question_type,difficulty,group_id,group_context,group_context_image)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'mcq',$9,$10,$11,$12)
+    `, [bank2.id, text, a, b, c, d, ans, pts, diff, GB2_1, GB2_1_CTX, null]);
+  }
+
+  console.log('  ✓ 2 بنك أسئلة (15 سؤال جبر + 3 مجمّعة مثلث، 6 تفاضل + 3 مجمّعة دوال)');
 
   // ══════════════════════════════════════════════════════════
   // 7. الامتحانات — كل الحالات الممكنة لـ std_ali
@@ -506,7 +555,19 @@ async function seed() {
     RETURNING id
   `, [T1, c4.id, future(14), future(21)]);
 
-  console.log('  ✓ 10 امتحانات (منتهية، جارية، قادمة، غير منشورة)');
+  // ── E11: امتحان أسئلة مجمّعة (c1 — ث3) — يُظهر ميزة السياق المشترك 📄
+  //        std_ali لم يمتحنه بعد — متاح الآن
+  const [e11] = await q(`
+    INSERT INTO exams
+      (title,duration_minutes,total_score,pass_score,teacher_id,course_id,
+       is_published,start_date,end_date,badge_name,badge_color,
+       points_on_attempt,points_on_pass,shuffle_questions,shuffle_options)
+    VALUES ('اختبار قراءة وتحليل — الأسئلة المجمّعة',50,40,20,$1,$2,
+            true,$3,$4,'محلل بارع','#06b6d4',5,20,false,false)
+    RETURNING id
+  `, [T1, c1.id, past(1), future(9)]);
+
+  console.log('  ✓ 11 امتحانات (منتهية، جارية، قادمة، غير منشورة، مجمّعة)');
 
   // ══════════════════════════════════════════════════════════
   // 8. أسئلة الامتحانات
@@ -528,6 +589,24 @@ async function seed() {
          correct_answer_letter,points,question_type)
       VALUES ($1,$2,'صح','خطأ',NULL,NULL,$3,$4,'true_false')
     `, [examId, text, correct, pts]);
+  };
+
+  // أسئلة مجمّعة — تشترك في سياق مشترك (group_id + group_context + group_context_image)
+  const addGroupedMCQ = async (examId, groupId, groupCtx, groupImg, text, a, b, c, d, correct, pts) => {
+    await q(`
+      INSERT INTO questions
+        (exam_id,question_text,option_a,option_b,option_c,option_d,
+         correct_answer_letter,points,question_type,group_id,group_context,group_context_image)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'mcq',$9,$10,$11)
+    `, [examId, text, a, b, c, d, correct, pts, groupId, groupCtx, groupImg || null]);
+  };
+  const addGroupedTF = async (examId, groupId, groupCtx, groupImg, text, correct, pts) => {
+    await q(`
+      INSERT INTO questions
+        (exam_id,question_text,option_a,option_b,option_c,option_d,
+         correct_answer_letter,points,question_type,group_id,group_context,group_context_image)
+      VALUES ($1,$2,'صح','خطأ',NULL,NULL,$3,$4,'true_false',$5,$6,$7)
+    `, [examId, text, correct, pts, groupId, groupCtx, groupImg || null]);
   };
 
   // أسئلة E1 — 10 أسئلة × 3 نقاط = 30
@@ -629,7 +708,59 @@ async function seed() {
   await addTF (e10.id,'مركز الدائرة x²+y²=16 هو (0,0)','T',10);
   await addMCQ(e10.id,'معادلة الدائرة المركز (3,4) والنصف قطر 5','(x-3)²+(y-4)²=5','(x-3)²+(y-4)²=25','x²+y²=25','(x+3)²+(y+4)²=25','B',10);
 
-  console.log('  ✓ أسئلة 10 امتحانات اكتملت');
+  // ══════════════════════════════════════════════════════════
+  // أسئلة E11 — امتحان الأسئلة المجمّعة (8 أسئلة × 5 = 40)
+  // مجموعتان بسياق مشترك + سؤالان مستقلان
+  // ══════════════════════════════════════════════════════════
+
+  // ── المجموعة 1: نص رياضي — السيارة والدالة الخطية (3 أسئلة) ──
+  // group_id ثابت رقمياً (مثل Date.now() في الـ frontend)
+  const G11_1 = 10011;
+  const G11_1_CTX =
+    'تسير سيارة بسرعة منتظمة، وتعبّر العلاقة بين المسافة المقطوعة s (بالكيلومتر) ' +
+    'والزمن t (بالساعة) عن الدالة الخطية: s(t) = 80t\n' +
+    'حيث تبدأ السيارة من نقطة الأصل عند t = 0، ولا تتوقف طوال الرحلة.';
+
+  await addGroupedMCQ(e11.id, G11_1, G11_1_CTX, null,
+    'كم تبلغ سرعة السيارة الثابتة؟',
+    '40 كم/س', '80 كم/س', '160 كم/س', '800 كم/س', 'B', 5);
+
+  await addGroupedMCQ(e11.id, G11_1, G11_1_CTX, null,
+    'ما المسافة المقطوعة بعد ساعتين ونصف؟',
+    '150 كم', '160 كم', '200 كم', '240 كم', 'C', 5);
+
+  await addGroupedMCQ(e11.id, G11_1, G11_1_CTX, null,
+    'بعد كم ساعة تكون المسافة المقطوعة 360 كم؟',
+    '3 ساعات', '3.5 ساعات', '4 ساعات', '4.5 ساعات', 'D', 5);
+
+  // ── المجموعة 2: تحليل رسم بياني للدالة التربيعية (3 أسئلة) ──
+  const G11_2 = 10012;
+  const G11_2_CTX =
+    'ادرس خصائص الدالة f(x) = x² − 4x + 3 ثم أجب عن الأسئلة التالية:\n' +
+    '• الدالة مقعّرة لأعلى (فتحة القطع لأعلى)\n' +
+    '• تتقاطع مع محور السينات عند x = 1 و x = 3\n' +
+    '• تتقاطع مع محور الصادات عند النقطة (0 , 3)\n' +
+    '• أدنى قيمة للدالة عند الرأس x = 2';
+
+  await addGroupedTF(e11.id, G11_2, G11_2_CTX, null,
+    'الدالة f(x) = x² − 4x + 3 لها حد أدنى (لا حد أقصى)', 'T', 5);
+
+  await addGroupedTF(e11.id, G11_2, G11_2_CTX, null,
+    'قيمة f(0) تساوي 3', 'T', 5);
+
+  await addGroupedMCQ(e11.id, G11_2, G11_2_CTX, null,
+    'ما أدنى قيمة تأخذها الدالة f(x)؟',
+    '3', '0', '-1', '2', 'C', 5);
+
+  // ── سؤالان مستقلان بدون سياق مشترك ──
+  await addMCQ(e11.id,
+    'إذا كانت الدالة g(x) = 2x + 5 فإن g(−2) =',
+    '1', '9', '−4', '0', 'A', 5);
+
+  await addTF(e11.id,
+    'ميل المستقيم المار بالنقطتين (1,3) و(3,7) يساوي 2', 'T', 5);
+
+  console.log('  ✓ أسئلة 11 امتحانات اكتملت (E11 يحتوي على مجموعتين من الأسئلة المجمّعة)');
 
   // ══════════════════════════════════════════════════════════
   // 9. التسجيل في الكورسات
@@ -1245,6 +1376,12 @@ async function seed() {
   await logAct(T1,T,T1,MR,'create_question_bank','question_bank',bank1.id,'بنك أسئلة الجبر والمثلثات',{subject:'رياضيات',question_count:12},29,11);
   await logAct(T1,T,T1,MR,'create_question_bank','question_bank',bank2.id,'بنك أسئلة التفاضل والتكامل',{subject:'رياضيات',question_count:6},27,10);
   await logAct(T1,A,asstNour.id,NOUR,'add_bank_questions','question_bank',bank1.id,'بنك أسئلة الجبر',{added:6},26,12);
+  await logAct(T1,T,T1,MR,'add_bank_questions','question_bank',bank1.id,'بنك أسئلة الجبر — مجمّعة',{added:3,grouped:true,group_id:GB1_1,context:'مثلث قائم 3-4-5'},5,10);
+  await logAct(T1,T,T1,MR,'add_bank_questions','question_bank',bank2.id,'بنك التفاضل — مجمّعة',{added:3,grouped:true,group_id:GB2_1,context:'دالة تكعيبية'},5,9);
+
+  // === الامتحان E11 (أسئلة مجمّعة) ===
+  await logAct(T1,T,T1,MR,'create_exam','exam',e11.id,'اختبار قراءة وتحليل — الأسئلة المجمّعة',{total_score:40,duration:50,grouped_questions:true},2,11);
+  await logAct(T1,T,T1,MR,'publish_exam','exam',e11.id,'اختبار قراءة وتحليل — الأسئلة المجمّعة',{is_published:true,groups:2,standalone:2},1,10);
 
   const totalLogs = await q(`SELECT COUNT(*) FROM activity_logs`);
   console.log(`  ✓ ${totalLogs[0].count} سجل نشاط متنوع`);
@@ -1260,11 +1397,11 @@ async function seed() {
   console.log('  │  🎓 المعلم — أكاديمية محمد للرياضيات                           │');
   console.log('  │     admin / admin123   →  رابط: /admin/teacher                 │');
   console.log('  │     ✓ 6 كورسات (مدفوع×3، مجاني×2، مسودة×1)                   │');
-  console.log('  │     ✓ 10 امتحانات (منتهية/جارية/قادمة/غير منشور)              │');
+  console.log('  │     ✓ 11 امتحانات (منتهية/جارية/قادمة/غير منشور/مجمّعة)      │');
   console.log('  │     ✓ 11 طالب بمراحل مختلفة                                    │');
   console.log('  │     ✓ 3 مساعدين بصلاحيات متفاوتة                              │');
   console.log('  │     ✓ مدفوعات بكل الحالات (verified/pending/rejected)          │');
-  console.log('  │     ✓ بنك أسئلة بمستويات صعوبة                                │');
+  console.log('  │     ✓ بنك أسئلة: مستقلة + مجمّعة بسياق مشترك                 │');
   console.log('  │     ✓ بث مباشر (منتهي/نشط/مجدول)                             │');
   console.log('  │     ✓ سجل نشاط شامل + إشعارات + متصدرون                       │');
   console.log('  ├─────────────────────────────────────────────────────────────────┤');
@@ -1278,7 +1415,7 @@ async function seed() {
   console.log('  │     ✓ كورسات: 2 مدفوعة مسجّل + 1 مجاني + 1 طلب pending        │');
   console.log('  │     ✓ امتحانات خدّها: جبر (27/30)، تفاضل (30/30 شارة!)        │');
   console.log('  │     ✓ امتحان خدّه وراسب ثم أعاده ونجح (مثلثات 38/50)          │');
-  console.log('  │     ✓ امتحانات متاحة الآن (لم يمتحنها بعد)                    │');
+  console.log('  │     ✓ امتحانات متاحة الآن (لم يمتحنها بعد — منها E11 مجمّع)    │');
   console.log('  │     ✓ امتحان قادم (وقته لم يجئ بعد)                           │');
   console.log('  │     ✓ تقدم فيديو: مكتمل/جزئي/لم يبدأ                         │');
   console.log('  │     ✓ 2 شارات + ترتيب 2 في المتصدرين + نقاط 1250              │');
