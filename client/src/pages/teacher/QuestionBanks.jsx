@@ -223,7 +223,10 @@ export default function QuestionBanks() {
     else addQMut.mutate({ bankId: expandedBank, data: finalForm });
   };
 
-  const toggleBank = (id) => setExpandedBank(expandedBank === id ? null : id);
+  const toggleBank = (id) => {
+    if (id !== expandedBank) resetQForm();
+    setExpandedBank(expandedBank === id ? null : id);
+  };
 
   const isTF = qForm.question_type === 'true_false';
 

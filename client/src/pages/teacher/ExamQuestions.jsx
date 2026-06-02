@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowRight, FileText, HelpCircle, Plus, Pencil, Trash2,
-  AlertCircle, Link, Upload, Layers, ChevronDown, ChevronUp, X,
+  AlertCircle, Link, Upload, Layers, X,
 } from 'lucide-react';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
@@ -24,29 +24,6 @@ const emptyQ = {
 
 const qTypeLabel = (t) => ({ mcq: 'MCQ', true_false: 'صح/خطأ' })[t] || 'MCQ';
 
-// ── Group-context banner shown above each sub-question card in the list ──────
-function GroupContextBanner({ context, image }) {
-  const [open, setOpen] = useState(false);
-  if (!context && !image) return null;
-  return (
-    <div className="mb-2 rounded-xl border border-blue-200 bg-blue-50 overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-blue-800 hover:bg-blue-100 transition-colors">
-        <Layers className="w-3.5 h-3.5 flex-shrink-0" />
-        <span className="flex-1 text-right truncate">📎 السياق المشترك للمجموعة</span>
-        {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-      </button>
-      {open && (
-        <div className="px-3 pb-3 space-y-2">
-          {image && <img src={image} alt="group context" className="max-h-40 rounded-lg border border-blue-200 w-full object-contain" />}
-          {context && <p className="text-xs text-blue-900 leading-relaxed whitespace-pre-wrap">{context}</p>}
-        </div>
-      )}
-    </div>
-  );
-}
 
 export default function ExamQuestions() {
   const { teacherSlug, examId } = useParams();
@@ -316,7 +293,9 @@ export default function ExamQuestions() {
                       setQForm({ ...q, question_type: q.question_type || 'mcq', group_context: q.group_context || '', group_context_image: q.group_context_image || '' });
                       setIsGrouped(!!q.group_id);
                       setImageFile(null); setImagePreview(''); setImageInputMode(q.question_image_url?.startsWith('/uploads') ? 'file' : 'url');
+                      setCtxImageFile(null); setCtxImagePreview(q.group_context_image || ''); setCtxImageInputMode('url');
                       if (imageFileRef.current) imageFileRef.current.value = '';
+                      if (ctxImageFileRef.current) ctxImageFileRef.current.value = '';
                       scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
                     }}
                     onDelete={() => setDeleteQId(q.id)}
@@ -338,7 +317,9 @@ export default function ExamQuestions() {
                     setQForm({ ...q, question_type: q.question_type || 'mcq', group_context: q.group_context || '', group_context_image: q.group_context_image || '' });
                     setIsGrouped(true);
                     setImageFile(null); setImagePreview(''); setImageInputMode(q.question_image_url?.startsWith('/uploads') ? 'file' : 'url');
+                    setCtxImageFile(null); setCtxImagePreview(q.group_context_image || ''); setCtxImageInputMode('url');
                     if (imageFileRef.current) imageFileRef.current.value = '';
+                    if (ctxImageFileRef.current) ctxImageFileRef.current.value = '';
                     scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
                   onDelete={(qid) => setDeleteQId(qid)}

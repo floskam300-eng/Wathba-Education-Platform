@@ -692,7 +692,7 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
     let questions;
     if (exam.question_source === 'bank' && exam.bank_id) {
       const bankQRes = await pool.query(
-        'SELECT id,question_text,question_image_url,option_a,option_b,option_c,option_d,correct_answer_letter,points,question_type,difficulty FROM bank_questions WHERE bank_id=$1',
+        'SELECT id,question_text,question_image_url,option_a,option_b,option_c,option_d,correct_answer_letter,points,question_type,difficulty,group_id,group_context,group_context_image FROM bank_questions WHERE bank_id=$1',
         [exam.bank_id]
       );
       if (bankQRes.rows.length === 0) {
@@ -724,7 +724,7 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
       }
     } else {
       const questionsRes = await pool.query(
-        'SELECT id,question_text,question_image_url,option_a,option_b,option_c,option_d,points,question_type FROM questions WHERE exam_id=$1 ORDER BY id',
+        'SELECT id,question_text,question_image_url,option_a,option_b,option_c,option_d,points,question_type,group_id,group_context,group_context_image FROM questions WHERE exam_id=$1 ORDER BY id',
         [req.params.id]
       );
       if (questionsRes.rows.length === 0) {
