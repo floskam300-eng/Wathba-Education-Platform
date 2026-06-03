@@ -1,10 +1,11 @@
 import React, { useState, useRef } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Download, Upload, Database, Users, BookOpen, FileText, CreditCard, BarChart3, CheckCircle, AlertCircle, Loader2, X } from 'lucide-react';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
 
 export default function Backup() {
+  const qc = useQueryClient();
   const [exporting, setExporting] = useState(false);
   const [lastExport, setLastExport] = useState(null);
 
@@ -13,6 +14,8 @@ export default function Backup() {
   const [importPreview, setImportPreview] = useState(null);
   const [importResult, setImportResult] = useState(null);
   const importFileRef = useRef(null);
+
+  const [csvExporting, setCsvExporting] = useState(null); // key of currently exporting CSV
 
   const { data: stats } = useQuery({
     queryKey: ['teacher-dashboard'],
@@ -82,6 +85,11 @@ export default function Backup() {
       toast.success('تم استيراد البيانات بنجاح!');
       setImportFile(null);
       setImportPreview(null);
+      // Refresh cached data so stats and student lists update
+      qc.invalidateQueries(['teacher-dashboard']);
+      qc.invalidateQueries(['students']);
+      qc.invalidateQueries(['courses']);
+      qc.invalidateQueries(['exams']);
     } catch (err) {
       toast.error(err.response?.data?.error || 'حدث خطأ أثناء الاستيراد');
     } finally {
@@ -89,49 +97,103 @@ export default function Backup() {
     }
   };
 
-  const handleExportCSV = (type) => {
-    api.get('/teachers/export').then(res => {
+  const sanitizeCell = (val) => {
+    const str = String(val ?? '');
+    if (str.length > 0 && /^[=+\-@|]/.test(str)) return `'${str}`;
+    return str;
+  };
+
+  const downloadCSV = (rows, filename) => {
+    const csvContent = '\uFEFF' + rows
+      .map(r => r.map(cell => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const handleExportCSV = async (type) => {
+    if (csvExporting) return;
+    setCsvExporting(type);
+    try {
+      const res = await api.get('/teachers/export');
       const data = res.data;
-      let rows = [];
-      let filename = '';
+
+      // Build lookup maps for human-readable names
+      const studentById = {};
+      (data.students || []).forEach(s => { studentById[s.id] = s.name; });
+      const examById = {};
+      (data.exams || []).forEach(e => { examById[e.id] = e.title; });
+      const courseById = {};
+      (data.courses || []).forEach(c => { courseById[c.id] = c.name; });
 
       if (type === 'students') {
-        filename = 'students.csv';
-        const headers = ['الاسم', 'اسم المستخدم', 'كلمة المرور', 'الهاتف', 'هاتف ولي الأمر', 'المرحلة', 'الجنس', 'النقاط', 'تاريخ التسجيل'];
-        rows = [headers, ...data.students.map(s => [
-          s.name, s.username, s.plain_password || '',
-          s.phone || '', s.parent_phone || '', s.academic_stage || '',
-          s.gender || '', s.points, new Date(s.created_at).toLocaleDateString('ar-EG')
-        ])];
-      } else if (type === 'results') {
-        filename = 'exam_results.csv';
-        const headers = ['معرف الطالب', 'معرف الاختبار', 'الدرجة', 'صحيح', 'خطأ', 'لم يُجب', 'التاريخ'];
-        rows = [headers, ...data.exam_results.map(r => [
-          r.student_id, r.exam_id, r.score,
-          r.correct_count, r.wrong_count, r.unanswered_count,
-          new Date(r.created_at).toLocaleDateString('ar-EG')
-        ])];
-      } else if (type === 'payments') {
-        filename = 'payments.csv';
-        const headers = ['معرف الطالب', 'معرف الكورس', 'المبلغ', 'طريقة الدفع', 'الحالة', 'رقم مرجعي', 'التاريخ'];
-        rows = [headers, ...data.payments.map(p => [
-          p.student_id, p.course_id || '', p.amount,
-          p.method, p.status, p.reference_number || '',
-          new Date(p.payment_date).toLocaleDateString('ar-EG')
-        ])];
-      }
+        const headers = ['الاسم', 'الهاتف', 'هاتف ولي الأمر', 'المرحلة الدراسية', 'الجنس', 'النقاط', 'تاريخ التسجيل'];
+        const rows = [
+          headers,
+          ...(data.students || []).map(s => [
+            sanitizeCell(s.name),
+            sanitizeCell(s.phone || ''),
+            sanitizeCell(s.parent_phone || ''),
+            sanitizeCell(s.academic_stage || ''),
+            sanitizeCell(s.gender || ''),
+            s.points ?? 0,
+            new Date(s.created_at).toLocaleDateString('ar-EG'),
+          ]),
+        ];
+        downloadCSV(rows, `students_${new Date().toISOString().slice(0, 10)}.csv`);
+        toast.success(`تم تصدير ${data.students?.length ?? 0} طالب`);
 
-      const csvContent = '\uFEFF' + rows.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', filename);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      toast.success(`تم تصدير ${filename}`);
-    }).catch(() => toast.error('حدث خطأ أثناء التصدير'));
+      } else if (type === 'results') {
+        const headers = ['اسم الطالب', 'الاختبار', 'الدرجة', 'إجمالي الدرجات', 'صحيح', 'خطأ', 'لم يُجب', 'التاريخ'];
+        const rows = [
+          headers,
+          ...(data.exam_results || []).map(r => [
+            sanitizeCell(studentById[r.student_id] || r.student_id),
+            sanitizeCell(examById[r.exam_id] || r.exam_id),
+            r.score ?? 0,
+            r.total_score ?? '',
+            r.correct_count ?? 0,
+            r.wrong_count ?? 0,
+            r.unanswered_count ?? 0,
+            new Date(r.created_at).toLocaleDateString('ar-EG'),
+          ]),
+        ];
+        downloadCSV(rows, `exam_results_${new Date().toISOString().slice(0, 10)}.csv`);
+        toast.success(`تم تصدير ${data.exam_results?.length ?? 0} نتيجة`);
+
+      } else if (type === 'payments') {
+        const headers = ['اسم الطالب', 'الكورس', 'المبلغ (جنيه)', 'طريقة الدفع', 'الحالة', 'رقم مرجعي', 'التاريخ'];
+        const rows = [
+          headers,
+          ...(data.payments || []).map(p => [
+            sanitizeCell(studentById[p.student_id] || p.student_id),
+            sanitizeCell(p.course_id ? (courseById[p.course_id] || p.course_id) : '—'),
+            p.amount ?? 0,
+            sanitizeCell(p.method || ''),
+            sanitizeCell(
+              p.status === 'verified' ? 'مُحقَّق' :
+              p.status === 'pending'  ? 'معلّق'   :
+              p.status === 'rejected' ? 'مرفوض'   : p.status
+            ),
+            sanitizeCell(p.reference_number || ''),
+            new Date(p.payment_date).toLocaleDateString('ar-EG'),
+          ]),
+        ];
+        downloadCSV(rows, `payments_${new Date().toISOString().slice(0, 10)}.csv`);
+        toast.success(`تم تصدير ${data.payments?.length ?? 0} عملية دفع`);
+      }
+    } catch {
+      toast.error('حدث خطأ أثناء التصدير');
+    } finally {
+      setCsvExporting(null);
+    }
   };
 
   const statCards = [
@@ -142,9 +204,9 @@ export default function Backup() {
   ];
 
   const csvExports = [
-    { key: 'students', label: 'قائمة الطلاب',     desc: 'بيانات الطلاب كاملة مع كلمات المرور', icon: Users      },
-    { key: 'results',  label: 'نتائج الاختبارات', desc: 'جميع نتائج الاختبارات',               icon: BarChart3   },
-    { key: 'payments', label: 'سجل المدفوعات',    desc: 'جميع عمليات الدفع',                   icon: CreditCard  },
+    { key: 'students', label: 'قائمة الطلاب',     desc: 'الاسم، الهاتف، رقم ولي الأمر، المرحلة، الجنس، النقاط', icon: Users      },
+    { key: 'results',  label: 'نتائج الاختبارات', desc: 'جميع نتائج الاختبارات مع أسماء الطلاب والاختبارات',     icon: BarChart3   },
+    { key: 'payments', label: 'سجل المدفوعات',    desc: 'جميع عمليات الدفع مع أسماء الطلاب والكورسات',           icon: CreditCard  },
   ];
 
   return (
@@ -175,7 +237,7 @@ export default function Backup() {
           <div className="flex-1">
             <h2 className="text-lg font-black text-navy-700 mb-1">نسخة احتياطية كاملة (JSON)</h2>
             <p className="text-sm text-gray-500 mb-4">
-              تصدير جميع بياناتك — الطلاب وكلمات المرور، الكورسات، الفيديوهات، الملفات، الاختبارات، النتائج، والمدفوعات — في ملف JSON واحد يمكنك استعادته لاحقاً بالكامل.
+              تصدير جميع بياناتك — الطلاب، الكورسات، الفيديوهات، الملفات، الاختبارات، النتائج، والمدفوعات — في ملف JSON واحد يمكنك استعادته لاحقاً بالكامل.
             </p>
             <div className="flex items-center gap-4">
               <button
@@ -338,9 +400,13 @@ export default function Backup() {
               <p className="text-sm text-gray-500 mb-4">{desc}</p>
               <button
                 onClick={() => handleExportCSV(key)}
-                className="w-full flex items-center justify-center gap-2 py-2.5 border-2 border-orange-300 text-orange-700 font-bold rounded-xl hover:bg-orange-50 transition-all text-sm"
+                disabled={!!csvExporting}
+                className="w-full flex items-center justify-center gap-2 py-2.5 border-2 border-orange-300 text-orange-700 font-bold rounded-xl hover:bg-orange-50 transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Download className="w-4 h-4" /> تحميل CSV
+                {csvExporting === key
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> جاري التصدير...</>
+                  : <><Download className="w-4 h-4" /> تحميل CSV</>
+                }
               </button>
             </div>
           ))}

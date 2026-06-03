@@ -41,7 +41,9 @@ app.use(cors({
 }));
 app.use((req, res, next) => {
   if (req.is('multipart/form-data')) return next();
-  express.json({ limit: '5mb' })(req, res, next);
+  // Import route may carry large JSON backups — allow up to 20 MB
+  const limit = req.path === '/api/teachers/import' ? '20mb' : '5mb';
+  express.json({ limit })(req, res, next);
 });
 
 // ── General API rate limiter (120 req/min per IP) ──────────────

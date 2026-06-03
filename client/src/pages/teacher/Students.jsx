@@ -434,8 +434,6 @@ export default function TeacherStudents() {
   const handleExportExcel = () => {
     const exportData = filtered.map(s => ({
       'الاسم': sanitizeCell(s.name),
-      'اسم المستخدم': sanitizeCell(s.username),
-      'كلمة المرور': sanitizeCell(s.plain_password || ''),
       'الهاتف': sanitizeCell(s.phone || ''),
       'هاتف ولي الأمر': sanitizeCell(s.parent_phone || ''),
       'المرحلة': sanitizeCell(s.academic_stage || ''),
@@ -443,6 +441,7 @@ export default function TeacherStudents() {
       'النقاط': s.points ?? 0,
     }));
     const ws = XLSX.utils.json_to_sheet(exportData);
+    ws['!cols'] = [{ wch: 25 }, { wch: 15 }, { wch: 18 }, { wch: 28 }, { wch: 10 }, { wch: 8 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'الطلاب');
     XLSX.writeFile(wb, `students_${new Date().toISOString().slice(0, 10)}.xlsx`);

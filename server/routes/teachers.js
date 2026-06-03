@@ -261,7 +261,8 @@ router.get('/export', requireRole('teacher'), async (req, res) => {
       pool.query('SELECT * FROM exams WHERE teacher_id=$1 ORDER BY created_at', [teacherId]),
       pool.query('SELECT q.* FROM questions q JOIN exams e ON q.exam_id=e.id WHERE e.teacher_id=$1 ORDER BY q.exam_id, q.id', [teacherId]),
       pool.query(`SELECT er.id, er.student_id, er.exam_id, er.score, er.correct_count, er.wrong_count,
-                         er.unanswered_count, er.points_earned, er.start_time, er.end_time, er.answers, er.created_at
+                         er.unanswered_count, er.points_earned, er.start_time, er.end_time, er.answers, er.created_at,
+                         e.total_score
                   FROM exam_results er
                   JOIN students s ON er.student_id=s.id
                   JOIN exams e ON er.exam_id=e.id
