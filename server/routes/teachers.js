@@ -11,19 +11,40 @@ const { getCached, setCache, invalidateCache } = require('../lib/analyticsCache'
 router.get('/dashboard', requireRole('teacher'), async (req, res) => {
   const teacherId = req.user.id;
   try {
-    const [students, courses, exams, assistants, payments] = await Promise.all([
-      pool.query('SELECT COUNT(*) FROM students WHERE teacher_id = $1', [teacherId]),
+    const [students, courses, exams, assistants, payments, pendingRequests, pendingPayments, retryRequests] = await Promise.all([
+      pool.query('SELECT COUNT(*) FROM students WHERE teacher_id = $1 AND deleted_at IS NULL', [teacherId]),
       pool.query('SELECT COUNT(*) FROM courses WHERE teacher_id = $1', [teacherId]),
       pool.query('SELECT COUNT(*) FROM exams WHERE teacher_id = $1', [teacherId]),
       pool.query('SELECT COUNT(*) FROM assistants WHERE teacher_id = $1', [teacherId]),
-      pool.query("SELECT COALESCE(SUM(amount),0) as total FROM payments WHERE status='verified' AND student_id IN (SELECT id FROM students WHERE teacher_id=$1)", [teacherId]),
+      pool.query("SELECT COALESCE(SUM(amount),0) as total FROM payments WHERE status='verified' AND student_id IN (SELECT id FROM students WHERE teacher_id=$1 AND deleted_at IS NULL)", [teacherId]),
+      pool.query(
+        `SELECT COUNT(*) FROM course_enrollment_requests cer
+         JOIN courses c ON c.id = cer.course_id
+         WHERE c.teacher_id = $1 AND cer.status = 'pending'`,
+        [teacherId]
+      ),
+      pool.query(
+        `SELECT COUNT(*) FROM payments p
+         JOIN students s ON s.id = p.student_id
+         WHERE s.teacher_id = $1 AND p.status = 'pending' AND s.deleted_at IS NULL`,
+        [teacherId]
+      ),
+      pool.query(
+        `SELECT COUNT(*) FROM exam_retry_requests err
+         JOIN exams e ON e.id = err.exam_id
+         WHERE e.teacher_id = $1 AND err.status = 'pending'`,
+        [teacherId]
+      ),
     ]);
     res.json({
-      totalStudents: parseInt(students.rows[0].count),
-      totalCourses: parseInt(courses.rows[0].count),
-      totalExams: parseInt(exams.rows[0].count),
-      totalAssistants: parseInt(assistants.rows[0].count),
-      totalRevenue: parseFloat(payments.rows[0].total),
+      totalStudents:    parseInt(students.rows[0].count),
+      totalCourses:     parseInt(courses.rows[0].count),
+      totalExams:       parseInt(exams.rows[0].count),
+      totalAssistants:  parseInt(assistants.rows[0].count),
+      totalRevenue:     parseFloat(payments.rows[0].total),
+      pendingRequests:  parseInt(pendingRequests.rows[0].count),
+      pendingPayments:  parseInt(pendingPayments.rows[0].count),
+      pendingRetries:   parseInt(retryRequests.rows[0].count),
     });
   } catch (err) {
     console.error(err);

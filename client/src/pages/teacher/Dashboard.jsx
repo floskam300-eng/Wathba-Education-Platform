@@ -1,15 +1,20 @@
 import React, { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Users, BookOpen, FileText, UserCog, TrendingUp, Eye, Star, Activity } from 'lucide-react';
+import {
+  Users, BookOpen, FileText, UserCog, TrendingUp, Eye, Star, Activity,
+  UserPlus, Bell, Inbox, CreditCard, RotateCcw, ArrowLeft,
+} from 'lucide-react';
 import ReactECharts from 'echarts-for-react';
 import StatCard from '../../components/ui/StatCard';
 import api from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
+import { useTeacher } from '../../context/TeacherContext';
 
 
 export default function TeacherDashboard() {
   const { user } = useAuth();
+  const { teacherSlug } = useTeacher();
   const navigate = useNavigate();
 
   const { data: stats, isLoading: statsLoading } = useQuery({
@@ -34,6 +39,69 @@ export default function TeacherDashboard() {
       'محاولات': parseInt(e.attempt_count) || 0,
     })) || []
   ), [analytics]);
+
+  const totalPending = (stats?.pendingRequests || 0) + (stats?.pendingPayments || 0) + (stats?.pendingRetries || 0);
+
+  const quickActions = [
+    {
+      icon: UserPlus,
+      label: 'أضف طالب جديد',
+      desc: 'تسجيل طالب يدوياً',
+      color: 'from-blue-500 to-blue-600',
+      bg: 'bg-blue-50 hover:bg-blue-100',
+      border: 'border-blue-200 hover:border-blue-400',
+      text: 'text-blue-700',
+      badge: null,
+      onClick: () => navigate(`/${teacherSlug}/teacher/students`, { state: { openAdd: true } }),
+    },
+    {
+      icon: Bell,
+      label: 'أرسل إشعاراً',
+      desc: 'إشعار للطلاب أو الأهالي',
+      color: 'from-amber-500 to-orange-500',
+      bg: 'bg-amber-50 hover:bg-amber-100',
+      border: 'border-amber-200 hover:border-amber-400',
+      text: 'text-amber-700',
+      badge: null,
+      onClick: () => navigate(`/${teacherSlug}/teacher/notifications`),
+    },
+    {
+      icon: Inbox,
+      label: 'طلبات التسجيل',
+      desc: 'طلبات الانضمام للكورسات',
+      color: 'from-purple-500 to-purple-600',
+      bg: 'bg-purple-50 hover:bg-purple-100',
+      border: 'border-purple-200 hover:border-purple-400',
+      text: 'text-purple-700',
+      badge: stats?.pendingRequests || null,
+      badgeColor: 'bg-purple-600',
+      onClick: () => navigate(`/${teacherSlug}/teacher/requests`),
+    },
+    {
+      icon: CreditCard,
+      label: 'المدفوعات',
+      desc: 'إيصالات تنتظر التحقق',
+      color: 'from-emerald-500 to-teal-500',
+      bg: 'bg-emerald-50 hover:bg-emerald-100',
+      border: 'border-emerald-200 hover:border-emerald-400',
+      text: 'text-emerald-700',
+      badge: stats?.pendingPayments || null,
+      badgeColor: 'bg-emerald-600',
+      onClick: () => navigate(`/${teacherSlug}/teacher/payments`),
+    },
+    {
+      icon: RotateCcw,
+      label: 'طلبات الإعادة',
+      desc: 'طلبات إعادة الاختبار',
+      color: 'from-rose-500 to-pink-500',
+      bg: 'bg-rose-50 hover:bg-rose-100',
+      border: 'border-rose-200 hover:border-rose-400',
+      text: 'text-rose-700',
+      badge: stats?.pendingRetries || null,
+      badgeColor: 'bg-rose-500',
+      onClick: () => navigate(`/${teacherSlug}/teacher/exams`),
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -67,6 +135,50 @@ export default function TeacherDashboard() {
           <StatCard icon={UserCog}  label="المساعدون"   value={stats?.totalAssistants || 0} color="teal"   />
         </div>
       )}
+
+      {/* ── Quick Actions ───────────────────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-black text-gray-800 text-sm flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center">
+              <ArrowLeft className="w-4 h-4 text-orange-500" />
+            </div>
+            إجراءات سريعة
+            {totalPending > 0 && (
+              <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-red-500 text-white text-[10px] font-black">
+                {totalPending}
+              </span>
+            )}
+          </h2>
+          <span className="text-[11px] text-gray-400 font-medium">وصول مباشر للمهام اليومية</span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          {quickActions.map((action) => (
+            <button
+              key={action.label}
+              onClick={action.onClick}
+              className={`relative flex flex-col items-center gap-2.5 p-4 rounded-xl border-2 transition-all duration-200 group cursor-pointer ${action.bg} ${action.border}`}
+            >
+              {/* Badge for pending count */}
+              {action.badge > 0 && (
+                <span className={`absolute -top-2 -left-2 min-w-[22px] h-[22px] px-1.5 rounded-full ${action.badgeColor} text-white text-[11px] font-black flex items-center justify-center shadow-md ring-2 ring-white`}>
+                  {action.badge}
+                </span>
+              )}
+
+              <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${action.color} flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform duration-200`}>
+                <action.icon className="w-5 h-5 text-white" />
+              </div>
+
+              <div className="text-center">
+                <p className={`text-xs font-black leading-tight ${action.text}`}>{action.label}</p>
+                <p className="text-[10px] text-gray-400 font-medium mt-0.5 leading-tight hidden sm:block">{action.desc}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* Charts row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">

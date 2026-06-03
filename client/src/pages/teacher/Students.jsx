@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useLocation } from 'react-router-dom';
 import {
   Users, Plus, Pencil, Trash2, Search, Eye, EyeOff, Printer,
   GraduationCap, Upload, FileSpreadsheet, Download, X, Loader2,
@@ -285,6 +286,7 @@ function DeviceAlertsPanel({ canEdit }) {
 export default function TeacherStudents() {
   const qc = useQueryClient();
   const { user } = useAuth();
+  const location = useLocation();
   const [mainView, setMainView]           = useState('students'); // 'students' | 'alerts'
   const [search, setSearch]               = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -456,6 +458,14 @@ export default function TeacherStudents() {
   const openAdd  = () => { setEditData(null); setForm(emptyForm); setPreviewUsername(''); setFormErrors({}); setModal(true); };
   const openEdit = (s) => { setEditData(s); setForm({ ...s, password: '' }); setPreviewUsername(''); setFormErrors({}); setModal(true); };
   const closeModal = () => { setModal(false); setEditData(null); setForm(emptyForm); setPreviewUsername(''); setFormErrors({}); };
+
+  // Auto-open add modal when navigating from Dashboard quick action
+  useEffect(() => {
+    if (location.state?.openAdd) {
+      openAdd();
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
   const copyToClipboard = (text) => { navigator.clipboard.writeText(text).then(() => toast.success('تم النسخ!')); };
 
   useEffect(() => {
