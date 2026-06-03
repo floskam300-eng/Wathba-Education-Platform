@@ -460,12 +460,14 @@ export default function TeacherStudents() {
   const closeModal = () => { setModal(false); setEditData(null); setForm(emptyForm); setPreviewUsername(''); setFormErrors({}); };
 
   // Auto-open add modal when navigating from Dashboard quick action
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (location.state?.openAdd) {
       openAdd();
-      window.history.replaceState({}, '', window.location.pathname);
+      // Clear navigation state so re-renders don't re-trigger the modal
+      window.history.replaceState({}, document.title, window.location.pathname);
     }
-  }, []);
+  }, []); // intentionally empty — runs once on mount to consume route state
   const copyToClipboard = (text) => { navigator.clipboard.writeText(text).then(() => toast.success('تم النسخ!')); };
 
   useEffect(() => {

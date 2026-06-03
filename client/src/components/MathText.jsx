@@ -2,6 +2,15 @@ import React, { useMemo } from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function renderLatex(latex, displayMode = false) {
   try {
     return katex.renderToString(latex, {
@@ -11,7 +20,7 @@ function renderLatex(latex, displayMode = false) {
       trust: false,
     });
   } catch {
-    return `<span style="color:#e53e3e">${latex}</span>`;
+    return `<span style="color:#e53e3e">${escapeHtml(latex)}</span>`;
   }
 }
 

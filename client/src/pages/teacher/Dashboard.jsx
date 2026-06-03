@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import ReactECharts from 'echarts-for-react';
 import StatCard from '../../components/ui/StatCard';
+import StudentProfileModal from '../../components/ui/StudentProfileModal';
 import api from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 import { useTeacher } from '../../context/TeacherContext';
@@ -17,6 +18,7 @@ export default function TeacherDashboard() {
   const { user } = useAuth();
   const { teacherSlug } = useTeacher();
   const navigate = useNavigate();
+  const [profileStudentId, setProfileStudentId] = useState(null);
 
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['teacher-dashboard'],
@@ -241,7 +243,7 @@ export default function TeacherDashboard() {
                   <div
                     key={s.id}
                     className="flex items-center gap-3 px-5 py-3.5 hover:bg-red-50/30 transition-colors group cursor-pointer"
-                    onClick={() => navigate(`/${teacherSlug}/teacher/students/${s.id}`)}
+                    onClick={() => setProfileStudentId(s.id)}
                   >
                     {/* Avatar */}
                     <div className="w-9 h-9 rounded-full bg-gradient-to-br from-red-100 to-rose-200 flex items-center justify-center flex-shrink-0 text-sm font-black text-red-600">
@@ -268,13 +270,13 @@ export default function TeacherDashboard() {
                         </span>
                       )}
 
-                      {/* Video badge */}
-                      {parseInt(s.enrolled_courses) > 0 && (
+                      {/* Video badge — shows watched/total for clarity */}
+                      {parseInt(s.enrolled_courses) > 0 && parseInt(s.total_videos) > 0 && (
                         <span className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-black ${
                           s.video_risk ? 'bg-orange-100 text-orange-700' : 'bg-emerald-50 text-emerald-600'
                         }`}>
                           <Video className="w-3 h-3" />
-                          {Math.round(videoPct)}%
+                          {parseInt(s.watched_videos)}/{parseInt(s.total_videos)}
                         </span>
                       )}
 
@@ -505,7 +507,7 @@ export default function TeacherDashboard() {
                       <span className="text-rose-500">✗ {r.wrong_count}</span>
                     </td>
                     <td className="px-4 py-3 text-center hidden sm:table-cell">
-                      <button onClick={() => navigate(`/teacher/exam-review/${r.id}`)}
+                      <button onClick={() => navigate(`/${teacherSlug}/teacher/exam-review/${r.id}`)}
                         className="opacity-0 group-hover:opacity-100 flex items-center gap-1.5 px-2.5 py-1 bg-navy-50 hover:bg-navy-600 text-navy-600 hover:text-white text-xs font-bold rounded-lg transition-all border border-navy-200 hover:border-navy-600 mx-auto">
                         <Eye className="w-3.5 h-3.5" /> مراجعة
                       </button>
@@ -519,6 +521,14 @@ export default function TeacherDashboard() {
           </table>
         </div>
       </div>
+
+      {/* Student Profile Modal — opened from at-risk widget */}
+      {profileStudentId && (
+        <StudentProfileModal
+          studentId={profileStudentId}
+          onClose={() => setProfileStudentId(null)}
+        />
+      )}
     </div>
   );
 }

@@ -44,7 +44,7 @@ export default function MathToolbar({ textareaRef, value, onChange }) {
 
     let toInsert;
     if (selected) {
-      toInsert = `$${sym.insert.replace('{}', `{${selected}`)}$`;
+      toInsert = `$${sym.insert.replace('{}', `{${selected}}`)}$`;
     } else {
       toInsert = `$${sym.insert}$`;
     }
@@ -56,7 +56,7 @@ export default function MathToolbar({ textareaRef, value, onChange }) {
       el.focus();
       const cursorPos = sym.cursor != null
         ? start + toInsert.length + sym.cursor
-        : start + toInsert.length - 1;
+        : start + toInsert.length;
       el.setSelectionRange(cursorPos, cursorPos);
     }, 0);
   };

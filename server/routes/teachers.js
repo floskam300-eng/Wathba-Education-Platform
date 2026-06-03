@@ -103,19 +103,33 @@ router.get('/at-risk-students', requireRole('teacher'), async (req, res) => {
         WHERE e.teacher_id = $1 AND er.is_latest = true
         GROUP BY er.student_id
       ),
+      -- Count total videos in enrolled courses vs actually watched (any progress)
+      -- to get a true engagement ratio, not just avg of watched-only records
       video_stats AS (
-        SELECT vp.student_id,
-          ROUND(AVG(vp.progress_percentage)::numeric, 1) AS avg_video_pct,
-          MAX(vp.last_watched_at) AS last_video_at
-        FROM video_progress vp
-        JOIN videos v ON vp.video_id = v.id
-        JOIN sections sec ON v.section_id = sec.id
-        JOIN courses c ON sec.course_id = c.id
-        WHERE c.teacher_id = $1
-        GROUP BY vp.student_id
+        SELECT
+          sce.student_id,
+          COUNT(DISTINCT v.id)::int AS total_videos,
+          COUNT(DISTINCT vp.video_id) FILTER (WHERE COALESCE(vp.progress_percentage,0) > 0)::int AS watched_videos,
+          CASE WHEN COUNT(DISTINCT v.id) > 0
+            THEN ROUND(
+              COUNT(DISTINCT vp.video_id) FILTER (WHERE COALESCE(vp.progress_percentage,0) > 0)::numeric
+              / COUNT(DISTINCT v.id) * 100, 1)
+            ELSE 0
+          END AS avg_video_pct,
+          MAX(vp.last_watched_at) AS last_video_at,
+          MIN(sce.enrollment_date) AS first_enrolled_at
+        FROM student_course_enrollment sce
+        JOIN courses c ON sce.course_id = c.id
+        JOIN sections sec ON sec.course_id = c.id
+        JOIN videos v ON v.section_id = sec.id
+        LEFT JOIN video_progress vp ON vp.video_id = v.id AND vp.student_id = sce.student_id
+        WHERE c.teacher_id = $1 AND sce.status = 'active'
+        GROUP BY sce.student_id
       ),
       enrollment_stats AS (
-        SELECT sce.student_id, COUNT(sce.course_id)::int AS enrolled_courses
+        SELECT sce.student_id,
+          COUNT(sce.course_id)::int AS enrolled_courses,
+          MIN(sce.enrollment_date) AS first_enrolled_at
         FROM student_course_enrollment sce
         JOIN courses c ON sce.course_id = c.id
         WHERE c.teacher_id = $1 AND sce.status = 'active'
@@ -126,12 +140,22 @@ router.get('/at-risk-students', requireRole('teacher'), async (req, res) => {
         COALESCE(es.exams_taken, 0)      AS exams_taken,
         es.avg_exam_pct,
         COALESCE(vs.avg_video_pct, 0)    AS avg_video_pct,
+        COALESCE(vs.total_videos, 0)     AS total_videos,
+        COALESCE(vs.watched_videos, 0)   AS watched_videos,
         COALESCE(en.enrolled_courses, 0) AS enrolled_courses,
         GREATEST(es.last_exam_at, vs.last_video_at) AS last_activity,
-        (es.avg_exam_pct IS NOT NULL AND es.avg_exam_pct < 60)                                          AS exam_risk,
-        (COALESCE(vs.avg_video_pct, 0) < 30 AND COALESCE(en.enrolled_courses, 0) > 0)                  AS video_risk,
-        (GREATEST(es.last_exam_at, vs.last_video_at) < NOW() - INTERVAL '14 days'
-          OR GREATEST(es.last_exam_at, vs.last_video_at) IS NULL)                                       AS inactive_risk
+        (es.avg_exam_pct IS NOT NULL AND es.avg_exam_pct < 60)
+          AS exam_risk,
+        (COALESCE(vs.avg_video_pct, 0) < 30 AND COALESCE(en.enrolled_courses, 0) > 0)
+          AS video_risk,
+        -- Only flag inactive if enrolled >7 days ago (avoids false alarm for new students)
+        (
+          GREATEST(es.last_exam_at, vs.last_video_at) < NOW() - INTERVAL '14 days'
+          OR (
+            GREATEST(es.last_exam_at, vs.last_video_at) IS NULL
+            AND COALESCE(en.first_enrolled_at, NOW()) < NOW() - INTERVAL '7 days'
+          )
+        ) AS inactive_risk
       FROM students s
       LEFT JOIN exam_stats    es ON s.id = es.student_id
       LEFT JOIN video_stats   vs ON s.id = vs.student_id
