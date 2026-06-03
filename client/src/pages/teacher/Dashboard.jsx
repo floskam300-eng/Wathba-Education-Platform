@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Users, BookOpen, FileText, UserCog, TrendingUp, Eye, Star, Activity,
   UserPlus, Bell, Inbox, CreditCard, RotateCcw, ArrowLeft,
+  AlertTriangle, Video, ClipboardList, Clock, ChevronLeft,
 } from 'lucide-react';
 import ReactECharts from 'echarts-for-react';
 import StatCard from '../../components/ui/StatCard';
@@ -30,6 +31,12 @@ export default function TeacherDashboard() {
   const { data: courseStats = [] } = useQuery({
     queryKey: ['teacher-course-stats'],
     queryFn: () => api.get('/teachers/course-stats').then(r => r.data),
+  });
+
+  const { data: atRisk = [], isLoading: atRiskLoading } = useQuery({
+    queryKey: ['teacher-at-risk'],
+    queryFn: () => api.get('/teachers/at-risk-students').then(r => r.data),
+    staleTime: 2 * 60 * 1000,
   });
 
   const chartData = useMemo(() => (
@@ -179,6 +186,116 @@ export default function TeacherDashboard() {
           ))}
         </div>
       </div>
+
+      {/* ── At-Risk Students Widget ──────────────────────────────── */}
+      {(atRiskLoading || atRisk.length > 0) && (
+        <div className="bg-white rounded-2xl border border-red-100 shadow-sm overflow-hidden">
+          {/* Header */}
+          <div className="px-5 py-4 bg-gradient-to-l from-red-50 to-rose-50 border-b border-red-100 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-red-500 to-rose-600 flex items-center justify-center shadow-md">
+                <AlertTriangle className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <h2 className="font-black text-gray-800 text-sm">طلاب في خطر</h2>
+                <p className="text-[11px] text-gray-500 font-medium">تحتاج متابعة عاجلة</p>
+              </div>
+              {!atRiskLoading && atRisk.length > 0 && (
+                <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full bg-red-500 text-white text-[11px] font-black shadow-sm">
+                  {atRisk.length}
+                </span>
+              )}
+            </div>
+            <button
+              onClick={() => navigate(`/${teacherSlug}/teacher/students`)}
+              className="flex items-center gap-1 text-[11px] font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg border border-red-200 transition-colors"
+            >
+              عرض الكل <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Legend */}
+          <div className="px-5 py-2.5 bg-gray-50/60 border-b border-gray-100 flex items-center gap-4 text-[10px] font-bold text-gray-400">
+            <span className="flex items-center gap-1"><ClipboardList className="w-3 h-3 text-rose-400" /> متوسط الامتحانات &lt; 60%</span>
+            <span className="flex items-center gap-1"><Video className="w-3 h-3 text-orange-400" /> متابعة الفيديوهات &lt; 30%</span>
+            <span className="flex items-center gap-1"><Clock className="w-3 h-3 text-yellow-400" /> غياب +14 يوم</span>
+          </div>
+
+          {/* Student Rows */}
+          {atRiskLoading ? (
+            <div className="p-4 space-y-3">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="h-14 rounded-xl bg-gray-100 animate-pulse" />
+              ))}
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-50">
+              {atRisk.map((s) => {
+                const examPct  = s.avg_exam_pct  !== null ? parseFloat(s.avg_exam_pct)  : null;
+                const videoPct = parseFloat(s.avg_video_pct) || 0;
+                const daysSince = s.last_activity
+                  ? Math.floor((Date.now() - new Date(s.last_activity)) / 86400000)
+                  : null;
+
+                return (
+                  <div
+                    key={s.id}
+                    className="flex items-center gap-3 px-5 py-3.5 hover:bg-red-50/30 transition-colors group cursor-pointer"
+                    onClick={() => navigate(`/${teacherSlug}/teacher/students/${s.id}`)}
+                  >
+                    {/* Avatar */}
+                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-red-100 to-rose-200 flex items-center justify-center flex-shrink-0 text-sm font-black text-red-600">
+                      {s.name?.charAt(0) || '؟'}
+                    </div>
+
+                    {/* Name + Stage */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-black text-gray-800 truncate group-hover:text-red-600 transition-colors">
+                        {s.name}
+                      </p>
+                      <p className="text-[10px] text-gray-400 font-medium truncate">{s.academic_stage}</p>
+                    </div>
+
+                    {/* Risk Badges */}
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      {/* Exam badge */}
+                      {examPct !== null && (
+                        <span className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-black ${
+                          s.exam_risk ? 'bg-rose-100 text-rose-700' : 'bg-emerald-50 text-emerald-600'
+                        }`}>
+                          <ClipboardList className="w-3 h-3" />
+                          {Math.round(examPct)}%
+                        </span>
+                      )}
+
+                      {/* Video badge */}
+                      {parseInt(s.enrolled_courses) > 0 && (
+                        <span className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-black ${
+                          s.video_risk ? 'bg-orange-100 text-orange-700' : 'bg-emerald-50 text-emerald-600'
+                        }`}>
+                          <Video className="w-3 h-3" />
+                          {Math.round(videoPct)}%
+                        </span>
+                      )}
+
+                      {/* Inactivity badge */}
+                      {s.inactive_risk && (
+                        <span className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-black bg-yellow-100 text-yellow-700">
+                          <Clock className="w-3 h-3" />
+                          {daysSince !== null ? `${daysSince}ي` : 'غائب'}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Arrow */}
+                    <ChevronLeft className="w-4 h-4 text-gray-300 group-hover:text-red-400 transition-colors flex-shrink-0" />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Charts row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">

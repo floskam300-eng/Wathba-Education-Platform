@@ -86,6 +86,75 @@ router.put('/profile', requireRole('teacher'), async (req, res) => {
   }
 });
 
+router.get('/at-risk-students', requireRole('teacher'), async (req, res) => {
+  const teacherId = req.user.id;
+  const cacheKey = `t${teacherId}_at_risk`;
+  const cached = getCached(cacheKey);
+  if (cached) return res.json(cached);
+  try {
+    const result = await pool.query(`
+      WITH exam_stats AS (
+        SELECT er.student_id,
+          COUNT(er.id)::int AS exams_taken,
+          ROUND(AVG(er.score::numeric / NULLIF(e.total_score, 0) * 100), 1) AS avg_exam_pct,
+          MAX(er.created_at) AS last_exam_at
+        FROM exam_results er
+        JOIN exams e ON er.exam_id = e.id
+        WHERE e.teacher_id = $1 AND er.is_latest = true
+        GROUP BY er.student_id
+      ),
+      video_stats AS (
+        SELECT vp.student_id,
+          ROUND(AVG(vp.progress_percentage)::numeric, 1) AS avg_video_pct,
+          MAX(vp.last_watched_at) AS last_video_at
+        FROM video_progress vp
+        JOIN videos v ON vp.video_id = v.id
+        JOIN sections sec ON v.section_id = sec.id
+        JOIN courses c ON sec.course_id = c.id
+        WHERE c.teacher_id = $1
+        GROUP BY vp.student_id
+      ),
+      enrollment_stats AS (
+        SELECT sce.student_id, COUNT(sce.course_id)::int AS enrolled_courses
+        FROM student_course_enrollment sce
+        JOIN courses c ON sce.course_id = c.id
+        WHERE c.teacher_id = $1 AND sce.status = 'active'
+        GROUP BY sce.student_id
+      )
+      SELECT
+        s.id, s.name, s.username, s.academic_stage,
+        COALESCE(es.exams_taken, 0)      AS exams_taken,
+        es.avg_exam_pct,
+        COALESCE(vs.avg_video_pct, 0)    AS avg_video_pct,
+        COALESCE(en.enrolled_courses, 0) AS enrolled_courses,
+        GREATEST(es.last_exam_at, vs.last_video_at) AS last_activity,
+        (es.avg_exam_pct IS NOT NULL AND es.avg_exam_pct < 60)                                          AS exam_risk,
+        (COALESCE(vs.avg_video_pct, 0) < 30 AND COALESCE(en.enrolled_courses, 0) > 0)                  AS video_risk,
+        (GREATEST(es.last_exam_at, vs.last_video_at) < NOW() - INTERVAL '14 days'
+          OR GREATEST(es.last_exam_at, vs.last_video_at) IS NULL)                                       AS inactive_risk
+      FROM students s
+      LEFT JOIN exam_stats    es ON s.id = es.student_id
+      LEFT JOIN video_stats   vs ON s.id = vs.student_id
+      LEFT JOIN enrollment_stats en ON s.id = en.student_id
+      WHERE s.teacher_id = $1 AND s.deleted_at IS NULL
+        AND (
+          (es.avg_exam_pct IS NOT NULL AND es.avg_exam_pct < 60)
+          OR
+          (COALESCE(vs.avg_video_pct, 0) < 30 AND COALESCE(en.enrolled_courses, 0) > 0)
+        )
+      ORDER BY es.avg_exam_pct ASC NULLS LAST, vs.avg_video_pct ASC
+      LIMIT 20
+    `, [teacherId]);
+
+    const data = result.rows;
+    setCache(cacheKey, data);
+    res.json(data);
+  } catch (err) {
+    console.error('at-risk-students error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 router.get('/analytics', requireRole('teacher'), async (req, res) => {
   const teacherId = req.user.id;
   const cacheKey = `t${teacherId}_analytics`;
