@@ -36,8 +36,8 @@
 | Database | PostgreSQL (Replit managed) via `pg` pool |
 | Auth | JWT (jsonwebtoken) + bcryptjs |
 | Real-time | SSE (Server-Sent Events) + Firebase Cloud Messaging |
-| Charts | ECharts + ApexCharts + Recharts |
-| Live Stream | Jitsi Meet |
+| Charts | ECharts |
+| Live Stream | LiveKit |
 | PDF | jsPDF + jspdf-autotable |
 | File Uploads | Multer → `/uploads/` |
 
@@ -94,7 +94,7 @@ wathba/
 │           │   ├── Payments.jsx         # طلبات الدفع والتحقق
 │           │   ├── Requests.jsx         # طلبات تسجيل الطلاب في الكورسات
 │           │   ├── Analytics.jsx        # تحليلات أداء الطلاب (رسوم بيانية)
-│           │   ├── LiveStream.jsx       # إدارة البث المباشر (Jitsi)
+│           │   ├── LiveStream.jsx       # إدارة البث المباشر (LiveKit)
 │           │   ├── Notifications.jsx    # إرسال إشعارات
 │           │   ├── Assistants.jsx       # إدارة المساعدين + صلاحياتهم
 │           │   ├── Leaderboard.jsx      # متصدرو الطلاب
@@ -144,7 +144,7 @@ wathba/
 │       ├── exams.js                 # /api/exams — CRUD، questions، submit، results
 │       ├── payments.js              # /api/payments — enrollment، verification
 │       ├── notifications.js         # /api/notifications — send، log
-│       ├── live.js                  # /api/live — Jitsi rooms، chat، hand-raise
+│       ├── live.js                  # /api/live — LiveKit tokens، chat، hand-raise
 │       ├── events.js                # /api/events — Stickman game scores
 │       └── leaderboard.js           # /api/leaderboard — rankings، history
 │
@@ -179,7 +179,7 @@ wathba/
 | `payments` | id, student_id, course_id, amount, method, status, receipt_url, verified_at | المدفوعات |
 | `video_progress` | student_id, video_id, watched_minutes, progress_percentage, last_position, watch_count | تقدم الفيديو |
 | `badges` | id, student_id, exam_id, badge_type (gold/silver/bronze) | الشارات |
-| `live_streams` | id, teacher_id, title, jitsi_room, status, started_at, ended_at | البث المباشر |
+| `live_streams` | id, teacher_id, title, room_id, status, started_at, ended_at | البث المباشر |
 | `live_chat_messages` | id, stream_id, sender_id, sender_role, message, sent_at | رسائل الشات |
 | `notification_log` | id, student_id, type, message, sent_at, read_at | سجل الإشعارات |
 | `leaderboard_history` | id, student_id, points, rank, month_year | سجل المتصدرين |
@@ -314,7 +314,7 @@ node server/db/seed.js
 - 📝 **امتحانات** MCQ + صح/خطأ + مقالي — مع تصحيح تلقائي
 - 🏆 **نظام نقاط وشارات** (ذهب/فضة/برونز) على الامتحانات
 - 📊 **تحليلات مفصلة** لأداء كل طالب وكل كورس
-- 📡 **بث مباشر** بتقنية Jitsi مع شات ورفع يد
+- 📡 **بث مباشر** بتقنية LiveKit مع شات ورفع يد وإدارة صلاحيات المتحدثين
 - 🎮 **فعاليات أسبوعية** — لعبة Stickman Run مع أسئلة رياضيات
 - 💰 **نظام مدفوعات** Vodafone Cash / Instapay مع تحقق يدوي
 - 🔔 **إشعارات** للطلاب وأولياء الأمور (داخل التطبيق + FCM)

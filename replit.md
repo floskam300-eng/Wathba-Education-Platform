@@ -22,10 +22,10 @@
 - **Database**: PostgreSQL (Replit managed) via `pg` pool
 - **Auth**: JWT (jsonwebtoken) + bcryptjs — stored in localStorage
 - **Real-time**: SSE (Server-Sent Events) + Firebase Cloud Messaging (FCM)
-- **Charts**: ECharts, ApexCharts, Recharts
+- **Charts**: ECharts (echarts-for-react)
 - **PDF**: jsPDF + jspdf-autotable
 - **File uploads**: Multer → `/uploads/`
-- **Live Stream**: Jitsi Meet integration
+- **Live Stream**: LiveKit (livekit-server-sdk + livekit-client)
 
 ---
 
@@ -87,7 +87,7 @@ wathba/
 │           │   ├── Payments.jsx     # طلبات الدفع والتحقق
 │           │   ├── Requests.jsx     # طلبات تسجيل الطلاب في الكورسات
 │           │   ├── Analytics.jsx    # تحليلات الأداء بالرسوم البيانية
-│           │   ├── LiveStream.jsx   # إدارة البث المباشر (Jitsi)
+│           │   ├── LiveStream.jsx   # إدارة البث المباشر (LiveKit)
 │           │   ├── Notifications.jsx # إرسال إشعارات للطلاب وأولياء الأمور
 │           │   ├── Assistants.jsx   # إدارة المساعدين وصلاحياتهم
 │           │   ├── Leaderboard.jsx  # متصدرو الطلاب
@@ -137,7 +137,7 @@ wathba/
 │       ├── exams.js                 # CRUD /api/exams — + questions, results, retry
 │       ├── payments.js              # GET/POST /api/payments — enrollment & verification
 │       ├── notifications.js         # POST /api/notifications — send + log
-│       ├── live.js                  # GET/POST /api/live — Jitsi rooms, chat, hand-raise
+│       ├── live.js                  # GET/POST /api/live — LiveKit tokens, chat, hand-raise
 │       ├── events.js                # GET/POST /api/events — Stickman game scores
 │       └── leaderboard.js           # GET /api/leaderboard — rankings + history
 │
@@ -173,7 +173,7 @@ wathba/
 | `payments` | المدفوعات — amount, method, status (verified/pending/rejected) |
 | `video_progress` | تقدم الفيديو — watched_minutes, progress_percentage, last_position |
 | `badges` | شارات الامتحانات — gold/silver/bronze |
-| `live_streams` | جلسات البث المباشر — jitsi_room, status, started_at |
+| `live_streams` | جلسات البث المباشر — room_id, status, started_at |
 | `live_chat_messages` | رسائل شات البث المباشر |
 | `notification_log` | سجل الإشعارات المرسلة — type, recipient, read_at |
 | `leaderboard_history` | سجل تاريخي للمتصدرين شهرياً |

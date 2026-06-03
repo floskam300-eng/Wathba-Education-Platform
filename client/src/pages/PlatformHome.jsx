@@ -151,7 +151,7 @@ export default function PlatformHome() {
     { icon: BarChart3,   title: 'تحليلات متقدمة',     desc: 'لوحة بيانات شاملة لأداء كل طالب والكورسات والامتحانات بالرسوم البيانية.',         color: 'bg-blue-600',     delay: 0.10 },
     { icon: Users,       title: 'إدارة المساعدين',    desc: 'أضف مساعدين بصلاحيات مخصصة لكل وظيفة — طلاب، مدفوعات، امتحانات وأكثر.',         color: 'bg-emerald-600',  delay: 0.15 },
     { icon: CreditCard,  title: 'إدارة المدفوعات',    desc: 'تتبع طلبات التسجيل وإيصالات الدفع والتحقق منها في لحظات.',                        color: 'bg-pink-600',     delay: 0.20 },
-    { icon: Video,       title: 'بث مباشر',           desc: 'حصص مباشرة تفاعلية مدمجة مع Jitsi Meet — شات وكاميرا وإدارة الطلاب.',            color: 'bg-cyan-600',     delay: 0.25 },
+    { icon: Video,       title: 'بث مباشر',           desc: 'حصص مباشرة تفاعلية بتقنية LiveKit — شات وكاميرا وإدارة الطلاب وصلاحيات التحدث.',  color: 'bg-cyan-600',     delay: 0.25 },
     { icon: Trophy,      title: 'نظام نقاط ومتصدرين', desc: 'شارات وترتيب تنافسي يحفّز الطلاب على الاستمرار والتفوق.',                         color: 'bg-yellow-600',   delay: 0.30 },
     { icon: Bell,        title: 'إشعارات فورية',      desc: 'أرسل إشعارات للطلاب وأولياء الأمور عبر الموقع مباشرة.',                           color: 'bg-red-600',      delay: 0.35 },
     { icon: Gamepad2,    title: 'فعاليات وألعاب',     desc: 'لعبة أسبوعية تعليمية Stickman Run مع أسئلة مرتبطة بالمراحل الدراسية.',            color: 'bg-indigo-600',   delay: 0.40 },
