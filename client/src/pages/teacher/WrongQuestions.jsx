@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, ChevronUp, Search } from 'lucide-react';
 import api from '../../lib/api';
+import MathText from '../../components/MathText';
 
 const LETTER_COLORS = { A: '#6366f1', B: '#f59e0b', C: '#10b981', D: '#f43f5e' };
 const OPTION_KEYS = ['option_a', 'option_b', 'option_c', 'option_d'];
@@ -19,7 +20,7 @@ function QuestionCard({ q, idx }) {
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 leading-relaxed mb-2">
-            {q.question_text}
+            <MathText text={q.question_text} />
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mb-3">
             {LETTERS.map((letter, li) =>

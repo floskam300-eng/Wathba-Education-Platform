@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '../../context/ThemeContext';
+import MathText from '../../components/MathText';
 import {
   BarChart3, TrendingUp, Users, Award, Target, GraduationCap,
   CheckCircle2, XCircle, Clock, Star, ChevronUp, ChevronDown,
@@ -797,7 +798,7 @@ export default function TeacherAnalytics() {
                         <span className="text-[10px] font-black text-red-500">{idx + 1}</span>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-800 leading-relaxed mb-2">{q.question_text}</p>
+                        <p className="text-sm font-semibold text-gray-800 leading-relaxed mb-2"><MathText text={q.question_text} /></p>
                         <div className="grid grid-cols-2 gap-1.5 mb-3">
                           {optionLetters.map((letter, li) => (
                             optionTexts[li] ? (

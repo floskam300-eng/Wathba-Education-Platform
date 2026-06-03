@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { BookMarked, Plus, Pencil, Trash2, ChevronDown, ChevronUp, Upload, Link, BookOpen, Layers, X } from 'lucide-react';
 import Modal from '../../components/ui/Modal';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
+import MathText from '../../components/MathText';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
 
@@ -328,7 +329,7 @@ export default function QuestionBanks() {
                                       <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${d.cls}`}>{d.label}</span>
                                     </div>
                                     {q.question_image_url && <img src={q.question_image_url} alt="" className="max-h-32 rounded-lg mb-2 border border-gray-200" />}
-                                    {q.question_text && <p className="font-semibold text-navy-700 text-sm mb-2">{q.question_text}</p>}
+                                    {q.question_text && <p className="font-semibold text-navy-700 text-sm mb-2"><MathText text={q.question_text} /></p>}
                                     <div className="grid grid-cols-2 gap-1.5">
                                       {['a','b','c','d'].map(opt => q[`option_${opt}`] && (
                                         <div key={opt} className={`px-2 py-1 rounded-lg text-xs font-medium border ${q.correct_answer_letter?.toUpperCase() === opt.toUpperCase() ? 'border-green-400 bg-green-50 text-green-800 font-bold' : 'border-gray-200 text-gray-600'}`}>
@@ -359,7 +360,7 @@ export default function QuestionBanks() {
                               {(entry.context || entry.contextImage) && (
                                 <div className="px-3 pt-2 pb-2 border-b border-blue-200">
                                   {entry.contextImage && <img src={entry.contextImage} alt="" className="max-h-32 rounded-lg border border-blue-200 w-full object-contain mb-2" />}
-                                  {entry.context && <p className="text-xs text-navy-700 leading-relaxed whitespace-pre-wrap bg-white rounded-lg px-2 py-1.5 border border-blue-100">{entry.context}</p>}
+                                  {entry.context && <p className="text-xs text-navy-700 leading-relaxed whitespace-pre-wrap bg-white rounded-lg px-2 py-1.5 border border-blue-100"><MathText text={entry.context} /></p>}
                                 </div>
                               )}
                               <div className="p-2 space-y-2">
@@ -375,7 +376,7 @@ export default function QuestionBanks() {
                                             <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${d.cls}`}>{d.label}</span>
                                           </div>
                                           {q.question_image_url && <img src={q.question_image_url} alt="" className="max-h-24 rounded-lg mb-1.5 border border-gray-200" />}
-                                          {q.question_text && <p className="font-semibold text-navy-700 text-sm mb-1.5">{q.question_text}</p>}
+                                          {q.question_text && <p className="font-semibold text-navy-700 text-sm mb-1.5"><MathText text={q.question_text} /></p>}
                                           <div className="grid grid-cols-2 gap-1">
                                             {['a','b','c','d'].map(opt => q[`option_${opt}`] && (
                                               <div key={opt} className={`px-2 py-0.5 rounded-lg text-xs font-medium border ${q.correct_answer_letter?.toUpperCase() === opt.toUpperCase() ? 'border-green-400 bg-green-50 text-green-800 font-bold' : 'border-gray-200 text-gray-600'}`}>

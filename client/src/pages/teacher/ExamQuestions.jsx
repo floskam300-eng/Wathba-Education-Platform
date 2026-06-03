@@ -9,6 +9,8 @@ import api from '../../lib/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
+import MathText from '../../components/MathText';
+import MathToolbar from '../../components/MathToolbar';
 
 const QUESTION_TYPES = [
   { value: 'mcq', label: '🔘 اختيار متعدد (MCQ)' },
@@ -42,6 +44,7 @@ export default function ExamQuestions() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const imageFileRef = useRef(null);
   const scrollContainerRef = useRef(null);
+  const questionTextRef = useRef(null);
 
   // context image upload state
   const [ctxImageInputMode, setCtxImageInputMode] = useState('url');
@@ -459,8 +462,17 @@ export default function ExamQuestions() {
                 <label className="block text-xs font-bold text-navy-700 mb-1">
                   نص السؤال <span className="text-gray-400 font-normal">(اختياري إذا وُجدت صورة)</span>
                 </label>
-                <textarea value={qForm.question_text} onChange={e => setQForm({ ...qForm, question_text: e.target.value })}
-                  className="input-field h-20 resize-none text-sm" placeholder="اكتب نص السؤال هنا..." />
+                <MathToolbar
+                  textareaRef={questionTextRef}
+                  value={qForm.question_text}
+                  onChange={v => setQForm({ ...qForm, question_text: v })}
+                />
+                <textarea
+                  ref={questionTextRef}
+                  value={qForm.question_text}
+                  onChange={e => setQForm({ ...qForm, question_text: e.target.value })}
+                  className="input-field h-20 resize-none text-sm"
+                  placeholder="اكتب نص السؤال هنا... (استخدم $...$ للمعادلات)" />
               </div>
 
               {/* Question image */}
@@ -621,7 +633,7 @@ function SingleQuestionCard({ q, qNum, editQ, onEdit, onDelete }) {
             </span>
           </div>
           {q.question_text && (
-            <p className="font-semibold text-navy-600 text-sm mb-2 leading-relaxed">{q.question_text}</p>
+            <p className="font-semibold text-navy-600 text-sm mb-2 leading-relaxed"><MathText text={q.question_text} /></p>
           )}
           {q.question_image_url && (
             <img src={q.question_image_url} alt="question" className="w-40 h-24 object-cover rounded-lg mb-2 border border-gray-100" />
@@ -691,7 +703,7 @@ function GroupQuestionCard({ entry, startNum, editQ, onEdit, onDelete }) {
                   }`}>{qTypeLabel(q.question_type)}</span>
                   <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800">{q.points} درجة</span>
                 </div>
-                {q.question_text && <p className="font-semibold text-navy-600 text-sm mb-1.5 leading-relaxed">{q.question_text}</p>}
+                {q.question_text && <p className="font-semibold text-navy-600 text-sm mb-1.5 leading-relaxed"><MathText text={q.question_text} /></p>}
                 {q.question_image_url && <img src={q.question_image_url} alt="q" className="w-32 h-20 object-cover rounded-lg mb-1.5 border border-gray-100" />}
                 <div className="grid grid-cols-2 gap-1 text-xs">
                   {(q.question_type === 'true_false' ? ['A', 'B'] : ['A', 'B', 'C', 'D']).map(opt =>

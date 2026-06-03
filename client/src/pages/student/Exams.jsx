@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { FileText, Clock, CheckCircle, Play, Eye, Calendar, Lock, RotateCcw, X } from 'lucide-react';
 import Modal from '../../components/ui/Modal';
+import MathText from '../../components/MathText';
 import Badge from '../../components/ui/Badge';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
@@ -402,7 +403,7 @@ export default function StudentExams() {
                           />
                         )}
                         {q.group_context && (
-                          <p className="text-sm text-navy-800 leading-relaxed whitespace-pre-wrap font-medium">{q.group_context}</p>
+                          <p className="text-sm text-navy-800 leading-relaxed whitespace-pre-wrap font-medium"><MathText text={q.group_context} /></p>
                         )}
                       </div>
                     </div>
@@ -422,7 +423,7 @@ export default function StudentExams() {
                     </div>
 
                     {q.question_text && (
-                      <p className="font-semibold text-navy-700 mb-3 text-sm sm:text-base leading-relaxed">{q.question_text}</p>
+                      <p className="font-semibold text-navy-700 mb-3 text-sm sm:text-base leading-relaxed"><MathText text={q.question_text} /></p>
                     )}
 
                     {q.question_image_url && (

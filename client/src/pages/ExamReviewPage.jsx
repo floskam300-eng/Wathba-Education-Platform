@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../context/AuthContext';
 import { useTeacher } from '../context/TeacherContext';
+import MathText from '../components/MathText';
 import {
   ArrowRight, CheckCircle, XCircle, Minus, Clock,
   Award
@@ -297,13 +298,13 @@ export default function ExamReviewPage() {
                                 <img src={q.group_context_image} alt="" className="w-full max-h-56 object-contain rounded-lg border border-blue-200" />
                               )}
                               {q.group_context && (
-                                <p className="text-sm text-navy-800 leading-relaxed whitespace-pre-wrap">{q.group_context}</p>
+                                <p className="text-sm text-navy-800 leading-relaxed whitespace-pre-wrap"><MathText text={q.group_context} /></p>
                               )}
                             </div>
                           </div>
                         );
                       })()}
-                      {q.question_text && <p className="font-bold text-navy-700 text-base leading-relaxed mb-1">{q.question_text}</p>}
+                      {q.question_text && <p className="font-bold text-navy-700 text-base leading-relaxed mb-1"><MathText text={q.question_text} /></p>}
                       {q.question_image_url && (
                         <img src={q.question_image_url} alt="" className="mt-2 mb-3 max-w-sm rounded-xl border border-gray-200" />
                       )}
