@@ -8,6 +8,21 @@ const wa = require('../lib/whatsapp');
 const router = express.Router();
 router.use(authenticate);
 
+// ── Anti-ban delay helper ─────────────────────────────────────────────────────
+// Returns a random delay between 8 and 16 seconds to avoid WhatsApp pattern detection
+const waSendDelay = () => new Promise(r => setTimeout(r, 8000 + Math.floor(Math.random() * 8000)));
+
+// ── Rate limiter: max 1 bulk send per 60s per teacher ────────────────────────
+const sendCooldown = new Map(); // teacherId → timestamp of last send start
+function checkSendCooldown(teacherId) {
+  const last = sendCooldown.get(teacherId);
+  if (last && Date.now() - last < 60_000) {
+    const wait = Math.ceil((60_000 - (Date.now() - last)) / 1000);
+    return `يوجد إرسال جارٍ بالفعل، انتظر ${wait} ثانية قبل إرسال جديد`;
+  }
+  return null;
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const getTeacherId = (req) =>
   req.user.role === 'teacher' ? req.user.id : req.user.teacher_id;
@@ -23,7 +38,7 @@ const checkSendPerm = async (req, res, next) => {
     if (!perms?.can_send_notifications)
       return res.status(403).json({ error: 'ليس لديك صلاحية إرسال رسائل واتساب' });
     next();
-  } catch { res.status(500).json({ error: 'Server error' }); }
+  } catch (e) { res.status(500).json({ error: 'Server error' }); }
 };
 
 // ── GET /api/whatsapp/status ──────────────────────────────────────────────────
@@ -106,6 +121,10 @@ router.post('/send', requireRole('teacher', 'assistant'), checkSendPerm, async (
   if (!student_ids.every(id => Number.isInteger(id) && id > 0))
     return res.status(400).json({ error: 'معرّفات الطلاب غير صالحة' });
 
+  // ── Rate limit: one active bulk send per teacher at a time ─────────────────
+  const cooldownErr = checkSendCooldown(teacherId);
+  if (cooldownErr) return res.status(429).json({ error: cooldownErr });
+
   const { status } = wa.getStatus(teacherId);
   if (status !== 'connected')
     return res.status(400).json({ error: 'واتساب غير متصل — اطلب من المعلم ربط الواتساب أولاً' });
@@ -166,12 +185,16 @@ router.post('/send', requireRole('teacher', 'assistant'), checkSendPerm, async (
     details: { target_type, student_count: students.length, recipient_count: recipients.length, log_id: logId },
   });
 
+  // Mark this teacher as having an active send (rate limiting)
+  sendCooldown.set(teacherId, Date.now());
+
   res.json({ ok: true, log_id: logId, total: recipients.length });
 
   // ── Fire-and-forget bulk send ───────────────────────────────────────────────
   (async () => {
     let success = 0, failed = 0;
-    for (const rec of recipients) {
+    for (let i = 0; i < recipients.length; i++) {
+      const rec = recipients[i];
       try {
         const msg = message
           .replace(/\{name\}/g,          rec.name           || '')
@@ -182,8 +205,11 @@ router.post('/send', requireRole('teacher', 'assistant'), checkSendPerm, async (
         await wa.sendMessage(teacherId, rec.phone, msg);
         success++;
       } catch (_) { failed++; }
-      if (recipients.length > 1) await new Promise(r => setTimeout(r, 4000));
+      // Random delay 8–16s between messages to avoid WhatsApp ban — skip after last message
+      if (i < recipients.length - 1) await waSendDelay();
     }
+    // Release cooldown once bulk send finishes
+    sendCooldown.delete(teacherId);
     pool.query(
       `UPDATE whatsapp_send_log
        SET status='done', success_count=$1, fail_count=$2, finished_at=NOW()

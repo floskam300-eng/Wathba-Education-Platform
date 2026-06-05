@@ -130,7 +130,8 @@ async function runWhatsAppSchedules() {
           );
 
           let success = 0, failed = 0;
-          for (const rec of recipients) {
+          for (let i = 0; i < recipients.length; i++) {
+            const rec = recipients[i];
             try {
               const msg = sched.message
                 .replace(/\{name\}/g,         rec.name          || '')
@@ -141,7 +142,10 @@ async function runWhatsAppSchedules() {
               await wa.sendMessage(sched.teacher_id, rec.phone, msg);
               success++;
             } catch (_) { failed++; }
-            await new Promise(r => setTimeout(r, 4000));
+            // Random delay 8–16s between messages to avoid WhatsApp ban — skip after last message
+            if (i < recipients.length - 1) {
+              await new Promise(r => setTimeout(r, 8000 + Math.floor(Math.random() * 8000)));
+            }
           }
 
           await _pool.query(
