@@ -7,6 +7,7 @@ const router = express.Router();
 router.use(authenticate);
 
 const { getCached, setCache, invalidateCache } = require('../lib/analyticsCache');
+const { invalidateCache: invalidateTenantCache } = require('../middleware/subdomainTenant');
 
 router.get('/dashboard', requireRole('teacher'), async (req, res) => {
   const teacherId = req.user.id;
@@ -67,6 +68,10 @@ router.put('/profile', requireRole('teacher'), async (req, res) => {
       }
     }
 
+    // Fetch old slug before update — needed to invalidate subdomainTenant cache
+    const oldRow = await pool.query('SELECT slug FROM teachers WHERE id=$1', [req.user.id]);
+    const oldSlug = oldRow.rows[0]?.slug || null;
+
     const result = await pool.query(
       `UPDATE teachers
           SET name=$1, bio=$2, classification=$3, logo_url=$4, photo_url=$5,
@@ -79,6 +84,12 @@ router.put('/profile', requireRole('teacher'), async (req, res) => {
     );
     const { password: _, plain_password: __, ...safe } = result.rows[0];
     safe.teacher_slug = safe.slug;
+
+    // Invalidate subdomainTenant cache for old slug so the new slug takes effect immediately
+    if (oldSlug && slug && oldSlug !== slug) {
+      invalidateTenantCache(oldSlug);
+    }
+
     res.json(safe);
   } catch (err) {
     console.error(err);

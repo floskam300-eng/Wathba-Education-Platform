@@ -56,19 +56,6 @@ router.get('/info', async (req, res) => {
   }
 });
 
-// Check if a teacher slug exists
-router.get('/teacher/:slug', async (req, res) => {
-  try {
-    const result = await pool.query(
-      'SELECT id, name, slug, platform_name, logo_url FROM teachers WHERE slug = $1',
-      [req.params.slug]
-    );
-    if (result.rows.length === 0) return res.status(404).json({ error: 'المعلم غير موجود' });
-    res.json(result.rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: 'Server error' });
-  }
-});
 
 // Parent portal — lookup student results by parent phone, scoped to teacher
 router.get('/parent-lookup', parentLookupLimiter, async (req, res) => {
@@ -228,18 +215,5 @@ router.get('/manifest', async (req, res) => {
   }
 });
 
-// Legacy slug-based manifest (kept for backward compat)
-router.get('/manifest/:slug', async (req, res) => {
-  try {
-    const manifest = await buildManifest(req, req.params.slug);
-    if (!manifest) return res.status(404).json({ error: 'Not found' });
-    res.setHeader('Content-Type', 'application/manifest+json');
-    res.setHeader('Cache-Control', 'public, max-age=300');
-    res.json(manifest);
-  } catch (err) {
-    console.error('Manifest error:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
 
 module.exports = router;
