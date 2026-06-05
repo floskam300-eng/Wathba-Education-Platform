@@ -289,12 +289,11 @@ router.post('/schedules', requireRole('teacher', 'assistant'), checkSendPerm, as
   if (!days || days < 1 || days > 365)
     return res.status(400).json({ error: 'الفترة يجب أن تكون بين 1 و 365 يوم' });
 
-  let parsedDate = null;
-  if (next_run_at) {
-    parsedDate = new Date(next_run_at);
-    if (isNaN(parsedDate.getTime())) return res.status(400).json({ error: 'تاريخ البداية غير صالح' });
-  }
+  if (!next_run_at) return res.status(400).json({ error: 'تاريخ أول إرسال مطلوب' });
+  const parsedDate = new Date(next_run_at);
+  if (isNaN(parsedDate.getTime())) return res.status(400).json({ error: 'تاريخ البداية غير صالح' });
 
+  const isActiveBool = is_active === true || is_active === 'true' || is_active === 1;
   const safeStage = typeof stage_filter === 'string' && stage_filter.length <= 100 ? stage_filter.trim() : 'all';
 
   try {
@@ -302,7 +301,7 @@ router.post('/schedules', requireRole('teacher', 'assistant'), checkSendPerm, as
       `INSERT INTO whatsapp_schedules
          (teacher_id, name, message, target_type, stage_filter, interval_days, next_run_at, is_active)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-      [teacherId, name.trim(), message.trim(), target_type, safeStage, days, parsedDate, is_active]
+      [teacherId, name.trim(), message.trim(), target_type, safeStage, days, parsedDate, isActiveBool]
     );
     logActivity({
       teacherId, actor: getActor(req), ip: getIp(req),
@@ -319,6 +318,9 @@ router.post('/schedules', requireRole('teacher', 'assistant'), checkSendPerm, as
 
 // ── PUT /api/whatsapp/schedules/:id ──────────────────────────────────────────
 router.put('/schedules/:id', requireRole('teacher', 'assistant'), checkSendPerm, async (req, res) => {
+  const schedId = parseInt(req.params.id, 10);
+  if (!schedId || schedId < 1) return res.status(400).json({ error: 'معرف الجدولة غير صالح' });
+
   const teacherId = getTeacherId(req);
   const { name, message, target_type, stage_filter, interval_days, next_run_at, is_active } = req.body;
 
@@ -333,12 +335,11 @@ router.put('/schedules/:id', requireRole('teacher', 'assistant'), checkSendPerm,
   if (!days || days < 1 || days > 365)
     return res.status(400).json({ error: 'الفترة يجب أن تكون بين 1 و 365 يوم' });
 
-  let parsedDate = null;
-  if (next_run_at) {
-    parsedDate = new Date(next_run_at);
-    if (isNaN(parsedDate.getTime())) return res.status(400).json({ error: 'تاريخ البداية غير صالح' });
-  }
+  if (!next_run_at) return res.status(400).json({ error: 'تاريخ أول إرسال مطلوب' });
+  const parsedDate = new Date(next_run_at);
+  if (isNaN(parsedDate.getTime())) return res.status(400).json({ error: 'تاريخ البداية غير صالح' });
 
+  const isActiveBool = is_active === true || is_active === 'true' || is_active === 1;
   const safeStage = typeof stage_filter === 'string' && stage_filter.length <= 100 ? stage_filter.trim() : 'all';
 
   try {
@@ -347,14 +348,14 @@ router.put('/schedules/:id', requireRole('teacher', 'assistant'), checkSendPerm,
        SET name=$1, message=$2, target_type=$3, stage_filter=$4,
            interval_days=$5, next_run_at=$6, is_active=$7, updated_at=NOW()
        WHERE id=$8 AND teacher_id=$9 RETURNING *`,
-      [name.trim(), message.trim(), target_type, safeStage, days, parsedDate, is_active, req.params.id, teacherId]
+      [name.trim(), message.trim(), target_type, safeStage, days, parsedDate, isActiveBool, schedId, teacherId]
     );
     if (!rows.length) return res.status(404).json({ error: 'الجدولة غير موجودة أو لا تنتمي لحسابك' });
     logActivity({
       teacherId, actor: getActor(req), ip: getIp(req),
       action: 'whatsapp_schedule_edit',
       entity: { type: 'whatsapp_schedule', id: rows[0].id, name: rows[0].name },
-      details: { target_type, interval_days: days, is_active },
+      details: { target_type, interval_days: days, is_active: isActiveBool },
     });
     res.json(rows[0]);
   } catch (e) {
@@ -365,17 +366,20 @@ router.put('/schedules/:id', requireRole('teacher', 'assistant'), checkSendPerm,
 
 // ── DELETE /api/whatsapp/schedules/:id ────────────────────────────────────────
 router.delete('/schedules/:id', requireRole('teacher', 'assistant'), checkSendPerm, async (req, res) => {
+  const schedId = parseInt(req.params.id, 10);
+  if (!schedId || schedId < 1) return res.status(400).json({ error: 'معرف الجدولة غير صالح' });
+
   const teacherId = getTeacherId(req);
   try {
     const { rows } = await pool.query(
       'DELETE FROM whatsapp_schedules WHERE id=$1 AND teacher_id=$2 RETURNING name',
-      [req.params.id, teacherId]
+      [schedId, teacherId]
     );
     if (!rows.length) return res.status(404).json({ error: 'الجدولة غير موجودة أو لا تنتمي لحسابك' });
     logActivity({
       teacherId, actor: getActor(req), ip: getIp(req),
       action: 'whatsapp_schedule_delete',
-      entity: { type: 'whatsapp_schedule', id: req.params.id, name: rows[0].name },
+      entity: { type: 'whatsapp_schedule', id: schedId, name: rows[0].name },
     });
     res.json({ ok: true });
   } catch (e) {

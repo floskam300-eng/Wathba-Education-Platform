@@ -47,3 +47,6 @@ replit.nix
 # Attached assets
 attached_assets/
 artifacts/
+
+# WhatsApp session files — contain auth credentials, must never be committed
+whatsapp-sessions/
