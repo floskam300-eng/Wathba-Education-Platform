@@ -122,13 +122,13 @@ router.post('/login', loginLimiter, async (req, res) => {
           ? await pool.query('SELECT * FROM teachers WHERE username = $1 AND id = $2', [username, slugTeacherId])
           : await pool.query('SELECT * FROM teachers WHERE username = $1', [username]);
       } else if (r === 'assistant') {
-        result = slugTeacherId
-          ? await pool.query('SELECT * FROM assistants WHERE username = $1 AND teacher_id = $2', [username, slugTeacherId])
-          : await pool.query('SELECT * FROM assistants WHERE username = $1', [username]);
+        // Assistants MUST belong to a specific tenant — no cross-tenant or main-domain login
+        if (!slugTeacherId) continue;
+        result = await pool.query('SELECT * FROM assistants WHERE username = $1 AND teacher_id = $2', [username, slugTeacherId]);
       } else if (r === 'student') {
-        result = slugTeacherId
-          ? await pool.query('SELECT * FROM students WHERE username = $1 AND deleted_at IS NULL AND teacher_id = $2', [username, slugTeacherId])
-          : await pool.query('SELECT * FROM students WHERE username = $1 AND deleted_at IS NULL', [username]);
+        // Students MUST belong to a specific tenant — no cross-tenant or main-domain login
+        if (!slugTeacherId) continue;
+        result = await pool.query('SELECT * FROM students WHERE username = $1 AND deleted_at IS NULL AND teacher_id = $2', [username, slugTeacherId]);
       } else continue;
 
       if (result.rows.length === 0) continue;
