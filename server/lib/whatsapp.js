@@ -27,7 +27,8 @@ function formatPhone(phone) {
   if (p.startsWith('01') && p.length === 11) p = '20' + p.slice(1);
   // International with 00 prefix → strip leading zeros
   if (p.startsWith('00')) p = p.slice(2);
-  if (!p || p.length < 7) return null;
+  // Minimum 10 digits required for any valid international mobile number
+  if (!p || p.length < 10) return null;
   return p + '@s.whatsapp.net';
 }
 
@@ -167,7 +168,15 @@ async function sendMessage(teacherId, phone, message) {
   }
   const jid = formatPhone(phone);
   if (!jid) throw new Error(`رقم غير صالح: ${phone}`);
-  await conn.socket.sendMessage(jid, { text: message });
+
+  // Timeout guard: if Baileys hangs, reject after 30s to unblock the send loop
+  const timeout = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('انتهت مهلة الإرسال (30s)')), 30_000)
+  );
+  await Promise.race([
+    conn.socket.sendMessage(jid, { text: message }),
+    timeout,
+  ]);
 }
 
 async function restoreConnections() {

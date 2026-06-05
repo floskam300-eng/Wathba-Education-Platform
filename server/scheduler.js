@@ -88,7 +88,14 @@ async function runWhatsAppSchedules() {
       try {
         const { status } = wa.getStatus(sched.teacher_id);
         if (status !== 'connected') {
-          console.log(`[WA Scheduler] Teacher ${sched.teacher_id} not connected — skipping schedule "${sched.name}"`);
+          // Advance next_run_at even when disconnected — prevents pile-up of
+          // overdue schedules that would all fire at once when teacher reconnects.
+          const nextRun = new Date(Date.now() + sched.interval_days * 24 * 60 * 60 * 1000);
+          await _pool.query(
+            `UPDATE whatsapp_schedules SET next_run_at=$1, updated_at=NOW() WHERE id=$2`,
+            [nextRun.toISOString(), sched.id]
+          );
+          console.log(`[WA Scheduler] Teacher ${sched.teacher_id} not connected — schedule "${sched.name}" rescheduled to ${nextRun.toISOString()}`);
           continue;
         }
 

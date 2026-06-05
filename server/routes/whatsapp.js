@@ -12,16 +12,18 @@ router.use(authenticate);
 // Returns a random delay between 8 and 16 seconds to avoid WhatsApp pattern detection
 const waSendDelay = () => new Promise(r => setTimeout(r, 8000 + Math.floor(Math.random() * 8000)));
 
-// ── Rate limiter: max 1 bulk send per 60s per teacher ────────────────────────
-const sendCooldown = new Map(); // teacherId → timestamp of last send start
-function checkSendCooldown(teacherId) {
-  const last = sendCooldown.get(teacherId);
-  if (last && Date.now() - last < 60_000) {
-    const wait = Math.ceil((60_000 - (Date.now() - last)) / 1000);
-    return `يوجد إرسال جارٍ بالفعل، انتظر ${wait} ثانية قبل إرسال جديد`;
-  }
+// ── Active-send guard: blocks a new bulk send while one is already running ────
+// Uses a presence-based check (not time-based) — cleared only when send finishes.
+const activeSends = new Set(); // teacherIds with an active bulk send in progress
+function checkActiveSend(teacherId) {
+  if (activeSends.has(teacherId))
+    return 'يوجد إرسال جارٍ بالفعل — انتظر حتى يكتمل قبل إرسال جديد';
   return null;
 }
+
+// ── Connect-request debounce: prevent rapid reconnect spam ───────────────────
+const connectDebounce = new Map(); // teacherId → timestamp
+const CONNECT_DEBOUNCE_MS = 10_000; // 10 seconds between connect attempts
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const getTeacherId = (req) =>
@@ -50,10 +52,17 @@ router.get('/status', requireRole('teacher', 'assistant'), (req, res) => {
 
 // ── POST /api/whatsapp/connect (teacher only) ─────────────────────────────────
 router.post('/connect', requireRole('teacher'), async (req, res) => {
+  const teacherId = req.user.id;
+  // Debounce: ignore if a connect was attempted within the last 10 seconds
+  const lastConnect = connectDebounce.get(teacherId);
+  if (lastConnect && Date.now() - lastConnect < CONNECT_DEBOUNCE_MS) {
+    return res.status(429).json({ error: 'الرجاء الانتظار قبل محاولة الاتصال مرة أخرى' });
+  }
+  connectDebounce.set(teacherId, Date.now());
   try {
-    await wa.initConnection(req.user.id);
+    await wa.initConnection(teacherId);
     logActivity({
-      teacherId: req.user.id, actor: getActor(req), ip: getIp(req),
+      teacherId, actor: getActor(req), ip: getIp(req),
       action: 'whatsapp_connect',
       entity: { type: 'whatsapp' },
     });
@@ -121,9 +130,9 @@ router.post('/send', requireRole('teacher', 'assistant'), checkSendPerm, async (
   if (!student_ids.every(id => Number.isInteger(id) && id > 0))
     return res.status(400).json({ error: 'معرّفات الطلاب غير صالحة' });
 
-  // ── Rate limit: one active bulk send per teacher at a time ─────────────────
-  const cooldownErr = checkSendCooldown(teacherId);
-  if (cooldownErr) return res.status(429).json({ error: cooldownErr });
+  // ── Guard: block if this teacher already has a bulk send in progress ─────────
+  const activeErr = checkActiveSend(teacherId);
+  if (activeErr) return res.status(429).json({ error: activeErr });
 
   const { status } = wa.getStatus(teacherId);
   if (status !== 'connected')
@@ -185,37 +194,40 @@ router.post('/send', requireRole('teacher', 'assistant'), checkSendPerm, async (
     details: { target_type, student_count: students.length, recipient_count: recipients.length, log_id: logId },
   });
 
-  // Mark this teacher as having an active send (rate limiting)
-  sendCooldown.set(teacherId, Date.now());
+  // Mark teacher as having an active bulk send — blocks concurrent sends
+  activeSends.add(teacherId);
 
   res.json({ ok: true, log_id: logId, total: recipients.length });
 
   // ── Fire-and-forget bulk send ───────────────────────────────────────────────
   (async () => {
     let success = 0, failed = 0;
-    for (let i = 0; i < recipients.length; i++) {
-      const rec = recipients[i];
-      try {
-        const msg = message
-          .replace(/\{name\}/g,          rec.name           || '')
-          .replace(/\{student_name\}/g,  rec.name           || '')
-          .replace(/\{avg_score\}/g,     String(rec.avg_score  ?? 0))
-          .replace(/\{exam_count\}/g,    String(rec.exam_count ?? 0))
-          .replace(/\{stage\}/g,         rec.academic_stage || '');
-        await wa.sendMessage(teacherId, rec.phone, msg);
-        success++;
-      } catch (_) { failed++; }
-      // Random delay 8–16s between messages to avoid WhatsApp ban — skip after last message
-      if (i < recipients.length - 1) await waSendDelay();
+    try {
+      for (let i = 0; i < recipients.length; i++) {
+        const rec = recipients[i];
+        try {
+          const msg = message
+            .replace(/\{name\}/g,          rec.name           || '')
+            .replace(/\{student_name\}/g,  rec.name           || '')
+            .replace(/\{avg_score\}/g,     String(rec.avg_score  ?? 0))
+            .replace(/\{exam_count\}/g,    String(rec.exam_count ?? 0))
+            .replace(/\{stage\}/g,         rec.academic_stage || '');
+          await wa.sendMessage(teacherId, rec.phone, msg);
+          success++;
+        } catch (_) { failed++; }
+        // Random delay 8–16s between messages to avoid WhatsApp ban — skip after last message
+        if (i < recipients.length - 1) await waSendDelay();
+      }
+    } finally {
+      // Always release the lock — even if an unexpected error escapes the inner try
+      activeSends.delete(teacherId);
+      pool.query(
+        `UPDATE whatsapp_send_log
+         SET status='done', success_count=$1, fail_count=$2, finished_at=NOW()
+         WHERE id=$3`,
+        [success, failed, logId]
+      ).catch(() => {});
     }
-    // Release cooldown once bulk send finishes
-    sendCooldown.delete(teacherId);
-    pool.query(
-      `UPDATE whatsapp_send_log
-       SET status='done', success_count=$1, fail_count=$2, finished_at=NOW()
-       WHERE id=$3`,
-      [success, failed, logId]
-    ).catch(() => {});
   })();
 });
 
