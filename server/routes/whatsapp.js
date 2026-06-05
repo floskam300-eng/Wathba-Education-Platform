@@ -25,6 +25,14 @@ function checkActiveSend(teacherId) {
 const connectDebounce = new Map(); // teacherId → timestamp
 const CONNECT_DEBOUNCE_MS = 10_000; // 10 seconds between connect attempts
 
+// Periodic cleanup: remove stale debounce entries every 10 minutes
+setInterval(() => {
+  const cutoff = Date.now() - CONNECT_DEBOUNCE_MS;
+  for (const [id, ts] of connectDebounce.entries()) {
+    if (ts < cutoff) connectDebounce.delete(id);
+  }
+}, 10 * 60 * 1000).unref();
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const getTeacherId = (req) =>
   req.user.role === 'teacher' ? req.user.id : req.user.teacher_id;

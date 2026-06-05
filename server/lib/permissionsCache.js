@@ -12,7 +12,14 @@ setInterval(() => {
 async function getPermissions(assistantId, pool) {
   const cached = _permCache.get(assistantId);
   if (cached && Date.now() - cached.ts < PERM_TTL) return cached.perms;
-  const r = await pool.query('SELECT * FROM assistants WHERE id=$1', [assistantId]);
+  const r = await pool.query(
+    `SELECT id, teacher_id,
+            can_add_students, can_edit_students, can_delete_students,
+            can_manage_exams, can_view_analytics, can_send_reports,
+            can_manage_payments, can_manage_courses, can_send_notifications
+     FROM assistants WHERE id=$1`,
+    [assistantId]
+  );
   if (!r.rows.length) return null;
   const perms = r.rows[0];
   _permCache.set(assistantId, { perms, ts: Date.now() });

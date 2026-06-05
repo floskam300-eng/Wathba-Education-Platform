@@ -651,7 +651,11 @@ export default function WhatsAppTab() {
                     <span className="text-red-500"> (لا يوجد أرقام مسجلة)</span>
                   )}
                 </p>
-                <p>⏱ الوقت التقريبي: <span className="font-bold">{Math.ceil(recipientCount * 4 / 60)} دقيقة</span></p>
+                <p>⏱ الوقت التقريبي: <span className="font-bold">
+                  {recipientCount <= 1
+                    ? '< دقيقة'
+                    : `${Math.ceil((recipientCount - 1) * 12 / 60)} دقيقة`}
+                </span></p>
               </div>
 
               <button onClick={handleSend} disabled={sending || status !== 'connected'}
