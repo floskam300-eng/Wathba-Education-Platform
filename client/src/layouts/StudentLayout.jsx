@@ -68,7 +68,6 @@ const BELL_LIMIT = 5;
 function NotificationBell({ dark }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const { teacherSlug } = useTeacher();
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -181,9 +180,9 @@ function NotificationBell({ dark }) {
                       if (!n.is_read) readOneMut.mutate(n.id);
                       setOpen(false);
                       const t = n.type || '';
-                      if (t.includes('exam') || t.includes('result') || t.includes('retry')) navigate(`/${teacherSlug}/student/exams`);
-                      else if (t.includes('course') || t.includes('enroll')) navigate(`/${teacherSlug}/student/courses`);
-                      else if (t.includes('live') || t.includes('stream')) navigate(`/${teacherSlug}/student/live`);
+                      if (t.includes('exam') || t.includes('result') || t.includes('retry')) navigate('/student/exams');
+                      else if (t.includes('course') || t.includes('enroll')) navigate('/student/courses');
+                      else if (t.includes('live') || t.includes('stream')) navigate('/student/live');
                     }}
                     className={`px-4 py-3 cursor-pointer transition-all ${
                       !n.is_read
@@ -221,7 +220,7 @@ function NotificationBell({ dark }) {
           {(hasMore || notifications.length > 0) && (
             <div className={`border-t ${dark ? 'border-[var(--dk-border)]' : 'border-slate-100'}`}>
               <button
-                onClick={() => { setOpen(false); navigate(`/${teacherSlug}/student/notifications`); }}
+                onClick={() => { setOpen(false); navigate('/student/notifications'); }}
                 className={`w-full py-2.5 text-xs font-bold transition-colors flex items-center justify-center gap-1.5 ${
                   dark
                     ? 'text-amber-400 hover:bg-[var(--dk-elevated)]'
@@ -244,7 +243,7 @@ export default function StudentLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { studentStream, leaveStudentStream, availableLive, clearAvailableLive } = useLiveStream();
-  const { teacherSlug, platformName, logoUrl } = useTeacher();
+  const { platformName, logoUrl } = useTeacher();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [captureWarning, setCaptureWarning] = useState(false);
   const warningTimer = useRef(null);
@@ -252,18 +251,18 @@ export default function StudentLayout() {
   const onLivePage = location.pathname.endsWith('/live');
 
   const navItems = [
-    { to: `/${teacherSlug}/student`,              icon: LayoutDashboard, label: 'لوحتي',       end: true },
-    { to: `/${teacherSlug}/student/courses`,      icon: BookOpen,        label: 'كورساتي' },
-    { to: `/${teacherSlug}/student/exams`,        icon: FileText,        label: 'الاختبارات' },
-    { to: `/${teacherSlug}/student/stats`,        icon: BarChart2,       label: 'إحصائياتي' },
-    { to: `/${teacherSlug}/student/leaderboard`,  icon: Trophy,          label: 'المتصدرون' },
-    { to: `/${teacherSlug}/student/live`,         icon: Radio,           label: 'بث مباشر' },
+    { to: '/student',              icon: LayoutDashboard, label: 'لوحتي',       end: true },
+    { to: '/student/courses',      icon: BookOpen,        label: 'كورساتي' },
+    { to: '/student/exams',        icon: FileText,        label: 'الاختبارات' },
+    { to: '/student/stats',        icon: BarChart2,       label: 'إحصائياتي' },
+    { to: '/student/leaderboard',  icon: Trophy,          label: 'المتصدرون' },
+    { to: '/student/live',         icon: Radio,           label: 'بث مباشر' },
   ];
 
   useSSE(!!user, user?.role || 'student');
   useFCM(!!user && user?.role === 'student');
 
-  const handleLogout = () => { logout(); navigate(`/${teacherSlug}/login`); };
+  const handleLogout = () => { logout(); };
 
   const handleCaptureAttempt = () => {
     setCaptureWarning(true);
@@ -312,7 +311,7 @@ export default function StudentLayout() {
           </NavLink>
         ))}
         <div style={{ paddingTop: 4 }}>
-          <NavLink to={`/${teacherSlug}/student/events`} className="events-nav-link" onClick={() => setSidebarOpen(false)}>
+          <NavLink to="/student/events" className="events-nav-link" onClick={() => setSidebarOpen(false)}>
             <Gamepad2 className="w-5 h-5" style={{ flexShrink: 0, position: 'relative', zIndex: 1 }} />
             <span style={{ position: 'relative', zIndex: 1 }}>الفعاليات 🎮</span>
           </NavLink>
@@ -406,7 +405,7 @@ export default function StudentLayout() {
               <p className="text-white text-sm font-bold truncate">{studentStream.title}</p>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
-              <button onClick={() => navigate(`/${teacherSlug}/student/live`)}
+              <button onClick={() => navigate('/student/live')}
                 className="flex items-center gap-1.5 text-xs font-black px-3 py-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-white transition-colors">
                 <ExternalLink className="w-3.5 h-3.5" /> العودة للبث
               </button>
@@ -428,7 +427,7 @@ export default function StudentLayout() {
               <p className="text-green-100 text-sm font-bold truncate">{availableLive.title || 'بث مباشر متاح'}</p>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
-              <button onClick={() => { clearAvailableLive(); navigate(`/${teacherSlug}/student/live`); }}
+              <button onClick={() => { clearAvailableLive(); navigate('/student/live'); }}
                 className="flex items-center gap-1.5 text-xs font-black px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white transition-colors">
                 <ExternalLink className="w-3.5 h-3.5" /> انضم الآن
               </button>

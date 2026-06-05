@@ -10,6 +10,7 @@ const rateLimit = require('express-rate-limit');
 const { addClient, removeClient } = require('./sse');
 const { startScheduler } = require('./scheduler');
 const { initFCM } = require('./lib/fcm');
+const subdomainTenant = require('./middleware/subdomainTenant');
 
 // Global unhandled rejection / uncaught exception guards
 process.on('unhandledRejection', (reason, promise) => {
@@ -127,6 +128,7 @@ app.get('/api/sse', (req, res) => {
 });
 // ─────────────────────────────────────────────────────────────
 
+app.use('/api', subdomainTenant);
 app.use('/api/public', require('./routes/public'));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/teachers', require('./routes/teachers'));

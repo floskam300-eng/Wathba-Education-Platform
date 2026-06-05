@@ -37,7 +37,7 @@ export default function StudentDashboard() {
 
       {/* ── Browse available courses CTA ── */}
       <button
-        onClick={() => navigate(`/${user?.teacher_slug}/student/courses`, { state: { tab: 'browse' } })}
+        onClick={() => navigate('/student/courses', { state: { tab: 'browse' } })}
         className="w-full flex items-center gap-4 p-4 rounded-2xl bg-gradient-to-l from-orange-500/10 to-orange-400/5 border border-orange-300/40 hover:border-orange-400/70 hover:from-orange-500/15 transition-all duration-300 group">
         <div className="w-12 h-12 rounded-xl bg-orange-500/20 flex items-center justify-center flex-shrink-0 group-hover:bg-orange-500/30 transition-colors">
           <Search className="w-6 h-6 text-orange-500" />
@@ -99,7 +99,7 @@ export default function StudentDashboard() {
                   </p>
                 </div>
                 <button
-                  onClick={() => navigate(`/${user?.teacher_slug}/student/exam-review/${r.id}`)}
+                  onClick={() => navigate(`/student/exam-review/${r.id}`)}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-navy-600 hover:bg-navy-700 text-white text-xs font-bold rounded-lg transition-colors shadow-sm"
                   title="مراجعة الإجابات"
                 >

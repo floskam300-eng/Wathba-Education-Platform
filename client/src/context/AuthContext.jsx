@@ -51,17 +51,15 @@ export const AuthProvider = ({ children }) => {
 
     const handleUnauthorized = () => {
       setUser(null);
-      const slug = localStorage.getItem('wathba_teacher_slug');
-      navigate(slug ? `/${slug}/login` : '/', { replace: true });
+      navigate('/login', { replace: true });
     };
     window.addEventListener('wathba_unauthorized', handleUnauthorized);
     return () => window.removeEventListener('wathba_unauthorized', handleUnauthorized);
   }, [navigate]);
 
-  const login = async (username, password, role, slug, deviceId) => {
+  const login = async (username, password, role, _slug, deviceId) => {
     const body = { username, password };
     if (role) body.role = role;
-    if (slug) body.slug = slug;
     if (deviceId) body.device_id = deviceId;
     const res = await api.post('/auth/login', body);
     const { token, user } = res.data;
@@ -75,12 +73,11 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
-    const slug = localStorage.getItem('wathba_teacher_slug');
     localStorage.removeItem('wathba_token');
     localStorage.removeItem('wathba_user');
     localStorage.removeItem('wathba_teacher_slug');
     setUser(null);
-    navigate(slug ? `/${slug}/login` : '/', { replace: true });
+    navigate('/login', { replace: true });
   };
 
   const updateUser = (updates) => {

@@ -11,9 +11,9 @@ const parentLookupLimiter = rateLimit({
   message: { error: 'طلبات كثيرة جداً — انتظر دقيقة ثم حاول مجدداً' },
 });
 
-// Public landing page info — scoped by teacher slug
+// Public landing page info — scoped by tenant (subdomain or X-Tenant-Slug header)
 router.get('/info', async (req, res) => {
-  const { slug } = req.query;
+  const slug = req.tenantSlug || req.query.slug;
   try {
     let teacherRes;
     if (slug) {
@@ -73,22 +73,17 @@ router.get('/teacher/:slug', async (req, res) => {
   }
 });
 
-// Parent portal — lookup student results by parent phone, scoped to teacher slug
+// Parent portal — lookup student results by parent phone, scoped to teacher
 router.get('/parent-lookup', parentLookupLimiter, async (req, res) => {
-  const { phone, slug } = req.query;
+  const { phone } = req.query;
   if (!phone || phone.trim().length < 7) {
     return res.status(400).json({ error: 'رقم الهاتف غير صحيح' });
   }
 
   try {
-    // Resolve teacher id from slug
-    let teacherId = null;
-    if (slug) {
-      const tRes = await pool.query('SELECT id FROM teachers WHERE slug = $1', [slug]);
-      if (tRes.rows.length > 0) teacherId = tRes.rows[0].id;
-    }
+    const teacherId = req.tenantTeacherId || null;
 
-    // Slug is required — never fall back to cross-teacher search
+    // Tenant is required — never fall back to cross-teacher search
     if (!teacherId) {
       return res.status(400).json({ error: 'معرّف المنصة مطلوب' });
     }
@@ -160,66 +155,87 @@ router.get('/parent-lookup', parentLookupLimiter, async (req, res) => {
   }
 });
 
-// Dynamic PWA manifest — scoped to a specific teacher slug
+// Dynamic PWA manifest — scoped to current tenant (subdomain or X-Tenant-Slug)
+async function buildManifest(req, slug) {
+  const result = await pool.query(
+    'SELECT name, platform_name, logo_url FROM teachers WHERE slug = $1',
+    [slug]
+  );
+  if (result.rows.length === 0) return null;
+
+  const t = result.rows[0];
+  const appName   = t.platform_name || t.name || 'منصة تعليمية';
+  const shortName = appName.length > 14 ? appName.slice(0, 14) : appName;
+
+  const rawLogo = t.logo_url;
+  const logoSrc = rawLogo
+    ? (rawLogo.startsWith('http') ? rawLogo : `${req.protocol}://${req.get('host')}${rawLogo.startsWith('/') ? '' : '/'}${rawLogo}`)
+    : null;
+
+  const icons = logoSrc
+    ? [
+        { src: logoSrc, sizes: '48x48',   type: 'image/png', purpose: 'any' },
+        { src: logoSrc, sizes: '192x192', type: 'image/png', purpose: 'any' },
+        { src: logoSrc, sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+      ]
+    : [
+        { src: '/icon-48.png',  sizes: '48x48',   type: 'image/png', purpose: 'any' },
+        { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+        { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+      ];
+
+  return {
+    name:             appName,
+    short_name:       shortName,
+    description:      `منصة ${appName} التعليمية`,
+    start_url:        '/student',
+    scope:            '/',
+    display:          'standalone',
+    orientation:      'portrait',
+    background_color: '#0F0E15',
+    theme_color:      '#f97316',
+    lang:             'ar',
+    dir:              'rtl',
+    icons,
+    categories: ['education'],
+    shortcuts: [
+      {
+        name:      'لوحتي',
+        short_name:'لوحتي',
+        url:       '/student',
+        icons:     [{ src: logoSrc || '/icon-192.png', sizes: '192x192' }],
+      },
+      {
+        name:      'كورساتي',
+        short_name:'كورسات',
+        url:       '/student/courses',
+        icons:     [{ src: logoSrc || '/icon-192.png', sizes: '192x192' }],
+      },
+    ],
+  };
+}
+
+// Subdomain-based manifest (no slug in URL)
+router.get('/manifest', async (req, res) => {
+  try {
+    const slug = req.tenantSlug;
+    if (!slug) return res.status(400).json({ error: 'No tenant' });
+    const manifest = await buildManifest(req, slug);
+    if (!manifest) return res.status(404).json({ error: 'Not found' });
+    res.setHeader('Content-Type', 'application/manifest+json');
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.json(manifest);
+  } catch (err) {
+    console.error('Manifest error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Legacy slug-based manifest (kept for backward compat)
 router.get('/manifest/:slug', async (req, res) => {
   try {
-    const result = await pool.query(
-      'SELECT name, platform_name, logo_url FROM teachers WHERE slug = $1',
-      [req.params.slug]
-    );
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
-
-    const t = result.rows[0];
-    const appName  = t.platform_name || t.name || 'منصة تعليمية';
-    const shortName = appName.length > 14 ? appName.slice(0, 14) : appName;
-
-    const rawLogo = t.logo_url;
-    const logoSrc = rawLogo
-      ? (rawLogo.startsWith('http') ? rawLogo : `${req.protocol}://${req.get('host')}${rawLogo.startsWith('/') ? '' : '/'}${rawLogo}`)
-      : null;
-
-    const icons = logoSrc
-      ? [
-          { src: logoSrc, sizes: '48x48',   type: 'image/png', purpose: 'any' },
-          { src: logoSrc, sizes: '192x192', type: 'image/png', purpose: 'any' },
-          { src: logoSrc, sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
-        ]
-      : [
-          { src: '/icon-48.png',  sizes: '48x48',   type: 'image/png', purpose: 'any' },
-          { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
-        ];
-
-    const manifest = {
-      name:             appName,
-      short_name:       shortName,
-      description:      `منصة ${appName} التعليمية`,
-      start_url:        `/${req.params.slug}/student`,
-      scope:            `/${req.params.slug}/`,
-      display:          'standalone',
-      orientation:      'portrait',
-      background_color: '#0F0E15',
-      theme_color:      '#f97316',
-      lang:             'ar',
-      dir:              'rtl',
-      icons,
-      categories: ['education'],
-      shortcuts: [
-        {
-          name:      'لوحتي',
-          short_name:'لوحتي',
-          url:       `/${req.params.slug}/student`,
-          icons:     [{ src: logoSrc || '/icon-192.png', sizes: '192x192' }],
-        },
-        {
-          name:      'كورساتي',
-          short_name:'كورسات',
-          url:       `/${req.params.slug}/student/courses`,
-          icons:     [{ src: logoSrc || '/icon-192.png', sizes: '192x192' }],
-        },
-      ],
-    };
-
+    const manifest = await buildManifest(req, req.params.slug);
+    if (!manifest) return res.status(404).json({ error: 'Not found' });
     res.setHeader('Content-Type', 'application/manifest+json');
     res.setHeader('Cache-Control', 'public, max-age=300');
     res.json(manifest);

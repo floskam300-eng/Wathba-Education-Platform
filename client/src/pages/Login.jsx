@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTeacher } from '../context/TeacherContext';
 import toast from 'react-hot-toast';
@@ -117,7 +117,6 @@ export default function Login() {
   const [showWarning, setShowWarning] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
-  const { teacherSlug } = useParams();
   const { platformName, logoUrl, isLoading: teacherLoading } = useTeacher();
 
   const displayLogo = logoUrl || WathbaLogo;
@@ -129,15 +128,14 @@ export default function Login() {
     setLoading(true);
     try {
       const deviceId = getOrCreateDeviceId();
-      const user = await login(username.trim(), password, undefined, teacherSlug, deviceId);
+      const user = await login(username.trim(), password, undefined, undefined, deviceId);
       // Show warning modal only for students
       if (user.role === 'student') {
         setPendingUser(user);
         setShowWarning(true);
       } else {
         toast.success(`أهلاً بك، ${user.name}!`, { icon: '🎉' });
-        const slug = user.teacher_slug || teacherSlug;
-        navigate(`/${slug}/${user.role}`);
+        navigate(`/${user.role}`);
       }
     } catch (err) {
       toast.error(err.response?.data?.error || 'بيانات الدخول غير صحيحة');
@@ -150,8 +148,7 @@ export default function Login() {
     setShowWarning(false);
     if (pendingUser) {
       toast.success(`أهلاً بك، ${pendingUser.name}!`, { icon: '🎉' });
-      const slug = pendingUser.teacher_slug || teacherSlug;
-      navigate(`/${slug}/${pendingUser.role}`);
+      navigate(`/${pendingUser.role}`);
     }
   };
 
@@ -367,12 +364,6 @@ export default function Login() {
             </button>
           </form>
 
-          {teacherSlug === 'admin' && (
-            <div style={{ padding:'.7rem 1rem', background:'rgba(249,115,22,.07)', border:'1px solid rgba(249,115,22,.18)', borderRadius:10, textAlign:'center', fontSize:'.75rem', color:'rgba(255,255,255,.5)' }}>
-              الحساب الافتراضي:&nbsp;
-              <span style={{ fontFamily:'monospace', color:'#f97316', fontWeight:700 }}>admin / admin123</span>
-            </div>
-          )}
         </div>
 
         <div style={{ position:'absolute', bottom:'1.25rem', fontSize:'.68rem', color:'rgba(255,255,255,.2)', textAlign:'center', width:'100%' }}>

@@ -170,7 +170,7 @@ function StatCard({ icon: Icon, value, label, color, delay = 0 }) {
 
 /* ════════════════ MAIN PAGE ════════════════ */
 export default function LandingPage() {
-  const { teacher, stats, courses: rawCourses, assistants, isLoading, teacherSlug, platformName, logoUrl } = useTeacher();
+  const { teacher, stats, courses: rawCourses, assistants, isLoading, platformName, logoUrl } = useTeacher();
   const [statsVisible, setStatsVisible] = useState(false);
   const statsRef = useRef(null);
 
@@ -263,12 +263,12 @@ export default function LandingPage() {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <Link to={`/${teacherSlug}/parent-portal`}
+            <Link to="/parent-portal"
               className="hidden sm:flex items-center gap-1.5 text-white/60 hover:text-white text-sm font-semibold px-3 py-2 rounded-lg border border-white/[0.1] hover:border-white/25 hover:bg-white/[0.06] transition-all duration-200">
               <Phone className="w-3.5 h-3.5" />
               بوابة الأهل
             </Link>
-            <Link to={`/${teacherSlug}/login`}
+            <Link to="/login"
               className="flex items-center gap-2 bg-orange-500 hover:bg-orange-400 text-white font-black text-sm px-5 py-2.5 rounded-xl transition-all duration-200 hover:shadow-lg hover:shadow-orange-500/25 active:scale-95">
               دخول
               <ArrowLeft className="w-4 h-4" />
@@ -314,7 +314,7 @@ export default function LandingPage() {
           </p>
 
           <div className="lp-fade-3 flex items-center justify-center gap-3 flex-wrap">
-            <Link to={`/${teacherSlug}/login`}
+            <Link to="/login"
               className="flex items-center gap-2.5 bg-orange-500 hover:bg-orange-400 text-white font-black text-sm px-7 py-3.5 rounded-xl transition-all duration-200 hover:shadow-xl hover:shadow-orange-500/30 hover:-translate-y-0.5 active:scale-95">
               ابدأ الآن
               <ArrowLeft className="w-4 h-4" />
@@ -534,7 +534,7 @@ export default function LandingPage() {
           )}
 
           <Reveal delay={0.3} className="text-center mt-8">
-            <Link to={`/${teacherSlug}/login`}
+            <Link to="/login"
               className="inline-flex items-center gap-2 text-white/50 hover:text-orange-400 text-sm font-bold border border-white/[0.1] hover:border-orange-500/40 px-6 py-2.5 rounded-xl transition-all duration-200">
               عرض جميع الكورسات
               <ArrowLeft className="w-3.5 h-3.5" />
@@ -590,7 +590,7 @@ export default function LandingPage() {
             <p className="text-white/40 text-sm mb-10 leading-relaxed max-w-md mx-auto">
               انضم لمنصة وثبة وابدأ رحلتك مع أفضل المحتوى التعليمي والامتحانات التفاعلية
             </p>
-            <Link to={`/${teacherSlug}/login`}
+            <Link to="/login"
               className="inline-flex items-center gap-3 bg-orange-500 hover:bg-orange-400 text-white font-black text-base px-10 py-4 rounded-2xl transition-all duration-200 hover:shadow-2xl hover:shadow-orange-500/30 hover:-translate-y-1 active:scale-95">
               <GraduationCap className="w-5 h-5" />
               تسجيل الدخول

@@ -307,7 +307,7 @@ export default function TeacherCourses() {
 
                     {/* Manage Content — navigates to full page */}
                     <button
-                      onClick={() => navigate(`/${user?.teacher_slug || ''}/${baseRole}/courses/${c.id}/content`)}
+                      onClick={() => navigate(`/${baseRole}/courses/${c.id}/content`)}
                       className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-black transition-all bg-gray-100 hover:bg-orange-500 hover:text-white text-gray-700">
                       <FolderOpen className="w-3.5 h-3.5" /> إدارة المحتوى
                     </button>

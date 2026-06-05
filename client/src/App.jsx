@@ -1,10 +1,11 @@
 import React from 'react';
-import { Routes, Route, Navigate, useParams, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { LiveStreamProvider } from './context/LiveStreamContext';
 import { TeacherWrapper, TeacherNotFound } from './context/TeacherContext';
+import { getTenantSlug } from './lib/tenant';
 import Login from './pages/Login';
 import PlatformHome from './pages/PlatformHome';
 import LandingPage from './pages/LandingPage';
@@ -95,23 +96,21 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-// ─── Assistant Permission Route ─────────────────────────────────────────────────
+// ─── Assistant Permission Route ──────────────────────────────────────────────
 const AssistantPermissionRoute = ({ children, permission, anyOf }) => {
   const { user } = useAuth();
-  const { teacherSlug } = useParams();
   if (user?.role === 'assistant') {
     const hasPermission = anyOf
       ? anyOf.some(p => user[p])
       : (permission ? user[permission] : true);
-    if (!hasPermission) return <Navigate to={`/${teacherSlug}/assistant`} replace />;
+    if (!hasPermission) return <Navigate to="/assistant" replace />;
   }
   return children;
 };
 
-// ─── Protected Route ────────────────────────────────────────────────────────────
+// ─── Protected Route ─────────────────────────────────────────────────────────
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading } = useAuth();
-  const { teacherSlug } = useParams();
 
   if (loading) return (
     <div className="flex items-center justify-center h-screen">
@@ -119,59 +118,25 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     </div>
   );
 
-  if (!user) return <Navigate to={`/${teacherSlug}/login`} replace />;
+  if (!user) return <Navigate to="/login" replace />;
   if (allowedRoles && !allowedRoles.includes(user.role)) {
-    return <Navigate to={`/${teacherSlug}/login`} replace />;
-  }
-
-  // Security: ensure user belongs to this teacher's portal
-  if (user.teacher_slug && teacherSlug && user.teacher_slug !== teacherSlug) {
-    return <Navigate to={`/${teacherSlug}/login`} replace />;
+    return <Navigate to="/login" replace />;
   }
 
   return children;
 };
 
-// ─── Legacy Redirects (inner page navigate() calls use /teacher/... paths) ─────
-function LegacyRoleRedirect({ role }) {
-  const params = useParams();
-  const slug = localStorage.getItem('wathba_teacher_slug');
-  const rest = params['*'] || '';
-  if (!slug) return <Navigate to="/" replace />;
-  return <Navigate to={`/${slug}/${role}${rest ? `/${rest}` : ''}`} replace />;
-}
-
-function LegacyLoginRedirect() {
-  const slug = localStorage.getItem('wathba_teacher_slug');
-  if (!slug) return <Navigate to="/" replace />;
-  return <Navigate to={`/${slug}/login`} replace />;
-}
-
-function LegacyParentPortalRedirect() {
-  const slug = localStorage.getItem('wathba_teacher_slug');
-  if (!slug) return <Navigate to="/" replace />;
-  return <Navigate to={`/${slug}/parent-portal`} replace />;
-}
-
-// ─── Routes ─────────────────────────────────────────────────────────────────────
-const AppRoutes = () => {
+// ─── Tenant Routes (subdomain present) ───────────────────────────────────────
+const TenantRoutes = () => {
   const { user } = useAuth();
 
   return (
-    <Routes>
-      {/* ── Legacy shortcuts (inner pages use hardcoded /role/... paths) ── */}
-      <Route path="/teacher/*" element={<LegacyRoleRedirect role="teacher" />} />
-      <Route path="/assistant/*" element={<LegacyRoleRedirect role="assistant" />} />
-      <Route path="/student/*" element={<LegacyRoleRedirect role="student" />} />
-      <Route path="/login" element={<LegacyLoginRedirect />} />
-      <Route path="/parent-portal" element={<LegacyParentPortalRedirect />} />
-
-      {/* ── Slug-based multi-tenant routes ── */}
-      <Route path="/:teacherSlug" element={<TeacherWrapper />}>
+    <TeacherWrapper>
+      <Routes>
         <Route index element={<LandingPage />} />
 
         <Route path="login"
-          element={user && user.teacher_slug ? <Navigate to={`/${user.teacher_slug}/${user.role}`} replace /> : <Login />} />
+          element={user && user.teacher_slug ? <Navigate to={`/${user.role}`} replace /> : <Login />} />
 
         <Route path="parent-portal" element={<ParentPortal />} />
 
@@ -256,13 +221,34 @@ const AppRoutes = () => {
         <Route path="student/events/stickman-run" element={
           <ProtectedRoute allowedRoles={['student']}><StickmanRunPage /></ProtectedRoute>
         } />
-      </Route>
 
-      {/* Root — SaaS marketing page */}
-      <Route path="/" element={<PlatformHome />} />
-      <Route path="/privacy" element={<PrivacyPolicy />} />
-      <Route path="/terms" element={<TermsAndConditions />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </TeacherWrapper>
+  );
+};
+
+// ─── Main Domain Routes (no subdomain) ───────────────────────────────────────
+const MainDomainRoutes = () => (
+  <Routes>
+    <Route path="/" element={<PlatformHome />} />
+    <Route path="/privacy" element={<PrivacyPolicy />} />
+    <Route path="/terms" element={<TermsAndConditions />} />
+    <Route path="*" element={<Navigate to="/" replace />} />
+  </Routes>
+);
+
+// ─── Root Router ──────────────────────────────────────────────────────────────
+const AppRoutes = () => {
+  const tenantSlug = getTenantSlug();
+
+  if (!tenantSlug) {
+    return <MainDomainRoutes />;
+  }
+
+  return (
+    <Routes>
+      <Route path="/*" element={<TenantRoutes />} />
     </Routes>
   );
 };

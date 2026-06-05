@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
   FileText, Plus, Pencil, Trash2, HelpCircle, ChevronDown, ChevronUp,
@@ -43,7 +43,6 @@ const fmtDateLocal = (iso) => {
 export default function TeacherExams() {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const { teacherSlug } = useParams();
   const { user } = useAuth();
   const canPrint = user?.role === 'teacher' || user?.can_view_analytics;
   const canManageExams = user?.role === 'teacher' || user?.can_manage_exams;
@@ -444,7 +443,7 @@ export default function TeacherExams() {
                     {isManual && canManageExams && (
                       <div className="mt-2">
                         <button
-                          onClick={() => navigate(`/${user?.teacher_slug || ''}/${baseRole}/exams/${ex.id}/questions`)}
+                          onClick={() => navigate(`/${baseRole}/exams/${ex.id}/questions`)}
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all bg-orange-50 hover:bg-orange-500 hover:text-white text-orange-700 border border-orange-200 hover:border-orange-500">
                           <HelpCircle className="w-3.5 h-3.5" />
                           إدارة الأسئلة

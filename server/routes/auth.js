@@ -85,12 +85,16 @@ function parseDeviceName(userAgent) {
 
 // ── POST /api/auth/login ────────────────────────────────────────────────────
 router.post('/login', loginLimiter, async (req, res) => {
-  const { username, password, role, slug, device_id } = req.body;
+  const { username, password, role, device_id } = req.body;
   if (!username || !password) {
     return res.status(400).json({ error: 'Username and password are required' });
   }
 
-  const attemptKey = getAttemptKey(slug, username);
+  // Tenant resolved by subdomainTenant middleware (from subdomain or X-Tenant-Slug header)
+  const slugTeacherId   = req.tenantTeacherId || null;
+  const slugTeacherSlug = req.tenantSlug || null;
+
+  const attemptKey = getAttemptKey(slugTeacherSlug, username);
   const lockedSecs = checkLockout(attemptKey);
   if (lockedSecs !== null) {
     return res.status(429).json({
@@ -100,17 +104,6 @@ router.post('/login', loginLimiter, async (req, res) => {
   }
 
   try {
-    let slugTeacherId   = null;
-    let slugTeacherSlug = null;
-    if (slug) {
-      const tRes = await pool.query('SELECT id, slug FROM teachers WHERE slug = $1', [slug]);
-      if (tRes.rows.length === 0) {
-        recordFailure(attemptKey);
-        return res.status(401).json({ error: 'بيانات الدخول غير صحيحة' });
-      }
-      slugTeacherId   = tRes.rows[0].id;
-      slugTeacherSlug = tRes.rows[0].slug;
-    }
 
     const checks = role ? [role] : ['teacher', 'assistant', 'student'];
 

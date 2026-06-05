@@ -16,7 +16,6 @@ import { useTeacher } from '../../context/TeacherContext';
 
 export default function TeacherDashboard() {
   const { user } = useAuth();
-  const { teacherSlug } = useTeacher();
   const navigate = useNavigate();
   const [profileStudentId, setProfileStudentId] = useState(null);
 
@@ -61,7 +60,7 @@ export default function TeacherDashboard() {
       border: 'border-blue-200 hover:border-blue-400',
       text: 'text-blue-700',
       badge: null,
-      onClick: () => navigate(`/${teacherSlug}/teacher/students`, { state: { openAdd: true } }),
+      onClick: () => navigate('/teacher/students', { state: { openAdd: true } }),
     },
     {
       icon: Bell,
@@ -72,7 +71,7 @@ export default function TeacherDashboard() {
       border: 'border-amber-200 hover:border-amber-400',
       text: 'text-amber-700',
       badge: null,
-      onClick: () => navigate(`/${teacherSlug}/teacher/notifications`),
+      onClick: () => navigate('/teacher/notifications'),
     },
     {
       icon: Inbox,
@@ -84,7 +83,7 @@ export default function TeacherDashboard() {
       text: 'text-purple-700',
       badge: stats?.pendingRequests || null,
       badgeColor: 'bg-purple-600',
-      onClick: () => navigate(`/${teacherSlug}/teacher/requests`),
+      onClick: () => navigate('/teacher/requests'),
     },
     {
       icon: CreditCard,
@@ -96,7 +95,7 @@ export default function TeacherDashboard() {
       text: 'text-emerald-700',
       badge: stats?.pendingPayments || null,
       badgeColor: 'bg-emerald-600',
-      onClick: () => navigate(`/${teacherSlug}/teacher/payments`),
+      onClick: () => navigate('/teacher/payments'),
     },
     {
       icon: RotateCcw,
@@ -108,7 +107,7 @@ export default function TeacherDashboard() {
       text: 'text-rose-700',
       badge: stats?.pendingRetries || null,
       badgeColor: 'bg-rose-500',
-      onClick: () => navigate(`/${teacherSlug}/teacher/exams`),
+      onClick: () => navigate('/teacher/exams'),
     },
   ];
 
@@ -209,7 +208,7 @@ export default function TeacherDashboard() {
               )}
             </div>
             <button
-              onClick={() => navigate(`/${teacherSlug}/teacher/students`)}
+              onClick={() => navigate('/teacher/students')}
               className="flex items-center gap-1 text-[11px] font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg border border-red-200 transition-colors"
             >
               عرض الكل <ChevronLeft className="w-3.5 h-3.5" />
@@ -507,7 +506,7 @@ export default function TeacherDashboard() {
                       <span className="text-rose-500">✗ {r.wrong_count}</span>
                     </td>
                     <td className="px-4 py-3 text-center hidden sm:table-cell">
-                      <button onClick={() => navigate(`/${teacherSlug}/teacher/exam-review/${r.id}`)}
+                      <button onClick={() => navigate(`/teacher/exam-review/${r.id}`)}
                         className="opacity-0 group-hover:opacity-100 flex items-center gap-1.5 px-2.5 py-1 bg-navy-50 hover:bg-navy-600 text-navy-600 hover:text-white text-xs font-bold rounded-lg transition-all border border-navy-200 hover:border-navy-600 mx-auto">
                         <Eye className="w-3.5 h-3.5" /> مراجعة
                       </button>

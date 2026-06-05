@@ -11,29 +11,29 @@ export default function AssistantLayout() {
   const { user, logout } = useAuth();
   const { dark, toggle } = useTheme();
   const navigate = useNavigate();
-  const { teacherSlug, platformName, logoUrl } = useTeacher();
+  const { platformName, logoUrl } = useTeacher();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useSSE(!!user, 'assistant');
 
-  const handleLogout = () => { logout(); navigate(`/${teacherSlug}/login`); };
+  const handleLogout = () => { logout(); };
 
   const navItems = useMemo(() => {
     const items = [
-      { to: `/${teacherSlug}/assistant`, icon: LayoutDashboard, label: 'لوحة التحكم', end: true },
+      { to: '/assistant', icon: LayoutDashboard, label: 'لوحة التحكم', end: true },
     ];
     if (user?.role === 'assistant') {
-      items.push({ to: `/${teacherSlug}/assistant/students`, icon: Users, label: 'الطلاب' });
-      if (user?.can_manage_exams) items.push({ to: `/${teacherSlug}/assistant/exams`, icon: FileText, label: 'الاختبارات' });
-      if (user?.can_manage_exams) items.push({ to: `/${teacherSlug}/assistant/question-banks`, icon: BookMarked, label: 'بنوك الأسئلة' });
-      if (user?.can_manage_courses) items.push({ to: `/${teacherSlug}/assistant/courses`, icon: BookOpen, label: 'الكورسات' });
-      if (user?.can_manage_payments) items.push({ to: `/${teacherSlug}/assistant/payments`, icon: CreditCard, label: 'المدفوعات' });
-      if (user?.can_view_analytics) items.push({ to: `/${teacherSlug}/assistant/analytics`, icon: BarChart3, label: 'التحليلات' });
-      if (user?.can_send_notifications) items.push({ to: `/${teacherSlug}/assistant/notifications`, icon: MessageCircle, label: 'الإشعارات' });
-      if (user?.can_manage_exams || user?.can_manage_courses) items.push({ to: `/${teacherSlug}/assistant/requests`, icon: Inbox, label: 'الطلبات' });
+      items.push({ to: '/assistant/students', icon: Users, label: 'الطلاب' });
+      if (user?.can_manage_exams) items.push({ to: '/assistant/exams', icon: FileText, label: 'الاختبارات' });
+      if (user?.can_manage_exams) items.push({ to: '/assistant/question-banks', icon: BookMarked, label: 'بنوك الأسئلة' });
+      if (user?.can_manage_courses) items.push({ to: '/assistant/courses', icon: BookOpen, label: 'الكورسات' });
+      if (user?.can_manage_payments) items.push({ to: '/assistant/payments', icon: CreditCard, label: 'المدفوعات' });
+      if (user?.can_view_analytics) items.push({ to: '/assistant/analytics', icon: BarChart3, label: 'التحليلات' });
+      if (user?.can_send_notifications) items.push({ to: '/assistant/notifications', icon: MessageCircle, label: 'الإشعارات' });
+      if (user?.can_manage_exams || user?.can_manage_courses) items.push({ to: '/assistant/requests', icon: Inbox, label: 'الطلبات' });
     }
     return items;
-  }, [user, teacherSlug]);
+  }, [user]);
 
   const displayLogo = logoUrl || WathbaLogo;
 

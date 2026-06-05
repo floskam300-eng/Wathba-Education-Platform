@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useEffect } from 'react';
-import { useParams, Outlet, Navigate } from 'react-router-dom';
+import { Outlet } from 'react-router-dom';
 import PWAInstallBanner from '../components/PWAInstallBanner';
 import { useQuery } from '@tanstack/react-query';
-import axios from 'axios';
+import api from '../lib/api';
+import { getTenantSlug } from '../lib/tenant';
 
 const TeacherContext = createContext(null);
 
@@ -19,7 +20,6 @@ function applyFavicon(url) {
     });
   };
 
-  // Draw image on canvas with rounded corners, then use as favicon
   const drawRounded = (imgEl) => {
     try {
       const size = 64;
@@ -45,7 +45,6 @@ function applyFavicon(url) {
       const dataUrl = canvas.toDataURL('image/png');
       setHref(dataUrl);
     } catch (_) {
-      // canvas tainted by CORS — fall back to original url
       setHref(url);
     }
   };
@@ -54,7 +53,6 @@ function applyFavicon(url) {
   img.crossOrigin = 'anonymous';
   img.onload = () => drawRounded(img);
   img.onerror = () => {
-    // retry without crossOrigin (works for same-origin or non-canvas use)
     const img2 = new Image();
     img2.onload = () => drawRounded(img2);
     img2.onerror = () => setHref(url);
@@ -63,14 +61,14 @@ function applyFavicon(url) {
   img.src = url;
 }
 
-function applyManifest(slug, appName) {
+function applyManifest(appName) {
   let link = document.querySelector("link[rel='manifest']");
   if (!link) {
     link = document.createElement('link');
     link.rel = 'manifest';
     document.head.appendChild(link);
   }
-  link.href = `/api/public/manifest/${slug}`;
+  link.href = `/api/public/manifest`;
 
   const setMeta = (name, val) => {
     let el = document.querySelector(`meta[name='${name}']`);
@@ -82,11 +80,11 @@ function applyManifest(slug, appName) {
 }
 
 export function TeacherProvider({ children }) {
-  const { teacherSlug } = useParams();
+  const teacherSlug = getTenantSlug();
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['teacher-public', teacherSlug],
-    queryFn: () => axios.get(`/api/public/info?slug=${teacherSlug}`).then(r => r.data),
+    queryFn: () => api.get('/public/info').then(r => r.data),
     enabled: !!teacherSlug,
     staleTime: 60 * 1000,
     retry: 1,
@@ -102,8 +100,8 @@ export function TeacherProvider({ children }) {
     if (!teacher) return;
     document.title = platformName;
     if (logoUrl) applyFavicon(logoUrl);
-    applyManifest(teacherSlug, platformName);
-  }, [teacher, platformName, logoUrl, teacherSlug]);
+    applyManifest(platformName);
+  }, [teacher, platformName, logoUrl]);
 
   return (
     <TeacherContext.Provider value={{
@@ -146,7 +144,7 @@ function TeacherOutlet() {
 }
 
 export function TeacherWrapper() {
-  const { teacherSlug } = useParams();
+  const teacherSlug = getTenantSlug();
   return (
     <TeacherProvider key={teacherSlug}>
       <TeacherOutlet />

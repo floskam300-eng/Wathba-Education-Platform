@@ -19,7 +19,7 @@ export default function TeacherLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { teacherLive, endTeacherStream } = useLiveStream();
-  const { teacherSlug, platformName, logoUrl } = useTeacher();
+  const { platformName, logoUrl } = useTeacher();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const onLivePage = location.pathname.endsWith('/livestream');
@@ -27,24 +27,24 @@ export default function TeacherLayout() {
   useSSE(!!user, user?.role || 'teacher');
 
   const navItems = useMemo(() => [
-    { to: `/${teacherSlug}/teacher`,               icon: LayoutDashboard, label: 'لوحة التحكم',       end: true },
-    { to: `/${teacherSlug}/teacher/students`,       icon: Users,           label: 'الطلاب' },
-    { to: `/${teacherSlug}/teacher/courses`,        icon: BookOpen,        label: 'الكورسات' },
-    { to: `/${teacherSlug}/teacher/exams`,          icon: FileText,        label: 'الاختبارات' },
-    { to: `/${teacherSlug}/teacher/question-banks`, icon: BookMarked,      label: 'بنوك الأسئلة' },
-    { to: `/${teacherSlug}/teacher/requests`,       icon: Inbox,           label: 'صفحة الطلبات' },
-    { to: `/${teacherSlug}/teacher/attendance`,     icon: ClipboardList,   label: 'الحضور والغياب' },
-    { to: `/${teacherSlug}/teacher/assistants`,     icon: UserCog,         label: 'المساعدون' },
-    { to: `/${teacherSlug}/teacher/analytics`,      icon: BarChart3,       label: 'التحليلات' },
-    { to: `/${teacherSlug}/teacher/payments`,       icon: CreditCard,      label: 'المدفوعات' },
-    { to: `/${teacherSlug}/teacher/leaderboard`,    icon: Trophy,          label: 'المتصدرون' },
-    { to: `/${teacherSlug}/teacher/notifications`,  icon: Bell,            label: 'الإشعارات' },
-    { to: `/${teacherSlug}/teacher/backup`,         icon: Database,        label: 'النسخ الاحتياطي' },
-    { to: `/${teacherSlug}/teacher/livestream`,     icon: Radio,           label: 'البث المباشر' },
-    { to: `/${teacherSlug}/teacher/activity-log`,   icon: Activity,        label: 'سجل النشاط' },
-  ], [teacherSlug]);
+    { to: '/teacher',               icon: LayoutDashboard, label: 'لوحة التحكم',       end: true },
+    { to: '/teacher/students',       icon: Users,           label: 'الطلاب' },
+    { to: '/teacher/courses',        icon: BookOpen,        label: 'الكورسات' },
+    { to: '/teacher/exams',          icon: FileText,        label: 'الاختبارات' },
+    { to: '/teacher/question-banks', icon: BookMarked,      label: 'بنوك الأسئلة' },
+    { to: '/teacher/requests',       icon: Inbox,           label: 'صفحة الطلبات' },
+    { to: '/teacher/attendance',     icon: ClipboardList,   label: 'الحضور والغياب' },
+    { to: '/teacher/assistants',     icon: UserCog,         label: 'المساعدون' },
+    { to: '/teacher/analytics',      icon: BarChart3,       label: 'التحليلات' },
+    { to: '/teacher/payments',       icon: CreditCard,      label: 'المدفوعات' },
+    { to: '/teacher/leaderboard',    icon: Trophy,          label: 'المتصدرون' },
+    { to: '/teacher/notifications',  icon: Bell,            label: 'الإشعارات' },
+    { to: '/teacher/backup',         icon: Database,        label: 'النسخ الاحتياطي' },
+    { to: '/teacher/livestream',     icon: Radio,           label: 'البث المباشر' },
+    { to: '/teacher/activity-log',   icon: Activity,        label: 'سجل النشاط' },
+  ], []);
 
-  const handleLogout = () => { logout(); navigate(`/${teacherSlug}/login`); };
+  const handleLogout = () => { logout(); };
 
   const displayLogo = logoUrl || WathbaLogo;
 
@@ -149,7 +149,7 @@ export default function TeacherLayout() {
               <p className="text-white text-sm font-bold truncate">{teacherLive.title}</p>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
-              <button onClick={() => navigate(`/${teacherSlug}/teacher/livestream`)}
+              <button onClick={() => navigate('/teacher/livestream')}
                 className="flex items-center gap-1.5 text-xs font-black px-3 py-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-white transition-colors">
                 <ExternalLink className="w-3.5 h-3.5" /> العودة للبث
               </button>
