@@ -8,6 +8,7 @@
 
 const { sendEvent } = require('./sse');
 const { sendFCMToStudents } = require('./lib/fcm');
+const { activeSends } = require('./lib/waActiveSends');
 
 let _pool = null;
 let _intervalId = null;
@@ -86,6 +87,13 @@ async function runWhatsAppSchedules() {
 
     for (const sched of schedules) {
       try {
+        // Skip if a manual send is already in progress for this teacher — prevents
+      // double-speed sending that could trigger WhatsApp's anti-spam detection.
+        if (activeSends.has(sched.teacher_id)) {
+          console.log(`[WA Scheduler] Teacher ${sched.teacher_id} has an active manual send — skipping schedule "${sched.name}" this tick`);
+          continue;
+        }
+
         const { status } = wa.getStatus(sched.teacher_id);
         if (status !== 'connected') {
           // Advance next_run_at even when disconnected — prevents pile-up of

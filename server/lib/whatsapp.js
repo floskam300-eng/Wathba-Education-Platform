@@ -169,14 +169,20 @@ async function sendMessage(teacherId, phone, message) {
   const jid = formatPhone(phone);
   if (!jid) throw new Error(`رقم غير صالح: ${phone}`);
 
-  // Timeout guard: if Baileys hangs, reject after 30s to unblock the send loop
-  const timeout = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error('انتهت مهلة الإرسال (30s)')), 30_000)
-  );
-  await Promise.race([
-    conn.socket.sendMessage(jid, { text: message }),
-    timeout,
-  ]);
+  // Timeout guard: if Baileys hangs, reject after 30s to unblock the send loop.
+  // clearTimeout in finally prevents a timer leak on every successful send.
+  let timeoutId;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error('انتهت مهلة الإرسال (30s)')), 30_000);
+  });
+  try {
+    await Promise.race([
+      conn.socket.sendMessage(jid, { text: message }),
+      timeout,
+    ]);
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 async function restoreConnections() {

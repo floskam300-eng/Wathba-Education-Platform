@@ -5,6 +5,8 @@ const { getPermissions }            = require('../lib/permissionsCache');
 const { logActivity, getActor, getIp } = require('../lib/activityLog');
 const wa = require('../lib/whatsapp');
 
+const { activeSends } = require('../lib/waActiveSends');
+
 const router = express.Router();
 router.use(authenticate);
 
@@ -13,8 +15,7 @@ router.use(authenticate);
 const waSendDelay = () => new Promise(r => setTimeout(r, 8000 + Math.floor(Math.random() * 8000)));
 
 // ── Active-send guard: blocks a new bulk send while one is already running ────
-// Uses a presence-based check (not time-based) — cleared only when send finishes.
-const activeSends = new Set(); // teacherIds with an active bulk send in progress
+// Uses the shared activeSends Set (also read by scheduler.js to prevent overlap).
 function checkActiveSend(teacherId) {
   if (activeSends.has(teacherId))
     return 'يوجد إرسال جارٍ بالفعل — انتظر حتى يكتمل قبل إرسال جديد';
