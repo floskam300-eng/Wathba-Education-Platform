@@ -13,19 +13,16 @@ const parentLookupLimiter = rateLimit({
 
 // Public landing page info — scoped by tenant (subdomain or X-Tenant-Slug header)
 router.get('/info', async (req, res) => {
-  const slug = req.tenantSlug || req.query.slug;
+  // Tenant must be resolved by subdomainTenant middleware — never fall back to
+  // query params or first-in-DB, both of which bypass tenant isolation.
+  const slug = req.tenantSlug;
+  if (!slug) return res.status(400).json({ error: 'معرّف المنصة مطلوب' });
+
   try {
-    let teacherRes;
-    if (slug) {
-      teacherRes = await pool.query(
-        'SELECT id, name, bio, classification, logo_url, photo_url, whatsapp_phone, platform_name, slug, created_at FROM teachers WHERE slug = $1',
-        [slug]
-      );
-    } else {
-      teacherRes = await pool.query(
-        'SELECT id, name, bio, classification, logo_url, photo_url, whatsapp_phone, platform_name, slug, created_at FROM teachers ORDER BY id LIMIT 1'
-      );
-    }
+    const teacherRes = await pool.query(
+      'SELECT id, name, bio, classification, logo_url, photo_url, whatsapp_phone, platform_name, slug, created_at FROM teachers WHERE slug = $1',
+      [slug]
+    );
 
     if (teacherRes.rows.length === 0) {
       return res.status(404).json({ error: 'المعلم غير موجود' });

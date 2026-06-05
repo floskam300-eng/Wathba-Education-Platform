@@ -127,12 +127,16 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 };
 
 // ─── Tenant Routes (subdomain present) ───────────────────────────────────────
+// TeacherWrapper is used as a layout Route element — its internal <Outlet /> renders
+// the matched child route. This is the correct React Router v6 "layout route" pattern.
 const TenantRoutes = () => {
   const { user } = useAuth();
 
   return (
-    <TeacherWrapper>
-      <Routes>
+    <Routes>
+      {/* Layout route: TeacherWrapper loads teacher context, shows spinner/error, then <Outlet /> */}
+      <Route element={<TeacherWrapper />}>
+
         <Route index element={<LandingPage />} />
 
         <Route path="login"
@@ -140,9 +144,11 @@ const TenantRoutes = () => {
 
         <Route path="parent-portal" element={<ParentPortal />} />
 
-        {/* Teacher dashboard */}
+        {/* ── Teacher dashboard ─────────────────────────────────────────────── */}
         <Route path="teacher" element={
-          <ProtectedRoute allowedRoles={['teacher']}><ErrorBoundary><TeacherLayout /></ErrorBoundary></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['teacher']}>
+            <ErrorBoundary><TeacherLayout /></ErrorBoundary>
+          </ProtectedRoute>
         }>
           <Route index element={<TeacherDashboard />} />
           <Route path="students" element={<TeacherStudents />} />
@@ -165,9 +171,11 @@ const TenantRoutes = () => {
           <Route path="exams/:examId/questions" element={<ExamQuestions />} />
         </Route>
 
-        {/* Assistant dashboard */}
+        {/* ── Assistant dashboard ────────────────────────────────────────────── */}
         <Route path="assistant" element={
-          <ProtectedRoute allowedRoles={['assistant']}><ErrorBoundary><AssistantLayout /></ErrorBoundary></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['assistant']}>
+            <ErrorBoundary><AssistantLayout /></ErrorBoundary>
+          </ProtectedRoute>
         }>
           <Route index element={<AssistantDashboard />} />
           <Route path="students" element={<AssistantStudents />} />
@@ -201,9 +209,11 @@ const TenantRoutes = () => {
           } />
         </Route>
 
-        {/* Student dashboard */}
+        {/* ── Student dashboard ─────────────────────────────────────────────── */}
         <Route path="student" element={
-          <ProtectedRoute allowedRoles={['student']}><ErrorBoundary><StudentLayout /></ErrorBoundary></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['student']}>
+            <ErrorBoundary><StudentLayout /></ErrorBoundary>
+          </ProtectedRoute>
         }>
           <Route index element={<StudentDashboard />} />
           <Route path="courses" element={<StudentCourses />} />
@@ -217,18 +227,19 @@ const TenantRoutes = () => {
           <Route path="events" element={<StudentEvents />} />
         </Route>
 
-        {/* Stickman run - outside StudentLayout */}
+        {/* Stickman run — fullscreen game, outside StudentLayout intentionally */}
         <Route path="student/events/stickman-run" element={
           <ProtectedRoute allowedRoles={['student']}><StickmanRunPage /></ProtectedRoute>
         } />
 
         <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </TeacherWrapper>
+
+      </Route>
+    </Routes>
   );
 };
 
-// ─── Main Domain Routes (no subdomain) ───────────────────────────────────────
+// ─── Main Domain Routes (no subdomain — SaaS landing) ────────────────────────
 const MainDomainRoutes = () => (
   <Routes>
     <Route path="/" element={<PlatformHome />} />
@@ -241,16 +252,10 @@ const MainDomainRoutes = () => (
 // ─── Root Router ──────────────────────────────────────────────────────────────
 const AppRoutes = () => {
   const tenantSlug = getTenantSlug();
-
-  if (!tenantSlug) {
-    return <MainDomainRoutes />;
-  }
-
-  return (
-    <Routes>
-      <Route path="/*" element={<TenantRoutes />} />
-    </Routes>
-  );
+  // No subdomain / no localStorage slug → show SaaS landing
+  if (!tenantSlug) return <MainDomainRoutes />;
+  // Subdomain or dev localStorage slug → show tenant app
+  return <TenantRoutes />;
 };
 
 export default function App() {

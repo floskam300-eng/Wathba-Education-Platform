@@ -40,6 +40,9 @@ module.exports = async function subdomainTenant(req, res, next) {
   let slug = extractSubdomainSlug(req.get('host') || '');
   if (!slug) slug = req.headers['x-tenant-slug'] || null;
   if (slug) {
+    // Always record that a slug was attempted — even if the teacher wasn't found.
+    // Routes can use req.tenantSlugAttempted to detect "wrong tenant" vs "no tenant".
+    req.tenantSlugAttempted = slug;
     const tenant = await resolveTenant(slug);
     if (tenant) {
       req.tenantSlug = tenant.slug;

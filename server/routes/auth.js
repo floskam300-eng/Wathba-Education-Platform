@@ -94,6 +94,13 @@ router.post('/login', loginLimiter, async (req, res) => {
   const slugTeacherId   = req.tenantTeacherId || null;
   const slugTeacherSlug = req.tenantSlug || null;
 
+  // If a slug was sent but didn't resolve to a real teacher → reject immediately.
+  // Without this check, a missing tenant would silently fall back to a global
+  // (cross-teacher) user search, which is a security bypass.
+  if (req.tenantSlugAttempted && !slugTeacherId) {
+    return res.status(401).json({ error: 'بيانات الدخول غير صحيحة' });
+  }
+
   const attemptKey = getAttemptKey(slugTeacherSlug, username);
   const lockedSecs = checkLockout(attemptKey);
   if (lockedSecs !== null) {
