@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
+import WhatsAppTab from '../../components/WhatsAppTab';
 
 const PLATFORM_TYPES = [
   { value: 'general',             label: '📢 إعلان عام' },
@@ -183,8 +184,9 @@ export default function Notifications() {
 
       <div className="flex gap-1 sm:gap-2 bg-white rounded-xl border border-slate-200 p-1 shadow-sm overflow-x-auto">
         {[
-          ['platform', '🔔 إشعار داخلي'],
-          ['history',  '📋 سجل الإشعارات'],
+          ['platform',  '🔔 إشعار داخلي'],
+          ['whatsapp',  '💬 واتساب'],
+          ['history',   '📋 سجل الإشعارات'],
         ].map(([key, label]) => (
           <button key={key} onClick={() => { setTab(key); setMessage(''); setSelectedStudents([]); }}
             className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap flex-shrink-0 ${tab === key ? 'bg-navy-500 text-white shadow' : 'text-gray-600 hover:bg-gray-100'}`}>
@@ -272,6 +274,8 @@ export default function Notifications() {
           </div>
         </div>
       )}
+
+      {tab === 'whatsapp' && <WhatsAppTab />}
 
       {tab === 'history' && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">

@@ -140,6 +140,7 @@ app.use('/api/question-banks', require('./routes/questionBanks'));
 app.use('/api/live', require('./routes/live'));
 app.use('/api/events', require('./routes/events'));
 app.use('/api/activity-logs', require('./routes/activityLogs'));
+app.use('/api/whatsapp',     require('./routes/whatsapp'));
 
 const clientDist = path.join(__dirname, '../client/dist');
 if (process.env.NODE_ENV === 'production' || fs.existsSync(clientDist)) {
@@ -189,5 +190,9 @@ app.listen(PORT, '0.0.0.0', async () => {
   await initDB();
   initFCM();
   startScheduler(pool);
+  // Restore any previously active WhatsApp sessions after a short delay
+  setTimeout(() => {
+    require('./lib/whatsapp').restoreConnections().catch(() => {});
+  }, 3000);
   console.log(`WATHBA Server running on port ${PORT}`);
 });

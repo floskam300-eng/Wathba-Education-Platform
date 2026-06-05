@@ -11,7 +11,9 @@ const { sendFCMToStudents } = require('./lib/fcm');
 
 let _pool = null;
 let _intervalId = null;
+let _waIntervalId = null;
 let _isRunning = false;
+let _isWaRunning = false;
 
 async function runCheck() {
   if (!_pool || _isRunning) return;
@@ -69,18 +71,116 @@ async function runCheck() {
   }
 }
 
+// ── WhatsApp Schedule Runner ─────────────────────────────────────────────────
+async function runWhatsAppSchedules() {
+  if (!_pool || _isWaRunning) return;
+  _isWaRunning = true;
+  try {
+    const { rows: schedules } = await _pool.query(
+      `SELECT * FROM whatsapp_schedules
+       WHERE is_active = true AND next_run_at IS NOT NULL AND next_run_at <= NOW()`
+    );
+    if (schedules.length === 0) { _isWaRunning = false; return; }
+
+    const wa = require('./lib/whatsapp');
+
+    for (const sched of schedules) {
+      try {
+        const { status } = wa.getStatus(sched.teacher_id);
+        if (status !== 'connected') {
+          console.log(`[WA Scheduler] Teacher ${sched.teacher_id} not connected — skipping schedule "${sched.name}"`);
+          continue;
+        }
+
+        // Build recipient list
+        let query;
+        const params = [sched.teacher_id];
+        const stageClause = (sched.stage_filter && sched.stage_filter !== 'all')
+          ? ` AND s.academic_stage = $2` : '';
+        if (sched.stage_filter && sched.stage_filter !== 'all') params.push(sched.stage_filter);
+
+        query = `SELECT s.id AS student_id, s.name, s.phone, s.parent_phone, s.academic_stage,
+                        COALESCE(AVG(er.score),0)::int AS avg_score,
+                        COUNT(er.id)::int AS exam_count
+                 FROM students s
+                 LEFT JOIN exam_results er ON s.id = er.student_id
+                 WHERE s.teacher_id = $1 AND s.deleted_at IS NULL${stageClause}
+                 GROUP BY s.id ORDER BY s.name`;
+
+        const { rows: students } = await _pool.query(query, params);
+
+        // Build recipients based on target_type
+        const recipients = [];
+        for (const st of students) {
+          if ((sched.target_type === 'students' || sched.target_type === 'both') && st.phone) {
+            recipients.push({ phone: st.phone, name: st.name, student_name: st.name, academic_stage: st.academic_stage, avg_score: st.avg_score, exam_count: st.exam_count, student_id: st.student_id });
+          }
+          if ((sched.target_type === 'parents' || sched.target_type === 'both') && st.parent_phone) {
+            recipients.push({ phone: st.parent_phone, name: st.name, student_name: st.name, academic_stage: st.academic_stage, avg_score: st.avg_score, exam_count: st.exam_count, student_id: st.student_id });
+          }
+        }
+
+        if (recipients.length === 0) {
+          console.log(`[WA Scheduler] No recipients for schedule "${sched.name}"`);
+        } else {
+          const { rows: [log] } = await _pool.query(
+            `INSERT INTO whatsapp_send_log (teacher_id, schedule_id, message, total_count, status, send_type)
+             VALUES ($1,$2,$3,$4,'sending','scheduled') RETURNING id`,
+            [sched.teacher_id, sched.id, sched.message, recipients.length]
+          );
+
+          let success = 0, failed = 0;
+          for (const rec of recipients) {
+            try {
+              const msg = sched.message
+                .replace(/\{name\}/g,         rec.name          || '')
+                .replace(/\{student_name\}/g, rec.student_name  || rec.name || '')
+                .replace(/\{avg_score\}/g,    String(rec.avg_score || 0))
+                .replace(/\{exam_count\}/g,   String(rec.exam_count || 0))
+                .replace(/\{stage\}/g,        rec.academic_stage || '');
+              await wa.sendMessage(sched.teacher_id, rec.phone, msg);
+              success++;
+            } catch (_) { failed++; }
+            await new Promise(r => setTimeout(r, 4000));
+          }
+
+          await _pool.query(
+            `UPDATE whatsapp_send_log SET status='done', success_count=$1, fail_count=$2, finished_at=NOW() WHERE id=$3`,
+            [success, failed, log.id]
+          );
+          console.log(`[WA Scheduler] Schedule "${sched.name}": sent ${success}/${recipients.length}`);
+        }
+
+        // Advance next_run_at
+        const nextRun = new Date(Date.now() + sched.interval_days * 24 * 60 * 60 * 1000);
+        await _pool.query(
+          `UPDATE whatsapp_schedules SET last_run_at=NOW(), next_run_at=$1, updated_at=NOW() WHERE id=$2`,
+          [nextRun.toISOString(), sched.id]
+        );
+      } catch (schedErr) {
+        console.error(`[WA Scheduler] Error on schedule ${sched.id}:`, schedErr.message);
+      }
+    }
+  } catch (err) {
+    console.error('[WA Scheduler] DB error:', err.message);
+  } finally {
+    _isWaRunning = false;
+  }
+}
+
 function startScheduler(pool) {
   _pool = pool;
   runCheck();
   _intervalId = setInterval(runCheck, 30 * 1000);
+  // Check WhatsApp schedules every 5 minutes
+  _waIntervalId = setInterval(runWhatsAppSchedules, 5 * 60 * 1000);
   console.log('[Scheduler] Exam start scheduler running (30s interval)');
+  console.log('[Scheduler] WhatsApp schedule checker running (5min interval)');
 }
 
 function stopScheduler() {
-  if (_intervalId) {
-    clearInterval(_intervalId);
-    _intervalId = null;
-  }
+  if (_intervalId)   { clearInterval(_intervalId);   _intervalId   = null; }
+  if (_waIntervalId) { clearInterval(_waIntervalId); _waIntervalId = null; }
 }
 
 module.exports = { startScheduler, stopScheduler };

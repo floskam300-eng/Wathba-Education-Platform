@@ -690,3 +690,36 @@ CREATE INDEX IF NOT EXISTS idx_live_chat_stream_sent
 
 -- Cleanup job: purge expired revoked tokens (runs safely every restart)
 DELETE FROM revoked_tokens WHERE expires_at < NOW();
+
+-- ── WhatsApp Integration ──────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS whatsapp_schedules (
+  id            SERIAL PRIMARY KEY,
+  teacher_id    INTEGER REFERENCES teachers(id) ON DELETE CASCADE,
+  name          VARCHAR(200) NOT NULL,
+  message       TEXT NOT NULL,
+  target_type   VARCHAR(20)  DEFAULT 'parents',
+  stage_filter  VARCHAR(100) DEFAULT 'all',
+  interval_days INTEGER      NOT NULL DEFAULT 30,
+  next_run_at   TIMESTAMPTZ,
+  last_run_at   TIMESTAMPTZ,
+  is_active     BOOLEAN DEFAULT true,
+  created_at    TIMESTAMPTZ DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_wa_schedules_teacher  ON whatsapp_schedules(teacher_id);
+CREATE INDEX IF NOT EXISTS idx_wa_schedules_next_run ON whatsapp_schedules(next_run_at, is_active);
+
+CREATE TABLE IF NOT EXISTS whatsapp_send_log (
+  id            SERIAL PRIMARY KEY,
+  teacher_id    INTEGER REFERENCES teachers(id) ON DELETE CASCADE,
+  schedule_id   INTEGER REFERENCES whatsapp_schedules(id) ON DELETE SET NULL,
+  message       TEXT NOT NULL,
+  total_count   INTEGER DEFAULT 0,
+  success_count INTEGER DEFAULT 0,
+  fail_count    INTEGER DEFAULT 0,
+  status        VARCHAR(20) DEFAULT 'sending',
+  send_type     VARCHAR(20) DEFAULT 'manual',
+  created_at    TIMESTAMPTZ DEFAULT NOW(),
+  finished_at   TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_wa_log_teacher ON whatsapp_send_log(teacher_id);
