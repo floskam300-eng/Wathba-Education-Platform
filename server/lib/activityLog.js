@@ -32,6 +32,12 @@ const ACTION_LABELS = {
   reset_leaderboard:         'تصفير المتصدرين',
   login_teacher:             'تسجيل دخول معلم',
   login_assistant:           'تسجيل دخول مساعد',
+  whatsapp_connect:          'ربط واتساب',
+  whatsapp_disconnect:       'قطع اتصال واتساب',
+  whatsapp_send:             'إرسال رسائل واتساب',
+  whatsapp_schedule_create:  'إنشاء جدولة واتساب',
+  whatsapp_schedule_edit:    'تعديل جدولة واتساب',
+  whatsapp_schedule_delete:  'حذف جدولة واتساب',
 };
 
 async function logActivity({ teacherId, actor, action, entity = {}, details = null, ip = null }) {

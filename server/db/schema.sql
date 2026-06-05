@@ -691,6 +691,9 @@ CREATE INDEX IF NOT EXISTS idx_live_chat_stream_sent
 -- Cleanup job: purge expired revoked tokens (runs safely every restart)
 DELETE FROM revoked_tokens WHERE expires_at < NOW();
 
+-- Cleanup job: mark any stuck WhatsApp send logs as failed on restart
+UPDATE whatsapp_send_log SET status='failed', finished_at=NOW() WHERE status='sending';
+
 -- ── WhatsApp Integration ──────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS whatsapp_schedules (
   id            SERIAL PRIMARY KEY,

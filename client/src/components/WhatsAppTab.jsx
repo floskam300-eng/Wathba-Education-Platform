@@ -384,16 +384,22 @@ export default function WhatsAppTab() {
   };
 
   const handleSend = async () => {
-    const recipients = buildRecipients();
     if (!message.trim()) return toast.error('اكتب نص الرسالة أولاً');
-    if (recipients.length === 0) {
-      if (selectedIds.length === 0) return toast.error('اختر طالباً واحداً على الأقل');
+    if (selectedIds.length === 0) return toast.error('اختر طالباً واحداً على الأقل');
+    // Check locally that selected students have the needed phone type — for fast UX feedback
+    const recipientCount = buildRecipients().length;
+    if (recipientCount === 0) {
       const missingType = targetType === 'parents' ? 'رقم ولي الأمر' : 'رقم الطالب';
       return toast.error(`المحددون لا يملكون ${missingType} مسجلاً`);
     }
     setSending(true);
     try {
-      const res = await api.post('/whatsapp/send', { recipients, message });
+      // Send only IDs + target_type — phone numbers are fetched server-side from the DB
+      const res = await api.post('/whatsapp/send', {
+        student_ids: selectedIds,
+        target_type: targetType,
+        message,
+      });
       toast.success(`✅ بدأ الإرسال لـ ${res.data.total} مستلم — يعمل في الخلفية`);
       setSelectedIds([]);
       setMessage('');

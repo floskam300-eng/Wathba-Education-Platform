@@ -6,20 +6,26 @@
 const path = require('path');
 const fs   = require('fs');
 
-const SESSION_BASE = path.join(__dirname, '../../whatsapp-sessions');
+const SESSION_BASE  = path.join(__dirname, '../../whatsapp-sessions');
+const MAX_RETRIES   = 5;   // max auto-reconnect attempts before giving up
+const RETRY_BASE_MS = 5000; // base delay; multiplied by attempt number (5s, 10s, 15s…)
 
-// In-memory map: teacherId -> { socket, status, qrBase64 }
+// In-memory map: teacherId -> { socket, status, qrBase64, retryCount }
 const connections = new Map();
 
 function getSessionDir(teacherId) {
-  return path.join(SESSION_BASE, String(teacherId));
+  // teacherId comes from JWT (integer) — safe to use as dir name
+  return path.join(SESSION_BASE, String(parseInt(teacherId, 10)));
 }
 
-// Format Egyptian/international phone → WhatsApp JID
+// Normalise Egyptian / international phone numbers to WhatsApp JID
 function formatPhone(phone) {
   if (!phone) return null;
   let p = String(phone).replace(/[\s\-\+\(\)]/g, '');
-  if (p.startsWith('01') && p.length === 11) p = '20' + p;
+  // Egyptian mobile: 01xxxxxxxxx (11 digits) → strip leading 0 and prepend 20
+  // e.g. 01012345678 → 201012345678 (12 digits)
+  if (p.startsWith('01') && p.length === 11) p = '20' + p.slice(1);
+  // International with 00 prefix → strip leading zeros
   if (p.startsWith('00')) p = p.slice(2);
   if (!p || p.length < 7) return null;
   return p + '@s.whatsapp.net';
@@ -42,9 +48,9 @@ async function initConnection(teacherId) {
   let makeWASocket, DisconnectReason, useMultiFileAuthState, fetchLatestBaileysVersion, pino;
   try {
     const baileys = require('@whiskeysockets/baileys');
-    makeWASocket            = baileys.default || baileys.makeWASocket;
-    DisconnectReason        = baileys.DisconnectReason;
-    useMultiFileAuthState   = baileys.useMultiFileAuthState;
+    makeWASocket              = baileys.default || baileys.makeWASocket;
+    DisconnectReason          = baileys.DisconnectReason;
+    useMultiFileAuthState     = baileys.useMultiFileAuthState;
     fetchLatestBaileysVersion = baileys.fetchLatestBaileysVersion;
     pino = require('pino');
   } catch (e) {
@@ -54,12 +60,14 @@ async function initConnection(teacherId) {
   const sessionDir = getSessionDir(teacherId);
   if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
 
+  // Close any existing socket gracefully before creating a new one
   const existing = connections.get(teacherId);
+  const retryCount = existing?.retryCount || 0;
   if (existing?.socket) {
     try { existing.socket.end(undefined); } catch (_) {}
   }
 
-  const conn = { status: 'connecting', qrBase64: null, socket: null };
+  const conn = { status: 'connecting', qrBase64: null, socket: null, retryCount };
   connections.set(teacherId, conn);
 
   const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
@@ -77,9 +85,9 @@ async function initConnection(teacherId) {
     logger: pino({ level: 'silent' }),
     printQRInTerminal: false,
     browser: ['وثبة منصة', 'Chrome', '120.0.0'],
-    connectTimeoutMs: 60000,
-    defaultQueryTimeoutMs: 60000,
-    keepAliveIntervalMs: 25000,
+    connectTimeoutMs: 60_000,
+    defaultQueryTimeoutMs: 60_000,
+    keepAliveIntervalMs: 25_000,
   });
 
   conn.socket = sock;
@@ -102,25 +110,38 @@ async function initConnection(teacherId) {
     }
 
     if (connection === 'open') {
-      c.status = 'connected';
-      c.qrBase64 = null;
+      c.status     = 'connected';
+      c.qrBase64   = null;
+      c.retryCount = 0;   // reset on successful connection
       console.log(`[WhatsApp] Teacher ${teacherId} connected ✓`);
     }
 
     if (connection === 'close') {
-      const code = lastDisconnect?.error?.output?.statusCode;
+      const code      = lastDisconnect?.error?.output?.statusCode;
       const loggedOut = code === DisconnectReason.loggedOut;
       console.log(`[WhatsApp] Teacher ${teacherId} disconnected (code=${code})`);
 
       if (loggedOut) {
+        // Credentials invalidated — wipe session and mark as not_setup
         try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch (_) {}
-        connections.set(teacherId, { status: 'not_setup', qrBase64: null, socket: null });
-      } else {
+        connections.set(teacherId, { status: 'not_setup', qrBase64: null, socket: null, retryCount: 0 });
+      } else if (c.retryCount < MAX_RETRIES) {
+        // Transient failure — retry with linear back-off (5s, 10s, 15s…)
+        c.retryCount++;
         c.status = 'reconnecting';
-        setTimeout(() => initConnection(teacherId).catch(e => {
-          console.error('[WhatsApp] Reconnect failed:', e.message);
-          connections.set(teacherId, { status: 'disconnected', qrBase64: null, socket: null });
-        }), 5000);
+        const delay = RETRY_BASE_MS * c.retryCount;
+        console.log(`[WhatsApp] Retrying teacher ${teacherId} in ${delay / 1000}s (attempt ${c.retryCount}/${MAX_RETRIES})`);
+        setTimeout(() => {
+          initConnection(teacherId).catch(err => {
+            console.error('[WhatsApp] Reconnect failed:', err.message);
+            const cur = connections.get(teacherId);
+            if (cur) cur.status = 'disconnected';
+          });
+        }, delay);
+      } else {
+        // Exhausted retries — stop trying
+        console.log(`[WhatsApp] Teacher ${teacherId} max retries reached — giving up`);
+        connections.set(teacherId, { status: 'disconnected', qrBase64: null, socket: null, retryCount: 0 });
       }
     }
   });
@@ -136,7 +157,7 @@ function disconnect(teacherId) {
   }
   const sessionDir = getSessionDir(teacherId);
   try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch (_) {}
-  connections.set(teacherId, { status: 'not_setup', qrBase64: null, socket: null });
+  connections.set(teacherId, { status: 'not_setup', qrBase64: null, socket: null, retryCount: 0 });
 }
 
 async function sendMessage(teacherId, phone, message) {
@@ -155,7 +176,7 @@ async function restoreConnections() {
   try { dirs = fs.readdirSync(SESSION_BASE); } catch (_) { return; }
   for (const dir of dirs) {
     const teacherId = parseInt(dir, 10);
-    if (!isNaN(teacherId) && hasSession(teacherId)) {
+    if (!isNaN(teacherId) && teacherId > 0 && hasSession(teacherId)) {
       console.log(`[WhatsApp] Restoring session for teacher ${teacherId}`);
       initConnection(teacherId).catch(e =>
         console.error(`[WhatsApp] Restore failed teacher ${teacherId}:`, e.message)
