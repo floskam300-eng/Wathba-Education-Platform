@@ -106,6 +106,112 @@ function FAQItem({ q, a }) {
   );
 }
 
+/* ── Dev Access Panel (dev only) ── */
+function DevAccessPanel() {
+  const [slug, setSlug] = useState('admin');
+  const [open, setOpen] = useState(false);
+
+  const isDevHost = (() => {
+    const h = window.location.hostname;
+    return h === 'localhost' || h === '127.0.0.1' ||
+      h.includes('.replit.dev') || h.includes('.replit.app') || h.includes('.repl.co') ||
+      h.split('.').length < 3;
+  })();
+
+  if (!isDevHost) return null;
+
+  const goTo = (path = '/login') => {
+    localStorage.setItem('wathba_teacher_slug', slug.trim());
+    window.location.href = path;
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', bottom: 20, left: 20, zIndex: 9999,
+      fontFamily: "'Cairo', sans-serif",
+    }}>
+      {!open ? (
+        <button
+          onClick={() => setOpen(true)}
+          style={{
+            background: 'rgba(15,12,30,0.95)',
+            border: '1px solid rgba(249,115,22,0.4)',
+            color: '#f97316', fontSize: '11px', fontWeight: 700,
+            padding: '6px 12px', borderRadius: 10, cursor: 'pointer',
+            backdropFilter: 'blur(12px)',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+            display: 'flex', alignItems: 'center', gap: 6,
+          }}
+        >
+          🛠 وضع المطور
+        </button>
+      ) : (
+        <div style={{
+          background: 'rgba(10,8,22,0.98)',
+          border: '1px solid rgba(249,115,22,0.35)',
+          borderRadius: 16, padding: '16px',
+          width: 260, backdropFilter: 'blur(20px)',
+          boxShadow: '0 8px 40px rgba(0,0,0,0.7)',
+          direction: 'rtl',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <span style={{ color: '#f97316', fontWeight: 800, fontSize: 13 }}>🛠 وضع المطور</span>
+            <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: 16 }}>✕</button>
+          </div>
+
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginBottom: 5 }}>slug المعلم</div>
+            <input
+              value={slug}
+              onChange={e => setSlug(e.target.value)}
+              placeholder="مثال: admin"
+              style={{
+                width: '100%', boxSizing: 'border-box',
+                background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
+                borderRadius: 8, padding: '7px 10px', color: '#fff', fontSize: 13,
+                fontFamily: "'Cairo', sans-serif", outline: 'none',
+                direction: 'ltr', textAlign: 'left',
+              }}
+              onKeyDown={e => e.key === 'Enter' && goTo('/login')}
+            />
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <button
+              onClick={() => goTo('/login')}
+              style={{
+                background: 'linear-gradient(135deg,#f97316,#ea6c0a)',
+                border: 'none', borderRadius: 8, padding: '8px',
+                color: '#fff', fontWeight: 700, fontSize: 12,
+                cursor: 'pointer', fontFamily: "'Cairo', sans-serif",
+              }}
+            >
+              🔐 فتح صفحة تسجيل الدخول
+            </button>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+              <button
+                onClick={() => { localStorage.setItem('wathba_teacher_slug', slug.trim()); window.location.href = '/teacher'; }}
+                style={{ background: 'rgba(124,58,237,0.2)', border: '1px solid rgba(124,58,237,0.3)', borderRadius: 8, padding: '7px 4px', color: '#a78bfa', fontWeight: 700, fontSize: 11, cursor: 'pointer', fontFamily: "'Cairo', sans-serif" }}
+              >
+                👨‍🏫 لوحة المعلم
+              </button>
+              <button
+                onClick={() => { localStorage.setItem('wathba_teacher_slug', slug.trim()); window.location.href = '/student'; }}
+                style={{ background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 8, padding: '7px 4px', color: '#34d399', fontWeight: 700, fontSize: 11, cursor: 'pointer', fontFamily: "'Cairo', sans-serif" }}
+              >
+                🎒 لوحة الطالب
+              </button>
+            </div>
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', textAlign: 'center', marginTop: 2 }}>
+              هذا الـ panel يظهر فقط في بيئة التطوير
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ════════════════════════════════════════════════════════ */
 /*                  MAIN COMPONENT                         */
 /* ════════════════════════════════════════════════════════ */
@@ -364,6 +470,8 @@ export default function PlatformHome() {
           </div>
         </Reveal>
       </section>
+
+      <DevAccessPanel />
 
       {/* ── Footer ── */}
       <footer className="border-t border-white/10 py-8">
