@@ -323,6 +323,47 @@ html.dark .from-yellow-50.to-orange-50 {
   background-color: rgba(251, 191, 36, 0.08) !important;
 }
 
+/* ── Red / rose gradient → dark subtle override ── */
+html.dark .from-red-50.to-rose-50 {
+  background-image: none !important;
+  background-color: rgba(248, 113, 113, 0.08) !important;
+}
+html.dark .from-red-50.to-red-100,
+html.dark .from-red-100.to-rose-100 {
+  background-image: none !important;
+  background-color: rgba(248, 113, 113, 0.10) !important;
+}
+
+/* ── Global input[type=text/search/email/number] dark override ── */
+html.dark input[type="text"],
+html.dark input[type="search"],
+html.dark input[type="email"],
+html.dark input[type="number"],
+html.dark input[type="tel"],
+html.dark input[type="url"],
+html.dark input[type="password"] {
+  background-color: var(--dk-elevated);
+  border-color: var(--dk-border-md);
+  color: var(--dk-text-1);
+}
+html.dark input[type="text"]::placeholder,
+html.dark input[type="search"]::placeholder,
+html.dark input[type="email"]::placeholder,
+html.dark input[type="number"]::placeholder,
+html.dark input[type="tel"]::placeholder {
+  color: var(--dk-text-3);
+}
+html.dark input[type="text"]:focus,
+html.dark input[type="search"]:focus,
+html.dark input[type="email"]:focus,
+html.dark input[type="number"]:focus,
+html.dark input[type="tel"]:focus {
+  border-color: var(--dk-orange);
+  box-shadow: 0 0 0 3px var(--dk-orange-dim);
+  outline: none;
+  background-color: var(--dk-surface);
+}
+
 /* Navy gradient cards → orange brand gradient in dark mode */
 html.dark .from-navy-600.to-navy-700,
 html.dark .from-navy-700.to-navy-600 {

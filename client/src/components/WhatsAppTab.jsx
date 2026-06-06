@@ -21,20 +21,95 @@ const INTERVAL_PRESETS = [
 ];
 
 const TARGET_OPTIONS = [
-  { value: 'parents',  label: 'أولياء الأمور فقط',  icon: '👨‍👩‍👧' },
-  { value: 'students', label: 'الطلاب فقط',          icon: '👤' },
-  { value: 'both',     label: 'الطلاب وأولياء الأمور', icon: '👥' },
+  { value: 'parents',  label: 'أولياء الأمور فقط',    short: 'أولياء',  icon: '👨‍👩‍👧' },
+  { value: 'students', label: 'الطلاب فقط',            short: 'الطلاب',  icon: '👤' },
+  { value: 'both',     label: 'الطلاب وأولياء الأمور', short: 'الجميع',  icon: '👥' },
 ];
 
-const WA_TEMPLATES = [
-  { title: 'تقرير شهري',
-    text: 'السلام عليكم ورحمة الله 🌙\n\nتقرير الطالب/ة: {student_name}\n📝 عدد الاختبارات: {exam_count}\n🎯 متوسط الدرجات: {avg_score}%\n\nللمزيد من التفاصيل تواصلوا معنا.\nمنصة وثبة التعليمية 📚' },
-  { title: 'تذكير بالدروس',
-    text: 'مرحباً ولي أمر الطالب/ة {student_name} 👋\n\nنذكّركم بمتابعة أبنائكم في المنصة والاطلاع على الدروس الجديدة.\n\nمنصة وثبة التعليمية ✏️' },
-  { title: 'إعلان عام',
-    text: 'إعلان هام من منصة وثبة التعليمية 📣\n\nنرحب بكم ونتمنى لأبنائكم التوفيق والنجاح دائماً 🌟' },
-  { title: 'دعوة للاختبار',
-    text: 'مرحباً ولي أمر {student_name} 📝\n\nيوجد اختبار جديد متاح على المنصة. يرجى تذكير الطالب/ة بأداء الاختبار في أقرب وقت.\n\nمنصة وثبة التعليمية 🎓' },
+const WA_PARENT_TEMPLATES = [
+  {
+    title: '📊 تقرير أداء شهري',
+    text:
+      'السلام عليكم ورحمة الله وبركاته 🌙\n' +
+      'نُرسل إليكم تقرير أداء الطالب/ة:\n\n' +
+      '👤 الاسم: {student_name}\n' +
+      '🎓 المرحلة: {stage}\n' +
+      '📝 عدد الاختبارات: {exam_count}\n' +
+      '🎯 متوسط الدرجات: {avg_score}%\n\n' +
+      '📲 لمتابعة التفاصيل الكاملة — درجات كل اختبار والكورسات — يمكنكم الدخول على بوابة ولي الأمر مباشرةً:\n' +
+      '{portal_link}\n\n' +
+      'نتمنى لأبنائنا التوفيق دائماً 🌟\n' +
+      '— منصة وثبة التعليمية 📚',
+  },
+  {
+    title: '⚠️ تنبيه انخفاض الأداء',
+    text:
+      'السلام عليكم ورحمة الله 🌙\n' +
+      'نودّ إعلامكم بأن متوسط درجات الطالب/ة {student_name} ({stage}) بلغ {avg_score}%\n\n' +
+      '⚠️ هذه النسبة تستدعي المتابعة والمراجعة.\n\n' +
+      '📲 تابعوا التفاصيل عبر بوابة ولي الأمر:\n' +
+      '{portal_link}\n\n' +
+      'نحن هنا لمساعدتكم، لا تترددوا في التواصل معنا.\n' +
+      '— منصة وثبة التعليمية',
+  },
+  {
+    title: '📝 دعوة لاختبار قادم',
+    text:
+      'السلام عليكم 👋\n' +
+      'نُذكّركم بأن الطالب/ة {student_name} لديه/لديها اختبار جديد متاح على منصة وثبة.\n\n' +
+      '✅ يُرجى تشجيع الطالب على أداء الاختبار في أقرب وقت.\n\n' +
+      '📲 تابعوا النتائج عبر بوابة ولي الأمر:\n' +
+      '{portal_link}\n\n' +
+      '— منصة وثبة التعليمية 🎓',
+  },
+  {
+    title: '✏️ تذكير بمتابعة الدروس',
+    text:
+      'السلام عليكم ورحمة الله 🌙\n' +
+      'نُذكّركم بمتابعة الطالب/ة {student_name} في مشاهدة دروس المنصة بانتظام.\n\n' +
+      'المتابعة المستمرة تُحسّن النتائج بشكل ملحوظ 📈\n\n' +
+      '📲 تابعوا تقدم ابنكم/ابنتكم عبر بوابة ولي الأمر:\n' +
+      '{portal_link}\n\n' +
+      '— منصة وثبة التعليمية 📚',
+  },
+];
+
+const WA_STUDENT_TEMPLATES = [
+  {
+    title: '🎯 تذكير بالدراسة',
+    text:
+      'مرحباً {student_name} 👋\n\n' +
+      'تذكّر أن متابعة الدروس بانتظام هو مفتاح النجاح! 🔑\n' +
+      'لديك محتوى جديد ينتظرك على منصة وثبة.\n\n' +
+      'سجّل دخولك الآن وواصل رحلتك التعليمية 💪\n' +
+      '— منصة وثبة التعليمية 📚',
+  },
+  {
+    title: '🏆 تهنئة بنتيجة ممتازة',
+    text:
+      'مبروك {student_name}! 🎉🏆\n\n' +
+      'حققت متوسط درجات {avg_score}% — نتيجة رائعة تستحق التقدير!\n\n' +
+      'استمر في هذا المستوى المتميز، نحن فخورون بك 🌟\n' +
+      '— منصة وثبة التعليمية',
+  },
+  {
+    title: '📝 اختبار جديد ينتظرك',
+    text:
+      'مرحباً {student_name} 📝\n\n' +
+      'يوجد اختبار جديد متاح لك على منصة وثبة!\n\n' +
+      '⏰ لا تؤخر — سجّل دخولك الآن وأدِّ الاختبار.\n' +
+      'بالتوفيق والنجاح 🎓\n' +
+      '— منصة وثبة التعليمية',
+  },
+  {
+    title: '💪 رسالة تحفيزية',
+    text:
+      'مرحباً {student_name} 💪\n\n' +
+      'النجاح يبدأ بخطوة واحدة — وأنت قادر/ة عليه!\n\n' +
+      'ادخل للمنصة اليوم وراجع دروسك وامتحاناتك.\n' +
+      'نحن نؤمن بك 🌟\n' +
+      '— منصة وثبة التعليمية 📚',
+  },
 ];
 
 const fmtDate = (d) => d
@@ -237,12 +312,25 @@ function ScheduleModal({ schedule, stages, onSave, onClose, loading }) {
                   قوالب جاهزة <ChevronDown className="w-3 h-3" />
                 </button>
                 {templateOpen && (
-                  <div className="absolute left-0 top-6 w-72 bg-white border border-slate-200 rounded-xl shadow-lg z-10 overflow-hidden">
-                    {WA_TEMPLATES.map(t => (
+                  <div className="absolute left-0 top-6 w-80 bg-white border border-slate-200 rounded-xl shadow-lg z-20 overflow-hidden max-h-72 overflow-y-auto">
+                    <div className="px-3 py-1.5 bg-blue-50 border-b border-slate-100">
+                      <p className="text-[10px] font-black text-blue-600">👨‍👩‍👧 قوالب أولياء الأمور</p>
+                    </div>
+                    {WA_PARENT_TEMPLATES.map(t => (
                       <button key={t.title} onClick={() => { set('message', t.text); setTemplateOpen(false); }}
                         className="w-full text-right px-3 py-2.5 hover:bg-green-50 transition-colors border-b border-slate-100 last:border-0">
                         <p className="text-xs font-bold text-navy-700">{t.title}</p>
-                        <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{t.text}</p>
+                        <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-1">{t.text.substring(0, 60)}...</p>
+                      </button>
+                    ))}
+                    <div className="px-3 py-1.5 bg-emerald-50 border-b border-slate-100">
+                      <p className="text-[10px] font-black text-emerald-600">👤 قوالب الطلاب</p>
+                    </div>
+                    {WA_STUDENT_TEMPLATES.map(t => (
+                      <button key={t.title} onClick={() => { set('message', t.text); setTemplateOpen(false); }}
+                        className="w-full text-right px-3 py-2.5 hover:bg-green-50 transition-colors border-b border-slate-100 last:border-0">
+                        <p className="text-xs font-bold text-navy-700">{t.title}</p>
+                        <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-1">{t.text.substring(0, 60)}...</p>
                       </button>
                     ))}
                   </div>
@@ -452,6 +540,9 @@ export default function WhatsAppTab() {
 
   const recipientCount = buildRecipients().length;
   const sampleStudent = students.find(s => selectedIds.includes(s.id));
+  const portalLink = typeof window !== 'undefined'
+    ? `${window.location.origin}/parent-portal`
+    : 'رابط بوابة ولي الأمر';
   const previewMsg = sampleStudent
     ? message
         .replace(/\{name\}/g, sampleStudent.name)
@@ -459,7 +550,8 @@ export default function WhatsAppTab() {
         .replace(/\{avg_score\}/g, String(sampleStudent.avg_score || 0))
         .replace(/\{exam_count\}/g, String(sampleStudent.exam_count || 0))
         .replace(/\{stage\}/g, sampleStudent.academic_stage || '')
-    : message;
+        .replace(/\{portal_link\}/g, portalLink)
+    : message.replace(/\{portal_link\}/g, portalLink);
 
   const stageLabels = stages.filter(s => s !== 'all');
 
@@ -542,7 +634,7 @@ export default function WhatsAppTab() {
                   {TARGET_OPTIONS.map(t => (
                     <button key={t.value} onClick={() => { setTargetType(t.value); setSelectedIds([]); }}
                       className={`py-1.5 text-xs font-bold rounded-lg border transition-all ${targetType === t.value ? 'border-green-500 bg-green-50 text-green-800' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}>
-                      {t.icon} {t.label.split(' ')[0]}
+                      {t.icon} {t.short}
                     </button>
                   ))}
                 </div>
@@ -615,25 +707,53 @@ export default function WhatsAppTab() {
                   <div className="relative">
                     <button onClick={() => setTemplateOpen(v => !v)}
                       className="text-xs font-bold text-green-600 hover:underline flex items-center gap-1">
-                      قوالب <ChevronDown className="w-3 h-3" />
+                      قوالب جاهزة <ChevronDown className="w-3 h-3" />
                     </button>
                     {templateOpen && (
-                      <div className="absolute left-0 top-6 w-72 bg-white border border-slate-200 rounded-xl shadow-lg z-10 overflow-hidden">
-                        {WA_TEMPLATES.map(t => (
-                          <button key={t.title} onClick={() => { setMessage(t.text); setTemplateOpen(false); }}
-                            className="w-full text-right px-3 py-2.5 hover:bg-green-50 transition-colors border-b border-slate-100 last:border-0">
-                            <p className="text-xs font-bold text-navy-700">{t.title}</p>
-                            <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{t.text}</p>
-                          </button>
-                        ))}
+                      <div className="absolute left-0 top-6 w-80 bg-white border border-slate-200 rounded-xl shadow-lg z-20 overflow-hidden">
+                        {/* Parent templates */}
+                        {(targetType === 'parents' || targetType === 'both') && (
+                          <>
+                            <div className="px-3 py-1.5 bg-blue-50 border-b border-slate-100">
+                              <p className="text-[10px] font-black text-blue-600 uppercase tracking-wider">👨‍👩‍👧 قوالب أولياء الأمور</p>
+                            </div>
+                            {WA_PARENT_TEMPLATES.map(t => (
+                              <button key={t.title} onClick={() => { setMessage(t.text); setTemplateOpen(false); }}
+                                className="w-full text-right px-3 py-2.5 hover:bg-green-50 transition-colors border-b border-slate-100 last:border-0">
+                                <p className="text-xs font-bold text-navy-700">{t.title}</p>
+                                <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-1">{t.text.substring(0, 60)}...</p>
+                              </button>
+                            ))}
+                          </>
+                        )}
+                        {/* Student templates */}
+                        {(targetType === 'students' || targetType === 'both') && (
+                          <>
+                            <div className="px-3 py-1.5 bg-emerald-50 border-b border-slate-100">
+                              <p className="text-[10px] font-black text-emerald-600 uppercase tracking-wider">👤 قوالب الطلاب</p>
+                            </div>
+                            {WA_STUDENT_TEMPLATES.map(t => (
+                              <button key={t.title} onClick={() => { setMessage(t.text); setTemplateOpen(false); }}
+                                className="w-full text-right px-3 py-2.5 hover:bg-green-50 transition-colors border-b border-slate-100 last:border-0">
+                                <p className="text-xs font-bold text-navy-700">{t.title}</p>
+                                <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-1">{t.text.substring(0, 60)}...</p>
+                              </button>
+                            ))}
+                          </>
+                        )}
                       </div>
                     )}
                   </div>
                 </div>
                 <textarea value={message} onChange={e => setMessage(e.target.value)}
                   className="input-field h-40 resize-none text-sm" dir="rtl"
-                  placeholder="اكتب الرسالة هنا... استخدم {student_name} {avg_score} {exam_count}" />
-                <p className="text-xs text-gray-400 mt-1">المتغيرات: &#123;student_name&#125; &#123;avg_score&#125; &#123;exam_count&#125; &#123;stage&#125;</p>
+                  placeholder="اكتب الرسالة هنا... أو اختر قالباً جاهزاً من الأعلى" />
+                <p className="text-xs text-gray-400 mt-1">
+                  المتغيرات: &#123;student_name&#125; &#123;avg_score&#125; &#123;exam_count&#125; &#123;stage&#125;
+                  {(targetType === 'parents' || targetType === 'both') && (
+                    <> · &#123;portal_link&#125; <span className="text-blue-500">(رابط بوابة ولي الأمر)</span></>
+                  )}
+                </p>
               </div>
 
               {message && selectedIds.length > 0 && sampleStudent && (

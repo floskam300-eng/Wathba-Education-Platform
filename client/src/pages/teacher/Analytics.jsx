@@ -853,7 +853,7 @@ export default function TeacherAnalytics() {
             <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
               placeholder="ابحث عن طالب بالاسم..."
-              className="w-full pr-9 pl-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 placeholder-gray-400 focus:outline-none focus:border-orange-300 focus:ring-2 focus:ring-orange-100 transition" />
+              className="w-full pr-9 pl-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 placeholder-gray-400 focus:outline-none focus:border-orange-300 focus:ring-2 focus:ring-orange-100 transition" />
             {searchQuery && (
               <button onClick={() => setSearchQuery('')} className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 hover:text-gray-600">
                 <XIcon className="w-4 h-4" />
@@ -1049,7 +1049,7 @@ export default function TeacherAnalytics() {
             <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
             <input type="text" value={resultsSearch} onChange={e => setResultsSearch(e.target.value)}
               placeholder="بحث في النتائج..."
-              className="w-full pr-8 pl-3 py-2 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 placeholder-gray-400 focus:outline-none focus:border-orange-300 transition" />
+              className="w-full pr-8 pl-3 py-2 rounded-lg border border-gray-200 bg-white text-xs font-semibold text-gray-700 placeholder-gray-400 focus:outline-none focus:border-orange-300 transition" />
           </div>
           <select value={resultsExamFilter} onChange={e => setResultsExamFilter(e.target.value)}
             className="py-2 px-3 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600 focus:outline-none focus:border-orange-300 transition">
