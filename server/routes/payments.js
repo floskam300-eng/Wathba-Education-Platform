@@ -173,9 +173,10 @@ router.post('/', requireRole('teacher', 'assistant'), (req, res, next) => checkP
   const method = req.body.method || '';
   const amount = parseFloat(req.body.amount);
   try {
-    const studentCheck = await pool.query('SELECT id FROM students WHERE id=$1 AND teacher_id=$2', [student_id, teacherId]);
+    // BUG-16 FIX: also require deleted_at IS NULL — prevents creating payments for soft-deleted students
+    const studentCheck = await pool.query('SELECT id FROM students WHERE id=$1 AND teacher_id=$2 AND deleted_at IS NULL', [student_id, teacherId]);
     if (!studentCheck.rows.length) {
-      return res.status(403).json({ error: 'Access denied: student not yours' });
+      return res.status(403).json({ error: 'Access denied: student not yours or has been deleted' });
     }
     if (course_id) {
       const courseCheck = await pool.query('SELECT id FROM courses WHERE id=$1 AND teacher_id=$2', [course_id, teacherId]);

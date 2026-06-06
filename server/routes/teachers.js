@@ -9,6 +9,16 @@ router.use(authenticate);
 const { getCached, setCache, invalidateCache } = require('../lib/analyticsCache');
 const { invalidateCache: invalidateTenantCache } = require('../middleware/subdomainTenant');
 
+// BUG-13 FIX: Reserved platform slugs that teachers must not claim.
+// These could conflict with DNS infrastructure, platform routes, or facilitate social engineering.
+const RESERVED_SLUGS = new Set([
+  'api', 'www', 'admin', 'login', 'register', 'logout', 'app', 'dashboard',
+  'static', 'mail', 'smtp', 'ftp', 'ns1', 'ns2', 'support', 'help', 'docs',
+  'blog', 'store', 'shop', 'dev', 'staging', 'test', 'stage', 'demo', 'cdn',
+  'media', 'assets', 'images', 'uploads', 'auth', 'oauth', 'signup', 'signin',
+  'account', 'profile', 'settings', 'terms', 'privacy', 'status', 'health',
+]);
+
 router.get('/dashboard', requireRole('teacher'), async (req, res) => {
   const teacherId = req.user.id;
   try {
@@ -61,7 +71,11 @@ router.put('/profile', requireRole('teacher'), async (req, res) => {
       if (!/^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$/.test(slug)) {
         return res.status(400).json({ error: 'الـ slug يجب أن يحتوي على حروف إنجليزية صغيرة وأرقام وشرطات فقط (3-50 حرف)' });
       }
-      // Check uniqueness
+      // BUG-13 FIX: Reject platform-reserved slug names
+      if (RESERVED_SLUGS.has(slug)) {
+        return res.status(400).json({ error: 'هذا الاسم محجوز للمنصة، اختر رابطاً مختلفاً' });
+      }
+      // Check uniqueness (DB also enforces UNIQUE — see BUG-14 catch below)
       const existing = await pool.query('SELECT id FROM teachers WHERE slug = $1 AND id != $2', [slug, req.user.id]);
       if (existing.rows.length > 0) {
         return res.status(409).json({ error: 'هذا الـ slug مستخدم بالفعل، اختر رابطاً مختلفاً' });
@@ -85,13 +99,21 @@ router.put('/profile', requireRole('teacher'), async (req, res) => {
     const { password: _, plain_password: __, ...safe } = result.rows[0];
     safe.teacher_slug = safe.slug;
 
-    // Invalidate subdomainTenant cache for old slug so the new slug takes effect immediately
+    // Invalidate subdomainTenant cache for old slug so the new slug takes effect immediately.
+    // BUG-15 FIX: also clear any stale null-cache entry for the NEW slug — without this,
+    // a prior failed lookup of the new slug would be cached as "not found" for up to 5 min.
     if (oldSlug && slug && oldSlug !== slug) {
       invalidateTenantCache(oldSlug);
+      invalidateTenantCache(slug);
     }
 
     res.json(safe);
   } catch (err) {
+    // BUG-14 FIX: two concurrent profile saves can both pass the app-level uniqueness check
+    // but the DB UNIQUE constraint on slug will fire for the second one → surface as 409.
+    if (err.code === '23505' && err.constraint && err.constraint.includes('slug')) {
+      return res.status(409).json({ error: 'هذا الـ slug مستخدم بالفعل، اختر رابطاً مختلفاً' });
+    }
     console.error(err);
     res.status(500).json({ error: 'Server error' });
   }

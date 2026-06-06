@@ -470,3 +470,195 @@ const months = (!isNaN(rawMonths) && rawMonths > 0) ? Math.min(rawMonths, 36) : 
 | `analytics/trend` INTERVAL string interpolation | آمن من SQLi — `parseInt` يُصفّي القيمة؛ مُقيَّد الآن بـ 36 شهراً |
 | Import `plain_password` في الـ export | مقصود — المعلم يُصدِّر بياناته الخاصة للنسخ الاحتياطية |
 | `months` cache key exhaustion | مُقيَّد الآن بـ Math.min(months, 36) |
+
+---
+
+## الجولة الثالثة (3rd Pass) — BUG-13 إلى BUG-17
+
+### BUG-13: Reserved Slug Blocklist Missing — تحقق من الكلمات المحجوزة للـ slug
+
+**الملف:** `server/routes/teachers.js`  
+**الخطورة:** متوسطة  
+**الوصف:** لم يكن هناك قائمة كلمات محجوزة للـ slug، مما يتيح للمعلم حجز `www`, `api`, `admin`, `login`, `dashboard`، إلخ — وهي كلمات قد تتعارض مع البنية التحتية للمنصة أو تُسهّل التصيّد الاجتماعي.  
+**الإصلاح:** إضافة `RESERVED_SLUGS` Set والتحقق منها قبل قبول الـ slug.
+
+**حالات الاختبار:**
+
+```bash
+TOKEN="<teacher-jwt>"
+
+# T13.1: slug محجوز — يجب أن يُرفض بـ 400
+curl -s -X PUT http://localhost:3001/api/teachers/profile \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"name":"Test","slug":"admin"}' | jq .
+
+# T13.2: slug محجوز آخر — يجب أن يُرفض بـ 400
+curl -s -X PUT http://localhost:3001/api/teachers/profile \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"name":"Test","slug":"api"}' | jq .
+
+# T13.3: slug محجوز — www
+curl -s -X PUT http://localhost:3001/api/teachers/profile \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"name":"Test","slug":"www"}' | jq .
+
+# T13.4: slug غير محجوز — يجب أن ينجح (200)
+curl -s -X PUT http://localhost:3001/api/teachers/profile \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"name":"Test","slug":"mr-ahmed-math"}' | jq .
+
+# T13.5: slug محجوز — login
+curl -s -X PUT http://localhost:3001/api/teachers/profile \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"name":"Test","slug":"login"}' | jq .
+
+# T13.6: slug محجوز — dashboard
+curl -s -X PUT http://localhost:3001/api/teachers/profile \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"name":"Test","slug":"dashboard"}' | jq .
+```
+
+| # | الـ slug | النتيجة المتوقعة |
+|---|---------|-----------------|
+| T13.1 | `admin` | 400 — محجوز للمنصة |
+| T13.2 | `api` | 400 — محجوز للمنصة |
+| T13.3 | `www` | 400 — محجوز للمنصة |
+| T13.4 | `mr-ahmed-math` | 200 — مقبول |
+| T13.5 | `login` | 400 — محجوز للمنصة |
+| T13.6 | `dashboard` | 400 — محجوز للمنصة |
+
+---
+
+### BUG-14: Slug Race Condition → 500 Instead of 409
+
+**الملف:** `server/routes/teachers.js`  
+**الخطورة:** عالية  
+**الوصف:** طلبان متزامنان لحجز نفس الـ slug يتجاوزان فحص التكرار على مستوى التطبيق. الـ DB يرفع قيد UNIQUE (خطأ 23505) لكن الكود لم يكن يعالجه — فيرجع 500 بدلاً من 409 مناسبة.  
+**الإصلاح:** إضافة `if (err.code === '23505' && err.constraint.includes('slug'))` في الـ catch.
+
+**حالات الاختبار:**
+
+```bash
+T1="<teacher1-jwt>"
+T2="<teacher2-jwt>"
+
+# T14.1: طلبان متزامنان لنفس الـ slug — الأول ينجح، الثاني يعيد 409 (لا 500)
+curl -s -X PUT http://localhost:3001/api/teachers/profile \
+  -H "Authorization: Bearer $T1" -H "Content-Type: application/json" \
+  -d '{"name":"T1","slug":"shared-slug"}' &
+
+curl -s -X PUT http://localhost:3001/api/teachers/profile \
+  -H "Authorization: Bearer $T2" -H "Content-Type: application/json" \
+  -d '{"name":"T2","slug":"shared-slug"}' &
+wait
+# أحد الردين يجب 200، الآخر 409 — لا يجب أن يكون هناك 500
+
+# T14.2: معلم واحد يطلب slug موجود مسبقاً (app-level check)
+# يجب أن يعيد 409 من الفحص الاعتيادي
+```
+
+| # | السيناريو | النتيجة المتوقعة |
+|---|----------|-----------------|
+| T14.1 | طلبان متزامنان لنفس الـ slug | واحد 200، الآخر 409 |
+| T14.2 | slug موجود (sequential) | 409 من الفحص الاعتيادي |
+| T14.3 | slug فريد | 200 |
+
+---
+
+### BUG-15: Stale Null-Cache for New Slug After Slug Change
+
+**الملف:** `server/routes/teachers.js`  
+**الخطورة:** منخفضة-متوسطة  
+**الوصف:** عند تغيير الـ slug، كان الكود يُبطل cache الـ slug القديم فقط. إذا كان أي طالب قد حاول الوصول إلى الـ slug الجديد قبل التغيير (فحصل على "404 غير موجود" مخزّن)، يظل الـ null-cache لمدة 5 دقائق، مما يجعل الطلاب يحصلون على "المستأجر غير موجود".  
+**الإصلاح:** استدعاء `invalidateTenantCache(slug)` بعد استدعاء `invalidateTenantCache(oldSlug)`.
+
+**حالات الاختبار:**
+
+```bash
+TOKEN="<teacher-jwt>"
+
+# T15.1: طالب يحاول تسجيل الدخول بـ new-slug قبل التغيير (يُخزَّن null)
+# ثم المعلم يغيّر slug إلى new-slug
+# T15.1a: محاولة طالب بـ new-slug (يحصل على 404 — يُخزَّن null)
+curl -s -H "X-Tenant-Slug: new-slug" http://localhost:3001/api/auth/me | jq .error
+
+# T15.1b: المعلم يغيّر slug إلى new-slug
+curl -s -X PUT http://localhost:3001/api/teachers/profile \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"name":"Test","slug":"new-slug"}' | jq .slug
+
+# T15.1c: فوراً بعد التغيير — طالب يجب أن يجد الـ tenant (لا 5 دق انتظار)
+curl -s -X POST http://localhost:3001/api/auth/login \
+  -H "X-Tenant-Slug: new-slug" -H "Content-Type: application/json" \
+  -d '{"username":"std_ali","password":"123456"}' | jq .
+# يجب أن ينجح فوراً — لا "المستأجر غير موجود"
+```
+
+| # | السيناريو | النتيجة المتوقعة |
+|---|----------|-----------------|
+| T15.1 | null-cache للـ new slug ثم تغيير الـ slug | تسجيل الدخول ينجح فوراً بعد التغيير |
+| T15.2 | slug لا يتغيّر | لا invalidation (لا تأثير) |
+
+---
+
+### BUG-16: Payment Creation for Soft-Deleted Student
+
+**الملف:** `server/routes/payments.js`  
+**الخطورة:** منخفضة  
+**الوصف:** `POST /api/payments` لم يكن يتحقق من `deleted_at IS NULL` في فحص ملكية الطالب، مما يتيح إنشاء دفعة لطالب تم حذفه soft-delete.  
+**الإصلاح:** إضافة `AND deleted_at IS NULL` إلى استعلام التحقق.
+
+**حالات الاختبار:**
+
+```bash
+TOKEN="<teacher-jwt>"
+
+# T16.1: إنشاء دفعة لطالب محذوف — يجب أن يُرفض بـ 403
+DELETED_STUDENT_ID=<id-of-soft-deleted-student>
+curl -s -X POST http://localhost:3001/api/payments \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d "{\"student_id\":$DELETED_STUDENT_ID,\"amount\":100,\"method\":\"cash\"}" | jq .
+
+# T16.2: إنشاء دفعة لطالب نشط — يجب أن ينجح
+ACTIVE_STUDENT_ID=<id-of-active-student>
+curl -s -X POST http://localhost:3001/api/payments \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d "{\"student_id\":$ACTIVE_STUDENT_ID,\"amount\":100,\"method\":\"cash\"}" | jq .
+```
+
+| # | السيناريو | النتيجة المتوقعة |
+|---|----------|-----------------|
+| T16.1 | طالب محذوف (deleted_at != NULL) | 403 — "student not yours or has been deleted" |
+| T16.2 | طالب نشط | 201 — دفعة أُنشئت |
+| T16.3 | طالب لمعلم آخر | 403 — "student not yours" |
+
+---
+
+### BUG-17: Soft-Deleted Students Appear in Attendance View
+
+**الملف:** `server/routes/students.js`  
+**الخطورة:** منخفضة  
+**الوصف:** `GET /api/students/attendance/:courseId` لم يكن يُصفّي الطلاب المحذوفين (deleted_at IS NOT NULL)، فكان الطلاب المحذوفون يظهرون في قوائم الحضور مع احتساب تقدمهم.  
+**الإصلاح:** إضافة `AND s.deleted_at IS NULL` في استعلام الطلاب.
+
+**حالات الاختبار:**
+
+```bash
+TOKEN="<teacher-jwt>"
+COURSE_ID=<course-id>
+
+# T17.1: قائمة الحضور — الطلاب المحذوفون لا يجب أن يظهروا
+curl -s -H "Authorization: Bearer $TOKEN" \
+  http://localhost:3001/api/students/attendance/$COURSE_ID | jq '.students | length'
+# بعد حذف طالب: العدد يجب أن ينخفض
+
+# T17.2: حذف طالب مسجّل في كورس ثم جلب الحضور
+# الطالب المحذوف لا يجب أن يُدرج في القائمة
+```
+
+| # | السيناريو | النتيجة المتوقعة |
+|---|----------|-----------------|
+| T17.1 | طالب محذوف مسجّل في الكورس | لا يظهر في قائمة الحضور |
+| T17.2 | طلاب نشطون فقط | يظهرون جميعاً |
+| T17.3 | كورس لمعلم آخر | 403 — Access denied |
+
