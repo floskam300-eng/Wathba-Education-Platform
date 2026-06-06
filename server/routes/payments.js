@@ -223,7 +223,8 @@ router.put('/:id/verify', requireRole('teacher', 'assistant'), (req, res, next) 
       return res.status(400).json({ error: 'لا يمكن تغيير حالة مدفوعة تم التحقق منها — غيّرها لـ "معلّق" أولاً إذا لزم الأمر' });
     }
 
-    const updateFields = ['status=$1', 'verified_at=NOW()'];
+    const updateFields = ['status=$1'];
+    if (status === 'verified') updateFields.push('verified_at=NOW()');
     const params = [status];
 
     if (method !== undefined && method !== null) {

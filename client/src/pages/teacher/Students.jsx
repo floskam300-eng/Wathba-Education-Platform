@@ -429,7 +429,7 @@ export default function TeacherStudents() {
   };
 
   const sanitizeCell = (val) => {
-    if (typeof val === 'string' && val.length > 0 && /^[=+\-@|]/.test(val)) return `'${val}`;
+    if (typeof val === 'string' && val.length > 0 && /^[=+\-@|\t\r]/.test(val)) return `'${val}`;
     return val;
   };
 

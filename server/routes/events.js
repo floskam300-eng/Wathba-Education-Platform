@@ -34,9 +34,20 @@ router.post('/weekly-run/start', requireRole('student'), async (req, res) => {
     if (played.length > 0) {
       return res.json({ success: false, message: 'already_played' });
     }
-    // Clean up expired tokens for this student (older than 2 hours)
+    // Return existing valid unused token if one already exists (prevents token flooding)
+    const existingToken = await pool.query(
+      `SELECT token FROM game_session_tokens
+       WHERE student_id=$1 AND event_id='weekly_run'
+         AND used_at IS NULL AND created_at > NOW() - INTERVAL '2 hours'
+       ORDER BY created_at DESC LIMIT 1`,
+      [req.user.id]
+    );
+    if (existingToken.rows.length > 0) {
+      return res.json({ success: true, sessionToken: existingToken.rows[0].token });
+    }
+    // Clean up all old/used tokens for this student before issuing a new one
     await pool.query(
-      `DELETE FROM game_session_tokens WHERE student_id=$1 AND event_id='weekly_run' AND created_at < NOW() - INTERVAL '2 hours'`,
+      `DELETE FROM game_session_tokens WHERE student_id=$1 AND event_id='weekly_run'`,
       [req.user.id]
     );
     const token = crypto.randomBytes(32).toString('hex');
@@ -46,7 +57,8 @@ router.post('/weekly-run/start', requireRole('student'), async (req, res) => {
     );
     res.json({ success: true, sessionToken: token });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[events /weekly-run/start]', err.message);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
@@ -65,7 +77,8 @@ router.get('/weekly-run/status', requireRole('student'), async (req, res) => {
       weekStart: weekStart.toISOString(),
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[events /weekly-run/status]', err.message);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
@@ -136,7 +149,8 @@ router.post('/weekly-run/finish', requireRole('student'), async (req, res) => {
     });
   } catch (err) {
     await client.query('ROLLBACK');
-    res.status(500).json({ error: err.message });
+    console.error('[events /weekly-run/finish]', err.message);
+    res.status(500).json({ error: 'Server error' });
   } finally {
     client.release();
   }

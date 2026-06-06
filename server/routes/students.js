@@ -592,11 +592,18 @@ router.post('/me/video-progress', requireRole('student'), async (req, res) => {
   const { video_id, watched_minutes, watch_count_increment, last_position, actual_watched_seconds } = req.body;
   if (!video_id) return res.status(400).json({ error: 'video_id required' });
   try {
-    // Fetch video duration from DB — never trust client-provided progress_percentage
-    const videoRow = await pool.query(
-      'SELECT duration_minutes FROM videos WHERE id=$1',
-      [video_id]
+    // Verify the video belongs to a course the student is actively enrolled in
+    const ownershipCheck = await pool.query(
+      `SELECT v.id, v.duration_minutes FROM videos v
+       JOIN student_course_enrollment sce ON v.course_id = sce.course_id
+       WHERE v.id = $1 AND sce.student_id = $2 AND sce.status = 'active'`,
+      [video_id, studentId]
     );
+    if (!ownershipCheck.rows.length) {
+      return res.status(403).json({ error: 'Access denied: video not in your enrolled courses' });
+    }
+    // Fetch video duration from DB — never trust client-provided progress_percentage
+    const videoRow = ownershipCheck;
     const durationMinutes = parseFloat(videoRow.rows[0]?.duration_minutes) || 0;
     const safeWatchedSeconds = Math.max(0, Math.min(actual_watched_seconds || 0, 86400));
     const safeWatchedMinutes = Math.max(0, watched_minutes || 0);

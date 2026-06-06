@@ -479,10 +479,22 @@ router.post('/:id/retry-request', requireRole('student'), async (req, res) => {
   const { message } = req.body;
   try {
     const examCheck = await pool.query(
-      'SELECT id FROM exams WHERE id=$1 AND teacher_id=(SELECT teacher_id FROM students WHERE id=$2)',
+      'SELECT id, course_id FROM exams WHERE id=$1 AND teacher_id=(SELECT teacher_id FROM students WHERE id=$2)',
       [examId, studentId]
     );
     if (!examCheck.rows.length) return res.status(403).json({ error: 'Access denied: exam not from your teacher' });
+
+    // For course-linked exams, verify the student is actively enrolled
+    const examCourseId = examCheck.rows[0].course_id;
+    if (examCourseId) {
+      const enrollCheck = await pool.query(
+        "SELECT id FROM student_course_enrollment WHERE student_id=$1 AND course_id=$2 AND status='active'",
+        [studentId, examCourseId]
+      );
+      if (!enrollCheck.rows.length) {
+        return res.status(403).json({ error: 'Access denied: not enrolled in the course for this exam' });
+      }
+    }
 
     const taken = await pool.query(
       'SELECT id, score FROM exam_results WHERE student_id=$1 AND exam_id=$2 AND is_latest=true',
