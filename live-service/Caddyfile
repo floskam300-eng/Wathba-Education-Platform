@@ -1,0 +1,26 @@
+# Caddy — Reverse proxy + Auto HTTPS for LiveKit
+# استبدل live.wathba.site بالـ subdomain بتاعك
+
+live.wathba.site {
+    # WebSocket + HTTP proxy to LiveKit
+    reverse_proxy livekit:7880 {
+        transport http {
+            # مهم لـ WebSocket
+            read_buffer_size  4096
+            write_buffer_size 4096
+        }
+    }
+
+    # Security headers
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        -Server
+    }
+
+    # Logs
+    log {
+        output stdout
+        format console
+    }
+}

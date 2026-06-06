@@ -1,0 +1,10 @@
+# لا تُرفع هذه الملفات على Git
+.env
+livekit/config.yaml
+
+# Docker volumes
+caddy_data/
+caddy_config/
+
+# Logs
+*.log

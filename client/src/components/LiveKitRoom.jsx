@@ -6,7 +6,7 @@ import {
 import api from '../lib/api';
 import {
   Mic, MicOff, Video, VideoOff,
-  Monitor, MonitorOff, Loader2, AlertCircle, Radio,
+  Monitor, MonitorOff, Loader2, AlertCircle, Radio, WifiOff,
 } from 'lucide-react';
 
 /* ── Loading overlay ─────────────────────────────────────── */
@@ -33,7 +33,7 @@ function LoadingOverlay() {
 }
 
 /* ── Error overlay ───────────────────────────────────────── */
-function ErrorOverlay({ message }) {
+function ErrorOverlay({ message, onRetry }) {
   return (
     <div style={{
       position: 'absolute', inset: 0, zIndex: 10,
@@ -50,6 +50,44 @@ function ErrorOverlay({ message }) {
       }}>
         {message}
       </p>
+      {onRetry && (
+        <button
+          onClick={onRetry}
+          style={{
+            marginTop: 8,
+            background: '#f97316', color: 'white', border: 'none',
+            borderRadius: 10, padding: '8px 20px',
+            fontWeight: 700, fontSize: 13, cursor: 'pointer',
+            fontFamily: 'inherit', direction: 'rtl',
+          }}
+        >
+          إعادة المحاولة
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* ── Reconnecting overlay ────────────────────────────────── */
+function ReconnectingOverlay() {
+  return (
+    <div style={{
+      position: 'absolute', inset: 0, zIndex: 10,
+      background: 'rgba(0,0,0,0.85)',
+      display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center', gap: 12,
+    }}>
+      <WifiOff style={{ width: 36, height: 36, color: '#f97316' }} />
+      <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, fontFamily: 'inherit', direction: 'rtl' }}>
+        جارٍ إعادة الاتصال...
+      </p>
+      <div style={{
+        width: 36, height: 36, borderRadius: '50%',
+        border: '3px solid rgba(249,115,22,0.2)',
+        borderTopColor: '#f97316',
+        animation: 'spin 1s linear infinite',
+      }} />
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
@@ -187,22 +225,44 @@ function AudioUnlockBtn({ room, onUnlocked }) {
 
 /* ════════════════════════════════════════════════════════════
    Main LiveKitRoom Component
+   Self-Hosted LiveKit — wathba.site
    ════════════════════════════════════════════════════════════ */
-export default function LiveKitRoom({ streamId, isTeacher, displayName, canSpeak = false, canShareScreen = false, style = {} }) {
-  const [status, setStatus]   = useState('loading');
-  const [error, setError]     = useState(null);
-  const [room]                = useState(() => new Room({
-    adaptiveStream: true,
-    dynacast: true,
-    videoCaptureDefaults: { resolution: VideoPresets.h720.resolution },
-  }));
+export default function LiveKitRoom({
+  streamId,
+  isTeacher,
+  displayName,
+  canSpeak = false,
+  canShareScreen = false,
+  style = {},
+}) {
+  const [status, setStatus]         = useState('loading');
+  const [error, setError]           = useState(null);
+  const [reconnecting, setReconnecting] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+
+  const roomRef = useRef(null);
+  const mountedRef = useRef(true);
+
+  // Create room once
+  if (!roomRef.current) {
+    roomRef.current = new Room({
+      adaptiveStream:  true,
+      dynacast:        true,
+      reconnectPolicy: {
+        // Retry up to 5 times, backing off exponentially
+        maxRetries:   5,
+        retryDelay:   (retries) => Math.min(1000 * Math.pow(2, retries), 15000),
+      },
+      videoCaptureDefaults: { resolution: VideoPresets.h720.resolution },
+    });
+  }
+  const room = roomRef.current;
 
   const [micEnabled,    setMicEnabled]    = useState(true);
   const [cameraEnabled, setCameraEnabled] = useState(true);
   const [screenSharing, setScreenSharing] = useState(false);
   const [localVersion,  setLocalVersion]  = useState(0);
 
-  // Student-specific states
   const [studentMic,    setStudentMic]    = useState(false);
   const [studentScreen, setStudentScreen] = useState(false);
 
@@ -211,122 +271,156 @@ export default function LiveKitRoom({ streamId, isTeacher, displayName, canSpeak
   const [remoteAudioTrack,  setRemoteAudioTrack]  = useState(null);
   const [audioLocked,       setAudioLocked]       = useState(false);
 
-  /* ── Connect to room ───────────────────────────────────── */
-  useEffect(() => {
-    let mounted = true;
+  /* ── Connect to self-hosted LiveKit ────────────────────── */
+  const connect = useCallback(async () => {
+    if (!mountedRef.current) return;
+    setStatus('loading');
+    setError(null);
 
-    const connect = async () => {
-      try {
-        let data;
-        try {
-          const resp = await api.post(`/live/${streamId}/livekit-token`);
-          data = resp.data;
-        } catch (apiErr) {
-          const serverMsg = apiErr?.response?.data?.error || apiErr?.message || 'API error';
-          console.error('[LiveKit] token API error:', serverMsg, apiErr?.response?.status);
-          if (!mounted) return;
-          setError(`خطأ في الحصول على رمز الدخول: ${serverMsg}`);
-          setStatus('error');
-          return;
-        }
-        if (!mounted) return;
+    let data;
+    try {
+      const resp = await api.post(`/live/${streamId}/livekit-token`);
+      data = resp.data;
+    } catch (apiErr) {
+      const serverMsg = apiErr?.response?.data?.error || apiErr?.message || 'API error';
+      console.error('[LiveKit] token API error:', serverMsg);
+      if (!mountedRef.current) return;
+      setError(`تعذّر الحصول على رمز الدخول: ${serverMsg}`);
+      setStatus('error');
+      return;
+    }
 
-        console.log('[LiveKit] token received, serverUrl:', data?.serverUrl, 'room:', data?.roomName);
+    if (!mountedRef.current) return;
 
-        if (!data.token || !data.serverUrl) {
-          setError(`خادم البث (LiveKit) غير مهيأ — يرجى ضبط LIVEKIT_URL / LIVEKIT_API_KEY / LIVEKIT_API_SECRET. (got: ${JSON.stringify(data)})`);
-          setStatus('error');
-          return;
-        }
+    if (!data?.token || !data?.serverUrl) {
+      setError('خدمة البث غير مهيأة — تواصل مع المسؤول');
+      setStatus('error');
+      return;
+    }
 
-        /* Track events */
-        room.on(RoomEvent.TrackSubscribed, (track, _pub, _participant) => {
-          if (track.kind === Track.Kind.Video) {
-            if (track.source === Track.Source.ScreenShare) setRemoteScreenTrack(track);
-            else setRemoteVideoTrack(track);
-          } else if (track.kind === Track.Kind.Audio) {
-            setRemoteAudioTrack(track);
-          }
-        });
+    console.log('[LiveKit] connecting to self-hosted:', data.serverUrl, '| room:', data.roomName);
 
-        room.on(RoomEvent.TrackUnsubscribed, (track) => {
-          if (track.source === Track.Source.ScreenShare) setRemoteScreenTrack(null);
-          else if (track.source === Track.Source.Camera) setRemoteVideoTrack(null);
-          else if (track.kind === Track.Kind.Audio) setRemoteAudioTrack(null);
-        });
+    /* ── Room events ─────────────────────────────────────── */
+    room.off(RoomEvent.TrackSubscribed);
+    room.off(RoomEvent.TrackUnsubscribed);
+    room.off(RoomEvent.AudioPlaybackStatusChanged);
+    room.off(RoomEvent.Reconnecting);
+    room.off(RoomEvent.Reconnected);
+    room.off(RoomEvent.Disconnected);
 
-        room.on(RoomEvent.AudioPlaybackStatusChanged, () => {
-          setAudioLocked(!room.canPlaybackAudio);
-        });
-
-        room.localParticipant.on(ParticipantEvent.LocalTrackPublished,   () => setLocalVersion(v => v + 1));
-        room.localParticipant.on(ParticipantEvent.LocalTrackUnpublished, () => setLocalVersion(v => v + 1));
-
-        /* Connect */
-        await room.connect(data.serverUrl, data.token);
-        if (!mounted) { room.disconnect(); return; }
-
-        /* Handle already-present remote tracks (student joins after teacher) */
-        room.remoteParticipants.forEach(participant => {
-          participant.trackPublications.forEach(pub => {
-            if (pub.isSubscribed && pub.track) {
-              if (pub.track.kind === Track.Kind.Video) {
-                if (pub.track.source === Track.Source.ScreenShare) setRemoteScreenTrack(pub.track);
-                else setRemoteVideoTrack(pub.track);
-              } else if (pub.track.kind === Track.Kind.Audio) {
-                setRemoteAudioTrack(pub.track);
-              }
-            }
-          });
-        });
-
-        /* Mark as connected BEFORE trying camera/mic */
-        setStatus('connected');
-
-        /* Teacher: enable camera + mic (non-fatal — user may deny permission) */
-        if (isTeacher) {
-          try {
-            await room.localParticipant.enableCameraAndMicrophone();
-          } catch (mediaErr) {
-            console.warn('[LiveKit] camera/mic unavailable:', mediaErr?.message);
-          }
-          if (mounted) setLocalVersion(v => v + 1);
-        }
-
-      } catch (connErr) {
-        console.error('[LiveKit] connection error:', connErr?.message, connErr);
-        if (!mounted) return;
-        const msg = connErr?.message || 'unknown error';
-        setError(
-          msg.includes('403') || msg.toLowerCase().includes('token') || msg.includes('401')
-            ? 'رمز الدخول غير صحيح — تحقق من إعدادات LiveKit.'
-            : `فشل الاتصال بـ LiveKit: ${msg}`
-        );
-        setStatus('error');
+    room.on(RoomEvent.TrackSubscribed, (track) => {
+      if (track.kind === Track.Kind.Video) {
+        if (track.source === Track.Source.ScreenShare) setRemoteScreenTrack(track);
+        else setRemoteVideoTrack(track);
+      } else if (track.kind === Track.Kind.Audio) {
+        setRemoteAudioTrack(track);
       }
-    };
+    });
 
-    connect();
-    return () => { mounted = false; room.disconnect(); };
+    room.on(RoomEvent.TrackUnsubscribed, (track) => {
+      if (track.source === Track.Source.ScreenShare) setRemoteScreenTrack(null);
+      else if (track.source === Track.Source.Camera) setRemoteVideoTrack(null);
+      else if (track.kind === Track.Kind.Audio) setRemoteAudioTrack(null);
+    });
+
+    room.on(RoomEvent.AudioPlaybackStatusChanged, () => {
+      if (mountedRef.current) setAudioLocked(!room.canPlaybackAudio);
+    });
+
+    room.on(RoomEvent.Reconnecting, () => {
+      if (mountedRef.current) setReconnecting(true);
+    });
+
+    room.on(RoomEvent.Reconnected, () => {
+      if (mountedRef.current) setReconnecting(false);
+    });
+
+    room.on(RoomEvent.Disconnected, (reason) => {
+      console.warn('[LiveKit] disconnected:', reason);
+      if (mountedRef.current) {
+        setReconnecting(false);
+        if (reason !== 'CLIENT_INITIATED') {
+          setError('انقطع الاتصال بخادم البث');
+          setStatus('error');
+        }
+      }
+    });
+
+    room.localParticipant.on(ParticipantEvent.LocalTrackPublished,   () => setLocalVersion(v => v + 1));
+    room.localParticipant.on(ParticipantEvent.LocalTrackUnpublished, () => setLocalVersion(v => v + 1));
+
+    /* ── Connect ─────────────────────────────────────────── */
+    try {
+      await room.connect(data.serverUrl, data.token);
+    } catch (connErr) {
+      console.error('[LiveKit] connection error:', connErr?.message);
+      if (!mountedRef.current) return;
+      const msg = connErr?.message || 'unknown';
+      setError(
+        msg.includes('403') || msg.toLowerCase().includes('token') || msg.includes('401')
+          ? 'رمز الدخول غير صالح — تحقق من إعدادات خادم البث'
+          : `فشل الاتصال بخادم البث: ${msg}`
+      );
+      setStatus('error');
+      return;
+    }
+
+    if (!mountedRef.current) { room.disconnect(); return; }
+
+    // Sync already-present remote tracks (student joins after teacher started)
+    room.remoteParticipants.forEach(participant => {
+      participant.trackPublications.forEach(pub => {
+        if (pub.isSubscribed && pub.track) {
+          if (pub.track.kind === Track.Kind.Video) {
+            if (pub.track.source === Track.Source.ScreenShare) setRemoteScreenTrack(pub.track);
+            else setRemoteVideoTrack(pub.track);
+          } else if (pub.track.kind === Track.Kind.Audio) {
+            setRemoteAudioTrack(pub.track);
+          }
+        }
+      });
+    });
+
+    setStatus('connected');
+    setReconnecting(false);
+
+    // Teacher: enable camera + mic
+    if (isTeacher) {
+      try {
+        await room.localParticipant.enableCameraAndMicrophone();
+      } catch (mediaErr) {
+        console.warn('[LiveKit] camera/mic unavailable:', mediaErr?.message);
+      }
+      if (mountedRef.current) setLocalVersion(v => v + 1);
+    }
   }, [streamId, room, isTeacher]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    connect();
+    return () => {
+      mountedRef.current = false;
+      room.disconnect();
+    };
+  }, [connect]);
 
   /* ── Teacher controls ──────────────────────────────────── */
   const toggleMic = useCallback(async () => {
     const next = !micEnabled;
-    await room.localParticipant.setMicrophoneEnabled(next);
+    try { await room.localParticipant.setMicrophoneEnabled(next); } catch (_) {}
     setMicEnabled(next);
   }, [room, micEnabled]);
 
   const toggleCamera = useCallback(async () => {
     const next = !cameraEnabled;
-    await room.localParticipant.setCameraEnabled(next);
+    try { await room.localParticipant.setCameraEnabled(next); } catch (_) {}
     setCameraEnabled(next);
     setLocalVersion(v => v + 1);
   }, [room, cameraEnabled]);
 
   const toggleScreen = useCallback(async () => {
     if (screenSharing) {
-      await room.localParticipant.setScreenShareEnabled(false);
+      try { await room.localParticipant.setScreenShareEnabled(false); } catch (_) {}
       setScreenSharing(false);
     } else {
       try {
@@ -337,7 +431,7 @@ export default function LiveKitRoom({ streamId, isTeacher, displayName, canSpeak
     setLocalVersion(v => v + 1);
   }, [room, screenSharing]);
 
-  /* ── Student controls (when permitted) ─────────────────── */
+  /* ── Student controls (when teacher grants permission) ───── */
   const toggleStudentMic = useCallback(async () => {
     if (!canSpeak) return;
     const next = !studentMic;
@@ -352,7 +446,7 @@ export default function LiveKitRoom({ streamId, isTeacher, displayName, canSpeak
   const toggleStudentScreen = useCallback(async () => {
     if (!canShareScreen) return;
     if (studentScreen) {
-      await room.localParticipant.setScreenShareEnabled(false);
+      try { await room.localParticipant.setScreenShareEnabled(false); } catch (_) {}
       setStudentScreen(false);
     } else {
       try {
@@ -362,6 +456,21 @@ export default function LiveKitRoom({ streamId, isTeacher, displayName, canSpeak
     }
     setLocalVersion(v => v + 1);
   }, [room, studentScreen, canShareScreen]);
+
+  // When student loses mic permission, mute locally
+  useEffect(() => {
+    if (!canSpeak && studentMic) {
+      room.localParticipant.setMicrophoneEnabled(false).catch(() => {});
+      setStudentMic(false);
+    }
+  }, [canSpeak, studentMic, room]);
+
+  useEffect(() => {
+    if (!canShareScreen && studentScreen) {
+      room.localParticipant.setScreenShareEnabled(false).catch(() => {});
+      setStudentScreen(false);
+    }
+  }, [canShareScreen, studentScreen, room]);
 
   /* ── Determine what to show ────────────────────────────── */
   const hasLocalVideo = (() => {
@@ -379,7 +488,14 @@ export default function LiveKitRoom({ streamId, isTeacher, displayName, canSpeak
       background: '#0a0a0a', overflow: 'hidden', ...style,
     }}>
       {status === 'loading' && <LoadingOverlay />}
-      {status === 'error'   && <ErrorOverlay message={error} />}
+      {status === 'error'   && (
+        <ErrorOverlay
+          message={error}
+          onRetry={() => { setRetryCount(c => c + 1); connect(); }}
+        />
+      )}
+
+      {reconnecting && status === 'connected' && <ReconnectingOverlay />}
 
       {status === 'connected' && (
         <>
@@ -390,7 +506,11 @@ export default function LiveKitRoom({ streamId, isTeacher, displayName, canSpeak
               : <NoVideoPlaceholder isTeacher />
           ) : (
             hasRemoteVideo
-              ? <VideoEl track={remoteScreenTrack || remoteVideoTrack} muted={false} key={(remoteScreenTrack || remoteVideoTrack)?.sid} />
+              ? <VideoEl
+                  track={remoteScreenTrack || remoteVideoTrack}
+                  muted={false}
+                  key={(remoteScreenTrack || remoteVideoTrack)?.sid}
+                />
               : <NoVideoPlaceholder isTeacher={false} />
           )}
 

@@ -44,7 +44,9 @@ async function getActiveViewerIds(streamId) {
 }
 
 /* ──────────────────────────────────────────────────────────────
-   LiveKit: generate a join token for teacher or student
+   LiveKit (Self-Hosted): generate a join token for teacher or student
+   Supports: LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET
+   All three must point to the self-hosted LiveKit VPS.
 ────────────────────────────────────────────────────────────── */
 router.post('/:streamId/livekit-token', async (req, res) => {
   const { streamId } = req.params;
@@ -56,7 +58,7 @@ router.post('/:streamId/livekit-token', async (req, res) => {
 
   if (!apiKey || !apiSecret || !serverUrl) {
     return res.status(503).json({
-      error: 'LiveKit غير مهيأ — أضف LIVEKIT_URL و LIVEKIT_API_KEY و LIVEKIT_API_SECRET في متغيرات البيئة',
+      error: 'خدمة البث غير مهيأة — تواصل مع المسؤول لضبط LIVEKIT_URL و LIVEKIT_API_KEY و LIVEKIT_API_SECRET',
     });
   }
 
@@ -65,25 +67,34 @@ router.post('/:streamId/livekit-token', async (req, res) => {
       "SELECT * FROM live_streams WHERE id=$1 AND status IN ('active','scheduled')",
       [streamId]
     );
-    if (!rows.length) return res.status(404).json({ error: 'البث غير موجود' });
+    if (!rows.length) return res.status(404).json({ error: 'البث غير موجود أو انتهى' });
 
     const stream   = rows[0];
     const roomName = stream.room_id;
 
     if (role === 'teacher') {
       if (parseInt(stream.teacher_id) !== parseInt(id)) {
-        return res.status(403).json({ error: 'Access denied: stream not yours' });
+        return res.status(403).json({ error: 'هذا البث لا ينتمي إليك' });
       }
     } else if (role === 'student') {
+      // Verify student belongs to the teacher who owns this stream
       const { rows: studentRows } = await pool.query(
         'SELECT teacher_id FROM students WHERE id=$1 AND deleted_at IS NULL',
         [id]
       );
       if (!studentRows.length || parseInt(studentRows[0].teacher_id) !== parseInt(stream.teacher_id)) {
-        return res.status(403).json({ error: 'Access denied: stream not from your teacher' });
+        return res.status(403).json({ error: 'هذا البث لا ينتمي لمعلمك' });
+      }
+      // Student must not be kicked
+      const { rows: kickCheck } = await pool.query(
+        'SELECT is_kicked FROM live_stream_viewers WHERE stream_id=$1 AND student_id=$2',
+        [streamId, id]
+      );
+      if (kickCheck.length && kickCheck[0].is_kicked) {
+        return res.status(403).json({ error: 'تم إخراجك من هذا البث' });
       }
     } else {
-      return res.status(403).json({ error: 'Access denied' });
+      return res.status(403).json({ error: 'غير مصرح' });
     }
 
     const { AccessToken } = require('livekit-server-sdk');
@@ -95,6 +106,7 @@ router.post('/:streamId/livekit-token', async (req, res) => {
     });
 
     if (role === 'teacher') {
+      // Teacher: full publish rights — camera, mic, screen share
       at.addGrant({
         roomJoin:        true,
         room:            roomName,
@@ -104,18 +116,19 @@ router.post('/:streamId/livekit-token', async (req, res) => {
         roomAdmin:       true,
       });
     } else {
+      // Student: subscribe always; publish only if teacher granted mic/screen permission
       const { rows: permRows } = await pool.query(
         'SELECT can_speak, can_share_screen FROM live_stream_viewers WHERE stream_id=$1 AND student_id=$2 AND is_active=true AND is_kicked=false',
         [streamId, id]
       );
-      const perm = permRows[0] || {};
+      const perm      = permRows[0] || {};
       const canPublish = !!(perm.can_speak || perm.can_share_screen);
       at.addGrant({
-        roomJoin:       true,
-        room:           roomName,
+        roomJoin:        true,
+        room:            roomName,
         canPublish,
-        canSubscribe:   true,
-        canPublishData: false,
+        canSubscribe:    true,
+        canPublishData:  false,
       });
     }
 
