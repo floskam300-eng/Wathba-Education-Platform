@@ -241,14 +241,24 @@ function LiveView({ stream, user, dark, onLeave }) {
     const h = (e) => {
       if (String(e.detail?.streamId) === String(stream.id)) {
         const { can_speak, can_share_screen } = e.detail;
-        setMyPermissions({ can_speak: !!can_speak, can_share_screen: !!can_share_screen });
-        // Remount LiveKitRoom to reconnect with updated permissions token
-        setLivekitKey(k => k + 1);
+        const newPerms = { can_speak: !!can_speak, can_share_screen: !!can_share_screen };
+
+        // BUG-FIX: only remount LiveKitRoom when a permission is newly GRANTED —
+        // that requires a new token with canPublish=true.
+        // When only revoking, LiveKitRoom's auto-mute effects handle it locally
+        // without a disruptive full reconnect (saves token rate-limiter quota too).
+        const wasGranted =
+          (newPerms.can_speak        && !myPermissions.can_speak) ||
+          (newPerms.can_share_screen && !myPermissions.can_share_screen);
+
+        setMyPermissions(newPerms);
+        if (wasGranted) setLivekitKey(k => k + 1);
       }
     };
     window.addEventListener('wathba_live_permission_update', h);
     return () => window.removeEventListener('wathba_live_permission_update', h);
-  }, [stream.id]);
+  // myPermissions intentionally in deps so handler sees current permissions
+  }, [stream.id, myPermissions]);
 
   const toggleHand = async () => {
     setRaisingHand(true);

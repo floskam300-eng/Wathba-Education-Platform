@@ -30,7 +30,7 @@ function chatRateCheck(userId) {
    Prevents token flooding (e.g. hammering /livekit-token)
 ────────────────────────────────────────────────────────────── */
 const tokenRateMap = new Map();
-const TOKEN_MAX    = 5;
+const TOKEN_MAX    = 10;   // increased: permission changes cause remount → more token requests
 const TOKEN_WIN_MS = 60000;
 
 function tokenRateCheck(userId, streamId) {
@@ -116,11 +116,12 @@ router.post('/:streamId/livekit-token', async (req, res) => {
   }
 
   try {
+    // BUG-FIX: scheduled streams don't have a LiveKit room yet — token only for active
     const { rows } = await pool.query(
-      "SELECT * FROM live_streams WHERE id=$1 AND status IN ('active','scheduled')",
+      "SELECT * FROM live_streams WHERE id=$1 AND status='active'",
       [streamId]
     );
-    if (!rows.length) return res.status(404).json({ error: 'البث غير موجود أو انتهى' });
+    if (!rows.length) return res.status(404).json({ error: 'البث غير نشط أو انتهى' });
 
     const stream   = rows[0];
     const roomName = stream.room_id;
@@ -212,6 +213,12 @@ router.post('/schedule', requireRole('teacher'), async (req, res) => {
   if (!scheduled_at) return res.status(400).json({ error: 'موعد البث مطلوب' });
   if (new Date(scheduled_at).getTime() <= Date.now())
     return res.status(400).json({ error: 'يجب أن يكون الموعد في المستقبل' });
+  // BUG-FIX: validate allowed_student_ids are positive integers
+  if (allowed_student_ids?.length) {
+    if (!Array.isArray(allowed_student_ids) || allowed_student_ids.length > 500 ||
+        !allowed_student_ids.every(id => Number.isInteger(Number(id)) && Number(id) > 0))
+      return res.status(400).json({ error: 'allowed_student_ids يجب أن تكون أرقام صحيحة موجبة (حد أقصى 500)' });
+  }
 
   try {
     const roomId = `wathba-${teacherId}-${Date.now().toString(36)}-${crypto.randomBytes(4).toString('hex')}`;
@@ -348,6 +355,12 @@ router.post('/start', requireRole('teacher'), async (req, res) => {
   if (description && description.length > 1000) return res.status(400).json({ error: 'وصف البث طويل جداً (1000 حرف كحد أقصى)' });
   if (access && !['all', 'stages', 'specific'].includes(access))
     return res.status(400).json({ error: 'قيمة access غير صالحة' });
+  // BUG-FIX: validate allowed_student_ids are positive integers (same guard as /schedule)
+  if (allowed_student_ids?.length) {
+    if (!Array.isArray(allowed_student_ids) || allowed_student_ids.length > 500 ||
+        !allowed_student_ids.every(id => Number.isInteger(Number(id)) && Number(id) > 0))
+      return res.status(400).json({ error: 'allowed_student_ids يجب أن تكون أرقام صحيحة موجبة (حد أقصى 500)' });
+  }
 
   try {
     // Notify active viewers of any currently running stream before ending it
@@ -563,15 +576,6 @@ router.post('/:streamId/join', requireRole('student'), async (req, res) => {
       return res.status(403).json({ error: 'الغرفة مقفلة حالياً من قِبَل المعلم — انتظر حتى يفتحها' });
     }
 
-    // FIX: check if student was previously kicked — prevent rejoin
-    const { rows: kickCheck } = await pool.query(
-      'SELECT is_kicked FROM live_stream_viewers WHERE stream_id=$1 AND student_id=$2',
-      [streamId, studentId]
-    );
-    if (kickCheck.length && kickCheck[0].is_kicked) {
-      return res.status(403).json({ error: 'تم إخراجك من هذا البث ولا يمكنك الانضمام مجدداً' });
-    }
-
     // Enforce per-stream access restrictions
     if (stream.access === 'stages') {
       const allowed = parseJsonbField(stream.allowed_stages).map(String);
@@ -583,15 +587,24 @@ router.post('/:streamId/join', requireRole('student'), async (req, res) => {
         return res.status(403).json({ error: 'لم تُضَف إلى قائمة المشاركين في هذا البث' });
     }
 
-    await pool.query(
+    // BUG-FIX: Atomic kick-check + upsert — prevents TOCTOU race where two
+    // concurrent requests both pass the pre-check then both re-activate the viewer.
+    // RETURNING is_kicked tells us if the upsert was blocked by the kick flag.
+    const { rows: upsertRows } = await pool.query(
       `INSERT INTO live_stream_viewers (stream_id, student_id, is_active, joined_at)
        VALUES ($1,$2,true,NOW())
-       ON CONFLICT (stream_id, student_id)
-       DO UPDATE SET is_active=true, joined_at=NOW(), left_at=NULL`,
+       ON CONFLICT (stream_id, student_id) DO UPDATE
+         SET is_active  = CASE WHEN live_stream_viewers.is_kicked THEN live_stream_viewers.is_active ELSE true END,
+             joined_at  = CASE WHEN live_stream_viewers.is_kicked THEN live_stream_viewers.joined_at ELSE NOW() END,
+             left_at    = CASE WHEN live_stream_viewers.is_kicked THEN live_stream_viewers.left_at    ELSE NULL END
+       RETURNING is_kicked`,
       [streamId, studentId]
     );
+    if (upsertRows[0]?.is_kicked) {
+      return res.status(403).json({ error: 'تم إخراجك من هذا البث ولا يمكنك الانضمام مجدداً' });
+    }
 
-    // Keep in-memory cache consistent
+    // Keep in-memory cache consistent (only if not kicked)
     vcAdd(streamId, studentId);
 
     sendEvent(`teacher_${stream.teacher_id}`, 'live_viewer_update', {
@@ -917,11 +930,12 @@ router.post('/:streamId/award-points', requireRole('teacher'), async (req, res) 
     return res.status(400).json({ error: 'الحد الأقصى 1000 نقطة لكل منحة' });
 
   try {
+    // BUG-FIX: require stream to be active — points awarded only during live sessions
     const { rows: streamRows } = await pool.query(
-      'SELECT title FROM live_streams WHERE id=$1 AND teacher_id=$2',
+      "SELECT title FROM live_streams WHERE id=$1 AND teacher_id=$2 AND status='active'",
       [streamId, teacherId]
     );
-    if (!streamRows.length) return res.status(403).json({ error: 'غير مصرح' });
+    if (!streamRows.length) return res.status(403).json({ error: 'غير مصرح أو البث غير نشط' });
 
     const { rows: studentRows } = await pool.query(
       'SELECT name FROM students WHERE id=$1 AND teacher_id=$2',
@@ -971,9 +985,11 @@ router.get('/:streamId/chat', requireRole('teacher', 'student'), async (req, res
 
     let q = 'SELECT id, stream_id, sender_id, sender_type, sender_name, message, sent_at FROM live_chat_messages WHERE stream_id=$1';
     const params = [streamId];
-    if (since) {
+    // BUG-FIX: validate since — parseInt(non-numeric) returns NaN → new Date(NaN) crashes
+    const sinceMs = since ? parseInt(since, 10) : NaN;
+    if (!isNaN(sinceMs) && sinceMs > 0) {
       q += ' AND sent_at > $2';
-      params.push(new Date(parseInt(since)));
+      params.push(new Date(sinceMs));
     }
     q += ' ORDER BY sent_at ASC LIMIT 200';
     const { rows } = await pool.query(q, params);

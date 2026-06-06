@@ -460,23 +460,31 @@ export default function LiveKitRoom({
   }, []);
 
   /* ── Teacher controls ────────────────────────────────── */
+  // BUG-FIX: only update state if the SDK call succeeds — prevents UI showing
+  // mic/camera as on when the browser actually denied the permission.
   const toggleMic = useCallback(async () => {
     const next = !micEnabled;
-    try { await room.localParticipant.setMicrophoneEnabled(next); } catch (_) {}
-    setMicEnabled(next);
+    try {
+      await room.localParticipant.setMicrophoneEnabled(next);
+      setMicEnabled(next);
+    } catch (_) {}
   }, [room, micEnabled]);
 
   const toggleCamera = useCallback(async () => {
     const next = !cameraEnabled;
-    try { await room.localParticipant.setCameraEnabled(next); } catch (_) {}
-    setCameraEnabled(next);
-    setLocalVersion(v => v + 1);
+    try {
+      await room.localParticipant.setCameraEnabled(next);
+      setCameraEnabled(next);
+      setLocalVersion(v => v + 1);
+    } catch (_) {}
   }, [room, cameraEnabled]);
 
   const toggleScreen = useCallback(async () => {
     if (screenSharing) {
-      try { await room.localParticipant.setScreenShareEnabled(false); } catch (_) {}
-      setScreenSharing(false);
+      try {
+        await room.localParticipant.setScreenShareEnabled(false);
+        setScreenSharing(false);
+      } catch (_) {}
     } else {
       try {
         await room.localParticipant.setScreenShareEnabled(true);
@@ -498,11 +506,14 @@ export default function LiveKitRoom({
     }
   }, [room, studentMic, canSpeak]);
 
+  // BUG-FIX: only update state on success for both enable and disable branches
   const toggleStudentScreen = useCallback(async () => {
     if (!canShareScreen) return;
     if (studentScreen) {
-      try { await room.localParticipant.setScreenShareEnabled(false); } catch (_) {}
-      setStudentScreen(false);
+      try {
+        await room.localParticipant.setScreenShareEnabled(false);
+        setStudentScreen(false);
+      } catch (_) {}
     } else {
       try {
         await room.localParticipant.setScreenShareEnabled(true);
