@@ -4,17 +4,26 @@ services:
   livekit:
     image: livekit/livekit-server:latest
     restart: unless-stopped
+    expose:
+      # FIX: 7880 only exposed internally (to Caddy via Docker network)
+      # NOT mapped to host — prevents unencrypted external access
+      - "7880"
     ports:
-      - "7880:7880"
+      # TCP fallback for WebRTC (needed by clients behind strict NAT)
       - "7881:7881"
+      # UDP range for WebRTC media — CRITICAL: must be open in firewall
       - "50000-50200:50000-50200/udp"
     volumes:
-      - ./livekit/config.yaml:/etc/livekit.yaml
+      - ./livekit/config.yaml:/etc/livekit.yaml:ro
     command: --config /etc/livekit.yaml
-    environment:
-      - LIVEKIT_CONFIG=/etc/livekit.yaml
     networks:
       - livekit-net
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:7880"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   caddy:
     image: caddy:2-alpine
@@ -22,12 +31,14 @@ services:
     ports:
       - "80:80"
       - "443:443"
+      - "443:443/udp"  # HTTP/3 (QUIC) — faster initial connection
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      - livekit
+      livekit:
+        condition: service_healthy
     networks:
       - livekit-net
 

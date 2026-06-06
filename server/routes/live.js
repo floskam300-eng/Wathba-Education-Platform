@@ -7,7 +7,7 @@ const { sendEvent, broadcastToTeacherStudents } = require('../sse');
 const router = express.Router();
 router.use(authenticate);
 
-/* ── Per-user chat rate limiter: max 5 msgs / 5 s ────────────
+/* ── Chat rate limiter: max 5 msgs / 5 s per student ─────────
    In-memory map: key → { count, resetAt }
 ────────────────────────────────────────────────────────────── */
 const chatRateMap = new Map();
@@ -15,8 +15,8 @@ const CHAT_MAX    = 5;
 const CHAT_WIN_MS = 5000;
 
 function chatRateCheck(userId) {
-  const now  = Date.now();
-  const rec  = chatRateMap.get(userId);
+  const now = Date.now();
+  const rec = chatRateMap.get(userId);
   if (!rec || now > rec.resetAt) {
     chatRateMap.set(userId, { count: 1, resetAt: now + CHAT_WIN_MS });
     return true;
@@ -26,21 +26,69 @@ function chatRateCheck(userId) {
   return true;
 }
 
-// Cleanup stale entries every 60 s to avoid memory leak
+/* ── LiveKit token rate limiter: max 5 tokens / 60 s ─────────
+   Prevents token flooding (e.g. hammering /livekit-token)
+────────────────────────────────────────────────────────────── */
+const tokenRateMap = new Map();
+const TOKEN_MAX    = 5;
+const TOKEN_WIN_MS = 60000;
+
+function tokenRateCheck(userId, streamId) {
+  const key = `${userId}:${streamId}`;
+  const now = Date.now();
+  const rec = tokenRateMap.get(key);
+  if (!rec || now > rec.resetAt) {
+    tokenRateMap.set(key, { count: 1, resetAt: now + TOKEN_WIN_MS });
+    return true;
+  }
+  if (rec.count >= TOKEN_MAX) return false;
+  rec.count++;
+  return true;
+}
+
+// Cleanup stale rate-limit entries every 2 minutes
 setInterval(() => {
   const now = Date.now();
-  for (const [k, v] of chatRateMap) {
-    if (now > v.resetAt) chatRateMap.delete(k);
-  }
-}, 60000);
+  for (const [k, v] of chatRateMap)  { if (now > v.resetAt) chatRateMap.delete(k);  }
+  for (const [k, v] of tokenRateMap) { if (now > v.resetAt) tokenRateMap.delete(k); }
+}, 120000);
 
-/* ── Helper: get active viewer student_ids for a stream ────── */
+/* ── In-memory viewer cache ───────────────────────────────────
+   Eliminates DB query on every chat message fan-out.
+   Kept consistent by join / leave / kick / end endpoints.
+   On server restart, cache is cold and warms on first access.
+   Map: streamId (string) → Set<studentId (number)>
+────────────────────────────────────────────────────────────── */
+const viewerCache = new Map();
+
+function vcAdd(streamId, studentId) {
+  const key = String(streamId);
+  if (!viewerCache.has(key)) viewerCache.set(key, new Set());
+  viewerCache.get(key).add(Number(studentId));
+}
+
+function vcRemove(streamId, studentId) {
+  viewerCache.get(String(streamId))?.delete(Number(studentId));
+}
+
+function vcClear(streamId) {
+  viewerCache.delete(String(streamId));
+}
+
+/** Returns active viewer IDs — cache-first, DB fallback on cold start */
 async function getActiveViewerIds(streamId) {
+  const key = String(streamId);
+  if (viewerCache.has(key)) {
+    return [...viewerCache.get(key)];
+  }
+  // Cache miss (server restart or first access) — warm from DB
   const { rows } = await pool.query(
     'SELECT student_id FROM live_stream_viewers WHERE stream_id=$1 AND is_active=true',
     [streamId]
   );
-  return rows.map(r => r.student_id);
+  const ids = rows.map(r => Number(r.student_id));
+  viewerCache.set(key, new Set(ids));
+  return ids;
 }
 
 /* ──────────────────────────────────────────────────────────────
@@ -60,6 +108,11 @@ router.post('/:streamId/livekit-token', async (req, res) => {
     return res.status(503).json({
       error: 'خدمة البث غير مهيأة — تواصل مع المسؤول لضبط LIVEKIT_URL و LIVEKIT_API_KEY و LIVEKIT_API_SECRET',
     });
+  }
+
+  // Rate-limit token requests: max 5 per student per stream per minute
+  if (role === 'student' && !tokenRateCheck(id, streamId)) {
+    return res.status(429).json({ error: 'طلبات كثيرة جداً — انتظر دقيقة وحاول مجدداً' });
   }
 
   try {
@@ -217,15 +270,13 @@ router.post('/scheduled/:streamId/start', requireRole('teacher'), async (req, re
       [teacherId]
     );
     for (const active of activeStreams) {
-      const { rows: activeViewers } = await pool.query(
-        'SELECT student_id FROM live_stream_viewers WHERE stream_id=$1 AND is_active=true',
-        [active.id]
-      );
+      const viewerIds = await getActiveViewerIds(active.id);
       await pool.query(
         "UPDATE live_stream_viewers SET is_active=false, left_at=NOW() WHERE stream_id=$1 AND is_active=true",
         [active.id]
       );
-      for (const { student_id } of activeViewers) {
+      vcClear(active.id);
+      for (const student_id of viewerIds) {
         sendEvent(`student_${student_id}`, 'live_ended', {
           streamId: active.id,
           message: 'انتهى البث المباشر',
@@ -305,15 +356,13 @@ router.post('/start', requireRole('teacher'), async (req, res) => {
       [teacherId]
     );
     for (const active of activeStreams) {
-      const { rows: activeViewers } = await pool.query(
-        'SELECT student_id FROM live_stream_viewers WHERE stream_id=$1 AND is_active=true',
-        [active.id]
-      );
+      const viewerIds = await getActiveViewerIds(active.id);
       await pool.query(
         "UPDATE live_stream_viewers SET is_active=false, left_at=NOW() WHERE stream_id=$1 AND is_active=true",
         [active.id]
       );
-      for (const { student_id } of activeViewers) {
+      vcClear(active.id);
+      for (const student_id of viewerIds) {
         sendEvent(`student_${student_id}`, 'live_ended', {
           streamId: active.id,
           message: 'انتهى البث المباشر',
@@ -391,18 +440,18 @@ router.post('/:streamId/end', requireRole('teacher'), async (req, res) => {
     if (!result.rows.length) return res.status(404).json({ error: 'البث غير موجود أو انتهى بالفعل' });
 
     // FIX: get active viewers BEFORE marking them inactive, and only active ones
-    const { rows: activeViewers } = await pool.query(
-      'SELECT student_id FROM live_stream_viewers WHERE stream_id=$1 AND is_active=true',
-      [streamId]
-    );
+    const activeViewers = await getActiveViewerIds(streamId);
 
     await pool.query(
       "UPDATE live_stream_viewers SET is_active=false, left_at=NOW() WHERE stream_id=$1 AND is_active=true",
       [streamId]
     );
 
+    // Clear in-memory cache for ended stream
+    vcClear(streamId);
+
     // Notify only viewers who were actively watching
-    for (const { student_id } of activeViewers)
+    for (const student_id of activeViewers)
       sendEvent(`student_${student_id}`, 'live_ended', { streamId: parseInt(streamId), message: 'انتهى البث المباشر' });
 
     res.json({ success: true });
@@ -542,6 +591,9 @@ router.post('/:streamId/join', requireRole('student'), async (req, res) => {
       [streamId, studentId]
     );
 
+    // Keep in-memory cache consistent
+    vcAdd(streamId, studentId);
+
     sendEvent(`teacher_${stream.teacher_id}`, 'live_viewer_update', {
       action: 'joined', studentId, studentName: req.user.name,
     });
@@ -573,6 +625,8 @@ router.post('/:streamId/leave', requireRole('student'), async (req, res) => {
       "UPDATE live_hand_raises SET is_active=false, lowered_at=NOW() WHERE stream_id=$1 AND student_id=$2 AND is_active=true",
       [streamId, studentId]
     );
+    // Keep in-memory cache consistent
+    vcRemove(streamId, studentId);
     if (rows.length) {
       sendEvent(`teacher_${rows[0].teacher_id}`, 'live_viewer_update', {
         action: 'left', studentId, studentName: req.user.name,
@@ -704,6 +758,9 @@ router.post('/:streamId/kick/:studentId', requireRole('teacher'), async (req, re
       "UPDATE live_hand_raises SET is_active=false, lowered_at=NOW() WHERE stream_id=$1 AND student_id=$2 AND is_active=true",
       [streamId, studentId]
     );
+
+    // Keep in-memory cache consistent
+    vcRemove(streamId, studentId);
 
     sendEvent(`student_${studentId}`, 'live_kicked', {
       streamId: parseInt(streamId),

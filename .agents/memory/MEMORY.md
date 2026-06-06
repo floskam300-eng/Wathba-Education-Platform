@@ -3,3 +3,4 @@
 - [Admin password is random](admin-password-random.md) — admin account created with crypto.randomBytes password on first startup; "admin123" does NOT work without seed; after seed.js the password becomes "admin123"
 - [Subdomain tenancy pattern](subdomain-tenancy.md) — tenant resolved server-side via Host header (subdomainTenant middleware) with X-Tenant-Slug fallback; client injects header via axios interceptor; getTenantSlug() reads subdomain in prod, localStorage in dev
 - [Security audit fixes 2026-06](security-audit-fixes.md) — 17 bugs fixed across 3 full passes; all routes audited; BUG-13..17 cover slug reserved-words, slug race-condition 23505→409, null-cache for new slug, payment soft-delete gap, attendance soft-delete gap
+- [LiveStream viewer cache pattern](livestream-viewer-cache.md) — chat fan-out uses in-memory Map<streamId,Set<studentId>>; updated on join/leave/kick/end; DB fallback on cold start; token endpoint rate-limited 5/min per student
