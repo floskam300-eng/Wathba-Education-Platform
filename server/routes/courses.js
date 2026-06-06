@@ -797,6 +797,8 @@ router.get('/enrollment-requests', requireRole('teacher', 'assistant'), async (r
 router.put('/enrollment-requests/:id', requireRole('teacher', 'assistant'), checkManageCoursesPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
   const { action } = req.body;
+  if (!['approve', 'reject'].includes(action))
+    return res.status(400).json({ error: 'الإجراء غير صالح — يجب أن يكون approve أو reject' });
   try {
     const reqRes = await pool.query(
       `SELECT cer.* FROM course_enrollment_requests cer

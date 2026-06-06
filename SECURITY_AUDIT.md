@@ -285,6 +285,177 @@ psql $DATABASE_URL -c \
 
 ---
 
+---
+
+### BUG-7: تسريب `err.message` في `GET /students/stages`
+**الملف:** `server/routes/students.js` — السطر 68 (سابقاً)
+
+**المشكلة:**
+```js
+// قبل الإصلاح
+res.status(500).json({ error: err.message });
+```
+تسريب رسالة خطأ قاعدة البيانات الخام للمستخدم — تكشف عن أسماء جداول وأعمدة وهيكل الـ schema.
+
+**الإصلاح:**
+```js
+console.error('[students/stages]', err);
+res.status(500).json({ error: 'Server error' });
+```
+
+**حالات الاختبار:**
+
+| # | الإجراء | النتيجة المتوقعة |
+|---|---------|-----------------|
+| T7.1 | `GET /api/students/stages` بـ DB error مُصطنَع | `{"error":"Server error"}` فقط — لا رسائل DB |
+| T7.2 | `GET /api/students/stages` طبيعي | قائمة المراحل الدراسية بشكل صحيح |
+
+---
+
+### BUG-8: حقل `action` في طلبات التسجيل بدون whitelist
+**الملف:** `server/routes/courses.js` — `PUT /enrollment-requests/:id`
+
+**المشكلة:**
+```js
+// قبل الإصلاح
+if (action === 'approve') {
+  // ...
+} else {
+  // أي قيمة ≠ "approve" تُنفّذ الـ reject، بما فيها null / undefined / "delete"
+}
+```
+إرسال `action: null` أو `action: "anything"` يُنفّذ سلوك الرفض خفيةً بدون validation واضح.
+
+**الإصلاح:**
+```js
+if (!['approve', 'reject'].includes(action))
+  return res.status(400).json({ error: 'الإجراء غير صالح — يجب أن يكون approve أو reject' });
+```
+
+**حالات الاختبار:**
+
+| # | المدخل | النتيجة المتوقعة |
+|---|--------|-----------------|
+| T8.1 | `{ action: "approve" }` | قبول الطالب + إشعار |
+| T8.2 | `{ action: "reject" }` | رفض + إشعار |
+| T8.3 | `{ action: null }` | 400 — "الإجراء غير صالح" |
+| T8.4 | `{ action: "delete" }` | 400 — "الإجراء غير صالح" |
+| T8.5 | `{}` (بدون action) | 400 — "الإجراء غير صالح" |
+
+---
+
+### BUG-9: لا توجد حدود لعدد سجلات الاستيراد (DoS)
+**الملف:** `server/routes/teachers.js` — `POST /import`
+
+**المشكلة:**
+الـ JSON body محدود بـ 20MB، لكن ملف 20MB يمكن أن يحتوي على آلاف الكائنات الصغيرة مما يولّد عشرات الآلاف من استعلامات قاعدة البيانات، مما يتسبب في استنزاف موارد الخادم.
+
+**الإصلاح:**
+```js
+const IMPORT_LIMITS = {
+  courses: 500, sections: 2000, videos: 5000, pdfs: 2000,
+  exams: 1000, questions: 50000, students: 5000,
+  exam_results: 100000, payments: 20000, enrollments: 20000,
+};
+for (const [key, limit] of Object.entries(IMPORT_LIMITS)) {
+  if (Array.isArray(data[key]) && data[key].length > limit)
+    return res.status(400).json({ error: `عدد ${key} تجاوز الحد المسموح (${limit})` });
+}
+```
+
+**حالات الاختبار:**
+
+| # | المدخل | النتيجة المتوقعة |
+|---|--------|-----------------|
+| T9.1 | JSON به `courses` = مصفوفة 501 عنصر | 400 — "عدد courses تجاوز الحد المسموح (500)" |
+| T9.2 | JSON طبيعي (أقل من الحدود) | يستمر الاستيراد بنجاح |
+| T9.3 | JSON به `students` = 5001 | 400 — رسالة مناسبة |
+
+---
+
+### BUG-10: حقل `access` في البث المباشر بدون تحقق
+**الملف:** `server/routes/live.js` — `POST /start` و `POST /schedule`
+
+**المشكلة:**
+```js
+// قبل الإصلاح
+access || 'all'  // أي قيمة تُقبل وتُحفظ في قاعدة البيانات
+```
+قيمة `access` تُحفظ مباشرةً بدون تحقق، مما قد يتسبب في سلوك غير متوقع في منطق تصفية الطلاب.
+
+**الإصلاح:**
+```js
+if (access && !['all', 'stages', 'specific'].includes(access))
+  return res.status(400).json({ error: 'قيمة access غير صالحة' });
+```
+
+**حالات الاختبار:**
+
+| # | المدخل | النتيجة المتوقعة |
+|---|--------|-----------------|
+| T10.1 | `POST /live/start { access: "all" }` | البث يبدأ بنجاح |
+| T10.2 | `POST /live/start { access: "stages" }` | البث يبدأ بنجاح |
+| T10.3 | `POST /live/start { access: "specific" }` | البث يبدأ بنجاح |
+| T10.4 | `POST /live/start { access: "everyone" }` | 400 — "قيمة access غير صالحة" |
+| T10.5 | `POST /live/schedule { access: "invalid" }` | 400 — "قيمة access غير صالحة" |
+
+---
+
+### BUG-11: طول `message` و`title` في الإشعارات بدون حد أقصى
+**الملف:** `server/routes/notifications.js` — `POST /platform`
+
+**المشكلة:**
+إمكانية إرسال رسائل إشعار بحجم ضخم جداً (عشرات الآلاف من الأحرف) لمئات الطلاب في آن واحد، مما يُثقل قاعدة البيانات وبروتوكول FCM.
+
+**الإصلاح:**
+```js
+if (message.trim().length > 2000)
+  return res.status(400).json({ error: 'الرسالة طويلة جداً (2000 حرف كحد أقصى)' });
+if (title && title.length > 200)
+  return res.status(400).json({ error: 'العنوان طويل جداً (200 حرف كحد أقصى)' });
+```
+
+**حالات الاختبار:**
+
+| # | المدخل | النتيجة المتوقعة |
+|---|--------|-----------------|
+| T11.1 | `message` = 2001 حرف | 400 — "الرسالة طويلة جداً" |
+| T11.2 | `title` = 201 حرف | 400 — "العنوان طويل جداً" |
+| T11.3 | `message` ≤ 2000 حرف، `title` ≤ 200 حرف | يُرسل الإشعار بنجاح |
+| T11.4 | `message` = رسالة عادية + `{name}` | يُستبدل الاسم لكل طالب بشكل صحيح |
+
+---
+
+### BUG-12: معامل `months` يُبنى في نص SQL مباشرةً بدون حد أقصى
+**الملف:** `server/routes/teachers.js` — `GET /analytics/trend`
+
+**المشكلة:**
+```js
+// قبل الإصلاح
+const months = parseInt(req.query.months) || 6;
+const intervalClause = `AND er.created_at >= NOW() - INTERVAL '${months} months'`;
+```
+`parseInt` يجعله آمناً من SQL injection، لكن قيمة `months=10000` تُنتج استعلاماً يفحص كل التاريخ، وكل قيمة مختلفة تُسجَّل كـ cache key منفصل يملأ الذاكرة.
+
+**الإصلاح:**
+```js
+const rawMonths = parseInt(req.query.months);
+const months = (!isNaN(rawMonths) && rawMonths > 0) ? Math.min(rawMonths, 36) : 6;
+```
+
+**حالات الاختبار:**
+
+| # | المدخل | النتيجة المتوقعة |
+|---|--------|-----------------|
+| T12.1 | `?months=6` | بيانات آخر 6 أشهر |
+| T12.2 | `?months=36` | بيانات آخر 36 شهراً (الحد الأقصى) |
+| T12.3 | `?months=10000` | يُعامَل كـ 36 شهراً (يُقيَّد) |
+| T12.4 | `?months=abc` | يُستخدم الافتراضي 6 أشهر |
+| T12.5 | `?months=-5` | يُستخدم الافتراضي 6 أشهر |
+| T12.6 | بدون معامل | يُستخدم الافتراضي 6 أشهر |
+
+---
+
 ## ثغرات تحليلية تم مراجعتها (لا تحتاج إصلاحاً)
 
 | الموضوع | الاستنتاج |
@@ -295,3 +466,7 @@ psql $DATABASE_URL -c \
 | `sanitizeCell` tab prefix | مُصلَح — أضيف `\t` و `\r` |
 | JWT in localStorage | تصميم مقبول لهذا النوع من التطبيقات مع وجود server-side validation |
 | Course re-publish duplicate enrollment | آمن — يستخدم `ON CONFLICT DO NOTHING` |
+| Tenant slug change + active sessions | آمن — الجلسات الحالية تعمل بـ JWT مباشرةً بدون الحاجة لـ tenant؛ الـ slug القديم يُبطَل فوراً من cache |
+| `analytics/trend` INTERVAL string interpolation | آمن من SQLi — `parseInt` يُصفّي القيمة؛ مُقيَّد الآن بـ 36 شهراً |
+| Import `plain_password` في الـ export | مقصود — المعلم يُصدِّر بياناته الخاصة للنسخ الاحتياطية |
+| `months` cache key exhaustion | مُقيَّد الآن بـ Math.min(months, 36) |

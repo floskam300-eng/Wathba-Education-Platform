@@ -92,6 +92,10 @@ router.post('/platform', requireRole('teacher', 'assistant'), checkNotifPermissi
   const teacherId = getTeacherId(req);
   const { student_ids, message, type = 'general', title } = req.body;
   if (!message?.trim()) return res.status(400).json({ error: 'الرسالة مطلوبة' });
+  if (message.trim().length > 2000)
+    return res.status(400).json({ error: 'الرسالة طويلة جداً (2000 حرف كحد أقصى)' });
+  if (title && title.length > 200)
+    return res.status(400).json({ error: 'العنوان طويل جداً (200 حرف كحد أقصى)' });
   if (!Array.isArray(student_ids) || student_ids.length === 0)
     return res.status(400).json({ error: 'اختر طالباً على الأقل' });
   if (student_ids.length > MAX_NOTIFICATION_STUDENTS)

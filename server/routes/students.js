@@ -65,7 +65,8 @@ router.get('/stages', requireRole('teacher', 'assistant'), async (req, res) => {
     );
     res.json({ stages: result.rows.map(r => r.academic_stage) });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[students/stages]', err);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 

@@ -313,7 +313,8 @@ router.get('/analytics/wrong-questions', requireRole('teacher', 'assistant'), as
 
 router.get('/analytics/trend', requireRole('teacher'), async (req, res) => {
   const teacherId = req.user.id;
-  const months = parseInt(req.query.months) || 6;
+  const rawMonths = parseInt(req.query.months);
+  const months = (!isNaN(rawMonths) && rawMonths > 0) ? Math.min(rawMonths, 36) : 6;
   const cacheKey = `t${teacherId}_trend_${months}`;
   const cached = getCached(cacheKey);
   if (cached) return res.json(cached);
@@ -449,6 +450,19 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
 
   if (!data || !data.exported_at) {
     return res.status(400).json({ error: 'ملف النسخة الاحتياطية غير صالح — تأكد أنه ملف JSON صادر من وثبة' });
+  }
+
+  // Guard against oversized import payloads that would cause excessive DB queries
+  const IMPORT_LIMITS = {
+    courses: 500, sections: 2000, videos: 5000, pdfs: 2000,
+    exams: 1000, questions: 50000, students: 5000,
+    exam_results: 100000, payments: 20000, enrollments: 20000,
+  };
+  for (const [key, limit] of Object.entries(IMPORT_LIMITS)) {
+    const arr = data[key === 'exam_results' ? 'exam_results' : key];
+    if (Array.isArray(arr) && arr.length > limit) {
+      return res.status(400).json({ error: `عدد ${key} تجاوز الحد المسموح (${limit})` });
+    }
   }
 
   const stats = {
