@@ -688,6 +688,29 @@ CREATE INDEX IF NOT EXISTS idx_pdfs_section
 CREATE INDEX IF NOT EXISTS idx_live_chat_stream_sent
   ON live_chat_messages (stream_id, sent_at DESC);
 
+-- LiveStream performance indexes
+CREATE INDEX IF NOT EXISTS idx_live_streams_teacher_status
+  ON live_streams (teacher_id, status);
+
+CREATE INDEX IF NOT EXISTS idx_live_streams_status_scheduled
+  ON live_streams (status, scheduled_at)
+  WHERE status = 'scheduled';
+
+CREATE INDEX IF NOT EXISTS idx_live_stream_viewers_student
+  ON live_stream_viewers (student_id, stream_id)
+  WHERE is_active = true;
+
+CREATE INDEX IF NOT EXISTS idx_live_stream_viewers_active_speak
+  ON live_stream_viewers (stream_id, can_speak)
+  WHERE is_active = true AND can_speak = true;
+
+CREATE INDEX IF NOT EXISTS idx_live_hand_raises_stream_active
+  ON live_hand_raises (stream_id, is_active)
+  WHERE is_active = true;
+
+CREATE INDEX IF NOT EXISTS idx_live_chat_sender
+  ON live_chat_messages (sender_id, sent_at DESC);
+
 -- Cleanup job: purge expired revoked tokens (runs safely every restart)
 DELETE FROM revoked_tokens WHERE expires_at < NOW();
 

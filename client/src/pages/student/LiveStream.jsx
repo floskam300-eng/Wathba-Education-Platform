@@ -237,28 +237,35 @@ function LiveView({ stream, user, dark, onLeave }) {
   }, [stream.id, onLeave]);
 
   // Handle live_permission_update
+  // FIX: use a ref to hold current permissions so the handler is stable
+  // and doesn't need to be re-registered on every permission change.
+  // This prevents the brief window where SSE events are missed during
+  // handler teardown/re-setup caused by myPermissions being in the deps array.
+  const myPermissionsRef = useRef(myPermissions);
+  useEffect(() => { myPermissionsRef.current = myPermissions; }, [myPermissions]);
+
   useEffect(() => {
     const h = (e) => {
-      if (String(e.detail?.streamId) === String(stream.id)) {
-        const { can_speak, can_share_screen } = e.detail;
-        const newPerms = { can_speak: !!can_speak, can_share_screen: !!can_share_screen };
+      if (String(e.detail?.streamId) !== String(stream.id)) return;
+      const { can_speak, can_share_screen } = e.detail;
+      const newPerms = { can_speak: !!can_speak, can_share_screen: !!can_share_screen };
 
-        // BUG-FIX: only remount LiveKitRoom when a permission is newly GRANTED —
-        // that requires a new token with canPublish=true.
-        // When only revoking, LiveKitRoom's auto-mute effects handle it locally
-        // without a disruptive full reconnect (saves token rate-limiter quota too).
-        const wasGranted =
-          (newPerms.can_speak        && !myPermissions.can_speak) ||
-          (newPerms.can_share_screen && !myPermissions.can_share_screen);
+      // Only remount LiveKitRoom when a permission is newly GRANTED —
+      // that requires a new token with canPublish=true.
+      // When only revoking, LiveKitRoom's auto-mute effects handle it locally
+      // without a disruptive full reconnect (saves token rate-limiter quota too).
+      const prev = myPermissionsRef.current;
+      const wasGranted =
+        (newPerms.can_speak        && !prev.can_speak) ||
+        (newPerms.can_share_screen && !prev.can_share_screen);
 
-        setMyPermissions(newPerms);
-        if (wasGranted) setLivekitKey(k => k + 1);
-      }
+      setMyPermissions(newPerms);
+      if (wasGranted) setLivekitKey(k => k + 1);
     };
     window.addEventListener('wathba_live_permission_update', h);
     return () => window.removeEventListener('wathba_live_permission_update', h);
-  // myPermissions intentionally in deps so handler sees current permissions
-  }, [stream.id, myPermissions]);
+  // stream.id is the only real dependency — myPermissions read via ref
+  }, [stream.id]);
 
   const toggleHand = async () => {
     setRaisingHand(true);

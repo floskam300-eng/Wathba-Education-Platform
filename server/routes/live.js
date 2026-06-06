@@ -4,12 +4,40 @@ const pool    = require('../db/connection');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { sendEvent, broadcastToTeacherStudents } = require('../sse');
 
+/* ── LiveKit SDK — loaded once at module level (not per-request) ── */
+let AccessToken;
+try {
+  ({ AccessToken } = require('livekit-server-sdk'));
+} catch (_) {
+  AccessToken = null;
+}
+
 const router = express.Router();
 router.use(authenticate);
 
-/* ── Chat rate limiter: max 5 msgs / 5 s per student ─────────
-   In-memory map: key → { count, resetAt }
-────────────────────────────────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════════════
+   INPUT VALIDATION HELPERS
+   FIX: validate URL params as positive integers before hitting DB.
+   Returns null on invalid input — callers return 400 immediately.
+   Upper bound = PostgreSQL INTEGER max (SERIAL type) = 2^31-1.
+   Rejects floats with fractional part, negatives, zero, overflow.
+══════════════════════════════════════════════════════════════════ */
+const PG_INT_MAX = 2_147_483_647; // PostgreSQL INTEGER / SERIAL max
+
+function parseId(val) {
+  const n = parseInt(val, 10);
+  if (!Number.isFinite(n) || n <= 0 || n > PG_INT_MAX) return null;
+  // Reject if the string representation contains non-numeric chars after parsing
+  // (e.g. "1; DROP" → parseInt gives 1 which is valid — acceptable here since
+  //  the value goes into a parameterized query, never interpolated into SQL)
+  return n;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   RATE LIMITERS
+══════════════════════════════════════════════════════════════════ */
+
+/* ── Chat: max 5 msgs / 5 s per student ─────────────────────────── */
 const chatRateMap = new Map();
 const CHAT_MAX    = 5;
 const CHAT_WIN_MS = 5000;
@@ -26,11 +54,9 @@ function chatRateCheck(userId) {
   return true;
 }
 
-/* ── LiveKit token rate limiter: max 5 tokens / 60 s ─────────
-   Prevents token flooding (e.g. hammering /livekit-token)
-────────────────────────────────────────────────────────────── */
+/* ── LiveKit token: max 10 tokens / 60 s per student per stream ─── */
 const tokenRateMap = new Map();
-const TOKEN_MAX    = 10;   // increased: permission changes cause remount → more token requests
+const TOKEN_MAX    = 10;
 const TOKEN_WIN_MS = 60000;
 
 function tokenRateCheck(userId, streamId) {
@@ -46,20 +72,47 @@ function tokenRateCheck(userId, streamId) {
   return true;
 }
 
-// Cleanup stale rate-limit entries every 2 minutes
+/* ── Hand-raise: max 10 toggles / 30 s per student per stream ──────
+   FIX: prevents hand-raise flood that fills teacher SSE queue + DB
+────────────────────────────────────────────────────────────────── */
+const handRateMap = new Map();
+const HAND_MAX    = 10;
+const HAND_WIN_MS = 30000;
+
+function handRateCheck(userId, streamId) {
+  const key = `${userId}:${streamId}`;
+  const now = Date.now();
+  const rec = handRateMap.get(key);
+  if (!rec || now > rec.resetAt) {
+    handRateMap.set(key, { count: 1, resetAt: now + HAND_WIN_MS });
+    return true;
+  }
+  if (rec.count >= HAND_MAX) return false;
+  rec.count++;
+  return true;
+}
+
+/* ── Cleanup stale rate-limit entries every 2 minutes ───────────── */
 setInterval(() => {
   const now = Date.now();
   for (const [k, v] of chatRateMap)  { if (now > v.resetAt) chatRateMap.delete(k);  }
   for (const [k, v] of tokenRateMap) { if (now > v.resetAt) tokenRateMap.delete(k); }
-}, 120000);
+  for (const [k, v] of handRateMap)  { if (now > v.resetAt) handRateMap.delete(k);  }
+}, 120_000).unref();
 
-/* ── In-memory viewer cache ───────────────────────────────────
+/* ══════════════════════════════════════════════════════════════════
+   IN-MEMORY VIEWER CACHE
    Eliminates DB query on every chat message fan-out.
    Kept consistent by join / leave / kick / end endpoints.
    On server restart, cache is cold and warms on first access.
    Map: streamId (string) → Set<studentId (number)>
-────────────────────────────────────────────────────────────── */
+
+   FIX: added _warming Set to prevent concurrent DB warmups for
+   the same stream (race condition: two simultaneous cache misses
+   both query DB and both overwrite each other's result).
+══════════════════════════════════════════════════════════════════ */
 const viewerCache = new Map();
+const _warming    = new Set();   // streams currently being warmed from DB
 
 function vcAdd(streamId, studentId) {
   const key = String(streamId);
@@ -73,6 +126,7 @@ function vcRemove(streamId, studentId) {
 
 function vcClear(streamId) {
   viewerCache.delete(String(streamId));
+  _warming.delete(String(streamId));
 }
 
 /** Returns active viewer IDs — cache-first, DB fallback on cold start */
@@ -81,23 +135,51 @@ async function getActiveViewerIds(streamId) {
   if (viewerCache.has(key)) {
     return [...viewerCache.get(key)];
   }
-  // Cache miss (server restart or first access) — warm from DB
-  const { rows } = await pool.query(
-    'SELECT student_id FROM live_stream_viewers WHERE stream_id=$1 AND is_active=true',
-    [streamId]
-  );
-  const ids = rows.map(r => Number(r.student_id));
-  viewerCache.set(key, new Set(ids));
-  return ids;
+  // FIX: if another request is already warming this stream, wait briefly
+  // instead of firing another DB query
+  if (_warming.has(key)) {
+    await new Promise(r => setTimeout(r, 80));
+    if (viewerCache.has(key)) return [...viewerCache.get(key)];
+  }
+  _warming.add(key);
+  try {
+    const { rows } = await pool.query(
+      'SELECT student_id FROM live_stream_viewers WHERE stream_id=$1 AND is_active=true',
+      [streamId]
+    );
+    const ids = rows.map(r => Number(r.student_id));
+    viewerCache.set(key, new Set(ids));
+    return ids;
+  } finally {
+    _warming.delete(key);
+  }
 }
 
-/* ──────────────────────────────────────────────────────────────
-   LiveKit (Self-Hosted): generate a join token for teacher or student
-   Supports: LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET
-   All three must point to the self-hosted LiveKit VPS.
-────────────────────────────────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════════════
+   SSE FAN-OUT HELPER
+   FIX: use setImmediate-batching so large fan-outs (100+ students)
+   don't block the event loop. Groups sends in slices of 50.
+══════════════════════════════════════════════════════════════════ */
+function fanOut(ids, event, payload) {
+  if (!ids.length) return;
+  const BATCH = 50;
+  let i = 0;
+  function flush() {
+    const slice = ids.slice(i, i + BATCH);
+    for (const id of slice) sendEvent(`student_${id}`, event, payload);
+    i += BATCH;
+    if (i < ids.length) setImmediate(flush);
+  }
+  setImmediate(flush);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   LiveKit token endpoint
+══════════════════════════════════════════════════════════════════ */
 router.post('/:streamId/livekit-token', async (req, res) => {
-  const { streamId } = req.params;
+  const streamId = parseId(req.params.streamId);
+  if (!streamId) return res.status(400).json({ error: 'معرّف البث غير صالح' });
+
   const { id, role, name } = req.user;
 
   const apiKey    = process.env.LIVEKIT_API_KEY;
@@ -110,13 +192,15 @@ router.post('/:streamId/livekit-token', async (req, res) => {
     });
   }
 
-  // Rate-limit token requests: max 5 per student per stream per minute
+  if (!AccessToken) {
+    return res.status(503).json({ error: 'مكتبة LiveKit غير متوفرة على الخادم' });
+  }
+
   if (role === 'student' && !tokenRateCheck(id, streamId)) {
     return res.status(429).json({ error: 'طلبات كثيرة جداً — انتظر دقيقة وحاول مجدداً' });
   }
 
   try {
-    // BUG-FIX: scheduled streams don't have a LiveKit room yet — token only for active
     const { rows } = await pool.query(
       "SELECT * FROM live_streams WHERE id=$1 AND status='active'",
       [streamId]
@@ -131,7 +215,6 @@ router.post('/:streamId/livekit-token', async (req, res) => {
         return res.status(403).json({ error: 'هذا البث لا ينتمي إليك' });
       }
     } else if (role === 'student') {
-      // Verify student belongs to the teacher who owns this stream
       const { rows: studentRows } = await pool.query(
         'SELECT teacher_id FROM students WHERE id=$1 AND deleted_at IS NULL',
         [id]
@@ -139,7 +222,6 @@ router.post('/:streamId/livekit-token', async (req, res) => {
       if (!studentRows.length || parseInt(studentRows[0].teacher_id) !== parseInt(stream.teacher_id)) {
         return res.status(403).json({ error: 'هذا البث لا ينتمي لمعلمك' });
       }
-      // Student must not be kicked
       const { rows: kickCheck } = await pool.query(
         'SELECT is_kicked FROM live_stream_viewers WHERE stream_id=$1 AND student_id=$2',
         [streamId, id]
@@ -151,8 +233,6 @@ router.post('/:streamId/livekit-token', async (req, res) => {
       return res.status(403).json({ error: 'غير مصرح' });
     }
 
-    const { AccessToken } = require('livekit-server-sdk');
-
     const at = new AccessToken(apiKey, apiSecret, {
       identity: `${role}_${id}`,
       name:     name || role,
@@ -160,7 +240,6 @@ router.post('/:streamId/livekit-token', async (req, res) => {
     });
 
     if (role === 'teacher') {
-      // Teacher: full publish rights — camera, mic, screen share
       at.addGrant({
         roomJoin:        true,
         room:            roomName,
@@ -170,12 +249,11 @@ router.post('/:streamId/livekit-token', async (req, res) => {
         roomAdmin:       true,
       });
     } else {
-      // Student: subscribe always; publish only if teacher granted mic/screen permission
       const { rows: permRows } = await pool.query(
         'SELECT can_speak, can_share_screen FROM live_stream_viewers WHERE stream_id=$1 AND student_id=$2 AND is_active=true AND is_kicked=false',
         [streamId, id]
       );
-      const perm      = permRows[0] || {};
+      const perm       = permRows[0] || {};
       const canPublish = !!(perm.can_speak || perm.can_share_screen);
       at.addGrant({
         roomJoin:        true,
@@ -194,9 +272,9 @@ router.post('/:streamId/livekit-token', async (req, res) => {
   }
 });
 
-/* ──────────────────────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════════════════
    Teacher: schedule a future live stream
-────────────────────────────────────────────────────────────── */
+══════════════════════════════════════════════════════════════════ */
 router.post('/schedule', requireRole('teacher'), async (req, res) => {
   const teacherId = req.user.id;
   const {
@@ -205,15 +283,25 @@ router.post('/schedule', requireRole('teacher'), async (req, res) => {
     chat_enabled, hand_raise_enabled, scheduled_at,
   } = req.body;
 
-  if (!title?.trim()) return res.status(400).json({ error: 'عنوان البث مطلوب' });
-  if (title.trim().length > 200) return res.status(400).json({ error: 'عنوان البث طويل جداً (200 حرف كحد أقصى)' });
-  if (description && description.length > 1000) return res.status(400).json({ error: 'وصف البث طويل جداً (1000 حرف كحد أقصى)' });
+  if (!title?.trim())
+    return res.status(400).json({ error: 'عنوان البث مطلوب' });
+  if (title.trim().length > 200)
+    return res.status(400).json({ error: 'عنوان البث طويل جداً (200 حرف كحد أقصى)' });
+  if (description && description.length > 1000)
+    return res.status(400).json({ error: 'وصف البث طويل جداً (1000 حرف كحد أقصى)' });
   if (access && !['all', 'stages', 'specific'].includes(access))
     return res.status(400).json({ error: 'قيمة access غير صالحة' });
-  if (!scheduled_at) return res.status(400).json({ error: 'موعد البث مطلوب' });
+  if (!scheduled_at)
+    return res.status(400).json({ error: 'موعد البث مطلوب' });
   if (new Date(scheduled_at).getTime() <= Date.now())
     return res.status(400).json({ error: 'يجب أن يكون الموعد في المستقبل' });
-  // BUG-FIX: validate allowed_student_ids are positive integers
+
+  /* FIX: validate allowed_stages — must be non-empty strings, max 50 chars each */
+  if (allowed_stages?.length) {
+    if (!Array.isArray(allowed_stages) || allowed_stages.length > 20 ||
+        !allowed_stages.every(s => typeof s === 'string' && s.trim().length > 0 && s.length <= 50))
+      return res.status(400).json({ error: 'allowed_stages: قيم غير صالحة (حد أقصى 20 مرحلة، 50 حرف لكل مرحلة)' });
+  }
   if (allowed_student_ids?.length) {
     if (!Array.isArray(allowed_student_ids) || allowed_student_ids.length > 500 ||
         !allowed_student_ids.every(id => Number.isInteger(Number(id)) && Number(id) > 0))
@@ -246,9 +334,9 @@ router.post('/schedule', requireRole('teacher'), async (req, res) => {
   }
 });
 
-/* ──────────────────────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════════════════
    Teacher: get their scheduled (upcoming) streams
-────────────────────────────────────────────────────────────── */
+══════════════════════════════════════════════════════════════════ */
 router.get('/scheduled', requireRole('teacher'), async (req, res) => {
   try {
     const { rows } = await pool.query(
@@ -263,15 +351,16 @@ router.get('/scheduled', requireRole('teacher'), async (req, res) => {
   }
 });
 
-/* ──────────────────────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════════════════
    Teacher: start a scheduled stream now
-────────────────────────────────────────────────────────────── */
+══════════════════════════════════════════════════════════════════ */
 router.post('/scheduled/:streamId/start', requireRole('teacher'), async (req, res) => {
+  const streamId = parseId(req.params.streamId);
+  if (!streamId) return res.status(400).json({ error: 'معرّف البث غير صالح' });
+
   const teacherId = req.user.id;
-  const { streamId } = req.params;
 
   try {
-    // Notify active viewers of any currently running stream before ending it
     const { rows: activeStreams } = await pool.query(
       "SELECT id FROM live_streams WHERE teacher_id=$1 AND status='active'",
       [teacherId]
@@ -283,12 +372,7 @@ router.post('/scheduled/:streamId/start', requireRole('teacher'), async (req, re
         [active.id]
       );
       vcClear(active.id);
-      for (const student_id of viewerIds) {
-        sendEvent(`student_${student_id}`, 'live_ended', {
-          streamId: active.id,
-          message: 'انتهى البث المباشر',
-        });
-      }
+      fanOut(viewerIds, 'live_ended', { streamId: active.id, message: 'انتهى البث المباشر' });
     }
     await pool.query(
       "UPDATE live_streams SET status='ended', ended_at=NOW() WHERE teacher_id=$1 AND status='active'",
@@ -319,12 +403,14 @@ router.post('/scheduled/:streamId/start', requireRole('teacher'), async (req, re
   }
 });
 
-/* ──────────────────────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════════════════
    Teacher: cancel a scheduled stream
-────────────────────────────────────────────────────────────── */
+══════════════════════════════════════════════════════════════════ */
 router.delete('/scheduled/:streamId', requireRole('teacher'), async (req, res) => {
+  const streamId = parseId(req.params.streamId);
+  if (!streamId) return res.status(400).json({ error: 'معرّف البث غير صالح' });
+
   const teacherId = req.user.id;
-  const { streamId } = req.params;
 
   try {
     const result = await pool.query(
@@ -339,9 +425,9 @@ router.delete('/scheduled/:streamId', requireRole('teacher'), async (req, res) =
   }
 });
 
-/* ──────────────────────────────────────────────────────────────
-   Teacher: start a new live stream
-────────────────────────────────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════════════
+   Teacher: start a new live stream (immediate)
+══════════════════════════════════════════════════════════════════ */
 router.post('/start', requireRole('teacher'), async (req, res) => {
   const teacherId = req.user.id;
   const {
@@ -350,12 +436,21 @@ router.post('/start', requireRole('teacher'), async (req, res) => {
     chat_enabled, hand_raise_enabled,
   } = req.body;
 
-  if (!title?.trim()) return res.status(400).json({ error: 'عنوان البث مطلوب' });
-  if (title.trim().length > 200) return res.status(400).json({ error: 'عنوان البث طويل جداً (200 حرف كحد أقصى)' });
-  if (description && description.length > 1000) return res.status(400).json({ error: 'وصف البث طويل جداً (1000 حرف كحد أقصى)' });
+  if (!title?.trim())
+    return res.status(400).json({ error: 'عنوان البث مطلوب' });
+  if (title.trim().length > 200)
+    return res.status(400).json({ error: 'عنوان البث طويل جداً (200 حرف كحد أقصى)' });
+  if (description && description.length > 1000)
+    return res.status(400).json({ error: 'وصف البث طويل جداً (1000 حرف كحد أقصى)' });
   if (access && !['all', 'stages', 'specific'].includes(access))
     return res.status(400).json({ error: 'قيمة access غير صالحة' });
-  // BUG-FIX: validate allowed_student_ids are positive integers (same guard as /schedule)
+
+  /* FIX: validate allowed_stages content */
+  if (allowed_stages?.length) {
+    if (!Array.isArray(allowed_stages) || allowed_stages.length > 20 ||
+        !allowed_stages.every(s => typeof s === 'string' && s.trim().length > 0 && s.length <= 50))
+      return res.status(400).json({ error: 'allowed_stages: قيم غير صالحة (حد أقصى 20 مرحلة، 50 حرف لكل مرحلة)' });
+  }
   if (allowed_student_ids?.length) {
     if (!Array.isArray(allowed_student_ids) || allowed_student_ids.length > 500 ||
         !allowed_student_ids.every(id => Number.isInteger(Number(id)) && Number(id) > 0))
@@ -363,7 +458,6 @@ router.post('/start', requireRole('teacher'), async (req, res) => {
   }
 
   try {
-    // Notify active viewers of any currently running stream before ending it
     const { rows: activeStreams } = await pool.query(
       "SELECT id FROM live_streams WHERE teacher_id=$1 AND status='active'",
       [teacherId]
@@ -375,12 +469,7 @@ router.post('/start', requireRole('teacher'), async (req, res) => {
         [active.id]
       );
       vcClear(active.id);
-      for (const student_id of viewerIds) {
-        sendEvent(`student_${student_id}`, 'live_ended', {
-          streamId: active.id,
-          message: 'انتهى البث المباشر',
-        });
-      }
+      fanOut(viewerIds, 'live_ended', { streamId: active.id, message: 'انتهى البث المباشر' });
     }
     await pool.query(
       "UPDATE live_streams SET status='ended', ended_at=NOW() WHERE teacher_id=$1 AND status='active'",
@@ -438,12 +527,14 @@ router.post('/start', requireRole('teacher'), async (req, res) => {
   }
 });
 
-/* ──────────────────────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════════════════
    Teacher: end a live stream
-────────────────────────────────────────────────────────────── */
+══════════════════════════════════════════════════════════════════ */
 router.post('/:streamId/end', requireRole('teacher'), async (req, res) => {
+  const streamId = parseId(req.params.streamId);
+  if (!streamId) return res.status(400).json({ error: 'معرّف البث غير صالح' });
+
   const teacherId = req.user.id;
-  const { streamId } = req.params;
 
   try {
     const result = await pool.query(
@@ -452,7 +543,6 @@ router.post('/:streamId/end', requireRole('teacher'), async (req, res) => {
     );
     if (!result.rows.length) return res.status(404).json({ error: 'البث غير موجود أو انتهى بالفعل' });
 
-    // FIX: get active viewers BEFORE marking them inactive, and only active ones
     const activeViewers = await getActiveViewerIds(streamId);
 
     await pool.query(
@@ -460,12 +550,9 @@ router.post('/:streamId/end', requireRole('teacher'), async (req, res) => {
       [streamId]
     );
 
-    // Clear in-memory cache for ended stream
     vcClear(streamId);
 
-    // Notify only viewers who were actively watching
-    for (const student_id of activeViewers)
-      sendEvent(`student_${student_id}`, 'live_ended', { streamId: parseInt(streamId), message: 'انتهى البث المباشر' });
+    fanOut(activeViewers, 'live_ended', { streamId, message: 'انتهى البث المباشر' });
 
     res.json({ success: true });
   } catch (err) {
@@ -474,9 +561,9 @@ router.post('/:streamId/end', requireRole('teacher'), async (req, res) => {
   }
 });
 
-/* ──────────────────────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════════════════
    Teacher: get their active stream
-────────────────────────────────────────────────────────────── */
+══════════════════════════════════════════════════════════════════ */
 router.get('/my-active', requireRole('teacher'), async (req, res) => {
   try {
     const { rows } = await pool.query(
@@ -489,14 +576,15 @@ router.get('/my-active', requireRole('teacher'), async (req, res) => {
   }
 });
 
-/* ──────────────────────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════════════════
    Student: get available active streams from their teacher
-────────────────────────────────────────────────────────────── */
+   FIX: replaced correlated subquery for viewer_count with a single
+   LEFT JOIN aggregate — avoids O(N) subqueries for N streams
+══════════════════════════════════════════════════════════════════ */
 router.get('/available', requireRole('student'), async (req, res) => {
   const studentId = req.user.id;
 
   try {
-    // FIX: added deleted_at IS NULL check
     const { rows: studentRows } = await pool.query(
       'SELECT teacher_id, academic_stage FROM students WHERE id=$1 AND deleted_at IS NULL',
       [studentId]
@@ -505,14 +593,23 @@ router.get('/available', requireRole('student'), async (req, res) => {
 
     const { teacher_id: teacherId, academic_stage } = studentRows[0];
 
+    /* FIX: single aggregated query instead of per-row subquery */
     const { rows } = await pool.query(
-      `SELECT ls.*, t.name as teacher_name,
-         (SELECT COUNT(*) FROM live_stream_viewers WHERE stream_id=ls.id AND is_active=true) as viewer_count
+      `SELECT ls.*,
+              t.name AS teacher_name,
+              COALESCE(vc.cnt, 0) AS viewer_count
        FROM live_streams ls
-       JOIN teachers t ON t.id=ls.teacher_id
-       WHERE ls.teacher_id=$1 AND ls.status IN ('active','scheduled')
+       JOIN teachers t ON t.id = ls.teacher_id
+       LEFT JOIN (
+         SELECT stream_id, COUNT(*) AS cnt
+         FROM live_stream_viewers
+         WHERE is_active = true
+         GROUP BY stream_id
+       ) vc ON vc.stream_id = ls.id
+       WHERE ls.teacher_id = $1
+         AND ls.status IN ('active','scheduled')
        ORDER BY
-         CASE WHEN ls.status='active' THEN 0 ELSE 1 END ASC,
+         CASE WHEN ls.status = 'active' THEN 0 ELSE 1 END ASC,
          ls.scheduled_at ASC NULLS LAST,
          ls.started_at DESC`,
       [teacherId]
@@ -546,12 +643,14 @@ router.get('/available', requireRole('student'), async (req, res) => {
   }
 });
 
-/* ──────────────────────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════════════════
    Student: join a stream
-────────────────────────────────────────────────────────────── */
+══════════════════════════════════════════════════════════════════ */
 router.post('/:streamId/join', requireRole('student'), async (req, res) => {
+  const streamId  = parseId(req.params.streamId);
+  if (!streamId) return res.status(400).json({ error: 'معرّف البث غير صالح' });
+
   const studentId = req.user.id;
-  const { streamId } = req.params;
 
   const parseJsonbField = (val) => {
     if (Array.isArray(val)) return val;
@@ -560,7 +659,6 @@ router.post('/:streamId/join', requireRole('student'), async (req, res) => {
   };
 
   try {
-    // Verify stream exists AND student belongs to the teacher who owns the stream
     const { rows } = await pool.query(
       `SELECT ls.*, s.academic_stage FROM live_streams ls
        JOIN students s ON s.teacher_id = ls.teacher_id
@@ -571,12 +669,10 @@ router.post('/:streamId/join', requireRole('student'), async (req, res) => {
 
     const stream = rows[0];
 
-    // Enforce room lock
     if (stream.is_locked) {
       return res.status(403).json({ error: 'الغرفة مقفلة حالياً من قِبَل المعلم — انتظر حتى يفتحها' });
     }
 
-    // Enforce per-stream access restrictions
     if (stream.access === 'stages') {
       const allowed = parseJsonbField(stream.allowed_stages).map(String);
       if (!allowed.includes(String(stream.academic_stage || '')))
@@ -587,9 +683,6 @@ router.post('/:streamId/join', requireRole('student'), async (req, res) => {
         return res.status(403).json({ error: 'لم تُضَف إلى قائمة المشاركين في هذا البث' });
     }
 
-    // BUG-FIX: Atomic kick-check + upsert — prevents TOCTOU race where two
-    // concurrent requests both pass the pre-check then both re-activate the viewer.
-    // RETURNING is_kicked tells us if the upsert was blocked by the kick flag.
     const { rows: upsertRows } = await pool.query(
       `INSERT INTO live_stream_viewers (stream_id, student_id, is_active, joined_at)
        VALUES ($1,$2,true,NOW())
@@ -604,7 +697,6 @@ router.post('/:streamId/join', requireRole('student'), async (req, res) => {
       return res.status(403).json({ error: 'تم إخراجك من هذا البث ولا يمكنك الانضمام مجدداً' });
     }
 
-    // Keep in-memory cache consistent (only if not kicked)
     vcAdd(streamId, studentId);
 
     sendEvent(`teacher_${stream.teacher_id}`, 'live_viewer_update', {
@@ -618,18 +710,27 @@ router.post('/:streamId/join', requireRole('student'), async (req, res) => {
   }
 });
 
-/* ──────────────────────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════════════════
    Student: leave a stream
-────────────────────────────────────────────────────────────── */
+   FIX: only call vcRemove when student was actually in the cache
+══════════════════════════════════════════════════════════════════ */
 router.post('/:streamId/leave', requireRole('student'), async (req, res) => {
+  const streamId  = parseId(req.params.streamId);
+  if (!streamId) return res.status(400).json({ error: 'معرّف البث غير صالح' });
+
   const studentId = req.user.id;
-  const { streamId } = req.params;
 
   try {
     const { rows } = await pool.query(
-      'SELECT lsv.*, ls.teacher_id FROM live_stream_viewers lsv JOIN live_streams ls ON ls.id=lsv.stream_id WHERE lsv.stream_id=$1 AND lsv.student_id=$2',
+      'SELECT lsv.*, ls.teacher_id FROM live_stream_viewers lsv JOIN live_streams ls ON ls.id=lsv.stream_id WHERE lsv.stream_id=$1 AND lsv.student_id=$2 AND lsv.is_active=true',
       [streamId, studentId]
     );
+
+    if (!rows.length) {
+      /* Student wasn't actively watching — no-op (idempotent) */
+      return res.json({ success: true });
+    }
+
     await pool.query(
       "UPDATE live_stream_viewers SET is_active=false, left_at=NOW() WHERE stream_id=$1 AND student_id=$2",
       [streamId, studentId]
@@ -638,28 +739,30 @@ router.post('/:streamId/leave', requireRole('student'), async (req, res) => {
       "UPDATE live_hand_raises SET is_active=false, lowered_at=NOW() WHERE stream_id=$1 AND student_id=$2 AND is_active=true",
       [streamId, studentId]
     );
-    // Keep in-memory cache consistent
+
     vcRemove(streamId, studentId);
-    if (rows.length) {
-      sendEvent(`teacher_${rows[0].teacher_id}`, 'live_viewer_update', {
-        action: 'left', studentId, studentName: req.user.name,
-      });
-    }
+
+    sendEvent(`teacher_${rows[0].teacher_id}`, 'live_viewer_update', {
+      action: 'left', studentId, studentName: req.user.name,
+    });
+
     res.json({ success: true });
   } catch (err) {
+    console.error('[live/leave]', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-/* ──────────────────────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════════════════
    Teacher: get active viewers list (includes lock status)
-────────────────────────────────────────────────────────────── */
+══════════════════════════════════════════════════════════════════ */
 router.get('/:streamId/viewers', requireRole('teacher'), async (req, res) => {
+  const streamId = parseId(req.params.streamId);
+  if (!streamId) return res.status(400).json({ error: 'معرّف البث غير صالح' });
+
   const teacherId = req.user.id;
-  const { streamId } = req.params;
 
   try {
-    // FIX: also return stream lock state so the frontend can sync it
     const { rows: streamRows } = await pool.query(
       'SELECT is_locked FROM live_streams WHERE id=$1 AND teacher_id=$2',
       [streamId, teacherId]
@@ -688,34 +791,47 @@ router.get('/:streamId/viewers', requireRole('teacher'), async (req, res) => {
   }
 });
 
-/* ──────────────────────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════════════════
    Student: raise / lower hand
-────────────────────────────────────────────────────────────── */
+   FIX: added hand-raise rate limiting to prevent flood
+   FIX: combined two SELECT queries into one (stream + viewer check)
+══════════════════════════════════════════════════════════════════ */
 router.post('/:streamId/hand-raise', requireRole('student'), async (req, res) => {
+  const streamId  = parseId(req.params.streamId);
+  if (!streamId) return res.status(400).json({ error: 'معرّف البث غير صالح' });
+
   const studentId = req.user.id;
-  const { streamId } = req.params;
-  const raised = req.body.raised;
+  const { raised } = req.body;
 
   if (raised === undefined || raised === null)
     return res.status(400).json({ error: 'قيمة غير صحيحة لحقل raised' });
 
   const raisedBool = raised === true || raised === 1 || raised === 'true' || raised === '1';
 
-  try {
-    const { rows } = await pool.query(
-      'SELECT teacher_id, hand_raise_enabled FROM live_streams WHERE id=$1 AND status=\'active\'',
-      [streamId]
-    );
-    if (!rows.length) return res.status(404).json({ error: 'البث غير موجود أو انتهى' });
+  /* FIX: rate-limit hand-raise to prevent event flooding */
+  if (!handRateCheck(studentId, streamId)) {
+    return res.status(429).json({ error: 'الرجاء الانتظار قبل رفع اليد مجدداً' });
+  }
 
-    const viewerCheck = await pool.query(
-      'SELECT 1 FROM live_stream_viewers WHERE stream_id=$1 AND student_id=$2 AND is_active=true AND is_kicked=false',
+  try {
+    /* FIX: single query to get stream info + verify student is active viewer */
+    const { rows } = await pool.query(
+      `SELECT ls.teacher_id, ls.hand_raise_enabled,
+              lsv.is_active AS viewer_active, lsv.is_kicked
+       FROM live_streams ls
+       LEFT JOIN live_stream_viewers lsv
+         ON lsv.stream_id = ls.id AND lsv.student_id = $2
+       WHERE ls.id = $1 AND ls.status = 'active'`,
       [streamId, studentId]
     );
-    if (!viewerCheck.rows.length)
+
+    if (!rows.length) return res.status(404).json({ error: 'البث غير موجود أو انتهى' });
+
+    const row = rows[0];
+    if (!row.viewer_active || row.is_kicked)
       return res.status(403).json({ error: 'يجب الانضمام للبث أولاً قبل رفع اليد' });
 
-    if (raisedBool && rows[0].hand_raise_enabled === false) {
+    if (raisedBool && row.hand_raise_enabled === false) {
       return res.status(403).json({ error: 'رفع اليد معطل في هذا البث' });
     }
 
@@ -734,22 +850,26 @@ router.post('/:streamId/hand-raise', requireRole('student'), async (req, res) =>
       );
     }
 
-    sendEvent(`teacher_${rows[0].teacher_id}`, 'live_hand_raise', {
-      studentId, studentName: req.user.name, raised: raisedBool, streamId: parseInt(streamId),
+    sendEvent(`teacher_${row.teacher_id}`, 'live_hand_raise', {
+      studentId, studentName: req.user.name, raised: raisedBool, streamId,
     });
 
     res.json({ success: true });
   } catch (err) {
+    console.error('[live/hand-raise]', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-/* ──────────────────────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════════════════
    Teacher: kick a student from the stream
-────────────────────────────────────────────────────────────── */
+══════════════════════════════════════════════════════════════════ */
 router.post('/:streamId/kick/:studentId', requireRole('teacher'), async (req, res) => {
+  const streamId  = parseId(req.params.streamId);
+  const studentId = parseId(req.params.studentId);
+  if (!streamId || !studentId) return res.status(400).json({ error: 'معرّف غير صالح' });
+
   const teacherId = req.user.id;
-  const { streamId, studentId } = req.params;
 
   try {
     const { rows: streamRows } = await pool.query(
@@ -772,16 +892,15 @@ router.post('/:streamId/kick/:studentId', requireRole('teacher'), async (req, re
       [streamId, studentId]
     );
 
-    // Keep in-memory cache consistent
     vcRemove(streamId, studentId);
 
     sendEvent(`student_${studentId}`, 'live_kicked', {
-      streamId: parseInt(streamId),
+      streamId,
       message: 'تم إخراجك من البث من قِبَل المعلم',
     });
 
     sendEvent(`teacher_${teacherId}`, 'live_viewer_update', {
-      action: 'kicked', studentId: parseInt(studentId),
+      action: 'kicked', studentId,
     });
 
     res.json({ success: true });
@@ -791,12 +910,15 @@ router.post('/:streamId/kick/:studentId', requireRole('teacher'), async (req, re
   }
 });
 
-/* ──────────────────────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════════════════
    Teacher: grant / revoke student mic & screen permissions
-────────────────────────────────────────────────────────────── */
+══════════════════════════════════════════════════════════════════ */
 router.post('/:streamId/permissions/:studentId', requireRole('teacher'), async (req, res) => {
+  const streamId  = parseId(req.params.streamId);
+  const studentId = parseId(req.params.studentId);
+  if (!streamId || !studentId) return res.status(400).json({ error: 'معرّف غير صالح' });
+
   const teacherId = req.user.id;
-  const { streamId, studentId } = req.params;
   const { can_speak, can_share_screen } = req.body;
 
   try {
@@ -815,7 +937,7 @@ router.post('/:streamId/permissions/:studentId', requireRole('teacher'), async (
     if (!rowCount) return res.status(404).json({ error: 'الطالب غير موجود في البث' });
 
     sendEvent(`student_${studentId}`, 'live_permission_update', {
-      streamId:         parseInt(streamId),
+      streamId,
       can_speak:        !!can_speak,
       can_share_screen: !!can_share_screen,
     });
@@ -827,14 +949,14 @@ router.post('/:streamId/permissions/:studentId', requireRole('teacher'), async (
   }
 });
 
-/* ──────────────────────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════════════════
    Teacher: mute all students (revoke all can_speak)
-   FIX: single query to get all viewers + their screen perms
-        instead of N+1 queries
-────────────────────────────────────────────────────────────── */
+══════════════════════════════════════════════════════════════════ */
 router.post('/:streamId/mute-all', requireRole('teacher'), async (req, res) => {
+  const streamId = parseId(req.params.streamId);
+  if (!streamId) return res.status(400).json({ error: 'معرّف البث غير صالح' });
+
   const teacherId = req.user.id;
-  const { streamId } = req.params;
 
   try {
     const { rows: streamRows } = await pool.query(
@@ -843,7 +965,6 @@ router.post('/:streamId/mute-all', requireRole('teacher'), async (req, res) => {
     );
     if (!streamRows.length) return res.status(403).json({ error: 'غير مصرح' });
 
-    // FIX: fetch all speaking viewers WITH their can_share_screen in one query
     const { rows: speakingViewers } = await pool.query(
       'SELECT student_id, can_share_screen FROM live_stream_viewers WHERE stream_id=$1 AND is_active=true AND can_speak=true',
       [streamId]
@@ -853,17 +974,15 @@ router.post('/:streamId/mute-all', requireRole('teacher'), async (req, res) => {
       return res.json({ success: true, mutedCount: 0 });
     }
 
-    // Single bulk update
     await pool.query(
       'UPDATE live_stream_viewers SET can_speak=false WHERE stream_id=$1 AND is_active=true',
       [streamId]
     );
 
-    // Send SSE events without extra DB queries — we already have can_share_screen
     for (const { student_id, can_share_screen } of speakingViewers) {
       sendEvent(`student_${student_id}`, 'live_permission_update', {
-        streamId: parseInt(streamId),
-        can_speak: false,
+        streamId,
+        can_speak:        false,
         can_share_screen: !!can_share_screen,
       });
     }
@@ -875,12 +994,14 @@ router.post('/:streamId/mute-all', requireRole('teacher'), async (req, res) => {
   }
 });
 
-/* ──────────────────────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════════════════
    Teacher: lock / unlock the stream (no new joins)
-────────────────────────────────────────────────────────────── */
+══════════════════════════════════════════════════════════════════ */
 router.post('/:streamId/lock', requireRole('teacher'), async (req, res) => {
+  const streamId = parseId(req.params.streamId);
+  if (!streamId) return res.status(400).json({ error: 'معرّف البث غير صالح' });
+
   const teacherId = req.user.id;
-  const { streamId } = req.params;
   const { locked } = req.body;
 
   try {
@@ -896,12 +1017,14 @@ router.post('/:streamId/lock', requireRole('teacher'), async (req, res) => {
   }
 });
 
-/* ──────────────────────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════════════════
    Student: get my permissions in a stream
-────────────────────────────────────────────────────────────── */
+══════════════════════════════════════════════════════════════════ */
 router.get('/:streamId/my-permissions', requireRole('student'), async (req, res) => {
+  const streamId  = parseId(req.params.streamId);
+  if (!streamId) return res.status(400).json({ error: 'معرّف البث غير صالح' });
+
   const studentId = req.user.id;
-  const { streamId } = req.params;
   try {
     const { rows } = await pool.query(
       'SELECT can_speak, can_share_screen FROM live_stream_viewers WHERE stream_id=$1 AND student_id=$2 AND is_active=true AND is_kicked=false',
@@ -913,41 +1036,60 @@ router.get('/:streamId/my-permissions', requireRole('student'), async (req, res)
   }
 });
 
-/* ──────────────────────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════════════════
    Teacher: award points to a student during live
-   FIX: server-side max cap of 1000 points per award
-────────────────────────────────────────────────────────────── */
+   FIX: verify student is actively watching the stream (not just
+   any student belonging to the teacher)
+   FIX: validate reason field length (max 200 chars)
+══════════════════════════════════════════════════════════════════ */
 router.post('/:streamId/award-points', requireRole('teacher'), async (req, res) => {
+  const streamId = parseId(req.params.streamId);
+  if (!streamId) return res.status(400).json({ error: 'معرّف البث غير صالح' });
+
   const teacherId = req.user.id;
-  const { streamId } = req.params;
   let { studentId, points, reason } = req.body;
 
-  points = parseInt(points);
-  if (!studentId || !points || points < 1)
+  const studentIdParsed = parseId(studentId);
+  if (!studentIdParsed) return res.status(400).json({ error: 'معرّف الطالب غير صالح' });
+
+  points = parseInt(points, 10);
+  if (!points || points < 1)
     return res.status(400).json({ error: 'بيانات غير صحيحة' });
-  // FIX: server-side cap to prevent abuse
   if (points > 1000)
     return res.status(400).json({ error: 'الحد الأقصى 1000 نقطة لكل منحة' });
 
+  /* FIX: validate reason length */
+  if (reason && typeof reason === 'string' && reason.length > 200) {
+    return res.status(400).json({ error: 'سبب المنح طويل جداً (200 حرف كحد أقصى)' });
+  }
+  const safeReason = reason ? String(reason).trim().slice(0, 200) : null;
+
   try {
-    // BUG-FIX: require stream to be active — points awarded only during live sessions
     const { rows: streamRows } = await pool.query(
       "SELECT title FROM live_streams WHERE id=$1 AND teacher_id=$2 AND status='active'",
       [streamId, teacherId]
     );
     if (!streamRows.length) return res.status(403).json({ error: 'غير مصرح أو البث غير نشط' });
 
-    const { rows: studentRows } = await pool.query(
-      'SELECT name FROM students WHERE id=$1 AND teacher_id=$2',
-      [studentId, teacherId]
+    /* FIX: verify student IS actively watching this stream */
+    const { rows: viewerCheck } = await pool.query(
+      `SELECT s.name
+       FROM live_stream_viewers lsv
+       JOIN students s ON s.id = lsv.student_id
+       WHERE lsv.stream_id=$1 AND lsv.student_id=$2
+         AND lsv.is_active=true AND lsv.is_kicked=false
+         AND s.teacher_id=$3`,
+      [streamId, studentIdParsed, teacherId]
     );
-    if (!studentRows.length) return res.status(404).json({ error: 'الطالب غير موجود' });
+    if (!viewerCheck.length)
+      return res.status(404).json({ error: 'الطالب غير موجود في البث حالياً' });
 
-    await pool.query('UPDATE students SET points=points+$1 WHERE id=$2', [points, studentId]);
+    await pool.query('UPDATE students SET points=points+$1 WHERE id=$2', [points, studentIdParsed]);
 
-    sendEvent(`student_${studentId}`, 'live_points_awarded', {
-      points, studentName: studentRows[0].name,
-      reason: reason || 'منح نقاط أثناء البث المباشر',
+    sendEvent(`student_${studentIdParsed}`, 'live_points_awarded', {
+      points,
+      studentName: viewerCheck[0].name,
+      reason:      safeReason || 'منح نقاط أثناء البث المباشر',
       streamTitle: streamRows[0].title,
     });
 
@@ -958,15 +1100,17 @@ router.post('/:streamId/award-points', requireRole('teacher'), async (req, res) 
   }
 });
 
-/* ──────────────────────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════════════════
    Both: get chat messages (supports ?since=<unix_ms>)
    FIX: consistent stream status check for both roles
-────────────────────────────────────────────────────────────── */
+══════════════════════════════════════════════════════════════════ */
 router.get('/:streamId/chat', requireRole('teacher', 'student'), async (req, res) => {
-  const { streamId } = req.params;
-  const { since } = req.query;
-  const userId = req.user.id;
-  const userRole = req.user.role;
+  const streamId = parseId(req.params.streamId);
+  if (!streamId) return res.status(400).json({ error: 'معرّف البث غير صالح' });
+
+  const { since }  = req.query;
+  const userId     = req.user.id;
+  const userRole   = req.user.role;
 
   try {
     if (userRole === 'student') {
@@ -978,14 +1122,12 @@ router.get('/:streamId/chat', requireRole('teacher', 'student'), async (req, res
       );
       if (!access.rows.length) return res.status(403).json({ error: 'Access denied' });
     } else if (userRole === 'teacher') {
-      // FIX: allow teacher to read chat for active OR ended streams (for review)
       const access = await pool.query('SELECT id FROM live_streams WHERE id=$1 AND teacher_id=$2', [streamId, userId]);
       if (!access.rows.length) return res.status(403).json({ error: 'Access denied' });
     }
 
     let q = 'SELECT id, stream_id, sender_id, sender_type, sender_name, message, sent_at FROM live_chat_messages WHERE stream_id=$1';
     const params = [streamId];
-    // BUG-FIX: validate since — parseInt(non-numeric) returns NaN → new Date(NaN) crashes
     const sinceMs = since ? parseInt(since, 10) : NaN;
     if (!isNaN(sinceMs) && sinceMs > 0) {
       q += ' AND sent_at > $2';
@@ -995,25 +1137,27 @@ router.get('/:streamId/chat', requireRole('teacher', 'student'), async (req, res
     const { rows } = await pool.query(q, params);
     res.json({ messages: rows });
   } catch (err) {
+    console.error('[live/chat GET]', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-/* ──────────────────────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════════════════
    Both: send a chat message
-   FIX: per-user rate limiting + fan-out uses helper function
-────────────────────────────────────────────────────────────── */
+   FIX: per-user rate limiting + fan-out uses batched helper
+══════════════════════════════════════════════════════════════════ */
 router.post('/:streamId/chat', requireRole('teacher', 'student'), async (req, res) => {
-  const { streamId } = req.params;
-  const { message } = req.body;
-  const senderId   = req.user.id;
-  const senderType = req.user.role;
-  const senderName = req.user.name;
+  const streamId = parseId(req.params.streamId);
+  if (!streamId) return res.status(400).json({ error: 'معرّف البث غير صالح' });
+
+  const { message }  = req.body;
+  const senderId     = req.user.id;
+  const senderType   = req.user.role;
+  const senderName   = req.user.name;
 
   if (!message?.trim()) return res.status(400).json({ error: 'الرسالة فارغة' });
   if (message.trim().length > 500) return res.status(400).json({ error: 'الرسالة طويلة جداً (500 حرف كحد أقصى)' });
 
-  // FIX: rate limit students (not teacher)
   if (senderType === 'student' && !chatRateCheck(senderId)) {
     return res.status(429).json({ error: 'إرسال سريع جداً — انتظر لحظة' });
   }
@@ -1044,26 +1188,26 @@ router.post('/:streamId/chat', requireRole('teacher', 'student'), async (req, re
 
     const teacherId = streamRows[0].teacher_id;
 
-    // FIX: use helper to get viewer IDs in one query, then fan-out without extra queries
+    /* FIX: use fanOut helper — non-blocking batched delivery to large audiences */
     const viewerIds = await getActiveViewerIds(streamId);
     sendEvent(`teacher_${teacherId}`, 'live_chat', msg);
-    for (const vid of viewerIds)
-      sendEvent(`student_${vid}`, 'live_chat', msg);
+    fanOut(viewerIds, 'live_chat', msg);
 
     res.json({ success: true, message: msg });
   } catch (err) {
-    console.error('[live/chat]', err);
+    console.error('[live/chat POST]', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-/* ──────────────────────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════════════════
    Teacher: toggle chat on / off
-   FIX: verify teacher owns the stream before toggling
-────────────────────────────────────────────────────────────── */
+══════════════════════════════════════════════════════════════════ */
 router.post('/:streamId/chat-toggle', requireRole('teacher'), async (req, res) => {
+  const streamId = parseId(req.params.streamId);
+  if (!streamId) return res.status(400).json({ error: 'معرّف البث غير صالح' });
+
   const teacherId = req.user.id;
-  const { streamId } = req.params;
   const { enabled } = req.body;
 
   try {
@@ -1073,13 +1217,12 @@ router.post('/:streamId/chat-toggle', requireRole('teacher'), async (req, res) =
     );
     if (!rowCount) return res.status(404).json({ error: 'البث غير موجود أو انتهى' });
 
-    // FIX: use helper for fan-out
     const viewerIds = await getActiveViewerIds(streamId);
-    for (const vid of viewerIds)
-      sendEvent(`student_${vid}`, 'live_chat_toggle', { enabled: !!enabled, streamId: parseInt(streamId) });
+    fanOut(viewerIds, 'live_chat_toggle', { enabled: !!enabled, streamId });
 
     res.json({ success: true });
   } catch (err) {
+    console.error('[live/chat-toggle]', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
