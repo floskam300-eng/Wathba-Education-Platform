@@ -23,16 +23,17 @@ export function useSSE(enabled, role) {
   useEffect(() => {
     if (!enabled) return;
 
-    const token = localStorage.getItem('wathba_token');
-    if (!token) return;
-
     const connect = () => {
       if (esRef.current) {
         esRef.current.close();
         esRef.current = null;
       }
 
-      const url = `/api/sse?token=${encodeURIComponent(token)}`;
+      // FIX: read token inside connect() so reconnects always use the
+      // latest token from localStorage, not a stale closure value.
+      const freshToken = localStorage.getItem('wathba_token');
+      if (!freshToken) return;
+      const url = `/api/sse?token=${encodeURIComponent(freshToken)}`;
       const es = new EventSource(url);
       esRef.current = es;
 
@@ -52,7 +53,7 @@ export function useSSE(enabled, role) {
 
       if (role === 'student' || role === 'assistant') {
         es.addEventListener('notification', (e) => {
-          const data = JSON.parse(e.data);
+          let data; try { data = JSON.parse(e.data); } catch { return; }
           qc.invalidateQueries({ queryKey: ['student-notifications'] });
           qc.invalidateQueries({ queryKey: ['student-dashboard'] });
           toast(`${EVENT_ICONS.notification} ${data.message}`,
@@ -60,7 +61,7 @@ export function useSSE(enabled, role) {
         });
 
         es.addEventListener('new_exam', (e) => {
-          const data = JSON.parse(e.data);
+          let data; try { data = JSON.parse(e.data); } catch { return; }
           qc.invalidateQueries({ queryKey: ['student-exams'] });
           qc.invalidateQueries({ queryKey: ['student-dashboard'] });
           qc.invalidateQueries({ queryKey: ['my-notifications'] });
@@ -70,7 +71,7 @@ export function useSSE(enabled, role) {
         });
 
         es.addEventListener('exam_started', (e) => {
-          const data = JSON.parse(e.data);
+          let data; try { data = JSON.parse(e.data); } catch { return; }
           qc.invalidateQueries({ queryKey: ['student-exams'] });
           qc.invalidateQueries({ queryKey: ['student-dashboard'] });
           qc.invalidateQueries({ queryKey: ['my-notifications'] });
@@ -80,7 +81,7 @@ export function useSSE(enabled, role) {
         });
 
         es.addEventListener('new_course', (e) => {
-          const data = JSON.parse(e.data);
+          let data; try { data = JSON.parse(e.data); } catch { return; }
           qc.invalidateQueries({ queryKey: ['student-courses'] });
           qc.invalidateQueries({ queryKey: ['student-courses-all'] });
           qc.invalidateQueries({ queryKey: ['student-dashboard'] });
@@ -89,7 +90,7 @@ export function useSSE(enabled, role) {
         });
 
         es.addEventListener('course_unpublished', (e) => {
-          const data = JSON.parse(e.data);
+          let data; try { data = JSON.parse(e.data); } catch { return; }
           qc.invalidateQueries({ queryKey: ['student-courses'] });
           qc.invalidateQueries({ queryKey: ['student-courses-all'] });
           qc.invalidateQueries({ queryKey: ['student-dashboard'] });
@@ -99,7 +100,7 @@ export function useSSE(enabled, role) {
         });
 
         es.addEventListener('exam_unpublished', (e) => {
-          const data = JSON.parse(e.data);
+          let data; try { data = JSON.parse(e.data); } catch { return; }
           qc.invalidateQueries({ queryKey: ['student-exams'] });
           qc.invalidateQueries({ queryKey: ['student-dashboard'] });
           toast(`🔕 الاختبار "${data.title}" لم يعد متاحاً حالياً`,
@@ -107,7 +108,7 @@ export function useSSE(enabled, role) {
         });
 
         es.addEventListener('enrollment_approved', (e) => {
-          const data = JSON.parse(e.data);
+          let data; try { data = JSON.parse(e.data); } catch { return; }
           qc.invalidateQueries({ queryKey: ['student-courses'] });
           qc.invalidateQueries({ queryKey: ['student-courses-all'] });
           qc.invalidateQueries({ queryKey: ['student-dashboard'] });
@@ -117,7 +118,7 @@ export function useSSE(enabled, role) {
         });
 
         es.addEventListener('enrollment_rejected', (e) => {
-          const data = JSON.parse(e.data);
+          let data; try { data = JSON.parse(e.data); } catch { return; }
           qc.invalidateQueries({ queryKey: ['student-courses-all'] });
           qc.invalidateQueries({ queryKey: ['student-notifications'] });
           toast.error(`${EVENT_ICONS.enrollment_rejected} رُفض طلب انضمامك لـ: ${data.course_name}`,
@@ -140,7 +141,7 @@ export function useSSE(enabled, role) {
         });
 
         es.addEventListener('platform_notification', (e) => {
-          const data = JSON.parse(e.data);
+          let data; try { data = JSON.parse(e.data); } catch { return; }
           qc.invalidateQueries({ queryKey: ['my-notifications'] });
           window.dispatchEvent(new CustomEvent('wathba_platform_notification', { detail: data }));
           const icon = { general: '📢', exam_result: '📊', new_exam: '📝', new_course: '📚',
@@ -150,7 +151,7 @@ export function useSSE(enabled, role) {
         });
 
         es.addEventListener('live_started', (e) => {
-          const data = JSON.parse(e.data);
+          let data; try { data = JSON.parse(e.data); } catch { return; }
           window.dispatchEvent(new CustomEvent('wathba_live_started', { detail: data }));
           toast(`📡 بث مباشر: ${data.title} — انضم الآن!`, {
             duration: 12000,
@@ -159,7 +160,7 @@ export function useSSE(enabled, role) {
         });
 
         es.addEventListener('live_ended', (e) => {
-          const data = JSON.parse(e.data);
+          let data; try { data = JSON.parse(e.data); } catch { return; }
           window.dispatchEvent(new CustomEvent('wathba_live_ended', { detail: data }));
           toast('📴 انتهى البث المباشر', {
             duration: 5000,
@@ -168,12 +169,12 @@ export function useSSE(enabled, role) {
         });
 
         es.addEventListener('live_chat', (e) => {
-          const data = JSON.parse(e.data);
+          let data; try { data = JSON.parse(e.data); } catch { return; }
           window.dispatchEvent(new CustomEvent('wathba_live_chat', { detail: data }));
         });
 
         es.addEventListener('live_chat_toggle', (e) => {
-          const data = JSON.parse(e.data);
+          let data; try { data = JSON.parse(e.data); } catch { return; }
           window.dispatchEvent(new CustomEvent('wathba_live_chat_toggle', { detail: data }));
           toast(data.enabled ? '💬 تم تفعيل الدردشة' : '🔇 الدردشة معطلة الآن', {
             duration: 4000,
@@ -182,7 +183,7 @@ export function useSSE(enabled, role) {
         });
 
         es.addEventListener('live_points_awarded', (e) => {
-          const data = JSON.parse(e.data);
+          let data; try { data = JSON.parse(e.data); } catch { return; }
           toast.success(`🎉 حصلت على ${data.points} نقطة! ${data.reason}`, {
             duration: 8000,
             style: { fontFamily: 'inherit', direction: 'rtl', background: '#14532d', color: '#fff' },
@@ -190,7 +191,7 @@ export function useSSE(enabled, role) {
         });
 
         es.addEventListener('live_kicked', (e) => {
-          const data = JSON.parse(e.data);
+          let data; try { data = JSON.parse(e.data); } catch { return; }
           window.dispatchEvent(new CustomEvent('wathba_live_kicked', { detail: data }));
           toast.error('🚫 تم إخراجك من البث من قِبَل المعلم', {
             duration: 7000,
@@ -199,14 +200,17 @@ export function useSSE(enabled, role) {
         });
 
         es.addEventListener('live_permission_update', (e) => {
-          const data = JSON.parse(e.data);
+          let data; try { data = JSON.parse(e.data); } catch { return; }
           window.dispatchEvent(new CustomEvent('wathba_live_permission_update', { detail: data }));
+          // FIX: use separate `if` statements — not `else if` — so both
+          // toasts show when teacher grants speak AND screen-share together.
           if (data.can_speak) {
             toast.success('🎤 منحك المعلم صلاحية التحدث!', {
               duration: 6000,
               style: { fontFamily: 'inherit', direction: 'rtl', background: '#1e3a5f', color: '#fff' },
             });
-          } else if (data.can_share_screen) {
+          }
+          if (data.can_share_screen) {
             toast.success('🖥️ منحك المعلم صلاحية مشاركة الشاشة!', {
               duration: 6000,
               style: { fontFamily: 'inherit', direction: 'rtl', background: '#1e3a5f', color: '#fff' },
@@ -217,7 +221,7 @@ export function useSSE(enabled, role) {
 
       if (role === 'teacher' || role === 'assistant') {
         es.addEventListener('new_request', (e) => {
-          const data = JSON.parse(e.data);
+          let data; try { data = JSON.parse(e.data); } catch { return; }
           qc.invalidateQueries({ queryKey: ['enrollment-requests'] });
           qc.invalidateQueries({ queryKey: ['course-requests'] });
           toast(`${EVENT_ICONS.new_request} طلب انضمام جديد من: ${data.student_name} لكورس: ${data.course_name}`,
@@ -225,14 +229,14 @@ export function useSSE(enabled, role) {
         });
 
         es.addEventListener('retry_request', (e) => {
-          const data = JSON.parse(e.data);
+          let data; try { data = JSON.parse(e.data); } catch { return; }
           qc.invalidateQueries({ queryKey: ['retry-requests'] });
           toast(`${EVENT_ICONS.retry_request} طلب إعادة اختبار من: ${data.student_name}`,
             { duration: 7000, style: { fontFamily: 'inherit', direction: 'rtl' } });
         });
 
         es.addEventListener('course_publish_changed', (e) => {
-          const data = JSON.parse(e.data);
+          let data; try { data = JSON.parse(e.data); } catch { return; }
           qc.invalidateQueries({ queryKey: ['courses'] });
           qc.invalidateQueries({ queryKey: ['analytics'] });
           const msg = data.is_published
@@ -242,7 +246,7 @@ export function useSSE(enabled, role) {
         });
 
         es.addEventListener('exam_publish_changed', (e) => {
-          const data = JSON.parse(e.data);
+          let data; try { data = JSON.parse(e.data); } catch { return; }
           qc.invalidateQueries({ queryKey: ['exams'] });
           qc.invalidateQueries({ queryKey: ['analytics'] });
           const msg = data.is_published
@@ -252,7 +256,7 @@ export function useSSE(enabled, role) {
         });
 
         es.addEventListener('live_hand_raise', (e) => {
-          const data = JSON.parse(e.data);
+          let data; try { data = JSON.parse(e.data); } catch { return; }
           window.dispatchEvent(new CustomEvent('wathba_live_hand_raise', { detail: data }));
           if (data.raised) {
             toast(`✋ ${data.studentName} رفع يده`, {
@@ -263,12 +267,12 @@ export function useSSE(enabled, role) {
         });
 
         es.addEventListener('live_viewer_update', (e) => {
-          const data = JSON.parse(e.data);
+          let data; try { data = JSON.parse(e.data); } catch { return; }
           window.dispatchEvent(new CustomEvent('wathba_live_viewer_update', { detail: data }));
         });
 
         es.addEventListener('live_chat', (e) => {
-          const data = JSON.parse(e.data);
+          let data; try { data = JSON.parse(e.data); } catch { return; }
           window.dispatchEvent(new CustomEvent('wathba_live_chat', { detail: data }));
         });
       }

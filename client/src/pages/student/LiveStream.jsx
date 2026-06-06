@@ -288,6 +288,24 @@ function LiveView({ stream, user, dark, onLeave }) {
     onLeave();
   };
 
+  // FIX: call leave API via sendBeacon when student closes the tab or
+  // navigates away without clicking "مغادرة", preventing stale viewer rows.
+  useEffect(() => {
+    const streamId = stream.id;
+    const token    = localStorage.getItem('wathba_token');
+    const onUnload = () => {
+      if (!token) return;
+      const url  = `${window.location.origin}/api/live/${streamId}/leave`;
+      const blob = new Blob([JSON.stringify({ beacon: true })], { type: 'application/json' });
+      navigator.sendBeacon && navigator.sendBeacon(
+        `${url}?token=${encodeURIComponent(token)}`,
+        blob,
+      );
+    };
+    window.addEventListener('beforeunload', onUnload);
+    return () => window.removeEventListener('beforeunload', onUnload);
+  }, [stream.id]);
+
   // Fullscreen + orientation lock
   const toggleFullscreen = useCallback(async () => {
     const el = videoWrapRef.current;

@@ -360,32 +360,41 @@ router.post('/scheduled/:streamId/start', requireRole('teacher'), async (req, re
 
   const teacherId = req.user.id;
 
+  const client = await pool.connect();
   try {
-    const { rows: activeStreams } = await pool.query(
+    await client.query('BEGIN');
+    // FIX: advisory lock prevents two simultaneous "start scheduled" calls
+    // from creating two active streams for the same teacher.
+    await client.query('SELECT pg_advisory_xact_lock($1)', [teacherId]);
+
+    const { rows: activeStreams } = await client.query(
       "SELECT id FROM live_streams WHERE teacher_id=$1 AND status='active'",
       [teacherId]
     );
     for (const active of activeStreams) {
       const viewerIds = await getActiveViewerIds(active.id);
-      await pool.query(
+      await client.query(
         "UPDATE live_stream_viewers SET is_active=false, left_at=NOW() WHERE stream_id=$1 AND is_active=true",
         [active.id]
       );
       vcClear(active.id);
       fanOut(viewerIds, 'live_ended', { streamId: active.id, message: 'انتهى البث المباشر' });
     }
-    await pool.query(
+    await client.query(
       "UPDATE live_streams SET status='ended', ended_at=NOW() WHERE teacher_id=$1 AND status='active'",
       [teacherId]
     );
 
-    const result = await pool.query(
+    const result = await client.query(
       `UPDATE live_streams
        SET status='active', started_at=NOW()
        WHERE id=$1 AND teacher_id=$2 AND status='scheduled'
        RETURNING *`,
       [streamId, teacherId]
     );
+
+    await client.query('COMMIT');
+
     if (!result.rows.length)
       return res.status(404).json({ error: 'البث المجدول غير موجود' });
 
@@ -398,8 +407,14 @@ router.post('/scheduled/:streamId/start', requireRole('teacher'), async (req, re
 
     res.json({ success: true, stream });
   } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
     console.error('[live/scheduled/start]', err);
+    if (err.code === '23505') {
+      return res.status(409).json({ error: 'يوجد بث نشط بالفعل — يُرجى إنهاؤه أولاً' });
+    }
     res.status(500).json({ error: 'Server error' });
+  } finally {
+    client.release();
   }
 });
 
@@ -457,28 +472,36 @@ router.post('/start', requireRole('teacher'), async (req, res) => {
       return res.status(400).json({ error: 'allowed_student_ids يجب أن تكون أرقام صحيحة موجبة (حد أقصى 500)' });
   }
 
+  const client = await pool.connect();
   try {
-    const { rows: activeStreams } = await pool.query(
+    await client.query('BEGIN');
+    // FIX: serialise concurrent start requests for the same teacher using an
+    // advisory transaction lock (key = teacher_id).  This closes the race window
+    // between "end active stream" and "insert new stream" so two simultaneous
+    // POST /live/start calls can never create two active streams.
+    await client.query('SELECT pg_advisory_xact_lock($1)', [teacherId]);
+
+    const { rows: activeStreams } = await client.query(
       "SELECT id FROM live_streams WHERE teacher_id=$1 AND status='active'",
       [teacherId]
     );
     for (const active of activeStreams) {
       const viewerIds = await getActiveViewerIds(active.id);
-      await pool.query(
+      await client.query(
         "UPDATE live_stream_viewers SET is_active=false, left_at=NOW() WHERE stream_id=$1 AND is_active=true",
         [active.id]
       );
       vcClear(active.id);
       fanOut(viewerIds, 'live_ended', { streamId: active.id, message: 'انتهى البث المباشر' });
     }
-    await pool.query(
+    await client.query(
       "UPDATE live_streams SET status='ended', ended_at=NOW() WHERE teacher_id=$1 AND status='active'",
       [teacherId]
     );
 
     const roomId = `wathba-${teacherId}-${Date.now().toString(36)}-${crypto.randomBytes(4).toString('hex')}`;
 
-    const result = await pool.query(
+    const result = await client.query(
       `INSERT INTO live_streams
          (teacher_id, room_id, title, description, access,
           allowed_stages, allowed_student_ids, chat_enabled, hand_raise_enabled)
@@ -493,6 +516,8 @@ router.post('/start', requireRole('teacher'), async (req, res) => {
         hand_raise_enabled !== false,
       ]
     );
+
+    await client.query('COMMIT');
 
     const stream = result.rows[0];
     const teacher = await pool.query('SELECT name FROM teachers WHERE id=$1', [teacherId]);
@@ -522,8 +547,14 @@ router.post('/start', requireRole('teacher'), async (req, res) => {
 
     res.json({ success: true, stream });
   } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
     console.error('[live/start]', err);
+    if (err.code === '23505') {
+      return res.status(409).json({ error: 'يوجد بث نشط بالفعل — يُرجى إنهاؤه أولاً' });
+    }
     res.status(500).json({ error: 'Server error' });
+  } finally {
+    client.release();
   }
 });
 
@@ -714,7 +745,18 @@ router.post('/:streamId/join', requireRole('student'), async (req, res) => {
    Student: leave a stream
    FIX: only call vcRemove when student was actually in the cache
 ══════════════════════════════════════════════════════════════════ */
-router.post('/:streamId/leave', requireRole('student'), async (req, res) => {
+// FIX: beacon-aware leave — accepts JWT from query param so navigator.sendBeacon()
+// (which cannot set headers) can call this on tab-close.
+// Normal requests continue to use the Authorization header.
+const beaconAuth = async (req, res, next) => {
+  const qToken = req.query.token;
+  if (qToken && !req.headers.authorization) {
+    req.headers.authorization = `Bearer ${qToken}`;
+  }
+  return require('../middleware/auth').authenticate(req, res, next);
+};
+
+router.post('/:streamId/leave', beaconAuth, requireRole('student'), async (req, res) => {
   const streamId  = parseId(req.params.streamId);
   if (!streamId) return res.status(400).json({ error: 'معرّف البث غير صالح' });
 

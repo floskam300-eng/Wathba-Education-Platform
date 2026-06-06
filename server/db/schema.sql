@@ -711,6 +711,13 @@ CREATE INDEX IF NOT EXISTS idx_live_hand_raises_stream_active
 CREATE INDEX IF NOT EXISTS idx_live_chat_sender
   ON live_chat_messages (sender_id, sent_at DESC);
 
+-- FIX: prevent race condition — only one active stream per teacher at a time
+-- If two simultaneous POST /live/start requests slip past the UPDATE check,
+-- the second INSERT will fail with a unique constraint violation (→ 409).
+CREATE UNIQUE INDEX IF NOT EXISTS idx_one_active_stream_per_teacher
+  ON live_streams (teacher_id)
+  WHERE status = 'active';
+
 -- Cleanup job: purge expired revoked tokens (runs safely every restart)
 DELETE FROM revoked_tokens WHERE expires_at < NOW();
 

@@ -179,6 +179,7 @@ function StudentRow({ viewer, streamId, onRefresh }) {
             <input type="number" min="1" max="1000" value={pts} onChange={e => setPts(e.target.value)}
               className="w-16 text-center text-sm border border-slate-300 dark:border-[rgba(230,175,80,0.18)] rounded-lg px-2 py-1.5 bg-white dark:bg-[#1F1C2C] text-slate-800 dark:text-white" />
             <input type="text" placeholder="السبب (اختياري)" value={reason} onChange={e => setReason(e.target.value)}
+              maxLength={200}
               className="flex-1 text-xs border border-slate-300 dark:border-[rgba(230,175,80,0.18)] rounded-lg px-2 py-1.5 bg-white dark:bg-[#1F1C2C] text-slate-800 dark:text-white placeholder-[#8A7E72]" />
           </div>
           <div className="flex gap-1.5">
@@ -211,7 +212,9 @@ function ViewersPanel({ streamId, dark }) {
       if (r.data.is_locked !== undefined) setLocked(!!r.data.is_locked);
       return r.data.viewers;
     }),
-    refetchInterval: 6000,
+    // FIX: SSE delivers hand-raise/viewer events in real-time so polling
+    // every 6 s is unnecessary churn.  30 s is a safe safety-net fallback.
+    refetchInterval: 30000,
     enabled:  !!streamId,
   });
   const viewers  = data || [];
