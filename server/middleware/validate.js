@@ -117,6 +117,7 @@ function validateExam(req, res, next) {
   const errors = {};
 
   if (!title || !String(title).trim()) errors.title = 'عنوان الاختبار مطلوب';
+  else if (String(title).trim().length > 300) errors.title = 'عنوان الاختبار طويل جداً (الحد الأقصى 300 حرف)';
 
   const dur = parseInt(duration_minutes, 10);
   if (isNaN(dur) || dur < 1) errors.duration_minutes = 'المدة يجب أن تكون دقيقة واحدة على الأقل';
@@ -130,7 +131,16 @@ function validateExam(req, res, next) {
   if (isNaN(pass) || pass < 0) errors.pass_score = 'درجة النجاح لا يمكن أن تكون سالبة';
   else if (!isNaN(total) && pass > total) errors.pass_score = `درجة النجاح لا تتجاوز المجموع (${total})`;
 
-  if (start_date && end_date && new Date(end_date) <= new Date(start_date))
+  if (start_date) {
+    const sd = new Date(start_date);
+    if (isNaN(sd.getTime())) errors.start_date = 'تاريخ البداية غير صالح';
+  }
+  if (end_date) {
+    const ed = new Date(end_date);
+    if (isNaN(ed.getTime())) errors.end_date = 'تاريخ الانتهاء غير صالح';
+  }
+  if (!errors.start_date && !errors.end_date && start_date && end_date &&
+      new Date(end_date) <= new Date(start_date))
     errors.end_date = 'تاريخ الانتهاء يجب أن يكون بعد تاريخ البداية';
 
   if (question_source !== undefined && !VALID_QUESTION_SOURCES.includes(String(question_source)))

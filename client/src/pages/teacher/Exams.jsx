@@ -59,6 +59,7 @@ export default function TeacherExams() {
   const [showStudentDropdown, setShowStudentDropdown] = useState(false);
   const [publishConfirm, setPublishConfirm] = useState(null);
   const [forceResetConfirm, setForceResetConfirm] = useState(null);
+  const [unpublishConfirm, setUnpublishConfirm] = useState(null);
   const [formErrors, setFormErrors] = useState({});
 
   const { data: exams = [], isLoading } = useQuery({
@@ -142,7 +143,7 @@ export default function TeacherExams() {
 
   const handlePublishClick = (ex) => {
     if (ex.is_published) {
-      publishMut.mutate({ id: ex.id });
+      setUnpublishConfirm(ex);
       return;
     }
     if (ex.course_id) {
@@ -488,7 +489,7 @@ export default function TeacherExams() {
                       </p>
                     </div>
                     <button
-                      onClick={() => navigate(`/teacher/exam-review/${res.id}`)}
+                      onClick={() => navigate(`/${baseRole}/exam-review/${res.id}`)}
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-bold text-navy-700 hover:bg-navy-50 transition-colors flex-shrink-0">
                       <Eye className="w-3.5 h-3.5" /> مراجعة
                     </button>
@@ -830,7 +831,7 @@ export default function TeacherExams() {
               {hasResults && !isExpired && (
                 <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl p-3">
                   <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
-                  <p className="text-amber-700 text-sm font-bold">سيتم مسح نتائج الطلاب السابقة ({publishConfirm.attempt_count} محاولة) حتى يتمكنوا من إعادة الاختبار.</p>
+                  <p className="text-amber-700 text-sm font-bold">يوجد {publishConfirm.attempt_count} محاولة سابقة — ستُطلب منك موافقة إضافية في الخطوة التالية قبل مسح أي نتائج.</p>
                 </div>
               )}
               <div className="bg-gray-50 rounded-xl p-3 space-y-2 text-sm">
@@ -880,6 +881,44 @@ export default function TeacherExams() {
                 disabled={publishMut.isPending}
                 className="flex-1 font-bold py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white transition-all active:scale-95">
                 {publishMut.isPending ? 'جاري...' : 'نعم، امسح النتائج وأعد النشر'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Unpublish Confirmation Dialog */}
+      {unpublishConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm"
+          onClick={() => setUnpublishConfirm(null)}>
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl"
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center flex-shrink-0">
+                <EyeOff className="w-6 h-6 text-orange-600" />
+              </div>
+              <div>
+                <h3 className="font-black text-gray-900">إلغاء نشر الاختبار</h3>
+                <p className="text-gray-500 text-sm truncate">{unpublishConfirm.title}</p>
+              </div>
+            </div>
+            <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 mb-4 space-y-1.5">
+              <p className="text-orange-800 text-sm font-bold flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                الطلاب الذين بدأوا الاختبار سيُسلَّم اختبارهم تلقائياً عند انتهاء الوقت
+              </p>
+              <p className="text-orange-700 text-xs font-medium pr-6">
+                لن يتمكن أي طالب من البدء أو الاستمرار في الاختبار بعد إلغاء النشر
+              </p>
+            </div>
+            <p className="text-gray-600 text-sm mb-4">هل أنت متأكد من إلغاء نشر هذا الاختبار؟</p>
+            <div className="flex gap-3">
+              <button onClick={() => setUnpublishConfirm(null)} className="flex-1 btn-secondary">إلغاء</button>
+              <button
+                onClick={() => { publishMut.mutate({ id: unpublishConfirm.id }); setUnpublishConfirm(null); }}
+                disabled={publishMut.isPending}
+                className="flex-1 font-bold py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white transition-all active:scale-95">
+                {publishMut.isPending ? 'جاري...' : 'نعم، إلغاء النشر'}
               </button>
             </div>
           </div>

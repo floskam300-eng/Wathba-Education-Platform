@@ -1060,7 +1060,7 @@ router.get('/student/course-results/:courseId', requireRole('student'), async (r
 });
 
 // ── Get result summary ──
-router.get('/results/:resultId', authenticate, async (req, res) => {
+router.get('/results/:resultId', async (req, res) => {
   const resultId = parseParamId(req.params.resultId);
   if (!resultId) return res.status(400).json({ error: 'معرّف النتيجة غير صالح' });
   try {
@@ -1092,7 +1092,7 @@ router.get('/results/:resultId', authenticate, async (req, res) => {
 });
 
 // ── Full exam review ──
-router.get('/results/:resultId/review', authenticate, async (req, res) => {
+router.get('/results/:resultId/review', async (req, res) => {
   const resultId = parseParamId(req.params.resultId);
   if (!resultId) return res.status(400).json({ error: 'معرّف النتيجة غير صالح' });
   try {
