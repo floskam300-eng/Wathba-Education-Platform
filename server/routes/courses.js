@@ -374,7 +374,7 @@ router.delete('/:id', requireRole('teacher', 'assistant'), checkManageCoursesPer
   }
 });
 
-router.get('/:id/content', authenticate, async (req, res) => {
+router.get('/:id/content', async (req, res) => {
   const courseId = req.params.id;
   try {
     if (req.user.role === 'student') {
@@ -383,7 +383,8 @@ router.get('/:id/content', authenticate, async (req, res) => {
          JOIN courses c ON c.id = sce.course_id
          JOIN students s ON s.id = sce.student_id
          WHERE sce.student_id=$1 AND sce.course_id=$2 AND sce.status='active'
-           AND c.teacher_id = s.teacher_id`,
+           AND c.teacher_id = s.teacher_id
+           AND c.is_published = true`,
         [req.user.id, courseId]
       );
       if (!enrollment.rows.length) {
@@ -509,6 +510,10 @@ router.post('/:id/videos/url', requireRole('teacher', 'assistant'), checkManageC
     const { title, url, duration_minutes, sort_order, section_id, url_480, url_720, url_1080 } = req.body;
     if (!title?.trim()) return res.status(400).json({ error: 'عنوان الفيديو مطلوب' });
     if (!url?.trim()) return res.status(400).json({ error: 'رابط الفيديو مطلوب' });
+    if (section_id) {
+      const secCheck = await pool.query('SELECT id FROM sections WHERE id=$1 AND course_id=$2', [section_id, req.params.id]);
+      if (!secCheck.rows.length) return res.status(400).json({ error: 'القسم المحدد لا ينتمي لهذا الكورس' });
+    }
     const result = await pool.query(
       'INSERT INTO videos (title,file_path_or_url,duration_minutes,course_id,sort_order,section_id,url_480,url_720,url_1080) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',
       [title.trim(), url.trim(), parseInt(duration_minutes) || 0, req.params.id, parseInt(sort_order) || 0, section_id || null, url_480?.trim() || null, url_720?.trim() || null, url_1080?.trim() || null]
@@ -531,6 +536,10 @@ router.post('/:id/videos/upload', requireRole('teacher', 'assistant'), checkMana
   try {
     if (!req.file) return res.status(400).json({ error: 'No video file uploaded' });
     const { title, duration_minutes, sort_order, section_id } = req.body;
+    if (section_id) {
+      const secCheck = await pool.query('SELECT id FROM sections WHERE id=$1 AND course_id=$2', [section_id, req.params.id]);
+      if (!secCheck.rows.length) return res.status(400).json({ error: 'القسم المحدد لا ينتمي لهذا الكورس' });
+    }
     const filePath = `/uploads/videos/${req.file.filename}`;
     const videoTitle = title || req.file.originalname;
     const result = await pool.query(
@@ -555,6 +564,10 @@ router.post('/:id/pdfs/upload', requireRole('teacher', 'assistant'), checkManage
   try {
     if (!req.file) return res.status(400).json({ error: 'No PDF file uploaded' });
     const { title, section_id } = req.body;
+    if (section_id) {
+      const secCheck = await pool.query('SELECT id FROM sections WHERE id=$1 AND course_id=$2', [section_id, req.params.id]);
+      if (!secCheck.rows.length) return res.status(400).json({ error: 'القسم المحدد لا ينتمي لهذا الكورس' });
+    }
     const filePath = `/uploads/pdfs/${req.file.filename}`;
     const pdfTitle = title || req.file.originalname;
     const result = await pool.query(

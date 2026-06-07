@@ -615,6 +615,10 @@ router.post('/me/video-progress', requireRole('student'), async (req, res) => {
       serverProgress = Math.min(100, (safeWatchedSeconds / (durationMinutes * 60)) * 100);
     } else if (durationMinutes > 0 && safeWatchedMinutes > 0) {
       serverProgress = Math.min(100, (safeWatchedMinutes / durationMinutes) * 100);
+    } else {
+      // duration_minutes not set (URL videos without duration) — use client-provided value capped at 100
+      const clientProgress = parseFloat(req.body.progress_percentage) || 0;
+      serverProgress = Math.min(100, Math.max(0, clientProgress));
     }
 
     await pool.query(

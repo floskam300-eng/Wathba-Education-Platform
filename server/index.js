@@ -68,6 +68,7 @@ const uploadsAuthMiddleware = (req, res, next) => {
   if (!token) return res.status(401).send('Unauthorized');
   try {
     jwt.verify(token, process.env.JWT_SECRET);
+    req._uploadsAuthed = true; // mark so the fallback guard doesn't block a missing-file 404
     next();
   } catch {
     return res.status(401).send('Unauthorized');
@@ -77,8 +78,10 @@ app.use('/uploads/pdfs',             uploadsAuthMiddleware, express.static(path.
 app.use('/uploads/videos',           uploadsAuthMiddleware, express.static(path.join(__dirname, '../uploads/videos')));
 app.use('/uploads/question-images',  uploadsAuthMiddleware, express.static(path.join(__dirname, '../uploads/question-images')));
 // Images and thumbnails remain public (needed for login page / course cards)
-// Safety guard: block direct access to protected subdirs through the general handler
+// Safety guard: block direct access to protected subdirs through the general handler.
+// Skip if the request already passed through uploadsAuthMiddleware (file not found → 404 not 401).
 app.use('/uploads', (req, res, next) => {
+  if (req._uploadsAuthed) return next(); // already authenticated — let it fall through to 404
   const normalized = req.path.replace(/\/+/g, '/');
   const protected_ = ['/pdfs/', '/videos/', '/question-images/'];
   if (protected_.some(p => normalized.startsWith(p) || normalized === p.slice(0, -1))) {

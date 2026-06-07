@@ -120,6 +120,18 @@ function FloatingWatermark({ name, code }) {
   );
 }
 
+/* ─── Auth token helper for protected upload URLs ─────── */
+const withToken = (url) => {
+  if (!url || !url.startsWith('/uploads/')) return url;
+  try {
+    const token = localStorage.getItem('wathba_token') || '';
+    if (!token) return url;
+    return `${url}?token=${encodeURIComponent(token)}`;
+  } catch {
+    return url;
+  }
+};
+
 /* ─── YouTube URL helpers ──────────────────────────────── */
 function extractYoutubeId(url) {
   if (!url) return null;
@@ -882,7 +894,7 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
       <video
         ref={videoRef}
         key={video.id}
-        src={currentSrc}
+        src={withToken(currentSrc)}
         className="w-full h-full object-contain cursor-pointer"
         muted={muted}
         controlsList="nodownload nofullscreen noremoteplayback"
@@ -928,6 +940,7 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
           setPlaying(true);
           playStart.current = Date.now();
           if (videoRef.current) videoRef.current.playbackRate = loadSpeed();
+          clearInterval(saveTimer.current);
           saveTimer.current = setInterval(() => {
             if (!videoRef.current) return;
             const d   = videoRef.current.duration || 0;
@@ -1039,6 +1052,8 @@ function PdfViewer({ pdf }) {
     </div>
   );
 
+  const pdfSrc = withToken(pdf.file_url);
+
   return (
     <div className="flex flex-col w-full h-full bg-gray-100">
       <div className="flex-shrink-0 bg-white border-b border-gray-200 px-4 py-2 flex items-center justify-between gap-3">
@@ -1047,7 +1062,7 @@ function PdfViewer({ pdf }) {
           <span className="font-bold text-sm text-gray-800 truncate">{pdf.title}</span>
         </div>
         <a
-          href={pdf.file_url}
+          href={pdfSrc}
           target="_blank"
           rel="noopener noreferrer"
           className="flex-shrink-0 flex items-center gap-1.5 text-xs font-bold text-orange-600 hover:text-orange-700 bg-orange-50 hover:bg-orange-100 border border-orange-200 px-3 py-1.5 rounded-lg transition-colors"
@@ -1058,7 +1073,7 @@ function PdfViewer({ pdf }) {
       <div className="flex-1 overflow-hidden">
         <object
           key={pdf.id}
-          data={pdf.file_url}
+          data={pdfSrc}
           type="application/pdf"
           className="w-full h-full"
           onContextMenu={(e) => e.preventDefault()}
@@ -1071,7 +1086,7 @@ function PdfViewer({ pdf }) {
               <p className="font-black text-gray-800 text-xl mb-2">{pdf.title}</p>
               <p className="text-gray-400 text-sm mb-6">اضغط الزر أدناه لفتح الملف</p>
               <a
-                href={pdf.file_url}
+                href={pdfSrc}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-bold px-6 py-3 rounded-xl transition-all hover:shadow-lg active:scale-95"
@@ -1112,6 +1127,17 @@ export default function CourseView() {
       last_position: Math.round(lastPosition || 0),
       actual_watched_seconds: Math.round(actualWatchedSec || 0),
     }).catch(() => {});
+
+    if (completed) {
+      const currentVids = content?.videos || [];
+      const idx = currentVids.findIndex(v => v.id === videoId);
+      if (idx !== -1) {
+        const next = currentVids[idx + 1];
+        if (next) {
+          setTimeout(() => setActiveVideo(next), 1500);
+        }
+      }
+    }
   };
 
   const { data: courses = [], isLoading: coursesLoading } = useQuery({
@@ -1119,19 +1145,22 @@ export default function CourseView() {
     queryFn: () => api.get('/courses/student/my-courses').then(r => r.data),
   });
 
-  const { data: content, isLoading } = useQuery({
+  const { data: content, isLoading, error: contentError } = useQuery({
     queryKey: ['course-content', courseId],
     queryFn: () => api.get(`/courses/${courseId}/content`).then(r => r.data),
     enabled: !!courseId,
     retry: false,
-    onError: (err) => {
-      const status = err?.response?.status;
+  });
+
+  useEffect(() => {
+    if (contentError) {
+      const status = contentError?.response?.status;
       if (status === 403) {
         toast.error('غير مصرح لك بالدخول لهذا الكورس');
         navigate('/student/courses', { replace: true });
       }
-    },
-  });
+    }
+  }, [contentError, navigate]);
 
   const { data: examResults = [] } = useQuery({
     queryKey: ['course-exam-results', courseId],
@@ -1467,7 +1496,7 @@ export default function CourseView() {
                     </div>
                   </div>
                   <a
-                    href={currentPdf.file_url}
+                    href={withToken(currentPdf.file_url)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1.5 text-xs font-bold text-orange-400 hover:text-orange-300 bg-orange-400/10 hover:bg-orange-400/20 px-3 py-1.5 rounded-lg transition-all"

@@ -7,7 +7,9 @@
     "server": "node server/index.js",
     "client": "cd client && npm run dev",
     "build": "cd client && npm run build",
-    "start": "NODE_ENV=production node server/index.js"
+    "start": "NODE_ENV=production node server/index.js",
+    "test:courses": "node tests/course-system.test.js",
+    "test:live": "node tests/live-stream.test.js"
   },
   "dependencies": {
     "@whiskeysockets/baileys": "^7.0.0-rc13",
@@ -24,5 +26,9 @@
     "multer": "^1.4.5-lts.1",
     "pg": "^8.11.3",
     "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "jest": "^30.4.2",
+    "supertest": "^7.2.2"
   }
 }
