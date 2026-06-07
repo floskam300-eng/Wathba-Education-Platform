@@ -607,7 +607,10 @@ router.post('/me/video-progress', requireRole('student'), async (req, res) => {
     const videoRow = ownershipCheck;
     const durationMinutes = parseFloat(videoRow.rows[0]?.duration_minutes) || 0;
     const safeWatchedSeconds = Math.max(0, Math.min(actual_watched_seconds || 0, 86400));
-    const safeWatchedMinutes = Math.max(0, watched_minutes || 0);
+    // BUG-12: cap watched_minutes at actual video duration — prevents inflated watch-time from malicious clients
+    const safeWatchedMinutes = durationMinutes > 0
+      ? Math.max(0, Math.min(watched_minutes || 0, durationMinutes))
+      : Math.max(0, watched_minutes || 0);
 
     // Compute progress server-side: use actual_watched_seconds if duration is known
     let serverProgress = 0;

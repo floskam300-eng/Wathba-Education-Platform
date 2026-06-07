@@ -1148,10 +1148,12 @@ export default function CourseView() {
     queryFn: () => api.get('/courses/student/my-courses').then(r => r.data),
   });
 
+  // BUG-13: wait for courses list before firing the content query so the client-side
+  // enrollment guard has a chance to redirect *before* content is fetched.
   const { data: content, isLoading, error: contentError } = useQuery({
     queryKey: ['course-content', courseId],
     queryFn: () => api.get(`/courses/${courseId}/content`).then(r => r.data),
-    enabled: !!courseId,
+    enabled: !!courseId && !coursesLoading,
     retry: false,
   });
 

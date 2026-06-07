@@ -724,28 +724,37 @@ router.get('/student/available-all', requireRole('student'), async (req, res) =>
 });
 
 router.post('/student/request/:courseId', requireRole('student'), async (req, res) => {
+  const courseId = parseParamId(req.params.courseId);
+  if (!courseId) return res.status(400).json({ error: 'Invalid course ID' });
   const { message } = req.body;
   try {
     const teacherRes = await pool.query('SELECT teacher_id FROM students WHERE id=$1', [req.user.id]);
     if (!teacherRes.rows.length) return res.status(404).json({ error: 'Student not found' });
     const teacherId = teacherRes.rows[0].teacher_id;
 
-    const courseCheck = await pool.query('SELECT id, price, is_free, name, is_published FROM courses WHERE id=$1 AND teacher_id=$2', [req.params.courseId, teacherId]);
+    const courseCheck = await pool.query('SELECT id, price, is_free, name, is_published FROM courses WHERE id=$1 AND teacher_id=$2', [courseId, teacherId]);
     if (!courseCheck.rows.length) return res.status(403).json({ error: 'Course not available' });
     const course = courseCheck.rows[0];
 
     if (!course.is_published) return res.status(403).json({ error: 'Course is not published' });
 
-    const enrolled = await pool.query('SELECT id FROM student_course_enrollment WHERE student_id=$1 AND course_id=$2', [req.user.id, req.params.courseId]);
+    // BUG-10: only block if the student has an *active* enrollment — inactive rows allow re-request
+    const enrolled = await pool.query(
+      "SELECT id FROM student_course_enrollment WHERE student_id=$1 AND course_id=$2 AND status='active'",
+      [req.user.id, courseId]
+    );
     if (enrolled.rows.length) return res.status(409).json({ error: 'Already enrolled' });
 
-    // Free course: auto-enroll directly without needing teacher approval
+    // Free course: auto-enroll directly without needing teacher approval.
+    // BUG-11: use UPSERT so an existing *inactive* row is re-activated instead of silently ignored.
     if (course.is_free) {
       await pool.query(
-        'INSERT INTO student_course_enrollment (student_id, course_id) VALUES($1,$2) ON CONFLICT DO NOTHING',
-        [req.user.id, req.params.courseId]
+        `INSERT INTO student_course_enrollment (student_id, course_id, status)
+         VALUES($1,$2,'active')
+         ON CONFLICT (student_id, course_id) DO UPDATE SET status='active'`,
+        [req.user.id, courseId]
       );
-      sendEvent(`student_${req.user.id}`, 'enrollment_approved', { course_name: course.name, courseId: req.params.courseId });
+      sendEvent(`student_${req.user.id}`, 'enrollment_approved', { course_name: course.name, courseId });
       return res.status(201).json({ enrolled: true, message: 'تم التسجيل تلقائياً في الكورس المجاني' });
     }
 
@@ -754,7 +763,7 @@ router.post('/student/request/:courseId', requireRole('student'), async (req, re
        VALUES ($1, $2, $3)
        ON CONFLICT (student_id, course_id) DO UPDATE SET status='pending', message=EXCLUDED.message
        RETURNING *`,
-      [req.user.id, req.params.courseId, message || null]
+      [req.user.id, courseId, message || null]
     );
 
     if (parseFloat(course.price) > 0) {
@@ -762,7 +771,7 @@ router.post('/student/request/:courseId', requireRole('student'), async (req, re
         `INSERT INTO payments (student_id, course_id, amount, method, status)
          VALUES ($1, $2, $3, '', 'pending')
          ON CONFLICT DO NOTHING`,
-        [req.user.id, req.params.courseId, course.price]
+        [req.user.id, courseId, course.price]
       );
     }
 
@@ -772,7 +781,7 @@ router.post('/student/request/:courseId', requireRole('student'), async (req, re
       sendEvent(`teacher_${teacherId}`, 'new_request', {
         student_name: studentName,
         course_name: course.name,
-        courseId: req.params.courseId,
+        courseId,
       });
     } catch (_) {}
     res.status(201).json(result.rows[0]);
@@ -816,6 +825,8 @@ router.get('/enrollment-requests', requireRole('teacher', 'assistant'), checkMan
 });
 
 router.put('/enrollment-requests/:id', requireRole('teacher', 'assistant'), checkManageCoursesPerm, async (req, res) => {
+  const reqId = parseParamId(req.params.id);
+  if (!reqId) return res.status(400).json({ error: 'Invalid request ID' });
   const teacherId = getTeacherId(req);
   const { action } = req.body;
   if (!['approve', 'reject'].includes(action))
@@ -825,7 +836,7 @@ router.put('/enrollment-requests/:id', requireRole('teacher', 'assistant'), chec
       `SELECT cer.* FROM course_enrollment_requests cer
        JOIN courses c ON cer.course_id = c.id
        WHERE cer.id = $1 AND c.teacher_id = $2`,
-      [req.params.id, teacherId]
+      [reqId, teacherId]
     );
     if (!reqRes.rows.length) return res.status(404).json({ error: 'Request not found' });
     const enrReq = reqRes.rows[0];
