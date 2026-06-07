@@ -69,6 +69,24 @@ const verifyQuestionOwnership = async (questionId, teacherId) => {
   return r.rows.length > 0;
 };
 
+// Returns { id, is_published } for ownership check + published guard, or null if not found/not owned
+const getExamForOwner = async (examId, teacherId) => {
+  const r = await pool.query(
+    'SELECT id, is_published FROM exams WHERE id=$1 AND teacher_id=$2',
+    [examId, teacherId]
+  );
+  return r.rows[0] || null;
+};
+
+// Returns { id, is_published } of the parent exam for a question, or null if not found/not owned
+const getExamForQuestion = async (questionId, teacherId) => {
+  const r = await pool.query(
+    'SELECT e.id, e.is_published FROM questions q JOIN exams e ON q.exam_id=e.id WHERE q.id=$1 AND e.teacher_id=$2',
+    [questionId, teacherId]
+  );
+  return r.rows[0] || null;
+};
+
 // ── List exams ──
 router.get('/', requireRole('teacher', 'assistant'), async (req, res) => {
   const teacherId = getTeacherId(req);
@@ -415,8 +433,10 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageEx
   const teacherId = getTeacherId(req);
   const { question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, question_type, group_id, group_context, group_context_image } = req.body;
   try {
-    if (!(await verifyExamOwnership(examId, teacherId))) {
-      return res.status(403).json({ error: 'Access denied: exam not yours' });
+    const examRow = await getExamForOwner(examId, teacherId);
+    if (!examRow) return res.status(403).json({ error: 'Access denied: exam not yours' });
+    if (examRow.is_published) {
+      return res.status(409).json({ error: 'لا يمكن إضافة أسئلة لاختبار منشور — أوقف النشر أولاً' });
     }
     const qType = (question_type === 'true_false') ? 'true_false' : 'mcq';
     let optA = option_a, optB = option_b, correctLetter;
@@ -429,6 +449,10 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageEx
       const raw = String(correct_answer_letter || 'A').toUpperCase();
       if (!['A', 'B', 'C', 'D'].includes(raw))
         return res.status(400).json({ error: 'الإجابة الصحيحة يجب أن تكون A أو B أو C أو D' });
+      if (raw === 'C' && !(option_c || '').toString().trim())
+        return res.status(400).json({ error: 'الإجابة الصحيحة تشير للخيار ج، لكن الخيار ج فارغ' });
+      if (raw === 'D' && !(option_d || '').toString().trim())
+        return res.status(400).json({ error: 'الإجابة الصحيحة تشير للخيار د، لكن الخيار د فارغ' });
       correctLetter = raw;
     }
 
@@ -450,8 +474,10 @@ router.put('/questions/:qid', requireRole('teacher', 'assistant'), checkManageEx
   const teacherId = getTeacherId(req);
   const { question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, question_type, group_id, group_context, group_context_image } = req.body;
   try {
-    if (!(await verifyQuestionOwnership(qid, teacherId))) {
-      return res.status(403).json({ error: 'Access denied: question not yours' });
+    const examRow = await getExamForQuestion(qid, teacherId);
+    if (!examRow) return res.status(403).json({ error: 'Access denied: question not yours' });
+    if (examRow.is_published) {
+      return res.status(409).json({ error: 'لا يمكن تعديل أسئلة اختبار منشور — أوقف النشر أولاً' });
     }
     const qType = (question_type === 'true_false') ? 'true_false' : 'mcq';
     let optA = option_a, optB = option_b, correctLetter;
@@ -464,6 +490,10 @@ router.put('/questions/:qid', requireRole('teacher', 'assistant'), checkManageEx
       const raw = String(correct_answer_letter || 'A').toUpperCase();
       if (!['A', 'B', 'C', 'D'].includes(raw))
         return res.status(400).json({ error: 'الإجابة الصحيحة يجب أن تكون A أو B أو C أو D' });
+      if (raw === 'C' && !(option_c || '').toString().trim())
+        return res.status(400).json({ error: 'الإجابة الصحيحة تشير للخيار ج، لكن الخيار ج فارغ' });
+      if (raw === 'D' && !(option_d || '').toString().trim())
+        return res.status(400).json({ error: 'الإجابة الصحيحة تشير للخيار د، لكن الخيار د فارغ' });
       correctLetter = raw;
     }
 
@@ -485,8 +515,10 @@ router.delete('/questions/:qid', requireRole('teacher', 'assistant'), checkManag
   if (!qid) return res.status(400).json({ error: 'معرّف السؤال غير صالح' });
   const teacherId = getTeacherId(req);
   try {
-    if (!(await verifyQuestionOwnership(qid, teacherId))) {
-      return res.status(403).json({ error: 'Access denied: question not yours' });
+    const examRow = await getExamForQuestion(qid, teacherId);
+    if (!examRow) return res.status(403).json({ error: 'Access denied: question not yours' });
+    if (examRow.is_published) {
+      return res.status(409).json({ error: 'لا يمكن حذف أسئلة من اختبار منشور — أوقف النشر أولاً' });
     }
     await pool.query('DELETE FROM questions WHERE id=$1', [qid]);
     res.json({ message: 'Question deleted' });
@@ -520,10 +552,15 @@ router.post('/:id/retry-request', requireRole('student'), async (req, res) => {
   const { message } = req.body;
   try {
     const examCheck = await pool.query(
-      'SELECT id, course_id FROM exams WHERE id=$1 AND teacher_id=(SELECT teacher_id FROM students WHERE id=$2)',
+      'SELECT id, course_id, end_date FROM exams WHERE id=$1 AND teacher_id=(SELECT teacher_id FROM students WHERE id=$2)',
       [examId, studentId]
     );
     if (!examCheck.rows.length) return res.status(403).json({ error: 'Access denied: exam not from your teacher' });
+    // Block retry requests for exams whose window has already closed
+    const examEndDate = examCheck.rows[0].end_date;
+    if (examEndDate && new Date(examEndDate) < new Date()) {
+      return res.status(400).json({ error: 'لا يمكن طلب إعادة اختبار انتهت مدته' });
+    }
 
     // For course-linked exams, verify the student is actively enrolled
     const examCourseId = examCheck.rows[0].course_id;
@@ -823,6 +860,7 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
     }
     // ── Store server-side session: start time + question snapshot ──
     // This prevents timer cheating and bank-question tampering on submit
+    let serverStartedAt = null;
     try {
       await pool.query(
         `INSERT INTO exam_sessions (student_id, exam_id, started_at, questions_snapshot)
@@ -831,11 +869,18 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
          DO NOTHING`,
         [studentId, examId, JSON.stringify(questions)]
       );
+      // Read back the actual started_at (whether just inserted or pre-existing)
+      // so the client can sync its timer to the server-authoritative start time.
+      const sessionRow = await pool.query(
+        'SELECT started_at FROM exam_sessions WHERE student_id=$1 AND exam_id=$2',
+        [studentId, examId]
+      );
+      serverStartedAt = sessionRow.rows[0]?.started_at || null;
     } catch (_) {}
 
     // Strip correct_answer_letter from client response to prevent answer leaking
     const clientQuestions = questions.map(({ correct_answer_letter: _omit, ...q }) => q);
-    res.json({ exam, questions: clientQuestions });
+    res.json({ exam, questions: clientQuestions, serverStartedAt });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }

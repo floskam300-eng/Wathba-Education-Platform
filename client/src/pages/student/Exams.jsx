@@ -238,17 +238,37 @@ export default function StudentExams() {
     const answersKey = `exam_answers_${examId}`;
     const durationSecs = examData.exam.duration_minutes * 60;
 
-    // Restore saved answers if returning to the exam
+    // Use the server-authoritative start time to set the timer.
+    // This prevents:
+    //   - Timer cheating (student can't fake an earlier start in localStorage)
+    //   - Stale data from a previous attempt being used on retry
+    //     (server creates a fresh session on retry; its started_at is newer)
+    let startTs;
+    if (examData.serverStartedAt) {
+      const serverTs = new Date(examData.serverStartedAt).getTime();
+      const localTs  = parseInt(localStorage.getItem(storageKey) || '0', 10);
+      // If localStorage is newer than the server session by >60 s, it must be
+      // stale data from a previous attempt (e.g. retry) — discard it.
+      if (localTs && localTs > serverTs + 60_000) {
+        try { localStorage.removeItem(answersKey); } catch (_) {}
+      }
+      startTs = serverTs;
+      try { localStorage.setItem(storageKey, String(startTs)); } catch (_) {}
+    } else {
+      // Fallback: no server session returned (should not normally happen)
+      startTs = parseInt(localStorage.getItem(storageKey) || '0', 10);
+      if (!startTs) {
+        startTs = Date.now();
+        try { localStorage.setItem(storageKey, String(startTs)); } catch (_) {}
+      }
+    }
+
+    // Restore saved answers (after startTs is resolved so we don't restore stale ones)
     try {
       const saved = localStorage.getItem(answersKey);
       if (saved) setAnswers(JSON.parse(saved));
     } catch (_) {}
 
-    let startTs = parseInt(localStorage.getItem(storageKey) || '0', 10);
-    if (!startTs) {
-      startTs = Date.now();
-      localStorage.setItem(storageKey, String(startTs));
-    }
     const startIso = new Date(startTs).toISOString();
     setStartTime(startIso);
 
@@ -310,13 +330,12 @@ export default function StudentExams() {
     const status = getExamScheduleStatus(exam);
     if (status === 'upcoming') return toast.error('الاختبار لم يبدأ بعد');
     if (status === 'expired') return toast.error('انتهى وقت هذا الاختبار');
-    // Clear any stale session keys so retry/fresh-start isn't poisoned by old timer
-    try {
-      localStorage.removeItem(`exam_start_${exam.id}`);
-      localStorage.removeItem(`exam_answers_${exam.id}`);
-    } catch (_) {}
+    // Do NOT clear localStorage here — if a student navigated away mid-exam, their
+    // saved answers and timer position should be restored. Stale data from a previous
+    // attempt is detected and cleared in the examData useEffect below using the
+    // server-authoritative serverStartedAt timestamp.
     setAnswers({}); setResult(null);
-    submittedRef.current = false; // reset guard for new exam attempt
+    submittedRef.current = false;
     setPendingExam(exam);
     setCountdown(3);
   };
@@ -537,15 +556,18 @@ export default function StudentExams() {
     );
   }
 
-  // Detect any lingering exam sessions in localStorage (stuck state after error)
+  // Detect any lingering exam sessions in localStorage (stuck state after error).
+  // Re-compute when `taking` changes (so banner disappears once exam is opened)
+  // and when `exams` loads (so IDs can be matched to titles).
   const stuckExamIds = React.useMemo(() => {
+    if (taking) return [];
     try {
       return Object.keys(localStorage)
         .filter(k => k.startsWith('exam_start_'))
         .map(k => parseInt(k.replace('exam_start_', ''), 10))
         .filter(id => !isNaN(id));
     } catch (_) { return []; }
-  }, []);
+  }, [taking, exams]);
 
   const clearStuckSession = (examId) => {
     try {
@@ -635,7 +657,10 @@ export default function StudentExams() {
                       نعم، أريد الإعادة
                     </button>
                     <button
-                      onClick={() => setResult(null)}
+                      onClick={() => {
+                        if (result.result?.id) navigate(`/student/exam-review/${result.result.id}`);
+                        setResult(null);
+                      }}
                       className="flex-1 py-3 rounded-xl border-2 border-navy-200 hover:border-navy-400 hover:bg-navy-50 text-navy-700 font-black text-sm transition-all flex items-center justify-center gap-2"
                     >
                       <Eye className="w-4 h-4" />
