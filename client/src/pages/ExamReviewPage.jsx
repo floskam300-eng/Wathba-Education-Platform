@@ -101,6 +101,7 @@ export default function ExamReviewPage() {
   const goBack = () => {
     if (window.history.length > 1) navigate(-1);
     else if (user?.role === 'student') navigate('/student/exams');
+    else if (user?.role === 'assistant') navigate('/assistant/exams');
     else navigate('/teacher/exams');
   };
 

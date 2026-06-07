@@ -14,6 +14,13 @@ const fs = require('fs');
 const router = express.Router();
 router.use(authenticate);
 
+const PG_INT_MAX = 2147483647;
+const parseParamId = (raw) => {
+  const n = parseInt(raw, 10);
+  if (isNaN(n) || n <= 0 || n > PG_INT_MAX || String(n) !== String(raw).trim()) return null;
+  return n;
+};
+
 // Pre-create question-images directory once at startup (not on every request)
 const QUESTION_IMG_DIR = path.join(__dirname, '../../uploads/question-images');
 fs.mkdirSync(QUESTION_IMG_DIR, { recursive: true });
@@ -129,6 +136,8 @@ router.post('/', requireRole('teacher', 'assistant'), checkManageExamsPerm, vali
 
 // ── Update exam ──
 router.put('/:id', requireRole('teacher', 'assistant'), checkManageExamsPerm, validateExam, async (req, res) => {
+  const examId = parseParamId(req.params.id);
+  if (!examId) return res.status(400).json({ error: 'معرّف الاختبار غير صالح' });
   const teacherId = getTeacherId(req);
   const { title, duration_minutes, total_score, course_id, pass_score, badge_name, badge_color, start_date, end_date, shuffle_questions, shuffle_options, question_source, bank_id, bank_question_count, points_on_attempt, points_on_pass, bank_easy_count, bank_medium_count, bank_hard_count } = req.body;
   try {
@@ -146,7 +155,7 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageExamsPerm, va
     const hardCount   = parseInt(bank_hard_count)   || 0;
     const result = await pool.query(
       'UPDATE exams SET title=$1,duration_minutes=$2,total_score=$3,course_id=$4,pass_score=$5,badge_name=$6,badge_color=$7,start_date=$8,end_date=$9,shuffle_questions=$10,shuffle_options=$11,question_source=$12,bank_id=$13,bank_question_count=$14,points_on_attempt=$15,points_on_pass=$16,bank_easy_count=$17,bank_medium_count=$18,bank_hard_count=$19 WHERE id=$20 AND teacher_id=$21 RETURNING *',
-      [title, duration_minutes, total_score, course_id || null, pass_score, badge_name, badge_color, start_date || null, end_date || null, !!shuffle_questions, !!shuffle_options, question_source || 'manual', (question_source === 'bank' && bank_id) ? bank_id : null, bank_question_count || 10, points_on_attempt || 0, points_on_pass || 0, easyCount, mediumCount, hardCount, req.params.id, teacherId]
+      [title, duration_minutes, total_score, course_id || null, pass_score, badge_name, badge_color, start_date || null, end_date || null, !!shuffle_questions, !!shuffle_options, question_source || 'manual', (question_source === 'bank' && bank_id) ? bank_id : null, bank_question_count || 10, points_on_attempt || 0, points_on_pass || 0, easyCount, mediumCount, hardCount, examId, teacherId]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Exam not found' });
     logActivity({
@@ -163,12 +172,14 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageExamsPerm, va
 
 // ── Toggle publish exam ──
 router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
+  const examId = parseParamId(req.params.id);
+  if (!examId) return res.status(400).json({ error: 'معرّف الاختبار غير صالح' });
   const teacherId = getTeacherId(req);
   try {
     // Get current exam state before toggling
     const current = await pool.query(
       'SELECT * FROM exams WHERE id=$1 AND teacher_id=$2',
-      [req.params.id, teacherId]
+      [examId, teacherId]
     );
     if (!current.rows.length) return res.status(404).json({ error: 'Exam not found' });
     const currentExam = current.rows[0];
@@ -192,7 +203,7 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExams
       }
       // Validate exam has questions (only for manual source)
       if (currentExam.question_source !== 'bank') {
-        const qCount = await pool.query('SELECT COUNT(id) as cnt FROM questions WHERE exam_id=$1', [req.params.id]);
+        const qCount = await pool.query('SELECT COUNT(id) as cnt FROM questions WHERE exam_id=$1', [examId]);
         if (parseInt(qCount.rows[0].cnt) === 0) {
           return res.status(400).json({ error: 'لا يمكن نشر اختبار بدون أسئلة — أضف أسئلة أولاً' });
         }
@@ -200,7 +211,7 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExams
       // If republishing (exam was taken before), clear previous results to allow re-attempt
       const existingResults = await pool.query(
         'SELECT COUNT(id) as cnt FROM exam_results WHERE exam_id=$1',
-        [req.params.id]
+        [examId]
       );
       const resultCount = parseInt(existingResults.rows[0].cnt);
       if (resultCount > 0) {
@@ -219,7 +230,7 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExams
             `SELECT student_id, COALESCE(points_earned, 0) AS pts
              FROM exam_results
              WHERE exam_id = $1 AND COALESCE(points_earned, 0) > 0 AND is_latest = true`,
-            [req.params.id]
+            [examId]
           );
           for (const row of earnedRows.rows) {
             await resetClient.query(
@@ -227,10 +238,10 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExams
               [row.pts, row.student_id]
             );
           }
-          await resetClient.query('DELETE FROM exam_results WHERE exam_id=$1', [req.params.id]);
+          await resetClient.query('DELETE FROM exam_results WHERE exam_id=$1', [examId]);
           await resetClient.query(
             "UPDATE exam_retry_requests SET status='used', handled_at=NOW() WHERE exam_id=$1 AND status='pending'",
-            [req.params.id]
+            [examId]
           );
           await resetClient.query('COMMIT');
         } catch (txErr) {
@@ -242,7 +253,7 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExams
         logActivity({
           teacherId, actor: getActor(req), ip: getIp(req),
           action: 'force_reset_exam_results',
-          entity: { type: 'exam', id: parseInt(req.params.id), name: currentExam.title },
+          entity: { type: 'exam', id: examId, name: currentExam.title },
           details: { deleted_results: resultCount },
         });
       }
@@ -250,7 +261,7 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExams
 
     const result = await pool.query(
       'UPDATE exams SET is_published = NOT is_published WHERE id=$1 AND teacher_id=$2 RETURNING id, is_published, title, course_id, start_date',
-      [req.params.id, teacherId]
+      [examId, teacherId]
     );
     const exam = result.rows[0];
 
@@ -302,7 +313,7 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExams
       let unpubStudentIds = [];
       if (exam.course_id) {
         const sRes = await pool.query(
-          'SELECT student_id AS id FROM student_course_enrollment WHERE course_id=$1',
+          "SELECT student_id AS id FROM student_course_enrollment WHERE course_id=$1 AND status='active'",
           [exam.course_id]
         );
         unpubStudentIds = sRes.rows.map(r => r.id);
@@ -363,15 +374,17 @@ router.post('/upload-question-image', requireRole('teacher', 'assistant'), check
 
 // ── Delete exam ──
 router.delete('/:id', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
+  const examId = parseParamId(req.params.id);
+  if (!examId) return res.status(400).json({ error: 'معرّف الاختبار غير صالح' });
   const teacherId = getTeacherId(req);
   try {
-    const examInfo = await pool.query('SELECT title FROM exams WHERE id=$1 AND teacher_id=$2', [req.params.id, teacherId]);
-    const result = await pool.query('DELETE FROM exams WHERE id=$1 AND teacher_id=$2 RETURNING id', [req.params.id, teacherId]);
+    const examInfo = await pool.query('SELECT title FROM exams WHERE id=$1 AND teacher_id=$2', [examId, teacherId]);
+    const result = await pool.query('DELETE FROM exams WHERE id=$1 AND teacher_id=$2 RETURNING id', [examId, teacherId]);
     if (!result.rows.length) return res.status(404).json({ error: 'Exam not found' });
     logActivity({
       teacherId, actor: getActor(req), ip: getIp(req),
       action: 'delete_exam',
-      entity: { type: 'exam', id: parseInt(req.params.id), name: examInfo.rows[0]?.title },
+      entity: { type: 'exam', id: examId, name: examInfo.rows[0]?.title },
     });
     res.json({ message: 'Exam deleted' });
   } catch (err) {
@@ -381,12 +394,14 @@ router.delete('/:id', requireRole('teacher', 'assistant'), checkManageExamsPerm,
 
 // ── Get questions ──
 router.get('/:id/questions', requireRole('teacher', 'assistant'), async (req, res) => {
+  const examId = parseParamId(req.params.id);
+  if (!examId) return res.status(400).json({ error: 'معرّف الاختبار غير صالح' });
   const teacherId = getTeacherId(req);
   try {
-    if (!(await verifyExamOwnership(req.params.id, teacherId))) {
+    if (!(await verifyExamOwnership(examId, teacherId))) {
       return res.status(403).json({ error: 'Access denied: exam not yours' });
     }
-    const result = await pool.query('SELECT * FROM questions WHERE exam_id=$1 ORDER BY id', [req.params.id]);
+    const result = await pool.query('SELECT * FROM questions WHERE exam_id=$1 ORDER BY id', [examId]);
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
@@ -395,60 +410,85 @@ router.get('/:id/questions', requireRole('teacher', 'assistant'), async (req, re
 
 // ── Add question ──
 router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
+  const examId = parseParamId(req.params.id);
+  if (!examId) return res.status(400).json({ error: 'معرّف الاختبار غير صالح' });
   const teacherId = getTeacherId(req);
   const { question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, question_type, group_id, group_context, group_context_image } = req.body;
   try {
-    if (!(await verifyExamOwnership(req.params.id, teacherId))) {
+    if (!(await verifyExamOwnership(examId, teacherId))) {
       return res.status(403).json({ error: 'Access denied: exam not yours' });
     }
     const qType = (question_type === 'true_false') ? 'true_false' : 'mcq';
-    let optA = option_a, optB = option_b, correctLetter = correct_answer_letter;
+    let optA = option_a, optB = option_b, correctLetter;
 
     if (qType === 'true_false') {
       optA = 'صح'; optB = 'خطأ';
-      correctLetter = correct_answer_letter || 'A';
+      const raw = String(correct_answer_letter || 'A').toUpperCase();
+      correctLetter = ['A', 'B'].includes(raw) ? raw : 'A';
+    } else {
+      const raw = String(correct_answer_letter || 'A').toUpperCase();
+      if (!['A', 'B', 'C', 'D'].includes(raw))
+        return res.status(400).json({ error: 'الإجابة الصحيحة يجب أن تكون A أو B أو C أو D' });
+      correctLetter = raw;
     }
 
     const result = await pool.query(
       'INSERT INTO questions (question_text,question_image_url,option_a,option_b,option_c,option_d,correct_answer_letter,points,exam_id,question_type,group_id,group_context,group_context_image) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *',
-      [question_text, question_image_url, optA, optB, option_c, option_d, correctLetter.toUpperCase(), points || 1, req.params.id, qType, group_id || null, group_context || null, group_context_image || null]
+      [question_text || null, question_image_url || null, optA, optB, option_c || null, option_d || null, correctLetter, points || 1, examId, qType, group_id || null, group_context || null, group_context_image || null]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
 // ── Update question ──
 router.put('/questions/:qid', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
+  const qid = parseParamId(req.params.qid);
+  if (!qid) return res.status(400).json({ error: 'معرّف السؤال غير صالح' });
   const teacherId = getTeacherId(req);
   const { question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, question_type, group_id, group_context, group_context_image } = req.body;
   try {
-    if (!(await verifyQuestionOwnership(req.params.qid, teacherId))) {
+    if (!(await verifyQuestionOwnership(qid, teacherId))) {
       return res.status(403).json({ error: 'Access denied: question not yours' });
     }
     const qType = (question_type === 'true_false') ? 'true_false' : 'mcq';
-    let optA = option_a, optB = option_b, correctLetter = correct_answer_letter;
-    if (qType === 'true_false') { optA = 'صح'; optB = 'خطأ'; }
+    let optA = option_a, optB = option_b, correctLetter;
+
+    if (qType === 'true_false') {
+      optA = 'صح'; optB = 'خطأ';
+      const raw = String(correct_answer_letter || 'A').toUpperCase();
+      correctLetter = ['A', 'B'].includes(raw) ? raw : 'A';
+    } else {
+      const raw = String(correct_answer_letter || 'A').toUpperCase();
+      if (!['A', 'B', 'C', 'D'].includes(raw))
+        return res.status(400).json({ error: 'الإجابة الصحيحة يجب أن تكون A أو B أو C أو D' });
+      correctLetter = raw;
+    }
 
     const result = await pool.query(
       'UPDATE questions SET question_text=$1,question_image_url=$2,option_a=$3,option_b=$4,option_c=$5,option_d=$6,correct_answer_letter=$7,points=$8,question_type=$9,group_id=$10,group_context=$11,group_context_image=$12 WHERE id=$13 RETURNING *',
-      [question_text, question_image_url, optA, optB, option_c, option_d, correctLetter.toUpperCase(), points || 1, qType, group_id || null, group_context || null, group_context_image || null, req.params.qid]
+      [question_text || null, question_image_url || null, optA, optB, option_c || null, option_d || null, correctLetter, points || 1, qType, group_id || null, group_context || null, group_context_image || null, qid]
     );
+    if (!result.rows.length) return res.status(404).json({ error: 'السؤال غير موجود' });
     res.json(result.rows[0]);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
 // ── Delete question ──
 router.delete('/questions/:qid', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
+  const qid = parseParamId(req.params.qid);
+  if (!qid) return res.status(400).json({ error: 'معرّف السؤال غير صالح' });
   const teacherId = getTeacherId(req);
   try {
-    if (!(await verifyQuestionOwnership(req.params.qid, teacherId))) {
+    if (!(await verifyQuestionOwnership(qid, teacherId))) {
       return res.status(403).json({ error: 'Access denied: question not yours' });
     }
-    await pool.query('DELETE FROM questions WHERE id=$1', [req.params.qid]);
+    await pool.query('DELETE FROM questions WHERE id=$1', [qid]);
     res.json({ message: 'Question deleted' });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
@@ -475,7 +515,8 @@ router.get('/student/retry-requests', requireRole('student'), async (req, res) =
 // ── Student: submit retry request ──
 router.post('/:id/retry-request', requireRole('student'), async (req, res) => {
   const studentId = req.user.id;
-  const examId = req.params.id;
+  const examId = parseParamId(req.params.id);
+  if (!examId) return res.status(400).json({ error: 'معرّف الاختبار غير صالح' });
   const { message } = req.body;
   try {
     const examCheck = await pool.query(
@@ -565,6 +606,8 @@ router.get('/retry-requests', requireRole('teacher', 'assistant'), async (req, r
 
 // ── Teacher: approve retry request ──
 router.put('/retry-requests/:reqId/approve', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
+  const reqId = parseParamId(req.params.reqId);
+  if (!reqId) return res.status(400).json({ error: 'معرّف الطلب غير صالح' });
   const teacherId = getTeacherId(req);
   const { teacher_note } = req.body;
   try {
@@ -572,12 +615,12 @@ router.put('/retry-requests/:reqId/approve', requireRole('teacher', 'assistant')
       `SELECT rr.* FROM exam_retry_requests rr
        JOIN exams e ON rr.exam_id = e.id
        WHERE rr.id=$1 AND e.teacher_id=$2`,
-      [req.params.reqId, teacherId]
+      [reqId, teacherId]
     );
     if (!rr.rows.length) return res.status(404).json({ error: 'الطلب غير موجود' });
     await pool.query(
       "UPDATE exam_retry_requests SET status='approved', teacher_note=$1, handled_at=NOW() WHERE id=$2",
-      [teacher_note || null, req.params.reqId]
+      [teacher_note || null, reqId]
     );
     const row = rr.rows[0];
     // Always delete the old exam session so the student can start a fresh timed attempt
@@ -612,6 +655,8 @@ router.put('/retry-requests/:reqId/approve', requireRole('teacher', 'assistant')
 
 // ── Teacher: reject retry request ──
 router.put('/retry-requests/:reqId/reject', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
+  const reqId = parseParamId(req.params.reqId);
+  if (!reqId) return res.status(400).json({ error: 'معرّف الطلب غير صالح' });
   const teacherId = getTeacherId(req);
   const { teacher_note } = req.body;
   try {
@@ -619,12 +664,12 @@ router.put('/retry-requests/:reqId/reject', requireRole('teacher', 'assistant'),
       `SELECT rr.* FROM exam_retry_requests rr
        JOIN exams e ON rr.exam_id = e.id
        WHERE rr.id=$1 AND e.teacher_id=$2`,
-      [req.params.reqId, teacherId]
+      [reqId, teacherId]
     );
     if (!rr.rows.length) return res.status(404).json({ error: 'الطلب غير موجود' });
     await pool.query(
       "UPDATE exam_retry_requests SET status='rejected', teacher_note=$1, handled_at=NOW() WHERE id=$2",
-      [teacher_note || null, req.params.reqId]
+      [teacher_note || null, reqId]
     );
     try {
       const row = rr.rows[0];
@@ -685,17 +730,19 @@ function seededShuffle(arr, seed) {
 
 // ── Student: take exam ──
 router.get('/:id/take', requireRole('student'), async (req, res) => {
+  const examId = parseParamId(req.params.id);
+  if (!examId) return res.status(400).json({ error: 'معرّف الاختبار غير صالح' });
   const studentId = req.user.id;
   try {
     // Block students who already submitted without an approved retry
     const [existingRes, retryRes] = await Promise.all([
       pool.query(
         'SELECT id FROM exam_results WHERE student_id=$1 AND exam_id=$2 AND is_latest=true',
-        [studentId, req.params.id]
+        [studentId, examId]
       ),
       pool.query(
         "SELECT id FROM exam_retry_requests WHERE student_id=$1 AND exam_id=$2 AND status='approved'",
-        [studentId, req.params.id]
+        [studentId, examId]
       ),
     ]);
     if (existingRes.rows.length > 0 && retryRes.rows.length === 0) {
@@ -714,7 +761,7 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
          AND e.is_published = true
          AND e.teacher_id = (SELECT teacher_id FROM students WHERE id = $1)
          AND (e.course_id IS NULL OR sce.status = 'active')`,
-      [studentId, req.params.id]
+      [studentId, examId]
     );
     if (!eligibilityCheck.rows.length) {
       return res.status(403).json({ error: 'Access denied: exam not available to you' });
@@ -736,7 +783,7 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
       if (bankQRes.rows.length === 0) {
         return res.status(400).json({ error: 'بنك الأسئلة فارغ' });
       }
-      const seed = (studentId * 999983 + parseInt(req.params.id) * 999979) >>> 0;
+      const seed = (studentId * 999983 + examId * 999979) >>> 0;
       const easyCount   = parseInt(exam.bank_easy_count)   || 0;
       const mediumCount = parseInt(exam.bank_medium_count) || 0;
       const hardCount   = parseInt(exam.bank_hard_count)   || 0;
@@ -763,14 +810,14 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
     } else {
       const questionsRes = await pool.query(
         'SELECT id,question_text,question_image_url,option_a,option_b,option_c,option_d,points,question_type,group_id,group_context,group_context_image FROM questions WHERE exam_id=$1 ORDER BY id',
-        [req.params.id]
+        [examId]
       );
       if (questionsRes.rows.length === 0) {
         return res.status(400).json({ error: 'هذا الاختبار لا يحتوي على أسئلة بعد' });
       }
       questions = questionsRes.rows;
       if (exam.shuffle_questions) {
-        const seed = (studentId * 31 + parseInt(req.params.id) * 17) >>> 0;
+        const seed = (studentId * 31 + examId * 17) >>> 0;
         questions = seededShuffle(questions, seed);
       }
     }
@@ -782,7 +829,7 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
          VALUES ($1, $2, NOW(), $3)
          ON CONFLICT (student_id, exam_id)
          DO NOTHING`,
-        [studentId, req.params.id, JSON.stringify(questions)]
+        [studentId, examId, JSON.stringify(questions)]
       );
     } catch (_) {}
 
@@ -797,7 +844,8 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
 // ── Student: submit exam ──
 router.post('/:id/submit', requireRole('student'), async (req, res) => {
   const studentId = req.user.id;
-  const examId = req.params.id;
+  const examId = parseParamId(req.params.id);
+  if (!examId) return res.status(400).json({ error: 'معرّف الاختبار غير صالح' });
   const { answers } = req.body;
 
   if (!answers || typeof answers !== 'object' || Array.isArray(answers))
@@ -985,10 +1033,12 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
 
 // ── Student: get exam results for a specific course ──
 router.get('/student/course-results/:courseId', requireRole('student'), async (req, res) => {
+  const courseId = parseParamId(req.params.courseId);
+  if (!courseId) return res.status(400).json({ error: 'معرّف الكورس غير صالح' });
   try {
     const enrollCheck = await pool.query(
       "SELECT id FROM student_course_enrollment WHERE student_id=$1 AND course_id=$2 AND status='active'",
-      [req.user.id, req.params.courseId]
+      [req.user.id, courseId]
     );
     if (!enrollCheck.rows.length)
       return res.status(403).json({ error: 'Access denied: not enrolled in this course' });
@@ -1001,7 +1051,7 @@ router.get('/student/course-results/:courseId', requireRole('student'), async (r
        JOIN exams e ON er.exam_id = e.id
        WHERE er.student_id = $1 AND e.course_id = $2 AND er.is_latest = true
        ORDER BY er.created_at DESC`,
-      [req.user.id, req.params.courseId]
+      [req.user.id, courseId]
     );
     res.json(result.rows);
   } catch (err) {
@@ -1011,12 +1061,14 @@ router.get('/student/course-results/:courseId', requireRole('student'), async (r
 
 // ── Get result summary ──
 router.get('/results/:resultId', authenticate, async (req, res) => {
+  const resultId = parseParamId(req.params.resultId);
+  if (!resultId) return res.status(400).json({ error: 'معرّف النتيجة غير صالح' });
   try {
     const result = await pool.query(
       `SELECT er.*, s.name as student_name, e.title as exam_title, e.total_score, e.pass_score, e.teacher_id as exam_teacher_id
        FROM exam_results er JOIN students s ON er.student_id=s.id JOIN exams e ON er.exam_id=e.id
        WHERE er.id=$1`,
-      [req.params.resultId]
+      [resultId]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Result not found' });
     const row = result.rows[0];
@@ -1041,6 +1093,8 @@ router.get('/results/:resultId', authenticate, async (req, res) => {
 
 // ── Full exam review ──
 router.get('/results/:resultId/review', authenticate, async (req, res) => {
+  const resultId = parseParamId(req.params.resultId);
+  if (!resultId) return res.status(400).json({ error: 'معرّف النتيجة غير صالح' });
   try {
     const resultRes = await pool.query(
       `SELECT er.id, er.student_id, er.exam_id, er.score, er.correct_count, er.wrong_count,
@@ -1053,7 +1107,7 @@ router.get('/results/:resultId/review', authenticate, async (req, res) => {
        JOIN students s ON er.student_id = s.id
        JOIN exams e    ON er.exam_id    = e.id
        WHERE er.id = $1`,
-      [req.params.resultId]
+      [resultId]
     );
     if (!resultRes.rows.length) return res.status(404).json({ error: 'Result not found' });
     const row = resultRes.rows[0];

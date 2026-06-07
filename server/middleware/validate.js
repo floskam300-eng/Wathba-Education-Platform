@@ -108,9 +108,12 @@ function validateCourse(req, res, next) {
   next();
 }
 
+const VALID_QUESTION_SOURCES = ['manual', 'bank'];
+
 // ── Exam ─────────────────────────────────────────────────────
 function validateExam(req, res, next) {
-  const { title, duration_minutes, total_score, pass_score, start_date, end_date } = req.body;
+  const { title, duration_minutes, total_score, pass_score, start_date, end_date,
+          question_source, bank_id, bank_question_count, points_on_attempt, points_on_pass } = req.body;
   const errors = {};
 
   if (!title || !String(title).trim()) errors.title = 'عنوان الاختبار مطلوب';
@@ -129,6 +132,27 @@ function validateExam(req, res, next) {
 
   if (start_date && end_date && new Date(end_date) <= new Date(start_date))
     errors.end_date = 'تاريخ الانتهاء يجب أن يكون بعد تاريخ البداية';
+
+  if (question_source !== undefined && !VALID_QUESTION_SOURCES.includes(String(question_source)))
+    errors.question_source = `مصدر الأسئلة غير صالح — القيم المسموح بها: ${VALID_QUESTION_SOURCES.join('، ')}`;
+
+  if (question_source === 'bank') {
+    if (!bank_id) errors.bank_id = 'يجب اختيار بنك الأسئلة عند استخدام مصدر البنك';
+    if (bank_question_count !== undefined && bank_question_count !== null && bank_question_count !== '') {
+      const bqc = parseInt(bank_question_count, 10);
+      if (isNaN(bqc) || bqc < 1) errors.bank_question_count = 'عدد الأسئلة من البنك يجب أن يكون واحداً على الأقل';
+    }
+  }
+
+  if (points_on_attempt !== undefined && points_on_attempt !== null && points_on_attempt !== '') {
+    const pts = parseInt(points_on_attempt, 10);
+    if (isNaN(pts) || pts < 0) errors.points_on_attempt = 'نقاط المحاولة يجب أن تكون صفراً أو أكثر';
+  }
+
+  if (points_on_pass !== undefined && points_on_pass !== null && points_on_pass !== '') {
+    const pts = parseInt(points_on_pass, 10);
+    if (isNaN(pts) || pts < 0) errors.points_on_pass = 'نقاط النجاح يجب أن تكون صفراً أو أكثر';
+  }
 
   if (Object.keys(errors).length > 0) return fail(res, errors);
   next();
