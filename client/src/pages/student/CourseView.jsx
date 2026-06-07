@@ -1117,6 +1117,9 @@ export default function CourseView() {
     return Math.max(serverPos, localPos);
   };
 
+  // Keep a ref to latest content so auto-advance in handleProgressUpdate always uses current data
+  const contentRef = useRef(null);
+
   const handleProgressUpdate = (videoId, watchedMinutes, progressPct, completed, lastPosition = 0, actualWatchedSec = 0) => {
     saveVidPos(videoId, lastPosition);
     api.post('/students/me/video-progress', {
@@ -1129,7 +1132,7 @@ export default function CourseView() {
     }).catch(() => {});
 
     if (completed) {
-      const currentVids = content?.videos || [];
+      const currentVids = contentRef.current?.videos || [];
       const idx = currentVids.findIndex(v => v.id === videoId);
       if (idx !== -1) {
         const next = currentVids[idx + 1];
@@ -1152,6 +1155,9 @@ export default function CourseView() {
     retry: false,
   });
 
+  // Keep contentRef in sync so handleProgressUpdate auto-advance always has latest video list
+  useEffect(() => { contentRef.current = content; }, [content]);
+
   useEffect(() => {
     if (contentError) {
       const status = contentError?.response?.status;
@@ -1170,9 +1176,9 @@ export default function CourseView() {
 
   const course = courses.find(c => String(c.id) === String(courseId));
 
-  /* ── Access guard: redirect if courses loaded and this one isn't enrolled ── */
+  /* ── Access guard: redirect if courses finished loading and this one isn't enrolled ── */
   useEffect(() => {
-    if (!coursesLoading && courses.length > 0 && courseId) {
+    if (!coursesLoading && courseId) {
       const found = courses.find(c => String(c.id) === String(courseId));
       if (!found) {
         toast.error('ليس لديك صلاحية الوصول لهذا الكورس');

@@ -15,6 +15,12 @@ router.use(authenticate);
 
 const getTeacherId = (req) => req.user.role === 'teacher' ? req.user.id : req.user.teacher_id;
 
+// Validate and parse integer route params — returns null on invalid input (prevents DB errors)
+const parseParamId = (val) => {
+  const n = parseInt(val, 10);
+  return (Number.isFinite(n) && n > 0 && n <= 2147483647) ? n : null;
+};
+
 // Middleware: check course ownership BEFORE multer writes to disk
 const preCheckOwnership = async (req, res, next) => {
   const teacherId = getTeacherId(req);
@@ -375,7 +381,8 @@ router.delete('/:id', requireRole('teacher', 'assistant'), checkManageCoursesPer
 });
 
 router.get('/:id/content', async (req, res) => {
-  const courseId = req.params.id;
+  const courseId = parseParamId(req.params.id);
+  if (!courseId) return res.status(400).json({ error: 'Invalid course ID' });
   try {
     if (req.user.role === 'student') {
       const enrollment = await pool.query(
@@ -666,6 +673,7 @@ router.get('/student/my-courses', requireRole('student'), async (req, res) => {
               COUNT(DISTINCT v.id)::int as video_count, COUNT(DISTINCT p.id)::int as pdf_count
        FROM courses c
        JOIN student_course_enrollment sce ON c.id = sce.course_id
+       JOIN students st ON st.id = $1 AND st.teacher_id = c.teacher_id
        LEFT JOIN videos v ON c.id = v.course_id
        LEFT JOIN pdf_files p ON c.id = p.course_id
        WHERE sce.student_id = $1
@@ -695,7 +703,7 @@ router.get('/student/available-all', requireRole('student'), async (req, res) =>
        FROM courses c
        LEFT JOIN videos v ON c.id = v.course_id
        LEFT JOIN pdf_files p ON c.id = p.course_id
-       LEFT JOIN student_course_enrollment sce ON c.id = sce.course_id AND sce.student_id = $1
+       LEFT JOIN student_course_enrollment sce ON c.id = sce.course_id AND sce.student_id = $1 AND sce.status = 'active'
        LEFT JOIN LATERAL (
          SELECT id, status FROM course_enrollment_requests
          WHERE course_id = c.id AND student_id = $1
@@ -774,7 +782,7 @@ router.post('/student/request/:courseId', requireRole('student'), async (req, re
   }
 });
 
-router.get('/enrollment-requests', requireRole('teacher', 'assistant'), async (req, res) => {
+router.get('/enrollment-requests', requireRole('teacher', 'assistant'), checkManageCoursesPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
   try {
     const result = await pool.query(

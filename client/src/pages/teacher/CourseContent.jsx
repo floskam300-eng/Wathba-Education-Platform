@@ -11,6 +11,18 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 
+// Helper: append JWT token to protected /uploads/ URLs so the teacher can preview their own files
+const withToken = (url) => {
+  if (!url || !url.startsWith('/uploads/')) return url;
+  try {
+    const token = localStorage.getItem('wathba_token') || '';
+    if (!token) return url;
+    return `${url}?token=${encodeURIComponent(token)}`;
+  } catch {
+    return url;
+  }
+};
+
 function VideoUrlSection({ courseId, onSuccess, sections = [] }) {
   const [title, setTitle] = useState('');
   const [url, setUrl] = useState('');
@@ -190,7 +202,7 @@ function VideoPreviewModal({ video, onClose }) {
             <iframe src={embedUrl} className="absolute inset-0 w-full h-full" allowFullScreen
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" title={video.title} />
           ) : isLocal ? (
-            <video src={video.file_path_or_url} className="absolute inset-0 w-full h-full object-contain bg-black" controls autoPlay />
+            <video src={withToken(video.file_path_or_url)} className="absolute inset-0 w-full h-full object-contain bg-black" controls autoPlay />
           ) : (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 gap-4">
               <p className="text-gray-400 text-sm text-center px-6">لا يمكن تشغيل هذا الرابط مباشرة — افتحه في نافذة جديدة</p>
