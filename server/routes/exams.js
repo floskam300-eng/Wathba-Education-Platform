@@ -1,4 +1,5 @@
 const { sendEvent } = require('../sse');
+const { isValidImage, deleteFile } = require('../lib/validateFileMagic');
 const { sendFCMToStudents } = require('../lib/fcm');
 const express = require('express');
 const pool = require('../db/connection');
@@ -383,8 +384,14 @@ router.post('/upload-question-image', requireRole('teacher', 'assistant'), check
       next();
     });
   },
-  (req, res) => {
+  async (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'لم يتم رفع أي ملف' });
+    // [M-11] FIX: validate image magic bytes — MIME/extension are spoofable
+    const validImg = await isValidImage(req.file.path);
+    if (!validImg) {
+      deleteFile(req.file.path);
+      return res.status(400).json({ error: 'الملف المرفوع ليس صورة صالحة (PNG / JPEG / GIF / WebP)' });
+    }
     const url = `/uploads/question-images/${req.file.filename}`;
     res.json({ url });
   }

@@ -10,7 +10,7 @@ import {
   LayoutDashboard, Users, BookOpen, FileText, UserCog,
   BarChart3, CreditCard, Trophy, LogOut, Menu, MessageCircle,
   Bell, Database, ClipboardList, Moon, Sun, Inbox, BookMarked, Radio,
-  StopCircle, ExternalLink, Activity
+  StopCircle, ExternalLink, Activity, Settings
 } from 'lucide-react';
 import WathbaLogo from '../assets/wathba_logo.png';
 
@@ -50,6 +50,7 @@ export default function TeacherLayout() {
     { to: '/teacher/backup',         icon: Database,        label: 'النسخ الاحتياطي' },
     { to: '/teacher/livestream',     icon: Radio,           label: 'البث المباشر' },
     { to: '/teacher/activity-log',   icon: Activity,        label: 'سجل النشاط' },
+    { to: '/teacher/settings',       icon: Settings,        label: 'الإعدادات' },
   ], []);
 
   const handleLogout = () => { logout(); };

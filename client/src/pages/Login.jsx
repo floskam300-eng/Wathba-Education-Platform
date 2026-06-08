@@ -128,7 +128,14 @@ export default function Login() {
     setLoading(true);
     try {
       const deviceId = getOrCreateDeviceId();
-      const user = await login(username.trim(), password, undefined, undefined, deviceId);
+      const { user, force_password_change } = await login(username.trim(), password, undefined, undefined, deviceId);
+      // [M-16] If server signals that the default seed password must be changed,
+      // redirect the teacher directly to the password-change screen.
+      if (force_password_change && user.role === 'teacher') {
+        toast('يرجى تغيير كلمة المرور الافتراضية قبل المتابعة', { icon: '🔑', duration: 5000 });
+        navigate('/teacher/settings?tab=password');
+        return;
+      }
       // Show warning modal only for students
       if (user.role === 'student') {
         setPendingUser(user);

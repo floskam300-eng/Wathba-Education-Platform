@@ -461,17 +461,9 @@ export default function StickmanRun({ onClose, academicStage }) {
       const pts = state.totalPoints, def = state.bossesDefeated;
       setResultData({ won: def === 3, pts, def });
       setPhase(def === 3 ? 'victory' : 'gameover');
-      const token = localStorage.getItem('wathba_token');
-      fetch('/api/events/weekly-run/finish', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ pointsEarned: pts, bossesDefeated: def, sessionToken: sessionTokenRef.current }),
-        keepalive: true,
-      })
-        .then(r => r.json())
+      // [M-18] FIX: use api helper (includes Authorization + X-Tenant-Slug headers)
+      api.post('/events/weekly-run/finish', { pointsEarned: pts, bossesDefeated: def, sessionToken: sessionTokenRef.current })
+        .then(res => res.data)
         .then(data => { if (data.success && updateUser) updateUser({ points: data.newTotal }); })
         .catch(() => {
           toast.error('تعذّر حفظ نتيجة اللعبة — تأكد من اتصالك بالإنترنت');

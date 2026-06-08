@@ -647,10 +647,14 @@ router.post('/me/video-progress', requireRole('student'), async (req, res) => {
         const courseId = courseRow.rows[0].course_id;
         const [courseRes, videosRes] = await Promise.all([
           pool.query('SELECT points_on_complete FROM courses WHERE id=$1', [courseId]),
-          pool.query('SELECT id FROM videos WHERE course_id=$1', [courseId]),
+          pool.query('SELECT id, duration_minutes FROM videos WHERE course_id=$1', [courseId]),
         ]);
         const pointsOnComplete = courseRes.rows[0]?.points_on_complete || 0;
-        if (pointsOnComplete > 0 && videosRes.rows.length > 0) {
+        // [M-10] FIX: only award completion points if ALL videos have known duration_minutes > 0.
+        // URL videos without duration let the client send a fake 100% progress,
+        // which would otherwise trigger bogus completion rewards.
+        const allHaveDuration = videosRes.rows.every(v => parseFloat(v.duration_minutes) > 0);
+        if (pointsOnComplete > 0 && videosRes.rows.length > 0 && allHaveDuration) {
           const doneRes = await pool.query(
             'SELECT COUNT(*) FROM video_progress WHERE student_id=$1 AND video_id = ANY($2) AND progress_percentage >= 90',
             [studentId, videosRes.rows.map(v => v.id)]

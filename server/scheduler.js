@@ -20,13 +20,17 @@ async function runCheck() {
   if (!_pool || _isRunning) return;
   _isRunning = true;
   try {
+    // [M-14] FIX: Atomic claim via UPDATE...WHERE start_notified=false RETURNING.
+    // This prevents duplicate notifications when multiple instances (or rapid restarts)
+    // race on the same exams — only the instance that claims the row will notify students.
     const { rows: exams } = await _pool.query(`
-      SELECT id, title, course_id, teacher_id
-      FROM exams
-      WHERE is_published = true
-        AND start_date IS NOT NULL
-        AND start_date <= NOW()
-        AND start_notified = false
+      UPDATE exams
+         SET start_notified = true
+       WHERE is_published = true
+         AND start_date IS NOT NULL
+         AND start_date <= NOW()
+         AND start_notified = false
+      RETURNING id, title, course_id, teacher_id
     `);
 
     for (const exam of exams) {
@@ -52,11 +56,6 @@ async function runCheck() {
             examId: exam.id,
           });
         }
-
-        await _pool.query(
-          'UPDATE exams SET start_notified = true WHERE id = $1',
-          [exam.id]
-        );
 
         sendFCMToStudents(_pool, studentIds, 'بدأ الاختبار الآن!', `⏰ يمكنك الدخول الآن لأداء اختبار: "${exam.title}"`, { examId: String(exam.id) }).catch(() => {});
 

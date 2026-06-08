@@ -120,6 +120,36 @@ router.put('/profile', requireRole('teacher'), async (req, res) => {
   }
 });
 
+// [M-15] FIX: Teacher password change endpoint (was missing entirely)
+// Requires current password verification before accepting new password.
+router.put('/profile/password', requireRole('teacher'), async (req, res) => {
+  const { current_password, new_password } = req.body;
+  if (!current_password || !new_password) {
+    return res.status(400).json({ error: 'كلمة المرور الحالية والجديدة مطلوبتان' });
+  }
+  if (new_password.length < 8) {
+    return res.status(400).json({ error: 'كلمة المرور الجديدة يجب أن تكون 8 أحرف على الأقل' });
+  }
+  if (new_password === current_password) {
+    return res.status(400).json({ error: 'كلمة المرور الجديدة يجب أن تختلف عن الحالية' });
+  }
+  try {
+    const result = await pool.query('SELECT password FROM teachers WHERE id=$1', [req.user.id]);
+    if (!result.rows.length) return res.status(404).json({ error: 'المعلم غير موجود' });
+    const valid = await bcrypt.compare(current_password, result.rows[0].password);
+    if (!valid) return res.status(401).json({ error: 'كلمة المرور الحالية غير صحيحة' });
+    const hashed = await bcrypt.hash(new_password, 12);
+    await pool.query(
+      'UPDATE teachers SET password=$1, force_password_change=false WHERE id=$2',
+      [hashed, req.user.id]
+    );
+    res.json({ success: true, message: 'تم تغيير كلمة المرور بنجاح' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 router.get('/at-risk-students', requireRole('teacher'), async (req, res) => {
   const teacherId = req.user.id;
   const cacheKey = `t${teacherId}_at_risk`;

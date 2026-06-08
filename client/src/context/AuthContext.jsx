@@ -63,14 +63,16 @@ export const AuthProvider = ({ children }) => {
     if (role) body.role = role;
     if (deviceId) body.device_id = deviceId;
     const res = await api.post('/auth/login', body);
-    const { token, user } = res.data;
+    const { token, user, force_password_change } = res.data;
     localStorage.setItem('wathba_token', token);
     localStorage.setItem('wathba_user', JSON.stringify(pickStorable(user)));
     if (user.teacher_slug) {
       localStorage.setItem('wathba_teacher_slug', user.teacher_slug);
     }
     setUser(user);
-    return user;
+    // [M-16] Pass force_password_change flag to the caller so Login page can
+    // redirect the teacher to change their default seed password immediately.
+    return { user, force_password_change: force_password_change === true };
   };
 
   const logout = () => {

@@ -25,9 +25,24 @@ process.on('uncaughtException', (err) => {
 const app = express();
 app.set('trust proxy', 1);
 
-// Security headers (helmet) — configured to allow CDN fonts & inline styles needed by Vite
+// [M-13] FIX: Enable a real CSP in production. In development (Vite HMR, eval)
+// we still disable it — but in production the built bundle uses no unsafe constructs.
+const isProd = process.env.NODE_ENV === 'production';
 app.use(helmet({
-  contentSecurityPolicy: false,  // Disabled: Vite / React inline scripts need it off in dev
+  contentSecurityPolicy: isProd ? {
+    directives: {
+      defaultSrc:     ["'self'"],
+      scriptSrc:      ["'self'", "'unsafe-inline'", 'https://www.gstatic.com'],
+      styleSrc:       ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      fontSrc:        ["'self'", 'https://fonts.gstatic.com', 'data:'],
+      imgSrc:         ["'self'", 'data:', 'blob:', 'https:'],
+      connectSrc:     ["'self'", 'wss:', 'ws:', 'https:'],
+      mediaSrc:       ["'self'", 'blob:', 'https:'],
+      frameSrc:       ["'self'"],
+      objectSrc:      ["'none'"],
+      upgradeInsecureRequests: [],
+    },
+  } : false,
   crossOriginEmbedderPolicy: false,
 }));
 const allowedOrigins = process.env.ALLOWED_ORIGINS

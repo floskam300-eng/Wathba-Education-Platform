@@ -307,9 +307,14 @@ router.post('/login', loginLimiter, async (req, res) => {
         });
       }
 
+      // [M-16] FIX: Include force_password_change flag so the frontend can redirect
+      // the teacher to change their default seed password on first login.
+      const forceChange = r === 'teacher' ? (user.force_password_change === true) : false;
+
       return res.json({
         token,
         user: { ...safeUser, role: r, teacher_slug: payload.teacher_slug },
+        force_password_change: forceChange,
       });
     }
 

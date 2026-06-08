@@ -101,10 +101,13 @@ async function seed() {
         whatsapp_phone='+201000000000', slug='admin',
         platform_name='أكاديمية محمد للرياضيات',
         logo_url='https://ui-avatars.com/api/?name=MA&background=f97316&color=fff&size=256&bold=true',
-        photo_url='https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=300&h=300&fit=crop'
+        photo_url='https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=300&h=300&fit=crop',
+        force_password_change=true
       WHERE id=$1
     `, [adminRow.id, passAd]);
   }
+  // [M-16] Mark seed admin as requiring a password change on first login
+  await q(`UPDATE teachers SET force_password_change=true WHERE username='admin'`).catch(() => {});
   const T1 = adminRow.id;
   console.log(`  ✓ admin (id=${T1}) — slug=admin — أكاديمية محمد للرياضيات`);
 

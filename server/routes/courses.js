@@ -1,5 +1,6 @@
 const { sendEvent } = require('../sse');
 const { sendFCMToStudents } = require('../lib/fcm');
+const { isValidImage, isValidPdf, isValidVideo, deleteFile } = require('../lib/validateFileMagic');
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
@@ -126,8 +127,14 @@ const withMulterErrors = (upload, limitLabel) => (req, res, next) => {
   });
 };
 
-router.post('/upload-thumbnail', requireRole('teacher', 'assistant'), checkManageCoursesPerm, uploadThumbnail.single('thumbnail'), (req, res) => {
+router.post('/upload-thumbnail', requireRole('teacher', 'assistant'), checkManageCoursesPerm, uploadThumbnail.single('thumbnail'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'لم يتم رفع أي ملف' });
+  // [M-11] FIX: validate image magic bytes
+  const validImg = await isValidImage(req.file.path);
+  if (!validImg) {
+    deleteFile(req.file.path);
+    return res.status(400).json({ error: 'الملف المرفوع ليس صورة صالحة (PNG / JPEG / GIF / WebP)' });
+  }
   const url = `/uploads/thumbnails/${req.file.filename}`;
   res.json({ url });
 });
@@ -542,6 +549,13 @@ router.post('/:id/videos/upload', requireRole('teacher', 'assistant'), checkMana
   const teacherId = getTeacherId(req);
   try {
     if (!req.file) return res.status(400).json({ error: 'No video file uploaded' });
+    // [M-11] FIX: validate file magic bytes — MIME and extension are easily spoofed
+    const diskPath = req.file.path;
+    const validVideo = await isValidVideo(diskPath);
+    if (!validVideo) {
+      deleteFile(diskPath);
+      return res.status(400).json({ error: 'الملف المرفوع ليس فيديو صالح (MP4 / WebM / AVI) — يُرجى رفع ملف فيديو حقيقي' });
+    }
     const { title, duration_minutes, sort_order, section_id } = req.body;
     if (section_id) {
       const secCheck = await pool.query('SELECT id FROM sections WHERE id=$1 AND course_id=$2', [section_id, req.params.id]);
@@ -570,6 +584,13 @@ router.post('/:id/pdfs/upload', requireRole('teacher', 'assistant'), checkManage
   const teacherId = getTeacherId(req);
   try {
     if (!req.file) return res.status(400).json({ error: 'No PDF file uploaded' });
+    // [M-11] FIX: validate PDF magic bytes
+    const diskPath = req.file.path;
+    const validPdf = await isValidPdf(diskPath);
+    if (!validPdf) {
+      deleteFile(diskPath);
+      return res.status(400).json({ error: 'الملف المرفوع ليس PDF صالح — يُرجى رفع ملف PDF حقيقي' });
+    }
     const { title, section_id } = req.body;
     if (section_id) {
       const secCheck = await pool.query('SELECT id FROM sections WHERE id=$1 AND course_id=$2', [section_id, req.params.id]);

@@ -14,6 +14,8 @@
  * On logout call clearMediaToken().
  */
 
+import { getTenantSlug } from './tenant';
+
 let _mediaToken = null;
 let _tokenExpiry = 0; // Unix ms timestamp when the token expires
 
@@ -24,9 +26,15 @@ async function _fetchMediaToken() {
   const jwt = localStorage.getItem('wathba_token');
   if (!jwt) return null;
   try {
+    // [M-18 fix: include X-Tenant-Slug so multi-tenant media token endpoint
+    // resolves the correct tenant. Without this, the server rejects the request
+    // if the tenant cannot be inferred from the (absent) subdomain.]
+    const slug = getTenantSlug();
+    const headers = { 'Authorization': `Bearer ${jwt}` };
+    if (slug) headers['X-Tenant-Slug'] = slug;
     const res = await fetch('/api/auth/media-token', {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${jwt}` },
+      headers,
     });
     if (!res.ok) return null;
     const data = await res.json();

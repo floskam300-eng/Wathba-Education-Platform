@@ -18,7 +18,17 @@ api.interceptors.response.use(
   (err) => {
     if (err.response?.status === 401) {
       const isInExam = Object.keys(localStorage).some(k => k.startsWith('exam_start_'));
-      if (isInExam) return Promise.reject(err);
+
+      if (isInExam) {
+        // [M-17] FIX: instead of silently swallowing the 401 during an exam,
+        // dispatch a visible warning event. The ExamTake component listens to
+        // this event and shows a non-blocking warning so the student knows
+        // their session may have expired — while keeping their saved answers.
+        window.dispatchEvent(new CustomEvent('wathba_exam_token_warning', {
+          detail: { message: 'انتهت جلستك — إجاباتك محفوظة محلياً. سيتم تسليمها تلقائياً عند انتهاء الوقت.' }
+        }));
+        return Promise.reject(err);
+      }
 
       localStorage.removeItem('wathba_token');
       localStorage.removeItem('wathba_user');

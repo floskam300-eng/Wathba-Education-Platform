@@ -30,6 +30,7 @@ import TeacherLiveStream from './pages/teacher/LiveStream';
 import TeacherActivityLog from './pages/teacher/ActivityLog';
 import CourseContent from './pages/teacher/CourseContent';
 import ExamQuestions from './pages/teacher/ExamQuestions';
+import TeacherSettings from './pages/teacher/Settings';
 import StudentLiveStream from './pages/student/LiveStream';
 import AssistantDashboard from './pages/assistant/Dashboard';
 import AssistantStudents from './pages/assistant/Students';
@@ -169,6 +170,7 @@ const TenantRoutes = () => {
           <Route path="activity-log" element={<TeacherActivityLog />} />
           <Route path="courses/:courseId/content" element={<CourseContent />} />
           <Route path="exams/:examId/questions" element={<ExamQuestions />} />
+          <Route path="settings" element={<TeacherSettings />} />
         </Route>
 
         {/* ── Assistant dashboard ────────────────────────────────────────────── */}

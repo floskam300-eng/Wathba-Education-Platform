@@ -210,9 +210,15 @@ export default function StudentExams() {
       const token = localStorage.getItem('wathba_token');
       if (!token) return;
       const payload = JSON.stringify({ answers: answersRef.current, start_time: startTimeRef.current });
+      // keepalive fetch is intentional here (axios doesn't support keepalive for
+      // tab-close unload events). Include X-Tenant-Slug so the server can resolve
+      // the tenant on multi-tenant setups. [M-18 keepalive fix]
+      const slug = localStorage.getItem('wathba_teacher_slug') || '';
+      const hdrs = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
+      if (slug) hdrs['X-Tenant-Slug'] = slug;
       fetch(`/api/exams/${examId}/submit`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers: hdrs,
         body: payload,
         keepalive: true,
       }).catch(() => {});

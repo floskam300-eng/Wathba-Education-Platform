@@ -10,8 +10,11 @@ CREATE TABLE IF NOT EXISTS teachers (
   logo_url VARCHAR(500),
   photo_url VARCHAR(500),
   whatsapp_phone VARCHAR(20),
+  force_password_change BOOLEAN DEFAULT false,
   created_at TIMESTAMP DEFAULT NOW()
 );
+-- [M-16] Add force_password_change if upgrading from older schema
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS force_password_change BOOLEAN DEFAULT false;
 
 CREATE TABLE IF NOT EXISTS assistants (
   id SERIAL PRIMARY KEY,
