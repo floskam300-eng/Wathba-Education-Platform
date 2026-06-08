@@ -1305,7 +1305,11 @@ async function seed() {
   // ══════════════════════════════════════════════════════════
   // 23. جداول الواتساب (whatsapp_schedules + whatsapp_send_log)
   // ══════════════════════════════════════════════════════════
+  // [L-4] FIX: wrap in try/catch so seed doesn't crash on old schemas
+  // that don't have the whatsapp_schedules table yet (run server first to
+  // run initDB → schema.sql before seeding if this block fails).
   console.log('\n⟳  إضافة بيانات الواتساب...');
+  try {
 
   const [ws1] = await q(`
     INSERT INTO whatsapp_schedules
@@ -1351,6 +1355,10 @@ async function seed() {
   `, [T1, null]);
 
   console.log('  ✓ جدولان واتساب + 2 سجل إرسال');
+  } catch (waErr) {
+    // [L-4] If whatsapp_schedules table doesn't exist (old schema), skip gracefully
+    console.warn('  ⚠️ تخطّي بيانات واتساب — الجدول غير موجود (شغّل السيرفر أولاً لتحديث الـ schema):', waErr.message);
+  }
 
   // ══════════════════════════════════════════════════════════
   // 24. سجل النشاط (activity_logs) — شامل ومتنوع

@@ -94,11 +94,14 @@ const authenticate = async (req, res, next) => {
           'SELECT id, is_suspended FROM students WHERE id = $1 AND deleted_at IS NULL',
           [decoded.id]
         );
-        const valid = check.rows.length > 0 && !check.rows[0]?.is_suspended;
-        _studentCache.set(decoded.id, { valid, at: now });
+        const row       = check.rows[0];
+        const suspended = !!(row?.is_suspended);
+        const valid     = check.rows.length > 0 && !suspended;
+        // [L-1] FIX: store suspension reason in cache so cache-hit path returns
+        // 403 account_suspended instead of generic 401
+        _studentCache.set(decoded.id, { valid, suspended, at: now });
         if (!valid) {
-          const row = check.rows[0];
-          if (row?.is_suspended) {
+          if (suspended) {
             return res.status(403).json({
               error: 'تم إيقاف حسابك مؤقتاً. يرجى التواصل مع المدرس لإعادة التفعيل.',
               account_suspended: true,
@@ -107,6 +110,13 @@ const authenticate = async (req, res, next) => {
           return res.status(401).json({ error: 'الحساب غير نشط أو تم حذفه' });
         }
       } else if (!cached.valid) {
+        // [L-1] FIX: use cached suspension flag instead of always returning 401
+        if (cached.suspended) {
+          return res.status(403).json({
+            error: 'تم إيقاف حسابك مؤقتاً. يرجى التواصل مع المدرس لإعادة التفعيل.',
+            account_suspended: true,
+          });
+        }
         return res.status(401).json({ error: 'الحساب غير نشط أو تم حذفه' });
       }
     }
@@ -213,18 +223,26 @@ const verifyFullToken = async (token) => {
         'SELECT id, is_suspended FROM students WHERE id = $1 AND deleted_at IS NULL',
         [decoded.id]
       );
-      const row    = r.rows[0];
-      const valid  = !!row && !row.is_suspended;
-      _studentCache.set(decoded.id, { valid, at: now });
+      const row       = r.rows[0];
+      const suspended = !!(row?.is_suspended);
+      const valid     = !!row && !suspended;
+      // [L-1] FIX: persist suspension reason so cache-hit path can return
+      // correct status code and account_suspended flag
+      _studentCache.set(decoded.id, { valid, suspended, at: now });
       if (!valid) {
-        const code = row?.is_suspended ? 403 : 401;
+        const code = suspended ? 403 : 401;
         throw Object.assign(
-          new Error(row?.is_suspended ? 'تم إيقاف الحساب مؤقتاً' : 'الحساب غير نشط أو تم حذفه'),
-          { statusCode: code }
+          new Error(suspended ? 'تم إيقاف الحساب مؤقتاً' : 'الحساب غير نشط أو تم حذفه'),
+          { statusCode: code, account_suspended: suspended }
         );
       }
     } else if (!cached.valid) {
-      throw Object.assign(new Error('الحساب غير نشط أو تم حذفه'), { statusCode: 403 });
+      // [L-1] FIX: use cached.suspended instead of always throwing 403 generic
+      const suspended = cached.suspended || false;
+      throw Object.assign(
+        new Error(suspended ? 'تم إيقاف الحساب مؤقتاً' : 'الحساب غير نشط أو تم حذفه'),
+        { statusCode: suspended ? 403 : 401, account_suspended: suspended }
+      );
     }
   }
 

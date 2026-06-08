@@ -156,4 +156,38 @@ router.post('/weekly-run/finish', requireRole('student'), async (req, res) => {
   }
 });
 
+// ── [L-5] POST /api/events/capture-attempt — server-side audit log ───────────
+// Client-side anti-capture is trivially bypassed, but server-side logging makes
+// violations auditable and visible to the teacher in the device alerts area.
+// Rate-limited per student to max 1 log per 10 seconds (debounce repeated triggers).
+const _captureLog = new Map(); // studentId → lastLoggedAt (ms)
+const CAPTURE_LOG_TTL_MS = 10_000;
+
+router.post('/capture-attempt', requireRole('student'), async (req, res) => {
+  const studentId = req.user.id;
+  const now = Date.now();
+  const last = _captureLog.get(studentId) || 0;
+  if (now - last < CAPTURE_LOG_TTL_MS) {
+    return res.json({ logged: false, reason: 'debounced' });
+  }
+  _captureLog.set(studentId, now);
+
+  const type = (req.body.type || 'unknown').toString().slice(0, 50);
+
+  try {
+    // Log to device_alerts table so teacher sees it in the students panel
+    await pool.query(
+      `INSERT INTO device_alerts
+         (teacher_id, student_id, alert_type, device_name, ip_address, status)
+       SELECT s.teacher_id, $1, 'capture_attempt', $2, $3, 'pending'
+       FROM students s WHERE s.id = $1`,
+      [studentId, `محاولة نسخ: ${type}`, req.ip || '']
+    );
+    res.json({ logged: true });
+  } catch (err) {
+    console.error('[events /capture-attempt]', err.message);
+    res.json({ logged: false });
+  }
+});
+
 module.exports = router;

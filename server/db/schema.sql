@@ -773,3 +773,97 @@ BEGIN
     ALTER TABLE students DROP COLUMN plain_password;
   END IF;
 END $$;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- Bug-fix batch: L-1 through S-5 (June 2026 audit)
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- ── [S-1] Prevent duplicate pending retry requests ───────────────────────────
+-- Without this, a student can spam "request retry" and create many pending rows
+-- for the same exam — teacher sees duplicates, accept/reject logic races.
+CREATE UNIQUE INDEX IF NOT EXISTS uidx_retry_req_pending
+  ON exam_retry_requests(student_id, exam_id)
+  WHERE status = 'pending';
+
+-- ── [S-2] payments.verified_by — re-add FK + preserve audit name ─────────────
+-- The FK was dropped earlier to avoid cascade-delete issues.
+-- Fix: re-add with ON DELETE SET NULL (orphan-safe) + add verified_by_name TEXT
+-- so the auditor name is preserved even after the assistant account is removed.
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS verified_by_name TEXT;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'payments_verified_by_fkey'
+  ) THEN
+    -- Only add FK if verified_by column actually exists and has correct type
+    ALTER TABLE payments
+      ADD CONSTRAINT payments_verified_by_fkey
+        FOREIGN KEY (verified_by) REFERENCES assistants(id) ON DELETE SET NULL;
+  END IF;
+EXCEPTION WHEN OTHERS THEN
+  -- Column may not exist or type mismatch on upgraded schemas — skip silently
+  NULL;
+END $$;
+
+-- ── [S-3] Enforce score <= total_score via trigger ────────────────────────────
+-- PostgreSQL can't do cross-table CHECK constraints, so we use a trigger.
+-- This catches both direct DB writes and application bugs.
+CREATE OR REPLACE FUNCTION fn_check_exam_result_score()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+DECLARE v_total INTEGER;
+BEGIN
+  SELECT total_score INTO v_total FROM exams WHERE id = NEW.exam_id;
+  IF v_total IS NOT NULL AND NEW.score > v_total THEN
+    RAISE EXCEPTION
+      'exam_results.score (%) exceeds exams.total_score (%) for exam_id=%',
+      NEW.score, v_total, NEW.exam_id;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS trg_check_exam_result_score ON exam_results;
+CREATE TRIGGER trg_check_exam_result_score
+  BEFORE INSERT OR UPDATE OF score ON exam_results
+  FOR EACH ROW EXECUTE FUNCTION fn_check_exam_result_score();
+
+-- ── [S-4] students.username unique per teacher — not globally ─────────────────
+-- The old partial index was globally unique (any two teachers couldn't have a
+-- student with the same username). Fix: make it unique per (teacher_id, username).
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_indexes WHERE indexname = 'uq_students_username_active'
+  ) THEN
+    DROP INDEX uq_students_username_active;
+  END IF;
+END $$;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_students_username_teacher_active
+  ON students(teacher_id, username)
+  WHERE deleted_at IS NULL;
+
+-- ── [S-5] live_chat_messages.sender_id — polymorphic FK via trigger ───────────
+-- sender_id references either students or teachers depending on sender_type.
+-- A single FK column can't reference two tables, so we enforce it with a trigger.
+CREATE OR REPLACE FUNCTION fn_validate_chat_sender()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.sender_type = 'student' THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM students WHERE id = NEW.sender_id AND deleted_at IS NULL
+    ) THEN
+      RAISE EXCEPTION
+        'live_chat_messages: sender_id % not found in students', NEW.sender_id;
+    END IF;
+  ELSIF NEW.sender_type = 'teacher' THEN
+    IF NOT EXISTS (SELECT 1 FROM teachers WHERE id = NEW.sender_id) THEN
+      RAISE EXCEPTION
+        'live_chat_messages: sender_id % not found in teachers', NEW.sender_id;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS trg_validate_chat_sender ON live_chat_messages;
+CREATE TRIGGER trg_validate_chat_sender
+  BEFORE INSERT ON live_chat_messages
+  FOR EACH ROW EXECUTE FUNCTION fn_validate_chat_sender();

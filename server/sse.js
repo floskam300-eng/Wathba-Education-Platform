@@ -6,14 +6,30 @@
 
 const clients = new Map();
 
+// [L-2] FIX: cap the number of concurrent SSE connections per user.
+// Prevents a single user (or attacker reusing a valid token) from holding
+// thousands of open connections + heartbeat timers, exhausting file descriptors.
+const MAX_SSE_CONNECTIONS_PER_USER = 5;
+
 /**
  * Register a new SSE client connection.
+ * If the per-user cap is already reached the OLDEST connection is evicted
+ * (graceful close) before the new one is admitted — this handles the common
+ * case of a user opening a new tab while a dead tab's connection is still
+ * half-open on the server.
  * @param {string} key  - unique key: "student_<id>" or "teacher_<id>"
  * @param {object} res  - Express response object (the SSE stream)
  */
 function addClient(key, res) {
   if (!clients.has(key)) clients.set(key, new Set());
-  clients.get(key).add(res);
+  const set = clients.get(key);
+  // Evict oldest if at cap
+  if (set.size >= MAX_SSE_CONNECTIONS_PER_USER) {
+    const [oldest] = set; // Sets preserve insertion order
+    try { oldest.end(); } catch (_) {}
+    set.delete(oldest);
+  }
+  set.add(res);
 }
 
 /**
@@ -24,6 +40,16 @@ function removeClient(key, res) {
   if (!set) return;
   set.delete(res);
   if (set.size === 0) clients.delete(key);
+}
+
+/**
+ * Returns total number of active SSE connections across all users.
+ * Useful for health-check / monitoring.
+ */
+function getTotalConnections() {
+  let total = 0;
+  for (const set of clients.values()) total += set.size;
+  return total;
 }
 
 /**
@@ -100,4 +126,5 @@ module.exports = {
   sendEvent,
   broadcastToTeacherStudents,
   broadcastToCourseStudents,
+  getTotalConnections,
 };

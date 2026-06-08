@@ -111,11 +111,13 @@ function DevAccessPanel() {
   const [slug, setSlug] = useState('admin');
   const [open, setOpen] = useState(false);
 
+  // [L-6] FIX: Only show the dev panel on true localhost.
+  // Replit preview domains (.replit.dev / .replit.app) are publicly reachable —
+  // exposing a slug-switcher there lets anyone navigate to any teacher's dashboard
+  // by setting wathba_teacher_slug in localStorage and bypassing the auth redirect.
   const isDevHost = (() => {
     const h = window.location.hostname;
-    return h === 'localhost' || h === '127.0.0.1' ||
-      h.includes('.replit.dev') || h.includes('.replit.app') || h.includes('.repl.co') ||
-      h.split('.').length < 3;
+    return h === 'localhost' || h === '127.0.0.1';
   })();
 
   if (!isDevHost) return null;

@@ -224,9 +224,21 @@ router.put('/:id/verify', requireRole('teacher', 'assistant'), (req, res, next) 
       return res.status(400).json({ error: 'لا يمكن تغيير حالة مدفوعة تم التحقق منها — غيّرها لـ "معلّق" أولاً إذا لزم الأمر' });
     }
 
-    const updateFields = ['status=$1'];
-    if (status === 'verified') updateFields.push('verified_at=NOW()');
+    // [S-2] FIX: params must be declared before we push into it
     const params = [status];
+    const updateFields = ['status=$1'];
+
+    if (status === 'verified') {
+      updateFields.push('verified_at=NOW()');
+      // Store verifier id + name at verification time so the audit trail
+      // survives even after the assistant account is later deleted (ON DELETE SET NULL
+      // clears verified_by but verified_by_name remains as a textual record)
+      params.push(req.user.id);
+      updateFields.push(`verified_by=$${params.length}`);
+      const verifierName = req.user.name || req.user.username || '';
+      params.push(verifierName);
+      updateFields.push(`verified_by_name=$${params.length}`);
+    }
 
     if (method !== undefined && method !== null) {
       params.push(method);

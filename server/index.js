@@ -286,8 +286,21 @@ app.use('/uploads', (req, res, next) => {
   next();
 }, express.static(path.join(__dirname, '../uploads')));
 
+// ── [L-2] SSE-specific rate limiter: 10 connect attempts per IP per minute ──
+const sseLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'طلبات SSE كثيرة جداً، حاول بعد دقيقة' },
+  skip: (req) => {
+    const ip = req.ip || req.connection?.remoteAddress || '';
+    return ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+  },
+});
+
 // ── [C-2] SSE endpoint — H-8 fix: prefer short-lived ticket over raw JWT ──
-app.get('/api/sse', async (req, res) => {
+app.get('/api/sse', sseLimiter, async (req, res) => {
   const ticket = req.query.ticket;
   const token  = req.query.token;
 

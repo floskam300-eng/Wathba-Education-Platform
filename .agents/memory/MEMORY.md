@@ -12,3 +12,4 @@
 - [Exams security fixes H7-H10](exams-security-h7-h10.md) — 4 security fixes: device_id required for students, SSE ticket system, media access tokens, snapshot consistency + bank exam submit guard
 - [Permission audit M1-M8](permission-audit-m1-m8.md) — 8 permission/security fixes: assistant PII, answer key exposure, QR hijack, tenant spoof, enrollment bypass
 - [Security audit M9-M18](security-audit-m9-m18.md) — 10 fixes: payment amount guard, fake-progress block, magic-byte upload validation, CSP prod-only, atomic notif scheduler, password-change endpoint, force_password_change flow, 401-in-exam warning, tenant slug in keepalive+mediaAccess, teacher/settings page created
+- [L1-L6 S1-S5 audit 2026-06](l1-l6-s1-s5-audit.md) — 11 fixes: suspended-student cache 401→403, SSE per-user cap+rate-limit, JWT refresh endpoint, seed.js whatsapp try/catch, schema triggers+indexes, DevAccessPanel localhost-only

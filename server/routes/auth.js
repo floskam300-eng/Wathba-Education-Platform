@@ -382,6 +382,36 @@ router.get('/me', authenticate, async (req, res) => {
   }
 });
 
+// ── [L-3] POST /api/auth/refresh — sliding-window token rotation ────────────
+// Re-issues a fresh 7-day token and immediately blacklists the old one.
+// The client should call this when the stored token is within 24 h of expiry.
+// This approach limits the stolen-token validity window from up to 7 days to
+// at most the refresh interval the legitimate user uses (typically < 1 day).
+router.post('/refresh', authenticate, (req, res) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  const now   = Math.floor(Date.now() / 1000);
+  const exp   = req.user.exp || 0;
+  const ttlLeft = exp - now; // seconds remaining
+
+  // Only rotate if token will expire within 24 hours (86 400 s).
+  // Returns refreshed:false for tokens with plenty of time left so the client
+  // can call this endpoint proactively without flooding the blacklist.
+  if (ttlLeft > 86_400) {
+    return res.json({ refreshed: false, expires_in: ttlLeft });
+  }
+
+  // Blacklist the old token (fire-and-forget DB write)
+  if (token) {
+    blacklistToken(token, exp * 1000);
+  }
+
+  // Strip JWT-internal fields before re-signing
+  const { jti: _jti, iat: _iat, exp: _exp, ...payload } = req.user;
+  const newToken = generateToken(payload);
+
+  res.json({ refreshed: true, token: newToken, expires_in: 7 * 24 * 3600 });
+});
+
 // ── H-8: POST /api/auth/sse-ticket ─────────────────────────────────────────
 // Issues a one-time, 30-second SSE ticket so the full JWT never appears in the
 // EventSource URL (which would leak it into server logs + browser history).
