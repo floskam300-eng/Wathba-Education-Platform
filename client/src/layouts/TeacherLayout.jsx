@@ -1,9 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useTeacher } from '../context/TeacherContext';
 import { useSSE } from '../hooks/useSSE';
+import { refreshMediaToken } from '../lib/mediaAccess';
 import { useLiveStream } from '../context/LiveStreamContext';
 import {
   LayoutDashboard, Users, BookOpen, FileText, UserCog,
@@ -25,6 +26,13 @@ export default function TeacherLayout() {
   const onLivePage = location.pathname.endsWith('/livestream');
 
   useSSE(!!user, user?.role || 'teacher');
+
+  useEffect(() => {
+    if (!user) return;
+    refreshMediaToken();
+    const id = setInterval(refreshMediaToken, 12 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [user?.id]);
 
   const navItems = useMemo(() => [
     { to: '/teacher',               icon: LayoutDashboard, label: 'لوحة التحكم',       end: true },

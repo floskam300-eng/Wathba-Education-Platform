@@ -11,17 +11,7 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 
-// Helper: append JWT token to protected /uploads/ URLs so the teacher can preview their own files
-const withToken = (url) => {
-  if (!url || !url.startsWith('/uploads/')) return url;
-  try {
-    const token = localStorage.getItem('wathba_token') || '';
-    if (!token) return url;
-    return `${url}?token=${encodeURIComponent(token)}`;
-  } catch {
-    return url;
-  }
-};
+import { withToken } from '../../lib/mediaAccess';
 
 function VideoUrlSection({ courseId, onSuccess, sections = [] }) {
   const [title, setTitle] = useState('');

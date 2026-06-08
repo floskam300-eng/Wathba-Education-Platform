@@ -9,12 +9,7 @@ import {
 } from 'lucide-react';
 import api from '../lib/api';
 
-const withToken = (url) => {
-  if (!url || !url.startsWith('/uploads/')) return url;
-  const token = localStorage.getItem('wathba_token') || '';
-  if (!token) return url;
-  return `${url}?token=${encodeURIComponent(token)}`;
-};
+import { withToken } from '../lib/mediaAccess';
 
 function seededShuffle(arr, seed) {
   const result = [...arr];

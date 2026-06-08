@@ -12,6 +12,7 @@ const { startScheduler } = require('./scheduler');
 const { initFCM } = require('./lib/fcm');
 const subdomainTenant = require('./middleware/subdomainTenant');
 const { verifyFullToken } = require('./middleware/auth');
+const { consumeSSETicket } = require('./routes/auth');
 
 // Global unhandled rejection / uncaught exception guards
 process.on('unhandledRejection', (reason, promise) => {
@@ -270,13 +271,23 @@ app.use('/uploads', (req, res, next) => {
   next();
 }, express.static(path.join(__dirname, '../uploads')));
 
-// ── [C-2] SSE endpoint — now validates blacklist + account status ──
+// ── [C-2] SSE endpoint — H-8 fix: prefer short-lived ticket over raw JWT ──
 app.get('/api/sse', async (req, res) => {
-  const token = req.query.token;
+  const ticket = req.query.ticket;
+  const token  = req.query.token;
 
   let decoded;
   try {
-    decoded = await verifyFullToken(token);
+    if (ticket) {
+      // H-8: one-time SSE ticket (30s TTL) — JWT never appears in the URL
+      decoded = consumeSSETicket(ticket);
+      if (!decoded) return res.status(401).end();
+    } else if (token) {
+      // Legacy fallback: full JWT in query string (deprecated, kept for backward compat)
+      decoded = await verifyFullToken(token);
+    } else {
+      return res.status(401).end();
+    }
   } catch (err) {
     return res.status(err.statusCode || 401).end();
   }

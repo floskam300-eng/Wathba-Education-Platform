@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -6,6 +6,7 @@ import { useTeacher } from '../context/TeacherContext';
 import { LayoutDashboard, Users, LogOut, Menu, FileText, BarChart3, BookOpen, CreditCard, Moon, Sun, MessageCircle, Inbox, BookMarked } from 'lucide-react';
 import WathbaLogo from '../assets/wathba_logo.png';
 import { useSSE } from '../hooks/useSSE';
+import { refreshMediaToken } from '../lib/mediaAccess';
 
 export default function AssistantLayout() {
   const { user, logout } = useAuth();
@@ -15,6 +16,13 @@ export default function AssistantLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useSSE(!!user, 'assistant');
+
+  useEffect(() => {
+    if (!user) return;
+    refreshMediaToken();
+    const id = setInterval(refreshMediaToken, 12 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [user?.id]);
 
   const handleLogout = () => { logout(); };
 

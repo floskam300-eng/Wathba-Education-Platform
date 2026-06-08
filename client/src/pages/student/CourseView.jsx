@@ -10,6 +10,7 @@ import {
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
+import { withToken } from '../../lib/mediaAccess';
 
 /* ─── helpers ─────────────────────────────────────────── */
 const fmt = (min) => min >= 60
@@ -119,18 +120,6 @@ function FloatingWatermark({ name, code }) {
     </>
   );
 }
-
-/* ─── Auth token helper for protected upload URLs ─────── */
-const withToken = (url) => {
-  if (!url || !url.startsWith('/uploads/')) return url;
-  try {
-    const token = localStorage.getItem('wathba_token') || '';
-    if (!token) return url;
-    return `${url}?token=${encodeURIComponent(token)}`;
-  } catch {
-    return url;
-  }
-};
 
 /* ─── YouTube URL helpers ──────────────────────────────── */
 function extractYoutubeId(url) {

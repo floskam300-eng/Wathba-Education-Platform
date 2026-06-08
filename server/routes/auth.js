@@ -1,11 +1,34 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const pool = require('../db/connection');
 const { generateToken, authenticate, blacklistToken } = require('../middleware/auth');
 const { logActivity, getIp } = require('../lib/activityLog');
 
 const router = express.Router();
+
+// ── H-8: Short-lived SSE ticket store (one-time use, 30s TTL) ──────────────
+const _sseTickets = new Map();
+setInterval(() => {
+  const now = Date.now();
+  for (const [ticket, data] of _sseTickets.entries()) {
+    if (now > data.expiresAt) _sseTickets.delete(ticket);
+  }
+}, 60_000).unref();
+
+/**
+ * Consume a one-time SSE ticket.
+ * Returns the decoded user payload, or null if the ticket is invalid/expired.
+ */
+const consumeSSETicket = (ticket) => {
+  if (!ticket) return null;
+  const data = _sseTickets.get(ticket);
+  if (!data) return null;
+  if (Date.now() > data.expiresAt) { _sseTickets.delete(ticket); return null; }
+  _sseTickets.delete(ticket); // one-time use
+  return data.user;
+};
 
 // ── IP-level rate limiter (outer defense) ──────────────────────────────────
 const loginLimiter = rateLimit({
@@ -152,7 +175,17 @@ router.post('/login', loginLimiter, async (req, res) => {
           });
         }
 
-        // Track device if device_id provided
+        // H-7 fix: device_id is mandatory for student logins.
+        // Without this guard, API callers could omit device_id entirely and
+        // bypass the device-limit check that protects account sharing.
+        if (!device_id) {
+          return res.status(400).json({
+            error: 'device_id مطلوب — يرجى تسجيل الدخول من خلال تطبيق وثبة أو المتصفح الرسمي',
+            code: 'DEVICE_ID_REQUIRED',
+          });
+        }
+
+        // Track device
         if (device_id) {
           const ip         = getIp(req);
           const ua         = req.headers['user-agent'] || '';
@@ -344,4 +377,38 @@ router.get('/me', authenticate, async (req, res) => {
   }
 });
 
+// ── H-8: POST /api/auth/sse-ticket ─────────────────────────────────────────
+// Issues a one-time, 30-second SSE ticket so the full JWT never appears in the
+// EventSource URL (which would leak it into server logs + browser history).
+router.post('/sse-ticket', authenticate, (req, res) => {
+  const ticket = crypto.randomBytes(20).toString('hex');
+  _sseTickets.set(ticket, {
+    user: req.user,
+    expiresAt: Date.now() + 30_000,
+  });
+  res.json({ ticket });
+});
+
+// ── H-8: POST /api/auth/media-token ────────────────────────────────────────
+// Issues a short-lived JWT (15 min) for /uploads/* access.
+// The client stores this in memory (not localStorage) and appends it to
+// upload URLs instead of the long-lived session JWT.
+router.post('/media-token', authenticate, (req, res) => {
+  const jwt = require('jsonwebtoken');
+  const payload = {
+    id:          req.user.id,
+    role:        req.user.role,
+    username:    req.user.username,
+    name:        req.user.name,
+    teacher_id:  req.user.teacher_id,
+    teacher_slug: req.user.teacher_slug,
+    media_only:  true,
+  };
+  const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '15m' });
+  res.json({ token });
+});
+
 module.exports = router;
+// Attach SSE ticket helper so index.js can consume tickets without
+// a separate module (avoids circular-require via auth middleware).
+module.exports.consumeSSETicket = consumeSSETicket;

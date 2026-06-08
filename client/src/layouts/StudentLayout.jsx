@@ -13,6 +13,7 @@ import { useLiveStream } from '../context/LiveStreamContext';
 import WathbaLogo from '../assets/wathba_logo.png';
 import { useSSE } from '../hooks/useSSE';
 import { useFCM } from '../hooks/useFCM';
+import { refreshMediaToken } from '../lib/mediaAccess';
 import api from '../lib/api';
 import { useAntiCapture } from '../hooks/useAntiCapture';
 
@@ -261,6 +262,13 @@ export default function StudentLayout() {
 
   useSSE(!!user, user?.role || 'student');
   useFCM(!!user && user?.role === 'student');
+
+  useEffect(() => {
+    if (!user) return;
+    refreshMediaToken();
+    const id = setInterval(refreshMediaToken, 12 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [user?.id]);
 
   const handleLogout = () => { logout(); };
 

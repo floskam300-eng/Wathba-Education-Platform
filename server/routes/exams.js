@@ -859,23 +859,40 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
       }
     }
     // ── Store server-side session: start time + question snapshot ──
-    // This prevents timer cheating and bank-question tampering on submit
+    // This prevents timer cheating and bank-question tampering on submit.
+    // H-9 fix: if a session already exists, ALWAYS return the stored snapshot
+    // questions (not freshly generated ones) so the client and server stay in
+    // sync.  The old code used ON CONFLICT DO NOTHING and then returned the
+    // new questions array — mismatch on re-entry / duplicate GET /take calls.
     let serverStartedAt = null;
     try {
-      await pool.query(
+      const insertRes = await pool.query(
         `INSERT INTO exam_sessions (student_id, exam_id, started_at, questions_snapshot)
          VALUES ($1, $2, NOW(), $3)
          ON CONFLICT (student_id, exam_id)
-         DO NOTHING`,
+         DO NOTHING
+         RETURNING started_at`,
         [studentId, examId, JSON.stringify(questions)]
       );
-      // Read back the actual started_at (whether just inserted or pre-existing)
-      // so the client can sync its timer to the server-authoritative start time.
-      const sessionRow = await pool.query(
-        'SELECT started_at FROM exam_sessions WHERE student_id=$1 AND exam_id=$2',
-        [studentId, examId]
-      );
-      serverStartedAt = sessionRow.rows[0]?.started_at || null;
+
+      if (insertRes.rows.length > 0) {
+        // New session — use the freshly generated questions
+        serverStartedAt = insertRes.rows[0].started_at;
+      } else {
+        // Session already existed (re-entry or duplicate GET /take) —
+        // MUST return the stored snapshot so submit scores the right questions.
+        const sessionRow = await pool.query(
+          'SELECT started_at, questions_snapshot FROM exam_sessions WHERE student_id=$1 AND exam_id=$2',
+          [studentId, examId]
+        );
+        if (sessionRow.rows[0]) {
+          serverStartedAt = sessionRow.rows[0].started_at;
+          const storedSnap = sessionRow.rows[0].questions_snapshot;
+          if (Array.isArray(storedSnap) && storedSnap.length > 0) {
+            questions = storedSnap; // Override with the authoritative snapshot
+          }
+        }
+      }
     } catch (_) {}
 
     // Strip correct_answer_letter from client response to prevent answer leaking
@@ -969,9 +986,15 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
         questionsData = serverSession.questions_snapshot.filter(q => questionIds.includes(q.id));
         // Any submitted IDs not in snapshot are silently ignored (scored as unanswered)
       } else {
-        // No snapshot (legacy / session cleared before submit) — fall back to DB
-        const bqr = await pool.query('SELECT * FROM bank_questions WHERE id = ANY($1) AND bank_id = $2', [questionIds, eligibilityRow.bank_id]);
-        questionsData = bqr.rows;
+        // H-10 fix: No snapshot for a bank exam → REJECT the submission.
+        // The old fallback loaded questions directly from the DB by submitted ID,
+        // allowing an attacker to forge any question IDs from the bank.
+        // A valid session (created by GET /:id/take) always has a snapshot —
+        // its absence means the student never properly opened the exam.
+        return res.status(409).json({
+          error: 'جلسة الاختبار غير موجودة أو انتهت — يرجى الدخول للاختبار مجدداً ثم التسليم',
+          code: 'NO_SESSION_SNAPSHOT',
+        });
       }
     } else {
       // Manual exam: use snapshot if available for fair scoring,

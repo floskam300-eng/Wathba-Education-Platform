@@ -23,18 +23,38 @@ export function useSSE(enabled, role) {
   useEffect(() => {
     if (!enabled) return;
 
-    const connect = () => {
+    const connect = async () => {
       if (esRef.current) {
         esRef.current.close();
         esRef.current = null;
       }
 
-      // FIX: read token inside connect() so reconnects always use the
-      // latest token from localStorage, not a stale closure value.
       const freshToken = localStorage.getItem('wathba_token');
       if (!freshToken) return;
-      const url = `/api/sse?token=${encodeURIComponent(freshToken)}`;
-      const es = new EventSource(url);
+
+      // H-8 fix: fetch a short-lived one-time SSE ticket (30s TTL) so the
+      // long-lived JWT never appears in the EventSource URL query string
+      // (which would be captured by server logs and browser history).
+      let sseUrl;
+      try {
+        const ticketRes = await fetch('/api/auth/sse-ticket', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${freshToken}` },
+        });
+        if (ticketRes.ok) {
+          const { ticket } = await ticketRes.json();
+          sseUrl = `/api/sse?ticket=${encodeURIComponent(ticket)}`;
+        } else {
+          // Token rejected — don't reconnect; auth context will handle redirect
+          return;
+        }
+      } catch {
+        // Network error fetching ticket — fall back to legacy token URL so
+        // SSE still works (degraded security but better than no real-time)
+        sseUrl = `/api/sse?token=${encodeURIComponent(freshToken)}`;
+      }
+
+      const es = new EventSource(sseUrl);
       esRef.current = es;
 
       es.addEventListener('connected', () => {
