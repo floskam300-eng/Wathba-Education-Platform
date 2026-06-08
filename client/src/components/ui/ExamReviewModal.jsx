@@ -3,6 +3,13 @@ import { useQuery } from '@tanstack/react-query';
 import { X, CheckCircle, XCircle, Minus, Clock, Award, FileText } from 'lucide-react';
 import api from '../../lib/api';
 
+const withToken = (url) => {
+  if (!url || !url.startsWith('/uploads/')) return url;
+  const token = localStorage.getItem('wathba_token') || '';
+  if (!token) return url;
+  return `${url}?token=${encodeURIComponent(token)}`;
+};
+
 function seededShuffle(arr, seed) {
   const result = [...arr];
   let s = seed >>> 0;
@@ -186,7 +193,7 @@ export default function ExamReviewModal({ resultId, onClose }) {
                   <div className="flex-1">
                     <p className="font-bold text-navy-700 text-sm leading-relaxed">{q.question_text}</p>
                     {q.question_image_url && (
-                      <img src={q.question_image_url} alt="" className="mt-2 max-w-xs rounded-xl border" />
+                      <img src={withToken(q.question_image_url)} alt="" className="mt-2 max-w-xs rounded-xl border" />
                     )}
                     <div className="flex items-center gap-2 mt-1.5">
                       <span className="text-xs text-gray-400 font-medium">{q.points} نقطة</span>

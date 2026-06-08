@@ -9,6 +9,13 @@ import {
 } from 'lucide-react';
 import api from '../lib/api';
 
+const withToken = (url) => {
+  if (!url || !url.startsWith('/uploads/')) return url;
+  const token = localStorage.getItem('wathba_token') || '';
+  if (!token) return url;
+  return `${url}?token=${encodeURIComponent(token)}`;
+};
+
 function seededShuffle(arr, seed) {
   const result = [...arr];
   let s = seed >>> 0;
@@ -294,7 +301,7 @@ export default function ExamReviewPage() {
                             </div>
                             <div className="p-3 space-y-2">
                               {q.group_context_image && (
-                                <img src={q.group_context_image} alt="" className="w-full max-h-56 object-contain rounded-lg border border-blue-200" />
+                                <img src={withToken(q.group_context_image)} alt="" className="w-full max-h-56 object-contain rounded-lg border border-blue-200" />
                               )}
                               {q.group_context && (
                                 <p className="text-sm text-navy-800 leading-relaxed whitespace-pre-wrap"><MathText text={q.group_context} /></p>
@@ -305,7 +312,7 @@ export default function ExamReviewPage() {
                       })()}
                       {q.question_text && <p className="font-bold text-navy-700 text-base leading-relaxed mb-1"><MathText text={q.question_text} /></p>}
                       {q.question_image_url && (
-                        <img src={q.question_image_url} alt="" className="mt-2 mb-3 max-w-sm rounded-xl border border-gray-200" />
+                        <img src={withToken(q.question_image_url)} alt="" className="mt-2 mb-3 max-w-sm rounded-xl border border-gray-200" />
                       )}
 
                       <div className={`grid gap-2.5 mt-4 ${isTrueFalse ? 'grid-cols-2' : 'grid-cols-1 sm:grid-cols-2'}`}>

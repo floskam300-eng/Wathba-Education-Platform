@@ -167,11 +167,88 @@ const blacklistToken = (token, expiresAt) => {
   ).catch(e => console.warn('[auth] Failed to persist revoked token to DB:', e.message));
 };
 
+/**
+ * [C-2] Full token validation for use outside the authenticate middleware
+ * (e.g. SSE endpoint, static-file upload guards).
+ * Checks: blacklist → JWT signature → account status (reuses same in-memory caches).
+ * @param {string} token - raw JWT string
+ * @returns {Promise<Object>} decoded JWT payload
+ * @throws {{ message: string, statusCode: number }}
+ */
+const verifyFullToken = async (token) => {
+  if (!token) {
+    throw Object.assign(new Error('No token provided'), { statusCode: 401 });
+  }
+
+  // [C-2] Blacklist check — catches revoked/logged-out tokens
+  if (_tokenBlacklist.has(hashToken(token))) {
+    throw Object.assign(new Error('Token has been revoked'), { statusCode: 401 });
+  }
+
+  let decoded;
+  try {
+    decoded = jwt.verify(token, JWT_SECRET);
+  } catch {
+    throw Object.assign(new Error('Invalid or expired token'), { statusCode: 401 });
+  }
+
+  const now = Date.now();
+
+  if (decoded.role === 'teacher') {
+    const cached = _teacherCache.get(decoded.id);
+    if (!cached || now - cached.at > CACHE_TTL_MS) {
+      const r = await pool.query('SELECT id FROM teachers WHERE id = $1', [decoded.id]);
+      const valid = r.rows.length > 0;
+      _teacherCache.set(decoded.id, { valid, at: now });
+      if (!valid) throw Object.assign(new Error('الحساب غير نشط أو تم حذفه'), { statusCode: 401 });
+    } else if (!cached.valid) {
+      throw Object.assign(new Error('الحساب غير نشط أو تم حذفه'), { statusCode: 401 });
+    }
+  }
+
+  if (decoded.role === 'student') {
+    const cached = _studentCache.get(decoded.id);
+    if (!cached || now - cached.at > CACHE_TTL_MS) {
+      const r = await pool.query(
+        'SELECT id, is_suspended FROM students WHERE id = $1 AND deleted_at IS NULL',
+        [decoded.id]
+      );
+      const row    = r.rows[0];
+      const valid  = !!row && !row.is_suspended;
+      _studentCache.set(decoded.id, { valid, at: now });
+      if (!valid) {
+        const code = row?.is_suspended ? 403 : 401;
+        throw Object.assign(
+          new Error(row?.is_suspended ? 'تم إيقاف الحساب مؤقتاً' : 'الحساب غير نشط أو تم حذفه'),
+          { statusCode: code }
+        );
+      }
+    } else if (!cached.valid) {
+      throw Object.assign(new Error('الحساب غير نشط أو تم حذفه'), { statusCode: 403 });
+    }
+  }
+
+  if (decoded.role === 'assistant') {
+    const cached = _assistantCache.get(decoded.id);
+    if (!cached || now - cached.at > CACHE_TTL_MS) {
+      const r = await pool.query('SELECT id FROM assistants WHERE id = $1', [decoded.id]);
+      const valid = r.rows.length > 0;
+      _assistantCache.set(decoded.id, { valid, at: now });
+      if (!valid) throw Object.assign(new Error('الحساب غير نشط أو تم حذفه'), { statusCode: 401 });
+    } else if (!cached.valid) {
+      throw Object.assign(new Error('الحساب غير نشط أو تم حذفه'), { statusCode: 401 });
+    }
+  }
+
+  return decoded;
+};
+
 module.exports = {
   authenticate,
   requireRole,
   generateToken,
   blacklistToken,
+  verifyFullToken,
   invalidateStudentAuthCache,
   invalidateAssistantAuthCache,
   invalidateTeacherAuthCache,

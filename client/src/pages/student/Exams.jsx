@@ -9,6 +9,13 @@ import api from '../../lib/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 
+const withToken = (url) => {
+  if (!url || !url.startsWith('/uploads/')) return url;
+  const token = localStorage.getItem('wathba_token') || '';
+  if (!token) return url;
+  return `${url}?token=${encodeURIComponent(token)}`;
+};
+
 function seededShuffle(arr, seed) {
   const result = [...arr];
   let s = seed >>> 0;
@@ -415,7 +422,7 @@ export default function StudentExams() {
                       <div className="p-4 space-y-3">
                         {q.group_context_image && (
                           <img
-                            src={q.group_context_image}
+                            src={withToken(q.group_context_image)}
                             alt="سياق المجموعة"
                             className="w-full max-h-64 object-contain rounded-xl border border-blue-200"
                             onError={(e) => { e.currentTarget.style.display = 'none'; }}
@@ -447,7 +454,7 @@ export default function StudentExams() {
 
                     {q.question_image_url && (
                       <img
-                        src={q.question_image_url}
+                        src={withToken(q.question_image_url)}
                         alt="سؤال"
                         className="w-full max-h-48 object-contain rounded-xl mb-3 border border-gray-100"
                         onError={(e) => { e.currentTarget.style.display = 'none'; }}

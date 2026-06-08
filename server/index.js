@@ -11,6 +11,7 @@ const { addClient, removeClient } = require('./sse');
 const { startScheduler } = require('./scheduler');
 const { initFCM } = require('./lib/fcm');
 const subdomainTenant = require('./middleware/subdomainTenant');
+const { verifyFullToken } = require('./middleware/auth');
 
 // Global unhandled rejection / uncaught exception guards
 process.on('unhandledRejection', (reason, promise) => {
@@ -62,26 +63,205 @@ const apiLimiter = rateLimit({
 });
 app.use('/api/', apiLimiter);
 
-// ── Protected uploads: PDFs and videos require a valid JWT ─────
-const uploadsAuthMiddleware = (req, res, next) => {
-  const token = req.headers.authorization?.split(' ')[1] || req.query.token;
-  if (!token) return res.status(401).send('Unauthorized');
-  try {
-    jwt.verify(token, process.env.JWT_SECRET);
-    req._uploadsAuthed = true; // mark so the fallback guard doesn't block a missing-file 404
-    next();
-  } catch {
-    return res.status(401).send('Unauthorized');
+// ── [C-1 + C-2] Protected upload directories ─────────────────
+//
+// File-access cache — prevents N+1 DB queries for video range requests.
+// Key: `${role}_${userId}:${fullPath}`, Value: { allowed: bool, at: ts }
+const _fileAccessCache = new Map();
+const FILE_ACCESS_TTL_MS = 60_000;
+setInterval(() => {
+  const cutoff = Date.now() - FILE_ACCESS_TTL_MS * 10;
+  for (const [k, v] of _fileAccessCache.entries()) {
+    if (v.at < cutoff) _fileAccessCache.delete(k);
   }
+}, 5 * 60_000).unref();
+
+/**
+ * [C-1] Check ownership / enrollment for a protected file.
+ * Returns true  → allow, false → 403 Forbidden,
+ *         null  → file not registered in DB (pass through; static → 404).
+ */
+const checkFileAccess = async (decoded, fileType, fullPath) => {
+  const cacheKey = `${decoded.role}_${decoded.id}:${fullPath}`;
+  const cached = _fileAccessCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < FILE_ACCESS_TTL_MS) return cached.allowed;
+
+  let hasAccess = false;
+  try {
+    if (fileType === 'video') {
+      const r = await pool.query(
+        `SELECT v.course_id, c.teacher_id, c.is_published
+           FROM videos v
+           JOIN courses c ON v.course_id = c.id
+          WHERE v.file_path_or_url = $1
+          LIMIT 1`,
+        [fullPath]
+      );
+      if (!r.rows.length) return null;
+      const { course_id, teacher_id, is_published } = r.rows[0];
+      if (decoded.role === 'teacher') {
+        hasAccess = decoded.id === teacher_id;
+      } else if (decoded.role === 'assistant') {
+        hasAccess = decoded.teacher_id === teacher_id;
+      } else if (decoded.role === 'student' && is_published) {
+        const e = await pool.query(
+          `SELECT 1 FROM student_course_enrollment
+            WHERE student_id=$1 AND course_id=$2 AND status='active'`,
+          [decoded.id, course_id]
+        );
+        hasAccess = e.rows.length > 0;
+      }
+
+    } else if (fileType === 'pdf') {
+      const r = await pool.query(
+        `SELECT p.course_id, c.teacher_id, c.is_published
+           FROM pdf_files p
+           JOIN courses c ON p.course_id = c.id
+          WHERE p.file_url = $1
+          LIMIT 1`,
+        [fullPath]
+      );
+      if (!r.rows.length) return null;
+      const { course_id, teacher_id, is_published } = r.rows[0];
+      if (decoded.role === 'teacher') {
+        hasAccess = decoded.id === teacher_id;
+      } else if (decoded.role === 'assistant') {
+        hasAccess = decoded.teacher_id === teacher_id;
+      } else if (decoded.role === 'student' && is_published) {
+        const e = await pool.query(
+          `SELECT 1 FROM student_course_enrollment
+            WHERE student_id=$1 AND course_id=$2 AND status='active'`,
+          [decoded.id, course_id]
+        );
+        hasAccess = e.rows.length > 0;
+      }
+
+    } else if (fileType === 'question-image') {
+      // First look in questions table (regular exam questions + group context images)
+      const rq = await pool.query(
+        `SELECT e.id AS exam_id, e.teacher_id, e.course_id, e.is_published
+           FROM questions q
+           JOIN exams e ON q.exam_id = e.id
+          WHERE q.question_image_url = $1 OR q.group_context_image = $1
+          LIMIT 1`,
+        [fullPath]
+      );
+
+      let examId = null, teacherId = null, courseId = null, isPublished = false;
+
+      if (rq.rows.length) {
+        ({ exam_id: examId, teacher_id: teacherId, course_id: courseId,
+           is_published: isPublished } = rq.rows[0]);
+      } else {
+        // Fall back to bank_questions (question bank images)
+        const rb = await pool.query(
+          `SELECT qb.teacher_id, qb.id AS bank_id
+             FROM bank_questions bq
+             JOIN question_banks qb ON bq.bank_id = qb.id
+            WHERE bq.question_image_url = $1 OR bq.group_context_image = $1
+            LIMIT 1`,
+          [fullPath]
+        );
+        if (!rb.rows.length) return null;
+        teacherId = rb.rows[0].teacher_id;
+        const bankId = rb.rows[0].bank_id;
+
+        // For student access: find any published exam that uses this bank
+        if (decoded.role === 'student') {
+          const re = await pool.query(
+            `SELECT e.id, e.course_id, e.is_published
+               FROM exams e
+              WHERE e.bank_id = $1 AND e.is_published = true
+              LIMIT 1`,
+            [bankId]
+          );
+          if (re.rows.length) {
+            examId     = re.rows[0].id;
+            courseId   = re.rows[0].course_id;
+            isPublished = re.rows[0].is_published;
+          }
+        }
+      }
+
+      if (decoded.role === 'teacher') {
+        hasAccess = decoded.id === teacherId;
+      } else if (decoded.role === 'assistant') {
+        hasAccess = decoded.teacher_id === teacherId;
+      } else if (decoded.role === 'student') {
+        if (examId && courseId && isPublished) {
+          // Course exam: active enrollment required
+          const e = await pool.query(
+            `SELECT 1 FROM student_course_enrollment
+              WHERE student_id=$1 AND course_id=$2 AND status='active'`,
+            [decoded.id, courseId]
+          );
+          hasAccess = e.rows.length > 0;
+        } else if (examId) {
+          // Standalone exam: student must have an active session OR completed result
+          const sr = await pool.query(
+            `SELECT 1 FROM exam_sessions WHERE student_id=$1 AND exam_id=$2
+             UNION ALL
+             SELECT 1 FROM exam_results  WHERE student_id=$1 AND exam_id=$2
+             LIMIT 1`,
+            [decoded.id, examId]
+          );
+          hasAccess = sr.rows.length > 0;
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[checkFileAccess]', err.message);
+    return false;
+  }
+
+  _fileAccessCache.set(cacheKey, { allowed: hasAccess, at: Date.now() });
+  return hasAccess;
 };
-app.use('/uploads/pdfs',             uploadsAuthMiddleware, express.static(path.join(__dirname, '../uploads/pdfs')));
-app.use('/uploads/videos',           uploadsAuthMiddleware, express.static(path.join(__dirname, '../uploads/videos')));
-app.use('/uploads/question-images',  uploadsAuthMiddleware, express.static(path.join(__dirname, '../uploads/question-images')));
+
+/**
+ * [C-1 + C-2] Middleware factory for protected upload directories.
+ *   C-2: validates token against blacklist + account status via verifyFullToken
+ *   C-1: enforces ownership/enrollment check per file type
+ */
+const makeProtectedUploadsMiddleware = (fileType) => async (req, res, next) => {
+  const token = req.headers.authorization?.split(' ')[1] || req.query.token;
+
+  let decoded;
+  try {
+    decoded = await verifyFullToken(token);
+  } catch (err) {
+    return res.status(err.statusCode || 401).send('Unauthorized');
+  }
+
+  const filename = req.path.replace(/^\/+/, '');
+  if (!filename || filename.includes('..')) {
+    return res.status(403).send('Forbidden');
+  }
+  const fullPath = `${req.baseUrl}/${filename}`;
+
+  const allowed = await checkFileAccess(decoded, fileType, fullPath);
+
+  if (allowed === null) {
+    // File not registered in DB — treat as Not Found regardless of disk state
+    return res.status(404).send('Not Found');
+  }
+  if (!allowed) return res.status(403).send('Forbidden');
+
+  req._uploadsAuthed = true;
+  next();
+};
+
+app.use('/uploads/pdfs',            makeProtectedUploadsMiddleware('pdf'),
+        express.static(path.join(__dirname, '../uploads/pdfs')));
+app.use('/uploads/videos',          makeProtectedUploadsMiddleware('video'),
+        express.static(path.join(__dirname, '../uploads/videos')));
+app.use('/uploads/question-images', makeProtectedUploadsMiddleware('question-image'),
+        express.static(path.join(__dirname, '../uploads/question-images')));
+
 // Images and thumbnails remain public (needed for login page / course cards)
 // Safety guard: block direct access to protected subdirs through the general handler.
-// Skip if the request already passed through uploadsAuthMiddleware (file not found → 404 not 401).
 app.use('/uploads', (req, res, next) => {
-  if (req._uploadsAuthed) return next(); // already authenticated — let it fall through to 404
+  if (req._uploadsAuthed) return next();
   const normalized = req.path.replace(/\/+/g, '/');
   const protected_ = ['/pdfs/', '/videos/', '/question-images/'];
   if (protected_.some(p => normalized.startsWith(p) || normalized === p.slice(0, -1))) {
@@ -90,16 +270,15 @@ app.use('/uploads', (req, res, next) => {
   next();
 }, express.static(path.join(__dirname, '../uploads')));
 
-// ── SSE endpoint ──────────────────────────────────────────────
-app.get('/api/sse', (req, res) => {
+// ── [C-2] SSE endpoint — now validates blacklist + account status ──
+app.get('/api/sse', async (req, res) => {
   const token = req.query.token;
-  if (!token) return res.status(401).end();
 
   let decoded;
   try {
-    decoded = jwt.verify(token, process.env.JWT_SECRET);
-  } catch (_) {
-    return res.status(401).end();
+    decoded = await verifyFullToken(token);
+  } catch (err) {
+    return res.status(err.statusCode || 401).end();
   }
 
   const key = `${decoded.role}_${decoded.id}`;
