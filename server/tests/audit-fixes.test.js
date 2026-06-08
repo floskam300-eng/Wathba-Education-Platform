@@ -181,9 +181,9 @@ console.log('══════════════════════�
     const hashed = await bcrypt.hash(pw, 10);
 
     const sRes = await pool.query(
-      `INSERT INTO students (username, password, plain_password, name, teacher_id, points)
-       VALUES ($1, $2, $3, $4, $5, 100) RETURNING id`,
-      [`ts_std_${Date.now()}`, hashed, pw, 'Reset Test Student', TEST_TEACHER_ID]
+      `INSERT INTO students (username, password, name, teacher_id, points)
+       VALUES ($1, $2, $3, $4, 100) RETURNING id`,
+      [`ts_std_${Date.now()}`, hashed, 'Reset Test Student', TEST_TEACHER_ID]
     );
     const studentId = sRes.rows[0].id;
 
@@ -230,9 +230,9 @@ console.log('══════════════════════�
     const pw     = 'floor_' + Date.now();
     const hashed = await bcrypt.hash(pw, 10);
     const sRes   = await pool.query(
-      `INSERT INTO students (username, password, plain_password, name, teacher_id, points)
-       VALUES ($1, $2, $3, $4, $5, 10) RETURNING id`,
-      [`floor_std_${Date.now()}`, hashed, pw, 'Floor Test Student', TEST_TEACHER_ID]
+      `INSERT INTO students (username, password, name, teacher_id, points)
+       VALUES ($1, $2, $3, $4, 10) RETURNING id`,
+      [`floor_std_${Date.now()}`, hashed, 'Floor Test Student', TEST_TEACHER_ID]
     );
     const studentId = sRes.rows[0].id;
     await pool.query(
@@ -250,9 +250,9 @@ console.log('══════════════════════�
     const pw     = 'pe_' + Date.now();
     const hashed = await bcrypt.hash(pw, 10);
     const sRes   = await pool.query(
-      `INSERT INTO students (username, password, plain_password, name, teacher_id)
-       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-      [`pe_std_${Date.now()}`, hashed, pw, 'AutoEnroll Student', TEST_TEACHER_ID]
+      `INSERT INTO students (username, password, name, teacher_id)
+       VALUES ($1, $2, $3, $4) RETURNING id`,
+      [`pe_std_${Date.now()}`, hashed, 'AutoEnroll Student', TEST_TEACHER_ID]
     );
     const studentId = sRes.rows[0].id;
     const cRes = await pool.query(
@@ -284,9 +284,9 @@ console.log('══════════════════════�
     const pw     = 'idem_' + Date.now();
     const hashed = await bcrypt.hash(pw, 10);
     const sRes   = await pool.query(
-      `INSERT INTO students (username, password, plain_password, name, teacher_id)
-       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-      [`idem_std_${Date.now()}`, hashed, pw, 'Idempotent Student', TEST_TEACHER_ID]
+      `INSERT INTO students (username, password, name, teacher_id)
+       VALUES ($1, $2, $3, $4) RETURNING id`,
+      [`idem_std_${Date.now()}`, hashed, 'Idempotent Student', TEST_TEACHER_ID]
     );
     const studentId = sRes.rows[0].id;
     const cRes = await pool.query(
@@ -555,9 +555,9 @@ console.log('══════════════════════�
     const pw     = 'stu_' + Date.now();
     const hashed = await bcrypt.hash(pw, 10);
     const sRes   = await pool.query(
-      `INSERT INTO students (username, password, plain_password, name, teacher_id)
-       VALUES ($1,$2,$3,$4,$5) RETURNING id`,
-      [`edge_stu_${Date.now()}`, hashed, pw, 'Edge Student', TEST_TEACHER_ID]
+      `INSERT INTO students (username, password, name, teacher_id)
+       VALUES ($1,$2,$3,$4) RETURNING id`,
+      [`edge_stu_${Date.now()}`, hashed, 'Edge Student', TEST_TEACHER_ID]
     );
     const studentId = sRes.rows[0].id;
 
@@ -606,9 +606,9 @@ console.log('══════════════════════�
     const pw     = 'pv_' + Date.now();
     const hashed = await bcrypt.hash(pw, 10);
     const sRes   = await pool.query(
-      `INSERT INTO students (username,password,plain_password,name,teacher_id)
-       VALUES ($1,$2,$3,$4,$5) RETURNING id`,
-      [`pv_std_${Date.now()}`, hashed, pw, 'PV Student', TEST_TEACHER_ID]
+      `INSERT INTO students (username,password,name,teacher_id)
+       VALUES ($1,$2,$3,$4) RETURNING id`,
+      [`pv_std_${Date.now()}`, hashed, 'PV Student', TEST_TEACHER_ID]
     );
     const studentId = sRes.rows[0].id;
     const pRes = await pool.query(

@@ -100,14 +100,16 @@ router.get('/', requireRole('teacher', 'assistant'), async (req, res) => {
       searchClause = `AND (s.name ILIKE $2 ESCAPE '\\' OR s.username ILIKE $2 ESCAPE '\\' OR s.phone ILIKE $2 ESCAPE '\\')`;
     }
     const result = await pool.query(
-      `SELECT s.*, COUNT(CASE WHEN sce.status = 'active' THEN sce.course_id END)::int as enrolled_courses
+      `SELECT s.id, s.username, s.name, s.phone, s.parent_phone, s.academic_stage,
+              s.gender, s.teacher_id, s.points, s.created_at, s.deleted_at, s.fcm_token,
+              COUNT(CASE WHEN sce.status = 'active' THEN sce.course_id END)::int as enrolled_courses
        FROM students s
        LEFT JOIN student_course_enrollment sce ON s.id = sce.student_id
        WHERE s.teacher_id = $1 AND s.deleted_at IS NULL ${searchClause}
        GROUP BY s.id ORDER BY s.created_at DESC`,
       params
     );
-    res.json(result.rows.map(({ password: _, ...s }) => s));
+    res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }
@@ -139,8 +141,8 @@ router.post('/', addStudentLimiter, requireRole('teacher', 'assistant'), (req, r
       try {
         const hashed = await bcrypt.hash(generatedPassword, 10);
         const result = await pool.query(
-          'INSERT INTO students (username,password,plain_password,name,phone,parent_phone,academic_stage,gender,teacher_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',
-          [username, hashed, generatedPassword, name, phone, parent_phone, academic_stage, gender, teacherId]
+          'INSERT INTO students (username,password,name,phone,parent_phone,academic_stage,gender,teacher_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
+          [username, hashed, name, phone, parent_phone, academic_stage, gender, teacherId]
         );
         invalidateCache(teacherId);
         // Auto-enroll new student in teacher's published free courses
@@ -188,8 +190,8 @@ router.put('/:id', requireRole('teacher', 'assistant'), (req, res, next) => chec
     let query, params;
     if (password) {
       const hashed = await bcrypt.hash(password, 10);
-      query = 'UPDATE students SET name=$1,phone=$2,parent_phone=$3,academic_stage=$4,gender=$5,password=$6,plain_password=$7 WHERE id=$8 AND teacher_id=$9 RETURNING *';
-      params = [name, phone, parent_phone, academic_stage, gender, hashed, password, req.params.id, teacherId];
+      query = 'UPDATE students SET name=$1,phone=$2,parent_phone=$3,academic_stage=$4,gender=$5,password=$6 WHERE id=$7 AND teacher_id=$8 RETURNING *';
+      params = [name, phone, parent_phone, academic_stage, gender, hashed, req.params.id, teacherId];
     } else {
       query = 'UPDATE students SET name=$1,phone=$2,parent_phone=$3,academic_stage=$4,gender=$5 WHERE id=$6 AND teacher_id=$7 RETURNING *';
       params = [name, phone, parent_phone, academic_stage, gender, req.params.id, teacherId];
@@ -526,8 +528,8 @@ router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => ch
         while (retries < 5) {
           try {
             const insertRes = await client.query(
-              'INSERT INTO students (username,password,plain_password,name,phone,parent_phone,academic_stage,gender,teacher_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id',
-              [username, hashed, finalPassword, name, phone, parent_phone, academic_stage, gender, teacherId]
+              'INSERT INTO students (username,password,name,phone,parent_phone,academic_stage,gender,teacher_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id',
+              [username, hashed, name, phone, parent_phone, academic_stage, gender, teacherId]
             );
             newStudentIds.push(insertRes.rows[0].id);
             results.success++;

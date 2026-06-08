@@ -401,7 +401,7 @@ router.get('/export', requireRole('teacher'), async (req, res) => {
   try {
     const [teacher, students, courses, sections, videos, pdfs, exams, questions, results, payments, enrollments, videoProgress] = await Promise.all([
       pool.query('SELECT id,username,name,bio,classification,logo_url,photo_url,whatsapp_phone,created_at FROM teachers WHERE id=$1', [teacherId]),
-      pool.query('SELECT id,username,plain_password,name,phone,parent_phone,academic_stage,gender,points,created_at FROM students WHERE teacher_id=$1 AND deleted_at IS NULL ORDER BY name', [teacherId]),
+      pool.query('SELECT id,username,name,phone,parent_phone,academic_stage,gender,points,created_at FROM students WHERE teacher_id=$1 AND deleted_at IS NULL ORDER BY name', [teacherId]),
       pool.query('SELECT * FROM courses WHERE teacher_id=$1 ORDER BY created_at', [teacherId]),
       pool.query('SELECT s.* FROM sections s JOIN courses c ON s.course_id=c.id WHERE c.teacher_id=$1 ORDER BY s.course_id, s.sort_order', [teacherId]),
       pool.query('SELECT v.* FROM videos v JOIN courses c ON v.course_id=c.id WHERE c.teacher_id=$1 ORDER BY v.course_id, v.sort_order, v.id', [teacherId]),
@@ -649,11 +649,11 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
         const hashed = await bcrypt.hash(plainPwd, 10);
         const r = await client.query(
           `INSERT INTO students (username,password,name,phone,parent_phone,academic_stage,gender,
-             teacher_id,points,plain_password,created_at)
-           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+             teacher_id,points,created_at)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
           [s.username, hashed, s.name, s.phone || null, s.parent_phone || null,
            s.academic_stage || null, s.gender || null, teacherId,
-           s.points || 0, plainPwd, s.created_at || new Date()]
+           s.points || 0, s.created_at || new Date()]
         );
         studentMap[s.id] = r.rows[0].id;
         stats.students++;

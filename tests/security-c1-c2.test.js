@@ -187,8 +187,8 @@ async function setup() {
     );
     for (const s of [T.studentEnrolled, T.studentOther, T.studentSuspended]) {
       const r = await pool.query(
-        `INSERT INTO students (username, password, name, plain_password, teacher_id)
-         VALUES ($1, $2, $3, 'SecTest_2026!', $4) RETURNING id`,
+        `INSERT INTO students (username, password, name, teacher_id)
+         VALUES ($1, $2, $3, $4) RETURNING id`,
         [s.username, hashed, s.username, T.teacherA.id]
       );
       s.id = r.rows[0].id;
@@ -618,8 +618,8 @@ async function runTests() {
     // Force cache miss by using a slightly different path (non-existent variant) OR
     // wait — but for test speed we test via a second *student* that was never in cache.
     const freshStudent = await pool.query(
-      `INSERT INTO students (username, password, name, plain_password, teacher_id)
-       VALUES ('_sec_test_fresh', $1, 'Fresh', 'x', $2) RETURNING id`,
+      `INSERT INTO students (username, password, name, teacher_id)
+       VALUES ('_sec_test_fresh', $1, 'Fresh', $2) RETURNING id`,
       [await bcrypt.hash('x', 10), T.teacherA.id]
     );
     const freshId = freshStudent.rows[0].id;

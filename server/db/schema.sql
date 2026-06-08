@@ -453,7 +453,7 @@ BEGIN
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 
--- plain_password column is intentionally kept for teacher/assistant access
+-- [H-2] plain_password column has been REMOVED — see DROP COLUMN migration at end of file
 
 -- ── CHECK constraints on correct_answer_letter ────────────────────────────────
 DO $$
@@ -756,3 +756,17 @@ CREATE INDEX IF NOT EXISTS idx_wa_log_teacher ON whatsapp_send_log(teacher_id);
 
 -- Cleanup job: mark any stuck WhatsApp send logs as failed on restart
 UPDATE whatsapp_send_log SET status='failed', finished_at=NOW() WHERE status='sending';
+
+-- ── [H-2] Security fix: wipe & drop plain_password column ─────────────────────
+-- Plaintext passwords must never be persisted. Existing values are zeroed first,
+-- then the column is dropped so no backup / SELECT * can ever expose them again.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'students' AND column_name = 'plain_password'
+  ) THEN
+    UPDATE students SET plain_password = NULL WHERE plain_password IS NOT NULL;
+    ALTER TABLE students DROP COLUMN plain_password;
+  END IF;
+END $$;

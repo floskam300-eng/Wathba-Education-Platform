@@ -144,9 +144,9 @@ async function seed() {
 
   const [stdAliRow] = await q(`
     INSERT INTO students
-      (username,password,plain_password,name,phone,parent_phone,
+      (username,password,name,phone,parent_phone,
        academic_stage,gender,teacher_id,points,is_suspended)
-    VALUES ('std_ali',$1,'123456','علي محمد رمضان',
+    VALUES ('std_ali',$1,'علي محمد رمضان',
             '+201200000001','+201200000002',
             'الصف الثالث الثانوي','ذكر',$2,1250,false)
     RETURNING id,name
@@ -171,9 +171,9 @@ async function seed() {
   for (const [user, name, phone, pPhone, stage, gender, pts, susp] of studentsData) {
     const [r] = await q(`
       INSERT INTO students
-        (username,password,plain_password,name,phone,parent_phone,
+        (username,password,name,phone,parent_phone,
          academic_stage,gender,teacher_id,points,is_suspended)
-      VALUES ($1,$2,'123456',$3,$4,$5,$6,$7,$8,$9,$10)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
       RETURNING id
     `, [user, pass6, name, phone, pPhone, stage, gender, T1, pts, susp]);
     sids[user] = r.id;

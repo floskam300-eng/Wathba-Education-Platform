@@ -215,13 +215,40 @@ router.post('/:streamId/livekit-token', async (req, res) => {
         return res.status(403).json({ error: 'هذا البث لا ينتمي إليك' });
       }
     } else if (role === 'student') {
+      // [H-4] FIX: apply the full access-control stack (same as /join) before issuing a token
+
+      // 1. Verify student belongs to this teacher + fetch academic_stage
       const { rows: studentRows } = await pool.query(
-        'SELECT teacher_id FROM students WHERE id=$1 AND deleted_at IS NULL',
+        'SELECT teacher_id, academic_stage FROM students WHERE id=$1 AND deleted_at IS NULL',
         [id]
       );
       if (!studentRows.length || parseInt(studentRows[0].teacher_id) !== parseInt(stream.teacher_id)) {
         return res.status(403).json({ error: 'هذا البث لا ينتمي لمعلمك' });
       }
+      const { academic_stage } = studentRows[0];
+
+      // 2. Locked stream — no new LiveKit tokens even for existing viewers
+      if (stream.is_locked) {
+        return res.status(403).json({ error: 'الغرفة مقفلة حالياً من قِبَل المعلم' });
+      }
+
+      // 3. Access rules (stages / specific) — re-check on every token request
+      const _parseJsonb = (val) => {
+        if (Array.isArray(val)) return val;
+        if (typeof val === 'string') { try { return JSON.parse(val); } catch (_) { return []; } }
+        return [];
+      };
+      if (stream.access === 'stages') {
+        const allowed = _parseJsonb(stream.allowed_stages).map(String);
+        if (!allowed.includes(String(academic_stage || '')))
+          return res.status(403).json({ error: 'هذا البث مخصص لمراحل دراسية أخرى' });
+      } else if (stream.access === 'specific') {
+        const allowed = _parseJsonb(stream.allowed_student_ids).map(Number);
+        if (!allowed.includes(id))
+          return res.status(403).json({ error: 'لم تُضَف إلى قائمة المشاركين في هذا البث' });
+      }
+
+      // 4. Kick check
       const { rows: kickCheck } = await pool.query(
         'SELECT is_kicked FROM live_stream_viewers WHERE stream_id=$1 AND student_id=$2',
         [streamId, id]
@@ -1156,10 +1183,19 @@ router.get('/:streamId/chat', requireRole('teacher', 'student'), async (req, res
 
   try {
     if (userRole === 'student') {
+      // [H-5] FIX: require student to be an active (non-kicked) viewer.
+      // Access rules (stages/specific) were enforced at /join time and the viewer
+      // record was only created if they passed; requiring is_active=true here
+      // guarantees they genuinely joined and have not left or been kicked.
       const access = await pool.query(
         `SELECT ls.id FROM live_streams ls
-         JOIN students s ON s.teacher_id = ls.teacher_id
-         WHERE ls.id=$1 AND s.id=$2 AND s.deleted_at IS NULL AND ls.status='active'`,
+         JOIN students s ON s.id = $2 AND s.teacher_id = ls.teacher_id AND s.deleted_at IS NULL
+         JOIN live_stream_viewers lsv
+           ON lsv.stream_id = ls.id
+           AND lsv.student_id = $2
+           AND lsv.is_active  = true
+           AND lsv.is_kicked  = false
+         WHERE ls.id = $1 AND ls.status = 'active'`,
         [streamId, userId]
       );
       if (!access.rows.length) return res.status(403).json({ error: 'Access denied' });
