@@ -10,3 +10,4 @@
 - [Exams deep audit phase-3](exams-deep-audit-phase3.md) — 8 more bugs fixed: published-exam question guard (add/edit/delete → 409), MCQ correct_answer_letter null-option validation, retry-request end_date guard, serverStartedAt in /take for timer sync + stale-localStorage detection on retry
 - [Student login needs tenant slug](student-tenant-slug.md) — student/assistant logins require X-Tenant-Slug header (or subdomain); without it, login returns "بيانات الدخول غير صحيحة"; in-memory lockout resets on server restart
 - [Exams security fixes H7-H10](exams-security-h7-h10.md) — 4 security fixes: device_id required for students, SSE ticket system, media access tokens, snapshot consistency + bank exam submit guard
+- [Permission audit M1-M8](permission-audit-m1-m8.md) — 8 permission/security fixes: assistant PII, answer key exposure, QR hijack, tenant spoof, enrollment bypass

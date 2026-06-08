@@ -38,7 +38,13 @@ function extractSubdomainSlug(host) {
 
 module.exports = async function subdomainTenant(req, res, next) {
   let slug = extractSubdomainSlug(req.get('host') || '');
-  if (!slug) slug = req.headers['x-tenant-slug'] || null;
+  if (!slug) {
+    // M-7 fix: X-Tenant-Slug header can be spoofed by any HTTP client.
+    // In production the tenant MUST come from the subdomain.
+    // Only fall back to the header in non-production environments (dev/test).
+    const isProduction = (process.env.NODE_ENV || 'development') === 'production';
+    if (!isProduction) slug = req.headers['x-tenant-slug'] || null;
+  }
   if (slug) {
     // Always record that a slug was attempted — even if the teacher wasn't found.
     // Routes can use req.tenantSlugAttempted to detect "wrong tenant" vs "no tenant".

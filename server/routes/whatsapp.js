@@ -53,10 +53,13 @@ const checkSendPerm = async (req, res, next) => {
 };
 
 // ── GET /api/whatsapp/status ──────────────────────────────────────────────────
+// M-6 fix: qrBase64 restricted to teacher only — assistants could scan it to
+// hijack the teacher's WhatsApp session.
 router.get('/status', requireRole('teacher', 'assistant'), (req, res) => {
   const teacherId = getTeacherId(req);
   const { status, qrBase64 } = wa.getStatus(teacherId);
-  res.json({ status, qrBase64, isTeacher: req.user.role === 'teacher' });
+  const isTeacher = req.user.role === 'teacher';
+  res.json({ status, qrBase64: isTeacher ? qrBase64 : undefined, isTeacher });
 });
 
 // ── POST /api/whatsapp/connect (teacher only) ─────────────────────────────────

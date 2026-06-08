@@ -411,7 +411,8 @@ router.delete('/:id', requireRole('teacher', 'assistant'), checkManageExamsPerm,
 });
 
 // ── Get questions ──
-router.get('/:id/questions', requireRole('teacher', 'assistant'), async (req, res) => {
+// M-2 fix: assistants without can_manage_exams must NOT see correct_answer_letter
+router.get('/:id/questions', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
   const examId = parseParamId(req.params.id);
   if (!examId) return res.status(400).json({ error: 'معرّف الاختبار غير صالح' });
   const teacherId = getTeacherId(req);
@@ -622,7 +623,8 @@ router.post('/:id/retry-request', requireRole('student'), async (req, res) => {
 });
 
 // ── Teacher: list pending retry requests ──
-router.get('/retry-requests', requireRole('teacher', 'assistant'), async (req, res) => {
+// M-3 fix: assistants must have can_manage_exams to view retry requests
+router.get('/retry-requests', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
   try {
     const result = await pool.query(
@@ -1160,7 +1162,17 @@ router.get('/results/:resultId', async (req, res) => {
 });
 
 // ── Full exam review ──
-router.get('/results/:resultId/review', async (req, res) => {
+// M-4 fix: assistants must have can_view_analytics to access exam review
+router.get('/results/:resultId/review', async (req, res, next) => {
+  if (req.user.role === 'assistant') {
+    try {
+      const perms = await getPermissions(req.user.id, pool);
+      if (!perms?.can_view_analytics)
+        return res.status(403).json({ error: 'Access denied: missing permission (can_view_analytics)' });
+    } catch { return res.status(500).json({ error: 'Server error' }); }
+  }
+  next();
+}, async (req, res) => {
   const resultId = parseParamId(req.params.resultId);
   if (!resultId) return res.status(400).json({ error: 'معرّف النتيجة غير صالح' });
   try {

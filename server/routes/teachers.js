@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const pool = require('../db/connection');
 const { authenticate, requireRole } = require('../middleware/auth');
+const { getPermissions } = require('../lib/permissionsCache');
 
 const router = express.Router();
 router.use(authenticate);
@@ -274,7 +275,15 @@ router.get('/analytics', requireRole('teacher'), async (req, res) => {
   }
 });
 
+// M-5 fix: assistants need can_view_analytics — this endpoint exposes correct_answer_letter
 router.get('/analytics/wrong-questions', requireRole('teacher', 'assistant'), async (req, res) => {
+  if (req.user.role === 'assistant') {
+    try {
+      const perms = await getPermissions(req.user.id, pool);
+      if (!perms?.can_view_analytics)
+        return res.status(403).json({ error: 'Access denied: missing permission (can_view_analytics)' });
+    } catch { return res.status(500).json({ error: 'Server error' }); }
+  }
   const teacherId = req.user.role === 'teacher' ? req.user.id : req.user.teacher_id;
   const full = req.query.full === 'true';
   const cacheKey = `t${teacherId}_wrong_questions_${full}`;

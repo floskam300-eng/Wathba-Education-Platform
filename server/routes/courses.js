@@ -841,10 +841,28 @@ router.put('/enrollment-requests/:id', requireRole('teacher', 'assistant'), chec
     if (!reqRes.rows.length) return res.status(404).json({ error: 'Request not found' });
     const enrReq = reqRes.rows[0];
 
-    const courseInfo = await pool.query('SELECT name FROM courses WHERE id=$1', [enrReq.course_id]);
-    const courseName = courseInfo.rows[0]?.name || '';
+    const courseInfo = await pool.query('SELECT name, is_free, price FROM courses WHERE id=$1', [enrReq.course_id]);
+    const course = courseInfo.rows[0];
+    const courseName = course?.name || '';
 
     if (action === 'approve') {
+      // M-8 fix: for paid courses, require a verified payment before enrolling.
+      // This prevents approving enrollment requests that have no payment record,
+      // which would give free access to paid content.
+      if (course && !course.is_free) {
+        const payCheck = await pool.query(
+          `SELECT id FROM payments
+           WHERE student_id=$1 AND course_id=$2 AND status='verified' LIMIT 1`,
+          [enrReq.student_id, enrReq.course_id]
+        );
+        if (payCheck.rows.length === 0) {
+          return res.status(402).json({
+            error: 'لا يمكن قبول الطلب — لم يُتحقق من الدفع بعد. قم بالتحقق من الدفع أولاً من صفحة المدفوعات.',
+            code: 'PAYMENT_NOT_VERIFIED',
+          });
+        }
+      }
+
       await pool.query(
         'INSERT INTO student_course_enrollment (student_id, course_id) VALUES($1,$2) ON CONFLICT DO NOTHING',
         [enrReq.student_id, enrReq.course_id]

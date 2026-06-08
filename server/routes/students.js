@@ -82,7 +82,8 @@ router.get('/next-username', requireRole('teacher', 'assistant'), async (req, re
   }
 });
 
-router.get('/', requireRole('teacher', 'assistant'), async (req, res) => {
+// M-1 fix: assistants must have can_view_analytics to list students (PII guard)
+router.get('/', requireRole('teacher', 'assistant'), (req, res, next) => checkPermission(req, res, next, 'can_view_analytics'), async (req, res) => {
   const teacherId = getTeacherId(req);
   const { search } = req.query;
   try {
