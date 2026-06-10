@@ -718,13 +718,15 @@ async function seed() {
     ['true_false','المستقيمان المتوازيان ميلاهما متساويان','صح','خطأ',null,null,'T',6,null],
     ['true_false','حاصل ضرب ميلي المستقيمين المتعامدين = 1','صح','خطأ',null,null,'F',6,null],
   ];
+  const e10QIds = [];
   for (const [qt, txt, a, b, c, d, ans, pts] of e10Questions) {
-    await q(`
+    const [qr] = await q(`
       INSERT INTO questions
         (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,
          correct_answer_letter,points)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id
     `, [e10.id, qt, txt, a, b, c, d, ans, pts]);
+    e10QIds.push({ id: qr.id, correct: ans, pts });
   }
 
   console.log('  ✓ الأسئلة أضيفت لكل الامتحانات');
@@ -850,6 +852,10 @@ async function seed() {
     }
     const startT = new Date(now.getTime() - daysAgo * 86400000 - 3600000);
     const endT = new Date(startT.getTime() + 30 * 60000);
+    // إذا كانت هذه أحدث نتيجة، اجعل كل النتائج السابقة لهذا الطالب في هذا الامتحان غير أحدث
+    if (isLatest) {
+      await q(`UPDATE exam_results SET is_latest = false WHERE student_id = $1 AND exam_id = $2`, [studentId, examId]);
+    }
     await q(`
       INSERT INTO exam_results
         (student_id,exam_id,score,correct_count,wrong_count,unanswered_count,
@@ -899,7 +905,34 @@ async function seed() {
 
   // std_ali في e11 (مجاني — ناجح مسبقاً — سجّلناه بالأعلى)
 
-  console.log('  ✓ نتائج الامتحانات: std_ali (ناجح×3، راسب×1، لم يؤده×3)');
+  // ── نتائج إضافية لتغطية الأرشيف بشكل كامل ──────────────────────────────
+
+  // e2 (المثلثات — pass=30/50): نتائج إضافية لطلاب ث3
+  await makeResult(sids['std_nada'],  e2.id, e2QIds, 28, 1, true, 13);  // راسب ✗
+  await makeResult(sids['std_omar'],  e2.id, e2QIds, 50, 1, true, 14);  // راسب ✗
+
+  // e5 (المشتقات — pass=18/30): يوسف مسجّل في C2
+  await makeResult(sids['std_youssef'], e5.id, e5QIds, 85, 1, true, 4);  // ناجح ✓
+
+  // e9 (الإحداثيات — pass=15/25): نتيجة إضافية لينا
+  await makeResult(sids['std_lina'], e9.id, e9QIds, 72, 1, true, 8);  // ناجح ✓
+
+  // e10 (المستقيم والدائرة — pass=18/30): كل طلاب ث2
+  await makeResult(sids['std_mostafa'], e10.id, e10QIds, 90, 1, true, 0);  // ناجح ✓
+  await makeResult(sids['std_rana'],    e10.id, e10QIds, 45, 1, true, 0);  // راسب ✗
+  await makeResult(sids['std_adam'],    e10.id, e10QIds, 35, 1, true, 0);  // راسب ✗
+  await makeResult(sids['std_lina'],    e10.id, e10QIds, 80, 1, true, 0);  // ناجح ✓
+
+  // e11 (الأساسيات المجانية — pass=6/10): باقي طلاب ث3 المسجّلين في c3
+  await makeResult(sids['std_fatma'],   e11.id, e11QIds, 80,  1, true, 24);  // ناجح ✓
+  await makeResult(sids['std_youssef'], e11.id, e11QIds, 100, 1, true, 23);  // ناجح ✓
+  await makeResult(sids['std_nada'],    e11.id, e11QIds, 40,  1, true, 22);  // راسب ✗
+  await makeResult(sids['std_omar'],    e11.id, e11QIds, 70,  1, true, 21);  // ناجح ✓
+
+  // e1 (الجبر — محاولة ثانية لـ std_nada بعد قبول الإعادة — راسب للمرة الثانية)
+  await makeResult(sids['std_nada'], e1.id, e1QIds, 45, 2, true, 8);  // أحدث محاولة راسبة
+
+  console.log('  ✓ نتائج الامتحانات: std_ali (ناجح×3، راسب×1، لم يؤده×3) + بيانات أرشيف شاملة');
 
   // ══════════════════════════════════════════════════════════
   // 12. طلبات إعادة الامتحان
@@ -1292,15 +1325,8 @@ async function seed() {
   // ══════════════════════════════════════════════════════════
   console.log('\n⟳  إضافة بيانات الأجهزة...');
 
-  // std_ali: جهاز واحد فقط عشان تسجيل الدخول من المتصفح يكون الجهاز التاني (مسموح)
-  await q(`
-    INSERT INTO student_devices
-      (student_id,device_id,device_name,user_agent,ip_address,first_seen,last_seen)
-    VALUES
-      ($1,'device_ali_mobile_001','iPhone 14 Pro',
-       'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0) AppleWebKit','197.34.5.100',
-       NOW()-INTERVAL '25 days',NOW()-INTERVAL '1 hour')
-  `, [STD_ALI]);
+  // std_ali: لا يوجد جهاز مسبق — حتى يتمكن من تسجيل الدخول بدون مشاكل
+  // (أول تسجيل دخول من المتصفح سيُضاف كجهاز أول — مسموح بجهازين كحد أقصى)
 
   await q(`
     INSERT INTO student_devices
@@ -1325,7 +1351,7 @@ async function seed() {
       'Laptop Unknown','197.34.5.120','pending',NOW()-INTERVAL '3 days')
   `, [T1, sids['std_nada']]);
 
-  console.log('  ✓ أجهزة الطلاب + 1 تنبيه');
+  console.log('  ✓ أجهزة الطلاب (std_ali: لا جهاز مسبق) + 1 تنبيه');
 
   // ══════════════════════════════════════════════════════════
   // 23. التسميعات (recitations) — كل الحالات
@@ -1557,6 +1583,47 @@ async function seed() {
   // r3: std_ali لم يؤده بعد (لا نتيجة)
   // r4: قادم — لم يفتح بعد (لا نتيجة)
 
+  // باقي طلاب في r2 (مراجعة المثلثات الأسبوعية)
+  await q(`
+    INSERT INTO recitation_results
+      (student_id,recitation_id,score,correct_count,wrong_count,unanswered_count,
+       answers,points_earned,start_time,end_time,passed,created_at)
+    VALUES ($1,$2,16,4,1,0,$3,10,
+      NOW()-INTERVAL '4 days'-INTERVAL '12 minutes',
+      NOW()-INTERVAL '4 days',
+      true,NOW()-INTERVAL '4 days')
+  `, [sids['std_fatma'],   r2.id, JSON.stringify([])]);
+
+  await q(`
+    INSERT INTO recitation_results
+      (student_id,recitation_id,score,correct_count,wrong_count,unanswered_count,
+       answers,points_earned,start_time,end_time,passed,created_at)
+    VALUES ($1,$2,20,5,0,0,$3,10,
+      NOW()-INTERVAL '4 days'-INTERVAL '11 minutes',
+      NOW()-INTERVAL '4 days',
+      true,NOW()-INTERVAL '4 days')
+  `, [sids['std_youssef'], r2.id, JSON.stringify([])]);
+
+  await q(`
+    INSERT INTO recitation_results
+      (student_id,recitation_id,score,correct_count,wrong_count,unanswered_count,
+       answers,points_earned,start_time,end_time,passed,created_at)
+    VALUES ($1,$2,6,2,3,0,$3,3,
+      NOW()-INTERVAL '3 days'-INTERVAL '14 minutes',
+      NOW()-INTERVAL '3 days',
+      false,NOW()-INTERVAL '3 days')
+  `, [sids['std_nada'],    r2.id, JSON.stringify([])]);
+
+  await q(`
+    INSERT INTO recitation_results
+      (student_id,recitation_id,score,correct_count,wrong_count,unanswered_count,
+       answers,points_earned,start_time,end_time,passed,created_at)
+    VALUES ($1,$2,10,3,2,0,$3,3,
+      NOW()-INTERVAL '3 days'-INTERVAL '13 minutes',
+      NOW()-INTERVAL '3 days',
+      false,NOW()-INTERVAL '3 days')
+  `, [sids['std_omar'],    r2.id, JSON.stringify([])]);
+
   // باقي طلاب في r1
   for (const sid of [sids['std_fatma'], sids['std_youssef'], sids['std_omar']]) {
     const passed = Math.random() > 0.3;
@@ -1574,20 +1641,29 @@ async function seed() {
         passed]);
   }
 
-  // طلاب ث2 في r5
-  for (const sid of [sids['std_mostafa'], sids['std_rana']]) {
+  // طلاب ث2 في r5 (هندسة تحليلية)
+  const r5Results = [
+    [sids['std_mostafa'], 8,  4, 1, true,  2],
+    [sids['std_rana'],    8,  4, 1, true,  2],
+    [sids['std_adam'],    4,  2, 3, false, 1],
+    [sids['std_lina'],    10, 5, 0, true,  1],
+  ];
+  for (const [sid, score, correct, wrong, passed, daysAgo] of r5Results) {
     await q(`
       INSERT INTO recitation_results
         (student_id,recitation_id,score,correct_count,wrong_count,unanswered_count,
          answers,points_earned,start_time,end_time,passed,created_at)
-      VALUES ($1,$2,8,4,1,0,$3,7,
-        NOW()-INTERVAL '2 days'-INTERVAL '9 minutes',
-        NOW()-INTERVAL '2 days',
-        true,NOW()-INTERVAL '2 days')
-    `, [sid, r5.id, JSON.stringify([])]);
+      VALUES ($1,$2,$3,$4,$5,0,$6,$7,
+        NOW()-INTERVAL '${daysAgo} days'-INTERVAL '9 minutes',
+        NOW()-INTERVAL '${daysAgo} days',
+        $8,NOW()-INTERVAL '${daysAgo} days')
+    `, [sid, r5.id, score, correct, wrong,
+        JSON.stringify([]),
+        passed ? 7 : 2,
+        passed]);
   }
 
-  console.log('  ✓ نتائج التسميعات: std_ali (ناجح في r1، راسب في r2، لم يؤد r3+r4)');
+  console.log('  ✓ نتائج التسميعات: std_ali (ناجح في r1، راسب في r2، لم يؤد r3+r4) + بيانات أرشيف شاملة');
 
   // ── سلاسل التسميعات (streaks) ────────────────────────────
 
@@ -1790,14 +1866,16 @@ async function seed() {
   console.log('  │  📄 PDF: 14                                                  │');
   console.log('  │  🏦 بنوك أسئلة: 2      bank1 (15 سؤال) + bank2 (10 أسئلة)  │');
   console.log('  │  📝 امتحانات: 11       منتهي×5، نشط×4، قادم×1، مسودة×1     │');
+  console.log('  │  📊 نتائج امتحانات: شاملة (كل الطلاب × متعدد الامتحانات)   │');
   console.log('  │  📖 تسميعات: 6         نشط×4، قادم×1، مسودة×1              │');
   console.log('  │     std_ali: ناجح×1، راسب×1، لم يؤد×2 (r3 نشط + r4 قادم)  │');
+  console.log('  │  📋 نتائج تسميعات: شاملة (r1,r2,r5 لمتعدد الطلاب)         │');
   console.log('  │  💳 مدفوعات: 12        verified×8، pending×3، rejected×1    │');
   console.log('  │  🔔 إشعارات: 9 لـ std_ali + جماعية                          │');
   console.log('  │  🏅 شارات: std_ali (×2)                                     │');
   console.log('  │  📡 بث مباشر: 3        منتهي×1، نشط×1، مجدول×1             │');
   console.log('  │  🎮 فعاليات: 5         Stickman Run                         │');
-  console.log('  │  📱 أجهزة: 4           + 1 تنبيه                            │');
+  console.log('  │  📱 أجهزة: 3 (std_ali: 0 — حر للتسجيل) + 1 تنبيه          │');
   console.log('  │  💬 واتساب: 2 جدول + 2 سجل إرسال                           │');
   console.log('  │  📊 سجل نشاط: 60+ حدث (يشمل أحداث التسميعات)              │');
   console.log('  └──────────────────────────────────────────────────────────────┘');
