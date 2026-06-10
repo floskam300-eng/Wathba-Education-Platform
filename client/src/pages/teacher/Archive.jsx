@@ -126,7 +126,7 @@ export default function ArchivePage() {
 
   const { data: filters } = useQuery({
     queryKey: ['archive-filters'],
-    queryFn: () => api.get('/api/archive/filters').then(r => r.data),
+    queryFn: () => api.get('/archive/filters').then(r => r.data),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -161,14 +161,14 @@ export default function ArchivePage() {
   // FIX-F1: keepPreviousData removed in React Query v5 — use placeholderData instead
   const { data: examData, isLoading: examLoading } = useQuery({
     queryKey: ['archive-exams', examParams],
-    queryFn: () => api.get('/api/archive/exam-results', { params: examParams }).then(r => r.data),
+    queryFn: () => api.get('/archive/exam-results', { params: examParams }).then(r => r.data),
     placeholderData: keepPreviousData,
     enabled: tab === 'exams',
   });
 
   const { data: recData, isLoading: recLoading } = useQuery({
     queryKey: ['archive-recs', recParams],
-    queryFn: () => api.get('/api/archive/recitation-results', { params: recParams }).then(r => r.data),
+    queryFn: () => api.get('/archive/recitation-results', { params: recParams }).then(r => r.data),
     placeholderData: keepPreviousData,
     enabled: tab === 'recitations',
   });

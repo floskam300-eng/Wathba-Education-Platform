@@ -37,17 +37,17 @@ export default function StudentArchiveModal({ student, onClose }) {
 
   const { data: summary, isLoading: sumLoading } = useQuery({
     queryKey: ['archive-student-summary', student.id],
-    queryFn: () => api.get(`/api/archive/student/${student.id}/summary`).then(r => r.data),
+    queryFn: () => api.get(`/archive/student/${student.id}/summary`).then(r => r.data),
   });
 
   const { data: examResults, isLoading: examLoading } = useQuery({
     queryKey: ['archive-student-exams', student.id],
-    queryFn: () => api.get(`/api/archive/student/${student.id}/exam-results`).then(r => r.data),
+    queryFn: () => api.get(`/archive/student/${student.id}/exam-results`).then(r => r.data),
   });
 
   const { data: recResults, isLoading: recLoading } = useQuery({
     queryKey: ['archive-student-recs', student.id],
-    queryFn: () => api.get(`/api/archive/student/${student.id}/recitation-results`).then(r => r.data),
+    queryFn: () => api.get(`/archive/student/${student.id}/recitation-results`).then(r => r.data),
   });
 
   const card = dark ? 'bg-[var(--dk-surface)] border-[var(--dk-border)]' : 'bg-white border-gray-100';
