@@ -53,6 +53,15 @@ const getRecitationForOwner = async (id, teacherId) => {
   return r.rows[0] || null;
 };
 
+// ── [R6-FIX] Calendar-day streak diff — compares date parts, not 24h periods ─
+function calendarDayDiff(dateA, dateB) {
+  const a = new Date(dateA);
+  const b = new Date(dateB);
+  const utcA = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
+  const utcB = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate());
+  return Math.round((utcB - utcA) / 86400000);
+}
+
 // ════════════════════════════════════════════════════════════════════════════════
 // TEACHER/ASSISTANT ROUTES
 // ════════════════════════════════════════════════════════════════════════════════
@@ -95,6 +104,18 @@ router.post('/', requireRole('teacher', 'assistant'), checkManageRecitationsPerm
   if (isNaN(dur) || dur < 1 || dur > 60)
     return res.status(400).json({ error: 'المدة يجب أن تكون بين 1 و60 دقيقة' });
 
+  const totalSc = parseInt(total_score, 10) || 10;
+  const passSc  = parseInt(pass_score, 10)  || 5;
+  // [R7-FIX] Validate pass_score does not exceed total_score
+  if (passSc > totalSc)
+    return res.status(400).json({ error: 'درجة النجاح لا يمكن أن تتجاوز الدرجة الكلية' });
+  if (passSc < 0 || totalSc < 1)
+    return res.status(400).json({ error: 'الدرجات غير صالحة' });
+
+  // [R9-FIX] Validate date range
+  if (start_date && end_date && new Date(end_date) <= new Date(start_date))
+    return res.status(400).json({ error: 'تاريخ الانتهاء يجب أن يكون بعد تاريخ البداية' });
+
   try {
     const teacherId = getTeacherId(req);
     const { rows } = await pool.query(
@@ -111,8 +132,8 @@ router.post('/', requireRole('teacher', 'assistant'), checkManageRecitationsPerm
         description || null,
         academic_stage || null,
         dur,
-        parseInt(total_score, 10) || 10,
-        parseInt(pass_score, 10) || 5,
+        totalSc,
+        passSc,
         parseInt(points_on_attempt, 10) || 0,
         parseInt(points_on_pass, 10) || 5,
         schedule_type || 'once',
@@ -135,6 +156,191 @@ router.post('/', requireRole('teacher', 'assistant'), checkManageRecitationsPerm
   }
 });
 
+// ── [R1-FIX] Analytics & student fixed-path routes are registered BEFORE
+//    any /:id parameterised routes to avoid Express shadowing them. ────────────
+
+// GET /api/recitations/analytics — teacher analytics
+router.get('/analytics', requireRole('teacher', 'assistant'), async (req, res) => {
+  if (req.user.role === 'assistant') {
+    const perms = await getPermissions(req.user.id, pool).catch(() => null);
+    if (!perms || (!perms.can_manage_recitations && !perms.can_view_analytics))
+      return res.status(403).json({ error: 'Access denied' });
+  }
+
+  try {
+    const teacherId = getTeacherId(req);
+
+    const [totalRec, totalResults, avgScore, byStage, topStudents, recentActivity] = await Promise.all([
+      pool.query('SELECT COUNT(*) AS cnt FROM recitations WHERE teacher_id=$1', [teacherId]),
+      pool.query(
+        'SELECT COUNT(*) AS cnt FROM recitation_results rr JOIN recitations r ON rr.recitation_id=r.id WHERE r.teacher_id=$1',
+        [teacherId]
+      ),
+      pool.query(
+        `SELECT COALESCE(AVG(rr.score),0)::numeric(5,1) AS avg
+           FROM recitation_results rr
+           JOIN recitations r ON rr.recitation_id=r.id
+          WHERE r.teacher_id=$1`,
+        [teacherId]
+      ),
+      pool.query(
+        `SELECT COALESCE(s.academic_stage,'غير محدد') AS stage,
+                COUNT(DISTINCT rr.student_id) AS participants,
+                COALESCE(AVG(rr.score),0)::numeric(5,1) AS avg_score,
+                COUNT(rr.id) AS total_attempts
+           FROM recitation_results rr
+           JOIN recitations r ON rr.recitation_id=r.id
+           JOIN students s ON rr.student_id=s.id
+          WHERE r.teacher_id=$1
+          GROUP BY s.academic_stage
+          ORDER BY total_attempts DESC`,
+        [teacherId]
+      ),
+      pool.query(
+        `SELECT s.id, s.name, s.academic_stage,
+                COUNT(rr.id) AS total_completed,
+                COALESCE(AVG(rr.score),0)::numeric(5,1) AS avg_score,
+                COALESCE(rs.current_streak,0) AS current_streak,
+                COALESCE(rs.max_streak,0) AS max_streak
+           FROM students s
+           JOIN recitation_results rr ON s.id=rr.student_id
+           JOIN recitations rec ON rr.recitation_id=rec.id
+           LEFT JOIN recitation_streaks rs ON s.id=rs.student_id AND rs.teacher_id=$1
+          WHERE rec.teacher_id=$1 AND s.deleted_at IS NULL
+          GROUP BY s.id, rs.current_streak, rs.max_streak
+          ORDER BY total_completed DESC, avg_score DESC
+          LIMIT 20`,
+        [teacherId]
+      ),
+      pool.query(
+        `SELECT r.id, r.title, r.academic_stage,
+                COUNT(rr.id) AS participant_count,
+                COALESCE(AVG(rr.score),0)::numeric(5,1) AS avg_score,
+                COALESCE(AVG(CASE WHEN rr.passed THEN 1 ELSE 0 END)*100,0)::numeric(5,1) AS pass_rate
+           FROM recitations r
+           LEFT JOIN recitation_results rr ON r.id=rr.recitation_id
+          WHERE r.teacher_id=$1
+          GROUP BY r.id
+          ORDER BY r.created_at DESC
+          LIMIT 10`,
+        [teacherId]
+      ),
+    ]);
+
+    res.json({
+      summary: {
+        total_recitations: parseInt(totalRec.rows[0].cnt, 10),
+        total_results: parseInt(totalResults.rows[0].cnt, 10),
+        avg_score: parseFloat(avgScore.rows[0].avg) || 0,
+      },
+      by_stage: byStage.rows,
+      top_students: topStudents.rows,
+      recent_recitations: recentActivity.rows,
+    });
+  } catch (err) {
+    console.error('[recitations GET /analytics]', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════════════
+// STUDENT FIXED-PATH ROUTES (must come before /:id routes)
+// ════════════════════════════════════════════════════════════════════════════════
+
+// GET /api/recitations/student/list — available recitations for student
+router.get('/student/list', requireRole('student'), async (req, res) => {
+  try {
+    const studentId = req.user.id;
+
+    // Get student info (teacher_id + academic_stage) — tenant isolation
+    const { rows: stRows } = await pool.query(
+      'SELECT teacher_id, academic_stage FROM students WHERE id=$1 AND deleted_at IS NULL',
+      [studentId]
+    );
+    if (!stRows.length) return res.status(404).json({ error: 'الطالب غير موجود' });
+    const { teacher_id: teacherId, academic_stage } = stRows[0];
+
+    // List recitations targeted at this student (teacher + stage match)
+    const { rows } = await pool.query(
+      `SELECT r.*,
+              (SELECT COUNT(*) FROM recitation_questions WHERE recitation_id=r.id) AS question_count,
+              rr.id AS result_id, rr.score AS my_score, rr.passed AS my_passed,
+              rr.correct_count AS my_correct, rr.wrong_count AS my_wrong,
+              rr.created_at AS my_submitted_at,
+              rs2.id AS session_id
+         FROM recitations r
+         LEFT JOIN (
+           SELECT DISTINCT ON (recitation_id) *
+           FROM recitation_results WHERE student_id=$1
+           ORDER BY recitation_id, created_at DESC
+         ) rr ON r.id=rr.recitation_id
+         LEFT JOIN recitation_sessions rs2 ON r.id=rs2.recitation_id AND rs2.student_id=$1
+        WHERE r.teacher_id=$2
+          AND r.is_published=true
+          AND (r.academic_stage IS NULL OR r.academic_stage=$3)
+        ORDER BY r.start_date DESC NULLS LAST, r.created_at DESC`,
+      [studentId, teacherId, academic_stage]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('[recitations GET /student/list]', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /api/recitations/student/streak — student streak info
+router.get('/student/streak', requireRole('student'), async (req, res) => {
+  try {
+    const studentId = req.user.id;
+
+    const { rows: stRows } = await pool.query(
+      'SELECT teacher_id FROM students WHERE id=$1 AND deleted_at IS NULL',
+      [studentId]
+    );
+    if (!stRows.length) return res.status(404).json({ error: 'الطالب غير موجود' });
+    const teacherId = stRows[0].teacher_id;
+
+    const { rows } = await pool.query(
+      'SELECT * FROM recitation_streaks WHERE student_id=$1 AND teacher_id=$2',
+      [studentId, teacherId]
+    );
+    res.json(rows[0] || { current_streak: 0, max_streak: 0, total_completed: 0 });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /api/recitations/student/results — student's full result history
+// [R1-FIX] This route was previously shadowed by GET /:id/results — now placed first
+router.get('/student/results', requireRole('student'), async (req, res) => {
+  try {
+    const studentId = req.user.id;
+
+    const { rows: stRows } = await pool.query(
+      'SELECT teacher_id FROM students WHERE id=$1 AND deleted_at IS NULL',
+      [studentId]
+    );
+    if (!stRows.length) return res.status(404).json({ error: 'الطالب غير موجود' });
+    const teacherId = stRows[0].teacher_id;
+
+    const { rows } = await pool.query(
+      `SELECT rr.*, r.title, r.total_score, r.pass_score, r.academic_stage
+         FROM recitation_results rr
+         JOIN recitations r ON rr.recitation_id=r.id
+        WHERE rr.student_id=$1 AND r.teacher_id=$2
+        ORDER BY rr.created_at DESC`,
+      [studentId, teacherId]
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════════════
+// TEACHER/ASSISTANT PARAMETERISED ROUTES
+// ════════════════════════════════════════════════════════════════════════════════
+
 // PUT /api/recitations/:id — update
 router.put('/:id', requireRole('teacher', 'assistant'), checkManageRecitationsPerm, async (req, res) => {
   const id = parseParamId(req.params.id);
@@ -150,15 +356,27 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageRecitationsPe
   if (!title || !String(title).trim())
     return res.status(400).json({ error: 'العنوان مطلوب' });
 
+  const dur = parseInt(duration_minutes, 10);
+  if (isNaN(dur) || dur < 1 || dur > 60)
+    return res.status(400).json({ error: 'المدة يجب أن تكون بين 1 و60 دقيقة' });
+
+  const totalSc = parseInt(total_score, 10) || 10;
+  const passSc  = parseInt(pass_score, 10)  || 5;
+  // [R7-FIX] Validate pass_score does not exceed total_score
+  if (passSc > totalSc)
+    return res.status(400).json({ error: 'درجة النجاح لا يمكن أن تتجاوز الدرجة الكلية' });
+  if (passSc < 0 || totalSc < 1)
+    return res.status(400).json({ error: 'الدرجات غير صالحة' });
+
+  // [R9-FIX] Validate date range
+  if (start_date && end_date && new Date(end_date) <= new Date(start_date))
+    return res.status(400).json({ error: 'تاريخ الانتهاء يجب أن يكون بعد تاريخ البداية' });
+
   try {
     const teacherId = getTeacherId(req);
     const rec = await getRecitationForOwner(id, teacherId);
     if (!rec) return res.status(404).json({ error: 'التسميع غير موجود' });
     if (rec.is_published) return res.status(409).json({ error: 'لا يمكن تعديل تسميع منشور. قم بإلغاء النشر أولاً' });
-
-    const dur = parseInt(duration_minutes, 10);
-    if (isNaN(dur) || dur < 1 || dur > 60)
-      return res.status(400).json({ error: 'المدة يجب أن تكون بين 1 و60 دقيقة' });
 
     const { rows } = await pool.query(
       `UPDATE recitations SET
@@ -169,7 +387,7 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageRecitationsPe
        WHERE id=$15 AND teacher_id=$16 RETURNING *`,
       [
         String(title).trim(), description || null, academic_stage || null, dur,
-        parseInt(total_score, 10) || 10, parseInt(pass_score, 10) || 5,
+        totalSc, passSc,
         parseInt(points_on_attempt, 10) || 0, parseInt(points_on_pass, 10) || 5,
         schedule_type || 'once',
         schedule_day != null ? parseInt(schedule_day, 10) : null,
@@ -230,9 +448,9 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageRecit
     }
 
     const { rows } = await pool.query(
-      `UPDATE recitations SET is_published=$1, start_notified=$2
-        WHERE id=$3 AND teacher_id=$4 RETURNING *`,
-      [newPublished, newPublished ? false : false, id, teacherId]
+      `UPDATE recitations SET is_published=$1, start_notified=false
+        WHERE id=$2 AND teacher_id=$3 RETURNING *`,
+      [newPublished, id, teacherId]
     );
 
     // Notify eligible students on publish
@@ -254,7 +472,6 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageRecit
           title: rec2.title,
           recitationId: rec2.id,
         });
-        // Insert notification
         pool.query(
           `INSERT INTO notification_log (teacher_id, student_id, title, message, type, source)
            VALUES ($1,$2,$3,$4,'new_recitation','platform')`,
@@ -436,182 +653,9 @@ router.get('/:id/results', requireRole('teacher', 'assistant'), checkManageRecit
   }
 });
 
-// GET /api/recitations/analytics — teacher analytics
-router.get('/analytics', requireRole('teacher', 'assistant'), async (req, res) => {
-  if (req.user.role === 'assistant') {
-    const perms = await getPermissions(req.user.id, pool).catch(() => null);
-    if (!perms || (!perms.can_manage_recitations && !perms.can_view_analytics))
-      return res.status(403).json({ error: 'Access denied' });
-  }
-
-  try {
-    const teacherId = getTeacherId(req);
-
-    const [totalRec, totalResults, avgScore, byStage, topStudents, recentActivity] = await Promise.all([
-      pool.query('SELECT COUNT(*) AS cnt FROM recitations WHERE teacher_id=$1', [teacherId]),
-      pool.query(
-        'SELECT COUNT(*) AS cnt FROM recitation_results rr JOIN recitations r ON rr.recitation_id=r.id WHERE r.teacher_id=$1',
-        [teacherId]
-      ),
-      pool.query(
-        `SELECT COALESCE(AVG(rr.score),0)::numeric(5,1) AS avg
-           FROM recitation_results rr
-           JOIN recitations r ON rr.recitation_id=r.id
-          WHERE r.teacher_id=$1`,
-        [teacherId]
-      ),
-      pool.query(
-        `SELECT COALESCE(s.academic_stage,'غير محدد') AS stage,
-                COUNT(DISTINCT rr.student_id) AS participants,
-                COALESCE(AVG(rr.score),0)::numeric(5,1) AS avg_score,
-                COUNT(rr.id) AS total_attempts
-           FROM recitation_results rr
-           JOIN recitations r ON rr.recitation_id=r.id
-           JOIN students s ON rr.student_id=s.id
-          WHERE r.teacher_id=$1
-          GROUP BY s.academic_stage
-          ORDER BY total_attempts DESC`,
-        [teacherId]
-      ),
-      pool.query(
-        `SELECT s.id, s.name, s.academic_stage,
-                COUNT(rr.id) AS total_completed,
-                COALESCE(AVG(rr.score),0)::numeric(5,1) AS avg_score,
-                COALESCE(rs.current_streak,0) AS current_streak,
-                COALESCE(rs.max_streak,0) AS max_streak
-           FROM students s
-           JOIN recitation_results rr ON s.id=rr.student_id
-           JOIN recitations rec ON rr.recitation_id=rec.id
-           LEFT JOIN recitation_streaks rs ON s.id=rs.student_id AND rs.teacher_id=$1
-          WHERE rec.teacher_id=$1 AND s.deleted_at IS NULL
-          GROUP BY s.id, rs.current_streak, rs.max_streak
-          ORDER BY total_completed DESC, avg_score DESC
-          LIMIT 20`,
-        [teacherId]
-      ),
-      pool.query(
-        `SELECT r.id, r.title, r.academic_stage,
-                COUNT(rr.id) AS participant_count,
-                COALESCE(AVG(rr.score),0)::numeric(5,1) AS avg_score,
-                COALESCE(AVG(CASE WHEN rr.passed THEN 1 ELSE 0 END)*100,0)::numeric(5,1) AS pass_rate
-           FROM recitations r
-           LEFT JOIN recitation_results rr ON r.id=rr.recitation_id
-          WHERE r.teacher_id=$1
-          GROUP BY r.id
-          ORDER BY r.created_at DESC
-          LIMIT 10`,
-        [teacherId]
-      ),
-    ]);
-
-    res.json({
-      summary: {
-        total_recitations: parseInt(totalRec.rows[0].cnt, 10),
-        total_results: parseInt(totalResults.rows[0].cnt, 10),
-        avg_score: parseFloat(avgScore.rows[0].avg) || 0,
-      },
-      by_stage: byStage.rows,
-      top_students: topStudents.rows,
-      recent_recitations: recentActivity.rows,
-    });
-  } catch (err) {
-    console.error('[recitations GET /analytics]', err.message);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
 // ════════════════════════════════════════════════════════════════════════════════
-// STUDENT ROUTES
+// STUDENT SESSION ROUTES
 // ════════════════════════════════════════════════════════════════════════════════
-
-// GET /api/recitations/student/list — available recitations for student
-router.get('/student/list', requireRole('student'), async (req, res) => {
-  try {
-    const studentId = req.user.id;
-
-    // Get student info (teacher_id + academic_stage) — tenant isolation
-    const { rows: stRows } = await pool.query(
-      'SELECT teacher_id, academic_stage FROM students WHERE id=$1 AND deleted_at IS NULL',
-      [studentId]
-    );
-    if (!stRows.length) return res.status(404).json({ error: 'الطالب غير موجود' });
-    const { teacher_id: teacherId, academic_stage } = stRows[0];
-
-    // List recitations targeted at this student (teacher + stage match)
-    const { rows } = await pool.query(
-      `SELECT r.*,
-              (SELECT COUNT(*) FROM recitation_questions WHERE recitation_id=r.id) AS question_count,
-              rr.id AS result_id, rr.score AS my_score, rr.passed AS my_passed,
-              rr.correct_count AS my_correct, rr.wrong_count AS my_wrong,
-              rr.created_at AS my_submitted_at,
-              rs2.id AS session_id
-         FROM recitations r
-         LEFT JOIN (
-           SELECT DISTINCT ON (recitation_id) *
-           FROM recitation_results WHERE student_id=$1
-           ORDER BY recitation_id, created_at DESC
-         ) rr ON r.id=rr.recitation_id
-         LEFT JOIN recitation_sessions rs2 ON r.id=rs2.recitation_id AND rs2.student_id=$1
-        WHERE r.teacher_id=$2
-          AND r.is_published=true
-          AND (r.academic_stage IS NULL OR r.academic_stage=$3)
-        ORDER BY r.start_date DESC NULLS LAST, r.created_at DESC`,
-      [studentId, teacherId, academic_stage]
-    );
-    res.json(rows);
-  } catch (err) {
-    console.error('[recitations GET /student/list]', err.message);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// GET /api/recitations/student/streak — student streak info
-router.get('/student/streak', requireRole('student'), async (req, res) => {
-  try {
-    const studentId = req.user.id;
-
-    const { rows: stRows } = await pool.query(
-      'SELECT teacher_id FROM students WHERE id=$1 AND deleted_at IS NULL',
-      [studentId]
-    );
-    if (!stRows.length) return res.status(404).json({ error: 'الطالب غير موجود' });
-    const teacherId = stRows[0].teacher_id;
-
-    const { rows } = await pool.query(
-      'SELECT * FROM recitation_streaks WHERE student_id=$1 AND teacher_id=$2',
-      [studentId, teacherId]
-    );
-    res.json(rows[0] || { current_streak: 0, max_streak: 0, total_completed: 0 });
-  } catch (err) {
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// GET /api/recitations/student/results — student's full result history
-router.get('/student/results', requireRole('student'), async (req, res) => {
-  try {
-    const studentId = req.user.id;
-
-    const { rows: stRows } = await pool.query(
-      'SELECT teacher_id FROM students WHERE id=$1 AND deleted_at IS NULL',
-      [studentId]
-    );
-    if (!stRows.length) return res.status(404).json({ error: 'الطالب غير موجود' });
-    const teacherId = stRows[0].teacher_id;
-
-    const { rows } = await pool.query(
-      `SELECT rr.*, r.title, r.total_score, r.pass_score, r.academic_stage
-         FROM recitation_results rr
-         JOIN recitations r ON rr.recitation_id=r.id
-        WHERE rr.student_id=$1 AND r.teacher_id=$2
-        ORDER BY rr.created_at DESC`,
-      [studentId, teacherId]
-    );
-    res.json(rows);
-  } catch (err) {
-    res.status(500).json({ error: 'Server error' });
-  }
-});
 
 // GET /api/recitations/:id/take — start or resume session
 router.get('/:id/take', requireRole('student'), async (req, res) => {
@@ -646,10 +690,14 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
     if (rec.end_date && new Date(rec.end_date) < now)
       return res.status(400).json({ error: 'انتهى وقت التسميع' });
 
-    // Check if already submitted
+    // [R5-FIX] For recurring recitations: only block if student already submitted
+    // WITHIN the current window (start_date). This allows retaking in a new window.
     const { rows: existing } = await pool.query(
-      'SELECT id FROM recitation_results WHERE student_id=$1 AND recitation_id=$2 LIMIT 1',
-      [studentId, id]
+      `SELECT id FROM recitation_results
+        WHERE student_id=$1 AND recitation_id=$2
+          AND ($3::timestamp IS NULL OR created_at >= $3::timestamp)
+        LIMIT 1`,
+      [studentId, id, rec.start_date]
     );
     if (existing.length) return res.status(409).json({ error: 'لقد أديت هذا التسميع بالفعل', already_submitted: true });
 
@@ -662,9 +710,14 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
     if (sessRows.length) {
       // Resume existing session
       const sess = sessRows[0];
+      // [R2-FIX] Strip correct_answer_letter before sending to client
+      const clientSnapshot = (sess.questions_snapshot || []).map(q => ({
+        ...q,
+        correct_answer_letter: undefined,
+      }));
       return res.json({
         recitation: rec,
-        questions: sess.questions_snapshot,
+        questions: clientSnapshot,
         server_started_at: sess.started_at,
         resumed: true,
       });
@@ -739,6 +792,12 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
   const { answers } = req.body;
   if (!Array.isArray(answers)) return res.status(400).json({ error: 'الإجابات غير صالحة' });
 
+  // [R10-FIX] Limit answers array size to prevent abuse
+  if (answers.length > 500)
+    return res.status(400).json({ error: 'عدد الإجابات تجاوز الحد المسموح' });
+
+  const VALID_ANSWER_LETTERS = new Set(['A','B','C','D','T','F']);
+
   try {
     const studentId = req.user.id;
 
@@ -760,10 +819,12 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
     if (!recRows.length) return res.status(404).json({ error: 'التسميع غير متاح' });
     const rec = recRows[0];
 
-    // Already submitted?
+    // [R5-FIX] Check for existing result within current window only
     const { rows: existingResult } = await pool.query(
-      'SELECT id FROM recitation_results WHERE student_id=$1 AND recitation_id=$2',
-      [studentId, id]
+      `SELECT id FROM recitation_results
+        WHERE student_id=$1 AND recitation_id=$2
+          AND ($3::timestamp IS NULL OR created_at >= $3::timestamp)`,
+      [studentId, id, rec.start_date]
     );
     if (existingResult.length)
       return res.status(409).json({ error: 'لقد أديت هذا التسميع بالفعل', already_submitted: true });
@@ -780,17 +841,20 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
     const elapsedMs = Date.now() - new Date(session.started_at).getTime();
     const maxMs = (rec.duration_minutes * 60 + 30) * 1000;
     if (elapsedMs > maxMs)
-      return res.status(400).json({ error: 'انتهى وقت التسميع' });
+      return res.status(400).json({ error: 'انتهى وقت التسميع', timer_expired: true });
 
     // Score from server snapshot — never trust client question data
     const snapshot = session.questions_snapshot;
     const answerMap = {};
     for (const a of answers) {
-      if (a.question_id != null) answerMap[a.question_id] = a.answer;
+      if (a.question_id != null) {
+        // [R10-FIX] Only accept valid answer letters; reject garbage
+        const letter = String(a.answer || '').trim().toUpperCase();
+        answerMap[a.question_id] = VALID_ANSWER_LETTERS.has(letter) ? letter : null;
+      }
     }
 
     let correct = 0, wrong = 0, unanswered = 0, rawScore = 0;
-    const scorePerQ = snapshot.length > 0 ? rec.total_score / snapshot.length : 0;
 
     for (const q of snapshot) {
       const studentAns = answerMap[q.id];
@@ -804,7 +868,7 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
       }
     }
 
-    // Normalize score
+    // Normalize score against total_score
     const totalPoints = snapshot.reduce((s, q) => s + (q.points || 1), 0);
     const finalScore = totalPoints > 0
       ? Math.round((rawScore / totalPoints) * rec.total_score)
@@ -830,8 +894,8 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
           studentId, id, finalScore, correct, wrong, unanswered,
           JSON.stringify(answers.map(a => ({
             question_id: a.question_id,
-            answer: a.answer,
-            correct: snapshot.find(q => q.id === a.question_id)?.correct_answer_letter === a.answer,
+            answer: answerMap[a.question_id] || null,
+            correct: snapshot.find(q => q.id === a.question_id)?.correct_answer_letter === answerMap[a.question_id],
           }))),
           pointsEarned,
           session.started_at,
@@ -847,7 +911,7 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
         );
       }
 
-      // Upsert streak — check if student already submitted a recitation today
+      // [R6-FIX] Upsert streak — use calendar-day comparison, not 24h millis
       const { rows: streakRows } = await client.query(
         'SELECT * FROM recitation_streaks WHERE student_id=$1 AND teacher_id=$2',
         [studentId, teacherId]
@@ -863,17 +927,17 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
         const streak = streakRows[0];
         const lastDate = streak.last_completed_at ? new Date(streak.last_completed_at) : null;
         const todayDate = new Date();
-        const diffDays = lastDate
-          ? Math.floor((todayDate - lastDate) / (1000 * 60 * 60 * 24))
-          : 999;
+
+        // [R6-FIX] Compare calendar dates (date part only), not 24-hour periods
+        const diffDays = lastDate ? calendarDayDiff(lastDate, todayDate) : 999;
 
         let newCurrent = streak.current_streak;
         if (diffDays === 0) {
-          // Same day — no streak change
+          // Same calendar day — no streak change
         } else if (diffDays === 1) {
           newCurrent += 1;
         } else {
-          newCurrent = 1;
+          newCurrent = 1; // streak broken
         }
         const newMax = Math.max(newCurrent, streak.max_streak);
 

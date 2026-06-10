@@ -124,9 +124,15 @@ export default function StudentRecitations() {
       const payload = JSON.stringify({
         answers: qs.map(q => ({ question_id: q.id, answer: answers[q.id] || null }))
       });
-      navigator.sendBeacon
-        ? navigator.sendBeacon(`/api/recitations/${selectedRec.id}/submit`, new Blob([payload], { type: 'application/json' }))
-        : fetch(`/api/recitations/${selectedRec.id}/submit`, { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: payload }).catch(() => {});
+      // [R4-FIX] sendBeacon does not support custom headers (Authorization),
+      // so the server always rejected it with 401. Use fetch with keepalive:true
+      // instead — it supports auth headers and survives page unload.
+      fetch(`/api/recitations/${selectedRec.id}/submit`, {
+        method: 'POST',
+        keepalive: true,
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: payload,
+      }).catch(() => {});
     };
     window.addEventListener('beforeunload', handleUnload);
     return () => window.removeEventListener('beforeunload', handleUnload);
@@ -151,9 +157,17 @@ export default function StudentRecitations() {
     } catch (e) {
       submittedRef.current = false;
       setSubmitting(false);
-      const msg = e.response?.data?.error || 'حدث خطأ أثناء التسليم';
-      if (e.response?.data?.already_submitted) {
+      const data = e.response?.data || {};
+      const msg = data.error || 'حدث خطأ أثناء التسليم';
+      if (data.already_submitted) {
         toast('تم تسليم التسميع بالفعل', { icon: 'ℹ️' });
+        localStorage.removeItem(`recitation_answers_${selectedRec?.id}`);
+        setView('list');
+        qc.invalidateQueries(['student-recitations']);
+      } else if (data.timer_expired) {
+        // [R8-FIX] Server rejected because time ran out — don't leave student stuck
+        toast.error('انتهى وقت التسميع');
+        localStorage.removeItem(`recitation_answers_${selectedRec?.id}`);
         setView('list');
         qc.invalidateQueries(['student-recitations']);
       } else {

@@ -223,17 +223,21 @@ async function runRecitationSchedule() {
           newEnd = next;
         }
 
-        // Reset: update dates + start_notified=false, clear old sessions
-        await _pool.query('BEGIN');
+        // [R3-FIX] Reset: use a dedicated client for the transaction.
+        // pool.query('BEGIN') is unsafe with connection pools — each call can
+        // land on a different connection. pool.connect() pins to one connection.
+        const txClient = await _pool.connect();
         try {
-          await _pool.query(
+          await txClient.query('BEGIN');
+          await txClient.query(
             `UPDATE recitations SET start_date=$1, end_date=$2, start_notified=false
               WHERE id=$3`,
             [newStart.toISOString(), newEnd.toISOString(), rec.id]
           );
           // Clear old sessions so students can take it again this window
-          await _pool.query('DELETE FROM recitation_sessions WHERE recitation_id=$1', [rec.id]);
-          await _pool.query('COMMIT');
+          await txClient.query('DELETE FROM recitation_sessions WHERE recitation_id=$1', [rec.id]);
+          await txClient.query('COMMIT');
+          txClient.release();
 
           // Notify eligible students
           let studentQuery, params;
@@ -261,7 +265,8 @@ async function runRecitationSchedule() {
 
           console.log(`[Scheduler] Recitation "${rec.title}" (id=${rec.id}) window reset — notified ${studentIds.length} students`);
         } catch (txErr) {
-          await _pool.query('ROLLBACK');
+          await txClient.query('ROLLBACK').catch(() => {});
+          txClient.release();
           throw txErr;
         }
       } catch (recErr) {
