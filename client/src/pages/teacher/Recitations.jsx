@@ -252,10 +252,15 @@ export default function Recitations() {
                         </div>
                       </div>
                       <div className="flex flex-col gap-1">
-                        <button onClick={e => { e.stopPropagation(); openEdit(rec); }}
-                          className={`p-1.5 rounded-lg transition-colors ${dark ? 'text-[var(--dk-text-2)] hover:bg-[var(--dk-elevated)]' : 'text-gray-400 hover:bg-gray-100'}`}>
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </button>
+                        {/* [N5-FIX] Hide edit button for published recitations —
+                            server rejects edits anyway (409) but showing the button
+                            misleads the teacher. */}
+                        {!rec.is_published && (
+                          <button onClick={e => { e.stopPropagation(); openEdit(rec); }}
+                            className={`p-1.5 rounded-lg transition-colors ${dark ? 'text-[var(--dk-text-2)] hover:bg-[var(--dk-elevated)]' : 'text-gray-400 hover:bg-gray-100'}`}>
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                         <button onClick={e => { e.stopPropagation(); setDeleteId(rec.id); }}
                           className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 transition-colors">
                           <Trash2 className="w-3.5 h-3.5" />

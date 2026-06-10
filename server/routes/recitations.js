@@ -176,8 +176,14 @@ router.get('/analytics', requireRole('teacher', 'assistant'), async (req, res) =
         'SELECT COUNT(*) AS cnt FROM recitation_results rr JOIN recitations r ON rr.recitation_id=r.id WHERE r.teacher_id=$1',
         [teacherId]
       ),
+      // [N3-FIX] Normalize score to percentage (0–100) so the UI's "%" display is correct.
+      // Without normalization, a score of 7/10 would show as "7%" instead of "70%".
       pool.query(
-        `SELECT COALESCE(AVG(rr.score),0)::numeric(5,1) AS avg
+        `SELECT COALESCE(
+           AVG(CASE WHEN r.total_score > 0
+                    THEN rr.score::float / r.total_score * 100
+                    ELSE 0 END), 0
+         )::numeric(5,1) AS avg
            FROM recitation_results rr
            JOIN recitations r ON rr.recitation_id=r.id
           WHERE r.teacher_id=$1`,
@@ -186,7 +192,9 @@ router.get('/analytics', requireRole('teacher', 'assistant'), async (req, res) =
       pool.query(
         `SELECT COALESCE(s.academic_stage,'غير محدد') AS stage,
                 COUNT(DISTINCT rr.student_id) AS participants,
-                COALESCE(AVG(rr.score),0)::numeric(5,1) AS avg_score,
+                COALESCE(AVG(CASE WHEN r.total_score > 0
+                                  THEN rr.score::float / r.total_score * 100
+                                  ELSE 0 END), 0)::numeric(5,1) AS avg_score,
                 COUNT(rr.id) AS total_attempts
            FROM recitation_results rr
            JOIN recitations r ON rr.recitation_id=r.id
@@ -199,7 +207,9 @@ router.get('/analytics', requireRole('teacher', 'assistant'), async (req, res) =
       pool.query(
         `SELECT s.id, s.name, s.academic_stage,
                 COUNT(rr.id) AS total_completed,
-                COALESCE(AVG(rr.score),0)::numeric(5,1) AS avg_score,
+                COALESCE(AVG(CASE WHEN rec.total_score > 0
+                                  THEN rr.score::float / rec.total_score * 100
+                                  ELSE 0 END), 0)::numeric(5,1) AS avg_score,
                 COALESCE(rs.current_streak,0) AS current_streak,
                 COALESCE(rs.max_streak,0) AS max_streak
            FROM students s
@@ -260,7 +270,10 @@ router.get('/student/list', requireRole('student'), async (req, res) => {
     if (!stRows.length) return res.status(404).json({ error: 'الطالب غير موجود' });
     const { teacher_id: teacherId, academic_stage } = stRows[0];
 
-    // List recitations targeted at this student (teacher + stage match)
+    // [N2-FIX] Use LATERAL join so we only fetch the most recent result
+    // WITHIN THE CURRENT WINDOW (created_at >= r.start_date).
+    // Without this fix, for recurring recitations a student who completed
+    // week-1 would still show "done" in week-2's fresh window.
     const { rows } = await pool.query(
       `SELECT r.*,
               (SELECT COUNT(*) FROM recitation_questions WHERE recitation_id=r.id) AS question_count,
@@ -269,11 +282,14 @@ router.get('/student/list', requireRole('student'), async (req, res) => {
               rr.created_at AS my_submitted_at,
               rs2.id AS session_id
          FROM recitations r
-         LEFT JOIN (
-           SELECT DISTINCT ON (recitation_id) *
-           FROM recitation_results WHERE student_id=$1
-           ORDER BY recitation_id, created_at DESC
-         ) rr ON r.id=rr.recitation_id
+         LEFT JOIN LATERAL (
+           SELECT * FROM recitation_results rr2
+            WHERE rr2.student_id=$1
+              AND rr2.recitation_id=r.id
+              AND (r.start_date IS NULL OR rr2.created_at >= r.start_date)
+            ORDER BY rr2.created_at DESC
+            LIMIT 1
+         ) rr ON true
          LEFT JOIN recitation_sessions rs2 ON r.id=rs2.recitation_id AND rs2.student_id=$1
         WHERE r.teacher_id=$2
           AND r.is_published=true
@@ -764,10 +780,15 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
     const clientSnapshot = snapshotQs.map(q => ({ ...q, correct_answer_letter: undefined }));
     const serverSnapshot = snapshotQs;
 
+    // [N1-FIX] ON CONFLICT must NOT reset started_at — doing so would reset
+    // the student's exam timer in the rare concurrent-request race condition.
+    // We only update the snapshot (same deterministic content) to handle the
+    // race, while preserving the original started_at for the timer.
     const { rows: sessionRows } = await pool.query(
       `INSERT INTO recitation_sessions (student_id, recitation_id, questions_snapshot)
        VALUES ($1,$2,$3)
-       ON CONFLICT (student_id, recitation_id) DO UPDATE SET started_at=NOW(), questions_snapshot=$3
+       ON CONFLICT (student_id, recitation_id) DO UPDATE
+         SET questions_snapshot=EXCLUDED.questions_snapshot
        RETURNING *`,
       [studentId, id, JSON.stringify(serverSnapshot)]
     );

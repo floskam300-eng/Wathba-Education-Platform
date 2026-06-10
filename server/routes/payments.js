@@ -224,6 +224,30 @@ router.put('/:id/verify', requireRole('teacher', 'assistant'), (req, res, next) 
       return res.status(400).json({ error: 'لا يمكن تغيير حالة مدفوعة تم التحقق منها — غيّرها لـ "معلّق" أولاً إذا لزم الأمر' });
     }
 
+    // [P1-FIX] Check course price BEFORE running the UPDATE.
+    // Previously the UPDATE ran first (marking payment as 'verified') and THEN
+    // the amount check ran — if it failed, we returned 400 but the DB already
+    // had status='verified', creating a permanently inconsistent row.
+    if (status === 'verified' && paymentRes.rows[0].course_id) {
+      const courseRow = await pool.query(
+        'SELECT price, is_free FROM courses WHERE id=$1',
+        [paymentRes.rows[0].course_id]
+      );
+      if (courseRow.rows.length > 0) {
+        const coursePrice = parseFloat(courseRow.rows[0].price) || 0;
+        const isFree     = courseRow.rows[0].is_free;
+        const paidAmount = parseFloat(paymentRes.rows[0].amount) || 0;
+        if (!isFree && coursePrice > 0 && paidAmount < coursePrice && !req.body.force_enroll) {
+          return res.status(400).json({
+            error: `المبلغ المدفوع (${paidAmount} جنيه) أقل من سعر الكورس (${coursePrice} جنيه) — لا يمكن التسجيل التلقائي. أرسل force_enroll=true للتجاوز يدوياً`,
+            code: 'AMOUNT_MISMATCH',
+            paid: paidAmount,
+            required: coursePrice,
+          });
+        }
+      }
+    }
+
     // [S-2] FIX: params must be declared before we push into it
     const params = [status];
     const updateFields = ['status=$1'];
@@ -258,28 +282,10 @@ router.put('/:id/verify', requireRole('teacher', 'assistant'), (req, res, next) 
 
     const payRow = result.rows[0];
 
-    // Auto-enroll student in course when payment is verified
-    // [M-9] FIX: compare payment amount with course price before auto-enroll
+    // Auto-enroll student in course when payment is verified.
+    // [P1-FIX] Amount pre-check was moved BEFORE the UPDATE above — no
+    // need to re-check here (the UPDATE already succeeded, so amount is OK).
     if (status === 'verified' && payRow.course_id) {
-      const courseRow = await pool.query(
-        'SELECT price, is_free FROM courses WHERE id=$1',
-        [payRow.course_id]
-      );
-      if (courseRow.rows.length > 0) {
-        const coursePrice = parseFloat(courseRow.rows[0].price) || 0;
-        const isFree = courseRow.rows[0].is_free;
-        const paidAmount = parseFloat(payRow.amount) || 0;
-        // Block auto-enroll if course is paid and payment amount is less than the price
-        // Allow override via force_enroll=true in request body (teacher's explicit decision)
-        if (!isFree && coursePrice > 0 && paidAmount < coursePrice && !req.body.force_enroll) {
-          return res.status(400).json({
-            error: `المبلغ المدفوع (${paidAmount} جنيه) أقل من سعر الكورس (${coursePrice} جنيه) — لا يمكن التسجيل التلقائي. أرسل force_enroll=true للتجاوز يدوياً`,
-            code: 'AMOUNT_MISMATCH',
-            paid: paidAmount,
-            required: coursePrice,
-          });
-        }
-      }
       await pool.query(
         `INSERT INTO student_course_enrollment (student_id, course_id, status)
          VALUES ($1, $2, 'active')

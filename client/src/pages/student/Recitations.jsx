@@ -10,7 +10,13 @@ import { useTheme } from '../../context/ThemeContext';
 
 function getStatus(rec) {
   const now = new Date();
-  if (rec.my_submitted_at) return 'done';
+  // [N2-FIX] For recurring recitations: only mark "done" if the student
+  // submitted WITHIN the current window (my_submitted_at >= start_date).
+  // Without this check a student who completed week-1 would still show
+  // "done" in week-2's fresh window.
+  const doneInCurrentWindow = rec.my_submitted_at &&
+    (!rec.start_date || new Date(rec.my_submitted_at) >= new Date(rec.start_date));
+  if (doneInCurrentWindow) return 'done';
   if (rec.start_date && new Date(rec.start_date) > now) return 'upcoming';
   if (rec.end_date && new Date(rec.end_date) < now) return 'expired';
   return 'open';
@@ -410,7 +416,16 @@ export default function StudentRecitations() {
                     })}
                   </div>
                   {!q.student_answer && (
-                    <p className="text-xs text-gray-400 mt-1 mr-8">لم يتم الإجابة · الصحيح: {q.correct_answer_letter}</p>
+                    // [N6-FIX] Show option TEXT not letter code, so T/F questions
+                    // show "صح" / "خطأ" instead of confusing "A" / "B".
+                    <p className="text-xs text-gray-400 mt-1 mr-8">
+                      {`لم يتم الإجابة · الصحيح: `}
+                      {q.correct_answer_letter === 'A' ? (q.option_a || 'A') :
+                       q.correct_answer_letter === 'B' ? (q.option_b || 'B') :
+                       q.correct_answer_letter === 'C' ? (q.option_c || 'C') :
+                       q.correct_answer_letter === 'D' ? (q.option_d || 'D') :
+                       q.correct_answer_letter}
+                    </p>
                   )}
                 </div>
               ))}

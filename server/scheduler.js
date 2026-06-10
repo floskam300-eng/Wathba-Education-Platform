@@ -274,6 +274,28 @@ async function runRecitationSchedule() {
       }
     }
 
+    // [N4-FIX] Clean up orphaned sessions from expired 'once' recitations.
+    // For recurring recitations the window-reset code already deletes sessions.
+    // For 'once' recitations that have ended, sessions from students who never
+    // submitted just pile up in the DB forever — clean them here.
+    try {
+      const { rowCount: cleanedSessions } = await _pool.query(`
+        DELETE FROM recitation_sessions rs
+        WHERE EXISTS (
+          SELECT 1 FROM recitations r
+           WHERE r.id = rs.recitation_id
+             AND r.schedule_type = 'once'
+             AND r.end_date IS NOT NULL
+             AND r.end_date < NOW()
+        )
+      `);
+      if (cleanedSessions > 0) {
+        console.log(`[Scheduler] Cleaned up ${cleanedSessions} orphaned session(s) from expired recitations`);
+      }
+    } catch (cleanErr) {
+      console.error('[Scheduler] Error cleaning orphaned sessions:', cleanErr.message);
+    }
+
     // Also handle start notifications for recitations
     const { rows: toNotify } = await _pool.query(`
       UPDATE recitations
