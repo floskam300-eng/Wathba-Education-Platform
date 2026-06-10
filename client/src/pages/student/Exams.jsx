@@ -190,6 +190,27 @@ export default function StudentExams() {
   useEffect(() => { examDataRef.current = examData; }, [examData]);
   useEffect(() => { startTimeRef.current = startTime; }, [startTime]);
 
+  // Must be declared here (before any early returns) to satisfy the Rules of Hooks.
+  // When the exam-taking view is active, this will always return [] due to the
+  // `if (taking) return []` guard inside the memo.
+  const stuckExamIds = React.useMemo(() => {
+    if (taking) return [];
+    try {
+      return Object.keys(localStorage)
+        .filter(k => k.startsWith('exam_start_'))
+        .map(k => parseInt(k.replace('exam_start_', ''), 10))
+        .filter(id => !isNaN(id));
+    } catch (_) { return []; }
+  }, [taking, exams]);
+
+  const clearStuckSession = (examId) => {
+    try {
+      localStorage.removeItem(`exam_start_${examId}`);
+      localStorage.removeItem(`exam_answers_${examId}`);
+    } catch (_) {}
+    window.location.reload();
+  };
+
   const handleSubmit = useCallback(() => {
     if (!taking || !examData || submittedRef.current) return;
     submittedRef.current = true;
@@ -563,27 +584,6 @@ export default function StudentExams() {
       </div>
     );
   }
-
-  // Detect any lingering exam sessions in localStorage (stuck state after error).
-  // Re-compute when `taking` changes (so banner disappears once exam is opened)
-  // and when `exams` loads (so IDs can be matched to titles).
-  const stuckExamIds = React.useMemo(() => {
-    if (taking) return [];
-    try {
-      return Object.keys(localStorage)
-        .filter(k => k.startsWith('exam_start_'))
-        .map(k => parseInt(k.replace('exam_start_', ''), 10))
-        .filter(id => !isNaN(id));
-    } catch (_) { return []; }
-  }, [taking, exams]);
-
-  const clearStuckSession = (examId) => {
-    try {
-      localStorage.removeItem(`exam_start_${examId}`);
-      localStorage.removeItem(`exam_answers_${examId}`);
-    } catch (_) {}
-    window.location.reload();
-  };
 
   return (
     <div className="h-full overflow-y-auto p-4 lg:p-6">

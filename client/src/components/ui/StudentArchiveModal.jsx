@@ -3,11 +3,12 @@ import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '../../context/ThemeContext';
 import {
   X, FileText, GraduationCap, CheckCircle2, XCircle,
-  Printer, ChevronDown, ChevronUp,
+  Printer, ChevronDown, ChevronUp, Eye,
 } from 'lucide-react';
 import api from '../../lib/api';
 import { generatePDFReport } from '../../lib/pdfReport';
 import toast from 'react-hot-toast';
+import ExamReviewModal from './ExamReviewModal';
 
 const fmt = (iso) => {
   if (!iso) return '—';
@@ -34,6 +35,7 @@ export default function StudentArchiveModal({ student, onClose }) {
   const { dark } = useTheme();
   const [tab, setTab] = useState('exams');
   const [expandedExam, setExpandedExam] = useState(null);
+  const [reviewResultId, setReviewResultId] = useState(null);
 
   const { data: summary, isLoading: sumLoading } = useQuery({
     queryKey: ['archive-student-summary', student.id],
@@ -113,6 +115,7 @@ export default function StudentArchiveModal({ student, onClose }) {
   const exR = summary?.recitations;
 
   return (
+    <>
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3" style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
       <div
         className={`w-full max-w-3xl max-h-[92vh] flex flex-col rounded-2xl shadow-2xl border overflow-hidden ${card}`}
@@ -297,6 +300,15 @@ export default function StudentArchiveModal({ student, onClose }) {
                               </div>
                             ))}
                           </div>
+                          <div className="pt-2 flex justify-end">
+                            <button
+                              onClick={() => setReviewResultId(r.id)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-orange-500 hover:bg-orange-600 text-white transition-colors"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              مراجعة الإجابات
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -359,5 +371,13 @@ export default function StudentArchiveModal({ student, onClose }) {
         </div>
       </div>
     </div>
+
+    {reviewResultId && (
+      <ExamReviewModal
+        resultId={reviewResultId}
+        onClose={() => setReviewResultId(null)}
+      />
+    )}
+    </>
   );
 }
