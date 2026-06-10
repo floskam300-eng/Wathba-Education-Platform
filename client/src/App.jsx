@@ -32,6 +32,7 @@ import CourseContent from './pages/teacher/CourseContent';
 import ExamQuestions from './pages/teacher/ExamQuestions';
 import TeacherSettings from './pages/teacher/Settings';
 import TeacherRecitations from './pages/teacher/Recitations';
+import TeacherArchive from './pages/teacher/Archive';
 import StudentRecitations from './pages/student/Recitations';
 import StudentLiveStream from './pages/student/LiveStream';
 import AssistantDashboard from './pages/assistant/Dashboard';
@@ -174,6 +175,7 @@ const TenantRoutes = () => {
           <Route path="exams/:examId/questions" element={<ExamQuestions />} />
           <Route path="settings" element={<TeacherSettings />} />
           <Route path="recitations" element={<TeacherRecitations />} />
+          <Route path="archive" element={<TeacherArchive />} />
         </Route>
 
         {/* ── Assistant dashboard ────────────────────────────────────────────── */}
@@ -214,6 +216,11 @@ const TenantRoutes = () => {
           } />
           <Route path="recitations" element={
             <AssistantPermissionRoute permission="can_manage_recitations"><TeacherRecitations /></AssistantPermissionRoute>
+          } />
+          <Route path="archive" element={
+            <AssistantPermissionRoute anyOf={['can_view_analytics', 'can_manage_exams', 'can_manage_recitations']}>
+              <TeacherArchive />
+            </AssistantPermissionRoute>
           } />
         </Route>
 
