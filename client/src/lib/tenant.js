@@ -18,7 +18,12 @@ export function getTenantSlug() {
     return parts[0];
   }
 
-  return localStorage.getItem('wathba_teacher_slug') || null;
+  // Order of priority: localStorage (user-set) → build-time default → null
+  return (
+    localStorage.getItem('wathba_teacher_slug') ||
+    import.meta.env.VITE_DEFAULT_TENANT_SLUG ||
+    null
+  );
 }
 
 export function isMainDomain() {

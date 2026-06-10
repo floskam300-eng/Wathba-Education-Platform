@@ -44,6 +44,14 @@ module.exports = async function subdomainTenant(req, res, next) {
     // Only fall back to the header in non-production environments (dev/test).
     const isProduction = (process.env.NODE_ENV || 'development') === 'production';
     if (!isProduction) slug = req.headers['x-tenant-slug'] || null;
+
+    // Fallback for .replit.app / direct-IP deployments that have no real subdomain:
+    // Use DEFAULT_TENANT_SLUG env var as the configured single-tenant identity.
+    // This env var is set once at deployment time and is not user-controlled,
+    // so it does NOT reintroduce the M-7 spoof vector.
+    if (!slug && process.env.DEFAULT_TENANT_SLUG) {
+      slug = process.env.DEFAULT_TENANT_SLUG;
+    }
   }
   if (slug) {
     // Always record that a slug was attempted — even if the teacher wasn't found.
