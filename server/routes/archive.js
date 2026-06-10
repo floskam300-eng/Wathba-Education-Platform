@@ -30,23 +30,32 @@ const isValidDate = (s) => {
   return !isNaN(d.getTime());
 };
 
-const checkViewPerm = async (req, res, next) => {
+// FIX-B1: Per-endpoint permission checks (granular, not a single broad gate)
+// - Exam data: requires can_manage_exams OR can_view_analytics
+// - Recitation data: requires can_manage_recitations OR can_view_analytics
+// - Student detail (both): requires any of the three
+
+const makePerm = (checker) => async (req, res, next) => {
   if (req.user.role === 'teacher') return next();
   try {
     const perms = await getPermissions(req.user.id, pool);
-    if (!perms || (!perms.can_view_analytics && !perms.can_manage_exams && !perms.can_manage_recitations))
-      return res.status(403).json({ error: 'Access denied' });
+    if (!perms || !checker(perms)) return res.status(403).json({ error: 'Access denied' });
     next();
   } catch {
     res.status(500).json({ error: 'Server error' });
   }
 };
 
+const checkExamPerm = makePerm(p => p.can_view_analytics || p.can_manage_exams);
+const checkRecPerm  = makePerm(p => p.can_view_analytics || p.can_manage_recitations);
+const checkAnyPerm  = makePerm(p => p.can_view_analytics || p.can_manage_exams || p.can_manage_recitations);
+
 // ── GET /api/archive/exam-results ──────────────────────────────────────────
 // Filters: q (text search), student_id, course_id, exam_id, stage,
 //          status (pass/fail), attempt (first/retry),
 //          date_from, date_to, sort, order, page, limit
-router.get('/exam-results', requireRole('teacher', 'assistant'), checkViewPerm, async (req, res) => {
+// FIX-B1: exam-results uses checkExamPerm (can_view_analytics OR can_manage_exams only)
+router.get('/exam-results', requireRole('teacher', 'assistant'), checkExamPerm, async (req, res) => {
   // FIX-A3: Validate teacher ownership before querying
   const teacherId = getTeacherId(req);
   if (!teacherId) return res.status(400).json({ error: 'بيانات المعلم غير صالحة' });
@@ -130,7 +139,8 @@ router.get('/exam-results', requireRole('teacher', 'assistant'), checkViewPerm, 
     const sortCol = sortMap[sort] || 'er.created_at';
     const sortDir = order === 'asc' ? 'ASC' : 'DESC';
 
-    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    // FIX-B2: Cap page at 10000 to prevent massive OFFSET queries
+    const pageNum = Math.min(10000, Math.max(1, parseInt(page, 10) || 1));
     const limitNum = Math.min(200, Math.max(1, parseInt(limit, 10) || 50));
     const offset = (pageNum - 1) * limitNum;
 
@@ -180,7 +190,8 @@ router.get('/exam-results', requireRole('teacher', 'assistant'), checkViewPerm, 
 // ── GET /api/archive/recitation-results ────────────────────────────────────
 // Filters: q (text search), student_id, recitation_id, stage, status (pass/fail),
 //          date_from, date_to, sort, order, page, limit
-router.get('/recitation-results', requireRole('teacher', 'assistant'), checkViewPerm, async (req, res) => {
+// FIX-B1: recitation-results uses checkRecPerm (can_view_analytics OR can_manage_recitations only)
+router.get('/recitation-results', requireRole('teacher', 'assistant'), checkRecPerm, async (req, res) => {
   // FIX-A3: Validate teacher ownership
   const teacherId = getTeacherId(req);
   if (!teacherId) return res.status(400).json({ error: 'بيانات المعلم غير صالحة' });
@@ -253,7 +264,8 @@ router.get('/recitation-results', requireRole('teacher', 'assistant'), checkView
     const sortCol = sortMap[sort] || 'rr.created_at';
     const sortDir = order === 'asc' ? 'ASC' : 'DESC';
 
-    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    // FIX-B2: Cap page at 10000 to prevent massive OFFSET queries
+    const pageNum = Math.min(10000, Math.max(1, parseInt(page, 10) || 1));
     const limitNum = Math.min(200, Math.max(1, parseInt(limit, 10) || 50));
     const offset = (pageNum - 1) * limitNum;
 
@@ -299,7 +311,8 @@ router.get('/recitation-results', requireRole('teacher', 'assistant'), checkView
 
 // ── GET /api/archive/filters ────────────────────────────────────────────────
 // Returns all courses, exams, recitations, and academic stages for filter dropdowns
-router.get('/filters', requireRole('teacher', 'assistant'), checkViewPerm, async (req, res) => {
+// FIX-B1: filters uses checkAnyPerm (shows all filter options regardless of tab)
+router.get('/filters', requireRole('teacher', 'assistant'), checkAnyPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
   if (!teacherId) return res.status(400).json({ error: 'بيانات المعلم غير صالحة' });
 
@@ -341,7 +354,8 @@ router.get('/filters', requireRole('teacher', 'assistant'), checkViewPerm, async
 
 // ── GET /api/archive/student/:id/exam-results ───────────────────────────────
 // Full exam history for one student (all attempts, not just latest)
-router.get('/student/:id/exam-results', requireRole('teacher', 'assistant'), checkViewPerm, async (req, res) => {
+// FIX-B1: student exam detail uses checkExamPerm
+router.get('/student/:id/exam-results', requireRole('teacher', 'assistant'), checkExamPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
   if (!teacherId) return res.status(400).json({ error: 'بيانات المعلم غير صالحة' });
 
@@ -377,7 +391,8 @@ router.get('/student/:id/exam-results', requireRole('teacher', 'assistant'), che
 
 // ── GET /api/archive/student/:id/recitation-results ────────────────────────
 // Full recitation history for one student
-router.get('/student/:id/recitation-results', requireRole('teacher', 'assistant'), checkViewPerm, async (req, res) => {
+// FIX-B1: student recitation detail uses checkRecPerm
+router.get('/student/:id/recitation-results', requireRole('teacher', 'assistant'), checkRecPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
   if (!teacherId) return res.status(400).json({ error: 'بيانات المعلم غير صالحة' });
 
@@ -412,7 +427,8 @@ router.get('/student/:id/recitation-results', requireRole('teacher', 'assistant'
 
 // ── GET /api/archive/student/:id/summary ────────────────────────────────────
 // Quick stats summary for one student (for the modal header)
-router.get('/student/:id/summary', requireRole('teacher', 'assistant'), checkViewPerm, async (req, res) => {
+// FIX-B1: summary shows both exam+rec stats so uses checkAnyPerm
+router.get('/student/:id/summary', requireRole('teacher', 'assistant'), checkAnyPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
   if (!teacherId) return res.status(400).json({ error: 'بيانات المعلم غير صالحة' });
 

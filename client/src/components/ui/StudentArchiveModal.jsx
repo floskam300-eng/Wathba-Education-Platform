@@ -3,8 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '../../context/ThemeContext';
 import {
   X, FileText, GraduationCap, CheckCircle2, XCircle,
-  RotateCcw, Printer, User, BarChart3, TrendingUp, Award,
-  ChevronDown, ChevronUp, Trophy,
+  Printer, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import api from '../../lib/api';
 import { generatePDFReport } from '../../lib/pdfReport';
@@ -237,7 +236,8 @@ export default function StudentArchiveModal({ student, onClose }) {
               <div className="p-4 space-y-2">
                 {examResults.map(r => {
                   const p = pct(r.score, r.total_score);
-                  const passed = r.score >= r.pass_score;
+                  // FIX-F5: Explicit Number() conversion for type-safe comparison
+                  const passed = Number(r.score) >= Number(r.pass_score);
                   const isExpanded = expandedExam === r.id;
 
                   return (

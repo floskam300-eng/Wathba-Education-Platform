@@ -1,10 +1,9 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { useTheme } from '../../context/ThemeContext';
-import { useAuth } from '../../context/AuthContext';
 import {
-  Archive, FileText, GraduationCap, Search, Filter, X,
-  ChevronDown, ChevronUp, Download, Calendar, User,
+  Archive, FileText, GraduationCap, Search,
+  ChevronDown, ChevronUp,
   CheckCircle2, XCircle, RotateCcw, SlidersHorizontal,
   ChevronRight, ChevronLeft, Printer, Eye, BarChart3,
 } from 'lucide-react';
@@ -86,7 +85,6 @@ const PAGE_SIZES = [25, 50, 100];
 
 export default function ArchivePage() {
   const { dark } = useTheme();
-  const { user } = useAuth();
 
   const [tab, setTab] = useState('exams');
   const [filtersOpen, setFiltersOpen] = useState(true);
@@ -160,17 +158,18 @@ export default function ArchivePage() {
     return p;
   }, [recFilters]);
 
+  // FIX-F1: keepPreviousData removed in React Query v5 — use placeholderData instead
   const { data: examData, isLoading: examLoading } = useQuery({
     queryKey: ['archive-exams', examParams],
     queryFn: () => api.get('/api/archive/exam-results', { params: examParams }).then(r => r.data),
-    keepPreviousData: true,
+    placeholderData: keepPreviousData,
     enabled: tab === 'exams',
   });
 
   const { data: recData, isLoading: recLoading } = useQuery({
     queryKey: ['archive-recs', recParams],
     queryFn: () => api.get('/api/archive/recitation-results', { params: recParams }).then(r => r.data),
-    keepPreviousData: true,
+    placeholderData: keepPreviousData,
     enabled: tab === 'recitations',
   });
 
