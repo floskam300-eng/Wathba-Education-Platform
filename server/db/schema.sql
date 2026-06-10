@@ -167,7 +167,7 @@ ALTER TABLE pdf_files ADD COLUMN IF NOT EXISTS section_id INTEGER REFERENCES sec
 ALTER TABLE exams ADD COLUMN IF NOT EXISTS start_date  TIMESTAMP;
 ALTER TABLE exams ADD COLUMN IF NOT EXISTS end_date    TIMESTAMP;
 ALTER TABLE exams ADD COLUMN IF NOT EXISTS is_published BOOLEAN DEFAULT false;
-ALTER TABLE questions ALTER COLUMN question_text DROP NOT NULL;
+-- ALTER TABLE questions ALTER COLUMN question_text DROP NOT NULL;
 
 -- essay_graded and essay_score_adjustment removed — essay questions not supported
 
@@ -214,9 +214,9 @@ ALTER TABLE notification_log ADD COLUMN IF NOT EXISTS source VARCHAR(20) DEFAULT
 ALTER TABLE notification_log ADD COLUMN IF NOT EXISTS title VARCHAR(200);
 
 ALTER TABLE students ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP DEFAULT NULL;
-ALTER TABLE students ADD COLUMN IF NOT EXISTS plain_password VARCHAR(255) DEFAULT NULL;
+-- ALTER TABLE students ADD COLUMN IF NOT EXISTS plain_password VARCHAR(255) DEFAULT NULL;
 
-ALTER TABLE exams ADD COLUMN IF NOT EXISTS pre_unpublish_published BOOLEAN DEFAULT false;
+-- ALTER TABLE exams ADD COLUMN IF NOT EXISTS pre_unpublish_published BOOLEAN DEFAULT false;
 
 CREATE TABLE IF NOT EXISTS exam_retry_requests (
   id SERIAL PRIMARY KEY,
@@ -235,7 +235,7 @@ ALTER TABLE courses ADD COLUMN IF NOT EXISTS is_published BOOLEAN DEFAULT false;
 
 ALTER TABLE exams ADD COLUMN IF NOT EXISTS start_notified BOOLEAN DEFAULT false;
 
-ALTER TABLE payments ALTER COLUMN method DROP NOT NULL;
+-- ALTER TABLE payments ALTER COLUMN method DROP NOT NULL;
 ALTER TABLE payments ALTER COLUMN method SET DEFAULT '';
 ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_verified_by_fkey;
 
@@ -495,6 +495,18 @@ CREATE INDEX IF NOT EXISTS idx_exam_results_created_at   ON exam_results(created
 CREATE INDEX IF NOT EXISTS idx_payments_date             ON payments(payment_date DESC);
 CREATE INDEX IF NOT EXISTS idx_live_chat_stream_id       ON live_chat_messages(stream_id);
 
+-- ── Missing FK indexes for frequent JOIN queries ──
+CREATE INDEX IF NOT EXISTS idx_payments_course_id ON payments(course_id);
+CREATE INDEX IF NOT EXISTS idx_payments_verified_by ON payments(verified_by);
+CREATE INDEX IF NOT EXISTS idx_sections_course_id ON sections(course_id);
+CREATE INDEX IF NOT EXISTS idx_course_enrollment_requests_student ON course_enrollment_requests(student_id);
+CREATE INDEX IF NOT EXISTS idx_course_enrollment_requests_course ON course_enrollment_requests(course_id);
+CREATE INDEX IF NOT EXISTS idx_question_banks_teacher ON question_banks(teacher_id);
+CREATE INDEX IF NOT EXISTS idx_question_banks_course ON question_banks(course_id);
+CREATE INDEX IF NOT EXISTS idx_leaderboard_history_teacher ON leaderboard_history(teacher_id);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_send_log_schedule ON whatsapp_send_log(schedule_id);
+CREATE INDEX IF NOT EXISTS idx_recitation_questions_recitation ON recitation_questions(recitation_id);
+
 -- ── Partial unique index: allow username reuse after soft-delete ──────────────
 -- Drop the old global UNIQUE constraint so the partial index below can take over
 DO $$
@@ -526,6 +538,56 @@ BEGIN
       CHECK (status IN ('pending', 'verified', 'rejected'));
   END IF;
 END $$;
+
+-- ── CHECK constraints for enum-like columns ──
+DO $$ BEGIN
+  ALTER TABLE student_course_enrollment ADD CONSTRAINT chk_enrollment_status CHECK (status IN ('active', 'inactive'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE course_enrollment_requests ADD CONSTRAINT chk_enrollment_req_status CHECK (status IN ('pending', 'accepted', 'rejected'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE exam_retry_requests ADD CONSTRAINT chk_retry_req_status CHECK (status IN ('pending', 'accepted', 'approved', 'rejected', 'used'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE live_streams ADD CONSTRAINT chk_stream_status CHECK (status IN ('active', 'ended', 'scheduled'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE live_streams ADD CONSTRAINT chk_stream_access CHECK (access IN ('all', 'stages', 'specific'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE questions ADD CONSTRAINT chk_question_type CHECK (question_type IN ('mcq', 'true_false'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE bank_questions ADD CONSTRAINT chk_bank_question_type CHECK (question_type IN ('mcq', 'true_false'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE bank_questions ADD CONSTRAINT chk_bank_difficulty CHECK (difficulty IN ('easy', 'medium', 'hard'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE recitations ADD CONSTRAINT chk_recitation_schedule_type CHECK (schedule_type IN ('once', 'daily', 'weekly'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE recitation_questions ADD CONSTRAINT chk_recitation_question_type CHECK (question_type IN ('mcq', 'true_false'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE students ADD CONSTRAINT chk_student_gender CHECK (gender IN ('ذكر', 'أنثى'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE device_alerts ADD CONSTRAINT chk_alert_type CHECK (alert_type IN ('device_limit_exceeded'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE device_alerts ADD CONSTRAINT chk_alert_status CHECK (status IN ('pending', 'resolved'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE whatsapp_schedules ADD CONSTRAINT chk_wa_target_type CHECK (target_type IN ('parents', 'students'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE whatsapp_send_log ADD CONSTRAINT chk_wa_log_status CHECK (status IN ('sending', 'completed', 'failed'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE whatsapp_send_log ADD CONSTRAINT chk_wa_send_type CHECK (send_type IN ('manual', 'scheduled'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- essay_answer_key removed from bank_questions — essay questions not supported
 

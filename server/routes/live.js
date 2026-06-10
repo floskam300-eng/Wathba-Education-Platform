@@ -12,6 +12,9 @@ try {
   AccessToken = null;
 }
 
+/* ── Leave tickets (one-time, 30 s TTL) ────────────────────────── */
+const leaveTicketMap = new Map();
+
 const router = express.Router();
 router.use(authenticate);
 
@@ -761,7 +764,14 @@ router.post('/:streamId/join', requireRole('student'), async (req, res) => {
       action: 'joined', studentId, studentName: req.user.name,
     });
 
-    res.json({ success: true, stream });
+    const leaveTicket = crypto.randomBytes(24).toString('hex');
+    leaveTicketMap.set(leaveTicket, {
+      studentId,
+      name: req.user.name,
+      streamId,
+      expiresAt: Date.now() + 30000,
+    });
+    res.json({ success: true, stream, leaveTicket });
   } catch (err) {
     console.error('[live/join]', err);
     res.status(500).json({ error: 'Server error' });
@@ -772,13 +782,25 @@ router.post('/:streamId/join', requireRole('student'), async (req, res) => {
    Student: leave a stream
    FIX: only call vcRemove when student was actually in the cache
 ══════════════════════════════════════════════════════════════════ */
-// FIX: beacon-aware leave — accepts JWT from query param so navigator.sendBeacon()
-// (which cannot set headers) can call this on tab-close.
+// FIX: beacon-aware leave — uses a short-lived one-time ticket instead of a JWT
+// in the URL (JWTs in URLs can leak through server logs).
 // Normal requests continue to use the Authorization header.
 const beaconAuth = async (req, res, next) => {
-  const qToken = req.query.token;
-  if (qToken && !req.headers.authorization) {
-    req.headers.authorization = `Bearer ${qToken}`;
+  const ticket = req.query.ticket;
+  if (ticket && !req.headers.authorization) {
+    const entry = leaveTicketMap.get(ticket);
+    if (!entry) return res.status(401).json({ error: 'Invalid ticket' });
+    if (Date.now() > entry.expiresAt) {
+      leaveTicketMap.delete(ticket);
+      return res.status(401).json({ error: 'Ticket expired' });
+    }
+    if (entry.streamId !== parseId(req.params.streamId)) {
+      leaveTicketMap.delete(ticket);
+      return res.status(401).json({ error: 'Ticket mismatch' });
+    }
+    leaveTicketMap.delete(ticket);
+    req.user = { id: entry.studentId, name: entry.name, role: 'student' };
+    return next();
   }
   return require('../middleware/auth').authenticate(req, res, next);
 };

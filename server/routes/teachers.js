@@ -381,8 +381,9 @@ router.get('/analytics/trend', requireRole('teacher'), async (req, res) => {
   if (cached) return res.json(cached);
   try {
     const intervalClause = months > 0
-      ? `AND er.created_at >= NOW() - INTERVAL '${months} months'`
+      ? `AND er.created_at >= NOW() - $2::interval`
       : '';
+    const params = months > 0 ? [teacherId, `${months} months`] : [teacherId];
     const result = await pool.query(`
       SELECT
         TO_CHAR(DATE_TRUNC('month', er.created_at), 'YYYY-MM') AS month,
@@ -397,7 +398,7 @@ router.get('/analytics/trend', requireRole('teacher'), async (req, res) => {
         ${intervalClause}
       GROUP BY DATE_TRUNC('month', er.created_at)
       ORDER BY DATE_TRUNC('month', er.created_at) ASC
-    `, [teacherId]);
+    `, params);
     setCache(cacheKey, result.rows);
     res.json(result.rows);
   } catch (err) {

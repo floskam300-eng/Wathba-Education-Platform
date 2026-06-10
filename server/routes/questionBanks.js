@@ -2,6 +2,7 @@ const express = require('express');
 const pool = require('../db/connection');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { getPermissions } = require('../lib/permissionsCache');
+const { isValidImage, deleteFile } = require('../lib/validateFileMagic');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -214,8 +215,13 @@ router.delete('/questions/:qid', requireRole('teacher', 'assistant'), checkManag
 });
 
 // ── Upload question image ──
-router.post('/upload-image', requireRole('teacher', 'assistant'), uploadImg.single('image'), (req, res) => {
+router.post('/upload-image', requireRole('teacher', 'assistant'), uploadImg.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'لم يتم رفع أي ملف' });
+  const validImg = await isValidImage(req.file.path);
+  if (!validImg) {
+    deleteFile(req.file.path);
+    return res.status(400).json({ error: 'الملف المرفوع ليس صورة صالحة (PNG / JPEG / GIF / WebP)' });
+  }
   res.json({ url: `/uploads/question-images/${req.file.filename}` });
 });
 

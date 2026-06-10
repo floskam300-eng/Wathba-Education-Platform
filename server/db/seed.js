@@ -183,6 +183,17 @@ async function seed() {
   const S_TH3 = [STD_ALI, sids['std_fatma'], sids['std_youssef'], sids['std_nada'], sids['std_omar']];
   const S_TH2 = [sids['std_mostafa'], sids['std_rana'], sids['std_adam'], sids['std_lina']];
   const S_TH1 = [sids['std_hana'], sids['std_hassan']];
+  // طالب بدون نقاط لاختبار الحالات الحدية
+  const [stdZero] = await q(`
+    INSERT INTO students
+      (username,password,name,phone,parent_phone,
+       academic_stage,gender,teacher_id,points,is_suspended)
+    VALUES ('std_zero',$1,'طالب اختبار — بدون نقاط',
+            '+201200000099','+201200000100',
+            'الصف الثالث الثانوي','ذكر',$2,0,false)
+    RETURNING id
+  `, [pass6, T1]);
+
   console.log('  ✓ 11 طالب (std_ali: الحساب المحوري — ث3 — 1250 نقطة)');
 
   // ══════════════════════════════════════════════════════════
@@ -627,13 +638,15 @@ async function seed() {
     ['mcq','إذا كان f(x)=x², فإن f(-3)=','-9','9','3','-3','B',8,null],
     ['true_false','الدالة y=x² دالة تربيعية','صح','خطأ',null,null,'T',8,null],
   ];
+  const e3QIds = [];
   for (const [qt, txt, a, b, c, d, ans, pts] of e3Questions) {
-    await q(`
+    const [qr] = await q(`
       INSERT INTO questions
         (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,
          correct_answer_letter,points)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id
     `, [e3.id, qt, txt, a, b, c, d, ans, pts]);
+    e3QIds.push({ id: qr.id, correct: ans, pts, question_text: txt, question_type: qt, option_a: a, option_b: b, option_c: c, option_d: d });
   }
 
   // أسئلة e5 (اختبار مشتقات — 30 درجة)
@@ -834,12 +847,21 @@ async function seed() {
   // ══════════════════════════════════════════════════════════
   console.log('\n⟳  إضافة نتائج الامتحانات...');
 
-  const makeResult = async (studentId, examId, qIds, correctPct, attemptNum = 1, isLatest = true, daysAgo = 10) => {
+  function seededRandom(seed) {
+    let s = seed >>> 0;
+    return () => {
+      s = Math.imul(s, 1664525) + 1013904223 >>> 0;
+      return s / 0x100000000;
+    };
+  }
+
+  const makeResult = async (studentId, examId, qIds, correctPct, attemptNum = 1, isLatest = true, daysAgo = 10, passScore = 18, pointsOnPass = 15, pointsOnAttempt = 5) => {
+    const rand = seededRandom(studentId * 1000000 + examId * 1000 + attemptNum);
     const answers = {};
     let score = 0;
     let correct = 0, wrong = 0, unanswered = 0;
     for (const { id, correct: correctAns, pts } of qIds) {
-      const isCorrect = Math.random() * 100 < correctPct;
+      const isCorrect = rand() * 100 < correctPct;
       if (isCorrect) {
         answers[id] = correctAns;
         score += pts;
@@ -863,74 +885,74 @@ async function seed() {
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
     `, [studentId, examId, score, correct, wrong, unanswered,
         JSON.stringify(answers), startT.toISOString(), endT.toISOString(),
-        score >= 18 ? 15 : 5, attemptNum, isLatest,
+        score >= passScore ? pointsOnPass : pointsOnAttempt, attemptNum, isLatest,
         endT.toISOString()]);
     return score;
   };
 
   // std_ali:
   // e1 (جبر): ناجح ✓ (attempt1 قديم راسب + attempt2 ناجح)
-  await makeResult(STD_ALI, e1.id, e1QIds, 40, 1, false, 22); // راسب أول محاولة
-  await makeResult(STD_ALI, e1.id, e1QIds, 90, 2, true,  12); // ناجح ثاني محاولة
+  await makeResult(STD_ALI, e1.id, e1QIds, 40, 1, false, 22, 18, 15, 5); // راسب أول محاولة
+  await makeResult(STD_ALI, e1.id, e1QIds, 90, 2, true,  12, 18, 15, 5); // ناجح ثاني محاولة
 
   // e2 (مثلثات): راسب ← طلب إعادة مقبولة
-  await makeResult(STD_ALI, e2.id, e2QIds, 35, 1, true, 8);
+  await makeResult(STD_ALI, e2.id, e2QIds, 35, 1, true, 8, 30, 20, 5);
 
   // e3 (مراجعة دوال): لم يؤده بعد — لا نتيجة
 
   // e4 (نهائي): لم يبدأ بعد — لا نتيجة (start_date في المستقبل)
 
   // e5 (مشتقات): ناجح ✓
-  await makeResult(STD_ALI, e5.id, e5QIds, 100, 1, true, 5);
+  await makeResult(STD_ALI, e5.id, e5QIds, 100, 1, true, 5, 18, 15, 5);
 
   // e6 (تكامل): لم يؤده بعد
 
   // e11 (أساسيات): ناجح ✓
-  await makeResult(STD_ALI, e11.id, e11QIds, 100, 1, true, 25);
+  await makeResult(STD_ALI, e11.id, e11QIds, 100, 1, true, 25, 6, 5, 2);
 
   // طلاب آخرون في e1
-  await makeResult(sids['std_fatma'],   e1.id, e1QIds, 70, 1, true, 20);
-  await makeResult(sids['std_youssef'], e1.id, e1QIds, 90, 1, true, 20);
-  await makeResult(sids['std_nada'],    e1.id, e1QIds, 50, 1, true, 20);
-  await makeResult(sids['std_omar'],    e1.id, e1QIds, 60, 1, true, 20);
+  await makeResult(sids['std_fatma'],   e1.id, e1QIds, 70, 1, true, 20, 18, 15, 5);
+  await makeResult(sids['std_youssef'], e1.id, e1QIds, 90, 1, true, 20, 18, 15, 5);
+  await makeResult(sids['std_nada'],    e1.id, e1QIds, 50, 1, true, 20, 18, 15, 5);
+  await makeResult(sids['std_omar'],    e1.id, e1QIds, 60, 1, true, 20, 18, 15, 5);
 
   // طلاب آخرون في e2
-  await makeResult(sids['std_fatma'],   e2.id, e2QIds, 65, 1, true, 15);
-  await makeResult(sids['std_youssef'], e2.id, e2QIds, 85, 1, true, 15);
+  await makeResult(sids['std_fatma'],   e2.id, e2QIds, 65, 1, true, 15, 30, 20, 5);
+  await makeResult(sids['std_youssef'], e2.id, e2QIds, 85, 1, true, 15, 30, 20, 5);
 
   // طلاب ث2 في e9
-  await makeResult(sids['std_mostafa'], e9.id, e9QIds, 80, 1, true, 9);
-  await makeResult(sids['std_rana'],    e9.id, e9QIds, 55, 1, true, 9);
-  await makeResult(sids['std_adam'],    e9.id, e9QIds, 40, 1, true, 9);
+  await makeResult(sids['std_mostafa'], e9.id, e9QIds, 80, 1, true, 9, 15, 12, 3);
+  await makeResult(sids['std_rana'],    e9.id, e9QIds, 55, 1, true, 9, 15, 12, 3);
+  await makeResult(sids['std_adam'],    e9.id, e9QIds, 40, 1, true, 9, 15, 12, 3);
 
   // std_ali في e11 (مجاني — ناجح مسبقاً — سجّلناه بالأعلى)
 
   // ── نتائج إضافية لتغطية الأرشيف بشكل كامل ──────────────────────────────
 
   // e2 (المثلثات — pass=30/50): نتائج إضافية لطلاب ث3
-  await makeResult(sids['std_nada'],  e2.id, e2QIds, 28, 1, true, 13);  // راسب ✗
-  await makeResult(sids['std_omar'],  e2.id, e2QIds, 50, 1, true, 14);  // راسب ✗
+  await makeResult(sids['std_nada'],  e2.id, e2QIds, 28, 1, true, 13, 30, 20, 5);  // راسب ✗
+  await makeResult(sids['std_omar'],  e2.id, e2QIds, 50, 1, true, 14, 30, 20, 5);  // راسب ✗
 
   // e5 (المشتقات — pass=18/30): يوسف مسجّل في C2
-  await makeResult(sids['std_youssef'], e5.id, e5QIds, 85, 1, true, 4);  // ناجح ✓
+  await makeResult(sids['std_youssef'], e5.id, e5QIds, 85, 1, true, 4, 18, 15, 5);  // ناجح ✓
 
   // e9 (الإحداثيات — pass=15/25): نتيجة إضافية لينا
-  await makeResult(sids['std_lina'], e9.id, e9QIds, 72, 1, true, 8);  // ناجح ✓
+  await makeResult(sids['std_lina'], e9.id, e9QIds, 72, 1, true, 8, 15, 12, 3);  // ناجح ✓
 
   // e10 (المستقيم والدائرة — pass=18/30): كل طلاب ث2
-  await makeResult(sids['std_mostafa'], e10.id, e10QIds, 90, 1, true, 0);  // ناجح ✓
-  await makeResult(sids['std_rana'],    e10.id, e10QIds, 45, 1, true, 0);  // راسب ✗
-  await makeResult(sids['std_adam'],    e10.id, e10QIds, 35, 1, true, 0);  // راسب ✗
-  await makeResult(sids['std_lina'],    e10.id, e10QIds, 80, 1, true, 0);  // ناجح ✓
+  await makeResult(sids['std_mostafa'], e10.id, e10QIds, 90, 1, true, 0, 18, 12, 3);  // ناجح ✓
+  await makeResult(sids['std_rana'],    e10.id, e10QIds, 45, 1, true, 0, 18, 12, 3);  // راسب ✗
+  await makeResult(sids['std_adam'],    e10.id, e10QIds, 35, 1, true, 0, 18, 12, 3);  // راسب ✗
+  await makeResult(sids['std_lina'],    e10.id, e10QIds, 80, 1, true, 0, 18, 12, 3);  // ناجح ✓
 
   // e11 (الأساسيات المجانية — pass=6/10): باقي طلاب ث3 المسجّلين في c3
-  await makeResult(sids['std_fatma'],   e11.id, e11QIds, 80,  1, true, 24);  // ناجح ✓
-  await makeResult(sids['std_youssef'], e11.id, e11QIds, 100, 1, true, 23);  // ناجح ✓
-  await makeResult(sids['std_nada'],    e11.id, e11QIds, 40,  1, true, 22);  // راسب ✗
-  await makeResult(sids['std_omar'],    e11.id, e11QIds, 70,  1, true, 21);  // ناجح ✓
+  await makeResult(sids['std_fatma'],   e11.id, e11QIds, 80,  1, true, 24, 6, 5, 2);  // ناجح ✓
+  await makeResult(sids['std_youssef'], e11.id, e11QIds, 100, 1, true, 23, 6, 5, 2);  // ناجح ✓
+  await makeResult(sids['std_nada'],    e11.id, e11QIds, 40,  1, true, 22, 6, 5, 2);  // راسب ✗
+  await makeResult(sids['std_omar'],    e11.id, e11QIds, 70,  1, true, 21, 6, 5, 2);  // ناجح ✓
 
   // e1 (الجبر — محاولة ثانية لـ std_nada بعد قبول الإعادة — راسب للمرة الثانية)
-  await makeResult(sids['std_nada'], e1.id, e1QIds, 45, 2, true, 8);  // أحدث محاولة راسبة
+  await makeResult(sids['std_nada'], e1.id, e1QIds, 45, 2, true, 8, 18, 15, 5);  // أحدث محاولة راسبة
 
   console.log('  ✓ نتائج الامتحانات: std_ali (ناجح×3، راسب×1، لم يؤده×3) + بيانات أرشيف شاملة');
 
@@ -1001,12 +1023,11 @@ async function seed() {
   // ══════════════════════════════════════════════════════════
   console.log('\n⟳  إضافة جلسات الامتحانات...');
 
-  const e3Questions_snap = [
-    { id: 9001, question_text: 'إذا f(x)=3x+1، فإن f(2)=', question_type: 'mcq',
-      option_a:'5', option_b:'6', option_c:'7', option_d:'8', correct_answer_letter:'C', points:8 },
-    { id: 9002, question_text: 'قاطع الصادات للمستقيم y=2x+5 هو', question_type: 'mcq',
-      option_a:'2', option_b:'5', option_c:'7', option_d:'0', correct_answer_letter:'B', points:8 },
-  ];
+  const e3Questions_snap = e3QIds.slice(0, 2).map(q => ({
+    id: q.id, question_text: q.question_text, question_type: q.question_type,
+    option_a: q.option_a, option_b: q.option_b, option_c: q.option_c, option_d: q.option_d,
+    correct_answer_letter: q.correct, points: q.pts
+  }));
 
   await q(`
     INSERT INTO exam_sessions (student_id,exam_id,started_at,questions_snapshot)
@@ -1164,6 +1185,20 @@ async function seed() {
   // ══════════════════════════════════════════════════════════
   console.log('\n⟳  إضافة سجل المتصدرين...');
 
+  const junRankings = [
+    { student_id: STD_ALI,             name: 'علي محمد رمضان',    points: 1250, rank: 1 },
+    { student_id: sids['std_youssef'], name: 'يوسف إبراهيم كمال', points: 1100, rank: 2 },
+    { student_id: sids['std_fatma'],   name: 'فاطمة أحمد سعد',    points: 980,  rank: 3 },
+    { student_id: sids['std_omar'],    name: 'عمر سامي فرج',      points: 720,  rank: 4 },
+    { student_id: sids['std_nada'],    name: 'ندى حسن عبد الله',  points: 640,  rank: 5 },
+    { student_id: sids['std_mostafa'], name: 'مصطفى أسامة نور',   points: 340,  rank: 6 },
+    { student_id: sids['std_rana'],    name: 'رنا طارق عبد العزيز',points: 420,  rank: 7 },
+    { student_id: sids['std_adam'],    name: 'آدم محمود صلاح',    points: 295,  rank: 8 },
+    { student_id: sids['std_lina'],    name: 'لينا سعيد القاضي',  points: 380,  rank: 9 },
+    { student_id: sids['std_hana'],    name: 'هناء وليد منصور',   points: 150,  rank: 10 },
+    { student_id: sids['std_hassan'],  name: 'حسن علاء طارق',     points: 190,  rank: 11 },
+    { student_id: stdZero.id,          name: 'طالب اختبار — بدون نقاط', points: 0, rank: 12 },
+  ];
   const mayRankings = [
     { student_id: sids['std_youssef'], name: 'يوسف إبراهيم كمال', points: 920, rank: 1 },
     { student_id: STD_ALI,             name: 'علي محمد رمضان',    points: 780, rank: 2 },
@@ -1179,11 +1214,15 @@ async function seed() {
 
   await q(`
     INSERT INTO leaderboard_history (teacher_id,month_label,reset_at,rankings)
-    VALUES ($1,'مايو 2025',NOW()-INTERVAL '1 day',$2)
+    VALUES ($1,'يونيو 2026',NOW()-INTERVAL '1 day',$2)
+  `, [T1, JSON.stringify(junRankings)]);
+  await q(`
+    INSERT INTO leaderboard_history (teacher_id,month_label,reset_at,rankings)
+    VALUES ($1,'مايو 2026',NOW()-INTERVAL '31 days',$2)
   `, [T1, JSON.stringify(mayRankings)]);
   await q(`
     INSERT INTO leaderboard_history (teacher_id,month_label,reset_at,rankings)
-    VALUES ($1,'أبريل 2025',NOW()-INTERVAL '31 days',$2)
+    VALUES ($1,'أبريل 2026',NOW()-INTERVAL '61 days',$2)
   `, [T1, JSON.stringify(aprRankings)]);
 
   await q(`
@@ -1539,13 +1578,15 @@ async function seed() {
     ['true_false','منتصف (2,4) و (6,8) هو (4,6)','صح','خطأ',null,null,'T',2,4],
     ['mcq','معادلة المحور الصادي هي','y=0','x=0','y=x','x=1','B',2,5],
   ];
+  const r5QIds = [];
   for (const [qt, txt, a, b, c, d, ans, pts, ord] of r5Questions) {
-    await q(`
+    const [qr] = await q(`
       INSERT INTO recitation_questions
         (recitation_id,question_type,question_text,option_a,option_b,option_c,option_d,
          correct_answer_letter,points,sort_order)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id
     `, [r5.id, qt, txt, a, b, c, d, ans, pts, ord]);
+    r5QIds.push({ id: qr.id, correct: ans, pts });
   }
 
   console.log('  ✓ أسئلة التسميعات أضيفت');
@@ -1584,6 +1625,19 @@ async function seed() {
   // r4: قادم — لم يفتح بعد (لا نتيجة)
 
   // باقي طلاب في r2 (مراجعة المثلثات الأسبوعية)
+  function makeRecitAnswers(qIds, correctCount, wrongCount) {
+    const items = [];
+    for (let i = 0; i < correctCount && i < qIds.length; i++) {
+      items.push({ question_id: qIds[i].id, answer: qIds[i].correct, correct: true });
+    }
+    for (let i = 0; i < wrongCount && (correctCount + i) < qIds.length; i++) {
+      const q = qIds[correctCount + i];
+      const wrongLetters = ['A','B','C','D'].filter(l => l !== q.correct);
+      items.push({ question_id: q.id, answer: wrongLetters[0], correct: false });
+    }
+    return items;
+  }
+
   await q(`
     INSERT INTO recitation_results
       (student_id,recitation_id,score,correct_count,wrong_count,unanswered_count,
@@ -1592,7 +1646,7 @@ async function seed() {
       NOW()-INTERVAL '4 days'-INTERVAL '12 minutes',
       NOW()-INTERVAL '4 days',
       true,NOW()-INTERVAL '4 days')
-  `, [sids['std_fatma'],   r2.id, JSON.stringify([])]);
+  `, [sids['std_fatma'],   r2.id, JSON.stringify(makeRecitAnswers(r2QIds, 4, 1))]);
 
   await q(`
     INSERT INTO recitation_results
@@ -1602,7 +1656,7 @@ async function seed() {
       NOW()-INTERVAL '4 days'-INTERVAL '11 minutes',
       NOW()-INTERVAL '4 days',
       true,NOW()-INTERVAL '4 days')
-  `, [sids['std_youssef'], r2.id, JSON.stringify([])]);
+  `, [sids['std_youssef'], r2.id, JSON.stringify(makeRecitAnswers(r2QIds, 5, 0))]);
 
   await q(`
     INSERT INTO recitation_results
@@ -1612,7 +1666,7 @@ async function seed() {
       NOW()-INTERVAL '3 days'-INTERVAL '14 minutes',
       NOW()-INTERVAL '3 days',
       false,NOW()-INTERVAL '3 days')
-  `, [sids['std_nada'],    r2.id, JSON.stringify([])]);
+  `, [sids['std_nada'],    r2.id, JSON.stringify(makeRecitAnswers(r2QIds, 2, 3))]);
 
   await q(`
     INSERT INTO recitation_results
@@ -1622,11 +1676,18 @@ async function seed() {
       NOW()-INTERVAL '3 days'-INTERVAL '13 minutes',
       NOW()-INTERVAL '3 days',
       false,NOW()-INTERVAL '3 days')
-  `, [sids['std_omar'],    r2.id, JSON.stringify([])]);
+  `, [sids['std_omar'],    r2.id, JSON.stringify(makeRecitAnswers(r2QIds, 3, 2))]);
 
   // باقي طلاب في r1
-  for (const sid of [sids['std_fatma'], sids['std_youssef'], sids['std_omar']]) {
-    const passed = Math.random() > 0.3;
+  const r1StudentConfig = [
+    { sid: sids['std_fatma'],   correctCount: 4, wrongCount: 1 },
+    { sid: sids['std_youssef'], correctCount: 5, wrongCount: 0 },
+    { sid: sids['std_omar'],    correctCount: 3, wrongCount: 2 },
+  ];
+  for (const { sid, correctCount, wrongCount } of r1StudentConfig) {
+    const score = correctCount * 2;
+    const passed = score >= 6;
+    const answers = makeRecitAnswers(r1QIds, correctCount, wrongCount);
     await q(`
       INSERT INTO recitation_results
         (student_id,recitation_id,score,correct_count,wrong_count,unanswered_count,
@@ -1635,8 +1696,8 @@ async function seed() {
         NOW()-INTERVAL '5 days'-INTERVAL '8 minutes',
         NOW()-INTERVAL '5 days',$8,NOW()-INTERVAL '5 days')
     `, [sid, r1.id,
-        passed ? 8 : 4, passed ? 4 : 2, passed ? 1 : 3,
-        JSON.stringify([]),
+        score, correctCount, wrongCount,
+        JSON.stringify(answers),
         passed ? 7 : 2,
         passed]);
   }
@@ -1649,6 +1710,7 @@ async function seed() {
     [sids['std_lina'],    10, 5, 0, true,  1],
   ];
   for (const [sid, score, correct, wrong, passed, daysAgo] of r5Results) {
+    const answers = makeRecitAnswers(r5QIds, correct, wrong);
     await q(`
       INSERT INTO recitation_results
         (student_id,recitation_id,score,correct_count,wrong_count,unanswered_count,
@@ -1658,7 +1720,7 @@ async function seed() {
         NOW()-INTERVAL '${daysAgo} days',
         $8,NOW()-INTERVAL '${daysAgo} days')
     `, [sid, r5.id, score, correct, wrong,
-        JSON.stringify([]),
+        JSON.stringify(answers),
         passed ? 7 : 2,
         passed]);
   }

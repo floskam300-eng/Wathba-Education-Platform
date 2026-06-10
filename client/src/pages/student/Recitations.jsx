@@ -52,6 +52,7 @@ export default function StudentRecitations() {
   const [result, setResult] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const submittedRef = useRef(false);
+  const mountedRef = useRef(true);
   const timerRef = useRef(null);
 
   const { data: recitations = [], isLoading } = useQuery({
@@ -71,6 +72,7 @@ export default function StudentRecitations() {
   });
 
   const startRec = async (rec) => {
+    submittedRef.current = false;
     try {
       const { data } = await api.get(`/recitations/${rec.id}/take`);
       setExamData(data);
@@ -97,6 +99,12 @@ export default function StudentRecitations() {
     }
   };
 
+  // Mounted ref lifecycle
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
   // 3-2-1 countdown
   useEffect(() => {
     if (!showCountdown) return;
@@ -119,6 +127,16 @@ export default function StudentRecitations() {
       localStorage.setItem(`recitation_answers_${selectedRec.id}`, JSON.stringify(answers));
     }
   }, [answers, view, selectedRec]);
+
+  // Cleanup on unmount: reset submittedRef; clear saved answers only if submitted
+  useEffect(() => {
+    return () => {
+      if (submittedRef.current && selectedRec?.id) {
+        localStorage.removeItem(`recitation_answers_${selectedRec.id}`);
+      }
+      submittedRef.current = false;
+    };
+  }, [selectedRec]);
 
   // Keepalive on tab close
   useEffect(() => {
@@ -147,6 +165,7 @@ export default function StudentRecitations() {
   const handleSubmit = useCallback(async (auto = false) => {
     if (submittedRef.current || submitting) return;
     submittedRef.current = true;
+    if (!mountedRef.current) return;
     setSubmitting(true);
     clearTimeout(timerRef.current);
 
@@ -155,12 +174,14 @@ export default function StudentRecitations() {
 
     try {
       const { data } = await api.post(`/recitations/${selectedRec.id}/submit`, { answers: payload });
+      if (!mountedRef.current) return;
       localStorage.removeItem(`recitation_answers_${selectedRec.id}`);
       setResult(data);
       setView('result');
       qc.invalidateQueries(['student-recitations']);
       qc.invalidateQueries(['student-recitation-streak']);
     } catch (e) {
+      if (!mountedRef.current) return;
       submittedRef.current = false;
       setSubmitting(false);
       const data = e.response?.data || {};

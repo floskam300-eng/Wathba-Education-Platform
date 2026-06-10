@@ -52,6 +52,14 @@ api.interceptors.response.use(
   (err) => {
     const status = err.response?.status;
 
+    // Network error (server unreachable)
+    if (!err.response) {
+      window.dispatchEvent(new CustomEvent('wathba_network_error', {
+        detail: { message: 'تعذر الاتصال بالخادم. يرجى التحقق من اتصالك بالإنترنت.' }
+      }));
+      return Promise.reject(err);
+    }
+
     // [L-1] FIX: handle 403 account_suspended separately — show a specific
     // message and dispatch an event so pages can react without blindly
     // redirecting to login (the account still exists, it's just suspended)

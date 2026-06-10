@@ -122,7 +122,7 @@ async function login(username, password, role) {
   const res = await request({
     method : 'POST',
     path   : '/auth/login',
-    body   : { username, password, ...(role ? { role } : {}) },
+    body   : { username, password, device_id: 'test-device-' + Date.now(), ...(role ? { role } : {}) },
   });
   return res.body?.token || null;
 }

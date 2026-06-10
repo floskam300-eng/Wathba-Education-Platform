@@ -4,7 +4,11 @@ const ThemeContext = createContext(null);
 
 export const ThemeProvider = ({ children }) => {
   const [dark, setDark] = useState(() => {
-    return localStorage.getItem('wathba_dark') === 'true';
+    try {
+      return localStorage.getItem('wathba_dark') === 'true';
+    } catch {
+      return false;
+    }
   });
 
   useEffect(() => {
@@ -13,7 +17,9 @@ export const ThemeProvider = ({ children }) => {
     } else {
       document.documentElement.classList.remove('dark');
     }
-    localStorage.setItem('wathba_dark', String(dark));
+    try {
+      localStorage.setItem('wathba_dark', String(dark));
+    } catch {}
   }, [dark]);
 
   const toggle = () => setDark(d => !d);

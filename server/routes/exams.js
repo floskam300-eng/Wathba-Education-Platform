@@ -1,5 +1,6 @@
 const { sendEvent } = require('../sse');
 const { isValidImage, deleteFile } = require('../lib/validateFileMagic');
+const rateLimit = require('express-rate-limit');
 const { sendFCMToStudents } = require('../lib/fcm');
 const express = require('express');
 const pool = require('../db/connection');
@@ -912,8 +913,11 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
   }
 });
 
+// ── Rate-limiter: max 5 submissions per 60 s per student ──
+const submitLimiter = rateLimit({ windowMs: 60 * 1000, max: 5, message: { error: 'يرجى الانتظار قبل إعادة التسليم' } });
+
 // ── Student: submit exam ──
-router.post('/:id/submit', requireRole('student'), async (req, res) => {
+router.post('/:id/submit', submitLimiter, requireRole('student'), async (req, res) => {
   const studentId = req.user.id;
   const examId = parseParamId(req.params.id);
   if (!examId) return res.status(400).json({ error: 'معرّف الاختبار غير صالح' });
@@ -1137,7 +1141,7 @@ router.get('/student/course-results/:courseId', requireRole('student'), async (r
 });
 
 // ── Get result summary ──
-router.get('/results/:resultId', async (req, res) => {
+router.get('/results/:resultId', requireRole('teacher', 'assistant', 'student'), async (req, res) => {
   const resultId = parseParamId(req.params.resultId);
   if (!resultId) return res.status(400).json({ error: 'معرّف النتيجة غير صالح' });
   try {
@@ -1170,7 +1174,7 @@ router.get('/results/:resultId', async (req, res) => {
 
 // ── Full exam review ──
 // M-4 fix: assistants must have can_view_analytics to access exam review
-router.get('/results/:resultId/review', async (req, res, next) => {
+router.get('/results/:resultId/review', requireRole('teacher', 'assistant', 'student'), async (req, res, next) => {
   if (req.user.role === 'assistant') {
     try {
       const perms = await getPermissions(req.user.id, pool);

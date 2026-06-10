@@ -89,11 +89,21 @@ export default function StudentExams() {
 
   // Guard against double-submission from timer + manual submit racing
   const submittedRef = useRef(false);
+  const mountedRef = useRef(true);
 
   const { data: exams = [], isLoading } = useQuery({
     queryKey: ['student-exams'],
     queryFn: () => api.get('/exams/student/available').then(r => r.data),
   });
+
+  // Mounted ref + submittedRef reset on unmount
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      submittedRef.current = false;
+    };
+  }, []);
 
   // Auto-refresh when upcoming exams hit their start time (client-side fallback)
   useEffect(() => {
@@ -243,6 +253,8 @@ export default function StudentExams() {
         body: payload,
         keepalive: true,
       }).catch(() => {});
+      // Set flag so next mount can show a toast
+      try { sessionStorage.setItem(`exam_auto_submitted_${examId}`, 'true'); } catch (_) {}
       // Do NOT clear localStorage here — if the fetch fails silently, the student
       // needs their saved state to resume. Keys are cleared on successful submission.
     };
@@ -259,6 +271,24 @@ export default function StudentExams() {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, []);
+
+  // Check for auto-submitted flag from a previous tab-close beacon
+  useEffect(() => {
+    if (taking) return;
+    try {
+      const keys = Object.keys(sessionStorage).filter(k => k.startsWith('exam_auto_submitted_'));
+      for (const key of keys) {
+        const examId = key.replace('exam_auto_submitted_', '');
+        if (sessionStorage.getItem(key) === 'true') {
+          toast('تم تسليم الاختبار تلقائياً عند إغلاق المتصفح', { icon: 'ℹ️' });
+          sessionStorage.removeItem(key);
+          // Clean up any leftover exam data
+          localStorage.removeItem(`exam_start_${examId}`);
+          localStorage.removeItem(`exam_answers_${examId}`);
+        }
+      }
+    } catch (_) {}
+  }, [taking]);
 
   useEffect(() => {
     if (!examData || !taking) return;
