@@ -364,6 +364,7 @@ app.use('/api/live', require('./routes/live'));
 app.use('/api/events', require('./routes/events'));
 app.use('/api/activity-logs', require('./routes/activityLogs'));
 app.use('/api/whatsapp',     require('./routes/whatsapp'));
+app.use('/api/recitations', require('./routes/recitations'));
 
 const clientDist = path.join(__dirname, '../client/dist');
 if (process.env.NODE_ENV === 'production' || fs.existsSync(clientDist)) {

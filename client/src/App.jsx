@@ -31,6 +31,8 @@ import TeacherActivityLog from './pages/teacher/ActivityLog';
 import CourseContent from './pages/teacher/CourseContent';
 import ExamQuestions from './pages/teacher/ExamQuestions';
 import TeacherSettings from './pages/teacher/Settings';
+import TeacherRecitations from './pages/teacher/Recitations';
+import StudentRecitations from './pages/student/Recitations';
 import StudentLiveStream from './pages/student/LiveStream';
 import AssistantDashboard from './pages/assistant/Dashboard';
 import AssistantStudents from './pages/assistant/Students';
@@ -171,6 +173,7 @@ const TenantRoutes = () => {
           <Route path="courses/:courseId/content" element={<CourseContent />} />
           <Route path="exams/:examId/questions" element={<ExamQuestions />} />
           <Route path="settings" element={<TeacherSettings />} />
+          <Route path="recitations" element={<TeacherRecitations />} />
         </Route>
 
         {/* ── Assistant dashboard ────────────────────────────────────────────── */}
@@ -209,6 +212,9 @@ const TenantRoutes = () => {
           <Route path="exams/:examId/questions" element={
             <AssistantPermissionRoute permission="can_manage_exams"><ExamQuestions /></AssistantPermissionRoute>
           } />
+          <Route path="recitations" element={
+            <AssistantPermissionRoute permission="can_manage_recitations"><TeacherRecitations /></AssistantPermissionRoute>
+          } />
         </Route>
 
         {/* ── Student dashboard ─────────────────────────────────────────────── */}
@@ -227,6 +233,7 @@ const TenantRoutes = () => {
           <Route path="exam-review/:resultId" element={<ExamReviewPage />} />
           <Route path="live" element={<StudentLiveStream />} />
           <Route path="events" element={<StudentEvents />} />
+          <Route path="recitations" element={<StudentRecitations />} />
         </Route>
 
         {/* Stickman run — fullscreen game, outside StudentLayout intentionally */}

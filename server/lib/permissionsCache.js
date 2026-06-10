@@ -16,7 +16,7 @@ async function getPermissions(assistantId, pool) {
     `SELECT id, teacher_id,
             can_add_students, can_edit_students, can_delete_students,
             can_manage_exams, can_view_analytics, can_send_reports,
-            can_manage_payments, can_manage_courses, can_send_notifications
+            can_manage_payments, can_manage_courses, can_send_notifications, can_manage_recitations
      FROM assistants WHERE id=$1`,
     [assistantId]
   );

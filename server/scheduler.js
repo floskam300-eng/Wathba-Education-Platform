@@ -13,8 +13,10 @@ const { activeSends } = require('./lib/waActiveSends');
 let _pool = null;
 let _intervalId = null;
 let _waIntervalId = null;
+let _recIntervalId = null;
 let _isRunning = false;
 let _isWaRunning = false;
+let _isRecRunning = false;
 
 async function runCheck() {
   if (!_pool || _isRunning) return;
@@ -186,19 +188,146 @@ async function runWhatsAppSchedules() {
   }
 }
 
+// ── Recurring Recitation Window Scheduler ────────────────────────────────────
+async function runRecitationSchedule() {
+  if (!_pool || _isRecRunning) return;
+  _isRecRunning = true;
+  try {
+    // Find published recurring recitations whose window has ended
+    const { rows: recs } = await _pool.query(`
+      SELECT * FROM recitations
+       WHERE is_published = true
+         AND schedule_type IN ('daily','weekly')
+         AND end_date IS NOT NULL
+         AND end_date < NOW()
+    `);
+
+    for (const rec of recs) {
+      try {
+        const now = new Date();
+        let newStart, newEnd;
+
+        if (rec.schedule_type === 'daily') {
+          // Advance by 1 day from current end_date
+          const next = new Date(rec.end_date);
+          next.setDate(next.getDate() + 1);
+          const dur = new Date(rec.end_date) - new Date(rec.start_date);
+          newStart = new Date(next.getTime() - dur);
+          newEnd = next;
+        } else if (rec.schedule_type === 'weekly') {
+          // Advance by 7 days from current end_date
+          const next = new Date(rec.end_date);
+          next.setDate(next.getDate() + 7);
+          const dur = new Date(rec.end_date) - new Date(rec.start_date);
+          newStart = new Date(next.getTime() - dur);
+          newEnd = next;
+        }
+
+        // Reset: update dates + start_notified=false, clear old sessions
+        await _pool.query('BEGIN');
+        try {
+          await _pool.query(
+            `UPDATE recitations SET start_date=$1, end_date=$2, start_notified=false
+              WHERE id=$3`,
+            [newStart.toISOString(), newEnd.toISOString(), rec.id]
+          );
+          // Clear old sessions so students can take it again this window
+          await _pool.query('DELETE FROM recitation_sessions WHERE recitation_id=$1', [rec.id]);
+          await _pool.query('COMMIT');
+
+          // Notify eligible students
+          let studentQuery, params;
+          if (rec.academic_stage) {
+            studentQuery = 'SELECT id FROM students WHERE teacher_id=$1 AND academic_stage=$2 AND deleted_at IS NULL';
+            params = [rec.teacher_id, rec.academic_stage];
+          } else {
+            studentQuery = 'SELECT id FROM students WHERE teacher_id=$1 AND deleted_at IS NULL';
+            params = [rec.teacher_id];
+          }
+          const { rows: students } = await _pool.query(studentQuery, params);
+          const studentIds = students.map(s => s.id);
+
+          for (const sid of studentIds) {
+            sendEvent(`student_${sid}`, 'new_recitation', {
+              title: rec.title,
+              recitationId: rec.id,
+            });
+            _pool.query(
+              `INSERT INTO notification_log (teacher_id, student_id, title, message, type, source)
+               VALUES ($1,$2,$3,$4,'new_recitation','platform')`,
+              [rec.teacher_id, sid, 'تسميع جديد 📖', `تسميع "${rec.title}" متاح الآن`]
+            ).catch(() => {});
+          }
+
+          console.log(`[Scheduler] Recitation "${rec.title}" (id=${rec.id}) window reset — notified ${studentIds.length} students`);
+        } catch (txErr) {
+          await _pool.query('ROLLBACK');
+          throw txErr;
+        }
+      } catch (recErr) {
+        console.error(`[Scheduler] Error resetting recitation ${rec.id}:`, recErr.message);
+      }
+    }
+
+    // Also handle start notifications for recitations
+    const { rows: toNotify } = await _pool.query(`
+      UPDATE recitations
+         SET start_notified = true
+       WHERE is_published = true
+         AND start_date IS NOT NULL
+         AND start_date <= NOW()
+         AND start_notified = false
+         AND (end_date IS NULL OR end_date > NOW())
+      RETURNING id, title, teacher_id, academic_stage
+    `);
+
+    for (const rec of toNotify) {
+      try {
+        let studentQuery, params;
+        if (rec.academic_stage) {
+          studentQuery = 'SELECT id FROM students WHERE teacher_id=$1 AND academic_stage=$2 AND deleted_at IS NULL';
+          params = [rec.teacher_id, rec.academic_stage];
+        } else {
+          studentQuery = 'SELECT id FROM students WHERE teacher_id=$1 AND deleted_at IS NULL';
+          params = [rec.teacher_id];
+        }
+        const { rows: students } = await _pool.query(studentQuery, params);
+        const studentIds = students.map(s => s.id);
+        for (const sid of studentIds) {
+          sendEvent(`student_${sid}`, 'new_recitation', {
+            title: rec.title, recitationId: rec.id,
+          });
+        }
+        console.log(`[Scheduler] Recitation "${rec.title}" (id=${rec.id}) started — notified ${studentIds.length} students`);
+      } catch (e) {
+        console.error(`[Scheduler] Error notifying recitation ${rec.id}:`, e.message);
+      }
+    }
+  } catch (err) {
+    console.error('[Scheduler] Recitation schedule error:', err.message);
+  } finally {
+    _isRecRunning = false;
+  }
+}
+
 function startScheduler(pool) {
   _pool = pool;
   runCheck();
   _intervalId = setInterval(runCheck, 30 * 1000);
   // Check WhatsApp schedules every 5 minutes
   _waIntervalId = setInterval(runWhatsAppSchedules, 5 * 60 * 1000);
+  // Check recitation windows every 5 minutes
+  runRecitationSchedule();
+  _recIntervalId = setInterval(runRecitationSchedule, 5 * 60 * 1000);
   console.log('[Scheduler] Exam start scheduler running (30s interval)');
   console.log('[Scheduler] WhatsApp schedule checker running (5min interval)');
+  console.log('[Scheduler] Recitation window scheduler running (5min interval)');
 }
 
 function stopScheduler() {
   if (_intervalId)   { clearInterval(_intervalId);   _intervalId   = null; }
   if (_waIntervalId) { clearInterval(_waIntervalId); _waIntervalId = null; }
+  if (_recIntervalId) { clearInterval(_recIntervalId); _recIntervalId = null; }
 }
 
 module.exports = { startScheduler, stopScheduler };

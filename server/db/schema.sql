@@ -867,3 +867,86 @@ DROP TRIGGER IF EXISTS trg_validate_chat_sender ON live_chat_messages;
 CREATE TRIGGER trg_validate_chat_sender
   BEFORE INSERT ON live_chat_messages
   FOR EACH ROW EXECUTE FUNCTION fn_validate_chat_sender();
+
+-- ─── RECITATIONS SYSTEM ──────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS recitations (
+  id SERIAL PRIMARY KEY,
+  teacher_id INTEGER NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+  title VARCHAR(300) NOT NULL,
+  description TEXT,
+  academic_stage VARCHAR(100),
+  duration_minutes INTEGER DEFAULT 10 CHECK (duration_minutes BETWEEN 1 AND 60),
+  total_score INTEGER DEFAULT 10,
+  pass_score INTEGER DEFAULT 5,
+  points_on_attempt INTEGER DEFAULT 0,
+  points_on_pass INTEGER DEFAULT 5,
+  schedule_type VARCHAR(20) DEFAULT 'once',
+  schedule_day INTEGER,
+  start_date TIMESTAMP,
+  end_date TIMESTAMP,
+  is_published BOOLEAN DEFAULT false,
+  start_notified BOOLEAN DEFAULT false,
+  shuffle_questions BOOLEAN DEFAULT false,
+  shuffle_options BOOLEAN DEFAULT false,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS recitation_questions (
+  id SERIAL PRIMARY KEY,
+  recitation_id INTEGER NOT NULL REFERENCES recitations(id) ON DELETE CASCADE,
+  question_text TEXT,
+  question_image_url VARCHAR(500),
+  question_type VARCHAR(20) DEFAULT 'mcq',
+  option_a TEXT,
+  option_b TEXT,
+  option_c TEXT,
+  option_d TEXT,
+  correct_answer_letter CHAR(1) NOT NULL,
+  points INTEGER DEFAULT 1,
+  sort_order INTEGER DEFAULT 0,
+  CONSTRAINT rq_correct_letter CHECK (correct_answer_letter IN ('A','B','C','D','T','F'))
+);
+
+CREATE TABLE IF NOT EXISTS recitation_sessions (
+  id SERIAL PRIMARY KEY,
+  student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  recitation_id INTEGER NOT NULL REFERENCES recitations(id) ON DELETE CASCADE,
+  started_at TIMESTAMP DEFAULT NOW(),
+  questions_snapshot JSONB DEFAULT '[]',
+  UNIQUE(student_id, recitation_id)
+);
+
+CREATE TABLE IF NOT EXISTS recitation_results (
+  id SERIAL PRIMARY KEY,
+  student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  recitation_id INTEGER NOT NULL REFERENCES recitations(id) ON DELETE CASCADE,
+  score INTEGER DEFAULT 0,
+  correct_count INTEGER DEFAULT 0,
+  wrong_count INTEGER DEFAULT 0,
+  unanswered_count INTEGER DEFAULT 0,
+  answers JSONB DEFAULT '[]',
+  points_earned INTEGER DEFAULT 0,
+  start_time TIMESTAMP,
+  end_time TIMESTAMP,
+  passed BOOLEAN DEFAULT false,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS recitation_streaks (
+  id SERIAL PRIMARY KEY,
+  student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  teacher_id INTEGER NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+  current_streak INTEGER DEFAULT 0,
+  max_streak INTEGER DEFAULT 0,
+  last_completed_at TIMESTAMP,
+  total_completed INTEGER DEFAULT 0,
+  updated_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(student_id, teacher_id)
+);
+
+ALTER TABLE assistants ADD COLUMN IF NOT EXISTS can_manage_recitations BOOLEAN DEFAULT false;
+
+CREATE INDEX IF NOT EXISTS idx_recitations_teacher ON recitations(teacher_id);
+CREATE INDEX IF NOT EXISTS idx_recitation_results_student ON recitation_results(student_id);
+CREATE INDEX IF NOT EXISTS idx_recitation_results_recitation ON recitation_results(recitation_id);

@@ -3,7 +3,7 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useTeacher } from '../context/TeacherContext';
-import { LayoutDashboard, Users, LogOut, Menu, FileText, BarChart3, BookOpen, CreditCard, Moon, Sun, MessageCircle, Inbox, BookMarked } from 'lucide-react';
+import { LayoutDashboard, Users, LogOut, Menu, FileText, BarChart3, BookOpen, CreditCard, Moon, Sun, MessageCircle, Inbox, BookMarked, GraduationCap } from 'lucide-react';
 import WathbaLogo from '../assets/wathba_logo.png';
 import { useSSE } from '../hooks/useSSE';
 import { refreshMediaToken } from '../lib/mediaAccess';
@@ -33,6 +33,7 @@ export default function AssistantLayout() {
     if (user?.role === 'assistant') {
       items.push({ to: '/assistant/students', icon: Users, label: 'الطلاب' });
       if (user?.can_manage_exams) items.push({ to: '/assistant/exams', icon: FileText, label: 'الاختبارات' });
+      if (user?.can_manage_recitations) items.push({ to: '/assistant/recitations', icon: GraduationCap, label: 'التسميع' });
       if (user?.can_manage_exams) items.push({ to: '/assistant/question-banks', icon: BookMarked, label: 'بنوك الأسئلة' });
       if (user?.can_manage_courses) items.push({ to: '/assistant/courses', icon: BookOpen, label: 'الكورسات' });
       if (user?.can_manage_payments) items.push({ to: '/assistant/payments', icon: CreditCard, label: 'المدفوعات' });

@@ -7,7 +7,7 @@ import { useTeacher } from '../context/TeacherContext';
 import {
   LayoutDashboard, BookOpen, FileText, Trophy, LogOut,
   Menu, BarChart2, Moon, Sun, Bell, CheckCheck, X, ShieldAlert, Radio,
-  StopCircle, ExternalLink, Gamepad2,
+  StopCircle, ExternalLink, Gamepad2, GraduationCap,
 } from 'lucide-react';
 import { useLiveStream } from '../context/LiveStreamContext';
 import WathbaLogo from '../assets/wathba_logo.png';
@@ -252,12 +252,13 @@ export default function StudentLayout() {
   const onLivePage = location.pathname.endsWith('/live');
 
   const navItems = [
-    { to: '/student',              icon: LayoutDashboard, label: 'لوحتي',       end: true },
-    { to: '/student/courses',      icon: BookOpen,        label: 'كورساتي' },
-    { to: '/student/exams',        icon: FileText,        label: 'الاختبارات' },
-    { to: '/student/stats',        icon: BarChart2,       label: 'إحصائياتي' },
-    { to: '/student/leaderboard',  icon: Trophy,          label: 'المتصدرون' },
-    { to: '/student/live',         icon: Radio,           label: 'بث مباشر' },
+    { to: '/student',                icon: LayoutDashboard, label: 'لوحتي',       end: true },
+    { to: '/student/courses',        icon: BookOpen,        label: 'كورساتي' },
+    { to: '/student/exams',          icon: FileText,        label: 'الاختبارات' },
+    { to: '/student/recitations',    icon: GraduationCap,   label: 'التسميع' },
+    { to: '/student/stats',          icon: BarChart2,       label: 'إحصائياتي' },
+    { to: '/student/leaderboard',    icon: Trophy,          label: 'المتصدرون' },
+    { to: '/student/live',           icon: Radio,           label: 'بث مباشر' },
   ];
 
   useSSE(!!user, user?.role || 'student');
