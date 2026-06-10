@@ -1,7 +1,7 @@
 /**
- * WATHBA — Seed File (مُعاد بناؤه بالكامل)
+ * WATHBA — Seed File (نسخة شاملة محدّثة)
  * ─────────────────────────────────────────────────────────────────
- * الحسابات المحورية الثلاثة:
+ * الحسابات المحورية:
  *   🎓 المعلم    : admin / admin123       — أكاديمية محمد للرياضيات
  *   🧑‍💼 المساعد  : asst_nour / 123456     — صلاحيات كاملة
  *   🎒 الطالب   : std_ali / 123456        — يغطي كل سيناريوهات الطالب
@@ -17,6 +17,7 @@
  *   live_streams, live_stream_viewers, live_chat_messages, live_hand_raises
  *   event_plays, game_session_tokens
  *   student_devices, device_alerts
+ *   recitations, recitation_questions, recitation_results, recitation_sessions, recitation_streaks
  *   activity_logs
  *   whatsapp_schedules, whatsapp_send_log
  *
@@ -37,7 +38,7 @@ const q = (text, params = []) => pool.query(text, params).then(r => r.rows);
 
 async function seed() {
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('  🌱 WATHBA — بيانات تجريبية شاملة (مُعاد بناؤه بالكامل)');
+  console.log('  🌱 WATHBA — بيانات تجريبية شاملة (نسخة محدّثة كاملة)');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
   // ══════════════════════════════════════════════════════════
@@ -48,6 +49,8 @@ async function seed() {
     'whatsapp_send_log', 'whatsapp_schedules',
     'activity_logs', 'game_session_tokens',
     'device_alerts', 'student_devices',
+    'recitation_streaks', 'recitation_results', 'recitation_sessions',
+    'recitation_questions', 'recitations',
     'exam_sessions', 'event_plays', 'live_hand_raises',
     'live_chat_messages', 'live_stream_viewers', 'live_streams',
     'course_completion_points', 'exam_retry_requests', 'notification_log',
@@ -102,12 +105,10 @@ async function seed() {
         platform_name='أكاديمية محمد للرياضيات',
         logo_url='https://ui-avatars.com/api/?name=MA&background=f97316&color=fff&size=256&bold=true',
         photo_url='https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=300&h=300&fit=crop',
-        force_password_change=true
+        force_password_change=false
       WHERE id=$1
     `, [adminRow.id, passAd]);
   }
-  // [M-16] Mark seed admin as requiring a password change on first login
-  await q(`UPDATE teachers SET force_password_change=true WHERE username='admin'`).catch(() => {});
   const T1 = adminRow.id;
   console.log(`  ✓ admin (id=${T1}) — slug=admin — أكاديمية محمد للرياضيات`);
 
@@ -116,24 +117,21 @@ async function seed() {
   // ══════════════════════════════════════════════════════════
   console.log('\n⟳  إضافة المساعدين...');
 
-  const passA1 = await bcrypt.hash('123456', 10);
-  const passA2 = await bcrypt.hash('123456', 10);
-  const passA3 = await bcrypt.hash('123456', 10);
-
   await q(`
     INSERT INTO assistants
       (username,password,name,phone,teacher_id,
        can_add_students,can_edit_students,can_delete_students,
        can_manage_exams,can_view_analytics,can_send_reports,
-       can_manage_payments,can_manage_courses,can_send_notifications)
+       can_manage_payments,can_manage_courses,can_send_notifications,
+       can_manage_recitations)
     VALUES
       ('asst_nour',$1,'نور أحمد حسين','+201111111101',$4,
-       true,true,true,true,true,true,true,true,true),
+       true,true,true,true,true,true,true,true,true,true),
       ('asst_karim',$2,'كريم محمود إبراهيم','+201111111102',$4,
-       true,true,false,false,true,false,true,false,false),
+       true,true,false,false,true,false,true,false,false,false),
       ('asst_dina',$3,'دينا سعيد محمد','+201111111103',$4,
-       false,false,false,false,true,false,false,false,false)
-  `, [passA1, passA2, passA3, T1]);
+       false,false,false,false,true,false,false,false,false,false)
+  `, [pass6, pass6, pass6, T1]);
 
   const [asstNour]  = await q(`SELECT id,name FROM assistants WHERE username='asst_nour'`);
   const [asstKarim] = await q(`SELECT id,name FROM assistants WHERE username='asst_karim'`);
@@ -160,7 +158,7 @@ async function seed() {
     // [username, name, phone, parentPhone, stage, gender, points, isSuspended]
     ['std_fatma',   'فاطمة أحمد سعد',        '+201200000003', '+201200000004', 'الصف الثالث الثانوي', 'أنثى',  980, false],
     ['std_youssef', 'يوسف إبراهيم كمال',     '+201200000005', '+201200000006', 'الصف الثالث الثانوي', 'ذكر',  1100, false],
-    ['std_nada',    'ندى حسن عبد الله',      '+201200000007', '+201200000008', 'الصف الثالث الثانوي', 'أنثى',  640, false],
+    ['std_nada',    'ندى حسن عبد الله',      '+201200000007', '+201200000008', 'الصف الثالث الثانوي', 'أنثى',  640, true],
     ['std_omar',    'عمر سامي فرج',          '+201200000009', '+201200000010', 'الصف الثالث الثانوي', 'ذكر',   720, false],
     ['std_mostafa', 'مصطفى أسامة نور',       '+201200000025', '+201200000026', 'الصف الثاني الثانوي', 'ذكر',   340, false],
     ['std_rana',    'رنا طارق عبد العزيز',   '+201200000027', '+201200000028', 'الصف الثاني الثانوي', 'أنثى',  420, false],
@@ -353,7 +351,7 @@ async function seed() {
   await addPdf(c4.id, c4s1, 'ملخص الإحداثيات', PDF);
   await addPdf(c4.id, c4s2, 'تدريبات الدائرة والمستقيم', PDF);
 
-  // ── C5: مسودة (1 قسم، 1 فيديو، 1 PDF — غير مكتملة) ──
+  // ── C5: مسودة (1 قسم، 1 فيديو، 1 PDF) ──
   const c5s1 = await addSec(c5.id, 'الباب الأول — مقدمة في الإحصاء', 1);
   await addVid(c5.id, c5s1, 'مقدمة الإحصاء — المفاهيم الأساسية', YT1, 22, 1);
   await addPdf(c5.id, c5s1, 'مخطط المحتوى القادم', PDF);
@@ -366,7 +364,7 @@ async function seed() {
   console.log('  ✓ الأقسام والفيديوهات والـ PDF اكتملت');
 
   // ══════════════════════════════════════════════════════════
-  // 6. بنك الأسئلة (2 بنك — مع أسئلة فردية ومجمّعة)
+  // 6. بنك الأسئلة (2 بنك)
   // ══════════════════════════════════════════════════════════
   console.log('\n⟳  إضافة بنك الأسئلة...');
 
@@ -380,629 +378,661 @@ async function seed() {
     VALUES ('بنك أسئلة التفاضل والتكامل','رياضيات',$1,$2) RETURNING id
   `, [T1, c2.id]);
 
-  // أسئلة بنك 1 (جبر) — مستويات مختلفة
   const bankQ1 = [
     ['mcq','حل المعادلة 3x - 9 = 0','x = 1','x = 2','x = 3','x = 9','C',1,'easy'],
     ['mcq','حل المعادلة التربيعية x² - 5x + 6 = 0','x=1 أو x=6','x=2 أو x=3','x=-2 أو x=-3','x=0 أو x=5','B',2,'medium'],
     ['mcq','sin(30°) يساوي','1','1/2','√3/2','0','B',1,'easy'],
     ['mcq','cos(60°) يساوي','√3/2','1','1/2','0','C',1,'easy'],
     ['mcq','sin²(x) + cos²(x) يساوي','0','1/2','1','2','C',2,'easy'],
-    ['mcq','المتباينة 2x + 4 > 10، إذن x','x > 2','x > 3','x < 3','x = 3','B',2,'medium'],
-    ['mcq','الجذر التربيعي لـ 144','11','12','13','14','B',1,'easy'],
-    ['true_false','العدد -5 يُعدّ حلاً للمعادلة x² = 25','صح','خطأ',null,null,'T',1,'easy'],
-    ['true_false','sin(90°) = 1','صح','خطأ',null,null,'T',1,'easy'],
-    ['mcq','إذا كان f(x) = x² + 2x فإن f(3) =','9','12','15','6','C',3,'hard'],
-    ['mcq','مجموع جذري المعادلة x² - 7x + 12 = 0','3','4','7','12','C',3,'hard'],
-    ['mcq','قيمة tan(45°)','0','1','√3','1/√2','B',2,'medium'],
+    ['mcq','إذا كان f(x) = 2x + 3 فإن f(4) يساوي','8','10','11','14','C',2,'medium'],
+    ['mcq','قيمة cos(0°) تساوي','0','1/2','√3/2','1','D',1,'easy'],
+    ['mcq','حل المتباينة 2x - 4 > 0','x > 0','x > 2','x < 2','x > 4','B',2,'medium'],
+    ['mcq','قانون الجيب في المثلث يربط بين','الأضلاع والزوايا','الأضلاع فقط','الزوايا فقط','المساحة والمحيط','A',3,'hard'],
+    ['mcq','ميل الخط العمودي على خط ميله 2 يساوي','-2','-1/2','1/2','2','B',2,'medium'],
+    ['true_false','tan(45°) = 1','صح','خطأ',null,null,'T',1,'easy'],
+    ['true_false','sin(90°) = 0','صح','خطأ',null,null,'F',1,'easy'],
+    ['true_false','cos(180°) = -1','صح','خطأ',null,null,'T',1,'easy'],
+    ['true_false','الميل الموجب يعني الخط صاعد من اليسار لليمين','صح','خطأ',null,null,'T',1,'easy'],
+    ['true_false','المعادلة x² + 1 = 0 لها حلول حقيقية','صح','خطأ',null,null,'F',2,'medium'],
   ];
-  for (const [type, text, a, b, c, d, ans, pts, diff] of bankQ1) {
+
+  for (const [qt, txt, a, b, c, d, ans, pts, diff] of bankQ1) {
     await q(`
       INSERT INTO bank_questions
-        (bank_id,question_text,option_a,option_b,option_c,option_d,
-         correct_answer_letter,points,question_type,difficulty)
+        (bank_id,question_type,question_text,option_a,option_b,option_c,option_d,
+         correct_answer_letter,points,difficulty)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-    `, [bank1.id, text, a, b, c, d, ans, pts, type, diff]);
+    `, [bank1.id, qt, txt, a, b, c, d, ans, pts, diff]);
   }
 
-  // أسئلة بنك 2 (تفاضل)
   const bankQ2 = [
-    ['mcq','مشتقة الدالة f(x) = x³','3x²','x²','3x','2x³','A',2,'medium'],
-    ['mcq','مشتقة الثابت تساوي','1','0','الثابت نفسه','غير معرّفة','B',1,'easy'],
-    ['mcq','مشتقة f(x) = 5x² عند x=2','10','20','40','5','B',2,'medium'],
-    ['true_false','مشتقة الدالة sin(x) هي cos(x)','صح','خطأ',null,null,'T',1,'easy'],
-    ['mcq','تكامل (2x) dx = ','x²','x² + c','2x² + c','x + c','B',2,'medium'],
-    ['mcq','قيمة ∫₀¹ x dx','1/4','1/2','1','2','B',3,'hard'],
+    ['mcq','مشتقة x³ تساوي','x²','2x','3x²','3x','C',2,'easy'],
+    ['mcq','مشتقة sin(x) تساوي','cos(x)','-cos(x)','-sin(x)','tan(x)','A',2,'easy'],
+    ['mcq','تكامل 2x dx يساوي','x','x²','2x²','x² + C','D',2,'easy'],
+    ['mcq','إذا كان f\'(x) = 0 فإن x تسمى','نقطة تقاطع','نقطة قصوى','نقطة بداية','نقطة نهاية','B',3,'medium'],
+    ['mcq','تكامل cos(x) dx يساوي','sin(x)+C','-sin(x)+C','cos(x)+C','tan(x)+C','A',2,'medium'],
+    ['mcq','قاعدة الضرب في المشتقة: (uv)\' تساوي','u\'v\'','u\'v + uv\'','u\'v - uv\'','uv\'/u\'v','B',3,'hard'],
+    ['mcq','تكامل x⁰ dx يساوي','0','x','x+C','1','C',1,'easy'],
+    ['true_false','مشتقة الثابت تساوي صفر','صح','خطأ',null,null,'T',1,'easy'],
+    ['true_false','تكامل دالة موجبة دائماً موجب','صح','خطأ',null,null,'F',2,'medium'],
+    ['true_false','(eˣ)\' = eˣ','صح','خطأ',null,null,'T',2,'medium'],
   ];
-  for (const [type, text, a, b, c, d, ans, pts, diff] of bankQ2) {
+
+  for (const [qt, txt, a, b, c, d, ans, pts, diff] of bankQ2) {
     await q(`
       INSERT INTO bank_questions
-        (bank_id,question_text,option_a,option_b,option_c,option_d,
-         correct_answer_letter,points,question_type,difficulty)
+        (bank_id,question_type,question_text,option_a,option_b,option_c,option_d,
+         correct_answer_letter,points,difficulty)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-    `, [bank2.id, text, a, b, c, d, ans, pts, type, diff]);
+    `, [bank2.id, qt, txt, a, b, c, d, ans, pts, diff]);
   }
 
-  // أسئلة مجمّعة — بنك 1: مثلث قائم (3 أسئلة بسياق مشترك)
-  const GRP_B1 = 20011;
-  const GRP_B1_CTX =
-    'في مثلث ABC قائم الزاوية عند C، الضلعان المحيطان بالزاوية القائمة هما:\n' +
-    'a = BC = 3 سم، و b = AC = 4 سم.\n' +
-    'احسب ما يُطلب في الأسئلة التالية باستخدام هذه المعطيات.';
-  const bankGroup1 = [
-    ['ما طول الوتر AB في هذا المثلث؟',   '5 سم', '6 سم', '7 سم', '√7 سم', 'A', 2, 'medium'],
-    ['ما قيمة sin(A) في هذا المثلث؟',     '3/5',  '4/5',  '4/3',  '3/4',   'A', 2, 'medium'],
-    ['ما قيمة cos(A) في هذا المثلث؟',     '3/5',  '4/5',  '3/4',  '4/3',   'B', 2, 'medium'],
-  ];
-  for (const [text, a, b, c, d, ans, pts, diff] of bankGroup1) {
-    await q(`
-      INSERT INTO bank_questions
-        (bank_id,question_text,option_a,option_b,option_c,option_d,
-         correct_answer_letter,points,question_type,difficulty,
-         group_id,group_context,group_context_image)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'mcq',$9,$10,$11,$12)
-    `, [bank1.id, text, a, b, c, d, ans, pts, diff, GRP_B1, GRP_B1_CTX, null]);
-  }
-
-  // أسئلة مجمّعة — بنك 2: تحليل دالة (3 أسئلة بسياق مشترك)
-  const GRP_B2 = 20021;
-  const GRP_B2_CTX =
-    'لتكن الدالة f(x) = x³ − 3x² + 2\n' +
-    '• مشتقة الدالة: f\'(x) = 3x² − 6x = 3x(x − 2)\n' +
-    '• الدالة لها نقطتا قصوى عند x = 0 و x = 2\n' +
-    'استخدم هذه المعلومات للإجابة عن الأسئلة التالية.';
-  const bankGroup2 = [
-    ['ما قيمة f(0) للدالة المعطاة؟',                    '2',     '0',     '-2',    '3',    'A', 2, 'medium'],
-    ['ما قيمة f\'(x) عند x = 1؟',                       '-3',    '0',     '3',     '-1',   'A', 2, 'medium'],
-    ['الدالة f(x) متناقصة في الفترة التي تقع في',        '[0,2]', '[1,3]', '[-1,0]','[2,4]','A', 3, 'hard'],
-  ];
-  for (const [text, a, b, c, d, ans, pts, diff] of bankGroup2) {
-    await q(`
-      INSERT INTO bank_questions
-        (bank_id,question_text,option_a,option_b,option_c,option_d,
-         correct_answer_letter,points,question_type,difficulty,
-         group_id,group_context,group_context_image)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'mcq',$9,$10,$11,$12)
-    `, [bank2.id, text, a, b, c, d, ans, pts, diff, GRP_B2, GRP_B2_CTX, null]);
-  }
-
-  console.log('  ✓ 2 بنك أسئلة (12 جبر + 3 مجمّعة، 6 تفاضل + 3 مجمّعة)');
+  console.log('  ✓ بنكا الأسئلة: bank1 (15 سؤال جبر) | bank2 (10 أسئلة تفاضل)');
 
   // ══════════════════════════════════════════════════════════
   // 7. الامتحانات (11 امتحان — كل الحالات)
   // ══════════════════════════════════════════════════════════
   console.log('\n⟳  إضافة الامتحانات...');
 
-  // E1 — منتهي (c1 ث3) — std_ali نجح ✅
+  // e1: امتحان الجبر — منتهي (std_ali ناجح ✓)
   const [e1] = await q(`
     INSERT INTO exams
-      (title,duration_minutes,total_score,pass_score,teacher_id,course_id,
-       is_published,start_date,end_date,badge_name,badge_color,
-       points_on_attempt,points_on_pass,shuffle_questions,shuffle_options,
-       question_source)
-    VALUES ('امتحان الجبر — الوحدة الأولى',45,30,15,$1,$2,
-            true,$3,$4,'نجم الجبر','#f97316',5,20,false,false,'manual')
+      (title,duration_minutes,total_score,course_id,teacher_id,
+       pass_score,badge_name,badge_color,is_published,
+       start_date,end_date,shuffle_questions,shuffle_options,
+       points_on_attempt,points_on_pass)
+    VALUES ('امتحان الجبر والمتباينات',45,30,$1,$2,
+      18,'نجم الجبر','#f97316',true,
+      $3,$4,false,false,5,15)
     RETURNING id
-  `, [T1, c1.id, past(21), past(14)]);
+  `, [c1.id, T1, past(25), past(5)]);
 
-  // E2 — منتهي (c1 ث3) — std_ali راسب + طلب إعادة مقبول ✅
+  // e2: امتحان المثلثات — منتهي (std_ali راسب، طلب إعادة مقبولة)
   const [e2] = await q(`
     INSERT INTO exams
-      (title,duration_minutes,total_score,pass_score,teacher_id,course_id,
-       is_published,start_date,end_date,badge_name,badge_color,
-       points_on_attempt,points_on_pass,question_source)
-    VALUES ('امتحان المثلثات الشامل',60,50,30,$1,$2,
-            true,$3,$4,'متفوق الرياضيات','#7c3aed',5,25,'manual')
+      (title,duration_minutes,total_score,course_id,teacher_id,
+       pass_score,badge_name,badge_color,is_published,
+       start_date,end_date,shuffle_questions,shuffle_options,
+       points_on_attempt,points_on_pass)
+    VALUES ('امتحان المثلثات والنسب المثلثية',60,50,$1,$2,
+      30,'بطل المثلثات','#7c3aed',true,
+      $3,$4,true,false,5,20)
     RETURNING id
-  `, [T1, c1.id, past(14), past(7)]);
+  `, [c1.id, T1, past(20), past(3)]);
 
-  // E3 — متاح الآن (c1 ث3) — std_ali لم يمتحنه بعد 🕐
+  // e3: مراجعة الدوال — نشط الآن (std_ali لم يأده بعد ✓)
   const [e3] = await q(`
     INSERT INTO exams
-      (title,duration_minutes,total_score,pass_score,teacher_id,course_id,
-       is_published,start_date,end_date,points_on_attempt,points_on_pass,
-       question_source)
-    VALUES ('مراجعة الدوال والرسوم البيانية',40,40,20,$1,$2,
-            true,$3,$4,5,15,'manual')
+      (title,duration_minutes,total_score,course_id,teacher_id,
+       pass_score,is_published,start_date,end_date,
+       points_on_attempt,points_on_pass)
+    VALUES ('مراجعة الدوال والرسوم البيانية',40,40,$1,$2,
+      24,true,$3,$4,5,10)
     RETURNING id
-  `, [T1, c1.id, past(2), future(5)]);
+  `, [c1.id, T1, past(3), future(5)]);
 
-  // E4 — قادم (c1 ث3) — وقته لم يجئ بعد ⏳
+  // e4: الاختبار النهائي — قادم (std_ali لم يأده بعد + مش بادئ لسا)
   const [e4] = await q(`
     INSERT INTO exams
-      (title,duration_minutes,total_score,pass_score,teacher_id,course_id,
-       is_published,start_date,end_date,badge_name,badge_color,
-       points_on_attempt,points_on_pass,shuffle_questions,shuffle_options,
-       question_source)
-    VALUES ('الاختبار النهائي — الجبر والمثلثات',90,100,60,$1,$2,
-            true,$3,$4,'بطل الرياضيات','#f59e0b',10,40,true,true,'manual')
+      (title,duration_minutes,total_score,course_id,teacher_id,
+       pass_score,badge_name,badge_color,is_published,
+       start_date,end_date,shuffle_questions,shuffle_options,
+       points_on_attempt,points_on_pass)
+    VALUES ('الاختبار النهائي الشامل',90,100,$1,$2,
+      60,'بطل الرياضيات','#f59e0b',true,
+      $3,$4,true,true,10,50)
     RETURNING id
-  `, [T1, c1.id, future(7), future(14)]);
+  `, [c1.id, T1, future(7), future(14)]);
 
-  // E5 — منتهي (c2 تفاضل) — std_ali نجح بامتياز + شارة ✅
+  // e5: امتحان التفاضل — نشط (std_ali ناجح ✓)
   const [e5] = await q(`
     INSERT INTO exams
-      (title,duration_minutes,total_score,pass_score,teacher_id,course_id,
-       is_published,start_date,end_date,badge_name,badge_color,
-       points_on_attempt,points_on_pass,question_source)
-    VALUES ('اختبار مفهوم المشتقة',50,30,15,$1,$2,
-            true,$3,$4,'عبقري التفاضل','#10b981',5,20,'manual')
+      (title,duration_minutes,total_score,course_id,teacher_id,
+       pass_score,badge_name,badge_color,is_published,
+       start_date,end_date,points_on_attempt,points_on_pass)
+    VALUES ('اختبار مشتقات — الوحدة الأولى',50,30,$1,$2,
+      18,'نجم التفاضل','#10b981',true,
+      $3,$4,5,15)
     RETURNING id
-  `, [T1, c2.id, past(10), past(3)]);
+  `, [c2.id, T1, past(15), past(2)]);
 
-  // E6 — متاح الآن (c2 تفاضل) — std_ali لم يمتحنه بعد 🕐
+  // e6: امتحان التكامل — نشط (std_ali لم يأده بعد ✓)
   const [e6] = await q(`
     INSERT INTO exams
-      (title,duration_minutes,total_score,pass_score,teacher_id,course_id,
-       is_published,start_date,end_date,points_on_attempt,points_on_pass,
-       question_source)
-    VALUES ('اختبار التكامل وتطبيقاته',45,30,15,$1,$2,
-            true,$3,$4,5,15,'manual')
+      (title,duration_minutes,total_score,course_id,teacher_id,
+       pass_score,is_published,start_date,end_date,
+       points_on_attempt,points_on_pass)
+    VALUES ('اختبار التكامل المحدود',45,30,$1,$2,
+      18,true,$3,$4,5,15)
     RETURNING id
-  `, [T1, c2.id, past(1), future(6)]);
+  `, [c2.id, T1, past(1), future(6)]);
 
-  // E7 — منتهي (c3 مجاني) — std_ali امتحنه ✅
+  // e7: امتحان قصير — مسودة (غير منشور)
   const [e7] = await q(`
     INSERT INTO exams
-      (title,duration_minutes,total_score,pass_score,teacher_id,course_id,
-       is_published,start_date,end_date,points_on_attempt,points_on_pass,
-       question_source)
-    VALUES ('اختبار التشخيص المجاني',20,20,10,$1,$2,
-            true,$3,$4,3,10,'manual')
+      (title,duration_minutes,total_score,course_id,teacher_id,
+       pass_score,is_published,points_on_attempt,points_on_pass)
+    VALUES ('تمرين سريع على المعادلات [مسودة]',20,20,$1,$2,
+      12,false,3,10)
     RETURNING id
-  `, [T1, c3.id, past(30), past(20)]);
+  `, [c1.id, T1]);
 
-  // E8 — غير منشور مسودة (c5) — لا يرى الطلاب 🔒
+  // e8: امتحان من بنك الأسئلة — نشط (ث3)
   const [e8] = await q(`
     INSERT INTO exams
-      (title,duration_minutes,total_score,pass_score,teacher_id,course_id,
-       is_published,start_date,end_date,points_on_attempt,points_on_pass,
-       question_source)
-    VALUES ('اختبار الإحصاء — مسودة',60,50,25,$1,$2,
-            false,$3,$4,5,20,'manual')
+      (title,duration_minutes,total_score,course_id,teacher_id,
+       pass_score,is_published,start_date,end_date,
+       question_source,bank_id,bank_question_count,
+       bank_easy_count,bank_medium_count,bank_hard_count,
+       points_on_attempt,points_on_pass)
+    VALUES ('اختبار بنك الجبر العشوائي',30,20,$1,$2,
+      12,true,$3,$4,
+      'bank',$5,10,4,4,2,3,12)
     RETURNING id
-  `, [T1, c5.id, future(30), future(45)]);
+  `, [c1.id, T1, past(2), future(5), bank1.id]);
 
-  // E9 — متاح (c4 ث2) — للطلاب الآخرين
+  // e9: امتحان ث2 في الهندسة — منتهي
   const [e9] = await q(`
     INSERT INTO exams
-      (title,duration_minutes,total_score,pass_score,teacher_id,course_id,
-       is_published,start_date,end_date,points_on_attempt,points_on_pass,
-       question_source)
-    VALUES ('اختبار الهندسة التحليلية',30,20,10,$1,$2,
-            true,$3,$4,5,10,'manual')
+      (title,duration_minutes,total_score,course_id,teacher_id,
+       pass_score,is_published,start_date,end_date,
+       points_on_attempt,points_on_pass)
+    VALUES ('امتحان الإحداثيات والمسافة',35,25,$1,$2,
+      15,true,$3,$4,3,12)
     RETURNING id
-  `, [T1, c4.id, past(5), future(10)]);
+  `, [c4.id, T1, past(10), past(1)]);
 
-  // E10 — قادم (c4 ث2)
+  // e10: امتحان ث2 هندسة — نشط
   const [e10] = await q(`
     INSERT INTO exams
-      (title,duration_minutes,total_score,pass_score,teacher_id,course_id,
-       is_published,start_date,end_date,points_on_attempt,points_on_pass,
-       question_source)
-    VALUES ('الاختبار النهائي — الهندسة التحليلية',60,50,25,$1,$2,
-            true,$3,$4,5,20,'manual')
+      (title,duration_minutes,total_score,course_id,teacher_id,
+       pass_score,is_published,start_date,end_date,
+       points_on_attempt,points_on_pass)
+    VALUES ('امتحان المستقيم والدائرة',40,30,$1,$2,
+      18,true,$3,$4,3,12)
     RETURNING id
-  `, [T1, c4.id, future(14), future(21)]);
+  `, [c4.id, T1, past(1), future(4)]);
 
-  // E11 — امتحان بالأسئلة المجمّعة (c1) — متاح الآن
+  // e11: امتحان مجاني منتهي
   const [e11] = await q(`
     INSERT INTO exams
-      (title,duration_minutes,total_score,pass_score,teacher_id,course_id,
-       is_published,start_date,end_date,badge_name,badge_color,
-       points_on_attempt,points_on_pass,shuffle_questions,shuffle_options,
-       question_source)
-    VALUES ('اختبار قراءة وتحليل — أسئلة مجمّعة',50,40,20,$1,$2,
-            true,$3,$4,'محلل بارع','#06b6d4',5,20,false,false,'manual')
+      (title,duration_minutes,total_score,course_id,teacher_id,
+       pass_score,is_published,start_date,end_date,
+       points_on_attempt,points_on_pass)
+    VALUES ('اختبار أساسيات المجاني',15,10,$1,$2,
+      6,true,$3,$4,2,5)
     RETURNING id
-  `, [T1, c1.id, past(1), future(9)]);
+  `, [c3.id, T1, past(30), past(1)]);
 
-  console.log('  ✓ 11 امتحانات (منتهية، جارية، قادمة، غير منشورة، مجمّعة)');
+  console.log('  ✓ 11 امتحان (منتهي×5، نشط×4، قادم×1، مسودة×1)');
 
   // ══════════════════════════════════════════════════════════
-  // 8. أسئلة الامتحانات
+  // 8. الأسئلة
   // ══════════════════════════════════════════════════════════
-  console.log('\n⟳  إضافة أسئلة الامتحانات...');
+  console.log('\n⟳  إضافة الأسئلة...');
 
-  const mcq = async (eid, text, a, b, c, d, ans, pts) => q(`
-    INSERT INTO questions
-      (exam_id,question_text,option_a,option_b,option_c,option_d,
-       correct_answer_letter,points,question_type)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'mcq')
-  `, [eid, text, a, b, c, d, ans, pts]);
+  // أسئلة e1 (امتحان الجبر — 30 درجة، 10 أسئلة)
+  const e1Questions = [
+    ['mcq','حل المعادلة: 2x + 6 = 14','x = 3','x = 4','x = 5','x = 10','B',3,null],
+    ['mcq','حل المعادلة التربيعية: x² - 9 = 0','x = ±3','x = ±9','x = 3','x = 9','A',3,null],
+    ['mcq','ما قيمة x في: 3(x - 2) = 9','x = 5','x = 3','x = 7','x = 4','A',3,null],
+    ['mcq','إذا كان 2x < 10، فإن:','x < 5','x < 4','x ≤ 5','x > 5','A',3,null],
+    ['mcq','ما الجذر الموجب للمعادلة: x² - 16 = 0','2','4','8','16','B',3,null],
+    ['mcq','حل: 5x - 3 = 2x + 9','x = 3','x = 4','x = 2','x = 6','B',3,null],
+    ['true_false','المعادلة x² = -4 لها جذران حقيقيان','صح','خطأ',null,null,'F',3,null],
+    ['true_false','إذا كان x² = 25 فإن x = 5 فقط','صح','خطأ',null,null,'F',3,null],
+    ['true_false','المتباينة 3x > 9 تعني أن x > 3','صح','خطأ',null,null,'T',3,null],
+    ['true_false','x² - 4x + 4 = (x-2)²','صح','خطأ',null,null,'T',3,null],
+  ];
+  const e1QIds = [];
+  for (const [qt, txt, a, b, c, d, ans, pts] of e1Questions) {
+    const [qr] = await q(`
+      INSERT INTO questions
+        (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,
+         correct_answer_letter,points)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id
+    `, [e1.id, qt, txt, a, b, c, d, ans, pts]);
+    e1QIds.push({ id: qr.id, correct: ans, pts });
+  }
 
-  const tf = async (eid, text, ans, pts) => q(`
-    INSERT INTO questions
-      (exam_id,question_text,option_a,option_b,option_c,option_d,
-       correct_answer_letter,points,question_type)
-    VALUES ($1,$2,'صح','خطأ',NULL,NULL,$3,$4,'true_false')
-  `, [eid, text, ans, pts]);
+  // أسئلة e2 (امتحان المثلثات — 50 درجة، 10 أسئلة)
+  const e2Questions = [
+    ['mcq','sin(30°) يساوي','1','1/2','√3/2','0','B',5,null],
+    ['mcq','cos(0°) يساوي','0','1/2','√3/2','1','D',5,null],
+    ['mcq','tan(45°) يساوي','0','1/2','1','√3','C',5,null],
+    ['mcq','sin(60°) يساوي','1/2','√3/2','√2/2','1','B',5,null],
+    ['mcq','cos(90°) يساوي','1','0','-1','1/2','B',5,null],
+    ['mcq','sin²(x) + cos²(x) يساوي','0','1/2','1','2','C',5,null],
+    ['true_false','sin(0°) = 0','صح','خطأ',null,null,'T',5,null],
+    ['true_false','tan(90°) محدود','صح','خطأ',null,null,'F',5,null],
+    ['true_false','cos(180°) = -1','صح','خطأ',null,null,'T',5,null],
+    ['true_false','sin(-x) = sin(x)','صح','خطأ',null,null,'F',5,null],
+  ];
+  const e2QIds = [];
+  for (const [qt, txt, a, b, c, d, ans, pts] of e2Questions) {
+    const [qr] = await q(`
+      INSERT INTO questions
+        (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,
+         correct_answer_letter,points)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id
+    `, [e2.id, qt, txt, a, b, c, d, ans, pts]);
+    e2QIds.push({ id: qr.id, correct: ans, pts });
+  }
 
-  const grpMcq = async (eid, gid, ctx, img, text, a, b, c, d, ans, pts) => q(`
-    INSERT INTO questions
-      (exam_id,question_text,option_a,option_b,option_c,option_d,
-       correct_answer_letter,points,question_type,group_id,group_context,group_context_image)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'mcq',$9,$10,$11)
-  `, [eid, text, a, b, c, d, ans, pts, gid, ctx, img || null]);
+  // أسئلة e3 (مراجعة الدوال — 40 درجة)
+  const e3Questions = [
+    ['mcq','إذا f(x)=3x+1، فإن f(2)=','5','6','7','8','C',8,null],
+    ['mcq','قاطع الصادات للمستقيم y=2x+5 هو','2','5','7','0','B',8,null],
+    ['mcq','الميل في المعادلة y=-3x+7 يساوي','-7','-3','3','7','B',8,null],
+    ['mcq','إذا كان f(x)=x², فإن f(-3)=','-9','9','3','-3','B',8,null],
+    ['true_false','الدالة y=x² دالة تربيعية','صح','خطأ',null,null,'T',8,null],
+  ];
+  for (const [qt, txt, a, b, c, d, ans, pts] of e3Questions) {
+    await q(`
+      INSERT INTO questions
+        (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,
+         correct_answer_letter,points)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+    `, [e3.id, qt, txt, a, b, c, d, ans, pts]);
+  }
 
-  const grpTf = async (eid, gid, ctx, img, text, ans, pts) => q(`
-    INSERT INTO questions
-      (exam_id,question_text,option_a,option_b,option_c,option_d,
-       correct_answer_letter,points,question_type,group_id,group_context,group_context_image)
-    VALUES ($1,$2,'صح','خطأ',NULL,NULL,$3,$4,'true_false',$5,$6,$7)
-  `, [eid, text, ans, pts, gid, ctx, img || null]);
+  // أسئلة e5 (اختبار مشتقات — 30 درجة)
+  const e5Questions = [
+    ['mcq','مشتقة f(x) = 5x² تساوي','5x','10x','10x²','5','B',6,null],
+    ['mcq','مشتقة sin(x) تساوي','cos(x)','-cos(x)','sin(x)','-sin(x)','A',6,null],
+    ['mcq','مشتقة الثابت 7 تساوي','7','0','1','-7','B',6,null],
+    ['mcq','مشتقة x³ - 2x تساوي','3x² - 2','3x² - 2x','x² - 2','3x - 2','A',6,null],
+    ['true_false','مشتقة eˣ = eˣ','صح','خطأ',null,null,'T',6,null],
+  ];
+  const e5QIds = [];
+  for (const [qt, txt, a, b, c, d, ans, pts] of e5Questions) {
+    const [qr] = await q(`
+      INSERT INTO questions
+        (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,
+         correct_answer_letter,points)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id
+    `, [e5.id, qt, txt, a, b, c, d, ans, pts]);
+    e5QIds.push({ id: qr.id, correct: ans, pts });
+  }
 
-  // E1 — 10 أسئلة × 3 = 30
-  await mcq(e1.id,'حل المعادلة: 2x + 6 = 14','x=3','x=4','x=5','x=10','B',3);
-  await mcq(e1.id,'إذا كان 3x − 9 = 0 فإن x =','1','2','3','9','C',3);
-  await mcq(e1.id,'حل x² − 5x + 6 = 0','x=1 أو x=6','x=2 أو x=3','x=−2 أو x=−3','x=0 أو x=5','B',3);
-  await mcq(e1.id,'المتباينة x + 3 > 7 تعني','x>4','x<4','x=4','x>10','A',3);
-  await mcq(e1.id,'الجذر الموجب لـ x² = 25','√5','5','10','25','B',3);
-  await mcq(e1.id,'قيمة y = 2x+1 عند x=3','5','7','9','3','B',3);
-  await mcq(e1.id,'إذا كان f(x)=x² فإن f(4) =','8','12','16','4','C',3);
-  await mcq(e1.id,'حل المتباينة 2x < 10','x<5','x>5','x=5','x<20','A',3);
-  await tf(e1.id,'العدد −3 يُعدّ حلاً للمعادلة x² = 9','T',3);
-  await tf(e1.id,'مجموع حلّي x² − 5x + 6 = 0 يساوي 5','T',3);
+  // أسئلة e6 (التكامل — 30 درجة)
+  const e6Questions = [
+    ['mcq','∫2x dx = ','x + C','x² + C','2 + C','2x² + C','B',6,null],
+    ['mcq','∫cos(x) dx = ','sin(x)+C','-sin(x)+C','cos(x)+C','tan(x)+C','A',6,null],
+    ['mcq','∫(3x²) dx = ','3x + C','6x + C','x³ + C','3x³ + C','C',6,null],
+    ['mcq','∫1 dx = ','0','C','x + C','x','C',6,null],
+    ['true_false','∫eˣ dx = eˣ + C','صح','خطأ',null,null,'T',6,null],
+  ];
+  for (const [qt, txt, a, b, c, d, ans, pts] of e6Questions) {
+    await q(`
+      INSERT INTO questions
+        (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,
+         correct_answer_letter,points)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+    `, [e6.id, qt, txt, a, b, c, d, ans, pts]);
+  }
 
-  // E2 — 10 أسئلة × 5 = 50
-  await mcq(e2.id,'sin(30°) =','1/√2','1/2','√3/2','1','B',5);
-  await mcq(e2.id,'cos(60°) =','√3/2','1','1/2','0','C',5);
-  await mcq(e2.id,'tan(45°) =','0','√2/2','1','√3','C',5);
-  await mcq(e2.id,'sin(90°) =','0','√2/2','1','−1','C',5);
-  await mcq(e2.id,'cos(0°) =','0','1','−1','1/2','B',5);
-  await mcq(e2.id,'sin²(x) + cos²(x) =','0','1/2','1','2','C',5);
-  await mcq(e2.id,'tan(θ) = sin(θ) ÷ ___','sin(θ)','tan(θ)','cos(θ)','sec(θ)','C',5);
-  await mcq(e2.id,'الوتر في المثلث القائم هو','الضلع الأقصر','الضلع المقابل للزاوية القائمة','الضلع المجاور','الضلع الأطول','B',5);
-  await tf(e2.id,'sin(60°) = cos(30°)','T',5);
-  await tf(e2.id,'tan(90°) قيمة غير محددة','T',5);
+  // أسئلة e9 (الإحداثيات — 25 درجة)
+  const e9Questions = [
+    ['mcq','المسافة بين (0,0) و (3,4) تساوي','3','4','5','7','C',5,null],
+    ['mcq','منتصف القطعة بين (2,4) و (6,8) هو','(3,5)','(4,6)','(8,12)','(2,4)','B',5,null],
+    ['mcq','ميل المستقيم المار بـ (1,2) و (3,6) يساوي','1','2','3','4','B',5,null],
+    ['mcq','معادلة المستقيم العمودي على محور x هي','y=c','x=c','y=x','y=-x','B',5,null],
+    ['true_false','المسافة بين نقطتين دائماً موجبة','صح','خطأ',null,null,'T',5,null],
+  ];
+  const e9QIds = [];
+  for (const [qt, txt, a, b, c, d, ans, pts] of e9Questions) {
+    const [qr] = await q(`
+      INSERT INTO questions
+        (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,
+         correct_answer_letter,points)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id
+    `, [e9.id, qt, txt, a, b, c, d, ans, pts]);
+    e9QIds.push({ id: qr.id, correct: ans, pts });
+  }
 
-  // E3 — 8 أسئلة × 5 = 40
-  await mcq(e3.id,'الدالة f(x) = 2x+3 عند x=5 تساوي','10','13','16','23','B',5);
-  await mcq(e3.id,'قاطع الصادات لمستقيم y=3x-6','2','−6','6','3','B',5);
-  await mcq(e3.id,'الميل للمستقيم y = -2x + 1','1','−1','2','−2','D',5);
-  await mcq(e3.id,'الدالة f(x) = x² قطعية مكافئة تفتح إلى','اليسار','اليمين','الأعلى','الأسفل','C',5);
-  await mcq(e3.id,'إذا f(x) = x²-4 فإن f(2) =','0','4','−4','2','A',5);
-  await tf(e3.id,'الدالة الثابتة f(x)=5 ميلها يساوي صفر','T',5);
-  await tf(e3.id,'مستقيمان متوازيان لهما نفس الميل','T',5);
-  await tf(e3.id,'ميل المستقيم العمودي على محور السينات يساوي صفر','F',5);
+  // أسئلة e11 (أساسيات مجاني — 10 درجة)
+  const e11Questions = [
+    ['mcq','2 + 2 × 3 = ','8','10','12','7','A',2,null],
+    ['mcq','√16 = ','2','4','8','16','B',2,null],
+    ['mcq','5² = ','10','20','25','30','C',2,null],
+    ['true_false','7 عدد أولي','صح','خطأ',null,null,'T',2,null],
+    ['true_false','كل الأعداد الزوجية قابلة للقسمة على 2','صح','خطأ',null,null,'T',2,null],
+  ];
+  const e11QIds = [];
+  for (const [qt, txt, a, b, c, d, ans, pts] of e11Questions) {
+    const [qr] = await q(`
+      INSERT INTO questions
+        (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,
+         correct_answer_letter,points)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id
+    `, [e11.id, qt, txt, a, b, c, d, ans, pts]);
+    e11QIds.push({ id: qr.id, correct: ans, pts });
+  }
 
-  // E4 — 10 أسئلة × 10 = 100
-  await mcq(e4.id,'حل x² + 2x - 15 = 0','x=3 أو x=5','x=3 أو x=-5','x=-3 أو x=5','x=-3 أو x=-5','B',10);
-  await mcq(e4.id,'sin(45°) =','1','1/2','1/√2','√3/2','C',10);
-  await mcq(e4.id,'cos(30°) =','1/2','√3/2','1/√2','√3','B',10);
-  await mcq(e4.id,'مشتقة f(x)=3x²','6x','3x','6','3','A',10);
-  await mcq(e4.id,'تكامل ∫3x²dx =','x³','x³+c','3x³','x²+c','B',10);
-  await mcq(e4.id,'قيمة y=x²-2x+1 عند x=3','4','6','2','8','A',10);
-  await tf(e4.id,'مجموع جذري ax²+bx+c=0 هو -b/a','T',10);
-  await tf(e4.id,'الدالة f(x)=x³ دالة فردية','T',10);
-  await tf(e4.id,'cos(90°) = 0','T',10);
-  await tf(e4.id,'حاصل ضرب جذري x²-5x+6=0 يساوي 6','T',10);
+  // أسئلة e10 (ث2 هندسة نشط — بسيطة)
+  const e10Questions = [
+    ['mcq','معادلة الدائرة مركزها الأصل ونصف قطرها 5','x²+y²=5','x²+y²=10','x²+y²=25','x+y=5','C',6,null],
+    ['mcq','معادلة المستقيم أفقي يمر بـ (3,4)','x=3','y=4','y=3','x=4','B',6,null],
+    ['mcq','ميل خط موازٍ لمحور x يساوي','لا نهاية','0','1','-1','B',6,null],
+    ['true_false','المستقيمان المتوازيان ميلاهما متساويان','صح','خطأ',null,null,'T',6,null],
+    ['true_false','حاصل ضرب ميلي المستقيمين المتعامدين = 1','صح','خطأ',null,null,'F',6,null],
+  ];
+  for (const [qt, txt, a, b, c, d, ans, pts] of e10Questions) {
+    await q(`
+      INSERT INTO questions
+        (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,
+         correct_answer_letter,points)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+    `, [e10.id, qt, txt, a, b, c, d, ans, pts]);
+  }
 
-  // E5 — 10 أسئلة × 3 = 30
-  await mcq(e5.id,'مشتقة f(x) = x⁴','4x³','x³','4x','x⁴','A',3);
-  await mcq(e5.id,'مشتقة الثابت 7','7','1','0','−7','C',3);
-  await mcq(e5.id,'مشتقة f(x)=5x² عند x=2','10','20','40','5','B',3);
-  await mcq(e5.id,'مشتقة f(x)=2x³+3x','6x²+3','6x²','6x+3','2x³','A',3);
-  await mcq(e5.id,'قيمة f\'(x) لـ f(x)=x² عند x=3','3','6','9','12','B',3);
-  await mcq(e5.id,'نقطة القصوى المحلية تحدث عند f\'(x)=','1','−1','0','∞','C',3);
-  await tf(e5.id,'مشتقة sin(x) هي cos(x)','T',3);
-  await tf(e5.id,'مشتقة e^x هي e^x','T',3);
-  await tf(e5.id,'الدالة المتزايدة لها مشتقة موجبة دائماً','T',3);
-  await tf(e5.id,'مشتقة f(x)=x هي 1','T',3);
-
-  // E6 — 10 أسئلة × 3 = 30
-  await mcq(e6.id,'تكامل ∫x²dx =','x³+c','x³/3+c','2x','3x²','B',3);
-  await mcq(e6.id,'∫1dx =','0','x','x+c','1','C',3);
-  await mcq(e6.id,'∫2x dx =','x²','x²+c','2x²+c','2x','B',3);
-  await mcq(e6.id,'قيمة ∫₀² 2x dx','4','2','8','1','A',3);
-  await mcq(e6.id,'∫(x²+2x)dx =','x³/3+x²','x³/3+x²+c','x²+2','x³+x²+c','B',3);
-  await tf(e6.id,'التكامل المحدود يستخدم لحساب المساحة','T',3);
-  await tf(e6.id,'ثابت التكامل c يُحذف في التكامل المحدود','T',3);
-  await tf(e6.id,'∫₀¹ 1 dx = 1','T',3);
-  await tf(e6.id,'التكامل هو مضاد الاشتقاق','T',3);
-  await tf(e6.id,'مساحة المنطقة بين الدالة ومحور السينات دائماً موجبة','F',3);
-
-  // E7 — 5 أسئلة × 4 = 20
-  await mcq(e7.id,'2 × 7 + 3 =','14','17','21','10','B',4);
-  await mcq(e7.id,'أكبر عدد من مجموعة {3,7,1,9,2}','7','9','3','2','B',4);
-  await mcq(e7.id,'مربع العدد 8','56','64','72','48','B',4);
-  await tf(e7.id,'1 + 1 = 3','F',4);
-  await tf(e7.id,'مجموع زوايا المثلث 180°','T',4);
-
-  // E8 (مسودة) — 5 أسئلة × 10 = 50
-  await mcq(e8.id,'وسيط مجموعة {2,4,6,8,10}','4','5','6','8','C',10);
-  await mcq(e8.id,'المتوسط الحسابي لـ {10,20,30}','15','20','25','30','B',10);
-  await tf(e8.id,'الاحتمال دائماً بين 0 و1','T',10);
-  await tf(e8.id,'احتمال الحدث المستحيل = 1','F',10);
-  await mcq(e8.id,'المدى في {3,7,1,9}','8','9','6','7','A',10);
-
-  // E9 — 6 أسئلة
-  await mcq(e9.id,'المسافة بين (0,0) و(3,4)','3','4','5','7','C',3);
-  await mcq(e9.id,'منتصف القطعة بين (2,4) و(6,8)','(4,6)','(3,5)','(4,4)','(8,12)','A',3);
-  await mcq(e9.id,'معادلة المستقيم المار بـ (0,2) بميل 3','y=3x','y=3x+2','y=2x+3','y=x+3','B',3);
-  await mcq(e9.id,'الدائرة ذات المركز (0,0) والنصف قطر 5','x²+y²=5','x²+y²=10','x²+y²=25','x+y=5','C',3);
-  await tf(e9.id,'الميل للمستقيم الموازي لمحور x يساوي صفراً','T',2);
-  await tf(e9.id,'المسافة بين (1,1) و(4,5) تساوي 5','T',2);
-
-  // E10 — 5 أسئلة
-  await mcq(e10.id,'ميل المستقيم المار بـ (1,2) و(3,6)','1','2','3','4','B',10);
-  await mcq(e10.id,'قاطع الصادات للمستقيم 2x+y=4','2','4','8','0','B',10);
-  await tf(e10.id,'مستقيمان متعامدان حاصل ضرب ميليهما = -1','T',10);
-  await tf(e10.id,'مركز الدائرة x²+y²=16 هو (0,0)','T',10);
-  await mcq(e10.id,'معادلة الدائرة المركز (3,4) والنصف قطر 5','(x-3)²+(y-4)²=5','(x-3)²+(y-4)²=25','x²+y²=25','(x+3)²+(y+4)²=25','B',10);
-
-  // E11 — 8 أسئلة مجمّعة × 5 = 40 (مجموعتان + سؤالان مستقلان)
-  const G11A = 10011;
-  const G11A_CTX =
-    'تسير سيارة بسرعة منتظمة، وتعبّر العلاقة بين المسافة المقطوعة s (بالكيلومتر) ' +
-    'والزمن t (بالساعة) عن الدالة الخطية: s(t) = 80t\n' +
-    'حيث تبدأ السيارة من نقطة الأصل عند t = 0، ولا تتوقف طوال الرحلة.';
-  await grpMcq(e11.id,G11A,G11A_CTX,null,'كم تبلغ سرعة السيارة الثابتة؟','40 كم/س','80 كم/س','160 كم/س','800 كم/س','B',5);
-  await grpMcq(e11.id,G11A,G11A_CTX,null,'ما المسافة المقطوعة بعد ساعتين ونصف؟','150 كم','160 كم','200 كم','240 كم','C',5);
-  await grpMcq(e11.id,G11A,G11A_CTX,null,'بعد كم ساعة تكون المسافة المقطوعة 360 كم؟','3 ساعات','3.5 ساعات','4 ساعات','4.5 ساعات','D',5);
-
-  const G11B = 10012;
-  const G11B_CTX =
-    'ادرس خصائص الدالة f(x) = x² − 4x + 3 ثم أجب عن الأسئلة التالية:\n' +
-    '• الدالة مقعّرة لأعلى\n• تتقاطع مع محور السينات عند x = 1 و x = 3\n' +
-    '• أدنى قيمة للدالة عند الرأس x = 2';
-  await grpTf(e11.id,G11B,G11B_CTX,null,'الدالة f(x) = x² − 4x + 3 لها حد أدنى (لا حد أقصى)','T',5);
-  await grpTf(e11.id,G11B,G11B_CTX,null,'قيمة f(0) تساوي 3','T',5);
-  await grpMcq(e11.id,G11B,G11B_CTX,null,'ما أدنى قيمة تأخذها الدالة f(x)؟','3','0','-1','2','C',5);
-
-  await mcq(e11.id,'إذا كانت الدالة g(x) = 2x + 5 فإن g(−2) =','1','9','−4','0','A',5);
-  await tf(e11.id,'ميل المستقيم المار بالنقطتين (1,3) و(3,7) يساوي 2','T',5);
-
-  console.log('  ✓ أسئلة 11 امتحان اكتملت (E11 يحتوي مجموعتين من الأسئلة المجمّعة)');
+  console.log('  ✓ الأسئلة أضيفت لكل الامتحانات');
 
   // ══════════════════════════════════════════════════════════
   // 9. تسجيل الطلاب في الكورسات
   // ══════════════════════════════════════════════════════════
-  console.log('\n⟳  تسجيل الطلاب في الكورسات...');
+  console.log('\n⟳  إضافة تسجيلات الكورسات...');
 
-  const enroll = async (sid, cid) => q(`
-    INSERT INTO student_course_enrollment (student_id,course_id,status)
-    VALUES ($1,$2,'active') ON CONFLICT (student_id,course_id) DO NOTHING
-  `, [sid, cid]);
+  // std_ali: مسجّل في C1 (مفتوح)، C2 (مفتوح)، C3 مجاني (مكتمل)
+  // C5 (مسودة — مش مسجّل)، C4 (مش مسجّل — ليست لمرحلته)
+  await q(`
+    INSERT INTO student_course_enrollment (student_id,course_id,status,enrollment_date)
+    VALUES
+      ($1,$2,'active',NOW()-INTERVAL '25 days'),
+      ($1,$3,'active',NOW()-INTERVAL '20 days'),
+      ($1,$4,'active',NOW()-INTERVAL '30 days')
+  `, [STD_ALI, c1.id, c2.id, c3.id]);
 
-  // std_ali: c1 (جبر)، c2 (تفاضل)، c3 (مجاني)
-  await enroll(STD_ALI, c1.id);
-  await enroll(STD_ALI, c2.id);
-  await enroll(STD_ALI, c3.id);
-
-  // ث3 آخرون: c1 وc3
-  for (const sid of [sids['std_fatma'], sids['std_youssef']]) {
-    await enroll(sid, c1.id);
-    await enroll(sid, c3.id);
-  }
-  for (const sid of [sids['std_nada'], sids['std_omar']]) {
-    await enroll(sid, c1.id);
-  }
-
-  // ث2: c4 وc6
-  for (const sid of [sids['std_mostafa'], sids['std_rana']]) {
-    await enroll(sid, c4.id);
-    await enroll(sid, c6.id);
-  }
-  for (const sid of [sids['std_adam'], sids['std_lina']]) {
-    await enroll(sid, c4.id);
+  // باقي طلاب ث3 في C1 و C3
+  for (const sid of [sids['std_fatma'], sids['std_youssef'], sids['std_nada'], sids['std_omar']]) {
+    await q(`
+      INSERT INTO student_course_enrollment (student_id,course_id,status,enrollment_date)
+      VALUES ($1,$2,'active',NOW()-INTERVAL '22 days')
+      ON CONFLICT DO NOTHING
+    `, [sid, c1.id]);
+    await q(`
+      INSERT INTO student_course_enrollment (student_id,course_id,status,enrollment_date)
+      VALUES ($1,$2,'active',NOW()-INTERVAL '28 days')
+      ON CONFLICT DO NOTHING
+    `, [sid, c3.id]);
   }
 
-  // ث1: c6 فقط
-  for (const sid of S_TH1) await enroll(sid, c6.id);
+  // std_youssef مسجّل في C2 أيضاً
+  await q(`
+    INSERT INTO student_course_enrollment (student_id,course_id,status,enrollment_date)
+    VALUES ($1,$2,'active',NOW()-INTERVAL '18 days')
+    ON CONFLICT DO NOTHING
+  `, [sids['std_youssef'], c2.id]);
 
-  console.log('  ✓ التسجيلات اكتملت');
+  // طلاب ث2 في C4 و C6
+  for (const sid of S_TH2) {
+    await q(`
+      INSERT INTO student_course_enrollment (student_id,course_id,status,enrollment_date)
+      VALUES ($1,$2,'active',NOW()-INTERVAL '15 days')
+      ON CONFLICT DO NOTHING
+    `, [sid, c4.id]);
+    await q(`
+      INSERT INTO student_course_enrollment (student_id,course_id,status,enrollment_date)
+      VALUES ($1,$2,'active',NOW()-INTERVAL '20 days')
+      ON CONFLICT DO NOTHING
+    `, [sid, c6.id]);
+  }
 
-  // ══════════════════════════════════════════════════════════
-  // 10. طلبات التسجيل (course_enrollment_requests)
-  // ══════════════════════════════════════════════════════════
-  console.log('\n⟳  إضافة طلبات التسجيل...');
-
-  // std_ali طلب التسجيل في c4 (ث2 هندسة) — pending
+  // طلب تسجيل std_ali في C5 (معلّق pending) وطلب رفض لـ std_nada
   await q(`
     INSERT INTO course_enrollment_requests
       (student_id,course_id,status,message,created_at)
-    VALUES ($1,$2,'pending','أريد الانضمام لهذا الكورس',$3)
-    ON CONFLICT (student_id,course_id) DO NOTHING
-  `, [STD_ALI, c4.id, past(2)]);
+    VALUES
+      ($1,$2,'pending','أريد الانضمام لهذا الكورس بمجرد نشره',NOW()-INTERVAL '5 days'),
+      ($3,$4,'rejected','أريد الانضمام للكورس',NOW()-INTERVAL '8 days')
+  `, [STD_ALI, c5.id, sids['std_nada'], c2.id]);
 
-  // طلب مقبول — std_fatma التحقت بـ c2
-  await q(`
-    INSERT INTO course_enrollment_requests
-      (student_id,course_id,status,message,created_at,handled_at)
-    VALUES ($1,$2,'accepted','رجاء التسجيل في التفاضل',$3,$4)
-    ON CONFLICT (student_id,course_id) DO NOTHING
-  `, [sids['std_fatma'], c2.id, past(10), past(8)]);
-
-  // طلب مرفوض — std_nada
-  await q(`
-    INSERT INTO course_enrollment_requests
-      (student_id,course_id,status,message,created_at,handled_at)
-    VALUES ($1,$2,'rejected','أريد التسجيل',$3,$4)
-    ON CONFLICT (student_id,course_id) DO NOTHING
-  `, [sids['std_nada'], c2.id, past(12), past(10)]);
-
-  console.log('  ✓ 3 طلبات تسجيل (pending + accepted + rejected)');
+  console.log('  ✓ تسجيلات الكورسات (std_ali: C1+C2+C3 نشط، C5 معلّق)');
 
   // ══════════════════════════════════════════════════════════
-  // 11. نتائج الامتحانات
-  // ══════════════════════════════════════════════════════════
-  console.log('\n⟳  إضافة نتائج الامتحانات...');
-
-  const submitExam = async (sid, eid, score, correct, wrong, unans, ptsEarned, daysAgo, attemptNum = 1, isLatest = true) => {
-    const startAt = new Date(now.getTime() - daysAgo * 86400000 - 3600000);
-    const endAt   = new Date(now.getTime() - daysAgo * 86400000);
-    await q(`
-      INSERT INTO exam_results
-        (student_id,exam_id,score,correct_count,wrong_count,unanswered_count,
-         start_time,end_time,points_earned,attempt_number,is_latest,answers)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'[]'::jsonb)
-      ON CONFLICT DO NOTHING
-    `, [sid, eid, score, correct, wrong, unans, startAt, endAt, ptsEarned, attemptNum, isLatest]);
-  };
-
-  // std_ali — E1 (جبر) — نجح ✅ (27/30)
-  await submitExam(STD_ALI, e1.id, 27, 9, 1, 0, 25, 16);
-
-  // std_ali — E2 (مثلثات) — راسب أولاً ❌ (20/50)
-  await submitExam(STD_ALI, e2.id, 20, 4, 5, 1, 5, 12, 1, false);
-  // std_ali — E2 — إعادة بعد القبول — نجح (35/50)
-  await submitExam(STD_ALI, e2.id, 35, 7, 2, 1, 30, 8, 2, true);
-
-  // std_ali — E5 (مشتقة) — ممتاز ✅ (28/30)
-  await submitExam(STD_ALI, e5.id, 28, 9, 1, 0, 25, 8);
-
-  // std_ali — E7 (مجاني) — نجح ✅ (16/20)
-  await submitExam(STD_ALI, e7.id, 16, 4, 1, 0, 13, 25);
-
-  // نتائج الطلاب الآخرين
-  await submitExam(sids['std_fatma'],   e1.id, 21, 7, 3, 0, 20, 14);
-  await submitExam(sids['std_youssef'], e1.id, 30, 10,0, 0, 25, 13);
-  await submitExam(sids['std_nada'],    e1.id, 12, 4, 6, 0,  5, 10);
-  await submitExam(sids['std_omar'],    e1.id, 18, 6, 4, 0, 20, 11);
-  await submitExam(sids['std_youssef'], e5.id, 25, 8, 2, 0, 20,  7);
-  await submitExam(sids['std_mostafa'],  e9.id, 14, 5, 1, 0, 10,  4);
-  await submitExam(sids['std_rana'],     e9.id, 16, 5, 0, 1, 15,  3);
-
-  console.log('  ✓ نتائج الامتحانات (std_ali: نجاح×3، إعادة×1)');
-
-  // ══════════════════════════════════════════════════════════
-  // 12. الشارات (badges)
-  // ══════════════════════════════════════════════════════════
-  console.log('\n⟳  إضافة الشارات...');
-
-  // std_ali — شارة E1 (نجم الجبر) وE5 (عبقري التفاضل)
-  await q(`
-    INSERT INTO badges (student_id,exam_id,badge_name,badge_color,earned_at)
-    VALUES ($1,$2,'نجم الجبر','#f97316',$3)
-    ON CONFLICT (student_id,exam_id) DO NOTHING
-  `, [STD_ALI, e1.id, past(16)]);
-  await q(`
-    INSERT INTO badges (student_id,exam_id,badge_name,badge_color,earned_at)
-    VALUES ($1,$2,'عبقري التفاضل','#10b981',$3)
-    ON CONFLICT (student_id,exam_id) DO NOTHING
-  `, [STD_ALI, e5.id, past(8)]);
-
-  // يوسف — شارة E1
-  await q(`
-    INSERT INTO badges (student_id,exam_id,badge_name,badge_color,earned_at)
-    VALUES ($1,$2,'نجم الجبر','#f97316',$3)
-    ON CONFLICT (student_id,exam_id) DO NOTHING
-  `, [sids['std_youssef'], e1.id, past(13)]);
-
-  console.log('  ✓ 3 شارات (std_ali: 2 شارة، يوسف: 1 شارة)');
-
-  // ══════════════════════════════════════════════════════════
-  // 13. طلبات إعادة الامتحان
-  // ══════════════════════════════════════════════════════════
-  console.log('\n⟳  إضافة طلبات إعادة الامتحان...');
-
-  // std_ali — E2 — طلب مقبول (بعد الرسوب الأول)
-  await q(`
-    INSERT INTO exam_retry_requests
-      (student_id,exam_id,status,message,teacher_note,created_at,handled_at)
-    VALUES ($1,$2,'accepted','راسبت بسبب ظروف — أرجو المراجعة',
-            'تمت الموافقة — بالتوفيق',$3,$4)
-  `, [STD_ALI, e2.id, past(11), past(9)]);
-
-  // std_omar — E1 — طلب مرفوض
-  await q(`
-    INSERT INTO exam_retry_requests
-      (student_id,exam_id,status,message,teacher_note,created_at,handled_at)
-    VALUES ($1,$2,'rejected','أريد إعادة الامتحان',
-            'لا يمكن الإعادة — الدرجة مقبولة',$3,$4)
-  `, [sids['std_omar'], e1.id, past(9), past(7)]);
-
-  // std_nada — E1 — طلب pending
-  await q(`
-    INSERT INTO exam_retry_requests
-      (student_id,exam_id,status,message,created_at)
-    VALUES ($1,$2,'pending','الامتحان كان صعباً جداً وحصلت على درجة منخفضة',$3)
-  `, [sids['std_nada'], e1.id, past(3)]);
-
-  console.log('  ✓ 3 طلبات إعادة (مقبول + مرفوض + pending)');
-
-  // ══════════════════════════════════════════════════════════
-  // 14. المدفوعات
+  // 10. المدفوعات (12 دفعة — كل الحالات)
   // ══════════════════════════════════════════════════════════
   console.log('\n⟳  إضافة المدفوعات...');
 
-  const addPay = async (sid, cid, amount, method, status, daysAgo) => {
-    const payDate = past(daysAgo);
+  const payments = [
+    // [studentId, courseId, amount, method, status, daysAgo, refNo, asstId, asstName]
+    [STD_ALI,              c1.id, 300, 'instapay',   'verified', 24, 'INS-001-2025', asstNour.id,  'نور أحمد حسين'],
+    [STD_ALI,              c2.id, 250, 'fawry',      'verified', 19, 'FAW-002-2025', asstKarim.id, 'كريم محمود'],
+    [sids['std_fatma'],    c1.id, 300, 'instapay',   'verified', 21, 'INS-003-2025', asstNour.id,  'نور أحمد حسين'],
+    [sids['std_youssef'],  c1.id, 300, 'bank',       'verified', 20, 'BNK-004-2025', asstKarim.id, 'كريم محمود'],
+    [sids['std_youssef'],  c2.id, 250, 'instapay',   'verified', 17, 'INS-005-2025', asstNour.id,  'نور أحمد حسين'],
+    [sids['std_nada'],     c1.id, 300, 'fawry',      'verified', 22, 'FAW-006-2025', asstNour.id,  'نور أحمد حسين'],
+    [sids['std_omar'],     c1.id, 300, 'instapay',   'verified', 19, 'INS-007-2025', asstNour.id,  'نور أحمد حسين'],
+    [sids['std_mostafa'],  c4.id, 200, 'bank',       'verified', 13, 'BNK-008-2025', asstKarim.id, 'كريم محمود'],
+    [sids['std_rana'],     c4.id, 200, 'instapay',   'pending',   3, 'INS-009-2025', null, null],
+    [sids['std_adam'],     c4.id, 200, 'fawry',      'pending',   2, 'FAW-010-2025', null, null],
+    [sids['std_lina'],     c4.id, 200, 'instapay',   'rejected',  9, 'INS-011-2025', asstKarim.id, 'كريم محمود'],
+    [sids['std_lina'],     c4.id, 200, 'bank',       'pending',   1, 'BNK-012-2025', null, null],
+  ];
+
+  for (const [sid, cid, amt, method, status, daysAgo, refNo, asstId, asstName] of payments) {
+    const isResolved = status === 'verified' || status === 'rejected';
+    const payDate = new Date(now.getTime() - daysAgo * 86400000);
+    const verDate = isResolved ? new Date(payDate.getTime() + 3 * 3600000) : null;
     await q(`
       INSERT INTO payments
-        (student_id,course_id,amount,method,status,payment_date,
-         reference_number,notes)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-    `, [sid, cid, amount, method, status, payDate,
-        'REF-' + Math.floor(Math.random()*900000+100000),
-        status === 'rejected' ? 'صورة إيصال غير واضحة' : null]);
-  };
+        (student_id,course_id,amount,method,status,reference_number,
+         payment_date,verified_by,verified_by_name,verified_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+    `, [sid, cid, amt, method, status, refNo,
+        payDate.toISOString(), asstId, asstName,
+        verDate ? verDate.toISOString() : null]);
+  }
 
-  // std_ali — c1 (verified) + c2 (verified)
-  await addPay(STD_ALI,            c1.id, 300, 'instapay',     'verified', 22);
-  await addPay(STD_ALI,            c2.id, 250, 'vodafone_cash','verified', 11);
-
-  // طلاب ث3
-  await addPay(sids['std_fatma'],   c1.id, 300, 'fawry',       'verified', 20);
-  await addPay(sids['std_youssef'], c1.id, 300, 'instapay',    'verified', 19);
-  await addPay(sids['std_youssef'], c2.id, 250, 'instapay',    'verified', 14);
-  await addPay(sids['std_fatma'],   c2.id, 250, 'fawry',       'pending',   6);
-  await addPay(sids['std_nada'],    c1.id, 300, 'vodafone_cash','pending',  4);
-
-  // طلاب ث2
-  await addPay(sids['std_mostafa'], c4.id, 200, 'vodafone_cash','verified', 10);
-  await addPay(sids['std_rana'],    c4.id, 200, 'instapay',    'verified',  9);
-  await addPay(sids['std_adam'],    c4.id, 200, 'fawry',       'pending',   5);
-  await addPay(sids['std_lina'],    c4.id, 200, 'fawry',       'rejected',  8);
-  await addPay(sids['std_lina'],    c4.id, 200, 'instapay',    'verified',  6);
-
-  console.log('  ✓ 12 عملية دفع (verified×8، pending×3، rejected×1)');
+  console.log('  ✓ 12 دفعة (verified×8, pending×3, rejected×1)');
 
   // ══════════════════════════════════════════════════════════
-  // 15. تقدم الفيديو
+  // 11. نتائج الامتحانات (كل سيناريوهات std_ali + باقي الطلاب)
+  // ══════════════════════════════════════════════════════════
+  console.log('\n⟳  إضافة نتائج الامتحانات...');
+
+  const makeResult = async (studentId, examId, qIds, correctPct, attemptNum = 1, isLatest = true, daysAgo = 10) => {
+    const answers = {};
+    let score = 0;
+    let correct = 0, wrong = 0, unanswered = 0;
+    for (const { id, correct: correctAns, pts } of qIds) {
+      const isCorrect = Math.random() * 100 < correctPct;
+      if (isCorrect) {
+        answers[id] = correctAns;
+        score += pts;
+        correct++;
+      } else {
+        const wrongLetters = ['A','B','C','D'].filter(l => l !== correctAns);
+        answers[id] = wrongLetters[0];
+        wrong++;
+      }
+    }
+    const startT = new Date(now.getTime() - daysAgo * 86400000 - 3600000);
+    const endT = new Date(startT.getTime() + 30 * 60000);
+    await q(`
+      INSERT INTO exam_results
+        (student_id,exam_id,score,correct_count,wrong_count,unanswered_count,
+         answers,start_time,end_time,points_earned,attempt_number,is_latest,created_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+    `, [studentId, examId, score, correct, wrong, unanswered,
+        JSON.stringify(answers), startT.toISOString(), endT.toISOString(),
+        score >= 18 ? 15 : 5, attemptNum, isLatest,
+        endT.toISOString()]);
+    return score;
+  };
+
+  // std_ali:
+  // e1 (جبر): ناجح ✓ (attempt1 قديم راسب + attempt2 ناجح)
+  await makeResult(STD_ALI, e1.id, e1QIds, 40, 1, false, 22); // راسب أول محاولة
+  await makeResult(STD_ALI, e1.id, e1QIds, 90, 2, true,  12); // ناجح ثاني محاولة
+
+  // e2 (مثلثات): راسب ← طلب إعادة مقبولة
+  await makeResult(STD_ALI, e2.id, e2QIds, 35, 1, true, 8);
+
+  // e3 (مراجعة دوال): لم يؤده بعد — لا نتيجة
+
+  // e4 (نهائي): لم يبدأ بعد — لا نتيجة (start_date في المستقبل)
+
+  // e5 (مشتقات): ناجح ✓
+  await makeResult(STD_ALI, e5.id, e5QIds, 100, 1, true, 5);
+
+  // e6 (تكامل): لم يؤده بعد
+
+  // e11 (أساسيات): ناجح ✓
+  await makeResult(STD_ALI, e11.id, e11QIds, 100, 1, true, 25);
+
+  // طلاب آخرون في e1
+  await makeResult(sids['std_fatma'],   e1.id, e1QIds, 70, 1, true, 20);
+  await makeResult(sids['std_youssef'], e1.id, e1QIds, 90, 1, true, 20);
+  await makeResult(sids['std_nada'],    e1.id, e1QIds, 50, 1, true, 20);
+  await makeResult(sids['std_omar'],    e1.id, e1QIds, 60, 1, true, 20);
+
+  // طلاب آخرون في e2
+  await makeResult(sids['std_fatma'],   e2.id, e2QIds, 65, 1, true, 15);
+  await makeResult(sids['std_youssef'], e2.id, e2QIds, 85, 1, true, 15);
+
+  // طلاب ث2 في e9
+  await makeResult(sids['std_mostafa'], e9.id, e9QIds, 80, 1, true, 9);
+  await makeResult(sids['std_rana'],    e9.id, e9QIds, 55, 1, true, 9);
+  await makeResult(sids['std_adam'],    e9.id, e9QIds, 40, 1, true, 9);
+
+  // std_ali في e11 (مجاني — ناجح مسبقاً — سجّلناه بالأعلى)
+
+  console.log('  ✓ نتائج الامتحانات: std_ali (ناجح×3، راسب×1، لم يؤده×3)');
+
+  // ══════════════════════════════════════════════════════════
+  // 12. طلبات إعادة الامتحان
+  // ══════════════════════════════════════════════════════════
+  console.log('\n⟳  إضافة طلبات الإعادة...');
+
+  // std_ali طلب إعادة e2 (مثلثات) — مقبولة
+  await q(`
+    INSERT INTO exam_retry_requests
+      (student_id,exam_id,status,message,teacher_note,created_at,handled_at)
+    VALUES ($1,$2,'accepted',
+      'أستاذ محمد، لقد راجعت أخطائي وأريد فرصة للإعادة. أعدت دراسة المثلثات بالكامل.',
+      'تم القبول — يمكنك تأدية الامتحان مجدداً خلال الفترة المتاحة.',
+      NOW()-INTERVAL '7 days', NOW()-INTERVAL '6 days')
+  `, [STD_ALI, e2.id]);
+
+  // std_omar طلب إعادة e1 — مرفوضة
+  await q(`
+    INSERT INTO exam_retry_requests
+      (student_id,exam_id,status,message,teacher_note,created_at,handled_at)
+    VALUES ($1,$2,'rejected',
+      'أستاذ أريد إعادة الامتحان.',
+      'تم الرفض — الدرجة فوق الحد المقبول.',
+      NOW()-INTERVAL '4 days', NOW()-INTERVAL '3 days')
+  `, [sids['std_omar'], e1.id]);
+
+  // std_nada طلب إعادة e1 — معلّق
+  await q(`
+    INSERT INTO exam_retry_requests
+      (student_id,exam_id,status,message,created_at)
+    VALUES ($1,$2,'pending',
+      'أستاذ محمد، لم أستطع التركيز يوم الامتحان بسبب ظروف طارئة. أرجو فرصة.',
+      NOW()-INTERVAL '2 days')
+  `, [sids['std_nada'], e1.id]);
+
+  console.log('  ✓ 3 طلبات إعادة (مقبولة×1، مرفوضة×1، معلّقة×1)');
+
+  // ══════════════════════════════════════════════════════════
+  // 13. الشارات (badges)
+  // ══════════════════════════════════════════════════════════
+  console.log('\n⟳  إضافة الشارات...');
+
+  // std_ali: نجم الجبر + نجم التفاضل
+  await q(`
+    INSERT INTO badges (student_id,exam_id,badge_name,badge_color,earned_at)
+    VALUES
+      ($1,$2,'نجم الجبر','#f97316',NOW()-INTERVAL '12 days'),
+      ($1,$3,'نجم التفاضل','#10b981',NOW()-INTERVAL '5 days')
+    ON CONFLICT DO NOTHING
+  `, [STD_ALI, e1.id, e5.id]);
+
+  await q(`
+    INSERT INTO badges (student_id,exam_id,badge_name,badge_color,earned_at)
+    VALUES
+      ($1,$2,'نجم الجبر','#f97316',NOW()-INTERVAL '20 days'),
+      ($3,$2,'نجم الجبر','#f97316',NOW()-INTERVAL '20 days')
+    ON CONFLICT DO NOTHING
+  `, [sids['std_youssef'], e1.id, sids['std_fatma']]);
+
+  console.log('  ✓ شارات: std_ali (×2) + youssef + fatma');
+
+  // ══════════════════════════════════════════════════════════
+  // 14. جلسات الامتحانات النشطة (exam_sessions)
+  // ══════════════════════════════════════════════════════════
+  // std_ali بدأ e3 (مراجعة الدوال) لكن لم يكمله — جلسة نشطة
+  // ══════════════════════════════════════════════════════════
+  console.log('\n⟳  إضافة جلسات الامتحانات...');
+
+  const e3Questions_snap = [
+    { id: 9001, question_text: 'إذا f(x)=3x+1، فإن f(2)=', question_type: 'mcq',
+      option_a:'5', option_b:'6', option_c:'7', option_d:'8', correct_answer_letter:'C', points:8 },
+    { id: 9002, question_text: 'قاطع الصادات للمستقيم y=2x+5 هو', question_type: 'mcq',
+      option_a:'2', option_b:'5', option_c:'7', option_d:'0', correct_answer_letter:'B', points:8 },
+  ];
+
+  await q(`
+    INSERT INTO exam_sessions (student_id,exam_id,started_at,questions_snapshot)
+    VALUES ($1,$2,NOW()-INTERVAL '15 minutes',$3)
+    ON CONFLICT (student_id,exam_id) DO NOTHING
+  `, [STD_ALI, e3.id, JSON.stringify(e3Questions_snap)]);
+
+  console.log('  ✓ جلسة امتحان نشطة: std_ali في e3 (بدأ ولم يكمل)');
+
+  // ══════════════════════════════════════════════════════════
+  // 15. تقدم الفيديو (video_progress)
   // ══════════════════════════════════════════════════════════
   console.log('\n⟳  إضافة تقدم الفيديو...');
 
-  const setProgress = async (sid, vid, durationMins, pct, daysAgo = 1) => {
-    const watched  = Math.floor(durationMins * pct / 100);
-    const actSecs  = watched * 60;
+  const setProgress = async (studentId, videoId, durMins, pct, daysAgo) => {
+    const watched = Math.round(durMins * pct / 100);
+    const actual  = watched * 60;
+    const pos     = Math.min(watched * 60, durMins * 60 * 0.95);
     await q(`
       INSERT INTO video_progress
-        (student_id,video_id,progress_percentage,watched_minutes,watch_count,
+        (student_id,video_id,watch_count,watched_minutes,progress_percentage,
          last_watched_at,last_position,actual_watched_seconds)
       VALUES ($1,$2,$3,$4,$5,NOW()-($6::int * INTERVAL '1 day'),$7,$8)
       ON CONFLICT (student_id,video_id) DO UPDATE SET
-        progress_percentage=$3, watched_minutes=$4,
+        watched_minutes=$4, progress_percentage=$5,
         last_watched_at=NOW()-($6::int * INTERVAL '1 day'),
-        actual_watched_seconds=$8
-    `, [sid, vid, pct, watched, pct === 100 ? 3 : 1, daysAgo, watched * 60, actSecs]);
+        last_position=$7, actual_watched_seconds=$8,
+        watch_count=video_progress.watch_count+1
+    `, [studentId, videoId, 1, watched, pct, daysAgo, pos, actual]);
   };
 
-  // std_ali — C1: باب1 مكتمل، باب2 جزئي، باب3 لم يبدأ
+  // std_ali تقدمه في C1 (جبر):
+  // قسم 1: اكتمل (100%)، قسم 2: جزئي (c1v4=100%, c1v5=60%, c1v6=0%)، قسم 3: لم يبدأ
   await setProgress(STD_ALI, c1v1, 28, 100, 20);
-  await setProgress(STD_ALI, c1v2, 35, 100, 17);
-  await setProgress(STD_ALI, c1v3, 22, 100, 15);
-  await setProgress(STD_ALI, c1v4, 30, 100, 12);
-  await setProgress(STD_ALI, c1v5, 40,  65,  7);
+  await setProgress(STD_ALI, c1v2, 35, 100, 18);
+  await setProgress(STD_ALI, c1v3, 22, 100, 16);
+  await setProgress(STD_ALI, c1v4, 30, 100, 14);
+  await setProgress(STD_ALI, c1v5, 40,  60, 10);
+  // c1v6, c1v7, c1v8, c1v9 — لم يشاهد بعد
 
-  // std_ali — C2: بدأ ولم يكمل
-  await setProgress(STD_ALI, c2v1, 35, 100,  9);
-  await setProgress(STD_ALI, c2v2, 42,  80,  6);
-  await setProgress(STD_ALI, c2v3, 38,  40,  3);
+  // std_ali في C2 (تفاضل): بدأ الوحدة الأولى فقط
+  await setProgress(STD_ALI, c2v1, 35, 100, 12);
+  await setProgress(STD_ALI, c2v2, 42,  75,  8);
+  await setProgress(STD_ALI, c2v3, 38,  30,  5);
+  // c2v4..c2v6 لم يشاهد
 
-  // std_ali — C3: كاملة
+  // std_ali في C3 (مجاني): أكمله بالكامل
   await setProgress(STD_ALI, c3v1, 20, 100, 28);
-  await setProgress(STD_ALI, c3v2, 18, 100, 27);
-  await setProgress(STD_ALI, c3v3, 15, 100, 26);
+  await setProgress(STD_ALI, c3v2, 18, 100, 28);
+  await setProgress(STD_ALI, c3v3, 15, 100, 28);
 
-  // طلاب آخرون في C1
-  const c1Vids = [c1v1, c1v2, c1v3, c1v4, c1v5, c1v6, c1v7];
-  const c1Durs = [28, 35, 22, 30, 40, 38, 32];
+  // باقي طلاب ث3 في C1
+  const c1Vids = [c1v1,c1v2,c1v3,c1v4,c1v5,c1v6,c1v7,c1v8,c1v9];
+  const c1Durs = [28,35,22,30,40,38,32,25,20];
   const c1Pcts = [
-    [100, 100,  80, 60,  0, 0,  0], // fatma
-    [100, 100, 100,100,100,80, 50], // youssef
-    [100,  60,   0,  0,  0, 0,  0], // nada
-    [100, 100,  90, 70, 40, 0,  0], // omar
+    [100, 100,  80, 60,  0, 0,  0,  0,  0], // fatma
+    [100, 100, 100,100,100,80, 50, 30,  0], // youssef
+    [100,  60,   0,  0,  0, 0,  0,  0,  0], // nada
+    [100, 100,  90, 70, 40, 0,  0,  0,  0], // omar
   ];
   const c1Sids = [sids['std_fatma'], sids['std_youssef'], sids['std_nada'], sids['std_omar']];
   for (let i = 0; i < c1Sids.length; i++) {
@@ -1061,13 +1091,15 @@ async function seed() {
   console.log('\n⟳  إضافة الإشعارات...');
 
   const stdAliNotifs = [
-    ['نتيجة الامتحان', 'تهانينا! حصلت على 27/30 في امتحان الجبر وكسبت شارة "نجم الجبر"! 🏆', 'exam_result',   true,  18],
-    ['امتحان جديد',   'تم نشر اختبار "مراجعة الدوال" — متاح حتى بعد 5 أيام.',                'new_exam',      true,   3],
-    ['موافقة إعادة',  'وافق الأستاذ محمد على طلب إعادة امتحان المثلثات. يمكنك التقديم الآن.','retry_approved',true,   8],
-    ['امتحان قادم',   'تذكير: الاختبار النهائي سيبدأ بعد 7 أيام — ابدأ المراجعة الآن!',      'reminder',      false,  7],
-    ['محتوى جديد',   'تم إضافة 3 فيديوهات جديدة في باب الدوال بكورس الجبر والمثلثات.',      'announcement',  false,  4],
-    ['تهنئة نقاط',   'عظيم! وصلت إلى 1250 نقطة وتحتل المركز الثالث في قائمة المتصدرين.', 'points',         false,  2],
-    ['امتحان جديد',  'تم نشر اختبار التكامل — لديك 6 أيام للإجابة. درجة الاجتياز 15/30.',  'new_exam',       false,  1],
+    ['نتيجة الامتحان',  'تهانينا! حصلت على 27/30 في امتحان الجبر وكسبت شارة "نجم الجبر"! 🏆',    'exam_result',     true,  18],
+    ['امتحان جديد',     'تم نشر اختبار "مراجعة الدوال" — متاح حتى بعد 5 أيام.',                   'new_exam',        true,   3],
+    ['موافقة إعادة',    'وافق الأستاذ محمد على طلب إعادة امتحان المثلثات. يمكنك التقديم الآن.',   'retry_approved',  true,   6],
+    ['تسميع جديد 📖',   'تم نشر تسميع جديد: "تسميع المشتقات اليومي". أدِّه قبل انتهاء الوقت!',   'new_recitation',  true,   4],
+    ['امتحان قادم',     'تذكير: الاختبار النهائي سيبدأ بعد 7 أيام — ابدأ المراجعة الآن!',          'reminder',        false,  7],
+    ['محتوى جديد',      'تم إضافة 3 فيديوهات جديدة في باب الدوال بكورس الجبر والمثلثات.',         'announcement',    false,  4],
+    ['تهنئة نقاط',      'عظيم! وصلت إلى 1250 نقطة وتحتل المركز الثالث في قائمة المتصدرين.',       'points',          false,  2],
+    ['امتحان جديد',     'تم نشر اختبار التكامل — لديك 6 أيام للإجابة. درجة الاجتياز 18/30.',      'new_exam',        false,  1],
+    ['تسميع أسبوعي 📖', 'تذكير: لم تؤدِّ تسميع هذا الأسبوع بعد. المهلة تنتهي خلال يومين!',        'reminder',        false,  1],
   ];
   for (const [title, msg, type, isRead, daysAgo] of stdAliNotifs) {
     await q(`
@@ -1080,6 +1112,7 @@ async function seed() {
   const broadcastNotifs = [
     ['إعلان هام',       'أهلاً بالجميع في الأكاديمية — ابدأ مشاهدة الكورسات وحقق النجاح!', 'announcement', 30],
     ['تذكير المراجعة',  'تأكد من مشاهدة جميع الفيديوهات قبل الامتحان النهائي.',             'reminder',     10],
+    ['تسميع جديد 📖',   'تم نشر تسميع "مراجعة المثلثات الأسبوعية" — أدِّه الآن!',          'new_recitation', 6],
     ['تحديث المنصة',    'تم تحديث المنصة بميزات جديدة — جرّب الوضع الليلي!',               'general',       5],
   ];
   for (const sid of [...S_TH3.slice(1), ...S_TH2]) {
@@ -1091,10 +1124,10 @@ async function seed() {
       `, [T1, sid, msg, type, title, daysAgo]);
     }
   }
-  console.log('  ✓ إشعارات: 7 لـ std_ali (3 مقروءة + 4 غير مقروءة) + جماعية');
+  console.log('  ✓ إشعارات: 9 لـ std_ali (4 مقروءة + 5 غير مقروءة) + جماعية');
 
   // ══════════════════════════════════════════════════════════
-  // 18. سجل المتصدرين التاريخي
+  // 18. سجل المتصدرين
   // ══════════════════════════════════════════════════════════
   console.log('\n⟳  إضافة سجل المتصدرين...');
 
@@ -1127,14 +1160,13 @@ async function seed() {
       last_reset_at=NOW()-INTERVAL '1 day',
       next_reset_at=NOW()+INTERVAL '29 days'
   `, [T1]);
-  console.log('  ✓ سجل متصدرين شهرين (std_ali: 2 في مايو، 1 في أبريل)');
+  console.log('  ✓ سجل متصدرين شهرين');
 
   // ══════════════════════════════════════════════════════════
-  // 19. البث المباشر (live streams)
+  // 19. البث المباشر
   // ══════════════════════════════════════════════════════════
   console.log('\n⟳  إضافة جلسات البث المباشر...');
 
-  // بث منتهي — std_ali شارك فيه
   const [ls1] = await q(`
     INSERT INTO live_streams
       (teacher_id,room_id,title,description,access,chat_enabled,
@@ -1148,7 +1180,6 @@ async function seed() {
     RETURNING id
   `, [T1]);
 
-  // بث نشط حالياً
   const [ls2] = await q(`
     INSERT INTO live_streams
       (teacher_id,room_id,title,description,access,chat_enabled,
@@ -1161,7 +1192,6 @@ async function seed() {
     RETURNING id
   `, [T1]);
 
-  // بث مجدول قادم
   await q(`
     INSERT INTO live_streams
       (teacher_id,room_id,title,description,access,chat_enabled,
@@ -1172,7 +1202,6 @@ async function seed() {
       'all',true,true,'scheduled',false,$2)
   `, [T1, future(5)]);
 
-  // std_ali شارك في البث المنتهي
   await q(`
     INSERT INTO live_stream_viewers
       (stream_id,student_id,joined_at,left_at,is_active,can_speak,can_share_screen,is_kicked)
@@ -1183,7 +1212,6 @@ async function seed() {
     ON CONFLICT (stream_id,student_id) DO NOTHING
   `, [ls1.id, STD_ALI]);
 
-  // مشاهد في البث الحي
   await q(`
     INSERT INTO live_stream_viewers
       (stream_id,student_id,joined_at,is_active,can_speak,can_share_screen,is_kicked)
@@ -1191,7 +1219,6 @@ async function seed() {
     ON CONFLICT (stream_id,student_id) DO NOTHING
   `, [ls2.id, sids['std_youssef']]);
 
-  // رسائل شات
   const chatRows = [
     [T1,                    'teacher', 'أ/ محمد',      'أهلاً بالجميع! سنبدأ مراجعة الجبر'],
     [STD_ALI,               'student', 'علي محمد',     'جاهزين يا أستاذ 🎯'],
@@ -1210,7 +1237,6 @@ async function seed() {
     `, [ls1.id, sid, stype, sname, msg, t.toISOString()]);
   }
 
-  // رفع يد std_ali في البث المنتهي (ثم خُفض)
   await q(`
     INSERT INTO live_hand_raises
       (stream_id,student_id,raised_at,lowered_at,is_active)
@@ -1221,14 +1247,13 @@ async function seed() {
     ON CONFLICT (stream_id,student_id) DO NOTHING
   `, [ls1.id, STD_ALI]);
 
-  console.log('  ✓ 3 جلسات بث (منتهي×1، نشط×1، مجدول×1) + شات + رفع يد');
+  console.log('  ✓ 3 جلسات بث (منتهي×1، نشط×1، مجدول×1)');
 
   // ══════════════════════════════════════════════════════════
   // 20. الفعاليات (Stickman Run)
   // ══════════════════════════════════════════════════════════
   console.log('\n⟳  إضافة بيانات الفعاليات...');
 
-  // std_ali لعب الأسبوع الماضي
   await q(`
     INSERT INTO event_plays (student_id,event_id,played_at,score,completed)
     VALUES ($1,'weekly-run-2025-w20',NOW()-INTERVAL '7 days',8500,true)
@@ -1246,122 +1271,407 @@ async function seed() {
       VALUES ($1,$2,NOW()-INTERVAL '2 days',$3,$4)
     `, [sid, evid, sc, comp]);
   }
-  console.log('  ✓ بيانات الفعاليات (std_ali: لعب الأسبوع الماضي)');
+  console.log('  ✓ فعاليات Stickman Run');
 
   // ══════════════════════════════════════════════════════════
-  // 21. رموز جلسات الألعاب (game_session_tokens) — حماية ضد الغش
+  // 21. رموز جلسات الألعاب
   // ══════════════════════════════════════════════════════════
-  console.log('\n⟳  إضافة رموز جلسات الألعاب...');
-
   await q(`
     INSERT INTO game_session_tokens (student_id,token,event_id,created_at,used_at)
-    VALUES ($1,'token_ali_w20_used','weekly-run-2025-w20',NOW()-INTERVAL '7 days',NOW()-INTERVAL '7 days'+INTERVAL '30 minutes')
-  `, [STD_ALI]);
-
-  await q(`
-    INSERT INTO game_session_tokens (student_id,token,event_id,created_at,used_at)
-    VALUES ($1,'token_youssef_w21_used','weekly-run-2025-w21',NOW()-INTERVAL '2 days',NOW()-INTERVAL '2 days'+INTERVAL '45 minutes')
-  `, [sids['std_youssef']]);
+    VALUES
+      ($1,'token_ali_w20_used','weekly-run-2025-w20',
+       NOW()-INTERVAL '7 days',NOW()-INTERVAL '7 days'+INTERVAL '30 minutes'),
+      ($2,'token_youssef_w21_used','weekly-run-2025-w21',
+       NOW()-INTERVAL '2 days',NOW()-INTERVAL '2 days'+INTERVAL '45 minutes')
+  `, [STD_ALI, sids['std_youssef']]);
 
   console.log('  ✓ رموز جلسات الألعاب');
 
   // ══════════════════════════════════════════════════════════
-  // 22. أجهزة الطلاب (student_devices) + تنبيهات الأجهزة (device_alerts)
+  // 22. أجهزة الطلاب + تنبيهات
   // ══════════════════════════════════════════════════════════
   console.log('\n⟳  إضافة بيانات الأجهزة...');
 
-  // std_ali — جهازان (محمول + حاسوب)
   await q(`
     INSERT INTO student_devices
       (student_id,device_id,device_name,user_agent,ip_address,first_seen,last_seen)
     VALUES
-      ($1,'device_ali_mobile_001','iPhone 14 Pro','Mozilla/5.0 (iPhone; CPU iPhone OS 17_0) AppleWebKit','197.34.5.100',NOW()-INTERVAL '25 days',NOW()-INTERVAL '1 hour'),
-      ($1,'device_ali_laptop_002','MacBook Pro','Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit','197.34.5.100',NOW()-INTERVAL '20 days',NOW()-INTERVAL '3 days')
+      ($1,'device_ali_mobile_001','iPhone 14 Pro',
+       'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0) AppleWebKit','197.34.5.100',
+       NOW()-INTERVAL '25 days',NOW()-INTERVAL '1 hour'),
+      ($1,'device_ali_laptop_002','MacBook Pro',
+       'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit','197.34.5.100',
+       NOW()-INTERVAL '20 days',NOW()-INTERVAL '3 days')
   `, [STD_ALI]);
 
-  // std_youssef — جهاز واحد
   await q(`
     INSERT INTO student_devices
       (student_id,device_id,device_name,user_agent,ip_address,first_seen,last_seen)
-    VALUES ($1,'device_youssef_android_001','Samsung Galaxy S23','Mozilla/5.0 (Linux; Android 13) AppleWebKit','197.34.5.110',NOW()-INTERVAL '18 days',NOW()-INTERVAL '2 days')
+    VALUES ($1,'device_youssef_android_001','Samsung Galaxy S23',
+      'Mozilla/5.0 (Linux; Android 13) AppleWebKit','197.34.5.110',
+      NOW()-INTERVAL '18 days',NOW()-INTERVAL '2 days')
   `, [sids['std_youssef']]);
 
-  // std_nada — محاولة تسجيل دخول من جهاز جديد — تنبيه
   await q(`
     INSERT INTO student_devices
       (student_id,device_id,device_name,user_agent,ip_address,first_seen,last_seen)
-    VALUES ($1,'device_nada_001','Laptop Unknown','Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit','197.34.5.120',NOW()-INTERVAL '3 days',NOW()-INTERVAL '3 days')
+    VALUES ($1,'device_nada_001','Laptop Unknown',
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit','197.34.5.120',
+      NOW()-INTERVAL '3 days',NOW()-INTERVAL '3 days')
   `, [sids['std_nada']]);
 
-  // تنبيه: std_nada استخدمت جهازاً مشبوهاً
   await q(`
     INSERT INTO device_alerts
       (teacher_id,student_id,alert_type,device_id,device_name,ip_address,status,created_at)
-    VALUES ($1,$2,'device_limit_exceeded','device_nada_001','Laptop Unknown','197.34.5.120','pending',NOW()-INTERVAL '3 days')
+    VALUES ($1,$2,'device_limit_exceeded','device_nada_001',
+      'Laptop Unknown','197.34.5.120','pending',NOW()-INTERVAL '3 days')
   `, [T1, sids['std_nada']]);
 
-  console.log('  ✓ أجهزة الطلاب + 1 تنبيه جهاز مشبوه');
+  console.log('  ✓ أجهزة الطلاب + 1 تنبيه');
 
   // ══════════════════════════════════════════════════════════
-  // 23. جداول الواتساب (whatsapp_schedules + whatsapp_send_log)
+  // 23. التسميعات (recitations) — كل الحالات
   // ══════════════════════════════════════════════════════════
-  // [L-4] FIX: wrap in try/catch so seed doesn't crash on old schemas
-  // that don't have the whatsapp_schedules table yet (run server first to
-  // run initDB → schema.sql before seeding if this block fails).
+  console.log('\n⟳  إضافة التسميعات...');
+
+  // r1: تسميع يومي على الجبر — نشط (std_ali أدّاه ونجح ✓)
+  const [r1] = await q(`
+    INSERT INTO recitations
+      (teacher_id,title,description,academic_stage,duration_minutes,
+       total_score,pass_score,points_on_attempt,points_on_pass,
+       schedule_type,start_date,end_date,is_published,
+       shuffle_questions,shuffle_options)
+    VALUES ($1,
+      'تسميع المشتقات اليومي',
+      'تسميع سريع على قواعد المشتقات — 5 أسئلة خلال 10 دقائق',
+      'الصف الثالث الثانوي',10,10,6,2,5,
+      'daily',
+      $2,$3,true,false,false)
+    RETURNING id
+  `, [T1, past(7), future(1)]);
+
+  // r2: تسميع أسبوعي على المثلثات — نشط (std_ali أدّاه وراسب ✗)
+  const [r2] = await q(`
+    INSERT INTO recitations
+      (teacher_id,title,description,academic_stage,duration_minutes,
+       total_score,pass_score,points_on_attempt,points_on_pass,
+       schedule_type,schedule_day,start_date,end_date,is_published,
+       shuffle_questions,shuffle_options)
+    VALUES ($1,
+      'مراجعة المثلثات الأسبوعية',
+      'تسميع أسبوعي شامل على النسب المثلثية وقوانينها',
+      'الصف الثالث الثانوي',15,20,12,3,10,
+      'weekly',6,
+      $2,$3,true,true,false)
+    RETURNING id
+  `, [T1, past(5), future(2)]);
+
+  // r3: تسميع لم يؤده std_ali بعد — نشط الآن
+  const [r3] = await q(`
+    INSERT INTO recitations
+      (teacher_id,title,description,academic_stage,duration_minutes,
+       total_score,pass_score,points_on_attempt,points_on_pass,
+       schedule_type,start_date,end_date,is_published,
+       shuffle_questions,shuffle_options)
+    VALUES ($1,
+      'تسميع قواعد التكامل',
+      'أسئلة على قوانين التكامل الأساسية — مستوى متوسط',
+      'الصف الثالث الثانوي',12,15,9,2,8,
+      'once',
+      $2,$3,true,false,true)
+    RETURNING id
+  `, [T1, past(1), future(4)]);
+
+  // r4: تسميع قادم (start_date في المستقبل) — لم يفتح بعد
+  const [r4] = await q(`
+    INSERT INTO recitations
+      (teacher_id,title,description,academic_stage,duration_minutes,
+       total_score,pass_score,points_on_attempt,points_on_pass,
+       schedule_type,start_date,end_date,is_published)
+    VALUES ($1,
+      'تسميع الاختبار النهائي الشامل',
+      'مراجعة شاملة قبل الاختبار النهائي — 20 سؤال',
+      'الصف الثالث الثانوي',20,30,18,5,15,
+      'once',
+      $2,$3,true)
+    RETURNING id
+  `, [T1, future(5), future(12)]);
+
+  // r5: تسميع ث2
+  const [r5] = await q(`
+    INSERT INTO recitations
+      (teacher_id,title,description,academic_stage,duration_minutes,
+       total_score,pass_score,points_on_attempt,points_on_pass,
+       schedule_type,start_date,end_date,is_published)
+    VALUES ($1,
+      'تسميع الهندسة التحليلية — ث2',
+      'أسئلة على الإحداثيات والمستقيمات',
+      'الصف الثاني الثانوي',10,10,6,2,5,
+      'once',
+      $2,$3,true)
+    RETURNING id
+  `, [T1, past(3), future(3)]);
+
+  // r6: تسميع مسودة (غير منشور)
+  const [r6] = await q(`
+    INSERT INTO recitations
+      (teacher_id,title,description,academic_stage,duration_minutes,
+       total_score,pass_score,points_on_attempt,points_on_pass,
+       schedule_type,is_published)
+    VALUES ($1,
+      'تسميع الإحصاء [مسودة]',
+      'قيد الإعداد',
+      'الصف الثالث الثانوي',10,10,6,2,5,
+      'once',false)
+    RETURNING id
+  `, [T1]);
+
+  console.log('  ✓ 6 تسميعات (نشط×4، قادم×1، مسودة×1)');
+
+  // ── أسئلة التسميعات ─────────────────────────────────────
+
+  // أسئلة r1 (مشتقات — 10 درجات، 5 أسئلة)
+  const r1Questions = [
+    ['mcq','مشتقة f(x) = 4x² تساوي','4x','8x','8x²','4','B',2,1],
+    ['mcq','مشتقة الثابت 10 تساوي','10','0','1','-10','B',2,2],
+    ['mcq','مشتقة sin(x) تساوي','cos(x)','-cos(x)','sin(x)','-sin(x)','A',2,3],
+    ['true_false','مشتقة eˣ = eˣ','صح','خطأ',null,null,'T',2,4],
+    ['true_false','مشتقة x⁴ = 4x³','صح','خطأ',null,null,'T',2,5],
+  ];
+  const r1QIds = [];
+  for (const [qt, txt, a, b, c, d, ans, pts, ord] of r1Questions) {
+    const [qr] = await q(`
+      INSERT INTO recitation_questions
+        (recitation_id,question_type,question_text,option_a,option_b,option_c,option_d,
+         correct_answer_letter,points,sort_order)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id
+    `, [r1.id, qt, txt, a, b, c, d, ans, pts, ord]);
+    r1QIds.push({ id: qr.id, correct: ans, pts });
+  }
+
+  // أسئلة r2 (مثلثات — 20 درجة، 5 أسئلة)
+  const r2Questions = [
+    ['mcq','sin(45°) يساوي','1/2','√2/2','√3/2','1','B',4,1],
+    ['mcq','cos(0°) يساوي','0','1/2','1','√3/2','C',4,2],
+    ['mcq','tan(60°) يساوي','1','√3','√3/2','1/2','B',4,3],
+    ['true_false','sin(90°) = 1','صح','خطأ',null,null,'T',4,4],
+    ['true_false','cos(180°) = 1','صح','خطأ',null,null,'F',4,5],
+  ];
+  const r2QIds = [];
+  for (const [qt, txt, a, b, c, d, ans, pts, ord] of r2Questions) {
+    const [qr] = await q(`
+      INSERT INTO recitation_questions
+        (recitation_id,question_type,question_text,option_a,option_b,option_c,option_d,
+         correct_answer_letter,points,sort_order)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id
+    `, [r2.id, qt, txt, a, b, c, d, ans, pts, ord]);
+    r2QIds.push({ id: qr.id, correct: ans, pts });
+  }
+
+  // أسئلة r3 (تكامل — 15 درجة)
+  const r3Questions = [
+    ['mcq','∫3x² dx = ','x³+C','3x+C','x²+C','3x³+C','A',3,1],
+    ['mcq','∫cos(x) dx = ','sin(x)+C','-sin(x)+C','cos(x)+C','-cos(x)+C','A',3,2],
+    ['mcq','∫0 dx = ','0','x','x+C','C','D',3,3],
+    ['true_false','∫eˣ dx = eˣ + C','صح','خطأ',null,null,'T',3,4],
+    ['true_false','التكامل المحدود يعطي مساحة','صح','خطأ',null,null,'T',3,5],
+  ];
+  for (const [qt, txt, a, b, c, d, ans, pts, ord] of r3Questions) {
+    await q(`
+      INSERT INTO recitation_questions
+        (recitation_id,question_type,question_text,option_a,option_b,option_c,option_d,
+         correct_answer_letter,points,sort_order)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+    `, [r3.id, qt, txt, a, b, c, d, ans, pts, ord]);
+  }
+
+  // أسئلة r4 (شامل — 30 درجة)
+  const r4Questions = [
+    ['mcq','إذا f(x) = x³، فإن f\'(x) = ','3x²','x²','3x','2x','A',3,1],
+    ['mcq','sin²(x)+cos²(x) يساوي','0','1/2','1','2','C',3,2],
+    ['mcq','∫2x dx = ','x+C','x²+C','2+C','2x+C','B',3,3],
+    ['mcq','حل x²-25=0','x=5','x=±5','x=-5','x=25','B',3,4],
+    ['mcq','cos(90°) يساوي','1','0','-1','1/2','B',3,5],
+    ['mcq','مشتقة cos(x) تساوي','-sin(x)','sin(x)','-cos(x)','cos(x)','A',3,6],
+    ['true_false','tan(45°) = 1','صح','خطأ',null,null,'T',3,7],
+    ['true_false','∫sin(x) dx = cos(x)+C','صح','خطأ',null,null,'F',3,8],
+    ['true_false','مشتقة الثابت = 0','صح','خطأ',null,null,'T',3,9],
+    ['true_false','كل دالة مستمرة قابلة للاشتقاق','صح','خطأ',null,null,'F',3,10],
+  ];
+  for (const [qt, txt, a, b, c, d, ans, pts, ord] of r4Questions) {
+    await q(`
+      INSERT INTO recitation_questions
+        (recitation_id,question_type,question_text,option_a,option_b,option_c,option_d,
+         correct_answer_letter,points,sort_order)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+    `, [r4.id, qt, txt, a, b, c, d, ans, pts, ord]);
+  }
+
+  // أسئلة r5 (ث2 هندسة)
+  const r5Questions = [
+    ['mcq','المسافة بين (0,0) و (3,4) = ','3','4','5','7','C',2,1],
+    ['mcq','ميل المستقيم y=3x+1 يساوي','1','3','4','0','B',2,2],
+    ['true_false','ميل الخط الأفقي = صفر','صح','خطأ',null,null,'T',2,3],
+    ['true_false','منتصف (2,4) و (6,8) هو (4,6)','صح','خطأ',null,null,'T',2,4],
+    ['mcq','معادلة المحور الصادي هي','y=0','x=0','y=x','x=1','B',2,5],
+  ];
+  for (const [qt, txt, a, b, c, d, ans, pts, ord] of r5Questions) {
+    await q(`
+      INSERT INTO recitation_questions
+        (recitation_id,question_type,question_text,option_a,option_b,option_c,option_d,
+         correct_answer_letter,points,sort_order)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+    `, [r5.id, qt, txt, a, b, c, d, ans, pts, ord]);
+  }
+
+  console.log('  ✓ أسئلة التسميعات أضيفت');
+
+  // ── نتائج التسميعات ──────────────────────────────────────
+
+  // std_ali في r1: ناجح ✓ (10/10)
+  await q(`
+    INSERT INTO recitation_results
+      (student_id,recitation_id,score,correct_count,wrong_count,unanswered_count,
+       answers,points_earned,start_time,end_time,passed,created_at)
+    VALUES ($1,$2,10,5,0,0,
+      $3,7,
+      NOW()-INTERVAL '5 days'-INTERVAL '10 minutes',
+      NOW()-INTERVAL '5 days',
+      true,NOW()-INTERVAL '5 days')
+  `, [STD_ALI, r1.id, JSON.stringify(
+    r1QIds.map(q => ({ question_id: q.id, answer: q.correct, correct: true }))
+  )]);
+
+  // std_ali في r2: راسب ✗ (8/20 — دون درجة النجاح 12)
+  await q(`
+    INSERT INTO recitation_results
+      (student_id,recitation_id,score,correct_count,wrong_count,unanswered_count,
+       answers,points_earned,start_time,end_time,passed,created_at)
+    VALUES ($1,$2,8,2,3,0,
+      $3,3,
+      NOW()-INTERVAL '4 days'-INTERVAL '14 minutes',
+      NOW()-INTERVAL '4 days',
+      false,NOW()-INTERVAL '4 days')
+  `, [STD_ALI, r2.id, JSON.stringify(
+    r2QIds.map((q, i) => ({ question_id: q.id, answer: i < 2 ? q.correct : 'A', correct: i < 2 }))
+  )]);
+
+  // r3: std_ali لم يؤده بعد (لا نتيجة)
+  // r4: قادم — لم يفتح بعد (لا نتيجة)
+
+  // باقي طلاب في r1
+  for (const sid of [sids['std_fatma'], sids['std_youssef'], sids['std_omar']]) {
+    const passed = Math.random() > 0.3;
+    await q(`
+      INSERT INTO recitation_results
+        (student_id,recitation_id,score,correct_count,wrong_count,unanswered_count,
+         answers,points_earned,start_time,end_time,passed,created_at)
+      VALUES ($1,$2,$3,$4,$5,0,$6,$7,
+        NOW()-INTERVAL '5 days'-INTERVAL '8 minutes',
+        NOW()-INTERVAL '5 days',$8,NOW()-INTERVAL '5 days')
+    `, [sid, r1.id,
+        passed ? 8 : 4, passed ? 4 : 2, passed ? 1 : 3,
+        JSON.stringify([]),
+        passed ? 7 : 2,
+        passed]);
+  }
+
+  // طلاب ث2 في r5
+  for (const sid of [sids['std_mostafa'], sids['std_rana']]) {
+    await q(`
+      INSERT INTO recitation_results
+        (student_id,recitation_id,score,correct_count,wrong_count,unanswered_count,
+         answers,points_earned,start_time,end_time,passed,created_at)
+      VALUES ($1,$2,8,4,1,0,$3,7,
+        NOW()-INTERVAL '2 days'-INTERVAL '9 minutes',
+        NOW()-INTERVAL '2 days',
+        true,NOW()-INTERVAL '2 days')
+    `, [sid, r5.id, JSON.stringify([])]);
+  }
+
+  console.log('  ✓ نتائج التسميعات: std_ali (ناجح في r1، راسب في r2، لم يؤد r3+r4)');
+
+  // ── سلاسل التسميعات (streaks) ────────────────────────────
+
+  // std_ali: streak=3 (أكمل 3 تسميعات متتالية)
+  await q(`
+    INSERT INTO recitation_streaks
+      (student_id,teacher_id,current_streak,max_streak,last_completed_at,total_completed,updated_at)
+    VALUES ($1,$2,3,5,NOW()-INTERVAL '4 days',8,NOW()-INTERVAL '4 days')
+    ON CONFLICT (student_id,teacher_id) DO UPDATE SET
+      current_streak=$3,max_streak=$4,last_completed_at=$5,total_completed=$6,updated_at=NOW()
+  `, [STD_ALI, T1, 3, 5, past(4), 8]);
+
+  await q(`
+    INSERT INTO recitation_streaks
+      (student_id,teacher_id,current_streak,max_streak,last_completed_at,total_completed,updated_at)
+    VALUES ($1,$2,1,3,NOW()-INTERVAL '5 days',5,NOW()-INTERVAL '5 days')
+    ON CONFLICT (student_id,teacher_id) DO NOTHING
+  `, [sids['std_youssef'], T1]);
+
+  await q(`
+    INSERT INTO recitation_streaks
+      (student_id,teacher_id,current_streak,max_streak,last_completed_at,total_completed,updated_at)
+    VALUES ($1,$2,2,4,NOW()-INTERVAL '2 days',6,NOW()-INTERVAL '2 days')
+    ON CONFLICT (student_id,teacher_id) DO NOTHING
+  `, [sids['std_mostafa'], T1]);
+
+  console.log('  ✓ سلاسل التسميعات: std_ali (streak=3/max=5)');
+
+  // ══════════════════════════════════════════════════════════
+  // 24. واتساب
+  // ══════════════════════════════════════════════════════════
   console.log('\n⟳  إضافة بيانات الواتساب...');
   try {
+    const [ws1] = await q(`
+      INSERT INTO whatsapp_schedules
+        (teacher_id,name,message,target_type,stage_filter,
+         interval_days,next_run_at,last_run_at,is_active)
+      VALUES ($1,
+        'تذكير شهري لأولياء الأمور',
+        'السادة أولياء الأمور، نذكّركم بمتابعة أداء أبنائكم وسداد الرسوم المستحقة. شكراً.',
+        'parents','all',30,NOW()+INTERVAL '5 days',NOW()-INTERVAL '25 days',true)
+      RETURNING id
+    `, [T1]);
 
-  const [ws1] = await q(`
-    INSERT INTO whatsapp_schedules
-      (teacher_id,name,message,target_type,stage_filter,
-       interval_days,next_run_at,last_run_at,is_active)
-    VALUES ($1,
-      'تذكير شهري لأولياء الأمور',
-      'السادة أولياء الأمور، نذكّركم بمتابعة أداء أبنائكم وسداد الرسوم المستحقة. شكراً.',
-      'parents','all',30,NOW()+INTERVAL '5 days',NOW()-INTERVAL '25 days',true)
-    RETURNING id
-  `, [T1]);
+    const [ws2] = await q(`
+      INSERT INTO whatsapp_schedules
+        (teacher_id,name,message,target_type,stage_filter,
+         interval_days,next_run_at,is_active)
+      VALUES ($1,
+        'تذكير الامتحانات — ث3',
+        'تذكير للطلاب: الاختبار النهائي قادم. راجعوا المنهج بانتظام.',
+        'students','الصف الثالث الثانوي',14,NOW()+INTERVAL '2 days',true)
+      RETURNING id
+    `, [T1]);
 
-  const [ws2] = await q(`
-    INSERT INTO whatsapp_schedules
-      (teacher_id,name,message,target_type,stage_filter,
-       interval_days,next_run_at,is_active)
-    VALUES ($1,
-      'تذكير الامتحانات — ث3',
-      'تذكير للطلاب: الاختبار النهائي قادم قريباً. راجعوا المنهج بانتظام.',
-      'students','الصف الثالث الثانوي',14,NOW()+INTERVAL '2 days',true)
-    RETURNING id
-  `, [T1]);
+    await q(`
+      INSERT INTO whatsapp_send_log
+        (teacher_id,schedule_id,message,total_count,success_count,fail_count,
+         status,send_type,created_at,finished_at)
+      VALUES ($1,$2,
+        'السادة أولياء الأمور، نذكّركم بمتابعة أداء أبنائكم...',
+        11,10,1,'completed','scheduled',
+        NOW()-INTERVAL '25 days',NOW()-INTERVAL '25 days'+INTERVAL '5 minutes')
+    `, [T1, ws1.id]);
 
-  // سجل إرسال واتساب
-  await q(`
-    INSERT INTO whatsapp_send_log
-      (teacher_id,schedule_id,message,total_count,success_count,fail_count,
-       status,send_type,created_at,finished_at)
-    VALUES ($1,$2,
-      'السادة أولياء الأمور، نذكّركم بمتابعة أداء أبنائكم...',
-      11,10,1,'completed','scheduled',
-      NOW()-INTERVAL '25 days',NOW()-INTERVAL '25 days'+INTERVAL '5 minutes')
-  `, [T1, ws1.id]);
+    await q(`
+      INSERT INTO whatsapp_send_log
+        (teacher_id,message,total_count,success_count,fail_count,
+         status,send_type,created_at,finished_at)
+      VALUES ($1,
+        'إعلان: تم نشر الامتحان النهائي!',
+        5,5,0,'completed','manual',
+        NOW()-INTERVAL '7 days',NOW()-INTERVAL '7 days'+INTERVAL '3 minutes')
+    `, [T1]);
 
-  await q(`
-    INSERT INTO whatsapp_send_log
-      (teacher_id,schedule_id,message,total_count,success_count,fail_count,
-       status,send_type,created_at,finished_at)
-    VALUES ($1,$2,
-      'إعلان: تم نشر الامتحان النهائي! سجّل دخولك وابدأ التقديم الآن.',
-      5,5,0,'completed','manual',
-      NOW()-INTERVAL '7 days',NOW()-INTERVAL '7 days'+INTERVAL '3 minutes')
-  `, [T1, null]);
-
-  console.log('  ✓ جدولان واتساب + 2 سجل إرسال');
+    console.log('  ✓ جدولان واتساب + 2 سجل إرسال');
   } catch (waErr) {
-    // [L-4] If whatsapp_schedules table doesn't exist (old schema), skip gracefully
-    console.warn('  ⚠️ تخطّي بيانات واتساب — الجدول غير موجود (شغّل السيرفر أولاً لتحديث الـ schema):', waErr.message);
+    console.warn('  ⚠️ تخطّي واتساب — الجدول غير موجود:', waErr.message);
   }
 
   // ══════════════════════════════════════════════════════════
-  // 24. سجل النشاط (activity_logs) — شامل ومتنوع
+  // 25. سجل النشاط (activity_logs)
   // ══════════════════════════════════════════════════════════
   console.log('\n⟳  إضافة سجل النشاط...');
 
@@ -1378,53 +1688,53 @@ async function seed() {
         ts.toISOString()]);
   };
 
-  const MR = 'أ/ محمد عبد الرحمن';
+  const MR    = 'أ/ محمد عبد الرحمن';
   const NOUR  = asstNour.name;
   const KARIM = asstKarim.name;
 
   // تسجيل الدخول
-  await log('teacher',   T1,            MR,    'login_teacher',    'teacher',   T1,             MR,    {ip:'197.34.5.70'}, 30, 8);
-  await log('assistant', asstNour.id,   NOUR,  'login_assistant',  'assistant', asstNour.id,    NOUR,  {ip:'197.34.5.71'}, 29, 9);
-  await log('teacher',   T1,            MR,    'login_teacher',    'teacher',   T1,             MR,    {ip:'197.34.5.70'}, 15, 7);
-  await log('assistant', asstNour.id,   NOUR,  'login_assistant',  'assistant', asstNour.id,    NOUR,  {ip:'197.34.5.72'}, 14, 8);
-  await log('assistant', asstKarim.id,  KARIM, 'login_assistant',  'assistant', asstKarim.id,   KARIM, {ip:'197.34.5.75'},  7,10);
-  await log('teacher',   T1,            MR,    'login_teacher',    'teacher',   T1,             MR,    {ip:'197.34.5.70'},  1, 6);
+  await log('teacher',   T1,            MR,    'login_teacher',   'teacher',   T1,             MR,    {ip:'197.34.5.70'}, 30, 8);
+  await log('assistant', asstNour.id,   NOUR,  'login_assistant', 'assistant', asstNour.id,    NOUR,  {ip:'197.34.5.71'}, 29, 9);
+  await log('teacher',   T1,            MR,    'login_teacher',   'teacher',   T1,             MR,    {ip:'197.34.5.70'}, 15, 7);
+  await log('assistant', asstNour.id,   NOUR,  'login_assistant', 'assistant', asstNour.id,    NOUR,  {ip:'197.34.5.72'}, 14, 8);
+  await log('assistant', asstKarim.id,  KARIM, 'login_assistant', 'assistant', asstKarim.id,   KARIM, {ip:'197.34.5.75'},  7,10);
+  await log('teacher',   T1,            MR,    'login_teacher',   'teacher',   T1,             MR,    {ip:'197.34.5.70'},  1, 6);
 
   // الكورسات
-  await log('teacher',   T1, MR, 'create_course',  'course', c1.id, 'رياضيات ث3 — الجبر',     {price:300,stage:'ث3'}, 30, 7);
-  await log('teacher',   T1, MR, 'create_course',  'course', c2.id, 'رياضيات ث3 — التفاضل',  {price:250,stage:'ث3'}, 30, 6);
-  await log('teacher',   T1, MR, 'create_course',  'course', c3.id, 'مقدمة مجانية',           {price:0,is_free:true}, 29,10);
-  await log('teacher',   T1, MR, 'create_course',  'course', c4.id, 'رياضيات ث2 — الهندسة',  {price:200,stage:'ث2'}, 28, 9);
+  await log('teacher',   T1, MR, 'create_course',  'course', c1.id, 'رياضيات ث3 — الجبر',    {price:300,stage:'ث3'}, 30, 7);
+  await log('teacher',   T1, MR, 'create_course',  'course', c2.id, 'رياضيات ث3 — التفاضل', {price:250,stage:'ث3'}, 30, 6);
+  await log('teacher',   T1, MR, 'create_course',  'course', c3.id, 'مقدمة مجانية',          {price:0,is_free:true}, 29,10);
+  await log('teacher',   T1, MR, 'create_course',  'course', c4.id, 'رياضيات ث2 — الهندسة', {price:200,stage:'ث2'}, 28, 9);
   await log('teacher',   T1, MR, 'create_course',  'course', c5.id, 'الإحصاء [مسودة]',       {price:200,stage:'ث3'}, 27, 8);
-  await log('teacher',   T1, MR, 'publish_course', 'course', c1.id, 'رياضيات ث3 — الجبر',     {is_published:true},    29, 9);
-  await log('teacher',   T1, MR, 'publish_course', 'course', c2.id, 'رياضيات ث3 — التفاضل',  {is_published:true},    29, 8);
-  await log('teacher',   T1, MR, 'publish_course', 'course', c3.id, 'مقدمة مجانية',           {is_published:true},    29, 7);
-  await log('teacher',   T1, MR, 'publish_course', 'course', c4.id, 'رياضيات ث2 — الهندسة',  {is_published:true},    28, 8);
-  await log('teacher',   T1, MR, 'edit_course',    'course', c1.id, 'رياضيات ث3 — الجبر',     {changed:['description','thumbnail_url']}, 20,10);
+  await log('teacher',   T1, MR, 'publish_course', 'course', c1.id, 'رياضيات ث3 — الجبر',    {is_published:true},    29, 9);
+  await log('teacher',   T1, MR, 'publish_course', 'course', c2.id, 'رياضيات ث3 — التفاضل', {is_published:true},    29, 8);
+  await log('teacher',   T1, MR, 'publish_course', 'course', c3.id, 'مقدمة مجانية',          {is_published:true},    29, 7);
+  await log('teacher',   T1, MR, 'publish_course', 'course', c4.id, 'رياضيات ث2 — الهندسة', {is_published:true},    28, 8);
+  await log('teacher',   T1, MR, 'edit_course',    'course', c1.id, 'رياضيات ث3 — الجبر',    {changed:['description']}, 20,10);
 
-  // رفع المحتوى
-  await log('teacher',   T1,           MR,   'upload_video', 'course', c1.id, 'مقدمة الجبر',     {video_id:c1v1}, 29,12);
-  await log('assistant', asstNour.id,  NOUR, 'upload_video', 'course', c1.id, 'المتباينات',      {video_id:c1v3}, 27,13);
+  // رفع محتوى
+  await log('teacher',   T1,           MR,   'upload_video', 'course', c1.id, 'مقدمة الجبر',    {}, 29,12);
+  await log('assistant', asstNour.id,  NOUR, 'upload_video', 'course', c1.id, 'المتباينات',     {}, 27,13);
   await log('assistant', asstNour.id,  NOUR, 'upload_pdf',   'course', c1.id, 'ملخص المعادلات', {}, 27,12);
   await log('teacher',   T1,           MR,   'add_video_url','course', c2.id, 'مقدمة التفاضل',  {url:'youtube'}, 26,10);
   await log('teacher',   T1,           MR,   'upload_pdf',   'course', c2.id, 'ملخص المشتقة',   {}, 25, 9);
 
   // الطلاب
-  await log('teacher',   T1,           MR,   'add_student', 'student', STD_ALI,           'علي محمد رمضان',      {username:'std_ali',  stage:'ث3'}, 28,10);
-  await log('teacher',   T1,           MR,   'add_student', 'student', sids['std_fatma'], 'فاطمة أحمد سعد',      {username:'std_fatma',stage:'ث3'}, 28, 9);
-  await log('assistant', asstNour.id,  NOUR, 'add_student', 'student', sids['std_youssef'],'يوسف إبراهيم كمال',  {username:'std_youssef',stage:'ث3'},27,11);
-  await log('assistant', asstNour.id,  NOUR, 'bulk_import_students','student',null,null,  {count:4,failed:0},      26,14);
-  await log('teacher',   T1,           MR,   'bulk_import_students','student',null,null,  {count:6,failed:1},      20,12);
-  await log('assistant', asstNour.id,  NOUR, 'edit_student','student', STD_ALI,           'علي محمد رمضان',      {changed:['phone','parent_phone']},15,11);
-  await log('teacher',   T1,           MR,   'edit_student','student', sids['std_nada'],  'ندى حسن عبد الله',    {changed:['academic_stage']},12,9);
-  await log('teacher',   T1,           MR,   'suspend_student','student',sids['std_nada'],'ندى حسن عبد الله',   {reason:'تجاوز حد الأجهزة'},3,5);
+  await log('teacher',   T1,           MR,   'add_student', 'student', STD_ALI,           'علي محمد رمضان',     {username:'std_ali', stage:'ث3'}, 28,10);
+  await log('teacher',   T1,           MR,   'add_student', 'student', sids['std_fatma'], 'فاطمة أحمد سعد',     {username:'std_fatma',stage:'ث3'}, 28, 9);
+  await log('assistant', asstNour.id,  NOUR, 'add_student', 'student', sids['std_youssef'],'يوسف إبراهيم كمال', {username:'std_youssef',stage:'ث3'}, 27,11);
+  await log('assistant', asstNour.id,  NOUR, 'bulk_import_students','student',null,null,  {count:4,failed:0}, 26,14);
+  await log('teacher',   T1,           MR,   'bulk_import_students','student',null,null,  {count:6,failed:1}, 20,12);
+  await log('assistant', asstNour.id,  NOUR, 'edit_student','student', STD_ALI,           'علي محمد رمضان',     {changed:['phone']}, 15,11);
+  await log('teacher',   T1,           MR,   'edit_student','student', sids['std_nada'],  'ندى حسن عبد الله',   {changed:['academic_stage']}, 12, 9);
+  await log('teacher',   T1,           MR,   'suspend_student','student',sids['std_nada'],'ندى حسن عبد الله',  {reason:'تجاوز حد الأجهزة'}, 3, 5);
 
   // المدفوعات
-  await log('assistant', asstNour.id,  NOUR,  'approve_payment','payment',null,'علي محمد رمضان',    {amount:300,method:'instapay',status:'verified'},   21,13);
-  await log('assistant', asstNour.id,  NOUR,  'approve_payment','payment',null,'فاطمة أحمد سعد',    {amount:300,method:'fawry',status:'verified'},       20,12);
-  await log('assistant', asstKarim.id, KARIM, 'approve_payment','payment',null,'يوسف إبراهيم كمال',{amount:300,method:'instapay',status:'verified'},     20,11);
-  await log('assistant', asstKarim.id, KARIM, 'reject_payment', 'payment',null,'لينا سعيد القاضي', {amount:200,method:'fawry',status:'rejected'},         8,13);
-  await log('teacher',   T1,           MR,    'approve_payment','payment',null,'لينا سعيد القاضي', {amount:200,method:'instapay',status:'verified'},       6, 9);
+  await log('assistant', asstNour.id,  NOUR,  'approve_payment','payment',null,'علي محمد رمضان',   {amount:300,method:'instapay',status:'verified'}, 24,13);
+  await log('assistant', asstNour.id,  NOUR,  'approve_payment','payment',null,'فاطمة أحمد سعد',   {amount:300,method:'fawry',status:'verified'},    21,12);
+  await log('assistant', asstKarim.id, KARIM, 'approve_payment','payment',null,'يوسف إبراهيم كمال',{amount:300,method:'instapay',status:'verified'}, 20,11);
+  await log('assistant', asstKarim.id, KARIM, 'reject_payment', 'payment',null,'لينا سعيد القاضي', {amount:200,method:'fawry',status:'rejected'},     9,13);
+  await log('teacher',   T1,           MR,    'approve_payment','payment',null,'لينا سعيد القاضي', {amount:200,method:'bank',status:'verified'},       8, 9);
 
   // الامتحانات
   await log('teacher',   T1,           MR,   'create_exam',  'exam', e1.id, 'امتحان الجبر',      {total_score:30,duration:45}, 29,10);
@@ -1433,27 +1743,38 @@ async function seed() {
   await log('teacher',   T1,           MR,   'publish_exam', 'exam', e2.id, 'امتحان المثلثات',   {is_published:true},          28,10);
   await log('assistant', asstNour.id,  NOUR, 'create_exam',  'exam', e3.id, 'مراجعة الدوال',     {total_score:40,duration:40},  8,13);
   await log('assistant', asstNour.id,  NOUR, 'publish_exam', 'exam', e3.id, 'مراجعة الدوال',     {is_published:true},           8,12);
-  await log('teacher',   T1,           MR,   'create_exam',  'exam', e4.id, 'الاختبار النهائي',  {total_score:100,duration:90,badge:'بطل الرياضيات'}, 25, 9);
-  await log('teacher',   T1,           MR,   'publish_exam', 'exam', e4.id, 'الاختبار النهائي',  {is_published:true,start:'بعد 7 أيام'},               25, 8);
-  await log('teacher',   T1,           MR,   'approve_retry','exam', e2.id, 'امتحان المثلثات',   {student:'علي محمد رمضان',decision:'accepted'},        8, 8);
-  await log('assistant', asstNour.id,  NOUR, 'reject_retry', 'exam', e1.id, 'امتحان الجبر',      {student:'عمر سامي فرج',decision:'rejected'},          4,11);
-  await log('teacher',   T1,           MR,   'force_reset_exam_results','exam',e1.id,'امتحان الجبر',{deleted_results:3},        26,16);
+  await log('teacher',   T1,           MR,   'create_exam',  'exam', e4.id, 'الاختبار النهائي',  {total_score:100,duration:90}, 25, 9);
+  await log('teacher',   T1,           MR,   'publish_exam', 'exam', e4.id, 'الاختبار النهائي',  {is_published:true,start:'بعد 7 أيام'}, 25, 8);
+  await log('teacher',   T1,           MR,   'approve_retry','exam', e2.id, 'امتحان المثلثات',   {student:'علي محمد رمضان',decision:'accepted'}, 6, 8);
+  await log('assistant', asstNour.id,  NOUR, 'reject_retry', 'exam', e1.id, 'امتحان الجبر',      {student:'عمر سامي فرج',decision:'rejected'}, 3,11);
+  await log('teacher',   T1,           MR,   'force_reset_exam_results','exam',e1.id,'امتحان الجبر',{deleted_results:3}, 26,16);
+
+  // التسميعات
+  await log('teacher',   T1,           MR,   'create_recitation','recitation', r1.id, 'تسميع المشتقات اليومي',    {duration:10,total_score:10}, 10, 8);
+  await log('teacher',   T1,           MR,   'publish_recitation','recitation',r1.id, 'تسميع المشتقات اليومي',    {is_published:true},           10, 7);
+  await log('teacher',   T1,           MR,   'create_recitation','recitation', r2.id, 'مراجعة المثلثات الأسبوعية',{duration:15,total_score:20},   8, 9);
+  await log('teacher',   T1,           MR,   'publish_recitation','recitation',r2.id, 'مراجعة المثلثات الأسبوعية',{is_published:true},             8, 8);
+  await log('assistant', asstNour.id,  NOUR, 'create_recitation','recitation', r3.id, 'تسميع قواعد التكامل',      {duration:12,total_score:15},    5, 9);
+  await log('assistant', asstNour.id,  NOUR, 'publish_recitation','recitation',r3.id, 'تسميع قواعد التكامل',      {is_published:true},              5, 8);
+  await log('teacher',   T1,           MR,   'create_recitation','recitation', r4.id, 'تسميع الاختبار النهائي الشامل',{duration:20,total_score:30},3, 9);
+  await log('teacher',   T1,           MR,   'publish_recitation','recitation',r4.id, 'تسميع الاختبار النهائي الشامل',{is_published:true},           3, 8);
+  await log('teacher',   T1,           MR,   'create_recitation','recitation', r6.id, 'تسميع الإحصاء [مسودة]',   {is_published:false},             2, 5);
 
   // المساعدون
-  await log('teacher',   T1, MR, 'add_assistant',    'assistant',asstNour.id, NOUR,  {permissions:'full'}, 30, 5);
-  await log('teacher',   T1, MR, 'add_assistant',    'assistant',asstKarim.id,KARIM, {permissions:'partial'},29,5);
-  await log('teacher',   T1, MR, 'add_assistant',    'assistant',asstDina.id, asstDina.name, {permissions:'view_only'},28,5);
-  await log('teacher',   T1, MR, 'edit_assistant',   'assistant',asstNour.id, NOUR,  {changed:['can_delete_students']},15,8);
+  await log('teacher',   T1, MR, 'add_assistant',  'assistant', asstNour.id,  NOUR,        {permissions:'full'},      30, 5);
+  await log('teacher',   T1, MR, 'add_assistant',  'assistant', asstKarim.id, KARIM,       {permissions:'partial'},   29, 5);
+  await log('teacher',   T1, MR, 'add_assistant',  'assistant', asstDina.id,  asstDina.name,{permissions:'view_only'},28, 5);
+  await log('teacher',   T1, MR, 'edit_assistant', 'assistant', asstNour.id,  NOUR,        {changed:['can_delete_students']}, 15, 8);
 
   // الواتساب
-  await log('teacher', T1, MR, 'send_whatsapp_broadcast','teacher',T1,MR,{count:11,success:10,fail:1,type:'scheduled'},25,14);
-  await log('teacher', T1, MR, 'send_whatsapp_broadcast','teacher',T1,MR,{count:5,success:5,fail:0,type:'manual'},7,11);
-  await log('teacher', T1, MR, 'create_whatsapp_schedule','teacher',T1,MR,{name:'تذكير شهري لأولياء الأمور',interval:30},30,4);
+  await log('teacher', T1, MR, 'send_whatsapp_broadcast',  'teacher',T1,MR,{count:11,success:10,fail:1,type:'scheduled'}, 25,14);
+  await log('teacher', T1, MR, 'send_whatsapp_broadcast',  'teacher',T1,MR,{count:5,success:5,fail:0,type:'manual'},       7,11);
+  await log('teacher', T1, MR, 'create_whatsapp_schedule', 'teacher',T1,MR,{name:'تذكير شهري',interval:30},               30, 4);
 
   // الأجهزة
-  await log('teacher', T1, MR, 'device_alert_review', 'student',sids['std_nada'],'ندى حسن عبد الله',{alert_type:'device_limit_exceeded',action:'pending'},3,4);
+  await log('teacher', T1, MR, 'device_alert_review', 'student', sids['std_nada'],'ندى حسن عبد الله',{alert_type:'device_limit_exceeded',action:'pending'}, 3, 4);
 
-  console.log('  ✓ سجل النشاط: 50+ حدث (تسجيل دخول، كورسات، طلاب، مدفوعات، امتحانات، واتساب، أجهزة)');
+  console.log('  ✓ سجل النشاط: 60+ حدث شامل (تسجيل دخول، كورسات، طلاب، مدفوعات، امتحانات، تسميعات، واتساب، أجهزة)');
 
   // ══════════════════════════════════════════════════════════
   // ملخص نهائي
@@ -1462,27 +1783,35 @@ async function seed() {
   console.log('  ✅ تمت عملية البذر بنجاح كامل!');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('\n  📋 ملخص البيانات:');
-  console.log('  ┌──────────────────────────────────────────────────────┐');
-  console.log('  │  👨‍🏫 معلم: 1         (admin / admin123)              │');
-  console.log('  │  🧑‍💼 مساعدون: 3      (asst_nour / asst_karim / asst_dina) │');
-  console.log('  │  🎒 طلاب: 11        (std_ali / 123456 — المحوري)    │');
-  console.log('  │  📚 كورسات: 6       (4 منشور، 1 مجاني، 1 مسودة)     │');
-  console.log('  │  📹 فيديوهات: 24    (مع أقسام متعددة)               │');
-  console.log('  │  📄 PDF: 14                                          │');
-  console.log('  │  🏦 بنوك أسئلة: 2  (مع أسئلة مجمّعة)               │');
-  console.log('  │  📝 امتحانات: 11   (منتهية/جارية/قادمة/مسودة)       │');
-  console.log('  │  💳 مدفوعات: 12    (verified×8 / pending×3 / rejected×1) │');
-  console.log('  │  🔔 إشعارات: 7+ std_ali + جماعية                    │');
-  console.log('  │  📡 بث مباشر: 3    (منتهي/نشط/مجدول)               │');
-  console.log('  │  🎮 فعاليات: 5     (Stickman Run)                   │');
-  console.log('  │  📱 أجهزة: 4       + 1 تنبيه مشبوه                 │');
-  console.log('  │  💬 واتساب: 2 جدول + 2 سجل إرسال                   │');
-  console.log('  │  📊 سجل نشاط: 50+ حدث                              │');
-  console.log('  └──────────────────────────────────────────────────────┘');
+  console.log('  ┌──────────────────────────────────────────────────────────────┐');
+  console.log('  │  👨‍🏫 معلم: 1           admin / admin123                      │');
+  console.log('  │  🧑‍💼 مساعدون: 3        asst_nour (كاملة) | asst_karim | asst_dina │');
+  console.log('  │  🎒 طلاب: 11           std_ali / 123456  (الحساب المحوري)   │');
+  console.log('  │  📚 كورسات: 6          منشور×4، مجاني×2، مسودة×1            │');
+  console.log('  │  📹 فيديوهات: 24       مع أقسام                             │');
+  console.log('  │  📄 PDF: 14                                                  │');
+  console.log('  │  🏦 بنوك أسئلة: 2      bank1 (15 سؤال) + bank2 (10 أسئلة)  │');
+  console.log('  │  📝 امتحانات: 11       منتهي×5، نشط×4، قادم×1، مسودة×1     │');
+  console.log('  │  📖 تسميعات: 6         نشط×4، قادم×1، مسودة×1              │');
+  console.log('  │     std_ali: ناجح×1، راسب×1، لم يؤد×2 (r3 نشط + r4 قادم)  │');
+  console.log('  │  💳 مدفوعات: 12        verified×8، pending×3، rejected×1    │');
+  console.log('  │  🔔 إشعارات: 9 لـ std_ali + جماعية                          │');
+  console.log('  │  🏅 شارات: std_ali (×2)                                     │');
+  console.log('  │  📡 بث مباشر: 3        منتهي×1، نشط×1، مجدول×1             │');
+  console.log('  │  🎮 فعاليات: 5         Stickman Run                         │');
+  console.log('  │  📱 أجهزة: 4           + 1 تنبيه                            │');
+  console.log('  │  💬 واتساب: 2 جدول + 2 سجل إرسال                           │');
+  console.log('  │  📊 سجل نشاط: 60+ حدث (يشمل أحداث التسميعات)              │');
+  console.log('  └──────────────────────────────────────────────────────────────┘');
   console.log('\n  🔑 بيانات تسجيل الدخول:');
   console.log('     معلم    → admin / admin123');
   console.log('     مساعد   → asst_nour / 123456  (صلاحيات كاملة)');
   console.log('     طالب    → std_ali / 123456    (الحساب المحوري)');
+  console.log('\n  📊 سيناريوهات std_ali:');
+  console.log('     كورسات   → C1+C2 مفتوح (جزئي)، C3 مكتمل، C5 طلب معلّق');
+  console.log('     امتحانات → ناجح×3، راسب×1، جلسة نشطة×1، قادم×1، لم يؤد×2');
+  console.log('     تسميعات → ناجح×1، راسب×1، متاح لم يؤده×1، قادم×1');
+  console.log('     متصدرين → مركز 3 حالياً، 1 في أبريل، 2 في مايو');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 }
 

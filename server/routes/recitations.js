@@ -412,6 +412,13 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageRecitationsPe
         id, teacherId,
       ]
     );
+    if (rows.length) {
+      logActivity({
+        teacherId, actor: getActor(req), ip: getIp(req),
+        action: 'edit_recitation',
+        entity: { type: 'recitation', id, name: rows[0].title },
+      });
+    }
     res.json(rows[0]);
   } catch (err) {
     console.error('[recitations PUT /:id]', err.message);

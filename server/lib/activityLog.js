@@ -38,6 +38,16 @@ const ACTION_LABELS = {
   whatsapp_schedule_create:  'إنشاء جدولة واتساب',
   whatsapp_schedule_edit:    'تعديل جدولة واتساب',
   whatsapp_schedule_delete:  'حذف جدولة واتساب',
+  create_recitation:         'إنشاء تسميع',
+  edit_recitation:           'تعديل تسميع',
+  delete_recitation:         'حذف تسميع',
+  publish_recitation:        'نشر/إلغاء نشر تسميع',
+  add_assistant:             'إضافة مساعد',
+  edit_assistant:            'تعديل مساعد',
+  suspend_student:           'إيقاف تعليق طالب',
+  device_alert_review:       'مراجعة تنبيه جهاز',
+  send_whatsapp_broadcast:   'إرسال رسالة واتساب جماعية',
+  create_whatsapp_schedule:  'إنشاء جدولة واتساب',
 };
 
 async function logActivity({ teacherId, actor, action, entity = {}, details = null, ip = null }) {
