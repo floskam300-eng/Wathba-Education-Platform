@@ -1292,16 +1292,14 @@ async function seed() {
   // ══════════════════════════════════════════════════════════
   console.log('\n⟳  إضافة بيانات الأجهزة...');
 
+  // std_ali: جهاز واحد فقط عشان تسجيل الدخول من المتصفح يكون الجهاز التاني (مسموح)
   await q(`
     INSERT INTO student_devices
       (student_id,device_id,device_name,user_agent,ip_address,first_seen,last_seen)
     VALUES
       ($1,'device_ali_mobile_001','iPhone 14 Pro',
        'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0) AppleWebKit','197.34.5.100',
-       NOW()-INTERVAL '25 days',NOW()-INTERVAL '1 hour'),
-      ($1,'device_ali_laptop_002','MacBook Pro',
-       'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit','197.34.5.100',
-       NOW()-INTERVAL '20 days',NOW()-INTERVAL '3 days')
+       NOW()-INTERVAL '25 days',NOW()-INTERVAL '1 hour')
   `, [STD_ALI]);
 
   await q(`
