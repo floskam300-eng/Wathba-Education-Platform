@@ -30,6 +30,7 @@ const StatPill = ({ label, value, color }) => (
   </div>
 );
 
+// FIX-F2: removed unused baseRole prop from signature
 export default function StudentArchiveModal({ student, onClose }) {
   const { dark } = useTheme();
   const [tab, setTab] = useState('exams');
@@ -265,14 +266,15 @@ export default function StudentArchiveModal({ student, onClose }) {
                           </div>
                           <div className="flex items-center gap-3 mt-1">
                             <div className="flex items-center gap-1.5">
-                              <MiniBar value={r.score} max={r.total_score} color={passed ? 'bg-green-500' : pending ? 'bg-yellow-500' : 'bg-red-500'} />
-                              <span className={`text-[10px] font-bold ${passed ? 'text-green-600' : pending ? 'text-yellow-600' : 'text-red-500'}`}>{p}%</span>
+                              {/* FIX-F1: removed undeclared `pending` variable — was causing ReferenceError crash */}
+                              <MiniBar value={r.score} max={r.total_score} color={passed ? 'bg-green-500' : 'bg-red-500'} />
+                              <span className={`text-[10px] font-bold ${passed ? 'text-green-600' : 'text-red-500'}`}>{p}%</span>
                             </div>
                             <span className={`text-[10px] ${textSec}`}>{fmt(r.created_at)}</span>
                           </div>
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
-                          <span className={`text-xs font-black ${passed ? 'text-green-500' : pending ? 'text-yellow-500' : 'text-red-500'}`}>
+                          <span className={`text-xs font-black ${passed ? 'text-green-500' : 'text-red-500'}`}>
                             {r.score}/{r.total_score}
                           </span>
                           {isExpanded ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}

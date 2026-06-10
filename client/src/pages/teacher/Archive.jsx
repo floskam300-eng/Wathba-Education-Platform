@@ -2,7 +2,6 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
 import {
   Archive, FileText, GraduationCap, Search, Filter, X,
   ChevronDown, ChevronUp, Download, Calendar, User,
@@ -48,9 +47,13 @@ const fmt = (iso) => {
   return new Date(iso).toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' });
 };
 
+// FIX-F5: Use percentage score not raw score
+const scorePct = (score, total) =>
+  total > 0 ? Math.round((Number(score || 0) / Number(total)) * 100) : 0;
+
 const ScoreBadge = ({ score, total, passScore, dark }) => {
-  const pct = total > 0 ? Math.round((score / total) * 100) : 0;
-  const passed = score >= passScore;
+  const pct = scorePct(score, total);
+  const passed = Number(score) >= Number(passScore);
   const color = passed
     ? (dark ? 'bg-green-900/40 text-green-300' : 'bg-green-50 text-green-700')
     : (dark ? 'bg-red-900/40 text-red-300' : 'bg-red-50 text-red-700');
@@ -69,13 +72,12 @@ const FilterRow = ({ label, children }) => (
   </div>
 );
 
-const SelectFilter = ({ value, onChange, options, dark, placeholder }) => (
+const SelectFilter = ({ value, onChange, options, dark }) => (
   <select
     value={value}
     onChange={e => onChange(e.target.value)}
     className={`text-xs rounded-xl border px-3 py-2 font-medium focus:outline-none focus:ring-2 focus:ring-orange-400 transition ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text-1)]' : 'bg-white border-gray-200 text-gray-700'}`}
   >
-    {placeholder && <option value="">{placeholder}</option>}
     {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
   </select>
 );
@@ -85,20 +87,19 @@ const PAGE_SIZES = [25, 50, 100];
 export default function ArchivePage() {
   const { dark } = useTheme();
   const { user } = useAuth();
-  const navigate = useNavigate();
-  const baseRole = user?.role === 'assistant' ? 'assistant' : 'teacher';
 
   const [tab, setTab] = useState('exams');
   const [filtersOpen, setFiltersOpen] = useState(true);
   const [selectedStudent, setSelectedStudent] = useState(null);
 
+  // FIX-F6: search is now part of server-side params (q) — no client-side filtering
   const [examFilters, setExamFilters] = useState({
-    search: '', course_id: '', exam_id: '', stage: '', status: '',
+    q: '', course_id: '', exam_id: '', stage: '', status: '',
     attempt: '', date_from: '', date_to: '', sort: 'date', order: 'desc',
     page: 1, limit: 50,
   });
   const [recFilters, setRecFilters] = useState({
-    search: '', recitation_id: '', stage: '', status: '',
+    q: '', recitation_id: '', stage: '', status: '',
     date_from: '', date_to: '', sort: 'date', order: 'desc',
     page: 1, limit: 50,
   });
@@ -110,18 +111,35 @@ export default function ArchivePage() {
     setRecFilters(f => ({ ...f, [key]: val, page: key !== 'page' ? 1 : val }));
   }, []);
 
+  // FIX-F7: Validate date_from <= date_to before setting
+  const setDateFilter = useCallback((which, key, val) => {
+    const setter = which === 'exam' ? setExamFilters : setRecFilters;
+    const other = which === 'exam' ? examFilters : recFilters;
+    if (key === 'date_from' && other.date_to && val > other.date_to) {
+      toast.error('تاريخ البداية يجب أن يكون قبل تاريخ النهاية');
+      return;
+    }
+    if (key === 'date_to' && other.date_from && val < other.date_from) {
+      toast.error('تاريخ النهاية يجب أن يكون بعد تاريخ البداية');
+      return;
+    }
+    setter(f => ({ ...f, [key]: val, page: 1 }));
+  }, [examFilters, recFilters]);
+
   const { data: filters } = useQuery({
     queryKey: ['archive-filters'],
     queryFn: () => api.get('/api/archive/filters').then(r => r.data),
     staleTime: 5 * 60 * 1000,
   });
 
+  // FIX-F6: All filters (including search q) are server-side params
   const examParams = useMemo(() => {
     const p = {
       stage: examFilters.stage, status: examFilters.status,
       attempt: examFilters.attempt, sort: examFilters.sort, order: examFilters.order,
       page: examFilters.page, limit: examFilters.limit,
     };
+    if (examFilters.q.trim()) p.q = examFilters.q.trim();
     if (examFilters.course_id) p.course_id = examFilters.course_id;
     if (examFilters.exam_id) p.exam_id = examFilters.exam_id;
     if (examFilters.date_from) p.date_from = examFilters.date_from;
@@ -135,6 +153,7 @@ export default function ArchivePage() {
       sort: recFilters.sort, order: recFilters.order,
       page: recFilters.page, limit: recFilters.limit,
     };
+    if (recFilters.q.trim()) p.q = recFilters.q.trim();
     if (recFilters.recitation_id) p.recitation_id = recFilters.recitation_id;
     if (recFilters.date_from) p.date_from = recFilters.date_from;
     if (recFilters.date_to) p.date_to = recFilters.date_to;
@@ -155,27 +174,9 @@ export default function ArchivePage() {
     enabled: tab === 'recitations',
   });
 
-  const filteredExamResults = useMemo(() => {
-    if (!examData?.results) return [];
-    const s = examFilters.search.toLowerCase().trim();
-    if (!s) return examData.results;
-    return examData.results.filter(r =>
-      r.student_name?.toLowerCase().includes(s) ||
-      r.student_username?.toLowerCase().includes(s) ||
-      r.exam_title?.toLowerCase().includes(s)
-    );
-  }, [examData, examFilters.search]);
-
-  const filteredRecResults = useMemo(() => {
-    if (!recData?.results) return [];
-    const s = recFilters.search.toLowerCase().trim();
-    if (!s) return recData.results;
-    return recData.results.filter(r =>
-      r.student_name?.toLowerCase().includes(s) ||
-      r.student_username?.toLowerCase().includes(s) ||
-      r.recitation_title?.toLowerCase().includes(s)
-    );
-  }, [recData, recFilters.search]);
+  // FIX-F6: Results come directly from server (already filtered by q)
+  const examResults = examData?.results || [];
+  const recResults = recData?.results || [];
 
   const filteredExams = useMemo(() => {
     if (!filters?.exams) return [];
@@ -184,35 +185,32 @@ export default function ArchivePage() {
   }, [filters, examFilters.course_id]);
 
   const handlePrintExams = () => {
-    const rows = filteredExamResults;
-    if (!rows.length) { toast.error('لا توجد نتائج للطباعة'); return; }
-    const passCount = rows.filter(r => r.score >= r.pass_score).length;
-    const failCount = rows.filter(r => r.score < r.pass_score).length;
-    const avgScore = rows.length > 0
-      ? Math.round(rows.reduce((s, r) => s + Number(r.score || 0), 0) / rows.length * 10) / 10
+    if (!examResults.length) { toast.error('لا توجد نتائج للطباعة'); return; }
+    const passCount = examResults.filter(r => Number(r.score) >= Number(r.pass_score)).length;
+    const failCount = examResults.filter(r => Number(r.score) < Number(r.pass_score)).length;
+    // FIX-F5: Average score as percentage, not raw score
+    const avgScore = examResults.length > 0
+      ? Math.round(examResults.reduce((s, r) => s + scorePct(r.score, r.total_score), 0) / examResults.length)
       : 0;
 
     generatePDFReport(
       'أرشيف نتائج الاختبارات',
       ['الطالب', 'المرحلة', 'الكورس', 'الاختبار', 'الدرجة', 'الحالة', 'المحاولة', 'التاريخ'],
-      rows.map(r => {
-        const pct = r.total_score > 0 ? Math.round((r.score / r.total_score) * 100) : 0;
-        return [
-          r.student_name,
-          r.academic_stage || '—',
-          r.course_name,
-          r.exam_title,
-          `${r.score}/${r.total_score} (${pct}%)`,
-          r.score >= r.pass_score ? 'ناجح' : 'راسب',
-          r.attempt_number > 1 ? `إعادة (${r.attempt_number})` : 'أول محاولة',
-          fmt(r.created_at),
-        ];
-      }),
+      examResults.map(r => [
+        r.student_name,
+        r.academic_stage || '—',
+        r.course_name,
+        r.exam_title,
+        `${r.score}/${r.total_score} (${scorePct(r.score, r.total_score)}%)`,
+        Number(r.score) >= Number(r.pass_score) ? 'ناجح' : 'راسب',
+        r.attempt_number > 1 ? `إعادة (${r.attempt_number})` : 'أول محاولة',
+        fmt(r.created_at),
+      ]),
       'archive-exams.pdf',
       {
         subtitle: 'نتائج الاختبارات المفلترة',
         stats: [
-          { label: 'إجمالي النتائج', value: rows.length, color: '#1e3a5f' },
+          { label: 'إجمالي النتائج', value: examData?.total ?? examResults.length, color: '#1e3a5f' },
           { label: 'ناجح', value: passCount, color: '#16a34a' },
           { label: 'راسب', value: failCount, color: '#dc2626' },
           { label: 'متوسط الدرجات', value: `${avgScore}%`, color: '#7c3aed' },
@@ -222,33 +220,30 @@ export default function ArchivePage() {
   };
 
   const handlePrintRecs = () => {
-    const rows = filteredRecResults;
-    if (!rows.length) { toast.error('لا توجد نتائج للطباعة'); return; }
-    const passCount = rows.filter(r => r.passed).length;
-    const failCount = rows.filter(r => !r.passed).length;
-    const avgScore = rows.length > 0
-      ? Math.round(rows.reduce((s, r) => s + Number(r.score || 0), 0) / rows.length * 10) / 10
+    if (!recResults.length) { toast.error('لا توجد نتائج للطباعة'); return; }
+    const passCount = recResults.filter(r => r.passed).length;
+    const failCount = recResults.filter(r => !r.passed).length;
+    // FIX-F5: Average score as percentage
+    const avgScore = recResults.length > 0
+      ? Math.round(recResults.reduce((s, r) => s + scorePct(r.score, r.total_score), 0) / recResults.length)
       : 0;
 
     generatePDFReport(
       'أرشيف نتائج التسميع',
       ['الطالب', 'المرحلة', 'التسميع', 'الدرجة', 'الحالة', 'التاريخ'],
-      rows.map(r => {
-        const pct = r.total_score > 0 ? Math.round((r.score / r.total_score) * 100) : 0;
-        return [
-          r.student_name,
-          r.academic_stage || '—',
-          r.recitation_title,
-          `${r.score}/${r.total_score} (${pct}%)`,
-          r.passed ? 'ناجح' : 'راسب',
-          fmt(r.created_at),
-        ];
-      }),
+      recResults.map(r => [
+        r.student_name,
+        r.academic_stage || '—',
+        r.recitation_title,
+        `${r.score}/${r.total_score} (${scorePct(r.score, r.total_score)}%)`,
+        r.passed ? 'ناجح' : 'راسب',
+        fmt(r.created_at),
+      ]),
       'archive-recitations.pdf',
       {
         subtitle: 'نتائج التسميع المفلترة',
         stats: [
-          { label: 'إجمالي النتائج', value: rows.length, color: '#1e3a5f' },
+          { label: 'إجمالي النتائج', value: recData?.total ?? recResults.length, color: '#1e3a5f' },
           { label: 'ناجح', value: passCount, color: '#16a34a' },
           { label: 'راسب', value: failCount, color: '#dc2626' },
           { label: 'متوسط الدرجات', value: `${avgScore}%`, color: '#7c3aed' },
@@ -267,17 +262,23 @@ export default function ArchivePage() {
   const isExam = tab === 'exams';
   const activeData = isExam ? examData : recData;
   const activeLoading = isExam ? examLoading : recLoading;
-  const activeResults = isExam ? filteredExamResults : filteredRecResults;
+  const activeResults = isExam ? examResults : recResults;
   const totalPages = activeData ? Math.ceil(activeData.total / (isExam ? examFilters.limit : recFilters.limit)) : 1;
   const currentPage = isExam ? examFilters.page : recFilters.page;
 
+  // FIX-F8: totalCount, passCount, failCount based on server total and current page slice
   const totalCount = activeData?.total ?? 0;
   const passCount = isExam
-    ? activeResults.filter(r => r.score >= r.pass_score).length
+    ? activeResults.filter(r => Number(r.score) >= Number(r.pass_score)).length
     : activeResults.filter(r => r.passed).length;
   const failCount = isExam
-    ? activeResults.filter(r => r.score < r.pass_score).length
+    ? activeResults.filter(r => Number(r.score) < Number(r.pass_score)).length
     : activeResults.filter(r => !r.passed).length;
+
+  // FIX-F5: Avg score as percentage
+  const avgScoreDisplay = activeResults.length > 0
+    ? `${Math.round(activeResults.reduce((s, r) => s + scorePct(r.score, r.total_score), 0) / activeResults.length)}%`
+    : '—';
 
   return (
     <div className="space-y-5" dir="rtl">
@@ -335,20 +336,13 @@ export default function ArchivePage() {
         </button>
       </div>
 
-      {/* Quick Stats */}
+      {/* Quick Stats — based on current page results */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { label: 'إجمالي النتائج', value: totalCount, color: 'from-blue-500 to-blue-600', icon: BarChart3 },
-          { label: 'ناجح', value: passCount, color: 'from-green-500 to-emerald-600', icon: CheckCircle2 },
-          { label: 'راسب', value: failCount, color: 'from-red-500 to-rose-600', icon: XCircle },
-          {
-            label: 'متوسط الدرجة',
-            value: activeResults.length > 0
-              ? `${Math.round(activeResults.reduce((s, r) => s + ((Number(r.score || 0) / (Number(r.total_score || 1))) * 100), 0) / activeResults.length)}%`
-              : '—',
-            color: 'from-purple-500 to-violet-600',
-            icon: Archive,
-          },
+          { label: 'ناجح (هذه الصفحة)', value: passCount, color: 'from-green-500 to-emerald-600', icon: CheckCircle2 },
+          { label: 'راسب (هذه الصفحة)', value: failCount, color: 'from-red-500 to-rose-600', icon: XCircle },
+          { label: 'متوسط الدرجة', value: avgScoreDisplay, color: 'from-purple-500 to-violet-600', icon: Archive },
         ].map(({ label, value, color, icon: Icon }) => (
           <div key={label} className={`relative overflow-hidden rounded-2xl border p-4 ${card} shadow-sm`}>
             <div className={`absolute -top-6 -left-6 w-20 h-20 rounded-full opacity-10 bg-gradient-to-br ${color}`} />
@@ -374,7 +368,7 @@ export default function ArchivePage() {
         {filtersOpen && (
           <div className={`px-5 pb-5 border-t ${dark ? 'border-[var(--dk-border)]' : 'border-gray-100'}`}>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 pt-4">
-              {/* Search */}
+              {/* Search — server-side FIX-F6 */}
               <div className="col-span-2 sm:col-span-3 lg:col-span-4 xl:col-span-2">
                 <FilterRow label="بحث">
                   <div className="relative">
@@ -382,8 +376,8 @@ export default function ArchivePage() {
                     <input
                       type="text"
                       placeholder={isExam ? 'ابحث باسم الطالب أو الاختبار...' : 'ابحث باسم الطالب أو التسميع...'}
-                      value={isExam ? examFilters.search : recFilters.search}
-                      onChange={e => isExam ? setEF('search', e.target.value) : setRF('search', e.target.value)}
+                      value={isExam ? examFilters.q : recFilters.q}
+                      onChange={e => isExam ? setEF('q', e.target.value) : setRF('q', e.target.value)}
                       className={`w-full pr-9 pl-3 py-2 text-xs rounded-xl border focus:outline-none focus:ring-2 ${inputCls}`}
                     />
                   </div>
@@ -452,12 +446,13 @@ export default function ArchivePage() {
                 </FilterRow>
               )}
 
-              {/* Date range */}
+              {/* Date range — FIX-F7: validated */}
               <FilterRow label="من تاريخ">
                 <input
                   type="date"
                   value={isExam ? examFilters.date_from : recFilters.date_from}
-                  onChange={e => isExam ? setEF('date_from', e.target.value) : setRF('date_from', e.target.value)}
+                  onChange={e => setDateFilter(isExam ? 'exam' : 'rec', 'date_from', e.target.value)}
+                  max={isExam ? examFilters.date_to || undefined : recFilters.date_to || undefined}
                   className={`text-xs rounded-xl border px-3 py-2 font-medium focus:outline-none focus:ring-2 focus:ring-orange-400 ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text-1)]' : 'bg-white border-gray-200 text-gray-700'}`}
                 />
               </FilterRow>
@@ -465,7 +460,8 @@ export default function ArchivePage() {
                 <input
                   type="date"
                   value={isExam ? examFilters.date_to : recFilters.date_to}
-                  onChange={e => isExam ? setEF('date_to', e.target.value) : setRF('date_to', e.target.value)}
+                  onChange={e => setDateFilter(isExam ? 'exam' : 'rec', 'date_to', e.target.value)}
+                  min={isExam ? examFilters.date_from || undefined : recFilters.date_from || undefined}
                   className={`text-xs rounded-xl border px-3 py-2 font-medium focus:outline-none focus:ring-2 focus:ring-orange-400 ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text-1)]' : 'bg-white border-gray-200 text-gray-700'}`}
                 />
               </FilterRow>
@@ -509,8 +505,8 @@ export default function ArchivePage() {
             <div className="flex justify-end mt-3">
               <button
                 onClick={() => isExam
-                  ? setExamFilters({ search: '', course_id: '', exam_id: '', stage: '', status: '', attempt: '', date_from: '', date_to: '', sort: 'date', order: 'desc', page: 1, limit: 50 })
-                  : setRecFilters({ search: '', recitation_id: '', stage: '', status: '', date_from: '', date_to: '', sort: 'date', order: 'desc', page: 1, limit: 50 })
+                  ? setExamFilters({ q: '', course_id: '', exam_id: '', stage: '', status: '', attempt: '', date_from: '', date_to: '', sort: 'date', order: 'desc', page: 1, limit: 50 })
+                  : setRecFilters({ q: '', recitation_id: '', stage: '', status: '', date_from: '', date_to: '', sort: 'date', order: 'desc', page: 1, limit: 50 })
                 }
                 className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl transition ${dark ? 'text-gray-400 hover:text-red-400 hover:bg-red-900/20' : 'text-gray-400 hover:text-red-500 hover:bg-red-50'}`}
               >
@@ -552,7 +548,7 @@ export default function ArchivePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {activeResults.map((r, i) => (
+                  {activeResults.map(r => (
                     <tr
                       key={r.id}
                       className={`border-t transition-colors ${dark ? 'border-[var(--dk-border)] hover:bg-[var(--dk-elevated)]' : 'border-gray-50 hover:bg-orange-50/30'}`}
@@ -579,13 +575,13 @@ export default function ArchivePage() {
                           <div className="flex items-center gap-1 mb-1">
                             <span className={`font-black ${textPrimary}`}>{r.score}/{r.total_score}</span>
                             <span className={textSec}>
-                              ({r.total_score > 0 ? Math.round((r.score / r.total_score) * 100) : 0}%)
+                              ({scorePct(r.score, r.total_score)}%)
                             </span>
                           </div>
                           <div className={`w-20 h-1.5 rounded-full overflow-hidden ${dark ? 'bg-gray-700' : 'bg-gray-200'}`}>
                             <div
                               className={`h-full rounded-full ${Number(r.score) >= Number(r.pass_score) ? 'bg-green-500' : 'bg-red-500'}`}
-                              style={{ width: `${Math.min(100, r.total_score > 0 ? (r.score / r.total_score) * 100 : 0)}%` }}
+                              style={{ width: `${Math.min(100, scorePct(r.score, r.total_score))}%` }}
                             />
                           </div>
                         </div>
@@ -625,7 +621,7 @@ export default function ArchivePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {activeResults.map((r, i) => (
+                  {activeResults.map(r => (
                     <tr
                       key={r.id}
                       className={`border-t transition-colors ${dark ? 'border-[var(--dk-border)] hover:bg-[var(--dk-elevated)]' : 'border-gray-50 hover:bg-purple-50/30'}`}
@@ -651,13 +647,13 @@ export default function ArchivePage() {
                           <div className="flex items-center gap-1 mb-1">
                             <span className={`font-black ${textPrimary}`}>{r.score}/{r.total_score}</span>
                             <span className={textSec}>
-                              ({r.total_score > 0 ? Math.round((r.score / r.total_score) * 100) : 0}%)
+                              ({scorePct(r.score, r.total_score)}%)
                             </span>
                           </div>
                           <div className={`w-20 h-1.5 rounded-full overflow-hidden ${dark ? 'bg-gray-700' : 'bg-gray-200'}`}>
                             <div
                               className={`h-full rounded-full ${r.passed ? 'bg-green-500' : 'bg-red-500'}`}
-                              style={{ width: `${Math.min(100, r.total_score > 0 ? (r.score / r.total_score) * 100 : 0)}%` }}
+                              style={{ width: `${Math.min(100, scorePct(r.score, r.total_score))}%` }}
                             />
                           </div>
                         </div>
@@ -731,12 +727,11 @@ export default function ArchivePage() {
         )}
       </div>
 
-      {/* Student Archive Modal */}
+      {/* Student Archive Modal — FIX-F2/F7: removed unused baseRole prop */}
       {selectedStudent && (
         <StudentArchiveModal
           student={selectedStudent}
           onClose={() => setSelectedStudent(null)}
-          baseRole={baseRole}
         />
       )}
     </div>

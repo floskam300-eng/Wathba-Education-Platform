@@ -7,14 +7,28 @@ const router = express.Router();
 router.use(authenticate);
 
 const PG_INT_MAX = 2147483647;
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
 const parseParamId = (raw) => {
   const n = parseInt(raw, 10);
   if (isNaN(n) || n <= 0 || n > PG_INT_MAX || String(n) !== String(raw).trim()) return null;
   return n;
 };
 
-const getTeacherId = (req) =>
-  req.user.role === 'teacher' ? req.user.id : req.user.teacher_id;
+// FIX-A3: Validate teacherId is a positive integer before using in queries
+const getTeacherId = (req) => {
+  const id = req.user.role === 'teacher' ? req.user.id : req.user.teacher_id;
+  return (typeof id === 'number' && id > 0 && id <= PG_INT_MAX) ? id : null;
+};
+
+// FIX-A1: Validate date strings are ISO YYYY-MM-DD before passing to PostgreSQL
+const isValidDate = (s) => {
+  if (!s || typeof s !== 'string') return false;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const d = new Date(s);
+  return !isNaN(d.getTime());
+};
 
 const checkViewPerm = async (req, res, next) => {
   if (req.user.role === 'teacher') return next();
@@ -29,11 +43,16 @@ const checkViewPerm = async (req, res, next) => {
 };
 
 // ── GET /api/archive/exam-results ──────────────────────────────────────────
-// Filters: student_id, course_id, exam_id, stage, status (pass/fail/pending),
-//          attempt (first/retry), date_from, date_to, sort, order, page, limit
+// Filters: q (text search), student_id, course_id, exam_id, stage,
+//          status (pass/fail), attempt (first/retry),
+//          date_from, date_to, sort, order, page, limit
 router.get('/exam-results', requireRole('teacher', 'assistant'), checkViewPerm, async (req, res) => {
+  // FIX-A3: Validate teacher ownership before querying
   const teacherId = getTeacherId(req);
+  if (!teacherId) return res.status(400).json({ error: 'بيانات المعلم غير صالحة' });
+
   const {
+    q,
     student_id, course_id, exam_id, stage,
     status, attempt,
     date_from, date_to,
@@ -41,11 +60,26 @@ router.get('/exam-results', requireRole('teacher', 'assistant'), checkViewPerm, 
     page = 1, limit = 50,
   } = req.query;
 
+  // FIX-A1: Validate date inputs before building query
+  if (date_from && !isValidDate(date_from))
+    return res.status(400).json({ error: 'تاريخ البداية غير صالح، استخدم صيغة YYYY-MM-DD' });
+  if (date_to && !isValidDate(date_to))
+    return res.status(400).json({ error: 'تاريخ النهاية غير صالح، استخدم صيغة YYYY-MM-DD' });
+  if (date_from && date_to && date_from > date_to)
+    return res.status(400).json({ error: 'تاريخ البداية يجب أن يكون قبل تاريخ النهاية' });
+
   try {
     const conditions = ['e.teacher_id = $1', 's.deleted_at IS NULL', 'er.is_latest = true'];
     const params = [teacherId];
     let p = 2;
 
+    // FIX-A4: Server-side text search — works across all pages
+    if (q && q.trim()) {
+      const like = `%${q.trim().slice(0, 100)}%`;
+      conditions.push(`(s.name ILIKE $${p} OR s.username ILIKE $${p} OR e.title ILIKE $${p})`);
+      params.push(like);
+      p++;
+    }
     if (student_id) {
       const sid = parseParamId(student_id);
       if (!sid) return res.status(400).json({ error: 'student_id غير صالح' });
@@ -120,7 +154,7 @@ router.get('/exam-results', requireRole('teacher', 'assistant'), checkViewPerm, 
          e.course_id,
          c.name AS course_name,
          s.id AS student_id, s.name AS student_name, s.username AS student_username,
-         s.academic_stage, s.phone AS student_phone
+         s.academic_stage
        FROM exam_results er
        JOIN exams e ON er.exam_id = e.id
        JOIN students s ON er.student_id = s.id
@@ -144,11 +178,15 @@ router.get('/exam-results', requireRole('teacher', 'assistant'), checkViewPerm, 
 });
 
 // ── GET /api/archive/recitation-results ────────────────────────────────────
-// Filters: student_id, recitation_id, stage, status (pass/fail),
+// Filters: q (text search), student_id, recitation_id, stage, status (pass/fail),
 //          date_from, date_to, sort, order, page, limit
 router.get('/recitation-results', requireRole('teacher', 'assistant'), checkViewPerm, async (req, res) => {
+  // FIX-A3: Validate teacher ownership
   const teacherId = getTeacherId(req);
+  if (!teacherId) return res.status(400).json({ error: 'بيانات المعلم غير صالحة' });
+
   const {
+    q,
     student_id, recitation_id, stage,
     status,
     date_from, date_to,
@@ -156,11 +194,26 @@ router.get('/recitation-results', requireRole('teacher', 'assistant'), checkView
     page = 1, limit = 50,
   } = req.query;
 
+  // FIX-A1: Validate date inputs
+  if (date_from && !isValidDate(date_from))
+    return res.status(400).json({ error: 'تاريخ البداية غير صالح، استخدم صيغة YYYY-MM-DD' });
+  if (date_to && !isValidDate(date_to))
+    return res.status(400).json({ error: 'تاريخ النهاية غير صالح، استخدم صيغة YYYY-MM-DD' });
+  if (date_from && date_to && date_from > date_to)
+    return res.status(400).json({ error: 'تاريخ البداية يجب أن يكون قبل تاريخ النهاية' });
+
   try {
     const conditions = ['r.teacher_id = $1', 's.deleted_at IS NULL'];
     const params = [teacherId];
     let p = 2;
 
+    // FIX-A4: Server-side text search
+    if (q && q.trim()) {
+      const like = `%${q.trim().slice(0, 100)}%`;
+      conditions.push(`(s.name ILIKE $${p} OR s.username ILIKE $${p} OR r.title ILIKE $${p})`);
+      params.push(like);
+      p++;
+    }
     if (student_id) {
       const sid = parseParamId(student_id);
       if (!sid) return res.status(400).json({ error: 'student_id غير صالح' });
@@ -222,7 +275,7 @@ router.get('/recitation-results', requireRole('teacher', 'assistant'), checkView
          r.id AS recitation_id, r.title AS recitation_title,
          r.total_score, r.pass_score,
          s.id AS student_id, s.name AS student_name, s.username AS student_username,
-         s.academic_stage, s.phone AS student_phone
+         s.academic_stage
        FROM recitation_results rr
        JOIN recitations r ON rr.recitation_id = r.id
        JOIN students s ON rr.student_id = s.id
@@ -248,6 +301,8 @@ router.get('/recitation-results', requireRole('teacher', 'assistant'), checkView
 // Returns all courses, exams, recitations, and academic stages for filter dropdowns
 router.get('/filters', requireRole('teacher', 'assistant'), checkViewPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
+  if (!teacherId) return res.status(400).json({ error: 'بيانات المعلم غير صالحة' });
+
   try {
     const [coursesQ, examsQ, recitationsQ, stagesQ] = await Promise.all([
       pool.query(
@@ -285,9 +340,11 @@ router.get('/filters', requireRole('teacher', 'assistant'), checkViewPerm, async
 });
 
 // ── GET /api/archive/student/:id/exam-results ───────────────────────────────
-// Full exam history for one student (for student detail page)
+// Full exam history for one student (all attempts, not just latest)
 router.get('/student/:id/exam-results', requireRole('teacher', 'assistant'), checkViewPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
+  if (!teacherId) return res.status(400).json({ error: 'بيانات المعلم غير صالحة' });
+
   const studentId = parseParamId(req.params.id);
   if (!studentId) return res.status(400).json({ error: 'معرّف الطالب غير صالح' });
 
@@ -322,6 +379,8 @@ router.get('/student/:id/exam-results', requireRole('teacher', 'assistant'), che
 // Full recitation history for one student
 router.get('/student/:id/recitation-results', requireRole('teacher', 'assistant'), checkViewPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
+  if (!teacherId) return res.status(400).json({ error: 'بيانات المعلم غير صالحة' });
+
   const studentId = parseParamId(req.params.id);
   if (!studentId) return res.status(400).json({ error: 'معرّف الطالب غير صالح' });
 
@@ -355,21 +414,27 @@ router.get('/student/:id/recitation-results', requireRole('teacher', 'assistant'
 // Quick stats summary for one student (for the modal header)
 router.get('/student/:id/summary', requireRole('teacher', 'assistant'), checkViewPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
+  if (!teacherId) return res.status(400).json({ error: 'بيانات المعلم غير صالحة' });
+
   const studentId = parseParamId(req.params.id);
   if (!studentId) return res.status(400).json({ error: 'معرّف الطالب غير صالح' });
 
   try {
-    const [studentQ, examStatsQ, recStatsQ] = await Promise.all([
-      pool.query(
-        'SELECT id, name, username, academic_stage, phone, points FROM students WHERE id=$1 AND teacher_id=$2 AND deleted_at IS NULL',
-        [studentId, teacherId]
-      ),
+    // Check student ownership first before running stats queries
+    const studentQ = await pool.query(
+      'SELECT id, name, username, academic_stage, phone, points FROM students WHERE id=$1 AND teacher_id=$2 AND deleted_at IS NULL',
+      [studentId, teacherId]
+    );
+    if (!studentQ.rows.length) return res.status(404).json({ error: 'الطالب غير موجود' });
+
+    // FIX-A2: avg_score returns percentage (0-100) not raw score
+    const [examStatsQ, recStatsQ] = await Promise.all([
       pool.query(
         `SELECT
            COUNT(*) FILTER (WHERE er.is_latest=true) AS total_exams,
            COUNT(*) FILTER (WHERE er.is_latest=true AND er.score >= e.pass_score) AS passed_exams,
            COUNT(*) FILTER (WHERE er.is_latest=true AND er.score < e.pass_score) AS failed_exams,
-           ROUND(AVG(er.score) FILTER (WHERE er.is_latest=true)::numeric, 1) AS avg_score
+           ROUND(AVG(er.score::numeric / NULLIF(e.total_score, 0) * 100) FILTER (WHERE er.is_latest=true), 1) AS avg_score
          FROM exam_results er
          JOIN exams e ON er.exam_id = e.id
          WHERE er.student_id=$1 AND e.teacher_id=$2`,
@@ -380,15 +445,13 @@ router.get('/student/:id/summary', requireRole('teacher', 'assistant'), checkVie
            COUNT(*) AS total_recitations,
            COUNT(*) FILTER (WHERE rr.passed=true) AS passed_recitations,
            COUNT(*) FILTER (WHERE rr.passed=false) AS failed_recitations,
-           ROUND(AVG(rr.score)::numeric, 1) AS avg_score
+           ROUND(AVG(rr.score::numeric / NULLIF(r.total_score, 0) * 100), 1) AS avg_score
          FROM recitation_results rr
          JOIN recitations r ON rr.recitation_id=r.id
          WHERE rr.student_id=$1 AND r.teacher_id=$2`,
         [studentId, teacherId]
       ),
     ]);
-
-    if (!studentQ.rows.length) return res.status(404).json({ error: 'الطالب غير موجود' });
 
     res.json({
       student: studentQ.rows[0],
