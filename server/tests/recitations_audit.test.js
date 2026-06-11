@@ -1,6 +1,7 @@
 /**
  * Recitations Audit — Edge Case & Regression Tests
  * يغطي: C1..C5, H1..H3, M1..M3, L1 + Second-pass: R1,R4,S1,S2,A1,A2
+ *       Third-pass: T1..T6
  *
  * تشغيل: node server/tests/recitations_audit.test.js
  * يتطلب: السيرفر يعمل على port 3001 + بيانات seed موجودة
@@ -592,9 +593,229 @@ async function runIntegrationTests() {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  // T5 — DELETE published recitation returns 409 (must unpublish first)
+  // ─────────────────────────────────────────────────────────────────────────
+  console.log('\n▶ T5 — Cannot delete a published recitation');
+
+  {
+    // Create a fresh recitation with a question so we can publish it
+    const cr = await req('POST', '/api/recitations', {
+      title: '[T5 DELETE TEST] Published guard',
+      duration_minutes: 5, total_score: 10, pass_score: 5,
+      schedule_type: 'once',
+    }, authHeader(teacherToken));
+    if (cr.status === 201 && cr.body.id) {
+      const t5Id = cr.body.id;
+      // Add a question so publishing is allowed
+      await req('POST', `/api/recitations/${t5Id}/questions`, {
+        question_text: 'T5 question',
+        question_type: 'mcq',
+        option_a: 'A', option_b: 'B',
+        correct_answer_letter: 'A',
+      }, authHeader(teacherToken));
+
+      // Publish it
+      const pubR = await req('PUT', `/api/recitations/${t5Id}/publish`, null, authHeader(teacherToken));
+      assert('T5: Publish succeeds', pubR.status === 200 && pubR.body.is_published === true,
+        JSON.stringify(pubR.body));
+
+      // Try to delete — should be 409
+      const delPub = await req('DELETE', `/api/recitations/${t5Id}`, null, authHeader(teacherToken));
+      assert('T5: DELETE published recitation → 409', delPub.status === 409,
+        `got ${delPub.status}: ${JSON.stringify(delPub.body)}`);
+
+      // Unpublish then delete should succeed
+      const unpubR = await req('PUT', `/api/recitations/${t5Id}/publish`, null, authHeader(teacherToken));
+      assert('T5: Unpublish succeeds', unpubR.status === 200 && unpubR.body.is_published === false);
+
+      const delUnpub = await req('DELETE', `/api/recitations/${t5Id}`, null, authHeader(teacherToken));
+      assert('T5: DELETE after unpublish → 200', delUnpub.status === 200);
+    } else {
+      console.log('  ⚠️  Could not create T5 test recitation — skipping');
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // T2 — Payment verify endpoint rejects malformed IDs
+  // ─────────────────────────────────────────────────────────────────────────
+  console.log('\n▶ T2 — parseParamId strictly rejects malformed payment IDs');
+
+  {
+    // Empty string produces /api/payments//verify — Express returns 404 (route not matched).
+    // All others should produce 400 (ID parsed but rejected by parseParamId).
+    const cases400 = ['123abc', '0', '-1', '99999999999', ' 5 ', '1.5'];
+    for (const badId of cases400) {
+      const r = await req('PUT', `/api/payments/${encodeURIComponent(badId)}/verify`,
+        { status: 'verified' }, authHeader(teacherToken));
+      assert(`T2: paymentId "${badId}" rejected → 400`, r.status === 400,
+        `got ${r.status}: ${JSON.stringify(r.body)}`);
+    }
+    // Empty string: the route can't match /api/payments//verify → 404 (non-200)
+    const emptyR = await req('PUT', '/api/payments//verify', { status: 'verified' }, authHeader(teacherToken));
+    assert('T2: Empty payment ID rejected (non-200)', emptyR.status !== 200,
+      `got ${emptyR.status}`);
+    // A valid-looking integer that doesn't exist → 404 (ID parses but not found)
+    const validMissingId = await req('PUT', '/api/payments/999999/verify',
+      { status: 'verified' }, authHeader(teacherToken));
+    assert('T2: Non-existent valid payment ID → 404', validMissingId.status === 404,
+      `got ${validMissingId.status}: ${JSON.stringify(validMissingId.body)}`);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // T1 — Double-submit protection: second submit returns 409
+  // ─────────────────────────────────────────────────────────────────────────
+  console.log('\n▶ T1 — Double-submit protection (second submit returns 409)');
+
+  if (studentToken && recId) {
+    // Take the recitation (should already have a session from C1 test)
+    const takeR = await req('GET', `/api/recitations/${recId}/take`, null, authHeader(studentToken));
+    if (takeR.status === 200 && takeR.body.questions) {
+      // Build valid answers for all questions
+      const firstAnswers = takeR.body.questions.map(q => ({
+        question_id: q.id,
+        answer: q.question_type === 'true_false' ? 'T' : 'A',
+      }));
+
+      // First submit
+      const submit1 = await req('POST', `/api/recitations/${recId}/submit`,
+        { answers: firstAnswers }, authHeader(studentToken));
+      const first409 = submit1.status === 409 && submit1.body?.already_submitted;
+      const firstOk = submit1.status === 200;
+      assert('T1: First submit either succeeds or returns already_submitted',
+        firstOk || first409,
+        `got ${submit1.status}: ${JSON.stringify(submit1.body)}`);
+
+      if (firstOk) {
+        // Second submit must be 409
+        const submit2 = await req('POST', `/api/recitations/${recId}/submit`,
+          { answers: firstAnswers }, authHeader(studentToken));
+        assert('T1: Second submit after success → 409 already_submitted',
+          submit2.status === 409 && submit2.body?.already_submitted === true,
+          `got ${submit2.status}: ${JSON.stringify(submit2.body)}`);
+      }
+    } else {
+      console.log(`  ⚠️  Cannot take recitation for T1 test (status=${takeR.status}) — skipping`);
+    }
+  } else {
+    console.log('  ⚠️  No student token or recId — T1 sequential double-submit test skipped');
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // T6 — Analytics route returns 200 for teacher (no error swallowing)
+  // ─────────────────────────────────────────────────────────────────────────
+  console.log('\n▶ T6 — Analytics endpoint returns 200 for teacher (permission error not swallowed)');
+
+  {
+    const analyticsR2 = await req('GET', '/api/recitations/analytics', null, authHeader(teacherToken));
+    assert('T6: Teacher GET /analytics → 200', analyticsR2.status === 200,
+      `got ${analyticsR2.status}: ${JSON.stringify(analyticsR2.body)}`);
+    // Verify response shape has summary with avg_score
+    assert('T6: Response has summary.avg_score',
+      typeof analyticsR2.body?.summary?.avg_score === 'number',
+      JSON.stringify(analyticsR2.body?.summary));
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // T3 — Scheduler query excludes suspended students (unit test)
+  // ─────────────────────────────────────────────────────────────────────────
+  console.log('\n▶ T3 — Scheduler student queries exclude suspended students');
+
+  {
+    const schedContent = require('fs').readFileSync(
+      require('path').join(__dirname, '../scheduler.js'), 'utf8'
+    );
+    // Both the window-reset and the start-notification queries must have is_suspended = false
+    const windowResetSection = schedContent.slice(
+      schedContent.indexOf('// Notify eligible students'),
+      schedContent.indexOf('console.log(`[Scheduler] Recitation')
+    );
+    // The start-notification section uses a distinct log "...started — notified..."
+    const startedLogIdx = schedContent.indexOf("window reset — notified");
+    const startNotifSection = schedContent.slice(
+      schedContent.indexOf("// [T3-FIX] Also exclude suspended students for start notifications"),
+      schedContent.indexOf("started — notified") + 300
+    );
+    assert('T3: Window-reset notify query excludes is_suspended students',
+      windowResetSection.includes('is_suspended = false'),
+      'Missing is_suspended filter in window-reset notification query');
+    assert('T3: Start-notification query excludes is_suspended students',
+      startNotifSection.includes('is_suspended = false'),
+      `Missing is_suspended filter in start-notification query — section: ${startNotifSection.substring(0, 200)}`);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // T4 — Exam question image filename uses crypto.randomBytes (unit test)
+  // ─────────────────────────────────────────────────────────────────────────
+  console.log('\n▶ T4 — Exam question image filename uniqueness (randomBytes)');
+
+  {
+    const examsContent = require('fs').readFileSync(
+      require('path').join(__dirname, '../routes/exams.js'), 'utf8'
+    );
+    assert('T4: exams.js imports crypto', examsContent.includes("require('crypto')"),
+      'crypto not imported in exams.js');
+    assert('T4: Filename uses randomBytes', examsContent.includes('randomBytes'),
+      'randomBytes not used in question image filename');
+
+    // Unit test: verify 1000 generated names are unique
+    const crypto2 = require('crypto');
+    const genExamQName = () => `q_${Date.now()}_${crypto2.randomBytes(8).toString('hex')}.jpg`;
+    const examNames = new Set(Array.from({ length: 1000 }, genExamQName));
+    assert('T4: 1000 exam question filenames are all unique', examNames.size === 1000);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // T1 extra — Unanswered arrays edge cases on submit
+  // ─────────────────────────────────────────────────────────────────────────
+  console.log('\n▶ T1 extra — Submit input validation edge cases');
+
+  {
+    // Submit without a session (no active session for non-existing recitation)
+    const fakeId = 999999;
+    const noSessR = await req('POST', `/api/recitations/${fakeId}/submit`,
+      { answers: [] }, authHeader(studentToken || teacherToken));
+    // teacher cannot submit (403), student with no session → 404 or 403
+    assert('T1 extra: Submit to non-existent recitation → non-200',
+      noSessR.status !== 200, `got ${noSessR.status}`);
+
+    // Submit with oversized answers array (>500 items)
+    if (studentToken) {
+      const bigAnswers = Array.from({ length: 501 }, (_, i) => ({ question_id: i + 1, answer: 'A' }));
+      const bigR = await req('POST', `/api/recitations/${recId || 1}/submit`,
+        { answers: bigAnswers }, authHeader(studentToken));
+      assert('T1 extra: >500 answers → 400', bigR.status === 400,
+        `got ${bigR.status}: ${JSON.stringify(bigR.body)}`);
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // T5 extra — PUT (edit) on published recitation still blocked
+  // ─────────────────────────────────────────────────────────────────────────
+  console.log('\n▶ T5 extra — PUT on published recitation still returns 409');
+
+  if (recId) {
+    // Try editing the recitation that was published (if still published)
+    const pubCheck = await req('GET', '/api/recitations', null, authHeader(teacherToken));
+    const thisRec = Array.isArray(pubCheck.body)
+      ? pubCheck.body.find(r => r.id === recId)
+      : null;
+    if (thisRec?.is_published) {
+      const editPub = await req('PUT', `/api/recitations/${recId}`, {
+        title: '[SHOULD FAIL] Editing published',
+        duration_minutes: 10, total_score: 10, pass_score: 5,
+        schedule_type: 'once',
+      }, authHeader(teacherToken));
+      assert('T5 extra: PUT published recitation → 409', editPub.status === 409,
+        `got ${editPub.status}: ${JSON.stringify(editPub.body)}`);
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
   // Cleanup: delete test recitation
   // ─────────────────────────────────────────────────────────────────────────
   if (recId) {
+    // May be published — unpublish first
+    await req('PUT', `/api/recitations/${recId}/publish`, null, authHeader(teacherToken)).catch(() => {});
     await req('DELETE', `/api/recitations/${recId}`, null, authHeader(teacherToken));
     console.log(`\n  ℹ️  Cleaned up test recitation id=${recId}`);
   }

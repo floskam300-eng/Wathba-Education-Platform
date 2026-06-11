@@ -230,10 +230,16 @@ router.post('/', requireRole('teacher', 'assistant'), checkManageRecitationsPerm
 
 // GET /api/recitations/analytics — teacher analytics
 router.get('/analytics', requireRole('teacher', 'assistant'), async (req, res) => {
+  // [T6-FIX] Use proper try/catch so a DB error on permissions lookup
+  // returns 500 instead of being swallowed as a 403.
   if (req.user.role === 'assistant') {
-    const perms = await getPermissions(req.user.id, pool).catch(() => null);
-    if (!perms || (!perms.can_manage_recitations && !perms.can_view_analytics))
-      return res.status(403).json({ error: 'Access denied' });
+    try {
+      const perms = await getPermissions(req.user.id, pool);
+      if (!perms || (!perms.can_manage_recitations && !perms.can_view_analytics))
+        return res.status(403).json({ error: 'Access denied' });
+    } catch {
+      return res.status(500).json({ error: 'Server error' });
+    }
   }
 
   try {
@@ -527,6 +533,12 @@ router.delete('/:id', requireRole('teacher', 'assistant'), checkManageRecitation
     const teacherId = getTeacherId(req);
     const rec = await getRecitationForOwner(id, teacherId);
     if (!rec) return res.status(404).json({ error: 'التسميع غير موجود' });
+
+    // [T5-FIX] Block deletion of published recitations (consistent with PUT edit guard).
+    // Active student sessions would be silently destroyed by CASCADE delete.
+    // Teacher must unpublish first to protect in-progress student attempts.
+    if (rec.is_published)
+      return res.status(409).json({ error: 'لا يمكن حذف تسميع منشور — قم بإلغاء النشر أولاً' });
 
     await pool.query('DELETE FROM recitations WHERE id=$1 AND teacher_id=$2', [id, teacherId]);
     logActivity({
@@ -1011,7 +1023,9 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
     if (!recRows.length) return res.status(404).json({ error: 'التسميع غير متاح' });
     const rec = recRows[0];
 
-    // [R5-FIX] Check for existing result within current window only
+    // [R5-FIX] Fast-path duplicate check OUTSIDE the transaction to avoid
+    // unnecessary TX overhead for the common case.  A second in-TX check
+    // (T1-FIX below) protects against the rare concurrent-submit race.
     const { rows: existingResult } = await pool.query(
       `SELECT id FROM recitation_results
         WHERE student_id=$1 AND recitation_id=$2
@@ -1107,6 +1121,34 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+
+      // [T1-FIX] Lock the session row inside the transaction to prevent a
+      // concurrent second submit from also passing the pre-check and
+      // inserting a duplicate result (double points bug).
+      // If the session no longer exists (deleted by a racing commit), the
+      // student gets a clean "no active session" 400 rather than a 500.
+      const { rows: lockRows } = await client.query(
+        'SELECT id FROM recitation_sessions WHERE student_id=$1 AND recitation_id=$2 FOR UPDATE',
+        [studentId, id]
+      );
+      if (!lockRows.length) {
+        await client.query('ROLLBACK');
+        client.release();
+        return res.status(400).json({ error: 'لا توجد جلسة نشطة. ابدأ التسميع أولاً' });
+      }
+
+      // Re-check for duplicate INSIDE the locked transaction
+      const { rows: dupeRows } = await client.query(
+        `SELECT id FROM recitation_results
+          WHERE student_id=$1 AND recitation_id=$2
+            AND ($3::timestamp IS NULL OR created_at >= $3::timestamp)`,
+        [studentId, id, rec.start_date]
+      );
+      if (dupeRows.length) {
+        await client.query('ROLLBACK');
+        client.release();
+        return res.status(409).json({ error: 'لقد أديت هذا التسميع بالفعل', already_submitted: true });
+      }
 
       // Insert result
       // [C2] Compute correct flag properly for image_multi (JSON string answer vs letter)

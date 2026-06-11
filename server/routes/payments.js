@@ -213,10 +213,20 @@ router.post('/', requireRole('teacher', 'assistant'), (req, res, next) => checkP
   }
 });
 
+// [T2-FIX] Use PG_INT_MAX-capped parseParamId consistent with all other routes
+const PG_INT_MAX = 2147483647;
+const parseParamId = (raw) => {
+  // Strict check — no leading/trailing whitespace or non-numeric chars allowed.
+  // (using raw directly, not .trim(), so " 5 " is rejected just like "123abc")
+  const n = parseInt(raw, 10);
+  if (isNaN(n) || n <= 0 || n > PG_INT_MAX || String(n) !== String(raw)) return null;
+  return n;
+};
+
 router.put('/:id/verify', requireRole('teacher', 'assistant'), (req, res, next) => checkPermission(req, res, next, 'can_manage_payments'), async (req, res) => {
   const teacherId = getTeacherId(req);
-  const paymentId = parseInt(req.params.id, 10);
-  if (isNaN(paymentId) || paymentId <= 0) return res.status(400).json({ error: 'Invalid payment ID' });
+  const paymentId = parseParamId(req.params.id);
+  if (!paymentId) return res.status(400).json({ error: 'Invalid payment ID' });
   const { status, method, reference_number } = req.body;
   const VALID_STATUSES = ['verified', 'pending', 'rejected'];
   if (!VALID_STATUSES.includes(status))

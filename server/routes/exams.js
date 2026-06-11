@@ -12,6 +12,7 @@ const { logActivity, getActor, getIp } = require('../lib/activityLog');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 
 const router = express.Router();
 router.use(authenticate);
@@ -30,8 +31,12 @@ fs.mkdirSync(QUESTION_IMG_DIR, { recursive: true });
 const questionImageStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, QUESTION_IMG_DIR),
   filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `q_${Date.now()}${ext}`);
+    // [T4-FIX] Use crypto.randomBytes to prevent filename collision on
+    // concurrent uploads — same timestamp can produce the same name,
+    // causing the second upload to silently overwrite the first.
+    const ext = path.extname(file.originalname).toLowerCase();
+    const rand = crypto.randomBytes(8).toString('hex');
+    cb(null, `q_${Date.now()}_${rand}${ext}`);
   },
 });
 const uploadQuestionImage = multer({
