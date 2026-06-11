@@ -550,6 +550,11 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
 
   const addSubQuestion = () => {
     const label = newSubLabel.trim() || String((qForm.sub_questions || []).length + 1);
+    // [M1] Reject duplicate labels
+    if ((qForm.sub_questions || []).some(s => s.label === label)) {
+      toast.error('هذا البند موجود بالفعل — اختر رقماً مختلفاً');
+      return;
+    }
     setQForm(f => ({ ...f, sub_questions: [...(f.sub_questions || []), { label, correct: newSubCorrect }] }));
     setNewSubLabel('');
     setNewSubCorrect('A');
@@ -560,8 +565,6 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
     if (isImgMulti && (!qForm.sub_questions || qForm.sub_questions.length === 0)) return false;
     return true;
   };
-
-  const inputCls = `w-full rounded-xl px-3 py-2.5 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`;
 
   return (
     <div className="space-y-3">

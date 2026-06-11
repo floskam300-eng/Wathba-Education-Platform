@@ -2,6 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const pool = require('../db/connection');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { getPermissions } = require('../lib/permissionsCache');
@@ -12,21 +13,67 @@ const { logActivity, getActor, getIp } = require('../lib/activityLog');
 const REC_Q_IMG_DIR = path.join(__dirname, '../../uploads/question-images');
 fs.mkdirSync(REC_Q_IMG_DIR, { recursive: true });
 
+// [C4] Allowed image magic bytes — JPEG, PNG, GIF, WEBP
+const ALLOWED_MAGIC = [
+  { ext: '.jpg',  magic: [0xFF, 0xD8, 0xFF] },
+  { ext: '.jpeg', magic: [0xFF, 0xD8, 0xFF] },
+  { ext: '.png',  magic: [0x89, 0x50, 0x4E, 0x47] },
+  { ext: '.gif',  magic: [0x47, 0x49, 0x46] },
+  { ext: '.webp', magic: [0x52, 0x49, 0x46, 0x46] },
+];
+const ALLOWED_IMG_EXTS = new Set(ALLOWED_MAGIC.map(m => m.ext));
+
+function verifyMagicBytes(filePath, ext) {
+  try {
+    const buf = Buffer.alloc(4);
+    const fd = fs.openSync(filePath, 'r');
+    fs.readSync(fd, buf, 0, 4, 0);
+    fs.closeSync(fd);
+    const rule = ALLOWED_MAGIC.find(m => m.ext === ext);
+    if (!rule) return false;
+    return rule.magic.every((byte, i) => buf[i] === byte);
+  } catch { return false; }
+}
+
 const recQImgStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, REC_Q_IMG_DIR),
   filename: (req, file, cb) => {
+    // [C5] Use crypto random bytes to prevent filename collision on concurrent uploads
     const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `rec_q_${Date.now()}${ext}`);
+    const rand = crypto.randomBytes(12).toString('hex');
+    cb(null, `rec_q_${Date.now()}_${rand}${ext}`);
   },
 });
 const uploadRecQImg = multer({
   storage: recQImgStorage,
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) cb(null, true);
-    else cb(new Error('يُسمح بالصور فقط'));
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (!ALLOWED_IMG_EXTS.has(ext)) return cb(new Error('امتداد الملف غير مدعوم'));
+    if (!file.mimetype.startsWith('image/')) return cb(new Error('يُسمح بالصور فقط'));
+    cb(null, true);
   },
 });
+
+// [C3] Validate that question_image_url only points to our uploads directory
+const VALID_Q_IMG_RE = /^\/uploads\/question-images\/[\w.\-]+$/;
+function validateImageUrl(url) {
+  if (!url) return true;
+  return VALID_Q_IMG_RE.test(url);
+}
+
+// [C1] Strip correct answers from a question before sending to client.
+// For image_multi: also strip sub_questions[*].correct field.
+function stripClientQuestion(q) {
+  if (q.question_type === 'image_multi' && Array.isArray(q.sub_questions)) {
+    return {
+      ...q,
+      correct_answer_letter: undefined,
+      sub_questions: q.sub_questions.map(({ correct, ...rest }) => rest),
+    };
+  }
+  return { ...q, correct_answer_letter: undefined };
+}
 
 const router = express.Router();
 router.use(authenticate);
@@ -380,6 +427,14 @@ router.post('/upload-image', requireRole('teacher', 'assistant'), checkManageRec
   uploadRecQImg.single('image')(req, res, (err) => {
     if (err) return res.status(400).json({ error: err.message || 'فشل رفع الصورة' });
     if (!req.file) return res.status(400).json({ error: 'لم يتم اختيار صورة' });
+
+    // [C4] Verify magic bytes — reject if file content doesn't match extension
+    const ext = path.extname(req.file.filename).toLowerCase();
+    if (!verifyMagicBytes(req.file.path, ext)) {
+      fs.unlink(req.file.path, () => {});
+      return res.status(400).json({ error: 'الملف تالف أو غير صالح' });
+    }
+
     res.json({ url: `/uploads/question-images/${req.file.filename}` });
   });
 });
@@ -588,12 +643,30 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageRe
   if (!question_text && !question_image_url)
     return res.status(400).json({ error: 'نص السؤال أو صورة مطلوبة' });
 
+  // [C3] Validate image URL — must point to our uploads directory only
+  if (question_image_url && !validateImageUrl(question_image_url))
+    return res.status(400).json({ error: 'رابط الصورة غير صالح' });
+
   if (!isImgMulti) {
     if (!correct_answer_letter || !['A','B','C','D','T','F'].includes(correct_answer_letter))
       return res.status(400).json({ error: 'الإجابة الصحيحة غير صالحة' });
   } else {
+    // [H1/M2] Validate sub_questions: required, bounded, and each item must have valid label+correct
     if (!Array.isArray(sub_questions) || sub_questions.length === 0)
       return res.status(400).json({ error: 'سؤال الصورة يحتاج إلى أسئلة فرعية' });
+    if (sub_questions.length > 50)
+      return res.status(400).json({ error: 'الحد الأقصى للأسئلة الفرعية هو 50' });
+    const VALID_LETTERS = new Set(['A','B','C','D']);
+    for (const sub of sub_questions) {
+      if (!sub.label || !String(sub.label).trim())
+        return res.status(400).json({ error: 'كل سؤال فرعي يجب أن يحتوي على رقم/عنوان' });
+      if (!VALID_LETTERS.has(String(sub.correct || '').toUpperCase()))
+        return res.status(400).json({ error: 'الإجابة الصحيحة لكل بند يجب أن تكون A أو B أو C أو D' });
+    }
+    // [M1-server] Validate label uniqueness
+    const labels = sub_questions.map(s => String(s.label).trim());
+    if (new Set(labels).size !== labels.length)
+      return res.status(400).json({ error: 'أرقام الأسئلة الفرعية يجب أن تكون فريدة' });
   }
 
   try {
@@ -647,9 +720,30 @@ router.put('/:id/questions/:qid', requireRole('teacher', 'assistant'), checkMana
   if (!question_text && !question_image_url)
     return res.status(400).json({ error: 'نص السؤال أو صورة مطلوبة' });
 
+  // [C3] Validate image URL — must point to our uploads directory only
+  if (question_image_url && !validateImageUrl(question_image_url))
+    return res.status(400).json({ error: 'رابط الصورة غير صالح' });
+
   if (!isImgMulti) {
     if (!correct_answer_letter || !['A','B','C','D','T','F'].includes(correct_answer_letter))
       return res.status(400).json({ error: 'الإجابة الصحيحة غير صالحة' });
+  } else {
+    // [H1/M2/M3] Validate sub_questions on update too
+    if (!Array.isArray(sub_questions) || sub_questions.length === 0)
+      return res.status(400).json({ error: 'سؤال الصورة يحتاج إلى أسئلة فرعية' });
+    if (sub_questions.length > 50)
+      return res.status(400).json({ error: 'الحد الأقصى للأسئلة الفرعية هو 50' });
+    const VALID_LETTERS = new Set(['A','B','C','D']);
+    for (const sub of sub_questions) {
+      if (!sub.label || !String(sub.label).trim())
+        return res.status(400).json({ error: 'كل سؤال فرعي يجب أن يحتوي على رقم/عنوان' });
+      if (!VALID_LETTERS.has(String(sub.correct || '').toUpperCase()))
+        return res.status(400).json({ error: 'الإجابة الصحيحة لكل بند يجب أن تكون A أو B أو C أو D' });
+    }
+    // [M1-server] Validate label uniqueness
+    const labels = sub_questions.map(s => String(s.label).trim());
+    if (new Set(labels).size !== labels.length)
+      return res.status(400).json({ error: 'أرقام الأسئلة الفرعية يجب أن تكون فريدة' });
   }
 
   try {
@@ -671,7 +765,7 @@ router.put('/:id/questions/:qid', requireRole('teacher', 'assistant'), checkMana
         option_a || null, option_b || null, option_c || null, option_d || null,
         isImgMulti ? 'A' : correct_answer_letter,
         parseInt(points, 10) || 1,
-        isImgMulti ? JSON.stringify(Array.isArray(sub_questions) ? sub_questions : []) : '[]',
+        isImgMulti ? JSON.stringify(sub_questions) : '[]',
         qid, id,
       ]
     );
@@ -694,11 +788,25 @@ router.delete('/:id/questions/:qid', requireRole('teacher', 'assistant'), checkM
     if (!rec) return res.status(404).json({ error: 'التسميع غير موجود' });
     if (rec.is_published) return res.status(409).json({ error: 'لا يمكن حذف أسئلة تسميع منشور' });
 
+    // [H2] Fetch image URL before deletion so we can clean up the file
+    const { rows: qRows } = await pool.query(
+      'SELECT question_image_url FROM recitation_questions WHERE id=$1 AND recitation_id=$2',
+      [qid, id]
+    );
+    if (!qRows.length) return res.status(404).json({ error: 'السؤال غير موجود' });
+
     const { rowCount } = await pool.query(
       'DELETE FROM recitation_questions WHERE id=$1 AND recitation_id=$2',
       [qid, id]
     );
     if (!rowCount) return res.status(404).json({ error: 'السؤال غير موجود' });
+
+    // [H2] Delete orphaned image file from disk (best-effort, ignore errors)
+    if (qRows[0].question_image_url && VALID_Q_IMG_RE.test(qRows[0].question_image_url)) {
+      const imgPath = path.join(__dirname, '../..', qRows[0].question_image_url);
+      fs.unlink(imgPath, () => {});
+    }
+
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
@@ -786,11 +894,8 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
     if (sessRows.length) {
       // Resume existing session
       const sess = sessRows[0];
-      // [R2-FIX] Strip correct_answer_letter before sending to client
-      const clientSnapshot = (sess.questions_snapshot || []).map(q => ({
-        ...q,
-        correct_answer_letter: undefined,
-      }));
+      // [C1] Strip correct_answer_letter AND sub_questions[*].correct before sending to client
+      const clientSnapshot = (sess.questions_snapshot || []).map(stripClientQuestion);
       return res.json({
         recitation: rec,
         questions: clientSnapshot,
@@ -836,8 +941,8 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
       });
     }
 
-    // Strip correct answers from snapshot sent to client
-    const clientSnapshot = snapshotQs.map(q => ({ ...q, correct_answer_letter: undefined }));
+    // [C1] Strip correct answers AND sub_questions[*].correct from snapshot sent to client
+    const clientSnapshot = snapshotQs.map(stripClientQuestion);
     const serverSnapshot = snapshotQs;
 
     // [N1-FIX] ON CONFLICT must NOT reset started_at — doing so would reset
@@ -992,6 +1097,26 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
       await client.query('BEGIN');
 
       // Insert result
+      // [C2] Compute correct flag properly for image_multi (JSON string answer vs letter)
+      const storedAnswers = answers.map(a => {
+        const q = snapshot.find(sq => sq.id === a.question_id);
+        const ans = answerMap[a.question_id] || null;
+        let isCorrect = false;
+        if (q?.question_type === 'image_multi') {
+          const subQs = Array.isArray(q.sub_questions) ? q.sub_questions : [];
+          if (subQs.length > 0 && ans) {
+            let parsed = {};
+            try { parsed = JSON.parse(ans); } catch {}
+            isCorrect = subQs.every(sub =>
+              String(parsed[sub.label] || '').toUpperCase() === String(sub.correct).toUpperCase()
+            );
+          }
+        } else {
+          isCorrect = q?.correct_answer_letter === ans;
+        }
+        return { question_id: a.question_id, answer: ans, correct: isCorrect };
+      });
+
       const { rows: resultRows } = await client.query(
         `INSERT INTO recitation_results
            (student_id, recitation_id, score, correct_count, wrong_count, unanswered_count,
@@ -999,11 +1124,7 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW(),$10) RETURNING *`,
         [
           studentId, id, finalScore, correct, wrong, unanswered,
-          JSON.stringify(answers.map(a => ({
-            question_id: a.question_id,
-            answer: answerMap[a.question_id] || null,
-            correct: snapshot.find(q => q.id === a.question_id)?.correct_answer_letter === answerMap[a.question_id],
-          }))),
+          JSON.stringify(storedAnswers),
           pointsEarned,
           session.started_at,
           passed,
