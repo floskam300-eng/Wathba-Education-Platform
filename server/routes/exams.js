@@ -477,10 +477,26 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageEx
     if (examRow.is_published) {
       return res.status(409).json({ error: 'لا يمكن إضافة أسئلة لاختبار منشور — أوقف النشر أولاً' });
     }
-    const qType = (question_type === 'true_false') ? 'true_false' : 'mcq';
-    let optA = option_a, optB = option_b, correctLetter;
+    const isImgMulti = question_type === 'image_multi';
+    const qType = isImgMulti ? 'image_multi' : (question_type === 'true_false') ? 'true_false' : 'mcq';
+    let optA = option_a, optB = option_b, correctLetter, subQs = null;
 
-    if (qType === 'true_false') {
+    if (isImgMulti) {
+      optA = 'A'; optB = 'B';
+      correctLetter = 'A';
+      const { sub_questions } = req.body;
+      if (!Array.isArray(sub_questions) || sub_questions.length === 0)
+        return res.status(400).json({ error: 'image_multi يتطلب قائمة الأسئلة الفرعية' });
+      if (sub_questions.length > 50)
+        return res.status(400).json({ error: 'الحد الأقصى 50 سؤالاً فرعياً' });
+      for (const sub of sub_questions) {
+        if (!sub.label || !String(sub.label).trim()) return res.status(400).json({ error: 'كل بند يجب أن يحتوي على رقم/تسمية' });
+        if (!['A','B','C','D'].includes(String(sub.correct || '').toUpperCase())) return res.status(400).json({ error: 'الإجابة الصحيحة لكل بند يجب أن تكون A أو B أو C أو D' });
+      }
+      const labels = sub_questions.map(s => String(s.label).trim());
+      if (new Set(labels).size !== labels.length) return res.status(400).json({ error: 'أرقام/تسميات الأسئلة الفرعية يجب أن تكون فريدة' });
+      subQs = sub_questions;
+    } else if (qType === 'true_false') {
       optA = 'صح'; optB = 'خطأ';
       const raw = String(correct_answer_letter || 'A').toUpperCase();
       correctLetter = ['A', 'B'].includes(raw) ? raw : 'A';
@@ -496,8 +512,8 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageEx
     }
 
     const result = await pool.query(
-      'INSERT INTO questions (question_text,question_image_url,option_a,option_b,option_c,option_d,correct_answer_letter,points,exam_id,question_type,group_id,group_context,group_context_image) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *',
-      [question_text || null, question_image_url || null, optA, optB, option_c || null, option_d || null, correctLetter, points || 1, examId, qType, group_id || null, group_context || null, group_context_image || null]
+      'INSERT INTO questions (question_text,question_image_url,option_a,option_b,option_c,option_d,correct_answer_letter,points,exam_id,question_type,group_id,group_context,group_context_image,sub_questions) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *',
+      [question_text || null, question_image_url || null, optA, optB, isImgMulti ? 'C' : (option_c || null), isImgMulti ? 'D' : (option_d || null), correctLetter, points || 1, examId, qType, group_id || null, group_context || null, group_context_image || null, subQs ? JSON.stringify(subQs) : '[]']
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -518,10 +534,26 @@ router.put('/questions/:qid', requireRole('teacher', 'assistant'), checkManageEx
     if (examRow.is_published) {
       return res.status(409).json({ error: 'لا يمكن تعديل أسئلة اختبار منشور — أوقف النشر أولاً' });
     }
-    const qType = (question_type === 'true_false') ? 'true_false' : 'mcq';
-    let optA = option_a, optB = option_b, correctLetter;
+    const isImgMulti = question_type === 'image_multi';
+    const qType = isImgMulti ? 'image_multi' : (question_type === 'true_false') ? 'true_false' : 'mcq';
+    let optA = option_a, optB = option_b, correctLetter, subQs = null;
 
-    if (qType === 'true_false') {
+    if (isImgMulti) {
+      optA = 'A'; optB = 'B';
+      correctLetter = 'A';
+      const { sub_questions } = req.body;
+      if (!Array.isArray(sub_questions) || sub_questions.length === 0)
+        return res.status(400).json({ error: 'image_multi يتطلب قائمة الأسئلة الفرعية' });
+      if (sub_questions.length > 50)
+        return res.status(400).json({ error: 'الحد الأقصى 50 سؤالاً فرعياً' });
+      for (const sub of sub_questions) {
+        if (!sub.label || !String(sub.label).trim()) return res.status(400).json({ error: 'كل بند يجب أن يحتوي على رقم/تسمية' });
+        if (!['A','B','C','D'].includes(String(sub.correct || '').toUpperCase())) return res.status(400).json({ error: 'الإجابة الصحيحة لكل بند يجب أن تكون A أو B أو C أو D' });
+      }
+      const labels = sub_questions.map(s => String(s.label).trim());
+      if (new Set(labels).size !== labels.length) return res.status(400).json({ error: 'أرقام/تسميات الأسئلة الفرعية يجب أن تكون فريدة' });
+      subQs = sub_questions;
+    } else if (qType === 'true_false') {
       optA = 'صح'; optB = 'خطأ';
       const raw = String(correct_answer_letter || 'A').toUpperCase();
       correctLetter = ['A', 'B'].includes(raw) ? raw : 'A';
@@ -537,8 +569,8 @@ router.put('/questions/:qid', requireRole('teacher', 'assistant'), checkManageEx
     }
 
     const result = await pool.query(
-      'UPDATE questions SET question_text=$1,question_image_url=$2,option_a=$3,option_b=$4,option_c=$5,option_d=$6,correct_answer_letter=$7,points=$8,question_type=$9,group_id=$10,group_context=$11,group_context_image=$12 WHERE id=$13 RETURNING *',
-      [question_text || null, question_image_url || null, optA, optB, option_c || null, option_d || null, correctLetter, points || 1, qType, group_id || null, group_context || null, group_context_image || null, qid]
+      'UPDATE questions SET question_text=$1,question_image_url=$2,option_a=$3,option_b=$4,option_c=$5,option_d=$6,correct_answer_letter=$7,points=$8,question_type=$9,group_id=$10,group_context=$11,group_context_image=$12,sub_questions=$13 WHERE id=$14 RETURNING *',
+      [question_text || null, question_image_url || null, optA, optB, isImgMulti ? 'C' : (option_c || null), isImgMulti ? 'D' : (option_d || null), correctLetter, points || 1, qType, group_id || null, group_context || null, group_context_image || null, subQs ? JSON.stringify(subQs) : '[]', qid]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'السؤال غير موجود' });
     res.json(result.rows[0]);
@@ -1085,11 +1117,31 @@ router.post('/:id/submit', submitLimiter, requireRole('student'), async (req, re
   const exam = eligibilityRow;
   let score = 0, correct = 0, wrong = 0, unanswered = 0;
   const detailedAnswers = questionsData.map(q => {
-    const rawAnswer     = answers[q.id];
-    const studentAnswer = rawAnswer ? String(rawAnswer).toUpperCase() : null;
-    const correctLetter = q.correct_answer_letter ? q.correct_answer_letter.toUpperCase() : null;
+    const rawAnswer = answers[q.id];
     const qType = q.question_type || 'mcq';
     let isCorrect = false;
+
+    if (qType === 'image_multi') {
+      const subQs = Array.isArray(q.sub_questions) ? q.sub_questions : [];
+      let parsedAns = {};
+      if (rawAnswer && typeof rawAnswer === 'object') parsedAns = rawAnswer;
+      else { try { parsedAns = JSON.parse(rawAnswer || '{}'); } catch {} }
+      const hasAnswer = Object.keys(parsedAns).length > 0;
+      const studentAnswerStr = hasAnswer ? JSON.stringify(parsedAns) : null;
+      if (!hasAnswer) {
+        unanswered++;
+      } else {
+        const allCorrect = subQs.length > 0 && subQs.every(sub =>
+          String(parsedAns[sub.label] || '').toUpperCase() === String(sub.correct || '').toUpperCase()
+        );
+        if (allCorrect) { score += q.points; correct++; isCorrect = true; }
+        else wrong++;
+      }
+      return { question_id: q.id, student_answer: studentAnswerStr, correct_answer: null, is_correct: isCorrect, question_type: qType };
+    }
+
+    const studentAnswer = rawAnswer ? String(rawAnswer).toUpperCase() : null;
+    const correctLetter = q.correct_answer_letter ? q.correct_answer_letter.toUpperCase() : null;
     if (!studentAnswer) {
       unanswered++;
     } else if (studentAnswer === correctLetter) {
@@ -1329,6 +1381,27 @@ router.get('/results/:resultId/review', requireRole('teacher', 'assistant', 'stu
     const questions = questionsRes.rows.map(q => {
       const stored = answerMap[String(q.id)];
       const qType  = q.question_type || 'mcq';
+
+      if (qType === 'image_multi') {
+        const subQs = Array.isArray(q.sub_questions) ? q.sub_questions : [];
+        const rawSa = stored?.student_answer ?? null;
+        let parsedAns = {};
+        try { if (rawSa) parsedAns = typeof rawSa === 'string' ? JSON.parse(rawSa) : rawSa; } catch {}
+        const subResults = subQs.map(sub => ({
+          label: sub.label,
+          correct: sub.correct,
+          student_answer: parsedAns[sub.label] || null,
+          is_correct: String(parsedAns[sub.label] || '').toUpperCase() === String(sub.correct || '').toUpperCase(),
+        }));
+        return {
+          ...q,
+          sub_questions: subQs,
+          sub_results: subResults,
+          student_answer: rawSa,
+          is_correct: subQs.length > 0 && subResults.every(s => s.is_correct),
+          correct_answer: null,
+        };
+      }
 
       // Normalize to uppercase for reliable comparison
       const rawStudentAnswer = stored?.student_answer ?? null;

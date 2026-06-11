@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import {
   BookOpen, Plus, Trash2, Settings, ChevronDown, ChevronUp,
   CheckCircle, XCircle, Clock, Users, BarChart2, Edit3,
@@ -53,6 +54,7 @@ const emptyQ = { question_text: '', question_image_url: '', question_type: 'mcq'
 
 export default function Recitations() {
   const { dark } = useTheme();
+  const navigate = useNavigate();
   const qc = useQueryClient();
 
   const [tab, setTab] = useState('list');
@@ -346,7 +348,7 @@ export default function Recitations() {
                 )}
 
                 {viewMode === 'results' && (
-                  <ResultsPanel results={results} rec={selectedRec} dark={dark} cardCls={cardCls} />
+                  <ResultsPanel results={results} rec={selectedRec} dark={dark} cardCls={cardCls} navigate={navigate} />
                 )}
               </div>
             )}
@@ -557,8 +559,7 @@ export default function Recitations() {
 
 function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, addQMut, deleteQMut, dark, cardCls }) {
   const [imgUploading, setImgUploading] = useState(false);
-  const [newSubLabel, setNewSubLabel] = useState('');
-  const [newSubCorrect, setNewSubCorrect] = useState('A');
+  const [imgMultiCount, setImgMultiCount] = useState(5);
   const imgInputRef = useRef();
 
   const tf = qForm.question_type === 'true_false';
@@ -581,18 +582,6 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
       setImgUploading(false);
       if (imgInputRef.current) imgInputRef.current.value = '';
     }
-  };
-
-  const addSubQuestion = () => {
-    const label = newSubLabel.trim() || String((qForm.sub_questions || []).length + 1);
-    // [M1] Reject duplicate labels
-    if ((qForm.sub_questions || []).some(s => s.label === label)) {
-      toast.error('هذا البند موجود بالفعل — اختر رقماً مختلفاً');
-      return;
-    }
-    setQForm(f => ({ ...f, sub_questions: [...(f.sub_questions || []), { label, correct: newSubCorrect }] }));
-    setNewSubLabel('');
-    setNewSubCorrect('A');
   };
 
   const canSubmit = () => {
@@ -621,7 +610,7 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
                     if (t.key === 'true_false') {
                       setQForm(f => ({ ...f, question_type: 'true_false', option_a: 'صح', option_b: 'خطأ', option_c: '', option_d: '', correct_answer_letter: 'A', sub_questions: [] }));
                     } else if (t.key === 'image_multi') {
-                      setQForm(f => ({ ...f, question_type: 'image_multi', correct_answer_letter: 'A', sub_questions: f.sub_questions || [] }));
+                      setQForm(f => ({ ...f, question_type: 'image_multi', option_a: 'A', option_b: 'B', option_c: 'C', option_d: 'D', correct_answer_letter: 'A', sub_questions: f.sub_questions || [] }));
                     } else {
                       setQForm(f => ({ ...f, question_type: 'mcq', option_a: f.option_a === 'صح' ? '' : f.option_a, option_b: f.option_b === 'خطأ' ? '' : f.option_b, correct_answer_letter: 'A', sub_questions: [] }));
                     }
@@ -679,49 +668,69 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
               </div>
             )}
 
-            {/* image_multi: shared options + sub-questions */}
+            {/* image_multi: count-based auto-generate sub-questions */}
             {isImgMulti && (
               <div className={`rounded-xl p-3 border space-y-3 ${dark ? 'border-[var(--dk-border)]' : 'border-purple-100 bg-purple-50/40'}`}>
-                <p className={`text-xs font-black ${dark ? 'text-purple-400' : 'text-purple-600'}`}>خيارات الإجابة المشتركة (تظهر أسفل الصورة)</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {['A','B','C','D'].map((letter, i) => (
-                    <div key={letter} className="relative">
-                      <input
-                        value={[qForm.option_a, qForm.option_b, qForm.option_c, qForm.option_d][i]}
-                        onChange={e => { const keys = ['option_a','option_b','option_c','option_d']; setQForm(f => ({ ...f, [keys[i]]: e.target.value })); }}
-                        placeholder={`الخيار ${letter}`}
-                        className={`w-full rounded-xl px-3 py-2 pr-8 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-purple-200'}`} />
-                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-black text-purple-500">{letter}</span>
-                    </div>
-                  ))}
+                <p className={`text-xs font-black ${dark ? 'text-purple-400' : 'text-purple-600'}`}>الأسئلة الفرعية — اختر الإجابة الصحيحة لكل بند</p>
+
+                {/* Count + Generate */}
+                <div className="flex items-center gap-2">
+                  <input type="number" min="1" max="50"
+                    value={imgMultiCount}
+                    onChange={e => setImgMultiCount(Math.max(1, Math.min(50, parseInt(e.target.value) || 1)))}
+                    className={`w-20 rounded-xl px-3 py-2 border text-sm text-center ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-purple-200'}`} />
+                  <button type="button"
+                    onClick={() => {
+                      const count = Math.max(1, Math.min(50, parseInt(imgMultiCount) || 1));
+                      setQForm(f => ({
+                        ...f,
+                        option_a: 'A', option_b: 'B', option_c: 'C', option_d: 'D',
+                        sub_questions: Array.from({ length: count }, (_, i) => ({
+                          label: String(i + 1),
+                          correct: (f.sub_questions?.[i]?.correct) || 'A',
+                        })),
+                      }));
+                    }}
+                    className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-xl text-sm font-bold flex items-center gap-1.5">
+                    <RefreshCw className="w-3.5 h-3.5" /> توليد
+                  </button>
+                  {(qForm.sub_questions || []).length > 0 && (
+                    <span className={`text-xs font-semibold ${dark ? 'text-[var(--dk-text-2)]' : 'text-purple-600'}`}>
+                      {(qForm.sub_questions || []).length} سؤال
+                    </span>
+                  )}
                 </div>
 
-                <div>
-                  <p className={`text-xs font-black mb-2 ${dark ? 'text-purple-400' : 'text-purple-600'}`}>الأسئلة الفرعية (بند + الإجابة الصحيحة) *</p>
-                  {(qForm.sub_questions || []).length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mb-2">
-                      {(qForm.sub_questions || []).map((sub, i) => (
-                        <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-100 text-purple-700 text-xs font-bold">
-                          {sub.label} → {sub.correct}
-                          <button onClick={() => setQForm(f => ({ ...f, sub_questions: (f.sub_questions || []).filter((_, j) => j !== i) }))} className="text-purple-400 hover:text-red-500 transition-colors">✕</button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  <div className="flex gap-2">
-                    <input value={newSubLabel} onChange={e => setNewSubLabel(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && addSubQuestion()}
-                      placeholder="رقم البند (مثال: 1)"
-                      className={`flex-1 rounded-xl px-3 py-2 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-purple-200'}`} />
-                    <select value={newSubCorrect} onChange={e => setNewSubCorrect(e.target.value)}
-                      className={`rounded-xl px-3 py-2 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-purple-200'}`}>
-                      {['A','B','C','D'].map(l => <option key={l} value={l}>{l}</option>)}
-                    </select>
-                    <button onClick={addSubQuestion} className="px-3 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-xl text-sm font-bold">
-                      <Plus className="w-4 h-4" />
-                    </button>
+                {/* Generated rows — click A/B/C/D to set correct answer */}
+                {(qForm.sub_questions || []).length > 0 && (
+                  <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                    {(qForm.sub_questions || []).map((sub, i) => (
+                      <div key={i} className={`flex items-center gap-2 rounded-lg px-2 py-1.5 ${dark ? 'bg-[var(--dk-elevated)]' : 'bg-white border border-purple-100'}`}>
+                        <span className={`w-7 text-center text-xs font-black flex-shrink-0 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-500'}`}>{sub.label}</span>
+                        <div className="flex gap-1 flex-1">
+                          {['A','B','C','D'].map(letter => (
+                            <button key={letter} type="button"
+                              onClick={() => setQForm(f => ({
+                                ...f,
+                                sub_questions: (f.sub_questions || []).map((s, j) =>
+                                  j === i ? { ...s, correct: letter } : s
+                                ),
+                              }))}
+                              className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                                sub.correct === letter
+                                  ? 'bg-purple-500 text-white border-purple-500 shadow-sm'
+                                  : dark
+                                    ? 'bg-[var(--dk-surface)] border-[var(--dk-border)] text-[var(--dk-text-2)] hover:border-purple-400'
+                                    : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-purple-300 hover:bg-purple-50'
+                              }`}>
+                              {letter}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                </div>
+                )}
               </div>
             )}
 
@@ -847,7 +856,7 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
   );
 }
 
-function ResultsPanel({ results, rec, dark, cardCls }) {
+function ResultsPanel({ results, rec, dark, cardCls, navigate }) {
   if (results.length === 0)
     return (
       <div className={`${cardCls} text-center py-8`}>
@@ -886,13 +895,22 @@ function ResultsPanel({ results, rec, dark, cardCls }) {
               </p>
             </div>
           </div>
-          <div className="text-left">
-            <span className={`font-black text-lg ${r.passed ? 'text-green-600' : 'text-red-500'}`}>
-              {r.score}/{rec.total_score}
-            </span>
-            <p className={`text-xs ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>
-              {r.correct_count}✓ {r.wrong_count}✗
-            </p>
+          <div className="flex items-center gap-3">
+            <div className="text-left">
+              <span className={`font-black text-lg ${r.passed ? 'text-green-600' : 'text-red-500'}`}>
+                {r.score}/{rec.total_score}
+              </span>
+              <p className={`text-xs ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>
+                {r.correct_count}✓ {r.wrong_count}✗
+              </p>
+            </div>
+            {navigate && (
+              <button onClick={() => navigate(`/teacher/recitation-review/${r.id}`)}
+                className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 transition-colors flex-shrink-0"
+                title="مراجعة مفصّلة">
+                <Eye className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
       ))}

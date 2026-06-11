@@ -1309,4 +1309,108 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
   }
 });
 
+// ── GET /recitations/results/:resultId/review ──────────────────────────────
+router.get('/results/:resultId/review', authenticate, async (req, res) => {
+  try {
+    const resultId = parseInt(req.params.resultId, 10);
+    if (isNaN(resultId) || resultId <= 0) return res.status(400).json({ error: 'معرّف النتيجة غير صالح' });
+
+    const teacherId = req.user.role === 'student' ? null : (req.user.teacher_id || req.user.id);
+
+    const resultRes = await pool.query(`
+      SELECT rr.*, r.title as recitation_title, r.total_score, r.pass_score,
+             r.teacher_id,
+             s.name as student_name, s.id as student_id_check
+      FROM recitation_results rr
+      JOIN recitations r ON rr.recitation_id = r.id
+      JOIN students s ON rr.student_id = s.id
+      WHERE rr.id = $1
+    `, [resultId]);
+
+    if (!resultRes.rows.length) return res.status(404).json({ error: 'النتيجة غير موجودة' });
+    const row = resultRes.rows[0];
+
+    if (req.user.role === 'student') {
+      if (row.student_id !== req.user.id) return res.status(403).json({ error: 'Access denied' });
+    } else {
+      if (row.teacher_id !== teacherId) return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const answersRes = await pool.query(
+      'SELECT question_id, student_answer FROM recitation_answers WHERE result_id = $1',
+      [resultId]
+    );
+    const answerMap = {};
+    answersRes.rows.forEach(a => { answerMap[a.question_id] = a.student_answer; });
+
+    const snapshot = Array.isArray(row.questions_snapshot) ? row.questions_snapshot : [];
+
+    const review = snapshot.map(q => {
+      const studentAns = answerMap[q.id] || null;
+      if (q.question_type === 'image_multi') {
+        const subQs = Array.isArray(q.sub_questions) ? q.sub_questions : [];
+        let parsedAns = {};
+        try { if (studentAns) parsedAns = JSON.parse(studentAns); } catch {}
+        const subResults = subQs.map(sub => ({
+          label: sub.label,
+          correct: sub.correct,
+          student_answer: parsedAns[sub.label] || null,
+          is_correct: String(parsedAns[sub.label] || '').toUpperCase() === String(sub.correct).toUpperCase(),
+        }));
+        return {
+          id: q.id,
+          question_text: q.question_text,
+          question_image_url: q.question_image_url,
+          question_type: q.question_type,
+          option_a: q.option_a, option_b: q.option_b, option_c: q.option_c, option_d: q.option_d,
+          sub_questions: subQs,
+          sub_results: subResults,
+          student_answer: studentAns,
+          is_correct: subResults.length > 0 && subResults.every(s => s.is_correct),
+          points: q.points,
+        };
+      }
+      const isCorrect = studentAns === q.correct_answer_letter;
+      return {
+        id: q.id,
+        question_text: q.question_text,
+        question_image_url: q.question_image_url,
+        question_type: q.question_type,
+        option_a: q.option_a, option_b: q.option_b, option_c: q.option_c, option_d: q.option_d,
+        correct_answer_letter: q.correct_answer_letter,
+        student_answer: studentAns,
+        is_correct: !!studentAns && isCorrect,
+        points: q.points,
+      };
+    });
+
+    const correct = review.filter(q => q.is_correct).length;
+    const wrong   = review.filter(q => !q.is_correct && (q.question_type === 'image_multi' ? q.student_answer : q.student_answer)).length;
+    const unanswered = review.filter(q => !q.student_answer).length;
+
+    res.json({
+      result: {
+        id: row.id,
+        recitation_id: row.recitation_id,
+        student_id: row.student_id,
+        student_name: row.student_name,
+        recitation_title: row.recitation_title,
+        score: row.score,
+        total_score: row.total_score,
+        pass_score: row.pass_score,
+        passed: row.passed,
+        correct_count: row.correct_count ?? correct,
+        wrong_count: row.wrong_count ?? wrong,
+        unanswered_count: row.unanswered_count ?? unanswered,
+        points_earned: row.points_earned || 0,
+        created_at: row.created_at,
+      },
+      review,
+    });
+  } catch (err) {
+    console.error('[recitations GET /results/:resultId/review]', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;

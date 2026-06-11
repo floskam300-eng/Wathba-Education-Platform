@@ -318,7 +318,7 @@ router.get('/:id/profile', requireRole('teacher', 'assistant'), async (req, res)
     );
     if (!studentRes.rows.length) return res.status(404).json({ error: 'Student not found' });
 
-    const [coursesRes, examsRes, paymentsRes, badgesRes, videoProgressRes] = await Promise.all([
+    const [coursesRes, examsRes, paymentsRes, badgesRes, videoProgressRes, recitationsRes] = await Promise.all([
       // Enrolled courses + content counts + watched video count
       pool.query(`
         SELECT c.id, c.name, c.description, c.price, c.target_stage,
@@ -337,7 +337,7 @@ router.get('/:id/profile', requireRole('teacher', 'assistant'), async (req, res)
         ORDER BY sce.enrollment_date DESC
       `, [studentId]),
 
-      // All exam results
+      // Last 5 exam results
       pool.query(`
         SELECT er.id, er.score, er.correct_count, er.wrong_count,
                er.unanswered_count, er.points_earned, er.created_at,
@@ -348,6 +348,7 @@ router.get('/:id/profile', requireRole('teacher', 'assistant'), async (req, res)
         LEFT JOIN courses c ON e.course_id = c.id
         WHERE er.student_id = $1
         ORDER BY er.created_at DESC
+        LIMIT 5
       `, [studentId]),
 
       // Payment history
@@ -379,6 +380,18 @@ router.get('/:id/profile', requireRole('teacher', 'assistant'), async (req, res)
         WHERE vp.student_id = $1
         ORDER BY vp.last_watched_at DESC
       `, [studentId]),
+
+      // Last 5 recitation results
+      pool.query(`
+        SELECT rr.id, rr.score, rr.correct_count, rr.wrong_count,
+               rr.unanswered_count, rr.points_earned, rr.passed, rr.created_at,
+               r.title as recitation_title, r.total_score, r.pass_score
+        FROM recitation_results rr
+        JOIN recitations r ON rr.recitation_id = r.id
+        WHERE rr.student_id = $1
+        ORDER BY rr.created_at DESC
+        LIMIT 5
+      `, [studentId]),
     ]);
 
     res.json({
@@ -388,6 +401,7 @@ router.get('/:id/profile', requireRole('teacher', 'assistant'), async (req, res)
       payments: paymentsRes.rows,
       badges: badgesRes.rows,
       videoProgress: videoProgressRes.rows,
+      recitationResults: recitationsRes.rows,
     });
   } catch (err) {
     console.error(err);

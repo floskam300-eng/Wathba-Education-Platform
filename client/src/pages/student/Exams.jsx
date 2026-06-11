@@ -442,7 +442,11 @@ export default function StudentExams() {
 
   if (taking && examData && !taking.already_taken) {
     const { exam, questions } = examData;
-    const answered = Object.keys(answers).filter(k => answers[k]).length;
+    const answered = Object.keys(answers).filter(k => {
+      const a = answers[k];
+      if (a && typeof a === 'object') return Object.keys(a).length > 0;
+      return !!a;
+    }).length;
 
     return (
       <div className="h-full overflow-y-auto p-3 sm:p-4 lg:p-6">
@@ -501,8 +505,8 @@ export default function StudentExams() {
                     {/* Question label row */}
                     <div className="flex items-center gap-2 mb-2">
                       <span className={`w-6 h-6 rounded-full text-white text-xs font-black flex items-center justify-center flex-shrink-0 ${isGrouped ? 'bg-blue-600' : 'bg-navy-600'}`}>{qi + 1}</span>
-                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${qType === 'true_false' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'}`}>
-                        {qType === 'true_false' ? 'صح/خطأ' : 'اختيار'}
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${qType === 'true_false' ? 'bg-purple-100 text-purple-700' : qType === 'image_multi' ? 'bg-indigo-100 text-indigo-700' : 'bg-orange-100 text-orange-700'}`}>
+                        {qType === 'true_false' ? 'صح/خطأ' : qType === 'image_multi' ? 'صورة+أسئلة' : 'اختيار'}
                       </span>
                       {isGrouped && (
                         <span className="text-[10px] font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">جزء من مجموعة</span>
@@ -531,6 +535,34 @@ export default function StudentExams() {
                             {label}
                           </button>
                         ))}
+                      </div>
+                    ) : qType === 'image_multi' ? (
+                      <div className="space-y-1.5">
+                        {(q.sub_questions || []).map(sub => {
+                          let subAnswers = {};
+                          try { const raw = answers[q.id]; subAnswers = raw && typeof raw === 'object' ? raw : JSON.parse(raw || '{}'); } catch {}
+                          const subSel = subAnswers[sub.label];
+                          return (
+                            <div key={sub.label} className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2">
+                              <span className="text-xs font-black text-navy-600 w-5 flex-shrink-0">{sub.label}</span>
+                              <div className="flex gap-1 flex-1">
+                                {['A','B','C','D'].map(letter => (
+                                  <button key={letter} type="button"
+                                    onClick={() => {
+                                      let current = {};
+                                      try { const raw = answers[q.id]; current = raw && typeof raw === 'object' ? raw : JSON.parse(raw || '{}'); } catch {}
+                                      setAnswers({ ...answers, [q.id]: { ...current, [sub.label]: letter } });
+                                    }}
+                                    className={`flex-1 py-1.5 rounded-lg text-xs font-bold border-2 transition-all ${
+                                      subSel === letter ? 'border-orange-500 bg-orange-50 text-orange-800' : 'border-gray-200 hover:border-gray-400 text-gray-600'
+                                    }`}>
+                                    {letter}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
