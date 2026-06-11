@@ -45,8 +45,12 @@ async function runCheck() {
           );
           studentIds = r.rows.map(row => row.id);
         } else {
+          // [SC1-FIX] Exclude suspended students — they cannot take exams and
+          // must not receive start-notifications (same pattern applied to the
+          // recitation scheduler in T3-FIX; was only fixed for course-enrolled
+          // students previously, not for the teacher-wide fallback branch).
           const r = await _pool.query(
-            'SELECT id FROM students WHERE teacher_id=$1 AND deleted_at IS NULL',
+            'SELECT id FROM students WHERE teacher_id=$1 AND deleted_at IS NULL AND is_suspended = false',
             [exam.teacher_id]
           );
           studentIds = r.rows.map(row => row.id);

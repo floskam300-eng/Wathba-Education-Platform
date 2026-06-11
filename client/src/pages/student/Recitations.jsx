@@ -51,9 +51,17 @@ export default function StudentRecitations() {
   const [showCountdown, setShowCountdown] = useState(false);
   const [result, setResult] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  // [CL3-FIX] startingRef prevents double-click spawning multiple countdowns.
+  // startRec is async; without this lock a second tap before the API responds
+  // would start a second countdown sequence on top of the first.
+  const [starting, setStarting] = useState(false);
   const submittedRef = useRef(false);
   const mountedRef = useRef(true);
   const timerRef = useRef(null);
+  // [CL2-FIX] Store the epoch when the session was started so the timer can
+  // correct for setInterval/setTimeout drift (common when tab is backgrounded).
+  const timerEpochRef = useRef(null);
+  const timerDurationRef = useRef(null);
 
   const { data: recitations = [], isLoading } = useQuery({
     queryKey: ['student-recitations'],
@@ -72,6 +80,9 @@ export default function StudentRecitations() {
   });
 
   const startRec = async (rec) => {
+    // [CL3-FIX] Prevent double-click: if a start is already in progress, bail out.
+    if (starting) return;
+    setStarting(true);
     submittedRef.current = false;
     try {
       const { data } = await api.get(`/recitations/${rec.id}/take`);
@@ -86,6 +97,9 @@ export default function StudentRecitations() {
       const startedAt = new Date(data.server_started_at).getTime();
       const durationMs = rec.duration_minutes * 60 * 1000;
       const remaining = Math.max(0, durationMs - (Date.now() - startedAt));
+      // [CL2-FIX] Record epoch + duration so the tick loop can self-correct drift.
+      timerEpochRef.current = startedAt;
+      timerDurationRef.current = durationMs;
       setTimeLeft(Math.floor(remaining / 1000));
 
       if (data.resumed) {
@@ -96,6 +110,8 @@ export default function StudentRecitations() {
       }
     } catch (e) {
       toast.error(e.response?.data?.error || 'حدث خطأ');
+    } finally {
+      setStarting(false);
     }
   };
 
@@ -113,11 +129,23 @@ export default function StudentRecitations() {
     return () => clearTimeout(id);
   }, [showCountdown, countdown]);
 
-  // Main exam timer
+  // Main exam timer — [CL2-FIX] drift-corrected using server epoch
+  // Simple setTimeout(…, 1000) drifts noticeably when the tab is backgrounded
+  // (Chrome throttles timers to 1Hz in background tabs). We instead compute
+  // the true remaining seconds from the original server_started_at epoch on
+  // every tick, so accumulated drift is self-correcting rather than additive.
   useEffect(() => {
     if (view !== 'take' || timeLeft === null) return;
     if (timeLeft <= 0) { handleSubmit(true); return; }
-    timerRef.current = setTimeout(() => setTimeLeft(t => t - 1), 1000);
+    timerRef.current = setTimeout(() => {
+      if (timerEpochRef.current !== null && timerDurationRef.current !== null) {
+        const elapsed = Date.now() - timerEpochRef.current;
+        const trueLeft = Math.max(0, Math.floor((timerDurationRef.current - elapsed) / 1000));
+        setTimeLeft(trueLeft);
+      } else {
+        setTimeLeft(t => Math.max(0, t - 1));
+      }
+    }, 1000);
     return () => clearTimeout(timerRef.current);
   }, [view, timeLeft]);
 
@@ -143,9 +171,14 @@ export default function StudentRecitations() {
     if (view !== 'take' || !selectedRec) return;
     const handleUnload = () => {
       if (submittedRef.current) return;
-      // [S2-FIX] Use the same key as AuthContext ('token') — was hardcoded as 'wathba_token'
-      const token = localStorage.getItem('token');
-      // [S1-FIX] Removed dead qs/payload variables that were never actually sent
+      // [CL1-FIX] Use the correct localStorage key 'wathba_token' that AuthContext
+      // and api.js both use. The previous key 'token' was never set, so the
+      // keepalive always sent "Authorization: Bearer null" → server rejected 401.
+      const token = localStorage.getItem('wathba_token');
+      // [CL4-FIX] Include X-Tenant-Slug so multi-tenant servers can resolve the
+      // tenant. Axios interceptor injects this automatically, but fetch() doesn't
+      // use interceptors — the same gap was fixed in Exams.jsx keepalive (M-15).
+      const tenantSlug = localStorage.getItem('wathba_teacher_slug') || '';
       // [R4-FIX] sendBeacon does not support custom headers (Authorization),
       // so the server always rejected it with 401. Use fetch with keepalive:true
       // instead — it supports auth headers and survives page unload.
@@ -161,7 +194,11 @@ export default function StudentRecitations() {
       fetch(`/api/recitations/${selectedRec.id}/submit`, {
         method: 'POST',
         keepalive: true,
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          ...(tenantSlug ? { 'X-Tenant-Slug': tenantSlug } : {}),
+        },
         body: payloadUnload,
       }).catch(() => {});
     };

@@ -6,11 +6,22 @@ const { isValidImage, deleteFile } = require('../lib/validateFileMagic');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 
 const router = express.Router();
 router.use(authenticate);
 
 const getTeacherId = (req) => req.user.role === 'teacher' ? req.user.id : req.user.teacher_id;
+
+// [QB1-FIX] parseParamId — integer validation + PG_INT_MAX guard.
+// All parameterised routes now use this instead of passing req.params.* directly
+// to pg, which accepted any string (e.g. "0;DROP TABLE") via implicit casting.
+const PG_INT_MAX = 2147483647;
+function parseParamId(raw) {
+  const n = parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 1 || n > PG_INT_MAX) return null;
+  return n;
+}
 
 const checkManageExamsPerm = async (req, res, next) => {
   if (req.user.role === 'teacher') return next();
@@ -24,6 +35,9 @@ const checkManageExamsPerm = async (req, res, next) => {
   }
 };
 
+// [QB3-FIX] Use crypto.randomBytes(8) for filename uniqueness.
+// Date.now() alone allowed same-millisecond collisions when two teachers
+// uploaded simultaneously, causing one file to silently overwrite the other.
 const qImgStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     const dir = path.join(__dirname, '../../uploads/question-images');
@@ -31,7 +45,8 @@ const qImgStorage = multer.diskStorage({
     cb(null, dir);
   },
   filename: (req, file, cb) => {
-    cb(null, `bq_${Date.now()}${path.extname(file.originalname)}`);
+    const rand = crypto.randomBytes(8).toString('hex');
+    cb(null, `bq_${Date.now()}_${rand}${path.extname(file.originalname)}`);
   },
 });
 const uploadImg = multer({
@@ -42,6 +57,9 @@ const uploadImg = multer({
     else cb(new Error('يُسمح بالصور فقط'));
   },
 });
+
+// [QB4/QB5] Shared valid-letter set used in both POST and PUT
+const VALID_ANSWER_LETTERS = new Set(['A', 'B', 'C', 'D', 'T', 'F']);
 
 // ── List banks ──
 router.get('/', requireRole('teacher', 'assistant'), async (req, res) => {
@@ -90,6 +108,10 @@ router.post('/', requireRole('teacher', 'assistant'), checkManageExamsPerm, asyn
 
 // ── Update bank ──
 router.put('/:id', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
+  // [QB1-FIX] Validate bank ID before any DB call
+  const bankId = parseParamId(req.params.id);
+  if (!bankId) return res.status(400).json({ error: 'معرّف البنك غير صالح' });
+
   const teacherId = getTeacherId(req);
   const { name, course_id } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: 'اسم البنك مطلوب' });
@@ -100,7 +122,7 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageExamsPerm, as
     }
     const result = await pool.query(
       'UPDATE question_banks SET name=$1, course_id=$2 WHERE id=$3 AND teacher_id=$4 RETURNING *',
-      [name.trim(), course_id || null, req.params.id, teacherId]
+      [name.trim(), course_id || null, bankId, teacherId]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'البنك غير موجود' });
     res.json(result.rows[0]);
@@ -111,11 +133,15 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageExamsPerm, as
 
 // ── Delete bank ──
 router.delete('/:id', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
+  // [QB1-FIX] Validate bank ID before any DB call
+  const bankId = parseParamId(req.params.id);
+  if (!bankId) return res.status(400).json({ error: 'معرّف البنك غير صالح' });
+
   const teacherId = getTeacherId(req);
   try {
     const result = await pool.query(
       'DELETE FROM question_banks WHERE id=$1 AND teacher_id=$2 RETURNING id',
-      [req.params.id, teacherId]
+      [bankId, teacherId]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'البنك غير موجود' });
     res.json({ message: 'تم حذف البنك' });
@@ -125,12 +151,19 @@ router.delete('/:id', requireRole('teacher', 'assistant'), checkManageExamsPerm,
 });
 
 // ── Get bank questions ──
-router.get('/:id/questions', requireRole('teacher', 'assistant'), async (req, res) => {
+// [QB2-FIX] Added checkManageExamsPerm — previously any assistant (even without
+// can_manage_exams) could retrieve all questions in a bank belonging to their
+// teacher. Now the permission gate is enforced consistently with create/update.
+router.get('/:id/questions', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
+  // [QB1-FIX] Validate bank ID before any DB call
+  const bankId = parseParamId(req.params.id);
+  if (!bankId) return res.status(400).json({ error: 'معرّف البنك غير صالح' });
+
   const teacherId = getTeacherId(req);
   try {
-    const bank = await pool.query('SELECT id FROM question_banks WHERE id=$1 AND teacher_id=$2', [req.params.id, teacherId]);
+    const bank = await pool.query('SELECT id FROM question_banks WHERE id=$1 AND teacher_id=$2', [bankId, teacherId]);
     if (!bank.rows.length) return res.status(403).json({ error: 'Access denied' });
-    const result = await pool.query('SELECT * FROM bank_questions WHERE bank_id=$1 ORDER BY id', [req.params.id]);
+    const result = await pool.query('SELECT * FROM bank_questions WHERE bank_id=$1 ORDER BY id', [bankId]);
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
@@ -139,10 +172,18 @@ router.get('/:id/questions', requireRole('teacher', 'assistant'), async (req, re
 
 // ── Add question to bank ──
 router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
+  // [QB1-FIX] Validate bank ID before any DB call
+  const bankId = parseParamId(req.params.id);
+  if (!bankId) return res.status(400).json({ error: 'معرّف البنك غير صالح' });
+
   const teacherId = getTeacherId(req);
-  const { question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, question_type, difficulty, group_id, group_context, group_context_image } = req.body;
+  const {
+    question_text, question_image_url, option_a, option_b, option_c, option_d,
+    correct_answer_letter, points, question_type, difficulty,
+    group_id, group_context, group_context_image,
+  } = req.body;
   try {
-    const bank = await pool.query('SELECT id FROM question_banks WHERE id=$1 AND teacher_id=$2', [req.params.id, teacherId]);
+    const bank = await pool.query('SELECT id FROM question_banks WHERE id=$1 AND teacher_id=$2', [bankId, teacherId]);
     if (!bank.rows.length) return res.status(403).json({ error: 'Access denied' });
 
     const qType = question_type || 'mcq';
@@ -150,14 +191,20 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageEx
     if (qType === 'true_false') { optA = 'صح'; optB = 'خطأ'; correctLetter = correct_answer_letter || 'A'; }
 
     if (!optA || !optB) return res.status(400).json({ error: 'الخيار الأول والثاني مطلوبان' });
-    if (!correctLetter) return res.status(400).json({ error: 'الإجابة الصحيحة مطلوبة' });
+
+    // [QB4-FIX] Validate correct_answer_letter is a recognised letter, not just truthy.
+    // Previously a value like "X" would pass the !correctLetter check and be stored,
+    // causing silent scoring failures when comparing student answers.
+    if (!correctLetter || !VALID_ANSWER_LETTERS.has(String(correctLetter).toUpperCase())) {
+      return res.status(400).json({ error: 'الإجابة الصحيحة يجب أن تكون A أو B أو C أو D أو T أو F' });
+    }
 
     const validDifficulties = ['easy', 'medium', 'hard'];
     const qDifficulty = validDifficulties.includes(difficulty) ? difficulty : 'medium';
 
     const result = await pool.query(
       'INSERT INTO bank_questions (bank_id, question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, question_type, difficulty, group_id, group_context, group_context_image) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *',
-      [req.params.id, question_text || null, question_image_url || null, optA, optB, option_c || null, option_d || null, correctLetter.toUpperCase(), points || 1, qType, qDifficulty, group_id || null, group_context || null, group_context_image || null]
+      [bankId, question_text || null, question_image_url || null, optA, optB, option_c || null, option_d || null, correctLetter.toUpperCase(), points || 1, qType, qDifficulty, group_id || null, group_context || null, group_context_image || null]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -168,14 +215,22 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageEx
 
 // ── Update bank question ──
 router.put('/questions/:qid', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
+  // [QB1-FIX] Validate question ID before any DB call
+  const qid = parseParamId(req.params.qid);
+  if (!qid) return res.status(400).json({ error: 'معرّف السؤال غير صالح' });
+
   const teacherId = getTeacherId(req);
-  const { question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, question_type, difficulty, group_id, group_context, group_context_image } = req.body;
+  const {
+    question_text, question_image_url, option_a, option_b, option_c, option_d,
+    correct_answer_letter, points, question_type, difficulty,
+    group_id, group_context, group_context_image,
+  } = req.body;
   try {
     const ownership = await pool.query(
       `SELECT bq.id FROM bank_questions bq
        JOIN question_banks qb ON bq.bank_id = qb.id
        WHERE bq.id=$1 AND qb.teacher_id=$2`,
-      [req.params.qid, teacherId]
+      [qid, teacherId]
     );
     if (!ownership.rows.length) return res.status(403).json({ error: 'Access denied' });
 
@@ -183,12 +238,19 @@ router.put('/questions/:qid', requireRole('teacher', 'assistant'), checkManageEx
     let optA = option_a, optB = option_b, correctLetter = correct_answer_letter;
     if (qType === 'true_false') { optA = 'صح'; optB = 'خطأ'; }
 
+    // [QB5-FIX] Guard against null/undefined correctLetter before .toUpperCase().
+    // The PUT handler previously had no validation for correct_answer_letter —
+    // passing null/undefined caused an unhandled TypeError crash → 500 response.
+    if (!correctLetter || !VALID_ANSWER_LETTERS.has(String(correctLetter).toUpperCase())) {
+      return res.status(400).json({ error: 'الإجابة الصحيحة يجب أن تكون A أو B أو C أو D أو T أو F' });
+    }
+
     const validDifficulties = ['easy', 'medium', 'hard'];
     const qDifficulty = validDifficulties.includes(difficulty) ? difficulty : 'medium';
 
     const result = await pool.query(
       'UPDATE bank_questions SET question_text=$1, question_image_url=$2, option_a=$3, option_b=$4, option_c=$5, option_d=$6, correct_answer_letter=$7, points=$8, question_type=$9, difficulty=$10, group_id=$11, group_context=$12, group_context_image=$13 WHERE id=$14 RETURNING *',
-      [question_text || null, question_image_url || null, optA, optB, option_c || null, option_d || null, correctLetter.toUpperCase(), points || 1, qType, qDifficulty, group_id || null, group_context || null, group_context_image || null, req.params.qid]
+      [question_text || null, question_image_url || null, optA, optB, option_c || null, option_d || null, correctLetter.toUpperCase(), points || 1, qType, qDifficulty, group_id || null, group_context || null, group_context_image || null, qid]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -198,16 +260,20 @@ router.put('/questions/:qid', requireRole('teacher', 'assistant'), checkManageEx
 
 // ── Delete bank question ──
 router.delete('/questions/:qid', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
+  // [QB1-FIX] Validate question ID before any DB call
+  const qid = parseParamId(req.params.qid);
+  if (!qid) return res.status(400).json({ error: 'معرّف السؤال غير صالح' });
+
   const teacherId = getTeacherId(req);
   try {
     const ownership = await pool.query(
       `SELECT bq.id FROM bank_questions bq
        JOIN question_banks qb ON bq.bank_id = qb.id
        WHERE bq.id=$1 AND qb.teacher_id=$2`,
-      [req.params.qid, teacherId]
+      [qid, teacherId]
     );
     if (!ownership.rows.length) return res.status(403).json({ error: 'Access denied' });
-    await pool.query('DELETE FROM bank_questions WHERE id=$1', [req.params.qid]);
+    await pool.query('DELETE FROM bank_questions WHERE id=$1', [qid]);
     res.json({ message: 'تم حذف السؤال' });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
@@ -215,7 +281,9 @@ router.delete('/questions/:qid', requireRole('teacher', 'assistant'), checkManag
 });
 
 // ── Upload question image ──
-router.post('/upload-image', requireRole('teacher', 'assistant'), uploadImg.single('image'), async (req, res) => {
+// [QB2-FIX] Added checkManageExamsPerm — was publicly accessible to any
+// authenticated teacher/assistant without the exams permission.
+router.post('/upload-image', requireRole('teacher', 'assistant'), checkManageExamsPerm, uploadImg.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'لم يتم رفع أي ملف' });
   const validImg = await isValidImage(req.file.path);
   if (!validImg) {

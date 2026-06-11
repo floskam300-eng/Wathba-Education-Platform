@@ -2,6 +2,7 @@
  * Recitations Audit — Edge Case & Regression Tests
  * يغطي: C1..C5, H1..H3, M1..M3, L1 + Second-pass: R1,R4,S1,S2,A1,A2
  *       Third-pass: T1..T6
+ *       Fourth-pass: QB1..QB5 (questionBanks), SC1 (scheduler), CL1..CL4 (client)
  *
  * تشغيل: node server/tests/recitations_audit.test.js
  * يتطلب: السيرفر يعمل على port 3001 + بيانات seed موجودة
@@ -535,23 +536,29 @@ async function runIntegrationTests() {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // S2 — localStorage token key consistency
+  // CL1 — localStorage token key must be 'wathba_token' (same as AuthContext)
   // ─────────────────────────────────────────────────────────────────────────
-  console.log('\n▶ S2 — localStorage token key fixed to "token"');
+  console.log('\n▶ CL1 — keepalive uses correct localStorage key wathba_token');
 
   {
-    // Verify the keepalive handler uses 'token' (same as AuthContext)
-    // This is a static analysis check — we verify the fixed key value
-    const EXPECTED_KEY = 'token';
-    const fs2 = require('fs');
-    const studentRecContent = fs2.readFileSync(
+    // [CL1-FIX] AuthContext stores the token under 'wathba_token'. The keepalive
+    // handler was using plain 'token' which is never set → Bearer null → 401.
+    const fsC1 = require('fs');
+    const recJsx = fsC1.readFileSync(
       require('path').join(__dirname, '../../client/src/pages/student/Recitations.jsx'),
       'utf8'
     );
-    // Should contain localStorage.getItem('token') not 'wathba_token'
-    assert("S2: Uses localStorage.getItem('token') not 'wathba_token'",
-      studentRecContent.includes(`localStorage.getItem('${EXPECTED_KEY}')`) &&
-      !studentRecContent.includes("localStorage.getItem('wathba_token')")
+    const keepaliveSection = recJsx.slice(
+      recJsx.indexOf('// Keepalive on tab close'),
+      recJsx.indexOf('window.addEventListener(\'beforeunload\'')
+    );
+    assert("CL1: Keepalive uses localStorage.getItem('wathba_token')",
+      keepaliveSection.includes("localStorage.getItem('wathba_token')"),
+      'keepalive section: ' + keepaliveSection.slice(0, 300)
+    );
+    assert("CL1: Keepalive does NOT use the wrong key 'token'",
+      !keepaliveSection.includes("localStorage.getItem('token')"),
+      'found stale key in: ' + keepaliveSection.slice(0, 300)
     );
   }
 
@@ -808,6 +815,287 @@ async function runIntegrationTests() {
       assert('T5 extra: PUT published recitation → 409', editPub.status === 409,
         `got ${editPub.status}: ${JSON.stringify(editPub.body)}`);
     }
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // QB1 — parseParamId in questionBanks routes (injection / overflow guard)
+  // ═════════════════════════════════════════════════════════════════════════
+  console.log('\n▶ QB1 — Non-integer / overflow bank IDs rejected (parseParamId)');
+
+  {
+    const badIds = ['abc', '0', '-1', '99999999999', '1.5', '../1'];
+    for (const badId of badIds) {
+      const r1 = await req('PUT',    `/api/question-banks/${badId}`, { name: 'x' }, authHeader(teacherToken));
+      const r2 = await req('DELETE', `/api/question-banks/${badId}`, null,           authHeader(teacherToken));
+      const r3 = await req('GET',    `/api/question-banks/${badId}/questions`, null,  authHeader(teacherToken));
+      const r4 = await req('POST',   `/api/question-banks/${badId}/questions`, { question_text:'q', option_a:'A', option_b:'B', correct_answer_letter:'A' }, authHeader(teacherToken));
+      assert(`QB1 PUT /:id [${badId}] → 400`,    r1.status === 400, `got ${r1.status}`);
+      assert(`QB1 DELETE /:id [${badId}] → 400`, r2.status === 400, `got ${r2.status}`);
+      assert(`QB1 GET /:id/questions [${badId}] → 400`, r3.status === 400, `got ${r3.status}`);
+      assert(`QB1 POST /:id/questions [${badId}] → 400`, r4.status === 400, `got ${r4.status}`);
+    }
+    // Question-level IDs
+    const badQIds = ['abc', '0', '-1', '2147483648'];
+    for (const badQId of badQIds) {
+      const r5 = await req('PUT',    `/api/question-banks/questions/${badQId}`, { option_a:'A', option_b:'B', correct_answer_letter:'A' }, authHeader(teacherToken));
+      const r6 = await req('DELETE', `/api/question-banks/questions/${badQId}`, null, authHeader(teacherToken));
+      assert(`QB1 PUT /questions/:qid [${badQId}] → 400`, r5.status === 400, `got ${r5.status}`);
+      assert(`QB1 DELETE /questions/:qid [${badQId}] → 400`, r6.status === 400, `got ${r6.status}`);
+    }
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // QB2 — checkManageExamsPerm on GET /:id/questions and POST /upload-image
+  // ═════════════════════════════════════════════════════════════════════════
+  console.log('\n▶ QB2 — GET /:id/questions requires can_manage_exams permission');
+
+  {
+    // Create a minimal bank as teacher for the permission test
+    const bankR = await req('POST', '/api/question-banks', { name: '[QB2 test bank]' }, authHeader(teacherToken));
+    const testBankId = bankR.status === 201 ? bankR.body.id : null;
+
+    if (testBankId) {
+      // Teacher can always read their own bank questions
+      const teacherRead = await req('GET', `/api/question-banks/${testBankId}/questions`, null, authHeader(teacherToken));
+      assert('QB2: Teacher can GET /:id/questions → 200', teacherRead.status === 200,
+        `got ${teacherRead.status}`);
+
+      // Unauthenticated cannot access at all
+      const unauthRead = await req('GET', `/api/question-banks/${testBankId}/questions`);
+      assert('QB2: Unauthenticated GET /:id/questions → 401', unauthRead.status === 401,
+        `got ${unauthRead.status}`);
+
+      // Student cannot access bank questions endpoint (teacher/assistant only)
+      if (studentToken) {
+        const stuRead = await req('GET', `/api/question-banks/${testBankId}/questions`, null, authHeader(studentToken));
+        assert('QB2: Student GET /:id/questions → 403', stuRead.status === 403,
+          `got ${stuRead.status}`);
+      }
+
+      // Clean up test bank
+      await req('DELETE', `/api/question-banks/${testBankId}`, null, authHeader(teacherToken)).catch(() => {});
+    } else {
+      console.log('  ⚠️  Could not create QB2 test bank — skipping');
+    }
+
+    // upload-image also requires authentication
+    const unauthUpload = await req('POST', '/api/question-banks/upload-image', Buffer.from('x'),
+      { 'Content-Type': 'application/octet-stream' });
+    assert('QB2: Unauthenticated /upload-image → 401', unauthUpload.status === 401,
+      `got ${unauthUpload.status}`);
+
+    if (studentToken) {
+      const stuUpload = await req('POST', '/api/question-banks/upload-image', Buffer.from('x'),
+        { ...authHeader(studentToken), 'Content-Type': 'application/octet-stream' });
+      assert('QB2: Student /upload-image → 403', stuUpload.status === 403,
+        `got ${stuUpload.status}`);
+    }
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // QB4 — correct_answer_letter validation in POST /:id/questions
+  // ═════════════════════════════════════════════════════════════════════════
+  console.log('\n▶ QB4 — Invalid correct_answer_letter rejected in bank question');
+
+  {
+    const bankR2 = await req('POST', '/api/question-banks', { name: '[QB4 test bank]' }, authHeader(teacherToken));
+    const testBankId2 = bankR2.status === 201 ? bankR2.body.id : null;
+
+    if (testBankId2) {
+      const invalidLetters = ['X', 'Z', '', '1', 'AB', 'a'];
+      for (const letter of invalidLetters) {
+        const r = await req('POST', `/api/question-banks/${testBankId2}/questions`, {
+          question_text: 'Test QB4',
+          option_a: 'Yes', option_b: 'No',
+          correct_answer_letter: letter,
+          question_type: 'mcq',
+        }, authHeader(teacherToken));
+        assert(`QB4: letter "${letter}" → 400 (not in A/B/C/D/T/F)`,
+          r.status === 400, `got ${r.status}: ${JSON.stringify(r.body)}`);
+      }
+
+      const validLetters = ['A', 'B', 'C', 'D'];
+      for (const letter of validLetters) {
+        const r = await req('POST', `/api/question-banks/${testBankId2}/questions`, {
+          question_text: 'Test QB4 valid',
+          option_a: 'Yes', option_b: 'No',
+          correct_answer_letter: letter,
+          question_type: 'mcq',
+        }, authHeader(teacherToken));
+        assert(`QB4: valid letter "${letter}" → 201`, r.status === 201,
+          `got ${r.status}: ${JSON.stringify(r.body)}`);
+      }
+
+      // Clean up
+      await req('DELETE', `/api/question-banks/${testBankId2}`, null, authHeader(teacherToken)).catch(() => {});
+    } else {
+      console.log('  ⚠️  Could not create QB4 test bank — skipping');
+    }
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // QB5 — null correct_answer_letter in PUT /questions/:qid → 400 not 500
+  // ═════════════════════════════════════════════════════════════════════════
+  console.log('\n▶ QB5 — null/missing correct_answer_letter in PUT /questions/:qid → 400');
+
+  {
+    const bankR3 = await req('POST', '/api/question-banks', { name: '[QB5 test bank]' }, authHeader(teacherToken));
+    const testBankId3 = bankR3.status === 201 ? bankR3.body.id : null;
+
+    if (testBankId3) {
+      // Add a question to update
+      const qR = await req('POST', `/api/question-banks/${testBankId3}/questions`, {
+        question_text: 'QB5 base question',
+        option_a: 'Yes', option_b: 'No',
+        correct_answer_letter: 'A',
+        question_type: 'mcq',
+      }, authHeader(teacherToken));
+      const testQid = qR.status === 201 ? qR.body.id : null;
+
+      if (testQid) {
+        // Missing correct_answer_letter → must be 400, not 500
+        const r1 = await req('PUT', `/api/question-banks/questions/${testQid}`, {
+          question_text: 'Updated',
+          option_a: 'Yes', option_b: 'No',
+          question_type: 'mcq',
+          // correct_answer_letter intentionally omitted
+        }, authHeader(teacherToken));
+        assert('QB5: null correct_answer_letter → 400 not 500',
+          r1.status === 400, `got ${r1.status}: ${JSON.stringify(r1.body)}`);
+
+        // Invalid letter → must also be 400
+        const r2 = await req('PUT', `/api/question-banks/questions/${testQid}`, {
+          question_text: 'Updated',
+          option_a: 'Yes', option_b: 'No',
+          correct_answer_letter: 'Z',
+          question_type: 'mcq',
+        }, authHeader(teacherToken));
+        assert('QB5: invalid correct_answer_letter "Z" → 400',
+          r2.status === 400, `got ${r2.status}: ${JSON.stringify(r2.body)}`);
+
+        // Valid letter → 200
+        const r3 = await req('PUT', `/api/question-banks/questions/${testQid}`, {
+          question_text: 'Updated correctly',
+          option_a: 'Yes', option_b: 'No',
+          correct_answer_letter: 'B',
+          question_type: 'mcq',
+        }, authHeader(teacherToken));
+        assert('QB5: valid update with correct letter → 200',
+          r3.status === 200, `got ${r3.status}: ${JSON.stringify(r3.body)}`);
+      } else {
+        console.log('  ⚠️  Could not create QB5 test question — skipping');
+      }
+
+      // Clean up
+      await req('DELETE', `/api/question-banks/${testBankId3}`, null, authHeader(teacherToken)).catch(() => {});
+    } else {
+      console.log('  ⚠️  Could not create QB5 test bank — skipping');
+    }
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // QB3 — filename collision prevention (static check)
+  // ═════════════════════════════════════════════════════════════════════════
+  console.log('\n▶ QB3 — Image upload filename uses randomBytes for collision prevention');
+
+  {
+    const fsQB3 = require('fs');
+    const qbContent = fsQB3.readFileSync(
+      require('path').join(__dirname, '../routes/questionBanks.js'),
+      'utf8'
+    );
+    assert('QB3: Uses crypto.randomBytes in filename', qbContent.includes('randomBytes'),
+      'questionBanks.js should import and use crypto.randomBytes for upload filenames');
+    assert('QB3: Does not rely solely on Date.now() for uniqueness',
+      !qbContent.includes('`bq_${Date.now()}${'),
+      'old Date.now()-only pattern should be removed');
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // SC1 — Suspended students excluded from exam start notifications
+  // ═════════════════════════════════════════════════════════════════════════
+  console.log('\n▶ SC1 — Scheduler excludes suspended students from exam notifications');
+
+  {
+    const fsS = require('fs');
+    const schedulerContent = fsS.readFileSync(
+      require('path').join(__dirname, '../scheduler.js'),
+      'utf8'
+    );
+    // Both the course-enrolled branch (enrollment is active so they can't access)
+    // and the teacher-wide fallback branch must exclude suspended students.
+    const teacherWideBranch = schedulerContent.slice(
+      schedulerContent.indexOf('SELECT id FROM students WHERE teacher_id='),
+      schedulerContent.indexOf('SELECT id FROM students WHERE teacher_id=') + 200
+    );
+    assert('SC1: Teacher-wide exam notification excludes is_suspended=true',
+      teacherWideBranch.includes('is_suspended = false'),
+      `branch text: ${teacherWideBranch}`
+    );
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // CL2 — Timer drift correction: uses timerEpochRef not simple decrement
+  // ═════════════════════════════════════════════════════════════════════════
+  console.log('\n▶ CL2 — Timer uses epoch-based drift correction');
+
+  {
+    const fsCL2 = require('fs');
+    const recJsx = fsCL2.readFileSync(
+      require('path').join(__dirname, '../../client/src/pages/student/Recitations.jsx'),
+      'utf8'
+    );
+    assert('CL2: timerEpochRef is defined', recJsx.includes('timerEpochRef'),
+      'timerEpochRef not found in Recitations.jsx');
+    assert('CL2: Timer computes elapsed from epoch (not simple decrement)',
+      recJsx.includes('timerEpochRef.current') && recJsx.includes('Date.now() - timerEpochRef.current'),
+      'drift-corrected timer pattern not found');
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // CL3 — startRec has loading lock to prevent double-click
+  // ═════════════════════════════════════════════════════════════════════════
+  console.log('\n▶ CL3 — startRec has loading guard to prevent double-click');
+
+  {
+    const fsCL3 = require('fs');
+    const recJsx = fsCL3.readFileSync(
+      require('path').join(__dirname, '../../client/src/pages/student/Recitations.jsx'),
+      'utf8'
+    );
+    const startRecFn = recJsx.slice(
+      recJsx.indexOf('const startRec = async'),
+      recJsx.indexOf('const startRec = async') + 600
+    );
+    assert('CL3: startRec checks starting guard',
+      startRecFn.includes('if (starting) return'),
+      `startRec function: ${startRecFn.slice(0, 200)}`);
+    assert('CL3: startRec uses setStarting(false) in finally block',
+      startRecFn.includes('setStarting(false)') && startRecFn.includes('finally'),
+      `startRec function: ${startRecFn.slice(0, 200)}`);
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // CL4 — Keepalive includes X-Tenant-Slug header
+  // ═════════════════════════════════════════════════════════════════════════
+  console.log('\n▶ CL4 — Keepalive fetch includes X-Tenant-Slug header');
+
+  {
+    const fsCL4 = require('fs');
+    const recJsx = fsCL4.readFileSync(
+      require('path').join(__dirname, '../../client/src/pages/student/Recitations.jsx'),
+      'utf8'
+    );
+    const keepaliveSection = recJsx.slice(
+      recJsx.indexOf('// Keepalive on tab close'),
+      recJsx.indexOf('window.addEventListener(\'beforeunload\'')
+    );
+    assert("CL4: Keepalive includes 'X-Tenant-Slug' header",
+      keepaliveSection.includes('X-Tenant-Slug'),
+      `keepalive section: ${keepaliveSection.slice(0, 400)}`);
+    assert('CL4: Tenant slug read from wathba_teacher_slug',
+      keepaliveSection.includes('wathba_teacher_slug'),
+      `keepalive section: ${keepaliveSection.slice(0, 400)}`);
   }
 
   // ─────────────────────────────────────────────────────────────────────────
