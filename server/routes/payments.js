@@ -184,6 +184,18 @@ router.post('/', requireRole('teacher', 'assistant'), (req, res, next) => checkP
         return res.status(403).json({ error: 'Access denied: course not yours' });
       }
     }
+    // Prevent duplicate payment for same student+course+month
+    if (course_id) {
+      const dupCheck = await pool.query(
+        `SELECT id FROM payments WHERE student_id=$1 AND course_id=$2
+         AND payment_date >= DATE_TRUNC('month', NOW()) AND status != 'rejected'`,
+        [student_id, course_id]
+      );
+      if (dupCheck.rows.length > 0) {
+        return res.status(409).json({ error: 'يوجد دفعة مسجلة بالفعل لهذا الطالب والكورس في هذا الشهر' });
+      }
+    }
+
     const result = await pool.query(
       'INSERT INTO payments (student_id,course_id,amount,method,reference_number,notes,status) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *',
       [student_id, course_id || null, amount, method, reference_number || null, notes || null, 'pending']

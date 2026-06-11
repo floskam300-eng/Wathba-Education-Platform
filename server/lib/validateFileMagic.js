@@ -29,7 +29,7 @@ function readFirstBytes(filePath, count) {
     fs.open(filePath, 'r', (err, fd) => {
       if (err) return reject(err);
       fs.read(fd, buf, 0, count, 0, (readErr, bytesRead) => {
-        fs.close(fd, () => {});
+        fs.close(fd, (closeErr) => { if (closeErr) console.error('[validateFileMagic] close error:', closeErr.message); });
         if (readErr) return reject(readErr);
         resolve(buf.slice(0, bytesRead));
       });

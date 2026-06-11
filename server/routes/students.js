@@ -148,14 +148,15 @@ router.post('/', addStudentLimiter, requireRole('teacher', 'assistant'), (req, r
         );
         invalidateCache(teacherId);
         // Auto-enroll new student in teacher's published free courses
+        // [BUG-FIX] Use ON CONFLICT DO UPDATE to reactivate any existing inactive enrollment
         let enrollWarning = null;
         try {
           await pool.query(
-            `INSERT INTO student_course_enrollment (student_id, course_id)
-             SELECT $1, c.id FROM courses c
+            `INSERT INTO student_course_enrollment (student_id, course_id, status)
+             SELECT $1, c.id, 'active' FROM courses c
              WHERE c.teacher_id = $2 AND c.is_free = true AND c.is_published = true
                AND (c.target_stage IS NULL OR c.target_stage = '' OR c.target_stage = $3)
-             ON CONFLICT DO NOTHING`,
+             ON CONFLICT (student_id, course_id) DO UPDATE SET status = 'active'`,
             [result.rows[0].id, teacherId, academic_stage || '']
           );
         } catch (enrollErr) {
@@ -200,6 +201,7 @@ router.put('/:id', requireRole('teacher', 'assistant'), (req, res, next) => chec
     }
     const result = await pool.query(query, params);
     if (!result.rows.length) return res.status(404).json({ error: 'Student not found' });
+    invalidateCache(teacherId);
     const { password: _, plain_password: __, ...safe } = result.rows[0];
     logActivity({
       teacherId, actor: getActor(req), ip: getIp(req),
@@ -224,6 +226,23 @@ router.delete('/:id', requireRole('teacher', 'assistant'), (req, res, next) => c
       [req.params.id, teacherId]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Student not found' });
+    // Cascade soft-delete: deactivate enrollments, mark devices as removed, remove active live viewer status
+    await pool.query(
+      "UPDATE student_course_enrollment SET status='inactive' WHERE student_id=$1",
+      [req.params.id]
+    ).catch(() => {});
+    await pool.query(
+      'DELETE FROM student_devices WHERE student_id=$1',
+      [req.params.id]
+    ).catch(() => {});
+    await pool.query(
+      'DELETE FROM exam_sessions WHERE student_id=$1',
+      [req.params.id]
+    ).catch(() => {});
+    await pool.query(
+      "UPDATE live_stream_viewers SET is_active=false, left_at=NOW() WHERE student_id=$1 AND is_active=true",
+      [req.params.id]
+    ).catch(() => {});
     invalidateCache(teacherId);
     invalidateStudentAuthCache(parseInt(req.params.id));
     logActivity({
@@ -607,9 +626,7 @@ router.post('/me/video-progress', requireRole('student'), async (req, res) => {
     if (!ownershipCheck.rows.length) {
       return res.status(403).json({ error: 'Access denied: video not in your enrolled courses' });
     }
-    // Fetch video duration from DB — never trust client-provided progress_percentage
-    const videoRow = ownershipCheck;
-    const durationMinutes = parseFloat(videoRow.rows[0]?.duration_minutes) || 0;
+    const durationMinutes = parseFloat(ownershipCheck.rows[0]?.duration_minutes) || 0;
     const safeWatchedSeconds = Math.max(0, Math.min(actual_watched_seconds || 0, 86400));
     // BUG-12: cap watched_minutes at actual video duration — prevents inflated watch-time from malicious clients
     const safeWatchedMinutes = durationMinutes > 0

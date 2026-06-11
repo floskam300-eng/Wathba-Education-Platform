@@ -151,7 +151,7 @@ router.get('/exam-results', requireRole('teacher', 'assistant'), checkExamPerm, 
        FROM exam_results er
        JOIN exams e ON er.exam_id = e.id
        JOIN students s ON er.student_id = s.id
-       JOIN courses c ON e.course_id = c.id
+       LEFT JOIN courses c ON e.course_id = c.id
        ${whereClause}`,
       params
     );
@@ -162,13 +162,13 @@ router.get('/exam-results', requireRole('teacher', 'assistant'), checkExamPerm, 
          er.points_earned, er.attempt_number, er.created_at,
          e.id AS exam_id, e.title AS exam_title, e.total_score, e.pass_score,
          e.course_id,
-         c.name AS course_name,
+         COALESCE(c.name, '—') AS course_name,
          s.id AS student_id, s.name AS student_name, s.username AS student_username,
          s.academic_stage
        FROM exam_results er
        JOIN exams e ON er.exam_id = e.id
        JOIN students s ON er.student_id = s.id
-       JOIN courses c ON e.course_id = c.id
+       LEFT JOIN courses c ON e.course_id = c.id
        ${whereClause}
        ORDER BY ${sortCol} ${sortDir}
        LIMIT $${p} OFFSET $${p + 1}`,

@@ -544,7 +544,8 @@ DO $$ BEGIN
   ALTER TABLE student_course_enrollment ADD CONSTRAINT chk_enrollment_status CHECK (status IN ('active', 'inactive'));
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
-  ALTER TABLE course_enrollment_requests ADD CONSTRAINT chk_enrollment_req_status CHECK (status IN ('pending', 'accepted', 'rejected'));
+  -- Note: code uses 'approved', not 'accepted' — must match
+  ALTER TABLE course_enrollment_requests ADD CONSTRAINT chk_enrollment_req_status CHECK (status IN ('pending', 'approved', 'rejected'));
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   ALTER TABLE exam_retry_requests ADD CONSTRAINT chk_retry_req_status CHECK (status IN ('pending', 'accepted', 'approved', 'rejected', 'used'));

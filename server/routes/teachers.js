@@ -184,8 +184,8 @@ router.get('/at-risk-students', requireRole('teacher'), async (req, res) => {
           MIN(sce.enrollment_date) AS first_enrolled_at
         FROM student_course_enrollment sce
         JOIN courses c ON sce.course_id = c.id
-        JOIN sections sec ON sec.course_id = c.id
-        JOIN videos v ON v.section_id = sec.id
+        LEFT JOIN sections sec ON sec.course_id = c.id
+        LEFT JOIN videos v ON v.course_id = c.id
         LEFT JOIN video_progress vp ON vp.video_id = v.id AND vp.student_id = sce.student_id
         WHERE c.teacher_id = $1 AND sce.status = 'active'
         GROUP BY sce.student_id
@@ -320,14 +320,21 @@ router.get('/analytics/wrong-questions', requireRole('teacher', 'assistant'), as
   const cached = getCached(cacheKey);
   if (cached) return res.json(cached);
   try {
+    // [BUG-FIX] Use COALESCE to handle both manual questions and bank_questions.
+    // For manual exams, JOIN against questions table (q.*).
+    // For bank exams, JOIN against bank_questions (bq.*).
+    // A question_id present in exam_results.answers may come from either table.
     const result = await pool.query(`
       SELECT
         e.id   AS exam_id,
         e.title AS exam_title,
-        q.id   AS question_id,
-        q.question_text,
-        q.option_a, q.option_b, q.option_c, q.option_d,
-        q.correct_answer_letter,
+        COALESCE(q.id, bq.id) AS question_id,
+        COALESCE(q.question_text, bq.question_text) AS question_text,
+        COALESCE(q.option_a, bq.option_a) AS option_a,
+        COALESCE(q.option_b, bq.option_b) AS option_b,
+        COALESCE(q.option_c, bq.option_c) AS option_c,
+        COALESCE(q.option_d, bq.option_d) AS option_d,
+        COALESCE(q.correct_answer_letter, bq.correct_answer_letter) AS correct_answer_letter,
         COUNT(*)::int AS total_attempts,
         COUNT(*) FILTER (
           WHERE (ans->>'is_correct')::boolean = false
@@ -344,11 +351,13 @@ router.get('/analytics/wrong-questions', requireRole('teacher', 'assistant'), as
       FROM exam_results er
       JOIN exams e ON er.exam_id = e.id
       JOIN LATERAL jsonb_array_elements(er.answers) AS ans ON true
-      JOIN questions q ON q.id = (ans->>'question_id')::integer
+      LEFT JOIN questions q ON q.id = (ans->>'question_id')::integer AND e.question_source != 'bank'
+      LEFT JOIN bank_questions bq ON bq.id = (ans->>'question_id')::integer AND e.question_source = 'bank'
       WHERE e.teacher_id = $1
         AND (ans->>'question_type' = 'mcq' OR ans->>'question_type' IS NULL OR ans->>'question_type' = '')
         AND ans->>'is_correct' IS NOT NULL
-      GROUP BY e.id, e.title, q.id, q.question_text, q.option_a, q.option_b, q.option_c, q.option_d, q.correct_answer_letter
+        AND (q.id IS NOT NULL OR bq.id IS NOT NULL)
+      GROUP BY e.id, e.title, q.id, q.question_text, q.option_a, q.option_b, q.option_c, q.option_d, q.correct_answer_letter, bq.id, bq.question_text, bq.option_a, bq.option_b, bq.option_c, bq.option_d, bq.correct_answer_letter
       HAVING COUNT(*) > 0
       ORDER BY e.id, wrong_pct DESC, wrong_count DESC
     `, [teacherId]);

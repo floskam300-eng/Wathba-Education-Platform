@@ -58,8 +58,8 @@ router.get('/students', requireRole('teacher', 'assistant'), async (req, res) =>
     const result = await pool.query(
       `SELECT s.id, s.name, s.phone, s.parent_phone, s.academic_stage,
               s.points,
-              COUNT(er.id) as exam_count,
-              COALESCE(AVG(er.score), 0)::int as avg_score
+              COUNT(er.id) FILTER (WHERE er.is_latest = true) as exam_count,
+              COALESCE(AVG(er.score) FILTER (WHERE er.is_latest = true), 0)::int as avg_score
        FROM students s
        LEFT JOIN exam_results er ON s.id = er.student_id
        WHERE s.teacher_id = $1 AND s.deleted_at IS NULL

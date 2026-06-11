@@ -418,7 +418,7 @@ const initDB = async () => {
 };
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, '0.0.0.0', async () => {
+const server = app.listen(PORT, '0.0.0.0', async () => {
   await initDB();
   initFCM();
   startScheduler(pool);
@@ -428,3 +428,23 @@ app.listen(PORT, '0.0.0.0', async () => {
   }, 3000);
   console.log(`WATHBA Server running on port ${PORT}`);
 });
+
+// ── Graceful shutdown handler ──
+const gracefulShutdown = async (signal) => {
+  console.log(`\n[${signal}] Shutting down gracefully...`);
+  server.close(async () => {
+    try {
+      await pool.end();
+      console.log('[shutdown] DB pool closed');
+    } catch (e) {
+      console.error('[shutdown] DB pool close error:', e.message);
+    }
+    process.exit(0);
+  });
+  setTimeout(() => {
+    console.error('[shutdown] Forced exit after timeout');
+    process.exit(1);
+  }, 15000);
+};
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));

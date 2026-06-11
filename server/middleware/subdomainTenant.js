@@ -10,7 +10,9 @@ async function resolveTenant(slug) {
   try {
     const res = await pool.query('SELECT id, slug FROM teachers WHERE slug = $1', [slug]);
     if (res.rows.length === 0) {
-      cache.set(slug, { data: null, ts: Date.now() });
+      // [BUG-FIX] Cache null results for only 30 seconds instead of 5 minutes,
+      // so a newly created slug is discoverable quickly without a server restart.
+      cache.set(slug, { data: null, ts: Date.now() - CACHE_TTL + 30_000 });
       return null;
     }
     const data = { id: res.rows[0].id, slug: res.rows[0].slug };

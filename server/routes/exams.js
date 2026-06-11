@@ -161,13 +161,16 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageExamsPerm, va
   const teacherId = getTeacherId(req);
   const { title, duration_minutes, total_score, course_id, pass_score, badge_name, badge_color, start_date, end_date, shuffle_questions, shuffle_options, question_source, bank_id, bank_question_count, points_on_attempt, points_on_pass, bank_easy_count, bank_medium_count, bank_hard_count } = req.body;
   try {
-    // Prevent extending end_date after submissions exist (unfair advantage)
     const existingExam = await pool.query(
       'SELECT id, end_date, is_published FROM exams WHERE id=$1 AND teacher_id=$2',
       [examId, teacherId]
     );
     if (!existingExam.rows.length) return res.status(404).json({ error: 'Exam not found' });
     const currentExam = existingExam.rows[0];
+    // Prevent editing published exams — must unpublish first
+    if (currentExam.is_published) {
+      return res.status(409).json({ error: 'لا يمكن تعديل اختبار منشور — أوقف النشر أولاً' });
+    }
     if (end_date && currentExam.end_date) {
       const newEnd = new Date(end_date);
       const oldEnd = new Date(currentExam.end_date);
@@ -576,6 +579,7 @@ router.get('/student/retry-requests', requireRole('student'), async (req, res) =
 });
 
 // ── Student: submit retry request ──
+const MAX_RETRIES_PER_EXAM = 3;
 router.post('/:id/retry-request', requireRole('student'), async (req, res) => {
   const studentId = req.user.id;
   const examId = parseParamId(req.params.id);
@@ -610,6 +614,16 @@ router.post('/:id/retry-request', requireRole('student'), async (req, res) => {
       [studentId, examId]
     );
     if (!taken.rows.length) return res.status(400).json({ error: 'لم تؤدِ هذا الاختبار بعد' });
+
+    // Enforce max retry limit per exam
+    const usedRetries = await pool.query(
+      "SELECT COUNT(*)::int AS cnt FROM exam_retry_requests WHERE student_id=$1 AND exam_id=$2 AND status IN ('used','approved')",
+      [studentId, examId]
+    );
+    if (parseInt(usedRetries.rows[0].cnt) >= MAX_RETRIES_PER_EXAM) {
+      return res.status(429).json({ error: `لقد استنفذت الحد الأقصى من طلبات الإعادة (${MAX_RETRIES_PER_EXAM}) لهذا الاختبار` });
+    }
+
     // Block spam: 24-hour cooldown after a rejection
     const recentRejection = await pool.query(
       "SELECT id FROM exam_retry_requests WHERE student_id=$1 AND exam_id=$2 AND status='rejected' AND created_at > NOW() - INTERVAL '24 hours' LIMIT 1",
@@ -926,6 +940,15 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
         }
       }
     } catch (_) {}
+
+    // Enforce session TTL: sessions older than 24 hours are invalid
+    if (serverStartedAt) {
+      const sessionAgeMs = Date.now() - new Date(serverStartedAt).getTime();
+      if (sessionAgeMs > 24 * 60 * 60 * 1000) {
+        await pool.query('DELETE FROM exam_sessions WHERE student_id=$1 AND exam_id=$2', [studentId, examId]);
+        return res.status(409).json({ error: 'انتهت صلاحية جلسة الاختبار — يرجى البدء من جديد', code: 'SESSION_EXPIRED' });
+      }
+    }
 
     // Strip correct_answer_letter from client response to prevent answer leaking
     const clientQuestions = questions.map(({ correct_answer_letter: _omit, ...q }) => q);

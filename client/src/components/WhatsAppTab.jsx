@@ -116,6 +116,16 @@ const fmtDate = (d) => d
   ? new Date(d).toLocaleDateString('ar-EG', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
   : '—';
 
+const escapeHtml = (str) => {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+};
+
 const fmtDaysLabel = (days) => {
   const p = INTERVAL_PRESETS.find(x => x.days === days);
   return p?.days ? p.label : `كل ${days} يوم`;

@@ -143,7 +143,7 @@ export default function StudentRecitations() {
     if (view !== 'take' || !selectedRec) return;
     const handleUnload = () => {
       if (submittedRef.current) return;
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('wathba_token');
       const qs = examData?.questions || [];
       const payload = JSON.stringify({
         answers: qs.map(q => ({ question_id: q.id, answer: answers[q.id] || null }))
