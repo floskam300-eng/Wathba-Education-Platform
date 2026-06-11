@@ -141,14 +141,26 @@ wathba/
 │       ├── events.js                # GET/POST /api/events — Stickman game scores
 │       └── leaderboard.js           # GET /api/leaderboard — rankings + history
 │
+├── reports/                         # Audit & fix reports
+│   ├── AUDIT_REPORT.md              # Comprehensive audit
+│   ├── FIX_REPORT.md                # Bug fix & security audit
+│   ├── LIVESTREAM_TESTS.md          # Live stream test cases
+│   ├── SECURITY_AUDIT.md            # Security audit
+│   ├── TESTS_FIX_REPORT.md          # Test suite results
+│   └── EXAMS_AUDIT.md               # Exams audit
+├── docs/                            # Documentation
+│   ├── wathba-platform-overview.md  # Platform overview (Arabic)
+│   └── replit.md                    # هذا الملف
+├── scripts/                         # Startup scripts
+│   ├── start_platform.bat           # Windows
+│   └── start.sh                     # Linux/Mac
 ├── uploads/                         # ملفات المرفوعة (صور، PDFs، فيديوهات)
 │   ├── images/
 │   ├── pdfs/
 │   └── videos/
 │
 ├── package.json                     # Root — scripts: dev (concurrently), build
-├── .env                             # DATABASE_URL, JWT_SECRET, PORT (لا يُرفع على git)
-└── replit.md                        # هذا الملف
+└── .env                             # DATABASE_URL, JWT_SECRET, PORT (لا يُرفع على git)
 ```
 
 ---
