@@ -313,6 +313,16 @@ html.dark .border-slate-200  { border-color: var(--dk-border) !important; }
 html.dark .border-slate-300  { border-color: var(--dk-border-md) !important; }
 html.dark .border-navy-200   { border-color: var(--dk-border-md) !important; }
 
+/* ── Divide overrides: divide-gray and divide-slate in dark mode ── */
+html.dark .divide-gray-50  > :not([hidden]) ~ :not([hidden]) { border-color: var(--dk-border) !important; }
+html.dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]) { border-color: var(--dk-border) !important; }
+html.dark .divide-gray-200 > :not([hidden]) ~ :not([hidden]) { border-color: var(--dk-border) !important; }
+html.dark .divide-gray-300 > :not([hidden]) ~ :not([hidden]) { border-color: var(--dk-border-md) !important; }
+html.dark .divide-slate-50  > :not([hidden]) ~ :not([hidden]) { border-color: var(--dk-border) !important; }
+html.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]) { border-color: var(--dk-border) !important; }
+html.dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]) { border-color: var(--dk-border) !important; }
+html.dark .divide-slate-300 > :not([hidden]) ~ :not([hidden]) { border-color: var(--dk-border-md) !important; }
+
 /* ── Gradient bg overrides (podium cards, info boxes, navy welcome cards) ── */
 html.dark .from-yellow-50.to-white {
   background-image: none !important;
