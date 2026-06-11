@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import {
   BookOpen, Clock, CheckCircle, XCircle, Flame, Trophy,
-  ChevronLeft, AlertCircle, BarChart2, RefreshCw, Lock
+  ChevronLeft, AlertCircle, BarChart2, RefreshCw, Lock, Eye
 } from 'lucide-react';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
@@ -41,6 +42,7 @@ function CountdownBadge({ target }) {
 
 export default function StudentRecitations() {
   const { dark } = useTheme();
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const [view, setView] = useState('list'); // 'list' | 'take' | 'result'
   const [selectedRec, setSelectedRec] = useState(null);
@@ -531,10 +533,19 @@ export default function StudentRecitations() {
             </div>
           )}
 
-          <button onClick={() => { setView('list'); setResult(null); submittedRef.current = false; }}
-            className="w-full py-3 rounded-2xl font-black text-sm bg-purple-500 hover:bg-purple-600 text-white transition-colors">
-            العودة للقائمة
-          </button>
+          <div className="flex gap-3">
+            {result?.result?.id && (
+              <button onClick={() => navigate(`/student/recitation-review/${result.result.id}`)}
+                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-black text-sm bg-indigo-500 hover:bg-indigo-600 text-white transition-colors">
+                <Eye className="w-4 h-4" />
+                مراجعة مفصّلة
+              </button>
+            )}
+            <button onClick={() => { setView('list'); setResult(null); submittedRef.current = false; }}
+              className="flex-1 py-3 rounded-2xl font-black text-sm bg-purple-500 hover:bg-purple-600 text-white transition-colors">
+              العودة للقائمة
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -638,14 +649,16 @@ function QuestionCard({ q, idx, answers, setAnswers, dark }) {
 
       {isImgMulti ? (
         <div className="space-y-2">
-          {/* Shared options */}
-          <div className="flex flex-wrap gap-1.5 mb-3">
-            {options.map(({ letter, text }) => (
-              <span key={letter} className={`text-xs px-2.5 py-1 rounded-lg font-semibold ${dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-600'}`}>
-                {letter}: {text}
-              </span>
-            ))}
-          </div>
+          {/* Shared options — hide when options are just the letters themselves (auto-generated) */}
+          {options.some(o => o.text !== o.letter) && (
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {options.map(({ letter, text }) => (
+                <span key={letter} className={`text-xs px-2.5 py-1 rounded-lg font-semibold ${dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-600'}`}>
+                  {letter}: {text}
+                </span>
+              ))}
+            </div>
+          )}
           {/* Sub-questions */}
           {(q.sub_questions || []).map(sub => {
             const subSel = subAnswers[sub.label];

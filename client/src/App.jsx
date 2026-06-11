@@ -52,6 +52,7 @@ import StudentNotifications from './pages/student/Notifications';
 import StudentEvents from './pages/student/Events';
 import StickmanRunPage from './pages/student/games/StickmanRunPage';
 import ExamReviewPage from './pages/ExamReviewPage';
+import RecitationReviewPage from './pages/RecitationReviewPage';
 import ParentPortal from './pages/ParentPortal';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsAndConditions from './pages/TermsAndConditions';
@@ -168,6 +169,7 @@ const TenantRoutes = () => {
           <Route path="attendance" element={<TeacherAttendance />} />
           <Route path="requests" element={<TeacherRequests />} />
           <Route path="exam-review/:resultId" element={<ExamReviewPage />} />
+          <Route path="recitation-review/:resultId" element={<RecitationReviewPage />} />
           <Route path="wrong-questions" element={<WrongQuestionsPage />} />
           <Route path="question-banks" element={<QuestionBanks />} />
           <Route path="livestream" element={<TeacherLiveStream />} />
@@ -210,6 +212,7 @@ const TenantRoutes = () => {
             <AssistantPermissionRoute anyOf={['can_manage_exams', 'can_manage_courses']}><TeacherRequests /></AssistantPermissionRoute>
           } />
           <Route path="exam-review/:resultId" element={<ExamReviewPage />} />
+          <Route path="recitation-review/:resultId" element={<RecitationReviewPage />} />
           <Route path="courses/:courseId/content" element={
             <AssistantPermissionRoute permission="can_manage_courses"><CourseContent /></AssistantPermissionRoute>
           } />
@@ -240,6 +243,7 @@ const TenantRoutes = () => {
           <Route path="notifications" element={<StudentNotifications />} />
           <Route path="leaderboard" element={<StudentLeaderboard />} />
           <Route path="exam-review/:resultId" element={<ExamReviewPage />} />
+          <Route path="recitation-review/:resultId" element={<RecitationReviewPage />} />
           <Route path="live" element={<StudentLiveStream />} />
           <Route path="events" element={<StudentEvents />} />
           <Route path="recitations" element={<StudentRecitations />} />

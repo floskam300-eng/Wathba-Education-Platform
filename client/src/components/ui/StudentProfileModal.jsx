@@ -73,6 +73,7 @@ export default function StudentProfileModal({ studentId, onClose }) {
   const exams = data?.examResults || [];
   const payments = data?.payments || [];
   const badges = data?.badges || [];
+  const recitations = data?.recitationResults || [];
 
   const passedExams = exams.filter(e => e.score >= e.pass_score).length;
   const avgScore = exams.length
@@ -313,6 +314,46 @@ export default function StudentProfileModal({ studentId, onClose }) {
                       })}
                     </div>
                   </>
+                )}
+              </Section>
+
+              {/* ── Recitation Results ── */}
+              <Section title="آخر التسميعات" icon={FileText} iconBg="bg-indigo-100" iconColor="text-indigo-600"
+                count={recitations.length} defaultOpen={false}>
+                {recitations.length === 0 ? (
+                  <p className="text-gray-400 text-sm font-medium text-center py-6">لا توجد تسميعات بعد</p>
+                ) : (
+                  <div className="space-y-2.5">
+                    {recitations.map(r => {
+                      const pct = Math.min(Math.round(r.score ?? 0), 100);
+                      const passed = pct >= 50;
+                      return (
+                        <div key={r.id} className="flex items-center gap-3 p-3.5 bg-white border border-gray-100 rounded-2xl">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${passed ? 'bg-indigo-100' : 'bg-red-100'}`}>
+                            <FileText className={`w-5 h-5 ${passed ? 'text-indigo-600' : 'text-red-500'}`} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-sm text-gray-800 truncate">{r.recitation_title || 'تسميع'}</p>
+                            <div className="flex items-center gap-3 mt-1 text-[11px] text-gray-400">
+                              <span className="flex items-center gap-1 text-emerald-500">
+                                <CheckCircle2 className="w-3 h-3" /> {r.correct_count ?? '—'}
+                              </span>
+                              <span className="flex items-center gap-1 text-red-400">
+                                <XCircle className="w-3 h-3" /> {r.wrong_count ?? '—'}
+                              </span>
+                              <span>{fmtShort(r.created_at)}</span>
+                            </div>
+                          </div>
+                          <div className="text-left flex-shrink-0 min-w-[48px]">
+                            <p className={`text-base font-black text-left ${passed ? 'text-indigo-600' : 'text-red-500'}`}>{pct}%</p>
+                            <div className="w-full bg-gray-100 rounded-full h-1.5 mt-1 overflow-hidden">
+                              <div className={`h-1.5 rounded-full ${passed ? 'bg-indigo-500' : 'bg-red-400'}`} style={{ width: `${pct}%` }} />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </Section>
 

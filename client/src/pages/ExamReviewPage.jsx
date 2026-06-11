@@ -230,10 +230,13 @@ export default function ExamReviewPage() {
                 const correctAns  = q.correct_answer;
                 const answered    = !!studentAns;
                 const isTrueFalse = q.question_type === 'true_false';
+                const isImgMulti  = q.question_type === 'image_multi';
 
-                const displayOpts = isTrueFalse
-                  ? ['A', 'B']
-                  : getShuffledOpts(q, studentId, shuffleOptions);
+                const displayOpts = isImgMulti
+                  ? []
+                  : isTrueFalse
+                    ? ['A', 'B']
+                    : getShuffledOpts(q, studentId, shuffleOptions);
 
                 const displayLabels = isTrueFalse
                   ? { A: '✅ صح', B: '❌ خطأ' }
@@ -310,30 +313,68 @@ export default function ExamReviewPage() {
                         <img src={withToken(q.question_image_url)} alt="" className="mt-2 mb-3 max-w-sm rounded-xl border border-gray-200" />
                       )}
 
-                      <div className={`grid gap-2.5 mt-4 ${isTrueFalse ? 'grid-cols-2' : 'grid-cols-1 sm:grid-cols-2'}`}>
-                        {displayOpts.map(opt => {
-                          const text = isTrueFalse
-                            ? (opt === 'A' ? 'صح' : 'خطأ')
-                            : q[`option_${opt.toLowerCase()}`];
-                          if (!text || text === '-') return null;
-                          const label = displayLabels[opt];
-                          return (
-                            <div key={opt}
-                              className={`flex items-center gap-3 p-3.5 rounded-xl border-2 transition-all ${optStyle(opt, studentAns, correctAns)}`}>
-                              <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 ${optBadge(opt, studentAns, correctAns)}`}>
-                                {isTrueFalse ? (opt === 'A' ? '✓' : '✗') : label}
-                              </span>
-                              <span className={`text-sm flex-1 leading-snug ${optTextColor(opt, studentAns, correctAns)}`}>
-                                {isTrueFalse ? label : text}
-                              </span>
-                              {optIcon(opt, studentAns, correctAns)}
-                            </div>
-                          );
-                        })}
-                      </div>
+                      {/* image_multi sub-questions */}
+                      {isImgMulti && (
+                        <div className="space-y-1.5 mt-3">
+                          {(q.sub_results || q.sub_questions || []).map(sub => {
+                            const subResult = q.sub_results ? sub : null;
+                            const subSa = subResult?.student_answer || null;
+                            const subCorrect = subResult?.correct || sub.correct;
+                            const subIsCorrect = subResult?.is_correct ?? false;
+                            const hasSubAnswer = !!subSa;
+                            return (
+                              <div key={sub.label} className={`flex items-center gap-2 p-2.5 rounded-xl border-2 ${
+                                !hasSubAnswer ? 'border-gray-200 bg-gray-50'
+                                : subIsCorrect ? 'border-green-300 bg-green-50'
+                                : 'border-red-300 bg-red-50'
+                              }`}>
+                                <span className="text-xs font-black text-gray-600 w-6 flex-shrink-0">{sub.label}</span>
+                                <div className="flex gap-1 flex-1">
+                                  {['A','B','C','D'].map(letter => (
+                                    <span key={letter} className={`flex-1 text-center py-0.5 rounded text-xs font-bold border ${
+                                      letter === subCorrect && letter === subSa ? 'bg-green-600 text-white border-green-600'
+                                      : letter === subSa && !subIsCorrect ? 'bg-red-500 text-white border-red-500'
+                                      : letter === subCorrect ? 'bg-green-100 text-green-800 border-green-300'
+                                      : 'bg-white text-gray-400 border-gray-200'
+                                    }`}>{letter}</span>
+                                  ))}
+                                </div>
+                                {!hasSubAnswer && <span className="text-[10px] text-gray-400 flex-shrink-0">لم تُجَب</span>}
+                                {hasSubAnswer && subIsCorrect && <CheckCircle className="w-3.5 h-3.5 text-green-600 flex-shrink-0" />}
+                                {hasSubAnswer && !subIsCorrect && <XCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* MCQ / True-False options */}
+                      {!isImgMulti && (
+                        <div className={`grid gap-2.5 mt-4 ${isTrueFalse ? 'grid-cols-2' : 'grid-cols-1 sm:grid-cols-2'}`}>
+                          {displayOpts.map(opt => {
+                            const text = isTrueFalse
+                              ? (opt === 'A' ? 'صح' : 'خطأ')
+                              : q[`option_${opt.toLowerCase()}`];
+                            if (!text || text === '-') return null;
+                            const label = displayLabels[opt];
+                            return (
+                              <div key={opt}
+                                className={`flex items-center gap-3 p-3.5 rounded-xl border-2 transition-all ${optStyle(opt, studentAns, correctAns)}`}>
+                                <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 ${optBadge(opt, studentAns, correctAns)}`}>
+                                  {isTrueFalse ? (opt === 'A' ? '✓' : '✗') : label}
+                                </span>
+                                <span className={`text-sm flex-1 leading-snug ${optTextColor(opt, studentAns, correctAns)}`}>
+                                  {isTrueFalse ? label : text}
+                                </span>
+                                {optIcon(opt, studentAns, correctAns)}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
 
                       {/* Correction note */}
-                      {!answered && correctAns && (
+                      {!isImgMulti && !answered && correctAns && (
                         <div className="mt-3 flex flex-wrap items-center gap-4 text-xs font-semibold bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5">
                           <span className="flex items-center gap-1.5 text-gray-500">
                             <Minus className="w-3.5 h-3.5" />
@@ -345,7 +386,7 @@ export default function ExamReviewPage() {
                           </span>
                         </div>
                       )}
-                      {answered && !q.is_correct && (
+                      {!isImgMulti && answered && !q.is_correct && (
                         <div className="mt-3 flex flex-wrap items-center gap-4 text-xs font-semibold bg-orange-50 border border-orange-200 rounded-xl px-4 py-2.5">
                           <span className="flex items-center gap-1.5 text-red-700">
                             <XCircle className="w-3.5 h-3.5" />
