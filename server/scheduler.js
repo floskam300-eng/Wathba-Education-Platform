@@ -45,8 +45,12 @@ async function runCheck() {
           );
           studentIds = r.rows.map(row => row.id);
         } else {
+          // [SC1-FIX] Exclude suspended students — they cannot take exams and
+          // must not receive start-notifications (same pattern applied to the
+          // recitation scheduler in T3-FIX; was only fixed for course-enrolled
+          // students previously, not for the teacher-wide fallback branch).
           const r = await _pool.query(
-            'SELECT id FROM students WHERE teacher_id=$1 AND deleted_at IS NULL',
+            'SELECT id FROM students WHERE teacher_id=$1 AND deleted_at IS NULL AND is_suspended = false',
             [exam.teacher_id]
           );
           studentIds = r.rows.map(row => row.id);
@@ -241,11 +245,13 @@ async function runRecitationSchedule() {
 
           // Notify eligible students
           let studentQuery, params;
-          if (rec.academic_stage) {
-            studentQuery = 'SELECT id FROM students WHERE teacher_id=$1 AND academic_stage=$2 AND deleted_at IS NULL';
+          // [T3-FIX] Exclude suspended students — they cannot take recitations
+        // and should not receive notifications about new windows.
+        if (rec.academic_stage) {
+            studentQuery = 'SELECT id FROM students WHERE teacher_id=$1 AND academic_stage=$2 AND deleted_at IS NULL AND is_suspended = false';
             params = [rec.teacher_id, rec.academic_stage];
           } else {
-            studentQuery = 'SELECT id FROM students WHERE teacher_id=$1 AND deleted_at IS NULL';
+            studentQuery = 'SELECT id FROM students WHERE teacher_id=$1 AND deleted_at IS NULL AND is_suspended = false';
             params = [rec.teacher_id];
           }
           const { rows: students } = await _pool.query(studentQuery, params);
@@ -311,11 +317,12 @@ async function runRecitationSchedule() {
     for (const rec of toNotify) {
       try {
         let studentQuery, params;
+        // [T3-FIX] Also exclude suspended students for start notifications
         if (rec.academic_stage) {
-          studentQuery = 'SELECT id FROM students WHERE teacher_id=$1 AND academic_stage=$2 AND deleted_at IS NULL';
+          studentQuery = 'SELECT id FROM students WHERE teacher_id=$1 AND academic_stage=$2 AND deleted_at IS NULL AND is_suspended = false';
           params = [rec.teacher_id, rec.academic_stage];
         } else {
-          studentQuery = 'SELECT id FROM students WHERE teacher_id=$1 AND deleted_at IS NULL';
+          studentQuery = 'SELECT id FROM students WHERE teacher_id=$1 AND deleted_at IS NULL AND is_suspended = false';
           params = [rec.teacher_id];
         }
         const { rows: students } = await _pool.query(studentQuery, params);

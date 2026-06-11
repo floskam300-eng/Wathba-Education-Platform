@@ -974,9 +974,11 @@ CREATE TABLE IF NOT EXISTS recitation_questions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_recitation_questions_recitation ON recitation_questions(recitation_id);
+ALTER TABLE recitation_questions ADD COLUMN IF NOT EXISTS sub_questions JSONB DEFAULT '[]';
 DO $$ BEGIN
-  ALTER TABLE recitation_questions ADD CONSTRAINT chk_recitation_question_type CHECK (question_type IN ('mcq', 'true_false'));
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+  ALTER TABLE recitation_questions DROP CONSTRAINT IF EXISTS chk_recitation_question_type;
+  ALTER TABLE recitation_questions ADD CONSTRAINT chk_recitation_question_type CHECK (question_type IN ('mcq', 'true_false', 'image_multi'));
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
 
 CREATE TABLE IF NOT EXISTS recitation_sessions (
   id SERIAL PRIMARY KEY,

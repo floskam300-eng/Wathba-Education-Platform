@@ -1,9 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   BookOpen, Plus, Trash2, Settings, ChevronDown, ChevronUp,
   CheckCircle, XCircle, Clock, Users, BarChart2, Edit3,
-  AlertCircle, Eye, FileText, RefreshCw, Flame
+  AlertCircle, Eye, FileText, RefreshCw, Flame, Image as ImageIcon, Upload
 } from 'lucide-react';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
@@ -49,7 +49,7 @@ const emptyForm = {
   shuffle_questions: false, shuffle_options: false,
 };
 
-const emptyQ = { question_text: '', question_type: 'mcq', option_a: '', option_b: '', option_c: '', option_d: '', correct_answer_letter: 'A', points: 1 };
+const emptyQ = { question_text: '', question_image_url: '', question_type: 'mcq', option_a: '', option_b: '', option_c: '', option_d: '', correct_answer_letter: 'A', points: 1, sub_questions: [] };
 
 export default function Recitations() {
   const { dark } = useTheme();
@@ -455,17 +455,28 @@ export default function Recitations() {
                 </div>
               </div>
 
-              <div className="flex gap-4">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={form.shuffle_questions} onChange={e => setForm(f => ({ ...f, shuffle_questions: e.target.checked }))}
-                    className="w-4 h-4 accent-purple-500 rounded" />
-                  <span className={`text-sm font-semibold ${dark ? 'text-[var(--dk-text)]' : 'text-gray-700'}`}>خلط الأسئلة</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={form.shuffle_options} onChange={e => setForm(f => ({ ...f, shuffle_options: e.target.checked }))}
-                    className="w-4 h-4 accent-purple-500 rounded" />
-                  <span className={`text-sm font-semibold ${dark ? 'text-[var(--dk-text)]' : 'text-gray-700'}`}>خلط الخيارات</span>
-                </label>
+              <div className={`rounded-xl p-4 border space-y-3 ${dark ? 'border-[var(--dk-border)] bg-[var(--dk-elevated)]' : 'border-gray-200 bg-gray-50'}`}>
+                <p className={`text-xs font-black uppercase tracking-wide ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>خيارات الخلط العشوائي</p>
+                {[
+                  { key: 'shuffle_questions', label: 'خلط ترتيب الأسئلة', desc: 'تظهر الأسئلة بترتيب مختلف لكل طالب' },
+                  { key: 'shuffle_options', label: 'خلط ترتيب الخيارات', desc: 'تظهر خيارات MCQ بترتيب مختلف لكل طالب' },
+                ].map(({ key, label, desc }) => (
+                  <div key={key} className="flex items-start gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, [key]: !f[key] }))}
+                      className="relative flex-shrink-0 mt-0.5 focus:outline-none"
+                      role="switch"
+                      aria-checked={form[key]}>
+                      <div className={`w-11 h-6 rounded-full transition-colors duration-200 ${form[key] ? 'bg-purple-500' : dark ? 'bg-gray-600' : 'bg-gray-300'}`} />
+                      <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-transform duration-200 ${form[key] ? 'translate-x-5' : 'translate-x-0.5'}`} style={{ pointerEvents: 'none' }} />
+                    </button>
+                    <div>
+                      <span className={`text-sm font-bold ${dark ? 'text-[var(--dk-text)]' : 'text-gray-700'}`}>{label}</span>
+                      <p className={`text-xs mt-0.5 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>{desc}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
 
               <div className="flex gap-3 pt-2">
@@ -510,44 +521,121 @@ export default function Recitations() {
 }
 
 function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, addQMut, deleteQMut, dark, cardCls }) {
+  const [imgUploading, setImgUploading] = useState(false);
+  const [newSubLabel, setNewSubLabel] = useState('');
+  const [newSubCorrect, setNewSubCorrect] = useState('A');
+  const imgInputRef = useRef();
+
   const tf = qForm.question_type === 'true_false';
-  const isMCQ = qForm.question_type === 'mcq';
+  const isImgMulti = qForm.question_type === 'image_multi';
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('image', file);
+    setImgUploading(true);
+    try {
+      const { data } = await api.post('/recitations/upload-image', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setQForm(f => ({ ...f, question_image_url: data.url }));
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'فشل رفع الصورة');
+    } finally {
+      setImgUploading(false);
+      if (imgInputRef.current) imgInputRef.current.value = '';
+    }
+  };
+
+  const addSubQuestion = () => {
+    const label = newSubLabel.trim() || String((qForm.sub_questions || []).length + 1);
+    // [M1] Reject duplicate labels
+    if ((qForm.sub_questions || []).some(s => s.label === label)) {
+      toast.error('هذا البند موجود بالفعل — اختر رقماً مختلفاً');
+      return;
+    }
+    setQForm(f => ({ ...f, sub_questions: [...(f.sub_questions || []), { label, correct: newSubCorrect }] }));
+    setNewSubLabel('');
+    setNewSubCorrect('A');
+  };
+
+  const canSubmit = () => {
+    if (!qForm.question_text?.trim() && !qForm.question_image_url) return false;
+    if (isImgMulti && (!qForm.sub_questions || qForm.sub_questions.length === 0)) return false;
+    return true;
+  };
 
   return (
     <div className="space-y-3">
-      {/* Add/Edit question form */}
       {!rec.is_published && (
         <div className={cardCls}>
           <h3 className={`font-bold text-sm mb-3 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>
             {editQId ? 'تعديل السؤال' : 'إضافة سؤال'}
           </h3>
           <div className="space-y-3">
-            <div className="flex gap-2">
-              <button onClick={() => setQForm(f => ({ ...f, question_type: 'mcq', correct_answer_letter: 'A' }))}
-                className={`flex-1 py-2 rounded-xl text-sm font-bold transition-colors ${qForm.question_type === 'mcq' ? 'bg-purple-500 text-white' : dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-600'}`}>
-                اختيار من متعدد
-              </button>
-              <button onClick={() => setQForm(f => ({ ...f, question_type: 'true_false', option_a: 'صح', option_b: 'خطأ', option_c: '', option_d: '', correct_answer_letter: 'A' }))}
-                className={`flex-1 py-2 rounded-xl text-sm font-bold transition-colors ${qForm.question_type === 'true_false' ? 'bg-purple-500 text-white' : dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-600'}`}>
-                صح / خطأ
-              </button>
+            {/* Question type */}
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { key: 'mcq', label: 'اختيار متعدد' },
+                { key: 'true_false', label: 'صح / خطأ' },
+                { key: 'image_multi', label: '🖼 صورة مع أسئلة' },
+              ].map(t => (
+                <button key={t.key}
+                  onClick={() => {
+                    if (t.key === 'true_false') {
+                      setQForm(f => ({ ...f, question_type: 'true_false', option_a: 'صح', option_b: 'خطأ', option_c: '', option_d: '', correct_answer_letter: 'A', sub_questions: [] }));
+                    } else if (t.key === 'image_multi') {
+                      setQForm(f => ({ ...f, question_type: 'image_multi', correct_answer_letter: 'A', sub_questions: f.sub_questions || [] }));
+                    } else {
+                      setQForm(f => ({ ...f, question_type: 'mcq', option_a: f.option_a === 'صح' ? '' : f.option_a, option_b: f.option_b === 'خطأ' ? '' : f.option_b, correct_answer_letter: 'A', sub_questions: [] }));
+                    }
+                  }}
+                  className={`py-2 rounded-xl text-sm font-bold transition-colors ${qForm.question_type === t.key ? 'bg-purple-500 text-white' : dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-600'}`}>
+                  {t.label}
+                </button>
+              ))}
             </div>
 
+            {/* Question text */}
             <textarea value={qForm.question_text} onChange={e => setQForm(f => ({ ...f, question_text: e.target.value }))}
-              placeholder="نص السؤال..."
+              placeholder={isImgMulti ? 'تعليمات / وصف (اختياري)' : 'نص السؤال *'}
               rows={2}
               className={`w-full rounded-xl px-3 py-2.5 border text-sm resize-none ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`} />
 
-            {!tf && (
+            {/* Image upload (all types) */}
+            <div>
+              <input ref={imgInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+              {qForm.question_image_url ? (
+                <div className="relative rounded-xl overflow-hidden border">
+                  <img src={qForm.question_image_url} alt="question" className="w-full max-h-48 object-contain" />
+                  <div className="absolute top-2 left-2 flex gap-1.5">
+                    <button onClick={() => imgInputRef.current?.click()}
+                      className="px-2.5 py-1.5 bg-white/95 text-gray-700 text-xs rounded-lg font-bold shadow-sm hover:bg-white flex items-center gap-1">
+                      <Upload className="w-3 h-3" /> تغيير
+                    </button>
+                    <button onClick={() => setQForm(f => ({ ...f, question_image_url: '' }))}
+                      className="px-2.5 py-1.5 bg-red-500/90 text-white text-xs rounded-lg font-bold shadow-sm hover:bg-red-500">
+                      حذف
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => imgInputRef.current?.click()} disabled={imgUploading}
+                  className={`w-full border-2 border-dashed rounded-xl py-3.5 text-sm font-semibold flex items-center justify-center gap-2 transition-colors ${dark ? 'border-[var(--dk-border)] text-[var(--dk-text-2)] hover:border-purple-400 hover:text-purple-400' : 'border-gray-200 text-gray-400 hover:border-purple-300 hover:text-purple-500'}`}>
+                  {imgUploading ? <><RefreshCw className="w-4 h-4 animate-spin" />جاري الرفع...</> : <><ImageIcon className="w-4 h-4" />إضافة صورة (اختياري)</>}
+                </button>
+              )}
+            </div>
+
+            {/* MCQ options */}
+            {!isImgMulti && !tf && (
               <div className="grid grid-cols-2 gap-2">
                 {['A','B','C','D'].map((letter, i) => (
                   <div key={letter} className="relative">
                     <input
                       value={[qForm.option_a, qForm.option_b, qForm.option_c, qForm.option_d][i]}
-                      onChange={e => {
-                        const keys = ['option_a','option_b','option_c','option_d'];
-                        setQForm(f => ({ ...f, [keys[i]]: e.target.value }));
-                      }}
+                      onChange={e => { const keys = ['option_a','option_b','option_c','option_d']; setQForm(f => ({ ...f, [keys[i]]: e.target.value })); }}
                       placeholder={`الخيار ${letter}${i >= 2 ? ' (اختياري)' : ''}`}
                       className={`w-full rounded-xl px-3 py-2 pr-8 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`} />
                     <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-black text-purple-500">{letter}</span>
@@ -556,35 +644,86 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
               </div>
             )}
 
-            <div className="flex items-center gap-3">
-              <div>
-                <label className={`block text-xs font-bold mb-1 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-500'}`}>الإجابة الصحيحة</label>
-                {tf ? (
-                  <select value={qForm.correct_answer_letter} onChange={e => setQForm(f => ({ ...f, correct_answer_letter: e.target.value }))}
-                    className={`rounded-xl px-3 py-2 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`}>
-                    <option value="A">صح (A)</option>
-                    <option value="B">خطأ (B)</option>
-                  </select>
-                ) : (
-                  <select value={qForm.correct_answer_letter} onChange={e => setQForm(f => ({ ...f, correct_answer_letter: e.target.value }))}
-                    className={`rounded-xl px-3 py-2 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`}>
-                    {['A','B','C','D'].map(l => <option key={l} value={l}>{l}</option>)}
-                  </select>
-                )}
+            {/* image_multi: shared options + sub-questions */}
+            {isImgMulti && (
+              <div className={`rounded-xl p-3 border space-y-3 ${dark ? 'border-[var(--dk-border)]' : 'border-purple-100 bg-purple-50/40'}`}>
+                <p className={`text-xs font-black ${dark ? 'text-purple-400' : 'text-purple-600'}`}>خيارات الإجابة المشتركة (تظهر أسفل الصورة)</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {['A','B','C','D'].map((letter, i) => (
+                    <div key={letter} className="relative">
+                      <input
+                        value={[qForm.option_a, qForm.option_b, qForm.option_c, qForm.option_d][i]}
+                        onChange={e => { const keys = ['option_a','option_b','option_c','option_d']; setQForm(f => ({ ...f, [keys[i]]: e.target.value })); }}
+                        placeholder={`الخيار ${letter}`}
+                        className={`w-full rounded-xl px-3 py-2 pr-8 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-purple-200'}`} />
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-black text-purple-500">{letter}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div>
+                  <p className={`text-xs font-black mb-2 ${dark ? 'text-purple-400' : 'text-purple-600'}`}>الأسئلة الفرعية (بند + الإجابة الصحيحة) *</p>
+                  {(qForm.sub_questions || []).length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {(qForm.sub_questions || []).map((sub, i) => (
+                        <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-100 text-purple-700 text-xs font-bold">
+                          {sub.label} → {sub.correct}
+                          <button onClick={() => setQForm(f => ({ ...f, sub_questions: (f.sub_questions || []).filter((_, j) => j !== i) }))} className="text-purple-400 hover:text-red-500 transition-colors">✕</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <input value={newSubLabel} onChange={e => setNewSubLabel(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && addSubQuestion()}
+                      placeholder="رقم البند (مثال: 1)"
+                      className={`flex-1 rounded-xl px-3 py-2 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-purple-200'}`} />
+                    <select value={newSubCorrect} onChange={e => setNewSubCorrect(e.target.value)}
+                      className={`rounded-xl px-3 py-2 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-purple-200'}`}>
+                      {['A','B','C','D'].map(l => <option key={l} value={l}>{l}</option>)}
+                    </select>
+                    <button onClick={addSubQuestion} className="px-3 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-xl text-sm font-bold">
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
               </div>
+            )}
+
+            {/* Correct answer + points */}
+            <div className="flex items-end gap-3">
+              {!isImgMulti && (
+                <div>
+                  <label className={`block text-xs font-bold mb-1 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-500'}`}>الإجابة الصحيحة</label>
+                  {tf ? (
+                    <select value={qForm.correct_answer_letter} onChange={e => setQForm(f => ({ ...f, correct_answer_letter: e.target.value }))}
+                      className={`rounded-xl px-3 py-2 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`}>
+                      <option value="A">صح (A)</option>
+                      <option value="B">خطأ (B)</option>
+                    </select>
+                  ) : (
+                    <select value={qForm.correct_answer_letter} onChange={e => setQForm(f => ({ ...f, correct_answer_letter: e.target.value }))}
+                      className={`rounded-xl px-3 py-2 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`}>
+                      {['A','B','C','D'].map(l => <option key={l} value={l}>{l}</option>)}
+                    </select>
+                  )}
+                </div>
+              )}
               <div>
-                <label className={`block text-xs font-bold mb-1 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-500'}`}>الدرجة</label>
+                <label className={`block text-xs font-bold mb-1 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-500'}`}>
+                  {isImgMulti ? 'الدرجة الكلية (توزع على الفروع)' : 'الدرجة'}
+                </label>
                 <input type="number" min="1" value={qForm.points} onChange={e => setQForm(f => ({ ...f, points: parseInt(e.target.value) || 1 }))}
-                  className={`w-16 rounded-xl px-3 py-2 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`} />
+                  className={`w-20 rounded-xl px-3 py-2 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`} />
               </div>
-              <button onClick={() => addQMut.mutate(qForm)} disabled={addQMut.isPending || !qForm.question_text.trim()}
-                className="mt-4 flex items-center gap-1.5 bg-purple-500 hover:bg-purple-600 disabled:opacity-50 text-white px-4 py-2 rounded-xl text-sm font-bold">
+              <button onClick={() => addQMut.mutate(qForm)} disabled={addQMut.isPending || !canSubmit()}
+                className="flex items-center gap-1.5 bg-purple-500 hover:bg-purple-600 disabled:opacity-50 text-white px-4 py-2 rounded-xl text-sm font-bold">
                 {addQMut.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                 {editQId ? 'حفظ' : 'إضافة'}
               </button>
               {editQId && (
                 <button onClick={() => { setEditQId(null); setQForm(emptyQ); }}
-                  className={`mt-4 px-4 py-2 rounded-xl text-sm font-bold ${dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-500'}`}>
+                  className={`px-4 py-2 rounded-xl text-sm font-bold ${dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-500'}`}>
                   إلغاء
                 </button>
               )}
@@ -600,40 +739,68 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
           <p className={`text-sm ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>لا توجد أسئلة بعد</p>
         </div>
       ) : questions.map((q, idx) => (
-        <div key={q.id} className={`${cardCls}`}>
+        <div key={q.id} className={cardCls}>
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="w-6 h-6 rounded-full bg-purple-100 text-purple-700 text-xs font-black flex items-center justify-center flex-shrink-0">
-                  {idx + 1}
-                </span>
-                <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${q.question_type === 'mcq' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
-                  {q.question_type === 'mcq' ? 'MCQ' : 'صح/خطأ'}
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="w-6 h-6 rounded-full bg-purple-100 text-purple-700 text-xs font-black flex items-center justify-center flex-shrink-0">{idx + 1}</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
+                  q.question_type === 'mcq' ? 'bg-blue-100 text-blue-700' :
+                  q.question_type === 'image_multi' ? 'bg-orange-100 text-orange-700' :
+                  'bg-green-100 text-green-700'
+                }`}>
+                  {q.question_type === 'mcq' ? 'MCQ' : q.question_type === 'image_multi' ? '🖼 صورة' : 'صح/خطأ'}
                 </span>
                 <span className={`text-xs ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>{q.points} درجة</span>
               </div>
-              <p className={`text-sm font-semibold mb-2 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>{q.question_text}</p>
-              <div className="flex flex-wrap gap-1.5">
-                {[['A', q.option_a],['B', q.option_b],['C', q.option_c],['D', q.option_d]].filter(([,v]) => v).map(([letter, val]) => (
-                  <span key={letter} className={`text-xs px-2.5 py-1 rounded-lg font-semibold ${
-                    q.correct_answer_letter === letter
-                      ? 'bg-green-100 text-green-700 ring-1 ring-green-400'
-                      : dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-600'
-                  }`}>
-                    {letter}: {val}
-                    {q.correct_answer_letter === letter && ' ✓'}
-                  </span>
-                ))}
-              </div>
+
+              {q.question_image_url && (
+                <img src={q.question_image_url} alt="question" className="w-full max-h-32 object-contain rounded-xl border mb-2" />
+              )}
+              {q.question_text && (
+                <p className={`text-sm font-semibold mb-2 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>{q.question_text}</p>
+              )}
+
+              {q.question_type === 'image_multi' ? (
+                <div>
+                  <div className="flex flex-wrap gap-1.5 mb-1.5">
+                    {[['A', q.option_a],['B', q.option_b],['C', q.option_c],['D', q.option_d]].filter(([,v]) => v).map(([l, v]) => (
+                      <span key={l} className={`text-xs px-2 py-0.5 rounded-lg ${dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-600'}`}>{l}: {v}</span>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(q.sub_questions || []).map(sub => (
+                      <span key={sub.label} className="text-xs px-2 py-1 rounded-lg bg-purple-100 text-purple-700 font-bold">
+                        {sub.label} → {sub.correct}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {[['A', q.option_a],['B', q.option_b],['C', q.option_c],['D', q.option_d]].filter(([,v]) => v).map(([letter, val]) => (
+                    <span key={letter} className={`text-xs px-2.5 py-1 rounded-lg font-semibold ${
+                      q.correct_answer_letter === letter
+                        ? 'bg-green-100 text-green-700 ring-1 ring-green-400'
+                        : dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      {letter}: {val}{q.correct_answer_letter === letter && ' ✓'}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
+
             {!rec.is_published && (
               <div className="flex gap-1 flex-shrink-0">
-                <button onClick={() => { setEditQId(q.id); setQForm({ question_text: q.question_text || '', question_type: q.question_type, option_a: q.option_a || '', option_b: q.option_b || '', option_c: q.option_c || '', option_d: q.option_d || '', correct_answer_letter: q.correct_answer_letter, points: q.points }); }}
+                <button onClick={() => {
+                  setEditQId(q.id);
+                  setQForm({ question_text: q.question_text || '', question_image_url: q.question_image_url || '', question_type: q.question_type, option_a: q.option_a || '', option_b: q.option_b || '', option_c: q.option_c || '', option_d: q.option_d || '', correct_answer_letter: q.correct_answer_letter, points: q.points, sub_questions: q.sub_questions || [] });
+                }}
                   className={`p-1.5 rounded-lg transition-colors ${dark ? 'text-[var(--dk-text-2)] hover:bg-[var(--dk-elevated)]' : 'text-gray-400 hover:bg-gray-100'}`}>
                   <Edit3 className="w-3.5 h-3.5" />
                 </button>
-                <button onClick={() => deleteQMut.mutate(q.id)}
-                  className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 transition-colors">
+                <button onClick={() => deleteQMut.mutate(q.id)} className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 transition-colors">
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
