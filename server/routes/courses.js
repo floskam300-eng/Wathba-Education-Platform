@@ -808,8 +808,11 @@ router.post('/student/request/:courseId', requireRole('student'), async (req, re
     if (parseFloat(course.price) > 0) {
       await pool.query(
         `INSERT INTO payments (student_id, course_id, amount, method, status)
-         VALUES ($1, $2, $3, '', 'pending')
-         ON CONFLICT DO NOTHING`,
+         SELECT $1, $2, $3, '', 'pending'
+         WHERE NOT EXISTS (
+           SELECT 1 FROM payments
+           WHERE student_id = $1 AND course_id = $2 AND status != 'rejected'
+         )`,
         [req.user.id, courseId, course.price]
       );
     }

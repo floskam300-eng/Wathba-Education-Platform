@@ -681,7 +681,8 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
       }
     }
 
-    // 7. Import students
+    // 7. Import students — collect generated passwords so they can be returned to the teacher
+    const generatedPasswords = []; // {username, password}
     for (const s of (data.students || [])) {
       await client.query('SAVEPOINT sp');
       try {
@@ -707,6 +708,9 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
         );
         studentMap[s.id] = r.rows[0].id;
         stats.students++;
+        if (!s.plain_password) {
+          generatedPasswords.push({ username: s.username, name: s.name, generated_password: plainPwd });
+        }
         await client.query('RELEASE SAVEPOINT sp');
       } catch (e) {
         await client.query('ROLLBACK TO SAVEPOINT sp');
@@ -807,7 +811,7 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
 
     await client.query('COMMIT');
     invalidateCache(teacherId);
-    res.json({ success: true, stats });
+    res.json({ success: true, stats, generated_passwords: generatedPasswords });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     console.error('Import error:', err);

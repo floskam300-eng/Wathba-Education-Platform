@@ -183,7 +183,7 @@ router.post('/', addStudentLimiter, requireRole('teacher', 'assistant'), (req, r
         }
       }
     }
-    res.status(409).json({ error: 'تعذّر توليد اسم مستخدم فريد، حاول مرة أخرى' });
+    return res.status(409).json({ error: 'تعذّر توليد اسم مستخدم فريد، حاول مرة أخرى' });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }

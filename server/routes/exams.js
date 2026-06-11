@@ -136,7 +136,12 @@ router.post('/', requireRole('teacher', 'assistant'), checkManageExamsPerm, vali
       if (!bankCheck.rows.length) return res.status(403).json({ error: 'Access denied: bank not yours' });
     }
     if (start_date && end_date) {
-      const diffMin = (new Date(end_date) - new Date(start_date)) / 60000;
+      const startDt = new Date(start_date);
+      const endDt = new Date(end_date);
+      if (isNaN(startDt.getTime()) || isNaN(endDt.getTime())) {
+        return res.status(400).json({ error: 'تنسيق التاريخ غير صالح' });
+      }
+      const diffMin = (endDt - startDt) / 60000;
       if (diffMin < parseInt(duration_minutes || 60))
         return res.status(400).json({ error: `الفترة بين البداية والنهاية (${Math.round(diffMin)} دقيقة) أقل من مدة الاختبار (${duration_minutes || 60} دقيقة)` });
     }
@@ -197,7 +202,12 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageExamsPerm, va
       if (!bankCheck.rows.length) return res.status(403).json({ error: 'Access denied: bank not yours' });
     }
     if (start_date && end_date) {
-      const diffMin = (new Date(end_date) - new Date(start_date)) / 60000;
+      const startDt = new Date(start_date);
+      const endDt = new Date(end_date);
+      if (isNaN(startDt.getTime()) || isNaN(endDt.getTime())) {
+        return res.status(400).json({ error: 'تنسيق التاريخ غير صالح' });
+      }
+      const diffMin = (endDt - startDt) / 60000;
       if (diffMin < parseInt(duration_minutes || 60))
         return res.status(400).json({ error: `الفترة بين البداية والنهاية (${Math.round(diffMin)} دقيقة) أقل من مدة الاختبار (${duration_minutes || 60} دقيقة)` });
     }
@@ -325,7 +335,7 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExams
         studentIds = sRes.rows.map(r => r.id);
       } else {
         const sRes = await pool.query(
-          'SELECT id FROM students WHERE teacher_id=$1 AND deleted_at IS NULL',
+          'SELECT id FROM students WHERE teacher_id=$1 AND deleted_at IS NULL AND is_suspended = false',
           [teacherId]
         );
         studentIds = sRes.rows.map(r => r.id);
