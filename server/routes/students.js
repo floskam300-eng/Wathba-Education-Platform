@@ -132,16 +132,19 @@ const checkPermission = async (req, res, next, perm) => {
 router.post('/', addStudentLimiter, requireRole('teacher', 'assistant'), (req, res, next) => checkPermission(req, res, next, 'can_add_students'), validateStudent, async (req, res) => {
   const teacherId = getTeacherId(req);
   const { name, phone, parent_phone, academic_stage, gender } = req.body;
-  // Auto-generate 6-digit numeric password using crypto (not Math.random)
-  const generatedPassword = String(100000 + crypto.randomInt(0, 900000));
-  try {
-    // Auto-generate username based on academic stage
-    let username = await generateUsername(teacherId, academic_stage || '', pool);
-    // Retry up to 5 times if race condition causes duplicate
-    let retries = 0;
-    while (retries < 5) {
-      try {
-        const hashed = await bcrypt.hash(generatedPassword, 10);
+    // Auto-generate 6-digit numeric password using crypto (not Math.random)
+    const generatedPassword = String(100000 + crypto.randomInt(0, 900000));
+    try {
+      // Sanitize student name: trim, collapse whitespace, strip control characters
+      const safeName = String(name || '').trim().replace(/[\x00-\x1f\x7f-\x9f]/g, '').slice(0, 100);
+      if (!safeName) return res.status(400).json({ error: 'اسم الطالب مطلوب' });
+      // Auto-generate username based on academic stage
+      let username = await generateUsername(teacherId, academic_stage || '', pool);
+      // Retry up to 5 times if race condition causes duplicate
+      let retries = 0;
+      while (retries < 5) {
+        try {
+          const hashed = await bcrypt.hash(generatedPassword, 10);
         const result = await pool.query(
           'INSERT INTO students (username,password,name,phone,parent_phone,academic_stage,gender,teacher_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
           [username, hashed, name, phone, parent_phone, academic_stage, gender, teacherId]
@@ -188,16 +191,18 @@ router.post('/', addStudentLimiter, requireRole('teacher', 'assistant'), (req, r
 
 router.put('/:id', requireRole('teacher', 'assistant'), (req, res, next) => checkPermission(req, res, next, 'can_edit_students'), validateStudent, async (req, res) => {
   const teacherId = getTeacherId(req);
+  const studentId = parseInt(req.params.id, 10);
+  if (isNaN(studentId) || studentId <= 0) return res.status(400).json({ error: 'Invalid student ID' });
   const { name, phone, parent_phone, academic_stage, gender, password } = req.body;
   try {
     let query, params;
     if (password) {
       const hashed = await bcrypt.hash(password, 10);
       query = 'UPDATE students SET name=$1,phone=$2,parent_phone=$3,academic_stage=$4,gender=$5,password=$6 WHERE id=$7 AND teacher_id=$8 RETURNING *';
-      params = [name, phone, parent_phone, academic_stage, gender, hashed, req.params.id, teacherId];
+      params = [name, phone, parent_phone, academic_stage, gender, hashed, studentId, teacherId];
     } else {
       query = 'UPDATE students SET name=$1,phone=$2,parent_phone=$3,academic_stage=$4,gender=$5 WHERE id=$6 AND teacher_id=$7 RETURNING *';
-      params = [name, phone, parent_phone, academic_stage, gender, req.params.id, teacherId];
+      params = [name, phone, parent_phone, academic_stage, gender, studentId, teacherId];
     }
     const result = await pool.query(query, params);
     if (!result.rows.length) return res.status(404).json({ error: 'Student not found' });
@@ -216,14 +221,16 @@ router.put('/:id', requireRole('teacher', 'assistant'), (req, res, next) => chec
 
 router.delete('/:id', requireRole('teacher', 'assistant'), (req, res, next) => checkPermission(req, res, next, 'can_delete_students'), async (req, res) => {
   const teacherId = getTeacherId(req);
+  const studentId = parseInt(req.params.id, 10);
+  if (isNaN(studentId) || studentId <= 0) return res.status(400).json({ error: 'Invalid student ID' });
   try {
     const studentInfo = await pool.query(
       'SELECT name FROM students WHERE id=$1 AND teacher_id=$2 AND deleted_at IS NULL',
-      [req.params.id, teacherId]
+      [studentId, teacherId]
     );
     const result = await pool.query(
       'UPDATE students SET deleted_at=NOW() WHERE id=$1 AND teacher_id=$2 AND deleted_at IS NULL RETURNING id',
-      [req.params.id, teacherId]
+      [studentId, teacherId]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Student not found' });
     // Cascade soft-delete: deactivate enrollments, mark devices as removed, remove active live viewer status
@@ -239,16 +246,25 @@ router.delete('/:id', requireRole('teacher', 'assistant'), (req, res, next) => c
       'DELETE FROM exam_sessions WHERE student_id=$1',
       [req.params.id]
     ).catch(() => {});
+      await pool.query(
+        "UPDATE live_stream_viewers SET is_active=false, left_at=NOW() WHERE student_id=$1 AND is_active=true",
+        [req.params.id]
+      ).catch(() => {});
+    // Clean up video progress and exam results on student deletion
     await pool.query(
-      "UPDATE live_stream_viewers SET is_active=false, left_at=NOW() WHERE student_id=$1 AND is_active=true",
+      'DELETE FROM video_progress WHERE student_id=$1',
+      [req.params.id]
+    ).catch(() => {});
+    await pool.query(
+      'UPDATE exam_results SET is_latest=false WHERE student_id=$1',
       [req.params.id]
     ).catch(() => {});
     invalidateCache(teacherId);
-    invalidateStudentAuthCache(parseInt(req.params.id));
+    invalidateStudentAuthCache(studentId);
     logActivity({
       teacherId, actor: getActor(req), ip: getIp(req),
       action: 'delete_student',
-      entity: { type: 'student', id: parseInt(req.params.id), name: studentInfo.rows[0]?.name },
+      entity: { type: 'student', id: studentId, name: studentInfo.rows[0]?.name },
     });
     res.json({ message: 'Student deleted' });
   } catch (err) {
@@ -258,6 +274,8 @@ router.delete('/:id', requireRole('teacher', 'assistant'), (req, res, next) => c
 
 router.get('/:id/results', requireRole('teacher', 'assistant'), async (req, res) => {
   const teacherId = getTeacherId(req);
+  const studentId = parseInt(req.params.id, 10);
+  if (isNaN(studentId) || studentId <= 0) return res.status(400).json({ error: 'Invalid student ID' });
   try {
     if (req.user.role === 'assistant') {
       const perms = await getPermissions(req.user.id, pool);
@@ -265,7 +283,7 @@ router.get('/:id/results', requireRole('teacher', 'assistant'), async (req, res)
     }
     const studentCheck = await pool.query(
       'SELECT id FROM students WHERE id=$1 AND teacher_id=$2 AND deleted_at IS NULL',
-      [req.params.id, teacherId]
+      [studentId, teacherId]
     );
     if (!studentCheck.rows.length) return res.status(404).json({ error: 'Student not found' });
     const result = await pool.query(
@@ -274,7 +292,7 @@ router.get('/:id/results', requireRole('teacher', 'assistant'), async (req, res)
        JOIN exams e ON er.exam_id = e.id
        WHERE er.student_id = $1 AND e.teacher_id = $2
        ORDER BY er.created_at DESC`,
-      [req.params.id, teacherId]
+      [studentId, teacherId]
     );
     res.json(result.rows);
   } catch (err) {
@@ -285,7 +303,8 @@ router.get('/:id/results', requireRole('teacher', 'assistant'), async (req, res)
 // ── Full student profile (for teacher/assistant analytics) ──
 router.get('/:id/profile', requireRole('teacher', 'assistant'), async (req, res) => {
   const teacherId = getTeacherId(req);
-  const studentId = req.params.id;
+  const studentId = parseInt(req.params.id, 10);
+  if (isNaN(studentId) || studentId <= 0) return res.status(400).json({ error: 'Invalid student ID' });
   try {
     if (req.user.role === 'assistant') {
       const perms = await getPermissions(req.user.id, pool);
@@ -507,8 +526,8 @@ router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => ch
   //    open during this time (especially for 100-200 students) exhausts the pool.
   const prepared = [];
   for (const s of students) {
-    const name           = (s['الاسم'] || s['name'] || '').toString().trim();
-    const manualUsername = (s['اسم المستخدم'] || s['username'] || '').toString().trim();
+    const name           = (s['الاسم'] || s['name'] || '').toString().trim().replace(/[\x00-\x1f\x7f-\x9f<>]/g, '').slice(0, 100);
+    const manualUsername = (s['اسم المستخدم'] || s['username'] || '').toString().trim().replace(/[\x00-\x1f\x7f-\x9f<>]/g, '');
     const manualPassword = (s['كلمة المرور'] || s['password'] || '').toString().trim();
     const rawPhone       = (s['الهاتف'] || s['phone'] || '').toString().trim();
     const rawParentPhone = (s['هاتف ولي الأمر'] || s['parent_phone'] || '').toString().trim();
@@ -529,7 +548,7 @@ router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => ch
     }
 
     const finalPassword = manualPassword || String(100000 + crypto.randomInt(0, 900000));
-    const hashed        = await bcrypt.hash(finalPassword, 10); // OUTSIDE transaction — intentional
+    const hashed        = await bcrypt.hash(finalPassword, 12); // OUTSIDE transaction — intentional (increased from 10 to 12 rounds)
     prepared.push({ name, manualUsername, manualPassword, finalPassword, hashed, phone, parent_phone, academic_stage, gender });
   }
 

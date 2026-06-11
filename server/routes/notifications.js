@@ -100,6 +100,8 @@ router.post('/platform', requireRole('teacher', 'assistant'), checkNotifPermissi
     return res.status(400).json({ error: 'اختر طالباً على الأقل' });
   if (student_ids.length > MAX_NOTIFICATION_STUDENTS)
     return res.status(400).json({ error: `الحد الأقصى ${MAX_NOTIFICATION_STUDENTS} طالب في المرة الواحدة` });
+  if (!student_ids.every(id => Number.isInteger(id) && id > 0))
+    return res.status(400).json({ error: 'معرّفات الطلاب غير صالحة' });
 
   try {
     const resolvedTitle = title || TYPE_TITLES[type] || 'إشعار جديد';
@@ -202,10 +204,12 @@ router.patch('/my/read-all', requireRole('student'), async (req, res) => {
 
 // ── Student: mark single notification as read ───────────────────────
 router.patch('/my/:id/read', requireRole('student'), async (req, res) => {
+  const notifId = parseInt(req.params.id, 10);
+  if (isNaN(notifId) || notifId <= 0) return res.status(400).json({ error: 'Invalid notification ID' });
   try {
     await pool.query(
       `UPDATE notification_log SET is_read = true WHERE id = $1 AND student_id = $2`,
-      [req.params.id, req.user.id]
+      [notifId, req.user.id]
     );
     res.json({ ok: true });
   } catch (err) {

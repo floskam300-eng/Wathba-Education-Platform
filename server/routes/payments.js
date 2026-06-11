@@ -45,7 +45,7 @@ async function checkAndResetLeaderboard(teacherId) {
       // First time: init tracker, no reset yet
       await pool.query(
         `INSERT INTO leaderboard_reset_tracker (teacher_id, last_reset_at, next_reset_at)
-         VALUES ($1, NOW(), NOW() + INTERVAL '30 days')
+         VALUES ($1, NOW(), DATE_TRUNC('month', NOW()) + INTERVAL '1 month')
          ON CONFLICT (teacher_id) DO NOTHING`,
         [teacherId]
       );
@@ -82,7 +82,7 @@ async function doLeaderboardReset(teacherId, monthLabel, skipTrackerUpdate = fal
     // Lock tracker row to prevent concurrent manual resets from creating duplicate history
     await client.query(
       `INSERT INTO leaderboard_reset_tracker (teacher_id, last_reset_at, next_reset_at)
-       VALUES ($1, NOW(), NOW() + INTERVAL '30 days')
+       VALUES ($1, NOW(), DATE_TRUNC('month', NOW()) + INTERVAL '1 month')
        ON CONFLICT (teacher_id) DO NOTHING`,
       [teacherId]
     );
@@ -215,6 +215,8 @@ router.post('/', requireRole('teacher', 'assistant'), (req, res, next) => checkP
 
 router.put('/:id/verify', requireRole('teacher', 'assistant'), (req, res, next) => checkPermission(req, res, next, 'can_manage_payments'), async (req, res) => {
   const teacherId = getTeacherId(req);
+  const paymentId = parseInt(req.params.id, 10);
+  if (isNaN(paymentId) || paymentId <= 0) return res.status(400).json({ error: 'Invalid payment ID' });
   const { status, method, reference_number } = req.body;
   const VALID_STATUSES = ['verified', 'pending', 'rejected'];
   if (!VALID_STATUSES.includes(status))
@@ -224,7 +226,7 @@ router.put('/:id/verify', requireRole('teacher', 'assistant'), (req, res, next) 
       `SELECT p.*, s.teacher_id as student_teacher_id
        FROM payments p JOIN students s ON p.student_id=s.id
        WHERE p.id=$1`,
-      [req.params.id]
+      [paymentId]
     );
     if (!paymentRes.rows.length) {
       return res.status(404).json({ error: 'Payment not found' });
@@ -284,7 +286,7 @@ router.put('/:id/verify', requireRole('teacher', 'assistant'), (req, res, next) 
       params.push(reference_number);
       updateFields.push(`reference_number=$${params.length}`);
     }
-    params.push(req.params.id);
+    params.push(paymentId);
     const idIdx = params.length;
 
     const result = await pool.query(

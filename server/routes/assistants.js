@@ -80,16 +80,18 @@ router.put('/:id/permissions', requireRole('teacher'), async (req, res) => {
 });
 
 router.delete('/:id', requireRole('teacher'), async (req, res) => {
+  const assistantId = parseInt(req.params.id, 10);
+  if (isNaN(assistantId) || assistantId <= 0) return res.status(400).json({ error: 'Invalid assistant ID' });
   try {
-    const aInfo = await pool.query('SELECT name FROM assistants WHERE id=$1 AND teacher_id=$2', [req.params.id, req.user.id]);
-    const result = await pool.query('DELETE FROM assistants WHERE id=$1 AND teacher_id=$2 RETURNING id', [req.params.id, req.user.id]);
+    const aInfo = await pool.query('SELECT name FROM assistants WHERE id=$1 AND teacher_id=$2', [assistantId, req.user.id]);
+    const result = await pool.query('DELETE FROM assistants WHERE id=$1 AND teacher_id=$2 RETURNING id', [assistantId, req.user.id]);
     if (!result.rows.length) return res.status(404).json({ error: 'Assistant not found' });
-    invalidatePermissions(parseInt(req.params.id));
-    invalidateAssistantAuthCache(parseInt(req.params.id));
+    invalidatePermissions(assistantId);
+    invalidateAssistantAuthCache(assistantId);
     logActivity({
       teacherId: req.user.id, actor: getActor(req), ip: getIp(req),
       action: 'delete_assistant',
-      entity: { type: 'assistant', id: parseInt(req.params.id), name: aInfo.rows[0]?.name },
+      entity: { type: 'assistant', id: assistantId, name: aInfo.rows[0]?.name },
     });
     res.json({ message: 'Assistant deleted' });
   } catch (err) {

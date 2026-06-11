@@ -324,6 +324,8 @@ router.post('/schedules', requireRole('teacher', 'assistant'), checkSendPerm, as
 router.put('/schedules/:id', requireRole('teacher', 'assistant'), checkSendPerm, async (req, res) => {
   const schedId = parseInt(req.params.id, 10);
   if (!schedId || schedId < 1) return res.status(400).json({ error: 'معرف الجدولة غير صالح' });
+  // Ensure schedId does not exceed PostgreSQL integer max
+  if (schedId > 2147483647) return res.status(400).json({ error: 'معرف الجدولة غير صالح' });
 
   const teacherId = getTeacherId(req);
   const { name, message, target_type, stage_filter, interval_days, next_run_at, is_active } = req.body;

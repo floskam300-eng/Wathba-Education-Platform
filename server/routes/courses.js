@@ -234,10 +234,12 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageCoursesPerm, 
 // ── Publish / Unpublish a course ──────────────────────────────────────────
 router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageCoursesPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
+  const courseId = parseInt(req.params.id, 10);
+  if (isNaN(courseId) || courseId <= 0) return res.status(400).json({ error: 'Invalid course ID' });
   try {
     const courseRes = await pool.query(
       'SELECT * FROM courses WHERE id=$1 AND teacher_id=$2',
-      [req.params.id, teacherId]
+      [courseId, teacherId]
     );
     if (!courseRes.rows.length) return res.status(404).json({ error: 'Course not found' });
     const course = courseRes.rows[0];
@@ -247,7 +249,7 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageCours
     if (newPublished) {
       const contentCheck = await pool.query(
         `SELECT (SELECT COUNT(id) FROM videos WHERE course_id=$1) + (SELECT COUNT(id) FROM pdf_files WHERE course_id=$1) as total`,
-        [req.params.id]
+        [courseId]
       );
       if (parseInt(contentCheck.rows[0].total) === 0) {
         return res.status(400).json({ error: 'لا يمكن نشر كورس بدون محتوى — أضف فيديوهات أو ملفات PDF أولاً' });
@@ -260,19 +262,19 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageCours
       await client.query('BEGIN');
       await client.query(
         'UPDATE courses SET is_published=$1 WHERE id=$2 AND teacher_id=$3',
-        [newPublished, req.params.id, teacherId]
+        [newPublished, courseId, teacherId]
       );
       if (!newPublished) {
         // Save current published state before zeroing it out (so we can restore on re-publish)
         await client.query(
           'UPDATE exams SET pre_unpublish_published=is_published, is_published=false WHERE course_id=$1 AND teacher_id=$2',
-          [req.params.id, teacherId]
+          [courseId, teacherId]
         );
       } else {
         // Restore each exam's published state from before the course was unpublished
         await client.query(
           'UPDATE exams SET is_published=pre_unpublish_published, pre_unpublish_published=false WHERE course_id=$1 AND teacher_id=$2',
-          [req.params.id, teacherId]
+          [courseId, teacherId]
         );
       }
       await client.query('COMMIT');
@@ -340,7 +342,7 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageCours
       // Unpublishing — notify enrolled students so their UI updates immediately
       const enrolledRes = await pool.query(
         'SELECT student_id FROM student_course_enrollment WHERE course_id=$1',
-        [req.params.id]
+        [courseId]
       );
       for (const { student_id } of enrolledRes.rows) {
         sendEvent(`student_${student_id}`, 'course_unpublished', {
@@ -372,13 +374,15 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageCours
 
 router.delete('/:id', requireRole('teacher', 'assistant'), checkManageCoursesPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
+  const courseId = parseInt(req.params.id, 10);
+  if (isNaN(courseId) || courseId <= 0) return res.status(400).json({ error: 'Invalid course ID' });
   try {
-    const courseInfo = await pool.query('SELECT name FROM courses WHERE id=$1 AND teacher_id=$2', [req.params.id, teacherId]);
+    const courseInfo = await pool.query('SELECT name FROM courses WHERE id=$1 AND teacher_id=$2', [courseId, teacherId]);
     if (!courseInfo.rows.length) return res.status(404).json({ error: 'Course not found' });
     // Check for active enrollments before deletion — prevent data loss
     const enrollCount = await pool.query(
       "SELECT COUNT(*)::int AS cnt FROM student_course_enrollment WHERE course_id=$1 AND status='active'",
-      [req.params.id]
+      [courseId]
     );
     if (parseInt(enrollCount.rows[0].cnt) > 0 && !req.body.force_delete) {
       return res.status(409).json({
@@ -387,11 +391,11 @@ router.delete('/:id', requireRole('teacher', 'assistant'), checkManageCoursesPer
         count: parseInt(enrollCount.rows[0].cnt),
       });
     }
-    const result = await pool.query('DELETE FROM courses WHERE id=$1 AND teacher_id=$2 RETURNING id', [req.params.id, teacherId]);
+    const result = await pool.query('DELETE FROM courses WHERE id=$1 AND teacher_id=$2 RETURNING id', [courseId, teacherId]);
     logActivity({
       teacherId, actor: getActor(req), ip: getIp(req),
       action: 'delete_course',
-      entity: { type: 'course', id: parseInt(req.params.id), name: courseInfo.rows[0]?.name },
+      entity: { type: 'course', id: courseId, name: courseInfo.rows[0]?.name },
     });
     res.json({ message: 'Course deleted' });
   } catch (err) {

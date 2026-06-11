@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const pool = require('../db/connection');
 const { authenticate, requireRole } = require('../middleware/auth');
@@ -694,7 +695,7 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
           await client.query('RELEASE SAVEPOINT sp');
           continue;
         }
-        const plainPwd = s.plain_password || Math.floor(100000 + Math.random() * 900000).toString();
+        const plainPwd = s.plain_password || crypto.randomInt(100000, 1000000).toString();
         const hashed = await bcrypt.hash(plainPwd, 10);
         const r = await client.query(
           `INSERT INTO students (username,password,name,phone,parent_phone,academic_stage,gender,

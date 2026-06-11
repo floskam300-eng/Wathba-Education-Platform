@@ -475,6 +475,206 @@ async function runTests() {
     assertEqual(r.status, 200, `Expected 200, got ${r.status}: ${JSON.stringify(r.body)}`);
     await pool.query('DELETE FROM students WHERE id=$1', [fresh.id]);
   });
+
+  // ═══════════════ GROUP 13: ID Validation Edge Cases ══════════════
+  console.log('\n▶  GROUP 13: ID Validation Edge Cases');
+
+  await test('[ID-VAL] GET student results with string ID → 400', async () => {
+    const r = await request('GET', '/api/students/abc/results', null, T.teacherToken);
+    assertEqual(r.status, 400);
+  });
+
+  await test('[ID-VAL] GET student profile with negative ID → 400', async () => {
+    const r = await request('GET', '/api/students/-1/profile', null, T.teacherToken);
+    assertEqual(r.status, 400);
+  });
+
+  await test('[ID-VAL] PUT student with zero ID → 400', async () => {
+    const r = await request('PUT', '/api/students/0', { name: 'X' }, T.teacherToken);
+    assertEqual(r.status, 400);
+  });
+
+  await test('[ID-VAL] DELETE student with NaN ID → 400', async () => {
+    const r = await request('DELETE', '/api/students/null', null, T.teacherToken);
+    assertEqual(r.status, 400);
+  });
+
+  await test('[ID-VAL] DELETE course with string ID → 400', async () => {
+    const r = await request('DELETE', '/api/courses/xyz', {}, T.teacherToken);
+    assertEqual(r.status, 400);
+  });
+
+  await test('[ID-VAL] Publish course with negative ID → 400', async () => {
+    const r = await request('POST', '/api/courses/-5/publish', {}, T.teacherToken);
+    assertEqual(r.status, 400);
+  });
+
+  await test('[ID-VAL] Verify payment with object ID → 400', async () => {
+    const r = await request('PUT', '/api/payments/NaN/verify', { status: 'verified' }, T.assistantToken);
+    assertEqual(r.status, 400);
+  });
+
+  await test('[ID-VAL] Read notification with huge ID → 400', async () => {
+    const r = await request('PUT', '/api/notifications/999999999999', { status: 'read' }, T.studentToken);
+    assertEqual(r.status, 400);
+  });
+
+  await test('[ID-VAL] Suspend student with decimal ID → 400', async () => {
+    const r = await request('POST', '/api/students/3.14/suspend', { action: 'suspend' }, T.teacherToken);
+    assertEqual(r.status, 400);
+  });
+
+  await test('[ID-VAL] DELETE assistant with ID exceeding MAX_INT → 400', async () => {
+    const r = await request('DELETE', '/api/assistants/2147483648', null, T.teacherToken);
+    assertEqual(r.status, 400);
+  });
+
+  // ═══════════════ GROUP 14: Input Sanitization ═══════════════════
+  console.log('\n▶  GROUP 14: Input Sanitization');
+
+  await test('[SANITIZE] Create student with HTML in name → sanitized(?) or 400', async () => {
+    const r = await request('POST', '/api/students', {
+      name: '<script>alert(1)</script>John', username: '_san_test_1',
+      password: 'SanTest_26!',
+    }, T.teacherToken);
+    // Should either reject or sanitize — not store raw
+    assert(r.status === 200 || r.status === 400 || r.status === 201,
+      `Unexpected status ${r.status}`);
+    if (r.status === 201 || r.status === 200) {
+      // Fetch and verify the name was sanitized
+      const q = await pool.query("SELECT name FROM students WHERE username='_san_test_1'");
+      if (q.rows.length) {
+        assert(!q.rows[0].name.includes('<script>'), 'Name should not contain raw HTML');
+        await pool.query("DELETE FROM students WHERE username='_san_test_1'");
+      }
+    }
+  });
+
+  await test('[SANITIZE] Create student with control chars in name → sanitized', async () => {
+    const r = await request('POST', '/api/students', {
+      name: 'John\u0000Doe\u0007\u001b', username: '_san_test_2', password: 'SanTest_26!',
+    }, T.teacherToken);
+    assert(r.status === 200 || r.status === 201, `Expected 200/201, got ${r.status}`);
+    if (r.status === 200 || r.status === 201) {
+      const q = await pool.query("SELECT name FROM students WHERE username='_san_test_2'");
+      if (q.rows.length) {
+        assertEqual(q.rows[0].name, 'JohnDoe', 'Control chars should be stripped');
+        await pool.query("DELETE FROM students WHERE username='_san_test_2'");
+      }
+    }
+  });
+
+  await test('[SANITIZE] Create student with very long name (200 chars) → 400 or truncated', async () => {
+    const r = await request('POST', '/api/students', {
+      name: 'A'.repeat(200), username: '_san_test_3', password: 'SanTest_26!',
+    }, T.teacherToken);
+    assert(r.status === 400 || r.status === 200 || r.status === 201,
+      `Unexpected status ${r.status}`);
+    if (r.status !== 400) {
+      const q = await pool.query("SELECT name FROM students WHERE username='_san_test_3'");
+      if (q.rows.length) {
+        assert(q.rows[0].name.length <= 100, 'Name should be truncated to 100');
+        await pool.query("DELETE FROM students WHERE username='_san_test_3'");
+      }
+    }
+  });
+
+  // ═══════════════ GROUP 15: Payment force_enroll Bypass ═══════════
+  console.log('\n▶  GROUP 15: Payment / force_enroll Edge Cases');
+
+  await test('[PAYMENT] force_enroll=true with insufficient amount → 400', async () => {
+    const [pay] = (await pool.query(
+      "INSERT INTO payments (student_id,course_id,amount,method,status) VALUES ($1,$2,5,'instapay','pending') RETURNING id",
+      [T.studentId, T.courseId])).rows;
+    const r = await request('PUT', `/api/payments/${pay.id}/verify`,
+      { status: 'verified', force_enroll: true }, T.assistantToken);
+    assertEqual(r.status, 400, `Expected 400, got ${r.status}: ${JSON.stringify(r.body)}`);
+    await pool.query('DELETE FROM payments WHERE id=$1', [pay.id]);
+  });
+
+  await test('[PAYMENT] force_enroll=true with sufficient amount → 200', async () => {
+    const [pay] = (await pool.query(
+      "INSERT INTO payments (student_id,course_id,amount,method,status) VALUES ($1,$2,100,'instapay','pending') RETURNING id",
+      [T.studentId, T.courseId])).rows;
+    const r = await request('PUT', `/api/payments/${pay.id}/verify`,
+      { status: 'verified', force_enroll: true }, T.assistantToken);
+    assertEqual(r.status, 200, `Expected 200, got ${r.status}: ${JSON.stringify(r.body)}`);
+    await pool.query('DELETE FROM payments WHERE id=$1', [pay.id]);
+  });
+
+  // ═══════════════ GROUP 16: Notification XSS Prevention ═══════════
+  console.log('\n▶  GROUP 16: Notification Message Sanitization');
+
+  await test('[NOTIF] Send notification with script tag → sanitized', async () => {
+    const r = await request('POST', '/api/notifications', {
+      student_ids: [T.studentId],
+      title: 'Test',
+      body: '<script>alert("xss")</script>Hello <b>student</b>',
+      message_type: 'general',
+    }, T.teacherToken);
+    assertEqual(r.status, 201, `Expected 201, got ${r.status}: ${JSON.stringify(r.body)}`);
+    // Verify the stored body is sanitized (strip scripts)
+    const q = await pool.query(
+      'SELECT body FROM notifications WHERE student_id=$1 ORDER BY id DESC LIMIT 1',
+      [T.studentId]);
+    if (q.rows.length) {
+      assert(!q.rows[0].body.includes('<script>'), 'Script tags should be stripped');
+    }
+  });
+
+  await test('[NOTIF] Send notification with empty body → 400', async () => {
+    const r = await request('POST', '/api/notifications', {
+      student_ids: [T.studentId],
+      title: 'Empty',
+      body: '',
+      message_type: 'general',
+    }, T.teacherToken);
+    assertEqual(r.status, 400);
+  });
+
+  // ═══════════════ GROUP 17: Bulk Import Edge Cases ═══════════════
+  console.log('\n▶  GROUP 17: Bulk Import Edge Cases');
+
+  await test('[BULK] Bulk import with empty list → 400', async () => {
+    const r = await request('POST', '/api/students/bulk-import', { students: [] }, T.teacherToken);
+    assertEqual(r.status, 400);
+  });
+
+  await test('[BULK] Bulk import with student missing name → 400/200 (skipped)', async () => {
+    const r = await request('POST', '/api/students/bulk-import', {
+      students: [{ username: '_bulk_noname', password: 'Test1234' }],
+    }, T.teacherToken);
+    assert(r.status === 400 || r.status === 200, `Expected 400 or 200, got ${r.status}`);
+  });
+
+  await test('[BULK] Bulk import with duplicate usernames → handled (no crash)', async () => {
+    const r = await request('POST', '/api/students/bulk-import', {
+      students: [
+        { name: 'Dup1', username: '_bulk_dup', password: 'Test1234' },
+        { name: 'Dup2', username: '_bulk_dup', password: 'Test1234' },
+      ],
+    }, T.teacherToken);
+    assert(r.status !== 500, `Server should not crash on duplicates: ${r.status}`);
+  });
+
+  await test('[BULK] Bulk import with XSS in name fields → sanitized', async () => {
+    const r = await request('POST', '/api/students/bulk-import', {
+      students: [{
+        name: '<img src=x onerror=alert(1)>Hacker',
+        username: '_bulk_xss_' + Date.now(),
+        password: 'Test1234',
+      }],
+    }, T.teacherToken);
+    assert(r.status !== 500, `Server error: ${r.status}`);
+    // If successful, verify no raw HTML stored
+    if (r.status === 200) {
+      const q = await pool.query("SELECT name FROM students WHERE username LIKE '_bulk_xss_%'");
+      for (const row of q.rows) {
+        assert(!row.name.includes('<img'), 'HTML should be stripped from imported names');
+      }
+      await pool.query("DELETE FROM students WHERE username LIKE '_bulk_xss_%'");
+    }
+  });
 }
 
 // ═════════════════════════════════════════════════════════════════════════════

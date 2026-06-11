@@ -10,6 +10,7 @@ const router = express.Router();
 
 // ── H-8: Short-lived SSE ticket store (one-time use, 30s TTL) ──────────────
 const _sseTickets = new Map();
+// Has .unref() so it does not prevent process exit
 setInterval(() => {
   const now = Date.now();
   for (const [ticket, data] of _sseTickets.entries()) {
