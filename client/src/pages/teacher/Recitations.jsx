@@ -455,28 +455,63 @@ export default function Recitations() {
                 </div>
               </div>
 
-              <div className={`rounded-xl p-4 border space-y-3 ${dark ? 'border-[var(--dk-border)] bg-[var(--dk-elevated)]' : 'border-gray-200 bg-gray-50'}`}>
-                <p className={`text-xs font-black uppercase tracking-wide ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>خيارات الخلط العشوائي</p>
-                {[
-                  { key: 'shuffle_questions', label: 'خلط ترتيب الأسئلة', desc: 'تظهر الأسئلة بترتيب مختلف لكل طالب' },
-                  { key: 'shuffle_options', label: 'خلط ترتيب الخيارات', desc: 'تظهر خيارات MCQ بترتيب مختلف لكل طالب' },
-                ].map(({ key, label, desc }) => (
-                  <div key={key} className="flex items-start gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setForm(f => ({ ...f, [key]: !f[key] }))}
-                      className="relative flex-shrink-0 mt-0.5 focus:outline-none"
-                      role="switch"
-                      aria-checked={form[key]}>
-                      <div className={`w-11 h-6 rounded-full transition-colors duration-200 ${form[key] ? 'bg-purple-500' : dark ? 'bg-gray-600' : 'bg-gray-300'}`} />
-                      <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-transform duration-200 ${form[key] ? 'translate-x-5' : 'translate-x-0.5'}`} style={{ pointerEvents: 'none' }} />
-                    </button>
-                    <div>
-                      <span className={`text-sm font-bold ${dark ? 'text-[var(--dk-text)]' : 'text-gray-700'}`}>{label}</span>
-                      <p className={`text-xs mt-0.5 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>{desc}</p>
+              <div>
+                <p className={`text-xs font-black uppercase tracking-wide mb-2 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-500'}`}>خيارات الخلط العشوائي</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <button type="button"
+                    onClick={() => setForm(f => ({ ...f, shuffle_questions: !f.shuffle_questions }))}
+                    className={`flex items-start gap-3 p-3 rounded-2xl border-2 text-right transition-all ${
+                      form.shuffle_questions
+                        ? 'border-orange-400 bg-orange-50 shadow-sm shadow-orange-100'
+                        : dark ? 'border-[var(--dk-border)] bg-[var(--dk-elevated)] hover:border-purple-400' : 'border-gray-200 bg-white hover:border-gray-300'
+                    }`}>
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0 transition-all ${
+                      form.shuffle_questions ? 'bg-orange-500' : dark ? 'bg-gray-700' : 'bg-gray-100'
+                    }`}>🔀</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                        <span className={`font-black text-xs sm:text-sm leading-tight ${form.shuffle_questions ? 'text-orange-800' : dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>
+                          خلط الأسئلة
+                        </span>
+                        <span className={`text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-full leading-none ${
+                          form.shuffle_questions ? 'bg-orange-500 text-white' : dark ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'
+                        }`}>
+                          {form.shuffle_questions ? 'مفعّل' : 'معطّل'}
+                        </span>
+                      </div>
+                      <p className={`text-[10px] sm:text-xs leading-relaxed hidden sm:block ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-500'}`}>
+                        كل طالب يشوف الأسئلة بترتيب مختلف
+                      </p>
                     </div>
-                  </div>
-                ))}
+                  </button>
+
+                  <button type="button"
+                    onClick={() => setForm(f => ({ ...f, shuffle_options: !f.shuffle_options }))}
+                    className={`flex items-start gap-3 p-3 rounded-2xl border-2 text-right transition-all ${
+                      form.shuffle_options
+                        ? 'border-indigo-400 bg-indigo-50 shadow-sm shadow-indigo-100'
+                        : dark ? 'border-[var(--dk-border)] bg-[var(--dk-elevated)] hover:border-purple-400' : 'border-gray-200 bg-white hover:border-gray-300'
+                    }`}>
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0 transition-all ${
+                      form.shuffle_options ? 'bg-indigo-500' : dark ? 'bg-gray-700' : 'bg-gray-100'
+                    }`}>🎲</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                        <span className={`font-black text-xs sm:text-sm leading-tight ${form.shuffle_options ? 'text-indigo-800' : dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>
+                          خلط الخيارات
+                        </span>
+                        <span className={`text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-full leading-none ${
+                          form.shuffle_options ? 'bg-indigo-500 text-white' : dark ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'
+                        }`}>
+                          {form.shuffle_options ? 'مفعّل' : 'معطّل'}
+                        </span>
+                      </div>
+                      <p className={`text-[10px] sm:text-xs leading-relaxed hidden sm:block ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-500'}`}>
+                        ترتيب الخيارات يتغير لكل طالب
+                      </p>
+                    </div>
+                  </button>
+                </div>
               </div>
 
               <div className="flex gap-3 pt-2">
