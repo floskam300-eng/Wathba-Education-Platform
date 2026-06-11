@@ -151,11 +151,20 @@ export default function StudentRecitations() {
       // [R4-FIX] sendBeacon does not support custom headers (Authorization),
       // so the server always rejected it with 401. Use fetch with keepalive:true
       // instead — it supports auth headers and survives page unload.
+      const qs2 = examData?.questions || [];
+      const payloadUnload = JSON.stringify({
+        answers: qs2.map(q => ({
+          question_id: q.id,
+          answer: q.question_type === 'image_multi'
+            ? JSON.stringify(answers[q.id] || {})
+            : (answers[q.id] || null),
+        }))
+      });
       fetch(`/api/recitations/${selectedRec.id}/submit`, {
         method: 'POST',
         keepalive: true,
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: payload,
+        body: payloadUnload,
       }).catch(() => {});
     };
     window.addEventListener('beforeunload', handleUnload);
@@ -170,7 +179,12 @@ export default function StudentRecitations() {
     clearTimeout(timerRef.current);
 
     const qs = examData?.questions || [];
-    const payload = qs.map(q => ({ question_id: q.id, answer: answers[q.id] || null }));
+    const payload = qs.map(q => ({
+      question_id: q.id,
+      answer: q.question_type === 'image_multi'
+        ? JSON.stringify(answers[q.id] || {})
+        : (answers[q.id] || null),
+    }));
 
     try {
       const { data } = await api.post(`/recitations/${selectedRec.id}/submit`, { answers: payload });
@@ -324,7 +338,13 @@ export default function StudentRecitations() {
     const mins = Math.floor(timeLeft / 60);
     const secs = timeLeft % 60;
     const urgent = timeLeft < 60;
-    const answered = questions.filter(q => answers[q.id]).length;
+    const answered = questions.filter(q => {
+      if (q.question_type === 'image_multi') {
+        const sub = answers[q.id] || {};
+        return Object.keys(sub).length > 0;
+      }
+      return !!answers[q.id];
+    }).length;
 
     return (
       <div className={`min-h-screen ${dark ? 'bg-[var(--dk-bg)]' : 'bg-gray-50'}`} dir="rtl">
@@ -417,36 +437,59 @@ export default function StudentRecitations() {
                 <div key={q.id} className={`${cardCls} border-r-4 ${q.is_correct ? 'border-green-400' : q.student_answer ? 'border-red-400' : 'border-gray-300'}`}>
                   <div className="flex items-start gap-2 mb-2">
                     <span className="w-6 h-6 rounded-full bg-gray-100 text-gray-600 text-xs font-black flex items-center justify-center flex-shrink-0">{idx+1}</span>
-                    <p className={`text-sm font-semibold ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>{q.question_text}</p>
+                    <div className="flex-1 min-w-0">
+                      {q.question_text && <p className={`text-sm font-semibold ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>{q.question_text}</p>}
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-1.5 mr-8">
-                    {[['A', q.option_a],['B', q.option_b],['C', q.option_c],['D', q.option_d]].filter(([,v]) => v).map(([l, val]) => {
-                      const isCorrect = l === q.correct_answer_letter;
-                      const isStudentAnswer = l === q.student_answer;
-                      return (
-                        <span key={l} className={`text-xs px-2.5 py-1 rounded-lg font-semibold ${
-                          isCorrect ? 'bg-green-100 text-green-700 ring-1 ring-green-400' :
-                          isStudentAnswer && !isCorrect ? 'bg-red-100 text-red-700 ring-1 ring-red-400' :
-                          dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-500'
-                        }`}>
-                          {l}: {val}
-                          {isCorrect && ' ✓'}
-                          {isStudentAnswer && !isCorrect && ' ✗'}
-                        </span>
-                      );
-                    })}
-                  </div>
-                  {!q.student_answer && (
-                    // [N6-FIX] Show option TEXT not letter code, so T/F questions
-                    // show "صح" / "خطأ" instead of confusing "A" / "B".
-                    <p className="text-xs text-gray-400 mt-1 mr-8">
-                      {`لم يتم الإجابة · الصحيح: `}
-                      {q.correct_answer_letter === 'A' ? (q.option_a || 'A') :
-                       q.correct_answer_letter === 'B' ? (q.option_b || 'B') :
-                       q.correct_answer_letter === 'C' ? (q.option_c || 'C') :
-                       q.correct_answer_letter === 'D' ? (q.option_d || 'D') :
-                       q.correct_answer_letter}
-                    </p>
+
+                  {q.question_image_url && (
+                    <img src={q.question_image_url} alt="question" className="w-full max-h-40 object-contain rounded-xl border mb-2 mr-8" style={{ maxWidth: 'calc(100% - 2rem)' }} />
+                  )}
+
+                  {q.question_type === 'image_multi' ? (
+                    <div className="mr-8 space-y-2">
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {[['A', q.option_a],['B', q.option_b],['C', q.option_c],['D', q.option_d]].filter(([,v]) => v).map(([l, val]) => (
+                          <span key={l} className={`text-xs px-2 py-0.5 rounded-lg ${dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-600'}`}>{l}: {val}</span>
+                        ))}
+                      </div>
+                      {(q.sub_results || []).map(sub => (
+                        <div key={sub.label} className={`flex items-center gap-2 text-xs px-3 py-2 rounded-xl ${sub.is_correct ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                          <span className="font-black">{sub.label}</span>
+                          <span>← إجابتك: <strong>{sub.student_answer || 'لم تُجب'}</strong></span>
+                          {!sub.is_correct && <span className="opacity-70">· الصحيح: <strong>{sub.correct}</strong></span>}
+                          <span className="mr-auto">{sub.is_correct ? '✓' : '✗'}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5 mr-8">
+                      {[['A', q.option_a],['B', q.option_b],['C', q.option_c],['D', q.option_d]].filter(([,v]) => v).map(([l, val]) => {
+                        const isCorrect = l === q.correct_answer_letter;
+                        const isStudentAnswer = l === q.student_answer;
+                        return (
+                          <span key={l} className={`text-xs px-2.5 py-1 rounded-lg font-semibold ${
+                            isCorrect ? 'bg-green-100 text-green-700 ring-1 ring-green-400' :
+                            isStudentAnswer && !isCorrect ? 'bg-red-100 text-red-700 ring-1 ring-red-400' :
+                            dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-500'
+                          }`}>
+                            {l}: {val}
+                            {isCorrect && ' ✓'}
+                            {isStudentAnswer && !isCorrect && ' ✗'}
+                          </span>
+                        );
+                      })}
+                      {!q.student_answer && (
+                        <p className="w-full text-xs text-gray-400 mt-1">
+                          {`لم يتم الإجابة · الصحيح: `}
+                          {q.correct_answer_letter === 'A' ? (q.option_a || 'A') :
+                           q.correct_answer_letter === 'B' ? (q.option_b || 'B') :
+                           q.correct_answer_letter === 'C' ? (q.option_c || 'C') :
+                           q.correct_answer_letter === 'D' ? (q.option_d || 'D') :
+                           q.correct_answer_letter}
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
               ))}
@@ -534,30 +577,86 @@ function QuestionCard({ q, idx, answers, setAnswers, dark }) {
     q.option_d && { letter: 'D', text: q.option_d },
   ].filter(Boolean);
 
+  const isImgMulti = q.question_type === 'image_multi';
   const selected = answers[q.id];
+  const subAnswers = isImgMulti ? (selected || {}) : {};
+  const hasAny = isImgMulti ? Object.keys(subAnswers).length > 0 : !!selected;
+
+  const cardBorder = hasAny
+    ? (dark ? 'border-purple-500/50' : 'border-purple-200')
+    : (dark ? 'border-[var(--dk-border)]' : 'border-gray-100');
 
   return (
-    <div className={`rounded-2xl p-4 border transition-all ${dark ? 'bg-[var(--dk-surface)] border-[var(--dk-border)]' : 'bg-white border-gray-100 shadow-sm'} ${selected ? (dark ? 'border-purple-500/50' : 'border-purple-200') : ''}`}>
+    <div className={`rounded-2xl p-4 border transition-all ${dark ? 'bg-[var(--dk-surface)]' : 'bg-white shadow-sm'} ${cardBorder}`}>
       <div className="flex items-start gap-3 mb-3">
         <span className="w-7 h-7 rounded-full bg-purple-100 text-purple-700 text-sm font-black flex items-center justify-center flex-shrink-0">{idx + 1}</span>
-        <p className={`font-semibold text-sm ${dark ? 'text-[var(--dk-text)]' : 'text-navy-800'}`}>{q.question_text}</p>
+        <div className="flex-1 min-w-0">
+          {q.question_text && (
+            <p className={`font-semibold text-sm ${dark ? 'text-[var(--dk-text)]' : 'text-navy-800'}`}>{q.question_text}</p>
+          )}
+        </div>
       </div>
-      <div className="space-y-2 mr-10">
-        {options.map(({ letter, text }) => {
-          const isSelected = selected === letter;
-          return (
-            <button key={letter} onClick={() => setAnswers(a => ({ ...a, [q.id]: letter }))}
-              className={`w-full text-right flex items-center gap-3 px-4 py-3 rounded-xl border text-sm font-semibold transition-all ${
-                isSelected
-                  ? 'bg-purple-500 text-white border-purple-500 shadow-md'
-                  : dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)] hover:border-purple-400' : 'bg-gray-50 border-gray-200 text-gray-700 hover:border-purple-300 hover:bg-purple-50'
-              }`}>
-              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 ${isSelected ? 'bg-white/20 text-white' : 'bg-white text-purple-600'}`}>{letter}</span>
-              {text}
-            </button>
-          );
-        })}
-      </div>
+
+      {q.question_image_url && (
+        <img src={q.question_image_url} alt="question" className="w-full max-h-64 object-contain rounded-xl border mb-3" />
+      )}
+
+      {isImgMulti ? (
+        <div className="space-y-2">
+          {/* Shared options */}
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {options.map(({ letter, text }) => (
+              <span key={letter} className={`text-xs px-2.5 py-1 rounded-lg font-semibold ${dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-600'}`}>
+                {letter}: {text}
+              </span>
+            ))}
+          </div>
+          {/* Sub-questions */}
+          {(q.sub_questions || []).map(sub => {
+            const subSel = subAnswers[sub.label];
+            return (
+              <div key={sub.label} className={`rounded-xl p-3 border ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)]' : 'bg-gray-50 border-gray-200'}`}>
+                <p className={`text-sm font-bold mb-2 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>
+                  البند {sub.label}
+                </p>
+                <div className="flex gap-2 flex-wrap">
+                  {options.map(({ letter }) => {
+                    const isSel = subSel === letter;
+                    return (
+                      <button key={letter}
+                        onClick={() => setAnswers(a => ({ ...a, [q.id]: { ...(a[q.id] || {}), [sub.label]: letter } }))}
+                        className={`px-4 py-2 rounded-xl text-sm font-bold border transition-all ${
+                          isSel
+                            ? 'bg-purple-500 text-white border-purple-500 shadow-sm'
+                            : dark ? 'bg-[var(--dk-surface)] border-[var(--dk-border)] text-[var(--dk-text)] hover:border-purple-400' : 'bg-white border-gray-300 text-gray-700 hover:border-purple-300'
+                        }`}>
+                        {letter}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="space-y-2 mr-10">
+          {options.map(({ letter, text }) => {
+            const isSelected = selected === letter;
+            return (
+              <button key={letter} onClick={() => setAnswers(a => ({ ...a, [q.id]: letter }))}
+                className={`w-full text-right flex items-center gap-3 px-4 py-3 rounded-xl border text-sm font-semibold transition-all ${
+                  isSelected
+                    ? 'bg-purple-500 text-white border-purple-500 shadow-md'
+                    : dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)] hover:border-purple-400' : 'bg-gray-50 border-gray-200 text-gray-700 hover:border-purple-300 hover:bg-purple-50'
+                }`}>
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 ${isSelected ? 'bg-white/20 text-white' : 'bg-white text-purple-600'}`}>{letter}</span>
+                {text}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

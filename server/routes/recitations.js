@@ -1,10 +1,32 @@
 const express = require('express');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 const pool = require('../db/connection');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { getPermissions } = require('../lib/permissionsCache');
 const { sendEvent } = require('../sse');
 const { sendFCMToStudents } = require('../lib/fcm');
 const { logActivity, getActor, getIp } = require('../lib/activityLog');
+
+const REC_Q_IMG_DIR = path.join(__dirname, '../../uploads/question-images');
+fs.mkdirSync(REC_Q_IMG_DIR, { recursive: true });
+
+const recQImgStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, REC_Q_IMG_DIR),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `rec_q_${Date.now()}${ext}`);
+  },
+});
+const uploadRecQImg = multer({
+  storage: recQImgStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) cb(null, true);
+    else cb(new Error('يُسمح بالصور فقط'));
+  },
+});
 
 const router = express.Router();
 router.use(authenticate);
@@ -353,6 +375,15 @@ router.get('/student/results', requireRole('student'), async (req, res) => {
   }
 });
 
+// POST /api/recitations/upload-image — upload a question image
+router.post('/upload-image', requireRole('teacher', 'assistant'), checkManageRecitationsPerm, (req, res) => {
+  uploadRecQImg.single('image')(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message || 'فشل رفع الصورة' });
+    if (!req.file) return res.status(400).json({ error: 'لم يتم اختيار صورة' });
+    res.json({ url: `/uploads/question-images/${req.file.filename}` });
+  });
+});
+
 // ════════════════════════════════════════════════════════════════════════════════
 // TEACHER/ASSISTANT PARAMETERISED ROUTES
 // ════════════════════════════════════════════════════════════════════════════════
@@ -549,12 +580,21 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageRe
   const id = parseParamId(req.params.id);
   if (!id) return res.status(400).json({ error: 'Invalid ID' });
 
-  const { question_text, question_type, option_a, option_b, option_c, option_d, correct_answer_letter, points } = req.body;
+  const { question_text, question_image_url, question_type, option_a, option_b, option_c, option_d, correct_answer_letter, points, sub_questions } = req.body;
 
-  if (!correct_answer_letter || !['A','B','C','D','T','F'].includes(correct_answer_letter))
-    return res.status(400).json({ error: 'الإجابة الصحيحة غير صالحة' });
-  if (!question_text && !req.body.question_image_url)
-    return res.status(400).json({ error: 'نص السؤال مطلوب' });
+  const qtype = question_type || 'mcq';
+  const isImgMulti = qtype === 'image_multi';
+
+  if (!question_text && !question_image_url)
+    return res.status(400).json({ error: 'نص السؤال أو صورة مطلوبة' });
+
+  if (!isImgMulti) {
+    if (!correct_answer_letter || !['A','B','C','D','T','F'].includes(correct_answer_letter))
+      return res.status(400).json({ error: 'الإجابة الصحيحة غير صالحة' });
+  } else {
+    if (!Array.isArray(sub_questions) || sub_questions.length === 0)
+      return res.status(400).json({ error: 'سؤال الصورة يحتاج إلى أسئلة فرعية' });
+  }
 
   try {
     const teacherId = getTeacherId(req);
@@ -562,28 +602,28 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageRe
     if (!rec) return res.status(404).json({ error: 'التسميع غير موجود' });
     if (rec.is_published) return res.status(409).json({ error: 'لا يمكن إضافة أسئلة لتسميع منشور' });
 
-    // Get max sort_order
     const { rows: maxRow } = await pool.query(
-      'SELECT COALESCE(MAX(sort_order),0) AS m FROM recitation_questions WHERE recitation_id=$1',
-      [id]
+      'SELECT COALESCE(MAX(sort_order),0) AS m FROM recitation_questions WHERE recitation_id=$1', [id]
     );
 
     const { rows } = await pool.query(
       `INSERT INTO recitation_questions
-         (recitation_id, question_text, question_type, option_a, option_b, option_c, option_d,
-          correct_answer_letter, points, sort_order)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+         (recitation_id, question_text, question_image_url, question_type, option_a, option_b, option_c, option_d,
+          correct_answer_letter, points, sort_order, sub_questions)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
       [
         id,
         question_text || null,
-        question_type || 'mcq',
+        question_image_url || null,
+        qtype,
         option_a || null,
         option_b || null,
         option_c || null,
         option_d || null,
-        correct_answer_letter,
+        isImgMulti ? 'A' : correct_answer_letter,
         parseInt(points, 10) || 1,
         parseInt(maxRow[0].m, 10) + 1,
+        isImgMulti ? JSON.stringify(sub_questions) : '[]',
       ]
     );
     res.status(201).json(rows[0]);
@@ -599,10 +639,18 @@ router.put('/:id/questions/:qid', requireRole('teacher', 'assistant'), checkMana
   const qid = parseParamId(req.params.qid);
   if (!id || !qid) return res.status(400).json({ error: 'Invalid ID' });
 
-  const { question_text, question_type, option_a, option_b, option_c, option_d, correct_answer_letter, points } = req.body;
+  const { question_text, question_image_url, question_type, option_a, option_b, option_c, option_d, correct_answer_letter, points, sub_questions } = req.body;
 
-  if (!correct_answer_letter || !['A','B','C','D','T','F'].includes(correct_answer_letter))
-    return res.status(400).json({ error: 'الإجابة الصحيحة غير صالحة' });
+  const qtype = question_type || 'mcq';
+  const isImgMulti = qtype === 'image_multi';
+
+  if (!question_text && !question_image_url)
+    return res.status(400).json({ error: 'نص السؤال أو صورة مطلوبة' });
+
+  if (!isImgMulti) {
+    if (!correct_answer_letter || !['A','B','C','D','T','F'].includes(correct_answer_letter))
+      return res.status(400).json({ error: 'الإجابة الصحيحة غير صالحة' });
+  }
 
   try {
     const teacherId = getTeacherId(req);
@@ -612,13 +660,18 @@ router.put('/:id/questions/:qid', requireRole('teacher', 'assistant'), checkMana
 
     const { rows } = await pool.query(
       `UPDATE recitation_questions SET
-         question_text=$1, question_type=$2, option_a=$3, option_b=$4,
-         option_c=$5, option_d=$6, correct_answer_letter=$7, points=$8
-       WHERE id=$9 AND recitation_id=$10 RETURNING *`,
+         question_text=$1, question_image_url=$2, question_type=$3,
+         option_a=$4, option_b=$5, option_c=$6, option_d=$7,
+         correct_answer_letter=$8, points=$9, sub_questions=$10
+       WHERE id=$11 AND recitation_id=$12 RETURNING *`,
       [
-        question_text || null, question_type || 'mcq',
+        question_text || null,
+        question_image_url || null,
+        qtype,
         option_a || null, option_b || null, option_c || null, option_d || null,
-        correct_answer_letter, parseInt(points, 10) || 1,
+        isImgMulti ? 'A' : correct_answer_letter,
+        parseInt(points, 10) || 1,
+        isImgMulti ? JSON.stringify(Array.isArray(sub_questions) ? sub_questions : []) : '[]',
         qid, id,
       ]
     );
@@ -871,12 +924,15 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
     if (elapsedMs > maxMs)
       return res.status(400).json({ error: 'انتهى وقت التسميع', timer_expired: true });
 
-    // Score from server snapshot — never trust client question data
+    // Build raw answer map — image_multi answers are JSON strings; others are letters
     const snapshot = session.questions_snapshot;
     const answerMap = {};
     for (const a of answers) {
-      if (a.question_id != null) {
-        // [R10-FIX] Only accept valid answer letters; reject garbage
+      if (a.question_id == null) continue;
+      const qInSnap = snapshot.find(q => q.id === a.question_id);
+      if (qInSnap && qInSnap.question_type === 'image_multi') {
+        answerMap[a.question_id] = a.answer || null;
+      } else {
         const letter = String(a.answer || '').trim().toUpperCase();
         answerMap[a.question_id] = VALID_ANSWER_LETTERS.has(letter) ? letter : null;
       }
@@ -886,6 +942,29 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
 
     for (const q of snapshot) {
       const studentAns = answerMap[q.id];
+
+      if (q.question_type === 'image_multi') {
+        const subQs = Array.isArray(q.sub_questions) ? q.sub_questions : [];
+        if (!subQs.length || !studentAns) { unanswered++; continue; }
+
+        let parsedAns = {};
+        try { parsedAns = JSON.parse(studentAns); } catch { parsedAns = {}; }
+
+        const hasAnyAnswer = Object.keys(parsedAns).length > 0;
+        if (!hasAnyAnswer) { unanswered++; continue; }
+
+        let subCorrect = 0;
+        for (const sub of subQs) {
+          const a = String(parsedAns[sub.label] || '').toUpperCase();
+          if (VALID_ANSWER_LETTERS.has(a) && a === String(sub.correct).toUpperCase()) subCorrect++;
+        }
+
+        rawScore += (q.points || 1) * subCorrect / subQs.length;
+        if (subCorrect === subQs.length) correct++;
+        else wrong++;
+        continue;
+      }
+
       if (!studentAns) {
         unanswered++;
       } else if (studentAns === q.correct_answer_letter) {
@@ -1005,19 +1084,43 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
         total_score: rec.total_score,
         pass_score: rec.pass_score,
         // Send back answers with correct letters for review
-        review: snapshot.map(q => ({
-          id: q.id,
-          question_text: q.question_text,
-          question_type: q.question_type,
-          option_a: q.option_a,
-          option_b: q.option_b,
-          option_c: q.option_c,
-          option_d: q.option_d,
-          correct_answer_letter: q.correct_answer_letter,
-          student_answer: answerMap[q.id] || null,
-          is_correct: answerMap[q.id] === q.correct_answer_letter,
-          points: q.points,
-        })),
+        review: snapshot.map(q => {
+          const studentAns = answerMap[q.id] || null;
+          if (q.question_type === 'image_multi') {
+            const subQs = Array.isArray(q.sub_questions) ? q.sub_questions : [];
+            let parsedAns = {};
+            try { if (studentAns) parsedAns = JSON.parse(studentAns); } catch {}
+            const subResults = subQs.map(sub => ({
+              label: sub.label,
+              correct: sub.correct,
+              student_answer: parsedAns[sub.label] || null,
+              is_correct: String(parsedAns[sub.label] || '').toUpperCase() === String(sub.correct).toUpperCase(),
+            }));
+            return {
+              id: q.id,
+              question_text: q.question_text,
+              question_image_url: q.question_image_url,
+              question_type: q.question_type,
+              option_a: q.option_a, option_b: q.option_b, option_c: q.option_c, option_d: q.option_d,
+              sub_questions: subQs,
+              sub_results: subResults,
+              student_answer: studentAns,
+              is_correct: subResults.every(s => s.is_correct),
+              points: q.points,
+            };
+          }
+          return {
+            id: q.id,
+            question_text: q.question_text,
+            question_image_url: q.question_image_url,
+            question_type: q.question_type,
+            option_a: q.option_a, option_b: q.option_b, option_c: q.option_c, option_d: q.option_d,
+            correct_answer_letter: q.correct_answer_letter,
+            student_answer: studentAns,
+            is_correct: studentAns === q.correct_answer_letter,
+            points: q.points,
+          };
+        }),
       });
     } catch (txErr) {
       await client.query('ROLLBACK');
