@@ -161,6 +161,29 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageExamsPerm, va
   const teacherId = getTeacherId(req);
   const { title, duration_minutes, total_score, course_id, pass_score, badge_name, badge_color, start_date, end_date, shuffle_questions, shuffle_options, question_source, bank_id, bank_question_count, points_on_attempt, points_on_pass, bank_easy_count, bank_medium_count, bank_hard_count } = req.body;
   try {
+    // Prevent extending end_date after submissions exist (unfair advantage)
+    const existingExam = await pool.query(
+      'SELECT id, end_date, is_published FROM exams WHERE id=$1 AND teacher_id=$2',
+      [examId, teacherId]
+    );
+    if (!existingExam.rows.length) return res.status(404).json({ error: 'Exam not found' });
+    const currentExam = existingExam.rows[0];
+    if (end_date && currentExam.end_date) {
+      const newEnd = new Date(end_date);
+      const oldEnd = new Date(currentExam.end_date);
+      if (newEnd > oldEnd) {
+        const resultCount = await pool.query(
+          'SELECT COUNT(id)::int AS cnt FROM exam_results WHERE exam_id=$1',
+          [examId]
+        );
+        if (parseInt(resultCount.rows[0].cnt) > 0) {
+          return res.status(409).json({
+            error: 'لا يمكن تمديد تاريخ الاختبار بعد أن بدأ الطلاب التأدية — هذا يمنح ميزة غير عادلة',
+            code: 'CANNOT_EXTEND_END_DATE',
+          });
+        }
+      }
+    }
     if (question_source === 'bank' && bank_id) {
       const bankCheck = await pool.query('SELECT id FROM question_banks WHERE id=$1 AND teacher_id=$2', [bank_id, teacherId]);
       if (!bankCheck.rows.length) return res.status(403).json({ error: 'Access denied: bank not yours' });
@@ -177,7 +200,6 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageExamsPerm, va
       'UPDATE exams SET title=$1,duration_minutes=$2,total_score=$3,course_id=$4,pass_score=$5,badge_name=$6,badge_color=$7,start_date=$8,end_date=$9,shuffle_questions=$10,shuffle_options=$11,question_source=$12,bank_id=$13,bank_question_count=$14,points_on_attempt=$15,points_on_pass=$16,bank_easy_count=$17,bank_medium_count=$18,bank_hard_count=$19 WHERE id=$20 AND teacher_id=$21 RETURNING *',
       [title, duration_minutes, total_score, course_id || null, pass_score, badge_name, badge_color, start_date || null, end_date || null, !!shuffle_questions, !!shuffle_options, question_source || 'manual', (question_source === 'bank' && bank_id) ? bank_id : null, bank_question_count || 10, points_on_attempt || 0, points_on_pass || 0, easyCount, mediumCount, hardCount, examId, teacherId]
     );
-    if (!result.rows.length) return res.status(404).json({ error: 'Exam not found' });
     logActivity({
       teacherId, actor: getActor(req), ip: getIp(req),
       action: 'edit_exam',
@@ -1011,15 +1033,19 @@ router.post('/:id/submit', submitLimiter, requireRole('student'), async (req, re
       }
     } else {
       // Manual exam: use snapshot if available for fair scoring,
-      // otherwise fall back to current DB questions
+      // otherwise reject — same security stance as bank exams.
+      // Without a snapshot, the timer check is bypassed AND any question
+      // could be answered regardless of what was shown to the student.
       if (serverSession?.questions_snapshot?.length > 0) {
         // Snapshot stores questions as-shown; re-attach correct_answer_letter from DB for scoring
         const snapshotIds = serverSession.questions_snapshot.map(q => q.id);
         const qr = await pool.query('SELECT * FROM questions WHERE exam_id=$1 AND id = ANY($2)', [examId, snapshotIds]);
         questionsData = qr.rows;
       } else {
-        const qr = await pool.query('SELECT * FROM questions WHERE exam_id=$1', [examId]);
-        questionsData = qr.rows;
+        return res.status(409).json({
+          error: 'جلسة الاختبار غير موجودة أو انتهت — يرجى الدخول للاختبار مجدداً ثم التسليم',
+          code: 'NO_SESSION_SNAPSHOT',
+        });
       }
     }
   } catch (err) {

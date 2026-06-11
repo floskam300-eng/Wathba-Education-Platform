@@ -302,6 +302,7 @@ export default function StudentExams() {
     //   - Timer cheating (student can't fake an earlier start in localStorage)
     //   - Stale data from a previous attempt being used on retry
     //     (server creates a fresh session on retry; its started_at is newer)
+    // Use performance.now() as base for elapsed time — resistant to system clock changes.
     let startTs;
     if (examData.serverStartedAt) {
       const serverTs = new Date(examData.serverStartedAt).getTime();
@@ -313,6 +314,9 @@ export default function StudentExams() {
       }
       startTs = serverTs;
       try { localStorage.setItem(storageKey, String(startTs)); } catch (_) {}
+      // Record performance.now() baseline for drift-resistant timing
+      window.__examStartPerf = performance.now();
+      window.__examStartWall = startTs;
     } else {
       // Fallback: no server session returned (should not normally happen)
       startTs = parseInt(localStorage.getItem(storageKey) || '0', 10);
@@ -357,6 +361,12 @@ export default function StudentExams() {
             submitMut.mutate({ id: examId, data: { answers: answersRef.current, start_time: startIso } });
           }
           return 0;
+        }
+        // Use performance.now() drift-resistant calculation when available
+        if (window.__examStartPerf && window.__examStartWall) {
+          const perfElapsed = Math.floor((performance.now() - window.__examStartPerf) / 1000);
+          const perfRemaining = durationSecs - perfElapsed;
+          if (perfRemaining < t) return Math.max(0, perfRemaining);
         }
         return t - 1;
       });

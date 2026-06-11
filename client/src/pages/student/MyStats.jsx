@@ -10,6 +10,12 @@ import api from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 
 function printStatsPDF({ student, summary, examResults, courses, badges, payments }) {
+  const escapeHtml = (str) => String(str ?? '—')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
   const fmtN = (n) => new Intl.NumberFormat('ar-EG').format(n ?? 0);
   const fmtD = (d) => d ? new Date(d).toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
   const fmtM = (m) => m >= 60 ? `${Math.floor(m / 60)}س ${m % 60}د` : `${m ?? 0} دقيقة`;
@@ -45,8 +51,8 @@ function printStatsPDF({ student, summary, examResults, courses, badges, payment
     return `
       <tr>
         <td>${i + 1}</td>
-        <td style="text-align:right">${r.exam_title}</td>
-        <td>${r.course_name || '—'}</td>
+        <td style="text-align:right">${escapeHtml(r.exam_title)}</td>
+        <td>${escapeHtml(r.course_name || '—')}</td>
         <td><b style="color:${passed ? '#16a34a' : '#dc2626'}">${r.score}/${r.total_score}</b></td>
         <td>${pct}%</td>
         <td style="color:${passed ? '#16a34a' : '#dc2626'};font-weight:700">${passed ? '✓ ناجح' : '✗ راسب'}</td>
@@ -62,7 +68,7 @@ function printStatsPDF({ student, summary, examResults, courses, badges, payment
     return `
       <tr>
         <td>${i + 1}</td>
-        <td style="text-align:right">${c.name}</td>
+        <td style="text-align:right">${escapeHtml(c.name)}</td>
         <td>${c.watched_videos}/${c.total_videos}</td>
         <td>${fmtM(c.total_watched_minutes)}</td>
         <td>${c.total_pdfs}</td>
@@ -74,7 +80,7 @@ function printStatsPDF({ student, summary, examResults, courses, badges, payment
   }).join('');
 
   const badgesHtml = badges.length > 0
-    ? badges.map(b => `<span class="badge-chip" style="background:${b.badge_color||'#f97316'};color:#fff">🏅 ${b.badge_name} — ${b.exam_title}</span>`).join('')
+    ? badges.map(b => `<span class="badge-chip" style="background:${b.badge_color||'#f97316'};color:#fff">🏅 ${escapeHtml(b.badge_name)} — ${escapeHtml(b.exam_title)}</span>`).join('')
     : '<p style="color:#9ca3af;font-size:13px">لا توجد شارات</p>';
 
   const payRows = payments.map((p, i) => {
@@ -82,7 +88,7 @@ function printStatsPDF({ student, summary, examResults, courses, badges, payment
     const statusLabel = { completed: 'مدفوع', verified: 'موثّق', pending: 'في الانتظار', rejected: 'مرفوض' };
     return `<tr>
       <td>${i + 1}</td>
-      <td style="text-align:right">${p.course_name || '—'}</td>
+      <td style="text-align:right">${escapeHtml(p.course_name || '—')}</td>
       <td>${fmtN(p.amount)} ج.م</td>
       <td>${methodLabel[p.method] || p.method || '—'}</td>
       <td>${statusLabel[p.status] || p.status}</td>
@@ -94,7 +100,7 @@ function printStatsPDF({ student, summary, examResults, courses, badges, payment
 <html dir="rtl" lang="ar">
 <head>
 <meta charset="UTF-8">
-<title>تقرير إحصائيات — ${student?.name}</title>
+<title>تقرير إحصائيات — ${escapeHtml(student?.name)}</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
   body { font-family: Arial, Tahoma, sans-serif; direction:rtl; color:#1e293b; background:#fff; font-size:13px; }
@@ -148,10 +154,10 @@ function printStatsPDF({ student, summary, examResults, courses, badges, payment
 
   <!-- Header -->
   <div class="header">
-    <div class="avatar">${student?.name?.charAt(0) || 'ط'}</div>
+    <div class="avatar">${escapeHtml(student?.name)?.charAt(0) || 'ط'}</div>
     <div class="header-info">
-      <h1>${student?.name || ''}</h1>
-      <p>${student?.academic_stage || ''} &nbsp;·&nbsp; منضم منذ ${fmtD(student?.created_at)}</p>
+      <h1>${escapeHtml(student?.name || '')}</h1>
+      <p>${escapeHtml(student?.academic_stage || '')} &nbsp;·&nbsp; منضم منذ ${fmtD(student?.created_at)}</p>
     </div>
     <div class="report-date">
       <div style="font-size:14px;font-weight:900;color:#f97316">منصة وثبة</div>

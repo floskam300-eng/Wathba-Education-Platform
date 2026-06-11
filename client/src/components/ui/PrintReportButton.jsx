@@ -42,7 +42,7 @@ const PrintReportButton = ({
 <html dir="rtl" lang="ar">
 <head>
   <meta charset="UTF-8">
-  <title>${title}</title>
+  <title>${escapeHtml(title)}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
@@ -107,7 +107,7 @@ const PrintReportButton = ({
   <div class="report-header">
     <div class="logo-box"><span class="logo-text">و</span></div>
     <div>
-      <div class="report-title">${title}</div>
+      <div class="report-title">${escapeHtml(title)}</div>
       <div style="font-size:12px;color:#64748b;margin-top:3px">تقرير شامل — منصة وثبة التعليمية</div>
     </div>
     <div class="report-meta">

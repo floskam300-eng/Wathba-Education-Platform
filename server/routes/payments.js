@@ -127,13 +127,13 @@ async function doLeaderboardReset(teacherId, monthLabel, skipTrackerUpdate = fal
       [teacherId]
     );
 
-    // 4. update tracker — skipped if already updated atomically in checkAndResetLeaderboard
+    // 4. update tracker — always use calendar month boundaries for consistency
     if (!skipTrackerUpdate) {
       await client.query(
         `INSERT INTO leaderboard_reset_tracker (teacher_id, last_reset_at, next_reset_at)
-         VALUES ($1, NOW(), NOW() + INTERVAL '30 days')
+         VALUES ($1, NOW(), DATE_TRUNC('month', NOW()) + INTERVAL '1 month')
          ON CONFLICT (teacher_id) DO UPDATE
-         SET last_reset_at = NOW(), next_reset_at = NOW() + INTERVAL '30 days'`,
+         SET last_reset_at = NOW(), next_reset_at = DATE_TRUNC('month', NOW()) + INTERVAL '1 month'`,
         [teacherId]
       );
     }

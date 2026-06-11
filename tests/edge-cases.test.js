@@ -226,16 +226,16 @@ async function runTests() {
   console.log('\n▶  EDGE CASE 5: Student exam boundaries');
   // ──────────────────────────────────────────────────────────────────────────
 
-  await test('Submit exam with empty answers → 200 (scores 0, no validation rejects it)', async () => {
+  await test('Submit exam without taking it first → 409 (NO_SESSION_SNAPSHOT)', async () => {
     const [ex] = (await pool.query(
       "INSERT INTO exams (title,duration_minutes,total_score,course_id,teacher_id,pass_score,is_published,start_date,end_date) VALUES ('Edge Exam',30,100,$1,$2,50,true,NOW()-INTERVAL '1 day',NOW()+INTERVAL '1 day') RETURNING id",
       [T.courseId, T.teacherId])).rows;
     await pool.query(
       "INSERT INTO questions (exam_id,question_text,option_a,option_b,correct_answer_letter,points,question_type) VALUES ($1,'Q?','A','B','A',1,'mcq')",
       [ex.id]);
-    
+    // CK-1: submit without /take → must reject (NO_SESSION_SNAPSHOT)
     const r = await request('POST', `/api/exams/${ex.id}/submit`, { answers: {} }, T.studentToken);
-    assertEqual(r.status, 200, `Expected 200 for empty answers, got ${r.status}`);
+    assertEqual(r.status, 409, `Expected 409 (no session), got ${r.status}`);
     await pool.query('DELETE FROM exams WHERE id=$1', [ex.id]);
   });
 

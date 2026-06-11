@@ -374,8 +374,20 @@ router.delete('/:id', requireRole('teacher', 'assistant'), checkManageCoursesPer
   const teacherId = getTeacherId(req);
   try {
     const courseInfo = await pool.query('SELECT name FROM courses WHERE id=$1 AND teacher_id=$2', [req.params.id, teacherId]);
+    if (!courseInfo.rows.length) return res.status(404).json({ error: 'Course not found' });
+    // Check for active enrollments before deletion — prevent data loss
+    const enrollCount = await pool.query(
+      "SELECT COUNT(*)::int AS cnt FROM student_course_enrollment WHERE course_id=$1 AND status='active'",
+      [req.params.id]
+    );
+    if (parseInt(enrollCount.rows[0].cnt) > 0 && !req.body.force_delete) {
+      return res.status(409).json({
+        error: `يوجد ${enrollCount.rows[0].cnt} طالب مسجل في هذا الكورس — سيتم إلغاء تسجيلهم. أرسل force_delete=true للتأكيد`,
+        code: 'ENROLLMENTS_EXIST',
+        count: parseInt(enrollCount.rows[0].cnt),
+      });
+    }
     const result = await pool.query('DELETE FROM courses WHERE id=$1 AND teacher_id=$2 RETURNING id', [req.params.id, teacherId]);
-    if (!result.rows.length) return res.status(404).json({ error: 'Course not found' });
     logActivity({
       teacherId, actor: getActor(req), ip: getIp(req),
       action: 'delete_course',

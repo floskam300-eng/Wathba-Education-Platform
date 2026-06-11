@@ -847,6 +847,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS uidx_retry_req_pending
   ON exam_retry_requests(student_id, exam_id)
   WHERE status = 'pending';
 
+-- ── Prevent duplicate approved retry requests ────────────────────────────────
+-- A student should only ever have at most one approved retry per exam.
+CREATE UNIQUE INDEX IF NOT EXISTS uidx_retry_req_approved
+  ON exam_retry_requests(student_id, exam_id)
+  WHERE status = 'approved';
+
 -- ── [S-2] payments.verified_by — re-add FK + preserve audit name ─────────────
 -- The FK was dropped earlier to avoid cascade-delete issues.
 -- Fix: re-add with ON DELETE SET NULL (orphan-safe) + add verified_by_name TEXT

@@ -1,5 +1,6 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const pool = require('../db/connection');
 const { authenticate, requireRole, invalidateStudentAuthCache } = require('../middleware/auth');
@@ -131,8 +132,8 @@ const checkPermission = async (req, res, next, perm) => {
 router.post('/', addStudentLimiter, requireRole('teacher', 'assistant'), (req, res, next) => checkPermission(req, res, next, 'can_add_students'), validateStudent, async (req, res) => {
   const teacherId = getTeacherId(req);
   const { name, phone, parent_phone, academic_stage, gender } = req.body;
-  // Auto-generate 6-digit numeric password
-  const generatedPassword = Math.floor(100000 + Math.random() * 900000).toString();
+  // Auto-generate 6-digit numeric password using crypto (not Math.random)
+  const generatedPassword = String(100000 + crypto.randomInt(0, 900000));
   try {
     // Auto-generate username based on academic stage
     let username = await generateUsername(teacherId, academic_stage || '', pool);
@@ -508,7 +509,7 @@ router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => ch
       continue;
     }
 
-    const finalPassword = manualPassword || Math.floor(100000 + Math.random() * 900000).toString();
+    const finalPassword = manualPassword || String(100000 + crypto.randomInt(0, 900000));
     const hashed        = await bcrypt.hash(finalPassword, 10); // OUTSIDE transaction — intentional
     prepared.push({ name, manualUsername, manualPassword, finalPassword, hashed, phone, parent_phone, academic_stage, gender });
   }

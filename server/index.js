@@ -85,10 +85,17 @@ app.use('/api/', apiLimiter);
 // Key: `${role}_${userId}:${fullPath}`, Value: { allowed: bool, at: ts }
 const _fileAccessCache = new Map();
 const FILE_ACCESS_TTL_MS = 60_000;
+const FILE_ACCESS_MAX_SIZE = 10_000;
 setInterval(() => {
   const cutoff = Date.now() - FILE_ACCESS_TTL_MS * 10;
   for (const [k, v] of _fileAccessCache.entries()) {
     if (v.at < cutoff) _fileAccessCache.delete(k);
+  }
+  if (_fileAccessCache.size > FILE_ACCESS_MAX_SIZE) {
+    const sorted = [..._fileAccessCache.entries()].sort((a, b) => (a[1].at || 0) - (b[1].at || 0));
+    for (const [k] of sorted.slice(0, sorted.length - FILE_ACCESS_MAX_SIZE)) {
+      _fileAccessCache.delete(k);
+    }
   }
 }, 5 * 60_000).unref();
 
