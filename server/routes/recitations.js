@@ -291,10 +291,16 @@ router.get('/analytics', requireRole('teacher', 'assistant'), async (req, res) =
           LIMIT 20`,
         [teacherId]
       ),
+      // [A1-FIX] Normalize avg_score to percentage (0–100) — consistent with
+      // global summary.avg_score and by_stage.avg_score.  Before this fix
+      // recent_recitations.avg_score was the raw score (e.g. 7) while others
+      // returned a percentage (e.g. 70).
       pool.query(
         `SELECT r.id, r.title, r.academic_stage,
                 COUNT(rr.id) AS participant_count,
-                COALESCE(AVG(rr.score),0)::numeric(5,1) AS avg_score,
+                COALESCE(AVG(CASE WHEN r.total_score > 0
+                                  THEN rr.score::float / r.total_score * 100
+                                  ELSE 0 END), 0)::numeric(5,1) AS avg_score,
                 COALESCE(AVG(CASE WHEN rr.passed THEN 1 ELSE 0 END)*100,0)::numeric(5,1) AS pass_rate
            FROM recitations r
            LEFT JOIN recitation_results rr ON r.id=rr.recitation_id
@@ -1032,11 +1038,17 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
     // Build raw answer map — image_multi answers are JSON strings; others are letters
     const snapshot = session.questions_snapshot;
     const answerMap = {};
+    // [A2-FIX] Cap image_multi answer string length to 10KB to prevent abuse.
+    // Each sub-question answer is a single letter, so a 10KB JSON string could
+    // theoretically hold ~1000 sub-answers — far more than the 50-item maximum.
+    const IMAGE_MULTI_MAX_BYTES = 10 * 1024;
     for (const a of answers) {
       if (a.question_id == null) continue;
       const qInSnap = snapshot.find(q => q.id === a.question_id);
       if (qInSnap && qInSnap.question_type === 'image_multi') {
-        answerMap[a.question_id] = a.answer || null;
+        const raw = a.answer || null;
+        if (raw && String(raw).length > IMAGE_MULTI_MAX_BYTES) continue; // silently drop oversized
+        answerMap[a.question_id] = raw;
       } else {
         const letter = String(a.answer || '').trim().toUpperCase();
         answerMap[a.question_id] = VALID_ANSWER_LETTERS.has(letter) ? letter : null;

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { RotateCcw, CheckCircle, XCircle, Clock, User, FileText, MessageSquare, ChevronDown, ChevronUp, Filter } from 'lucide-react';
+import { RotateCcw, CheckCircle, XCircle, Clock, User, FileText, MessageSquare, ChevronDown, ChevronUp } from 'lucide-react';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
 import { useTheme } from '../../context/ThemeContext';
@@ -133,7 +133,7 @@ export default function TeacherRetryRequests() {
                         {s.label}
                       </span>
                       <span className={`text-xs ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>
-                        {new Date(req.created_at).toLocaleDateString('ar-EG', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        {new Date(req.created_at).toLocaleString('ar-EG', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
 
@@ -161,15 +161,15 @@ export default function TeacherRetryRequests() {
                       <div className="flex gap-2">
                         <button
                           onClick={e => { e.stopPropagation(); approveMut.mutate({ reqId: req.id, note }); }}
-                          disabled={approveMut.isPending}
-                          className="px-3 py-1.5 bg-green-100 hover:bg-green-200 text-green-700 text-xs font-black rounded-lg transition-colors">
-                          قبول
+                          disabled={approveMut.isPending && approveMut.variables?.reqId === req.id}
+                          className="px-3 py-1.5 bg-green-100 hover:bg-green-200 text-green-700 text-xs font-black rounded-lg transition-colors disabled:opacity-50">
+                          {approveMut.isPending && approveMut.variables?.reqId === req.id ? '...' : 'قبول'}
                         </button>
                         <button
                           onClick={e => { e.stopPropagation(); rejectMut.mutate({ reqId: req.id, note }); }}
-                          disabled={rejectMut.isPending}
-                          className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 text-xs font-black rounded-lg transition-colors">
-                          رفض
+                          disabled={rejectMut.isPending && rejectMut.variables?.reqId === req.id}
+                          className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 text-xs font-black rounded-lg transition-colors disabled:opacity-50">
+                          {rejectMut.isPending && rejectMut.variables?.reqId === req.id ? '...' : 'رفض'}
                         </button>
                       </div>
                     )}
@@ -199,7 +199,7 @@ export default function TeacherRetryRequests() {
 
                     {req.handled_at && (
                       <p className={`text-xs ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>
-                        تمت المعالجة: {new Date(req.handled_at).toLocaleDateString('ar-EG', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
+                        تمت المعالجة: {new Date(req.handled_at).toLocaleString('ar-EG', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
                       </p>
                     )}
 

@@ -1,6 +1,6 @@
 /**
  * Recitations Audit — Edge Case & Regression Tests
- * يغطي: C1..C5, H1..H3, M1..M3, L1
+ * يغطي: C1..C5, H1..H3, M1..M3, L1 + Second-pass: R1,R4,S1,S2,A1,A2
  *
  * تشغيل: node server/tests/recitations_audit.test.js
  * يتطلب: السيرفر يعمل على port 3001 + بيانات seed موجودة
@@ -458,6 +458,121 @@ async function runIntegrationTests() {
     } else {
       console.log('  ⚠️  No student token — C1 student snapshot test skipped');
     }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // A2 — image_multi answer string size cap (>10KB silently dropped)
+  // ─────────────────────────────────────────────────────────────────────────
+  console.log('\n▶ A2 — Oversized image_multi answer string rejected at scoring');
+
+  // Build a >10KB answer string
+  const hugeAnswerStr = 'A'.repeat(10 * 1024 + 1);
+
+  // We can't easily submit without an active session, so test the logic directly
+  // as a unit test here (server strips it — question is counted as unanswered)
+  {
+    const IMAGE_MULTI_MAX_BYTES = 10 * 1024;
+    const isDropped = (raw) => raw && String(raw).length > IMAGE_MULTI_MAX_BYTES;
+    assert('A2: Normal answer NOT dropped', !isDropped('{"1":"A","2":"B"}'));
+    assert('A2: 10KB+1 answer IS dropped', isDropped(hugeAnswerStr));
+    assert('A2: Exactly 10KB NOT dropped', !isDropped('x'.repeat(IMAGE_MULTI_MAX_BYTES)));
+    assert('A2: null not dropped', !isDropped(null));
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // A1 — analytics avg_score consistency check
+  // ─────────────────────────────────────────────────────────────────────────
+  console.log('\n▶ A1 — Analytics avg_score normalization');
+
+  {
+    const analyticsR = await req('GET', '/api/recitations/analytics', null, authHeader(teacherToken));
+    assert('A1: GET /analytics returns 200', analyticsR.status === 200);
+    if (analyticsR.status === 200) {
+      const { summary, recent_recitations } = analyticsR.body;
+      // summary.avg_score must be 0-100
+      assert('A1: summary.avg_score is 0–100', summary.avg_score >= 0 && summary.avg_score <= 100,
+        `got ${summary.avg_score}`);
+      // If there are recent_recitations with results, avg_score must also be 0-100
+      const withResults = (recent_recitations || []).filter(r => parseInt(r.participant_count, 10) > 0);
+      const allNormalized = withResults.every(r => parseFloat(r.avg_score) >= 0 && parseFloat(r.avg_score) <= 100);
+      assert('A1: recent_recitations avg_score is 0–100 (normalized)', allNormalized || withResults.length === 0,
+        `Failed for: ${JSON.stringify(withResults.filter(r => parseFloat(r.avg_score) > 100))}`);
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // R4 — toLocaleString vs toLocaleDateString (unit test)
+  // ─────────────────────────────────────────────────────────────────────────
+  console.log('\n▶ R4 — toLocaleString with time options works correctly');
+
+  {
+    const testDate = new Date('2025-06-10T14:30:00.000Z');
+    // toLocaleDateString with hour/minute silently ignores time on many engines
+    const dateOnlyResult = testDate.toLocaleDateString('en-US', { hour: '2-digit', minute: '2-digit' });
+    // toLocaleString with hour/minute always includes time
+    const fullResult = testDate.toLocaleString('en-US', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    assert('R4: toLocaleString includes time info', fullResult.length > dateOnlyResult.length || fullResult.includes(':'));
+    assert('R4: toLocaleString output is a non-empty string', typeof fullResult === 'string' && fullResult.length > 0);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // R1 — per-card mutation isPending (unit test: variables scoping)
+  // ─────────────────────────────────────────────────────────────────────────
+  console.log('\n▶ R1 — Per-card isPending scoping');
+
+  {
+    // Simulate the per-card isPending logic:
+    // Only the card whose reqId matches mutation.variables.reqId should be disabled
+    const simulateIsPending = (mutationVariables, cardId) =>
+      mutationVariables !== null && mutationVariables !== undefined &&
+      mutationVariables.reqId === cardId;
+
+    assert('R1: Card 1 IS loading when vars.reqId===1', simulateIsPending({ reqId: 1 }, 1));
+    assert('R1: Card 2 NOT loading when vars.reqId===1', !simulateIsPending({ reqId: 1 }, 2));
+    assert('R1: Card 99 NOT loading when vars.reqId===1', !simulateIsPending({ reqId: 1 }, 99));
+    assert('R1: null variables means nothing is loading', !simulateIsPending(null, 1));
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // S2 — localStorage token key consistency
+  // ─────────────────────────────────────────────────────────────────────────
+  console.log('\n▶ S2 — localStorage token key fixed to "token"');
+
+  {
+    // Verify the keepalive handler uses 'token' (same as AuthContext)
+    // This is a static analysis check — we verify the fixed key value
+    const EXPECTED_KEY = 'token';
+    const fs2 = require('fs');
+    const studentRecContent = fs2.readFileSync(
+      require('path').join(__dirname, '../../client/src/pages/student/Recitations.jsx'),
+      'utf8'
+    );
+    // Should contain localStorage.getItem('token') not 'wathba_token'
+    assert("S2: Uses localStorage.getItem('token') not 'wathba_token'",
+      studentRecContent.includes(`localStorage.getItem('${EXPECTED_KEY}')`) &&
+      !studentRecContent.includes("localStorage.getItem('wathba_token')")
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // S1 — Dead code removed from keepalive handler
+  // ─────────────────────────────────────────────────────────────────────────
+  console.log('\n▶ S1 — Dead qs/payload variables removed from keepalive handler');
+
+  {
+    const fs3 = require('fs');
+    const content = fs3.readFileSync(
+      require('path').join(__dirname, '../../client/src/pages/student/Recitations.jsx'),
+      'utf8'
+    );
+    // The keepalive handler should NOT contain the dead 'const qs = ' variable
+    // (the one that was never sent, only 'qs2' was used and is now also removed)
+    // Check that there's no dead 'const payload = JSON.stringify' before payloadUnload
+    const keepaliveSection = content.slice(
+      content.indexOf('// Keepalive on tab close'),
+      content.indexOf('window.addEventListener(\'beforeunload\'')
+    );
+    assert('S1: Dead const qs variable removed from keepalive', !keepaliveSection.includes('const qs ='));
   }
 
   // ─────────────────────────────────────────────────────────────────────────

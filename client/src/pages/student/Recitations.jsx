@@ -143,11 +143,9 @@ export default function StudentRecitations() {
     if (view !== 'take' || !selectedRec) return;
     const handleUnload = () => {
       if (submittedRef.current) return;
-      const token = localStorage.getItem('wathba_token');
-      const qs = examData?.questions || [];
-      const payload = JSON.stringify({
-        answers: qs.map(q => ({ question_id: q.id, answer: answers[q.id] || null }))
-      });
+      // [S2-FIX] Use the same key as AuthContext ('token') — was hardcoded as 'wathba_token'
+      const token = localStorage.getItem('token');
+      // [S1-FIX] Removed dead qs/payload variables that were never actually sent
       // [R4-FIX] sendBeacon does not support custom headers (Authorization),
       // so the server always rejected it with 401. Use fetch with keepalive:true
       // instead — it supports auth headers and survives page unload.
