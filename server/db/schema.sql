@@ -504,8 +504,6 @@ CREATE INDEX IF NOT EXISTS idx_course_enrollment_requests_course ON course_enrol
 CREATE INDEX IF NOT EXISTS idx_question_banks_teacher ON question_banks(teacher_id);
 CREATE INDEX IF NOT EXISTS idx_question_banks_course ON question_banks(course_id);
 CREATE INDEX IF NOT EXISTS idx_leaderboard_history_teacher ON leaderboard_history(teacher_id);
-CREATE INDEX IF NOT EXISTS idx_whatsapp_send_log_schedule ON whatsapp_send_log(schedule_id);
-CREATE INDEX IF NOT EXISTS idx_recitation_questions_recitation ON recitation_questions(recitation_id);
 
 -- ── Partial unique index: allow username reuse after soft-delete ──────────────
 -- Drop the old global UNIQUE constraint so the partial index below can take over
@@ -563,37 +561,16 @@ DO $$ BEGIN
   ALTER TABLE bank_questions ADD CONSTRAINT chk_bank_question_type CHECK (question_type IN ('mcq', 'true_false'));
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
-  ALTER TABLE bank_questions ADD CONSTRAINT chk_bank_difficulty CHECK (difficulty IN ('easy', 'medium', 'hard'));
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN
-  ALTER TABLE recitations ADD CONSTRAINT chk_recitation_schedule_type CHECK (schedule_type IN ('once', 'daily', 'weekly'));
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN
-  ALTER TABLE recitation_questions ADD CONSTRAINT chk_recitation_question_type CHECK (question_type IN ('mcq', 'true_false'));
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN
   ALTER TABLE students ADD CONSTRAINT chk_student_gender CHECK (gender IN ('ذكر', 'أنثى'));
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN
-  ALTER TABLE device_alerts ADD CONSTRAINT chk_alert_type CHECK (alert_type IN ('device_limit_exceeded'));
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN
-  ALTER TABLE device_alerts ADD CONSTRAINT chk_alert_status CHECK (status IN ('pending', 'resolved'));
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN
-  ALTER TABLE whatsapp_schedules ADD CONSTRAINT chk_wa_target_type CHECK (target_type IN ('parents', 'students'));
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN
-  ALTER TABLE whatsapp_send_log ADD CONSTRAINT chk_wa_log_status CHECK (status IN ('sending', 'completed', 'failed'));
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN
-  ALTER TABLE whatsapp_send_log ADD CONSTRAINT chk_wa_send_type CHECK (send_type IN ('manual', 'scheduled'));
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- essay_answer_key removed from bank_questions — essay questions not supported
 
 -- ── Difficulty level for bank questions ──────────────────────────────────────
 ALTER TABLE bank_questions ADD COLUMN IF NOT EXISTS difficulty VARCHAR(10) DEFAULT 'medium';
+DO $$ BEGIN
+  ALTER TABLE bank_questions ADD CONSTRAINT chk_bank_difficulty CHECK (difficulty IN ('easy', 'medium', 'hard'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- ── Difficulty-based question count columns for bank exams ───────────────────
 ALTER TABLE exams ADD COLUMN IF NOT EXISTS bank_easy_count   INTEGER DEFAULT 0;
@@ -716,6 +693,12 @@ CREATE TABLE IF NOT EXISTS device_alerts (
 );
 CREATE INDEX IF NOT EXISTS idx_device_alerts_teacher ON device_alerts(teacher_id, status);
 CREATE INDEX IF NOT EXISTS idx_device_alerts_student ON device_alerts(student_id);
+DO $$ BEGIN
+  ALTER TABLE device_alerts ADD CONSTRAINT chk_alert_type CHECK (alert_type IN ('device_limit_exceeded'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE device_alerts ADD CONSTRAINT chk_alert_status CHECK (status IN ('pending', 'resolved'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- ── Grouped (multi-part) questions ────────────────────────────────────────────
 -- A group_id ties multiple sub-questions to one shared context (text + image).
@@ -804,6 +787,9 @@ CREATE TABLE IF NOT EXISTS whatsapp_schedules (
 );
 CREATE INDEX IF NOT EXISTS idx_wa_schedules_teacher  ON whatsapp_schedules(teacher_id);
 CREATE INDEX IF NOT EXISTS idx_wa_schedules_next_run ON whatsapp_schedules(next_run_at, is_active);
+DO $$ BEGIN
+  ALTER TABLE whatsapp_schedules ADD CONSTRAINT chk_wa_target_type CHECK (target_type IN ('parents', 'students'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 CREATE TABLE IF NOT EXISTS whatsapp_send_log (
   id            SERIAL PRIMARY KEY,
@@ -819,6 +805,13 @@ CREATE TABLE IF NOT EXISTS whatsapp_send_log (
   finished_at   TIMESTAMPTZ
 );
 CREATE INDEX IF NOT EXISTS idx_wa_log_teacher ON whatsapp_send_log(teacher_id);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_send_log_schedule ON whatsapp_send_log(schedule_id);
+DO $$ BEGIN
+  ALTER TABLE whatsapp_send_log ADD CONSTRAINT chk_wa_log_status CHECK (status IN ('sending', 'completed', 'failed'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE whatsapp_send_log ADD CONSTRAINT chk_wa_send_type CHECK (send_type IN ('manual', 'scheduled'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- Cleanup job: mark any stuck WhatsApp send logs as failed on restart
 UPDATE whatsapp_send_log SET status='failed', finished_at=NOW() WHERE status='sending';
@@ -960,6 +953,9 @@ CREATE TABLE IF NOT EXISTS recitations (
   shuffle_options BOOLEAN DEFAULT false,
   created_at TIMESTAMP DEFAULT NOW()
 );
+DO $$ BEGIN
+  ALTER TABLE recitations ADD CONSTRAINT chk_recitation_schedule_type CHECK (schedule_type IN ('once', 'daily', 'weekly'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 CREATE TABLE IF NOT EXISTS recitation_questions (
   id SERIAL PRIMARY KEY,
@@ -976,6 +972,11 @@ CREATE TABLE IF NOT EXISTS recitation_questions (
   sort_order INTEGER DEFAULT 0,
   CONSTRAINT rq_correct_letter CHECK (correct_answer_letter IN ('A','B','C','D','T','F'))
 );
+
+CREATE INDEX IF NOT EXISTS idx_recitation_questions_recitation ON recitation_questions(recitation_id);
+DO $$ BEGIN
+  ALTER TABLE recitation_questions ADD CONSTRAINT chk_recitation_question_type CHECK (question_type IN ('mcq', 'true_false'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 CREATE TABLE IF NOT EXISTS recitation_sessions (
   id SERIAL PRIMARY KEY,
