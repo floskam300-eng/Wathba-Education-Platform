@@ -9,6 +9,7 @@ import {
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
 import { useTheme } from '../../context/ThemeContext';
+import { useAuth } from '../../context/AuthContext';
 
 const PG_STAGES = ['الصف الأول الثانوي', 'الصف الثاني الثانوي', 'الصف الثالث الثانوي',
   'الصف الأول الإعدادي', 'الصف الثاني الإعدادي', 'الصف الثالث الإعدادي',
@@ -56,15 +57,14 @@ export default function Recitations() {
   const { dark } = useTheme();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { user } = useAuth();
+  const baseRole = user?.role === 'assistant' ? 'assistant' : 'teacher';
 
   const [tab, setTab] = useState('list');
   const [modal, setModal] = useState(false);
   const [editRec, setEditRec] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [selectedId, setSelectedId] = useState(null);
-  const [viewMode, setViewMode] = useState('questions'); // 'questions' | 'results'
-  const [qForm, setQForm] = useState(emptyQ);
-  const [editQId, setEditQId] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
   const [search, setSearch] = useState('');
   const [stageFilter, setStageFilter] = useState('');
@@ -74,16 +74,10 @@ export default function Recitations() {
     queryFn: () => api.get('/recitations').then(r => r.data),
   });
 
-  const { data: questions = [] } = useQuery({
-    queryKey: ['recitation-questions', selectedId],
-    queryFn: () => selectedId ? api.get(`/recitations/${selectedId}/questions`).then(r => r.data) : [],
-    enabled: !!selectedId && viewMode === 'questions',
-  });
-
   const { data: results = [] } = useQuery({
     queryKey: ['recitation-results', selectedId],
     queryFn: () => selectedId ? api.get(`/recitations/${selectedId}/results`).then(r => r.data) : [],
-    enabled: !!selectedId && viewMode === 'results',
+    enabled: !!selectedId,
   });
 
   const { data: analytics } = useQuery({
@@ -116,25 +110,6 @@ export default function Recitations() {
   const publishMut = useMutation({
     mutationFn: (id) => api.put(`/recitations/${id}/publish`),
     onSuccess: () => { qc.invalidateQueries(['recitations']); toast.success('تم تحديث حالة النشر'); },
-    onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
-  });
-
-  const addQMut = useMutation({
-    mutationFn: (d) => editQId
-      ? api.put(`/recitations/${selectedId}/questions/${editQId}`, d)
-      : api.post(`/recitations/${selectedId}/questions`, d),
-    onSuccess: () => {
-      qc.invalidateQueries(['recitation-questions', selectedId]);
-      qc.invalidateQueries(['recitations']);
-      toast.success(editQId ? 'تم تعديل السؤال' : 'تم إضافة السؤال');
-      setQForm(emptyQ); setEditQId(null);
-    },
-    onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
-  });
-
-  const deleteQMut = useMutation({
-    mutationFn: (qid) => api.delete(`/recitations/${selectedId}/questions/${qid}`),
-    onSuccess: () => { qc.invalidateQueries(['recitation-questions', selectedId]); qc.invalidateQueries(['recitations']); toast.success('تم حذف السؤال'); },
     onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
   });
 
@@ -325,31 +300,28 @@ export default function Recitations() {
                   </div>
                 </div>
 
-                {/* Sub-tabs */}
-                <div className="flex gap-2">
-                  <button onClick={() => setViewMode('questions')}
-                    className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${viewMode === 'questions' ? 'bg-purple-500 text-white' : dark ? 'text-[var(--dk-text-2)] hover:bg-[var(--dk-elevated)]' : 'text-gray-500 hover:bg-gray-100'}`}>
-                    الأسئلة ({selectedRec.question_count})
-                  </button>
-                  <button onClick={() => setViewMode('results')}
-                    className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${viewMode === 'results' ? 'bg-purple-500 text-white' : dark ? 'text-[var(--dk-text-2)] hover:bg-[var(--dk-elevated)]' : 'text-gray-500 hover:bg-gray-100'}`}>
-                    النتائج ({selectedRec.result_count})
-                  </button>
+                {/* Actions row */}
+                <div className="flex flex-wrap gap-2">
+                  {!selectedRec.is_published && (
+                    <button
+                      onClick={() => navigate(`/${baseRole}/recitations/${selectedRec.id}/questions`)}
+                      className="flex items-center gap-2 bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-xl text-sm font-bold transition-colors shadow-sm">
+                      <FileText className="w-4 h-4" />
+                      إدارة الأسئلة ({selectedRec.question_count})
+                    </button>
+                  )}
+                  {selectedRec.is_published && (
+                    <button
+                      onClick={() => navigate(`/${baseRole}/recitations/${selectedRec.id}/questions`)}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)] hover:bg-[var(--dk-surface)]' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                      <Eye className="w-4 h-4" />
+                      عرض الأسئلة ({selectedRec.question_count})
+                    </button>
+                  )}
                 </div>
 
-                {viewMode === 'questions' && (
-                  <QuestionsPanel
-                    rec={selectedRec} questions={questions}
-                    qForm={qForm} setQForm={setQForm}
-                    editQId={editQId} setEditQId={setEditQId}
-                    addQMut={addQMut} deleteQMut={deleteQMut}
-                    dark={dark} cardCls={cardCls}
-                  />
-                )}
-
-                {viewMode === 'results' && (
-                  <ResultsPanel results={results} rec={selectedRec} dark={dark} cardCls={cardCls} navigate={navigate} />
-                )}
+                {/* Results */}
+                <ResultsPanel results={results} rec={selectedRec} dark={dark} cardCls={cardCls} navigate={navigate} baseRole={baseRole} />
               </div>
             )}
           </div>
@@ -856,7 +828,7 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
   );
 }
 
-function ResultsPanel({ results, rec, dark, cardCls, navigate }) {
+function ResultsPanel({ results, rec, dark, cardCls, navigate, baseRole = 'teacher' }) {
   if (results.length === 0)
     return (
       <div className={`${cardCls} text-center py-8`}>
@@ -905,7 +877,7 @@ function ResultsPanel({ results, rec, dark, cardCls, navigate }) {
               </p>
             </div>
             {navigate && (
-              <button onClick={() => navigate(`/teacher/recitation-review/${r.id}`)}
+              <button onClick={() => navigate(`/${baseRole}/recitation-review/${r.id}`)}
                 className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 transition-colors flex-shrink-0"
                 title="مراجعة مفصّلة">
                 <Eye className="w-4 h-4" />
