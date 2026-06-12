@@ -206,7 +206,7 @@ export default function Recitations() {
                   </div>
                 : filtered.map(rec => (
                   <div key={rec.id}
-                    onClick={() => { setSelectedId(rec.id); setViewMode('questions'); }}
+                    onClick={() => setSelectedId(rec.id)}
                     className={`${cardCls} cursor-pointer transition-all border-2 ${selectedId === rec.id ? 'border-purple-400' : dark ? 'border-transparent' : 'border-transparent hover:border-purple-200'}`}>
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
