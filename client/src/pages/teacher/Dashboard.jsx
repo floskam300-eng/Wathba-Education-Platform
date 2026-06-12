@@ -107,7 +107,7 @@ export default function TeacherDashboard() {
       text: 'text-rose-700',
       badge: stats?.pendingRetries || null,
       badgeColor: 'bg-rose-500',
-      onClick: () => navigate('/teacher/retry-requests'),
+      onClick: () => navigate('/teacher/requests', { state: { tab: 'retry' } }),
     },
   ];
 

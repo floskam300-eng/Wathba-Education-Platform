@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   ClipboardList, RotateCcw, Bell, CheckCircle, XCircle,
   Clock, Eye, CreditCard, AlertCircle, Gift
@@ -62,7 +62,8 @@ function PaymentBadge({ r }) {
 export default function TeacherRequests() {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('enrollment');
+  const location = useLocation();
+  const [activeTab, setActiveTab] = useState(location.state?.tab === 'retry' ? 'retry' : 'enrollment');
   const [retryNoteModal, setRetryNoteModal] = useState(null);
   const [retryNote, setRetryNote] = useState('');
   const [requestsCourseFilter, setRequestsCourseFilter] = useState('الكل');

@@ -590,10 +590,11 @@ export default function ArchivePage() {
                       </td>
                       <td className={`px-4 py-3 ${textSec}`}>
                         {r.attempt_number > 1
-                          ? <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${dark ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-50 text-blue-700'}`}>
-                              <RotateCcw className="w-2.5 h-2.5 inline ml-0.5" />إعادة ({r.attempt_number})
+                          ? <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold whitespace-nowrap ${dark ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-50 text-blue-700'}`}>
+                              <RotateCcw className="w-2.5 h-2.5 flex-shrink-0" />
+                              <span>إعادة ({r.attempt_number})</span>
                             </span>
-                          : <span className={`text-xs ${textSec}`}>أول محاولة</span>
+                          : <span className={`inline-flex items-center text-xs whitespace-nowrap ${textSec}`}>أول محاولة</span>
                         }
                       </td>
                       <td className={`px-4 py-3 ${textSec} whitespace-nowrap`}>{fmt(r.created_at)}</td>
