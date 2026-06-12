@@ -1,7 +1,11 @@
 import axios from 'axios';
 import { getTenantSlug } from './tenant';
 
-const api = axios.create({ baseURL: '/api' });
+const API_BASE = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}/api`
+  : '/api';
+
+const api = axios.create({ baseURL: API_BASE });
 
 // [L-3] Proactive token refresh: when the stored JWT is within 24 h of expiry,
 // silently call /auth/refresh to rotate it before it expires.
@@ -20,7 +24,7 @@ function maybeRefreshToken() {
     if (ttlLeft > 86_400) return; // > 24 h left — nothing to do
     _refreshAttempted = true;
     // Fire-and-forget refresh: swap the stored token on success
-    axios.post('/api/auth/refresh', {}, {
+    axios.post(`${API_BASE}/auth/refresh`, {}, {
       headers: {
         Authorization: `Bearer ${token}`,
         'X-Tenant-Slug': getTenantSlug() || '',

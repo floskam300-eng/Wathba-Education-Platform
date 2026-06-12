@@ -48,14 +48,27 @@ app.use(helmet({
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
   : null;
+
+// Wildcard subdomain matcher — allows *.wathba.site in addition to explicit origins
+const WILDCARD_DOMAIN = process.env.WILDCARD_DOMAIN || null; // e.g. "wathba.site"
+
 app.use(cors({
   origin: process.env.NODE_ENV === 'production'
-    ? (allowedOrigins?.length
-        ? (origin, cb) => {
-            if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
-            return cb(new Error('Not allowed by CORS'));
-          }
-        : false)
+    ? (origin, cb) => {
+        if (!origin) return cb(null, true); // same-origin / server-to-server
+        // Check explicit list
+        if (allowedOrigins?.length && allowedOrigins.includes(origin)) return cb(null, true);
+        // Check wildcard domain  e.g. https://mr-ahmed.wathba.site
+        if (WILDCARD_DOMAIN) {
+          try {
+            const host = new URL(origin).hostname;
+            if (host === WILDCARD_DOMAIN || host.endsWith(`.${WILDCARD_DOMAIN}`)) {
+              return cb(null, true);
+            }
+          } catch (_) {}
+        }
+        return cb(new Error('Not allowed by CORS'));
+      }
     : true,
   credentials: true,
 }));

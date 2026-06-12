@@ -14,7 +14,10 @@ export function getTenantSlug() {
     hostname.includes('.repl.co') ||
     parts.length < 3;
 
-  if (!isDevHost && parts[0] !== 'www') {
+  // 'api' subdomain is the backend — not a tenant slug
+  const NON_TENANT_SUBDOMAINS = ['www', 'api'];
+
+  if (!isDevHost && !NON_TENANT_SUBDOMAINS.includes(parts[0])) {
     return parts[0];
   }
 
