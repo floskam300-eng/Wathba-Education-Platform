@@ -118,22 +118,22 @@ export default function ExamReviewPage() {
         </button>
 
         {!isLoading && result && (
-          <div className={`rounded-2xl p-5 mb-2 flex items-center justify-between gap-4 shadow-sm border-2 ${passed ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+          <div className={`rounded-2xl p-5 mb-2 flex items-center justify-between gap-4 shadow-sm border-2 ${passed ? 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-700/50' : 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-700/50'}`}>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-gray-500 mb-1">مراجعة الاختبار</p>
-              <h1 className={`font-black text-lg leading-tight ${passed ? 'text-green-800' : 'text-red-800'}`}>
+              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">مراجعة الاختبار</p>
+              <h1 className={`font-black text-lg leading-tight ${passed ? 'text-green-800 dark:text-green-300' : 'text-red-800 dark:text-red-300'}`}>
                 {result.exam_title}
               </h1>
               {result.attempt_number > 1 && (
-                <p className="text-xs text-orange-600 font-bold mt-1">المحاولة #{result.attempt_number}</p>
+                <p className="text-xs text-orange-600 dark:text-orange-400 font-bold mt-1">المحاولة #{result.attempt_number}</p>
               )}
             </div>
             <div className="text-center flex-shrink-0">
-              <div className={`text-3xl font-black ${passed ? 'text-green-700' : 'text-red-600'}`}>
+              <div className={`text-3xl font-black ${passed ? 'text-green-700 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                 {result.score}
-                <span className="text-base font-semibold text-gray-400">/{result.total_score}</span>
+                <span className="text-base font-semibold text-gray-400 dark:text-gray-500">/{result.total_score}</span>
               </div>
-              <span className={`text-xs font-black px-3 py-1 rounded-full ${passed ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-700'}`}>
+              <span className={`text-xs font-black px-3 py-1 rounded-full ${passed ? 'bg-green-600 text-white dark:bg-green-500/80 dark:text-white' : 'bg-red-600 text-white dark:bg-red-500/80 dark:text-white'}`}>
                 {passed ? '✓ ناجح' : '✗ راسب'}
               </span>
             </div>

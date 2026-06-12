@@ -82,6 +82,7 @@ const tooltipBase = {
 
 export default function TeacherAnalytics() {
   const navigate = useNavigate();
+  const { dark } = useTheme();
   const [stageFilter, setStageFilter]   = useState('الكل');
   const [sortField, setSortField]       = useState('points');
   const [sortDir, setSortDir]           = useState('desc');
@@ -634,7 +635,7 @@ export default function TeacherAnalytics() {
                   <div className="border-t border-gray-50">
                     {top5.map((s, i) => {
                       const avg = Math.round(parseFloat(s.avg_score) || 0);
-                      const sc = avg >= 70 ? { text: '#10b981', bg: '#dcfce7' } : avg >= 50 ? { text: '#6366f1', bg: '#ede9fe' } : { text: '#f43f5e', bg: '#ffe4e6' };
+                      const sc = avg >= 70 ? { text: '#10b981', bg: dark ? 'rgba(16,185,129,0.15)' : '#dcfce7' } : avg >= 50 ? { text: '#6366f1', bg: dark ? 'rgba(99,102,241,0.15)' : '#ede9fe' } : { text: '#f43f5e', bg: dark ? 'rgba(244,63,94,0.15)' : '#ffe4e6' };
                       return (
                         <div key={s.id}
                           className="flex items-center justify-between px-5 py-2.5 hover:bg-gray-50/70 transition-colors border-b border-gray-50 last:border-0 cursor-pointer"
@@ -974,7 +975,7 @@ export default function TeacherAnalytics() {
                 ))
               ) : filteredStudents.slice(0, studentsPage).map((s, i) => {
                 const avg = Math.round(parseFloat(s.avg_score) || 0);
-                const sc = avg >= 70 ? { text:'#10b981', bg:'#dcfce7' } : avg >= 50 ? { text:'#6366f1', bg:'#ede9fe' } : { text:'#f43f5e', bg:'#ffe4e6' };
+                const sc = avg >= 70 ? { text:'#10b981', bg: dark ? 'rgba(16,185,129,0.15)' : '#dcfce7' } : avg >= 50 ? { text:'#6366f1', bg: dark ? 'rgba(99,102,241,0.15)' : '#ede9fe' } : { text:'#f43f5e', bg: dark ? 'rgba(244,63,94,0.15)' : '#ffe4e6' };
                 return (
                   <tr key={s.id} className="border-t border-gray-50 hover:bg-gray-50/60 transition-colors group">
                     <td className="px-4 py-3">
