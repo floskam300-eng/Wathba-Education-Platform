@@ -142,31 +142,31 @@ export default function RecitationQuestions() {
     <div className="-m-4 lg:-m-6 h-[calc(100%+2rem)] lg:h-[calc(100%+3rem)] flex flex-col overflow-hidden" dir="rtl">
 
       {/* Fixed Header */}
-      <div className="flex-shrink-0 bg-white border-b border-gray-200 shadow-sm">
+      <div className="flex-shrink-0 bg-white dark:bg-[var(--dk-surface)] border-b border-gray-200 dark:border-[var(--dk-border)] shadow-sm">
         <div className="px-4 lg:px-6 py-3 flex items-center gap-2 sm:gap-3">
           <button
             onClick={() => navigate(`/${baseRole}/recitations`)}
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-xl text-gray-600 hover:bg-gray-100 transition-all font-bold text-sm flex-shrink-0">
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-xl text-gray-600 dark:text-[var(--dk-text-2)] hover:bg-gray-100 dark:hover:bg-[var(--dk-elevated)] transition-all font-bold text-sm flex-shrink-0">
             <ArrowRight className="w-4 h-4" />
             <span className="hidden sm:inline">رجوع للتسميعات</span>
           </button>
-          <div className="h-5 w-px bg-gray-200 flex-shrink-0" />
+          <div className="h-5 w-px bg-gray-200 dark:bg-[var(--dk-border)] flex-shrink-0" />
           <div className="flex items-center gap-2 min-w-0 flex-1">
             <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 text-purple-500 flex-shrink-0" />
             <div className="min-w-0">
-              <p className="text-[10px] sm:text-xs text-gray-400 font-medium">إدارة أسئلة التسميع</p>
-              <h1 className="font-black text-navy-700 text-xs sm:text-sm truncate">{recitation?.title || '...'}</h1>
+              <p className="text-[10px] sm:text-xs text-gray-400 dark:text-[var(--dk-text-3)] font-medium">إدارة أسئلة التسميع</p>
+              <h1 className="font-black text-navy-700 dark:text-[var(--dk-text-1)] text-xs sm:text-sm truncate">{recitation?.title || '...'}</h1>
             </div>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
-            <span className="text-xs font-bold text-gray-500 flex items-center gap-1">
+            <span className="text-xs font-bold text-gray-500 dark:text-[var(--dk-text-2)] flex items-center gap-1">
               <HelpCircle className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
               <span className="hidden sm:inline">{questions.length} سؤال</span>
               <span className="sm:hidden">{questions.length}</span>
             </span>
             {recTotal > 0 && (
               <span className={`text-xs font-black px-2 py-1 rounded-lg ${
-                pointsMismatch ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'
+                pointsMismatch ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
               }`}>
                 {totalPoints}/{recTotal}
               </span>
@@ -182,7 +182,7 @@ export default function RecitationQuestions() {
           {/* ── Questions list ─────────────────────────────────────────── */}
           <div className="lg:col-span-3 space-y-3 order-2 lg:order-1">
             {pointsMismatch && (
-              <div className="flex items-center gap-2 px-4 py-3 bg-amber-50 border border-amber-300 rounded-xl text-sm text-amber-800 font-semibold">
+              <div className="flex items-center gap-2 px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700/50 rounded-xl text-sm text-amber-800 dark:text-amber-400 font-semibold">
                 <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0" />
                 <span>
                   ⚠️ مجموع درجات الأسئلة (<span className="font-black">{totalPoints}</span>) لا يساوي المجموع الكلي (<span className="font-black">{recTotal}</span>) — عدّل الدرجات قبل نشر التسميع
@@ -192,18 +192,18 @@ export default function RecitationQuestions() {
 
             <div className="flex items-center gap-2">
               <HelpCircle className="w-5 h-5 text-purple-500" />
-              <h2 className="font-black text-navy-700 text-base">
+              <h2 className="font-black text-navy-700 dark:text-[var(--dk-text-1)] text-base">
                 الأسئلة
-                <span className="mr-2 text-sm font-semibold text-gray-500">({questions.length})</span>
+                <span className="mr-2 text-sm font-semibold text-gray-500 dark:text-[var(--dk-text-2)]">({questions.length})</span>
               </h2>
             </div>
 
             {isLoading ? (
-              [...Array(3)].map((_, i) => <div key={i} className="h-24 bg-white rounded-xl animate-pulse border border-gray-100" />)
+              [...Array(3)].map((_, i) => <div key={i} className="h-24 bg-white dark:bg-[var(--dk-surface)] rounded-xl animate-pulse border border-gray-100 dark:border-[var(--dk-border)]" />)
             ) : questions.length === 0 ? (
-              <div className="text-center py-16 bg-white rounded-2xl border border-dashed border-gray-200">
-                <HelpCircle className="w-14 h-14 mx-auto mb-3 text-gray-300" />
-                <p className="text-gray-400 font-medium">لا توجد أسئلة بعد — أضف أول سؤال من النموذج</p>
+              <div className="text-center py-16 bg-white dark:bg-[var(--dk-surface)] rounded-2xl border border-dashed border-gray-200 dark:border-[var(--dk-border)]">
+                <HelpCircle className="w-14 h-14 mx-auto mb-3 text-gray-300 dark:text-[var(--dk-text-3)]" />
+                <p className="text-gray-400 dark:text-[var(--dk-text-2)] font-medium">لا توجد أسئلة بعد — أضف أول سؤال من النموذج</p>
               </div>
             ) : questions.map((q, idx) => (
               <QuestionCard
@@ -221,14 +221,14 @@ export default function RecitationQuestions() {
           {/* ── Add / Edit form ────────────────────────────────────────── */}
           <div ref={formTopRef} className="lg:col-span-2 order-1 lg:order-2 lg:sticky lg:top-4">
             {recitation?.is_published ? (
-              <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-5 text-center">
+              <div className="bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-300 dark:border-amber-700/50 rounded-2xl p-5 text-center">
                 <AlertCircle className="w-8 h-8 text-amber-500 mx-auto mb-2" />
-                <p className="font-bold text-amber-800 text-sm">التسميع منشور</p>
-                <p className="text-amber-700 text-xs mt-1">لا يمكن تعديل الأسئلة بعد النشر</p>
+                <p className="font-bold text-amber-800 dark:text-amber-400 text-sm">التسميع منشور</p>
+                <p className="text-amber-700 dark:text-amber-500 text-xs mt-1">لا يمكن تعديل الأسئلة بعد النشر</p>
               </div>
             ) : (
-              <div className="bg-white rounded-2xl border-2 border-dashed border-purple-300 p-5 shadow-sm">
-                <h3 className="font-black text-navy-700 mb-4 flex items-center gap-2">
+              <div className="bg-white dark:bg-[var(--dk-surface)] rounded-2xl border-2 border-dashed border-purple-300 dark:border-[var(--dk-border-md)] p-5 shadow-sm">
+                <h3 className="font-black text-navy-700 dark:text-[var(--dk-text-1)] mb-4 flex items-center gap-2">
                   <Plus className="w-4 h-4 text-purple-500" />
                   {editQ ? 'تعديل السؤال' : 'إضافة سؤال جديد'}
                 </h3>
@@ -237,7 +237,7 @@ export default function RecitationQuestions() {
 
                   {/* Question type */}
                   <div>
-                    <label className="block text-xs font-bold text-navy-700 mb-1.5">نوع السؤال</label>
+                    <label className="block text-xs font-bold text-navy-700 dark:text-[var(--dk-text-1)] mb-1.5">نوع السؤال</label>
                     <div className="flex gap-2 flex-wrap">
                       {QUESTION_TYPES.map(t => (
                         <button key={t.value} type="button"
@@ -252,8 +252,8 @@ export default function RecitationQuestions() {
                           }}
                           className={`px-3 py-1.5 rounded-lg text-xs font-bold border-2 transition-all ${
                             qForm.question_type === t.value
-                              ? 'border-purple-500 bg-purple-50 text-purple-800'
-                              : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                              ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300'
+                              : 'border-gray-200 dark:border-[var(--dk-border)] text-gray-600 dark:text-[var(--dk-text-2)] hover:border-gray-300 dark:hover:border-[var(--dk-border-md)] dark:bg-[var(--dk-elevated)]'
                           }`}>
                           {t.label}
                         </button>
@@ -263,29 +263,34 @@ export default function RecitationQuestions() {
 
                   {/* Question text */}
                   <div>
-                    <label className="block text-xs font-bold text-navy-700 mb-1">
-                      نص السؤال <span className="text-gray-400 font-normal">{isImgMulti ? '(تعليمات اختياري)' : '(اختياري إذا وُجدت صورة)'}</span>
+                    <label className="block text-xs font-bold text-navy-700 dark:text-[var(--dk-text-1)] mb-1">
+                      نص السؤال <span className="text-gray-400 dark:text-[var(--dk-text-3)] font-normal">{isImgMulti ? '(تعليمات اختياري)' : '(اختياري إذا وُجدت صورة)'}</span>
                     </label>
                     <textarea
                       value={qForm.question_text}
                       onChange={e => setQForm(f => ({ ...f, question_text: e.target.value }))}
                       rows={2}
-                      className="w-full rounded-xl px-3 py-2.5 border border-gray-200 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-300"
+                      className="w-full rounded-xl px-3 py-2.5 border border-gray-200 dark:border-[var(--dk-border)] bg-white dark:bg-[var(--dk-elevated)] text-gray-900 dark:text-[var(--dk-text-1)] text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-300 dark:focus:ring-purple-600/50 placeholder:text-gray-400 dark:placeholder:text-[var(--dk-text-3)]"
                       placeholder="اكتب نص السؤال هنا..." />
                   </div>
 
                   {/* Image upload */}
                   <div>
-                    <label className="block text-xs font-bold text-navy-700 mb-1.5">
-                      صورة السؤال <span className="text-gray-400 font-normal">(اختياري)</span>
+                    <label className="block text-xs font-bold text-navy-700 dark:text-[var(--dk-text-1)] mb-1.5">
+                      صورة السؤال <span className="text-gray-400 dark:text-[var(--dk-text-3)] font-normal">(اختياري)</span>
                     </label>
                     <input ref={imgInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
                     {qForm.question_image_url ? (
-                      <div className="relative rounded-xl overflow-hidden border border-gray-200">
-                        <img src={qForm.question_image_url} alt="question" className="w-full max-h-48 object-contain bg-gray-50" />
-                        <div className="absolute top-2 left-2 flex gap-1.5">
+                      <div className="relative rounded-xl overflow-hidden border border-gray-200 dark:border-[var(--dk-border)] min-h-28 bg-gray-50 dark:bg-[var(--dk-elevated)]">
+                        <img
+                          src={qForm.question_image_url}
+                          alt="question"
+                          className="w-full max-h-48 object-contain"
+                          style={{ display: 'block' }}
+                        />
+                        <div className="absolute top-2 right-2 flex gap-1.5">
                           <button type="button" onClick={() => imgInputRef.current?.click()}
-                            className="px-2.5 py-1.5 bg-white/95 text-gray-700 text-xs rounded-lg font-bold shadow-sm hover:bg-white flex items-center gap-1">
+                            className="px-2.5 py-1.5 bg-white/95 dark:bg-[var(--dk-elevated)]/95 text-gray-700 dark:text-[var(--dk-text-1)] text-xs rounded-lg font-bold shadow-sm hover:bg-white dark:hover:bg-[var(--dk-hover)] flex items-center gap-1">
                             <Upload className="w-3 h-3" /> تغيير
                           </button>
                           <button type="button" onClick={() => setQForm(f => ({ ...f, question_image_url: '' }))}
@@ -296,7 +301,7 @@ export default function RecitationQuestions() {
                       </div>
                     ) : (
                       <button type="button" onClick={() => imgInputRef.current?.click()} disabled={imgUploading}
-                        className="w-full border-2 border-dashed border-gray-200 rounded-xl py-3.5 text-sm font-semibold flex items-center justify-center gap-2 text-gray-400 hover:border-purple-300 hover:text-purple-500 transition-colors">
+                        className="w-full border-2 border-dashed border-gray-200 dark:border-[var(--dk-border)] rounded-xl py-3.5 text-sm font-semibold flex items-center justify-center gap-2 text-gray-400 dark:text-[var(--dk-text-2)] hover:border-purple-300 dark:hover:border-purple-600/50 hover:text-purple-500 dark:hover:text-purple-400 transition-colors bg-transparent dark:bg-[var(--dk-elevated)]">
                         {imgUploading
                           ? <><RefreshCw className="w-4 h-4 animate-spin" />جاري الرفع...</>
                           : <><ImageIcon className="w-4 h-4" />إضافة صورة (اختياري)</>
@@ -308,16 +313,16 @@ export default function RecitationQuestions() {
                   {/* MCQ options */}
                   {qForm.question_type === 'mcq' && (
                     <div className="space-y-2">
-                      <label className="block text-xs font-bold text-navy-700">الخيارات</label>
+                      <label className="block text-xs font-bold text-navy-700 dark:text-[var(--dk-text-1)]">الخيارات</label>
                       {['A', 'B', 'C', 'D'].map((opt, i) => (
                         <div key={opt} className="flex items-center gap-2">
                           <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
-                            qForm.correct_answer_letter === opt ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700'
+                            qForm.correct_answer_letter === opt ? 'bg-purple-600 text-white' : 'bg-gray-200 dark:bg-[var(--dk-elevated)] text-gray-700 dark:text-[var(--dk-text-2)]'
                           }`}>{opt}</span>
                           <input
                             value={qForm[`option_${opt.toLowerCase()}`] || ''}
                             onChange={e => setQForm(f => ({ ...f, [`option_${opt.toLowerCase()}`]: e.target.value }))}
-                            className="flex-1 rounded-xl px-3 py-2 border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
+                            className="flex-1 rounded-xl px-3 py-2 border border-gray-200 dark:border-[var(--dk-border)] bg-white dark:bg-[var(--dk-elevated)] text-gray-900 dark:text-[var(--dk-text-1)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 dark:focus:ring-purple-600/50 placeholder:text-gray-400 dark:placeholder:text-[var(--dk-text-3)]"
                             placeholder={`الخيار ${opt}${i < 2 ? ' *' : ''}`} />
                         </div>
                       ))}
@@ -327,15 +332,15 @@ export default function RecitationQuestions() {
                   {/* True/False */}
                   {qForm.question_type === 'true_false' && (
                     <div>
-                      <label className="block text-xs font-bold text-navy-700 mb-1.5">الإجابة الصحيحة</label>
+                      <label className="block text-xs font-bold text-navy-700 dark:text-[var(--dk-text-1)] mb-1.5">الإجابة الصحيحة</label>
                       <div className="flex gap-3">
                         {[{ opt: 'A', label: '✅ صح' }, { opt: 'B', label: '❌ خطأ' }].map(({ opt, label }) => (
                           <button key={opt} type="button"
                             onClick={() => setQForm(f => ({ ...f, correct_answer_letter: opt }))}
                             className={`flex-1 py-2.5 rounded-xl font-bold text-sm border-2 transition-all ${
                               qForm.correct_answer_letter === opt
-                                ? 'border-purple-500 bg-purple-50 text-purple-800'
-                                : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                                ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300'
+                                : 'border-gray-200 dark:border-[var(--dk-border)] text-gray-600 dark:text-[var(--dk-text-2)] hover:border-gray-300 dark:hover:border-[var(--dk-border-md)] dark:bg-[var(--dk-elevated)]'
                             }`}>
                             {label}
                           </button>
@@ -347,11 +352,11 @@ export default function RecitationQuestions() {
                   {/* image_multi sub-questions */}
                   {isImgMulti && (
                     <div>
-                      <label className="block text-xs font-bold text-navy-700 mb-2">الأسئلة الفرعية</label>
+                      <label className="block text-xs font-bold text-navy-700 dark:text-[var(--dk-text-1)] mb-2">الأسئلة الفرعية</label>
                       <div className="flex items-center gap-2 mb-3">
                         <input type="number" min={1} max={50} value={imgMultiCount}
                           onChange={e => setImgMultiCount(Math.max(1, Math.min(50, parseInt(e.target.value) || 1)))}
-                          className="w-20 rounded-xl px-3 py-2 border border-gray-200 text-sm text-center focus:outline-none focus:ring-2 focus:ring-purple-300"
+                          className="w-20 rounded-xl px-3 py-2 border border-gray-200 dark:border-[var(--dk-border)] bg-white dark:bg-[var(--dk-elevated)] text-gray-900 dark:text-[var(--dk-text-1)] text-sm text-center focus:outline-none focus:ring-2 focus:ring-purple-300 dark:focus:ring-purple-600/50"
                           placeholder="العدد" />
                         <button type="button"
                           onClick={() => {
@@ -364,7 +369,7 @@ export default function RecitationQuestions() {
                           <RefreshCw className="w-3.5 h-3.5" /> توليد
                         </button>
                         {(qForm.sub_questions || []).length > 0 && (
-                          <span className="text-xs font-semibold text-purple-600">
+                          <span className="text-xs font-semibold text-purple-600 dark:text-purple-400">
                             {(qForm.sub_questions || []).length} سؤال
                           </span>
                         )}
@@ -372,8 +377,8 @@ export default function RecitationQuestions() {
                       {(qForm.sub_questions || []).length > 0 && (
                         <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
                           {(qForm.sub_questions || []).map((sub, i) => (
-                            <div key={i} className="flex items-center gap-2 rounded-lg px-2 py-1.5 bg-purple-50 border border-purple-100">
-                              <span className="w-7 text-center text-xs font-black text-gray-500 flex-shrink-0">{sub.label}</span>
+                            <div key={i} className="flex items-center gap-2 rounded-lg px-2 py-1.5 bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800/40">
+                              <span className="w-7 text-center text-xs font-black text-gray-500 dark:text-[var(--dk-text-2)] flex-shrink-0">{sub.label}</span>
                               <div className="flex gap-1 flex-1">
                                 {['A', 'B', 'C', 'D'].map(letter => (
                                   <button key={letter} type="button"
@@ -386,7 +391,7 @@ export default function RecitationQuestions() {
                                     className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all ${
                                       sub.correct === letter
                                         ? 'bg-purple-500 text-white border-purple-500 shadow-sm'
-                                        : 'bg-white text-gray-600 border-gray-200 hover:border-purple-300 hover:bg-purple-50'
+                                        : 'bg-white dark:bg-[var(--dk-elevated)] text-gray-600 dark:text-[var(--dk-text-2)] border-gray-200 dark:border-[var(--dk-border)] hover:border-purple-300 dark:hover:border-purple-600/50 hover:bg-purple-50 dark:hover:bg-purple-900/20'
                                     }`}>
                                     {letter}
                                   </button>
@@ -403,29 +408,29 @@ export default function RecitationQuestions() {
                   <div className="flex items-end gap-3 pt-1">
                     {qForm.question_type === 'mcq' && (
                       <div>
-                        <label className="block text-xs font-bold text-navy-700 mb-1">الإجابة الصحيحة</label>
+                        <label className="block text-xs font-bold text-navy-700 dark:text-[var(--dk-text-1)] mb-1">الإجابة الصحيحة</label>
                         <select value={qForm.correct_answer_letter}
                           onChange={e => setQForm(f => ({ ...f, correct_answer_letter: e.target.value }))}
-                          className="rounded-xl px-3 py-2 border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300">
+                          className="rounded-xl px-3 py-2 border border-gray-200 dark:border-[var(--dk-border)] bg-white dark:bg-[var(--dk-elevated)] text-gray-900 dark:text-[var(--dk-text-1)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 dark:focus:ring-purple-600/50">
                           {['A', 'B', 'C', 'D'].map(o => <option key={o} value={o}>{o}</option>)}
                         </select>
                       </div>
                     )}
                     <div>
-                      <label className="block text-xs font-bold text-navy-700 mb-1">
+                      <label className="block text-xs font-bold text-navy-700 dark:text-[var(--dk-text-1)] mb-1">
                         {isImgMulti ? 'الدرجة الكلية' : 'الدرجة'}
                       </label>
                       <input type="number" min={1} value={qForm.points}
                         onChange={e => setQForm(f => ({ ...f, points: parseInt(e.target.value) || 1 }))}
-                        className="w-20 rounded-xl px-3 py-2 border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300" />
+                        className="w-20 rounded-xl px-3 py-2 border border-gray-200 dark:border-[var(--dk-border)] bg-white dark:bg-[var(--dk-elevated)] text-gray-900 dark:text-[var(--dk-text-1)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 dark:focus:ring-purple-600/50" />
                     </div>
                   </div>
 
                   {/* Actions */}
-                  <div className="flex gap-2 pt-1 border-t border-gray-100">
+                  <div className="flex gap-2 pt-1 border-t border-gray-100 dark:border-[var(--dk-border)]">
                     {editQ && (
                       <button type="button" onClick={resetForm}
-                        className="px-4 py-2.5 rounded-xl text-sm font-bold bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors flex-shrink-0">
+                        className="px-4 py-2.5 rounded-xl text-sm font-bold bg-gray-100 dark:bg-[var(--dk-elevated)] text-gray-600 dark:text-[var(--dk-text-2)] hover:bg-gray-200 dark:hover:bg-[var(--dk-hover)] transition-colors flex-shrink-0">
                         إلغاء
                       </button>
                     )}
@@ -450,8 +455,9 @@ export default function RecitationQuestions() {
 
       <ConfirmDialog
         open={!!deleteQId}
-        onClose={() => setDeleteQId(null)}
         onConfirm={() => deleteQMut.mutate(deleteQId)}
+        onCancel={() => setDeleteQId(null)}
+        loading={deleteQMut.isPending}
         title="حذف السؤال"
         message="هل أنت متأكد من حذف هذا السؤال نهائياً؟"
         danger
@@ -465,39 +471,41 @@ function QuestionCard({ q, idx, isPublished, isEditing, onEdit, onDelete }) {
   const isTF = q.question_type === 'true_false';
 
   return (
-    <div className={`bg-white rounded-xl p-4 shadow-sm border transition-all ${
-      isEditing ? 'border-purple-400 ring-2 ring-purple-100' : 'border-gray-100 hover:border-gray-200'
+    <div className={`bg-white dark:bg-[var(--dk-surface)] rounded-xl p-4 shadow-sm border transition-all ${
+      isEditing
+        ? 'border-purple-400 ring-2 ring-purple-100 dark:ring-purple-900/40'
+        : 'border-gray-100 dark:border-[var(--dk-border)] hover:border-gray-200 dark:hover:border-[var(--dk-border-md)]'
     }`}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-2 flex-wrap">
-            <span className="w-6 h-6 rounded-full bg-purple-100 text-purple-700 text-xs font-black flex items-center justify-center flex-shrink-0">
+            <span className="w-6 h-6 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-400 text-xs font-black flex items-center justify-center flex-shrink-0">
               {idx + 1}
             </span>
             <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-              isTF ? 'bg-green-100 text-green-700' :
-              isImgMulti ? 'bg-orange-100 text-orange-700' :
-              'bg-blue-100 text-blue-700'
+              isTF ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
+              isImgMulti ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400' :
+              'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
             }`}>{qTypeLabel(q.question_type)}</span>
-            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800">
+            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-400">
               {q.points} درجة
             </span>
             {isImgMulti && (q.sub_questions || []).length > 0 && (
-              <span className="text-xs text-gray-400">({(q.sub_questions || []).length} فرع)</span>
+              <span className="text-xs text-gray-400 dark:text-[var(--dk-text-3)]">({(q.sub_questions || []).length} فرع)</span>
             )}
           </div>
 
           {q.question_image_url && (
-            <img src={q.question_image_url} alt="question" className="w-full max-h-40 object-contain rounded-xl border border-gray-100 mb-2 bg-gray-50" />
+            <img src={q.question_image_url} alt="question" className="w-full max-h-40 object-contain rounded-xl border border-gray-100 dark:border-[var(--dk-border)] mb-2 bg-gray-50 dark:bg-[var(--dk-elevated)]" />
           )}
           {q.question_text && (
-            <p className="font-semibold text-navy-600 text-sm mb-2 leading-relaxed">{q.question_text}</p>
+            <p className="font-semibold text-navy-600 dark:text-[var(--dk-text-1)] text-sm mb-2 leading-relaxed">{q.question_text}</p>
           )}
 
           {isImgMulti ? (
             <div className="flex flex-wrap gap-1.5">
               {(q.sub_questions || []).map(sub => (
-                <span key={sub.label} className="text-xs px-2 py-1 rounded-lg bg-purple-100 text-purple-700 font-bold">
+                <span key={sub.label} className="text-xs px-2 py-1 rounded-lg bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 font-bold">
                   {sub.label} → {sub.correct}
                 </span>
               ))}
@@ -508,11 +516,11 @@ function QuestionCard({ q, idx, isPublished, isEditing, onEdit, onDelete }) {
                 q[`option_${opt.toLowerCase()}`] && q[`option_${opt.toLowerCase()}`] !== '-' && (
                   <div key={opt} className={`p-1.5 rounded-lg font-semibold flex items-center gap-1 ${
                     q.correct_answer_letter === opt
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-gray-100 text-gray-700'
+                      ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'
+                      : 'bg-gray-100 dark:bg-[var(--dk-elevated)] text-gray-700 dark:text-[var(--dk-text-2)]'
                   }`}>
                     <span className={`w-4 h-4 rounded-full text-[10px] flex items-center justify-center font-black flex-shrink-0 ${
-                      q.correct_answer_letter === opt ? 'bg-green-600 text-white' : 'bg-gray-300 text-gray-600'
+                      q.correct_answer_letter === opt ? 'bg-green-600 text-white' : 'bg-gray-300 dark:bg-[var(--dk-hover)] text-gray-600 dark:text-[var(--dk-text-2)]'
                     }`}>{opt}</span>
                     {q[`option_${opt.toLowerCase()}`]}
                   </div>
@@ -524,10 +532,10 @@ function QuestionCard({ q, idx, isPublished, isEditing, onEdit, onDelete }) {
 
         {!isPublished && (
           <div className="flex flex-col gap-1 flex-shrink-0">
-            <button onClick={onEdit} className="p-1.5 text-navy-600 hover:bg-purple-50 rounded-lg transition-colors">
+            <button onClick={onEdit} className="p-1.5 text-navy-600 dark:text-[var(--dk-text-2)] hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors">
               <Edit3 className="w-3.5 h-3.5" />
             </button>
-            <button onClick={onDelete} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+            <button onClick={onDelete} className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           </div>
