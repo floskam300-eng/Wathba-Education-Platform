@@ -303,15 +303,8 @@ export default function PlatformHome() {
         <div className="ph-orb" style={{ width: 500, height: 500, bottom: -100, left: -80, background: 'radial-gradient(circle, #7c3aed, transparent 70%)' }} />
 
         <div className="max-w-4xl mx-auto px-5 text-center relative z-10">
-          <Reveal>
-            <div className="inline-flex items-center gap-2 bg-orange-500/10 border border-orange-500/25 text-orange-400 text-xs font-bold px-4 py-1.5 rounded-full mb-6 tracking-widest uppercase">
-              <Sparkles className="w-3.5 h-3.5" />
-              منصة SaaS تعليمية متكاملة
-            </div>
-          </Reveal>
-
           <Reveal delay={0.1}>
-            <h1 className="text-5xl md:text-7xl font-black leading-tight mb-6">
+            <h1 className="text-5xl md:text-7xl font-black leading-tight mb-6 text-white">
               منصتك التعليمية
               <br />
               <span className="ph-gradient-text">بهويتك الخاصة</span>
