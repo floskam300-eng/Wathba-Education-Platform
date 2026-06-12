@@ -91,15 +91,35 @@ router.get('/', requireRole('teacher', 'assistant'), (req, res, next) => checkPe
     const params = [teacherId];
     let searchClause = '';
     if (search && search.trim()) {
-      // Escape LIKE special characters so user input like "%" or "_" is treated
-      // as literal characters rather than wildcards, preventing unintended
-      // full-table scans or surprising match results.
       const escaped = search.trim()
         .replace(/\\/g, '\\\\')
         .replace(/%/g, '\\%')
         .replace(/_/g, '\\_');
       params.push(`%${escaped}%`);
       searchClause = `AND (s.name ILIKE $2 ESCAPE '\\' OR s.username ILIKE $2 ESCAPE '\\' OR s.phone ILIKE $2 ESCAPE '\\')`;
+    }
+    if (req.query.page) {
+      const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+      const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize, 10) || 20));
+      const offset = (page - 1) * pageSize;
+      params.push(pageSize, offset);
+      const countParams = params.slice(0, -2);
+      const countRes = await pool.query(
+        `SELECT COUNT(*)::int AS total FROM students s WHERE s.teacher_id = $1 AND s.deleted_at IS NULL ${searchClause}`,
+        countParams
+      );
+      const result = await pool.query(
+        `SELECT s.id, s.username, s.name, s.phone, s.parent_phone, s.academic_stage,
+                s.gender, s.teacher_id, s.points, s.created_at, s.deleted_at, s.fcm_token,
+                COUNT(CASE WHEN sce.status = 'active' THEN sce.course_id END)::int as enrolled_courses
+         FROM students s
+         LEFT JOIN student_course_enrollment sce ON s.id = sce.student_id
+         WHERE s.teacher_id = $1 AND s.deleted_at IS NULL ${searchClause}
+         GROUP BY s.id ORDER BY s.created_at DESC
+         LIMIT $${countParams.length + 1} OFFSET $${countParams.length + 2}`,
+        params
+      );
+      return res.json({ students: result.rows, total: countRes.rows[0].total, page, pageSize });
     }
     const result = await pool.query(
       `SELECT s.id, s.username, s.name, s.phone, s.parent_phone, s.academic_stage,
@@ -233,32 +253,30 @@ router.delete('/:id', requireRole('teacher', 'assistant'), (req, res, next) => c
       [studentId, teacherId]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Student not found' });
-    // Cascade soft-delete: deactivate enrollments, mark devices as removed, remove active live viewer status
     await pool.query(
       "UPDATE student_course_enrollment SET status='inactive' WHERE student_id=$1",
       [req.params.id]
-    ).catch(() => {});
+    ).catch(err => console.warn('[delete student] enrollment deactivation failed:', err.message));
     await pool.query(
       'DELETE FROM student_devices WHERE student_id=$1',
       [req.params.id]
-    ).catch(() => {});
+    ).catch(err => console.warn('[delete student] device cleanup failed:', err.message));
     await pool.query(
       'DELETE FROM exam_sessions WHERE student_id=$1',
       [req.params.id]
-    ).catch(() => {});
-      await pool.query(
-        "UPDATE live_stream_viewers SET is_active=false, left_at=NOW() WHERE student_id=$1 AND is_active=true",
-        [req.params.id]
-      ).catch(() => {});
-    // Clean up video progress and exam results on student deletion
+    ).catch(err => console.warn('[delete student] exam session cleanup failed:', err.message));
+    await pool.query(
+      "UPDATE live_stream_viewers SET is_active=false, left_at=NOW() WHERE student_id=$1 AND is_active=true",
+      [req.params.id]
+    ).catch(err => console.warn('[delete student] live viewer cleanup failed:', err.message));
     await pool.query(
       'DELETE FROM video_progress WHERE student_id=$1',
       [req.params.id]
-    ).catch(() => {});
+    ).catch(err => console.warn('[delete student] video progress cleanup failed:', err.message));
     await pool.query(
       'UPDATE exam_results SET is_latest=false WHERE student_id=$1',
       [req.params.id]
-    ).catch(() => {});
+    ).catch(err => console.warn('[delete student] exam results cleanup failed:', err.message));
     invalidateCache(teacherId);
     invalidateStudentAuthCache(studentId);
     logActivity({
@@ -660,7 +678,8 @@ router.post('/me/video-progress', requireRole('student'), async (req, res) => {
       return res.status(403).json({ error: 'Access denied: video not in your enrolled courses' });
     }
     const durationMinutes = parseFloat(ownershipCheck.rows[0]?.duration_minutes) || 0;
-    const safeWatchedSeconds = Math.max(0, Math.min(actual_watched_seconds || 0, 86400));
+    const maxWatchedSeconds = durationMinutes > 0 ? durationMinutes * 60 : 86400;
+    const safeWatchedSeconds = Math.max(0, Math.min(actual_watched_seconds || 0, maxWatchedSeconds));
     // BUG-12: cap watched_minutes at actual video duration — prevents inflated watch-time from malicious clients
     const safeWatchedMinutes = durationMinutes > 0
       ? Math.max(0, Math.min(watched_minutes || 0, durationMinutes))

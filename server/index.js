@@ -49,12 +49,14 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
   : null;
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' && allowedOrigins
-    ? (origin, cb) => {
-        if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
-        return cb(new Error('Not allowed by CORS'));
-      }
-    : '*',
+  origin: process.env.NODE_ENV === 'production'
+    ? (allowedOrigins?.length
+        ? (origin, cb) => {
+            if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+            return cb(new Error('Not allowed by CORS'));
+          }
+        : false)
+    : true,
   credentials: true,
 }));
 app.use((req, res, next) => {

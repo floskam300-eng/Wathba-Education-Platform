@@ -13,7 +13,7 @@ export default function AssistantDashboard() {
 
   const { data: students = [] } = useQuery({
     queryKey: ['students'],
-    queryFn: () => api.get('/students').then(r => r.data),
+    queryFn: () => api.get('/students').then(r => r.data.students || r.data || []),
     enabled: !!canViewStudents,
   });
 

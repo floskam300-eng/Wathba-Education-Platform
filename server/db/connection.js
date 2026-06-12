@@ -5,6 +5,8 @@ const pool = new Pool({
   ssl: process.env.DATABASE_URL?.includes('localhost')
     ? false
     : { rejectUnauthorized: false },
+  query_timeout: 30_000,
+  statement_timeout: 30_000,
 });
 
 pool.on('error', (err) => {

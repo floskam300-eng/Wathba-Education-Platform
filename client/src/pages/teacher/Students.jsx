@@ -291,11 +291,15 @@ export default function TeacherStudents() {
   const [search, setSearch]               = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [stageFilter, setStageFilter]     = useState('الكل');
+  const [page, setPage]                   = useState(1);
+  const [totalCount, setTotalCount]       = useState(0);
 
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(search), 400);
+    const t = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 400);
     return () => clearTimeout(t);
   }, [search]);
+
+  useEffect(() => { setPage(1); }, [stageFilter]);
 
   const [modal, setModal]               = useState(false);
   const [editData, setEditData]         = useState(null);
@@ -312,9 +316,11 @@ export default function TeacherStudents() {
   // Suspend / unsuspend state
   const [suspendTarget, setSuspendTarget] = useState(null); // { id, name, is_suspended }
 
+  const PAGE_SIZE = 20;
+
   const { data: students = [], isLoading, isFetching } = useQuery({
-    queryKey: ['students', debouncedSearch],
-    queryFn: () => api.get('/students', { params: debouncedSearch ? { search: debouncedSearch } : {} }).then(r => r.data),
+    queryKey: ['students', debouncedSearch, page],
+    queryFn: () => api.get('/students', { params: { page, pageSize: PAGE_SIZE, ...(debouncedSearch ? { search: debouncedSearch } : {}) } }).then(r => { setTotalCount(r.data.total); return r.data.students || []; }),
     placeholderData: (prev) => prev,
   });
 
@@ -495,7 +501,7 @@ export default function TeacherStudents() {
   };
 
   const stageCounts = ['الكل', ...STAGES].reduce((acc, s) => {
-    acc[s] = s === 'الكل' ? students.length : students.filter(st => st.academic_stage === s).length;
+    acc[s] = s === 'الكل' ? totalCount : students.filter(st => st.academic_stage === s).length;
     return acc;
   }, {});
 
@@ -522,7 +528,7 @@ export default function TeacherStudents() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <h1 className="text-2xl font-black text-navy-600 flex items-center gap-2">
           <Users className="w-7 h-7 text-orange-500" /> الطلاب
-          <span className="text-sm font-semibold text-gray-600">({students.length})</span>
+          <span className="text-sm font-semibold text-gray-600">({totalCount})</span>
         </h1>
         <div className="flex gap-2 flex-wrap">
           {canPrint && (
@@ -805,6 +811,34 @@ export default function TeacherStudents() {
               </table>
             </div>
           </div>
+
+          {/* Pagination */}
+          {totalCount > PAGE_SIZE && (
+            <div className="flex items-center justify-between gap-4 px-2">
+              <p className="text-xs text-gray-500">
+                الصفحة {page} من {Math.ceil(totalCount / PAGE_SIZE)} ({totalCount} طالب)
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                  className="btn-secondary !py-1.5 !px-3 text-xs disabled:opacity-40"
+                >
+                  السابق
+                </button>
+                <span className="text-xs font-bold text-gray-600 min-w-[4rem] text-center">
+                  {page} / {Math.ceil(totalCount / PAGE_SIZE)}
+                </span>
+                <button
+                  onClick={() => setPage(p => p + 1)}
+                  disabled={page >= Math.ceil(totalCount / PAGE_SIZE)}
+                  className="btn-secondary !py-1.5 !px-3 text-xs disabled:opacity-40"
+                >
+                  التالي
+                </button>
+              </div>
+            </div>
+          )}
         </>
       )}
 

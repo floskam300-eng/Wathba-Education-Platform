@@ -298,19 +298,19 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageCours
           );
 
       if (course.is_free) {
-        // Auto-enroll all eligible students
+        // Auto-enroll all eligible students — reactivate previously inactive enrollments
         if (course.target_stage && course.target_stage.trim()) {
           await pool.query(
-            `INSERT INTO student_course_enrollment (student_id, course_id)
-             SELECT id, $1 FROM students WHERE teacher_id=$2 AND academic_stage=$3 AND deleted_at IS NULL
-             ON CONFLICT DO NOTHING`,
+            `INSERT INTO student_course_enrollment (student_id, course_id, status)
+             SELECT id, $1, 'active' FROM students WHERE teacher_id=$2 AND academic_stage=$3 AND deleted_at IS NULL
+             ON CONFLICT (student_id, course_id) DO UPDATE SET status = 'active'`,
             [course.id, teacherId, course.target_stage]
           );
         } else {
           await pool.query(
-            `INSERT INTO student_course_enrollment (student_id, course_id)
-             SELECT id, $1 FROM students WHERE teacher_id=$2 AND deleted_at IS NULL
-             ON CONFLICT DO NOTHING`,
+            `INSERT INTO student_course_enrollment (student_id, course_id, status)
+             SELECT id, $1, 'active' FROM students WHERE teacher_id=$2 AND deleted_at IS NULL
+             ON CONFLICT (student_id, course_id) DO UPDATE SET status = 'active'`,
             [course.id, teacherId]
           );
         }

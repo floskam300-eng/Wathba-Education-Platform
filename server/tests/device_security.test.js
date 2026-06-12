@@ -331,7 +331,7 @@ async function testMultiTenantIsolation(t1Id, t2Id) {
   // C6 — Students from different teachers are completely isolated in the students list
   const r6 = await req('GET', '/api/students', null, t1Token);
   assert('C6: GET /students returns 200', r6.status === 200);
-  const t1StudentIds = (r6.body || []).map(s => s.id);
+  const t1StudentIds = (r6.body?.students || r6.body || []).map(s => s.id);
   assert('C6: teacher 1 does not see teacher 2\'s student in list',
     !t1StudentIds.includes(std2), `teacher1 can see std2 id ${std2}`);
   assert('C6: teacher 1 sees their own student', t1StudentIds.includes(std1),
