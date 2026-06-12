@@ -133,7 +133,20 @@ export default function TeacherDashboard() {
       {/* Stat Cards */}
       {!stats ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => <div key={i} className="h-24 rounded-2xl bg-gradient-to-br from-gray-100 to-gray-50 animate-pulse" />)}
+          {[
+            'from-navy-400 to-navy-600',
+            'from-orange-400 to-orange-600',
+            'from-purple-500 to-purple-700',
+            'from-teal-500 to-teal-700',
+          ].map((grad, i) => (
+            <div key={i} className="card p-3 sm:p-5 flex items-center gap-3">
+              <div className={`w-10 h-10 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl flex-shrink-0 bg-gradient-to-br ${grad} animate-pulse opacity-60`} />
+              <div className="flex-1 space-y-2">
+                <div className="h-3 rounded-full bg-gray-200 animate-pulse w-3/4" />
+                <div className="h-6 rounded-full bg-gray-200 animate-pulse w-1/2" />
+              </div>
+            </div>
+          ))}
         </div>
       ) : (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

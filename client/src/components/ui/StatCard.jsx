@@ -12,17 +12,14 @@ export default function StatCard({ icon: Icon, label, value, color = 'navy', sub
   };
 
   return (
-    <div className="card flex items-center gap-4 group hover:scale-[1.02] transition-transform duration-200">
-      <div className={clsx('w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg', colors[color])}>
-        <Icon className="w-7 h-7" />
+    <div className="card flex items-center gap-3 group hover:scale-[1.02] transition-transform duration-200 p-3 sm:p-5">
+      <div className={clsx('w-10 h-10 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg', colors[color])}>
+        <Icon className="w-5 h-5 sm:w-7 sm:h-7" />
       </div>
-      <div className="min-w-0">
-        {/* gray-600 (#4B5563) on white = 7.2:1 ✓ */}
-        <p className="text-gray-600 text-sm font-semibold">{label}</p>
-        {/* navy-600 (#152540) on white = 17:1 ✓ */}
-        <p className="text-2xl font-black text-navy-600">{value}</p>
-        {/* gray-600 on white = 7.2:1 ✓ */}
-        {sub && <p className="text-xs text-gray-600 mt-0.5">{sub}</p>}
+      <div className="min-w-0 flex-1">
+        <p className="text-gray-600 text-xs sm:text-sm font-semibold leading-tight truncate">{label}</p>
+        <p className="text-xl sm:text-2xl font-black text-navy-600 leading-tight">{value}</p>
+        {sub && <p className="text-xs text-gray-600 mt-0.5 truncate">{sub}</p>}
       </div>
     </div>
   );

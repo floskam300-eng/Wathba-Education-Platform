@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { useTheme } from '../../context/ThemeContext';
+import { useNavigate } from 'react-router-dom';
 import {
   Archive, FileText, GraduationCap, Search,
   ChevronDown, ChevronUp,
@@ -85,6 +86,7 @@ const PAGE_SIZES = [25, 50, 100];
 
 export default function ArchivePage() {
   const { dark } = useTheme();
+  const navigate = useNavigate();
 
   const [tab, setTab] = useState('exams');
   const [filtersOpen, setFiltersOpen] = useState(true);
@@ -535,9 +537,10 @@ export default function ArchivePage() {
             </div>
             <p className="text-sm font-bold text-gray-400">لا توجد نتائج تطابق الفلاتر المحددة</p>
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            {isExam ? (
+        ) : isExam ? (
+          <>
+            {/* ── Desktop table ── */}
+            <div className="hidden sm:block overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr className={dark ? 'bg-[var(--dk-elevated)]' : 'bg-gray-50'}>
@@ -548,18 +551,10 @@ export default function ArchivePage() {
                 </thead>
                 <tbody>
                   {activeResults.map(r => (
-                    <tr
-                      key={r.id}
-                      className={`border-t transition-colors ${dark ? 'border-[var(--dk-border)] hover:bg-[var(--dk-elevated)]' : 'border-gray-50 hover:bg-orange-50/30'}`}
-                    >
+                    <tr key={r.id} className={`border-t transition-colors ${dark ? 'border-[var(--dk-border)] hover:bg-[var(--dk-elevated)]' : 'border-gray-50 hover:bg-orange-50/30'}`}>
                       <td className="px-4 py-3">
-                        <button
-                          onClick={() => setSelectedStudent({ id: r.student_id, name: r.student_name })}
-                          className="flex items-center gap-2 group"
-                        >
-                          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-orange-400 to-purple-500 flex items-center justify-center text-white text-xs font-black flex-shrink-0">
-                            {r.student_name?.charAt(0)}
-                          </div>
+                        <button onClick={() => setSelectedStudent({ id: r.student_id, name: r.student_name })} className="flex items-center gap-2 group">
+                          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-orange-400 to-purple-500 flex items-center justify-center text-white text-xs font-black flex-shrink-0">{r.student_name?.charAt(0)}</div>
                           <div className="text-right">
                             <p className={`font-bold group-hover:text-orange-500 transition-colors ${textPrimary}`}>{r.student_name}</p>
                             <p className={`text-[10px] ${textSec}`}>{r.student_username}</p>
@@ -573,45 +568,57 @@ export default function ArchivePage() {
                         <div>
                           <div className="flex items-center gap-1 mb-1">
                             <span className={`font-black ${textPrimary}`}>{r.score}/{r.total_score}</span>
-                            <span className={textSec}>
-                              ({scorePct(r.score, r.total_score)}%)
-                            </span>
+                            <span className={textSec}>({scorePct(r.score, r.total_score)}%)</span>
                           </div>
                           <div className={`w-20 h-1.5 rounded-full overflow-hidden ${dark ? 'bg-gray-700' : 'bg-gray-200'}`}>
-                            <div
-                              className={`h-full rounded-full ${Number(r.score) >= Number(r.pass_score) ? 'bg-green-500' : 'bg-red-500'}`}
-                              style={{ width: `${Math.min(100, scorePct(r.score, r.total_score))}%` }}
-                            />
+                            <div className={`h-full rounded-full ${Number(r.score) >= Number(r.pass_score) ? 'bg-green-500' : 'bg-red-500'}`} style={{ width: `${Math.min(100, scorePct(r.score, r.total_score))}%` }} />
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3">
-                        <ScoreBadge score={Number(r.score)} total={Number(r.total_score)} passScore={Number(r.pass_score)} dark={dark} />
-                      </td>
+                      <td className="px-4 py-3"><ScoreBadge score={Number(r.score)} total={Number(r.total_score)} passScore={Number(r.pass_score)} dark={dark} /></td>
                       <td className={`px-4 py-3 ${textSec}`}>
                         {r.attempt_number > 1
-                          ? <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold whitespace-nowrap ${dark ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-50 text-blue-700'}`}>
-                              <RotateCcw className="w-2.5 h-2.5 flex-shrink-0" />
-                              <span>إعادة ({r.attempt_number})</span>
-                            </span>
-                          : <span className={`inline-flex items-center text-xs whitespace-nowrap ${textSec}`}>أول محاولة</span>
-                        }
+                          ? <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold whitespace-nowrap ${dark ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-50 text-blue-700'}`}><RotateCcw className="w-2.5 h-2.5 flex-shrink-0" /><span>إعادة ({r.attempt_number})</span></span>
+                          : <span className={`text-xs whitespace-nowrap ${textSec}`}>أول محاولة</span>}
                       </td>
                       <td className={`px-4 py-3 ${textSec} whitespace-nowrap`}>{fmt(r.created_at)}</td>
                       <td className="px-4 py-3">
-                        <button
-                          onClick={() => setSelectedStudent({ id: r.student_id, name: r.student_name })}
-                          className={`p-1.5 rounded-lg transition-colors ${dark ? 'hover:bg-[var(--dk-surface)] text-gray-400 hover:text-orange-400' : 'hover:bg-orange-50 text-gray-400 hover:text-orange-500'}`}
-                          title="عرض ملف الطالب"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                        </button>
+                        <button onClick={() => setSelectedStudent({ id: r.student_id, name: r.student_name })} className={`p-1.5 rounded-lg transition-colors ${dark ? 'hover:bg-[var(--dk-surface)] text-gray-400 hover:text-orange-400' : 'hover:bg-orange-50 text-gray-400 hover:text-orange-500'}`} title="عرض ملف الطالب"><Eye className="w-3.5 h-3.5" /></button>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            ) : (
+            </div>
+            {/* ── Mobile cards ── */}
+            <div className="sm:hidden divide-y divide-gray-100">
+              {activeResults.map(r => (
+                <div key={r.id} className={`px-4 py-3 ${dark ? 'divide-[var(--dk-border)]' : ''}`}>
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <button onClick={() => setSelectedStudent({ id: r.student_id, name: r.student_name })} className="flex items-center gap-2 min-w-0">
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-400 to-purple-500 flex items-center justify-center text-white text-xs font-black flex-shrink-0">{r.student_name?.charAt(0)}</div>
+                      <div className="min-w-0 text-right">
+                        <p className={`font-bold text-sm truncate ${textPrimary}`}>{r.student_name}</p>
+                        <p className={`text-[10px] truncate ${textSec}`}>{r.student_username}</p>
+                      </div>
+                    </button>
+                    <ScoreBadge score={Number(r.score)} total={Number(r.total_score)} passScore={Number(r.pass_score)} dark={dark} />
+                  </div>
+                  <p className={`text-xs font-semibold truncate ${textPrimary} mb-0.5`}>{r.exam_title}</p>
+                  <p className={`text-[10px] truncate ${textSec} mb-2`}>{r.course_name} {r.academic_stage ? `· ${r.academic_stage}` : ''}</p>
+                  <div className="flex items-center justify-between gap-2 text-[10px]">
+                    <span className={textSec}>{fmt(r.created_at)}</span>
+                    {r.attempt_number > 1 && <span className={`px-1.5 py-0.5 rounded-full font-bold ${dark ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-50 text-blue-700'}`}>إعادة {r.attempt_number}</span>}
+                    <button onClick={() => setSelectedStudent({ id: r.student_id, name: r.student_name })} className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-colors ${dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-500'}`}><Eye className="w-3 h-3" />ملف</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <>
+            {/* ── Desktop table ── */}
+            <div className="hidden sm:block overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr className={dark ? 'bg-[var(--dk-elevated)]' : 'bg-gray-50'}>
@@ -622,18 +629,10 @@ export default function ArchivePage() {
                 </thead>
                 <tbody>
                   {activeResults.map(r => (
-                    <tr
-                      key={r.id}
-                      className={`border-t transition-colors ${dark ? 'border-[var(--dk-border)] hover:bg-[var(--dk-elevated)]' : 'border-gray-50 hover:bg-purple-50/30'}`}
-                    >
+                    <tr key={r.id} className={`border-t transition-colors ${dark ? 'border-[var(--dk-border)] hover:bg-[var(--dk-elevated)]' : 'border-gray-50 hover:bg-purple-50/30'}`}>
                       <td className="px-4 py-3">
-                        <button
-                          onClick={() => setSelectedStudent({ id: r.student_id, name: r.student_name })}
-                          className="flex items-center gap-2 group"
-                        >
-                          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-purple-400 to-orange-500 flex items-center justify-center text-white text-xs font-black flex-shrink-0">
-                            {r.student_name?.charAt(0)}
-                          </div>
+                        <button onClick={() => setSelectedStudent({ id: r.student_id, name: r.student_name })} className="flex items-center gap-2 group">
+                          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-purple-400 to-orange-500 flex items-center justify-center text-white text-xs font-black flex-shrink-0">{r.student_name?.charAt(0)}</div>
                           <div className="text-right">
                             <p className={`font-bold group-hover:text-purple-500 transition-colors ${textPrimary}`}>{r.student_name}</p>
                             <p className={`text-[10px] ${textSec}`}>{r.student_username}</p>
@@ -646,43 +645,55 @@ export default function ArchivePage() {
                         <div>
                           <div className="flex items-center gap-1 mb-1">
                             <span className={`font-black ${textPrimary}`}>{r.score}/{r.total_score}</span>
-                            <span className={textSec}>
-                              ({scorePct(r.score, r.total_score)}%)
-                            </span>
+                            <span className={textSec}>({scorePct(r.score, r.total_score)}%)</span>
                           </div>
                           <div className={`w-20 h-1.5 rounded-full overflow-hidden ${dark ? 'bg-gray-700' : 'bg-gray-200'}`}>
-                            <div
-                              className={`h-full rounded-full ${r.passed ? 'bg-green-500' : 'bg-red-500'}`}
-                              style={{ width: `${Math.min(100, scorePct(r.score, r.total_score))}%` }}
-                            />
+                            <div className={`h-full rounded-full ${r.passed ? 'bg-green-500' : 'bg-red-500'}`} style={{ width: `${Math.min(100, scorePct(r.score, r.total_score))}%` }} />
                           </div>
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${r.passed
-                          ? (dark ? 'bg-green-900/40 text-green-300' : 'bg-green-50 text-green-700')
-                          : (dark ? 'bg-red-900/40 text-red-300' : 'bg-red-50 text-red-700')
-                        }`}>
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${r.passed ? (dark ? 'bg-green-900/40 text-green-300' : 'bg-green-50 text-green-700') : (dark ? 'bg-red-900/40 text-red-300' : 'bg-red-50 text-red-700')}`}>
                           {r.passed ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
                           {r.passed ? 'ناجح' : 'راسب'}
                         </span>
                       </td>
                       <td className={`px-4 py-3 ${textSec} whitespace-nowrap`}>{fmt(r.created_at)}</td>
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={() => setSelectedStudent({ id: r.student_id, name: r.student_name })}
-                          className={`p-1.5 rounded-lg transition-colors ${dark ? 'hover:bg-[var(--dk-surface)] text-gray-400 hover:text-purple-400' : 'hover:bg-purple-50 text-gray-400 hover:text-purple-500'}`}
-                          title="عرض ملف الطالب"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                        </button>
+                      <td className="px-4 py-3 flex items-center gap-1">
+                        <button onClick={() => navigate(`/teacher/recitation-review/${r.id}`)} className={`p-1.5 rounded-lg transition-colors ${dark ? 'hover:bg-[var(--dk-surface)] text-gray-400 hover:text-purple-400' : 'hover:bg-purple-50 text-gray-400 hover:text-purple-500'}`} title="مراجعة التسميع"><Eye className="w-3.5 h-3.5" /></button>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            )}
-          </div>
+            </div>
+            {/* ── Mobile cards ── */}
+            <div className="sm:hidden divide-y divide-gray-100">
+              {activeResults.map(r => (
+                <div key={r.id} className="px-4 py-3">
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <button onClick={() => setSelectedStudent({ id: r.student_id, name: r.student_name })} className="flex items-center gap-2 min-w-0">
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-400 to-orange-500 flex items-center justify-center text-white text-xs font-black flex-shrink-0">{r.student_name?.charAt(0)}</div>
+                      <div className="min-w-0 text-right">
+                        <p className={`font-bold text-sm truncate ${textPrimary}`}>{r.student_name}</p>
+                        <p className={`text-[10px] truncate ${textSec}`}>{r.student_username}</p>
+                      </div>
+                    </button>
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold flex-shrink-0 ${r.passed ? (dark ? 'bg-green-900/40 text-green-300' : 'bg-green-50 text-green-700') : (dark ? 'bg-red-900/40 text-red-300' : 'bg-red-50 text-red-700')}`}>
+                      {r.passed ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+                      {r.score}/{r.total_score}
+                    </span>
+                  </div>
+                  <p className={`text-xs font-semibold truncate ${textPrimary} mb-0.5`}>{r.recitation_title}</p>
+                  {r.academic_stage && <p className={`text-[10px] ${textSec} mb-2`}>{r.academic_stage}</p>}
+                  <div className="flex items-center justify-between gap-2 text-[10px]">
+                    <span className={textSec}>{fmt(r.created_at)}</span>
+                    <button onClick={() => navigate(`/teacher/recitation-review/${r.id}`)} className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-colors ${dark ? 'bg-purple-900/30 text-purple-300' : 'bg-purple-50 text-purple-600'}`}><Eye className="w-3 h-3" />مراجعة</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
 
         {/* Pagination */}

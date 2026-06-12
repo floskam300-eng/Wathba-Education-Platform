@@ -307,19 +307,28 @@ export default function StudentRecitations() {
               </div>
             ) : history.map(r => (
               <div key={r.id} className={`${cardCls} flex items-center justify-between gap-3`}>
-                <div>
-                  <p className={`font-bold text-sm ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>{r.title}</p>
+                <div className="min-w-0 flex-1">
+                  <p className={`font-bold text-sm truncate ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>{r.title}</p>
                   <p className={`text-xs ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>
                     {new Date(r.created_at).toLocaleDateString('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' })}
                   </p>
                 </div>
-                <div className="text-left">
-                  <span className={`font-black text-xl ${r.passed ? 'text-green-600' : 'text-red-500'}`}>
-                    {r.score}/{r.total_score}
-                  </span>
-                  <p className={`text-xs ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>
-                    {r.passed ? '✅ ناجح' : '❌ راسب'}
-                  </p>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => navigate(`/student/recitation-review/${r.id}`)}
+                    className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${dark ? 'bg-indigo-900/30 text-indigo-300 hover:bg-indigo-900/50' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    مراجعة
+                  </button>
+                  <div className="text-left">
+                    <span className={`font-black text-xl ${r.passed ? 'text-green-600' : 'text-red-500'}`}>
+                      {r.score}/{r.total_score}
+                    </span>
+                    <p className={`text-xs ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>
+                      {r.passed ? '✅ ناجح' : '❌ راسب'}
+                    </p>
+                  </div>
                 </div>
               </div>
             ))}
@@ -339,16 +348,16 @@ export default function StudentRecitations() {
             ) : (
               <>
                 {open.length > 0 && (
-                  <Section title="متاح الآن 🟢" items={open} dark={dark} cardCls={cardCls} onStart={startRec} />
+                  <Section title="متاح الآن 🟢" items={open} dark={dark} cardCls={cardCls} onStart={startRec} navigate={navigate} />
                 )}
                 {upcoming.length > 0 && (
-                  <Section title="قادم قريباً ⏳" items={upcoming} dark={dark} cardCls={cardCls} onStart={null} />
+                  <Section title="قادم قريباً ⏳" items={upcoming} dark={dark} cardCls={cardCls} onStart={null} navigate={navigate} />
                 )}
                 {done.length > 0 && (
-                  <Section title="أديته ✅" items={done} dark={dark} cardCls={cardCls} onStart={null} />
+                  <Section title="أديته ✅" items={done} dark={dark} cardCls={cardCls} onStart={null} navigate={navigate} />
                 )}
                 {expired.length > 0 && (
-                  <Section title="منتهي ❌" items={expired} dark={dark} cardCls={cardCls} onStart={null} />
+                  <Section title="منتهي ❌" items={expired} dark={dark} cardCls={cardCls} onStart={null} navigate={navigate} />
                 )}
               </>
             )}
@@ -554,7 +563,7 @@ export default function StudentRecitations() {
   return null;
 }
 
-function Section({ title, items, dark, cardCls, onStart }) {
+function Section({ title, items, dark, cardCls, onStart, navigate }) {
   return (
     <div>
       <h2 className={`font-black mb-3 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>{title}</h2>
@@ -602,7 +611,18 @@ function Section({ title, items, dark, cardCls, onStart }) {
                 <Lock className={`w-4 h-4 flex-shrink-0 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-300'}`} />
               )}
               {status === 'done' && (
-                <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {rec.result_id && navigate && (
+                    <button
+                      onClick={() => navigate(`/student/recitation-review/${rec.result_id}`)}
+                      className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${dark ? 'bg-indigo-900/30 text-indigo-300 hover:bg-indigo-900/50' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      مراجعة
+                    </button>
+                  )}
+                  <CheckCircle className="w-5 h-5 text-green-500" />
+                </div>
               )}
               {status === 'expired' && (
                 <XCircle className="w-5 h-5 text-red-400 flex-shrink-0" />

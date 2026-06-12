@@ -85,18 +85,13 @@ export default function ExamReviewPage() {
   const shuffleOptions = result?.shuffle_options || false;
   const studentId      = result?.student_id || 0;
 
-  const hasDetailedAnswers = questions.some(
-    q => q.student_answer !== null && q.student_answer !== '' && q.student_answer !== undefined
-  );
-  const correctCount = hasDetailedAnswers
-    ? questions.filter(q => q.is_correct === true).length
-    : (result?.correct_count ?? 0);
-  const wrongCount = hasDetailedAnswers
-    ? questions.filter(q => q.is_correct === false && q.student_answer).length
-    : (result?.wrong_count ?? 0);
-  const skippedCount = hasDetailedAnswers
-    ? questions.filter(q => !q.student_answer).length
-    : (result?.unanswered_count ?? 0);
+  // Use the authoritative DB-stored counts (computed at submission time).
+  // Recomputing from the questions array can diverge for image_multi questions
+  // (where a JSON string student_answer is truthy even if no sub-answers were given)
+  // and for exams where per-question point values differ.
+  const correctCount  = result?.correct_count   ?? 0;
+  const wrongCount    = result?.wrong_count      ?? 0;
+  const skippedCount  = result?.unanswered_count ?? 0;
 
   const isTeacher = user?.role === 'teacher' || user?.role === 'assistant';
 
