@@ -131,16 +131,16 @@ export default function TeacherDashboard() {
       </div>
 
       {/* Stat Cards */}
-      {statsLoading ? (
+      {!stats ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[...Array(4)].map((_, i) => <div key={i} className="h-24 rounded-2xl bg-gradient-to-br from-gray-100 to-gray-50 animate-pulse" />)}
         </div>
       ) : (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard icon={Users}   label="الطلاب"      value={stats?.totalStudents   || 0} color="navy"   />
-          <StatCard icon={BookOpen} label="الكورسات"    value={stats?.totalCourses    || 0} color="orange" />
-          <StatCard icon={FileText} label="الاختبارات"  value={stats?.totalExams      || 0} color="purple" />
-          <StatCard icon={UserCog}  label="المساعدون"   value={stats?.totalAssistants || 0} color="teal"   />
+          <StatCard icon={Users}   label="الطلاب"      value={stats.totalStudents   || 0} color="navy"   />
+          <StatCard icon={BookOpen} label="الكورسات"    value={stats.totalCourses    || 0} color="orange" />
+          <StatCard icon={FileText} label="الاختبارات"  value={stats.totalExams      || 0} color="purple" />
+          <StatCard icon={UserCog}  label="المساعدون"   value={stats.totalAssistants || 0} color="teal"   />
         </div>
       )}
 
