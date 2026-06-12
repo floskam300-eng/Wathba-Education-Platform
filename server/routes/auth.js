@@ -168,10 +168,10 @@ router.post('/login', loginLimiter, async (req, res) => {
 
       // ── Student-specific: device limit enforcement ─────────────────────
       if (r === 'student') {
-        // Block if account is already suspended
+        // Block if account is manually suspended by teacher
         if (user.is_suspended) {
           return res.status(403).json({
-            error: 'تم إيقاف حسابك مؤقتاً بسبب تسجيل الدخول من أكثر من جهازين. يرجى التواصل مع المدرس لإعادة التفعيل.',
+            error: 'تم إيقاف حسابك مؤقتاً من قِبل المدرس. يرجى التواصل معه لإعادة التفعيل.',
             account_suspended: true,
           });
         }
@@ -204,12 +204,11 @@ router.post('/login', loginLimiter, async (req, res) => {
               'SELECT id, is_suspended FROM students WHERE id = $1 FOR UPDATE',
               [user.id]
             );
-            // Re-check suspension inside the transaction (another concurrent
-            // login might have just suspended this account)
+            // Re-check suspension inside the transaction (manual suspension by teacher)
             if (lockRes.rows[0]?.is_suspended) {
               await client.query('ROLLBACK');
               return res.status(403).json({
-                error: 'تم إيقاف حسابك مؤقتاً بسبب تسجيل الدخول من أكثر من جهازين. يرجى التواصل مع المدرس لإعادة التفعيل.',
+                error: 'تم إيقاف حسابك مؤقتاً من قِبل المدرس. يرجى التواصل معه لإعادة التفعيل.',
                 account_suspended: true,
               });
             }
@@ -223,12 +222,9 @@ router.post('/login', loginLimiter, async (req, res) => {
             const isKnown  = knownIds.includes(device_id);
 
             if (!isKnown) {
-              if (knownIds.length >= 2) {
-                // 3rd device → suspend account + create alert (no duplicate alerts)
-                await client.query(
-                  'UPDATE students SET is_suspended = true WHERE id = $1',
-                  [user.id]
-                );
+              if (knownIds.length >= 1) {
+                // 2nd (new) device → alert teacher but do NOT suspend.
+                // The original registered device continues working normally.
                 // Only create alert if there is no pending alert for this student
                 // already (prevents duplicate alerts from race-condition remnants)
                 await client.query(
@@ -242,15 +238,12 @@ router.post('/login', loginLimiter, async (req, res) => {
                   [user.teacher_id, user.id, device_id, deviceName, ip]
                 );
                 await client.query('COMMIT');
-                // Immediately block any cached session for this student
-                const { invalidateStudentAuthCache } = require('../middleware/auth');
-                invalidateStudentAuthCache(user.id);
                 return res.status(403).json({
-                  error: 'تم إيقاف حسابك بسبب محاولة تسجيل الدخول من جهاز ثالث. تم إشعار المدرس — يرجى التواصل معه لإعادة التفعيل.',
-                  account_suspended: true,
+                  error: 'تم رصد محاولة دخول من جهاز جديد. تم إشعار المدرس — يمكنك الاستمرار من جهازك الأصلي، أو تواصل مع المدرس للسماح لك بتسجيل جهاز جديد.',
+                  code: 'NEW_DEVICE_BLOCKED',
                 });
               }
-              // New device, still within limit → register it
+              // No registered device yet → register this one as the primary device
               await client.query(
                 `INSERT INTO student_devices (student_id, device_id, device_name, user_agent, ip_address)
                  VALUES ($1, $2, $3, $4, $5)

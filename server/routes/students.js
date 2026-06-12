@@ -904,7 +904,7 @@ router.post('/device-alerts/:alertId/action', requireRole('teacher', 'assistant'
   if (isNaN(alertId)) return res.status(400).json({ error: 'Invalid alert ID' });
 
   const { action } = req.body;
-  if (!['reactivate', 'reactivate_reset_devices', 'dismiss'].includes(action)) {
+  if (!['reactivate', 'reactivate_reset_devices', 'reset_devices', 'dismiss'].includes(action)) {
     return res.status(400).json({ error: 'Invalid action' });
   }
   // Assistants need can_edit_students to act on alerts
@@ -940,6 +940,14 @@ router.post('/device-alerts/:alertId/action', requireRole('teacher', 'assistant'
         [alertId]
       );
       invalidateStudentAuthCache(alert.student_id);
+    } else if (action === 'reset_devices') {
+      // Clear all registered devices so the student can log in fresh from any device.
+      // Does NOT suspend the account — the student's current session keeps working.
+      await pool.query('DELETE FROM student_devices WHERE student_id=$1', [alert.student_id]);
+      await pool.query(
+        "UPDATE device_alerts SET status='reactivated', resolved_at=NOW() WHERE id=$1",
+        [alertId]
+      );
     } else if (action === 'dismiss') {
       await pool.query(
         "UPDATE device_alerts SET status='dismissed', resolved_at=NOW() WHERE id=$1",

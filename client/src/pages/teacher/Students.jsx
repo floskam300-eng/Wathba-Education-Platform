@@ -96,9 +96,9 @@ function DeviceAlertsPanel({ canEdit }) {
   const resolved  = alerts.filter(a => a.status !== 'pending');
 
   const statusLabel = (s) => {
-    if (s === 'pending')   return { text: 'معلّق', cls: 'bg-red-100 text-red-700' };
-    if (s === 'reactivated') return { text: 'تم إعادة التفعيل', cls: 'bg-green-100 text-green-700' };
-    if (s === 'dismissed') return { text: 'تم التجاهل', cls: 'bg-gray-100 text-gray-600' };
+    if (s === 'pending')     return { text: 'معلّق', cls: 'bg-red-100 text-red-700' };
+    if (s === 'reactivated') return { text: 'تم السماح بجهاز جديد', cls: 'bg-green-100 text-green-700' };
+    if (s === 'dismissed')   return { text: 'تم التجاهل', cls: 'bg-gray-100 text-gray-600' };
     return { text: s, cls: 'bg-gray-100 text-gray-600' };
   };
 
@@ -118,18 +118,18 @@ function DeviceAlertsPanel({ canEdit }) {
           </div>
           <div>
             <p className="text-2xl font-black text-red-600">{pending.length}</p>
-            <p className="text-xs text-gray-500 font-semibold">تحذيرات معلّقة</p>
+            <p className="text-xs text-gray-500 font-semibold">محاولات دخول من جهاز جديد</p>
           </div>
         </div>
         <div className="card !p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center">
-            <Ban className="w-5 h-5 text-orange-600" />
+          <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
+            <Smartphone className="w-5 h-5 text-blue-600" />
           </div>
           <div>
-            <p className="text-2xl font-black text-orange-600">
+            <p className="text-2xl font-black text-blue-600">
               {alerts.filter(a => a.is_suspended).length}
             </p>
-            <p className="text-xs text-gray-500 font-semibold">حسابات موقوفة</p>
+            <p className="text-xs text-gray-500 font-semibold">حسابات موقوفة يدوياً</p>
           </div>
         </div>
         <div className="card !p-4 flex items-center gap-3">
@@ -148,7 +148,7 @@ function DeviceAlertsPanel({ canEdit }) {
         <div className="card !p-0 overflow-hidden">
           <div className="p-4 border-b border-red-100 bg-red-50 flex items-center gap-2">
             <ShieldAlert className="w-4 h-4 text-red-600" />
-            <span className="font-black text-red-700 text-sm">تحذيرات تستوجب الإجراء الفوري</span>
+            <span className="font-black text-red-700 text-sm">محاولات دخول من جهاز جديد</span>
             <span className="bg-red-600 text-white text-xs font-black px-2 py-0.5 rounded-full">{pending.length}</span>
           </div>
           <div className="divide-y divide-gray-100">
@@ -166,7 +166,10 @@ function DeviceAlertsPanel({ canEdit }) {
                       </p>
                       <p className="text-xs text-gray-500 mt-0.5">{alert.academic_stage}</p>
                       <p className="text-xs text-orange-700 font-semibold mt-1">
-                        محاولة دخول من جهاز ثالث: {alert.device_name}
+                        محاولة دخول من جهاز جديد: {alert.device_name}
+                      </p>
+                      <p className="text-[10px] text-blue-600 font-medium mt-0.5">
+                        ✓ جهازه الأصلي لا يزال يعمل بشكل طبيعي
                       </p>
                       <p className="text-xs text-gray-400 mt-0.5">
                         {new Date(alert.created_at).toLocaleString('ar-EG')}
@@ -184,25 +187,18 @@ function DeviceAlertsPanel({ canEdit }) {
                     {canEdit && (
                       <>
                         <button
-                          onClick={() => actionMut.mutate({ alertId: alert.id, action: 'reactivate' })}
-                          disabled={actionMut.isPending}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-50 text-green-700 text-xs font-bold hover:bg-green-100 transition-colors"
-                          title="إعادة التفعيل مع الإبقاء على الأجهزة المسجّلة"
-                        >
-                          <Unlock className="w-3.5 h-3.5" /> تفعيل
-                        </button>
-                        <button
-                          onClick={() => actionMut.mutate({ alertId: alert.id, action: 'reactivate_reset_devices' })}
+                          onClick={() => actionMut.mutate({ alertId: alert.id, action: 'reset_devices' })}
                           disabled={actionMut.isPending}
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-50 text-orange-700 text-xs font-bold hover:bg-orange-100 transition-colors"
-                          title="إعادة التفعيل وحذف كل الأجهزة المسجّلة (يبدأ من صفر)"
+                          title="مسح الجهاز المسجّل والسماح للطالب بتسجيل جهاز جديد"
                         >
-                          <RefreshCw className="w-3.5 h-3.5" /> تفعيل + مسح الأجهزة
+                          <RefreshCw className="w-3.5 h-3.5" /> السماح بجهاز جديد
                         </button>
                         <button
                           onClick={() => actionMut.mutate({ alertId: alert.id, action: 'dismiss' })}
                           disabled={actionMut.isPending}
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-50 text-gray-600 text-xs font-bold hover:bg-gray-100 transition-colors"
+                          title="تجاهل التنبيه مع إبقاء الجهاز الأصلي مسجّلاً"
                         >
                           <X className="w-3.5 h-3.5" /> تجاهل
                         </button>
