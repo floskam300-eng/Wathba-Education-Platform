@@ -55,15 +55,15 @@ const StatCard = ({ label, value, icon: Icon, gradient, lightBg, textColor }) =>
 );
 
 const ChartCard = ({ title, subtitle, icon: Icon, iconBg, iconColor, children, headerAction }) => (
-  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 hover:shadow-md transition-shadow duration-300">
+  <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-5 hover:shadow-md transition-shadow duration-300">
     <div className="flex items-center justify-between mb-5">
       <div className="flex items-center gap-2.5">
         <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${iconBg}`}>
           <Icon className={`w-4 h-4 ${iconColor}`} />
         </div>
         <div>
-          <h2 className="font-black text-gray-800 text-sm">{title}</h2>
-          {subtitle && <p className="text-[11px] text-gray-400 font-medium mt-0.5">{subtitle}</p>}
+          <h2 className="font-black text-gray-800 dark:text-gray-200 text-sm">{title}</h2>
+          {subtitle && <p className="text-[11px] text-gray-400 dark:text-gray-500 font-medium mt-0.5">{subtitle}</p>}
         </div>
       </div>
       {headerAction}
@@ -500,7 +500,7 @@ export default function TeacherAnalytics() {
 
           {/* Exam Performance Card */}
           {examChartData.length > 0 ? (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow duration-300 flex flex-col">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden hover:shadow-md transition-shadow duration-300 flex flex-col">
               <div className="h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 flex-shrink-0" />
               <div className="p-5 pb-3 flex-shrink-0">
                 <div className="flex items-start justify-between gap-2">
@@ -509,22 +509,22 @@ export default function TeacherAnalytics() {
                       <BarChart3 className="w-5 h-5 text-white" />
                     </div>
                     <div>
-                      <h2 className="font-black text-gray-800 text-sm">أداء الاختبارات</h2>
-                      <p className="text-[11px] text-gray-400 mt-0.5">متوسط وأعلى درجة % لكل اختبار</p>
+                      <h2 className="font-black text-gray-800 dark:text-gray-200 text-sm">أداء الاختبارات</h2>
+                      <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">متوسط وأعلى درجة % لكل اختبار</p>
                     </div>
                   </div>
                   <div className="flex gap-2 flex-shrink-0">
-                    <div className="text-center px-2.5 py-1.5 bg-slate-50 rounded-xl border border-slate-100">
-                      <p className="text-xs font-black text-slate-700">{totalAttempts}</p>
-                      <p className="text-[9px] text-slate-400 font-semibold">محاولة</p>
+                    <div className="text-center px-2.5 py-1.5 bg-slate-50 dark:bg-gray-700/50 rounded-xl border border-slate-100 dark:border-gray-600">
+                      <p className="text-xs font-black text-slate-700 dark:text-gray-200">{totalAttempts}</p>
+                      <p className="text-[9px] text-slate-400 dark:text-gray-400 font-semibold">محاولة</p>
                     </div>
-                    <div className="text-center px-2.5 py-1.5 bg-emerald-50 rounded-xl border border-emerald-100">
-                      <p className="text-xs font-black text-emerald-600">{examChartData.length ? Math.max(...examChartData.map(e => e.avg)) : 0}%</p>
-                      <p className="text-[9px] text-emerald-400 font-semibold">أعلى متوسط</p>
+                    <div className="text-center px-2.5 py-1.5 bg-emerald-50 dark:bg-emerald-900/30 rounded-xl border border-emerald-100 dark:border-emerald-800">
+                      <p className="text-xs font-black text-emerald-600 dark:text-emerald-400">{examChartData.length ? Math.max(...examChartData.map(e => e.avg)) : 0}%</p>
+                      <p className="text-[9px] text-emerald-400 dark:text-emerald-300 font-semibold">أعلى متوسط</p>
                     </div>
-                    <div className="text-center px-2.5 py-1.5 bg-rose-50 rounded-xl border border-rose-100">
-                      <p className="text-xs font-black text-rose-500">{examChartData.length ? Math.min(...examChartData.map(e => e.avg)) : 0}%</p>
-                      <p className="text-[9px] text-rose-300 font-semibold">أدنى متوسط</p>
+                    <div className="text-center px-2.5 py-1.5 bg-rose-50 dark:bg-rose-900/30 rounded-xl border border-rose-100 dark:border-rose-800">
+                      <p className="text-xs font-black text-rose-500 dark:text-rose-400">{examChartData.length ? Math.min(...examChartData.map(e => e.avg)) : 0}%</p>
+                      <p className="text-[9px] text-rose-300 dark:text-rose-200 font-semibold">أدنى متوسط</p>
                     </div>
                   </div>
                 </div>
@@ -535,29 +535,29 @@ export default function TeacherAnalytics() {
               </div>
 
               <div className="px-5 pb-3 flex items-center gap-5 flex-shrink-0">
-                <span className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-500">
+                <span className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-500 dark:text-gray-400">
                   <span className="w-3 h-3 rounded-sm" style={{ background: '#6366f1' }} />متوسط الدرجات
                 </span>
-                <span className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-500">
+                <span className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-500 dark:text-gray-400">
                   <span className="w-3 h-3 rounded-sm" style={{ background: '#f97316' }} />أعلى درجة
                 </span>
               </div>
 
-              <div className="border-t border-gray-50 flex-1 overflow-y-auto">
+              <div className="border-t border-gray-50 dark:border-gray-700 flex-1 overflow-y-auto">
                 {examChartData.map((e, i) => {
                   const avg = e.avg;
-                  const sc = avg >= 70 ? { text:'#10b981', bg:'#dcfce7' } : avg >= 50 ? { text:'#6366f1', bg:'#ede9fe' } : { text:'#f43f5e', bg:'#ffe4e6' };
+                  const sc = avg >= 70 ? { text:'#10b981', bg: dark ? 'rgba(16,185,129,0.15)' : '#dcfce7' } : avg >= 50 ? { text:'#6366f1', bg: dark ? 'rgba(99,102,241,0.15)' : '#ede9fe' } : { text:'#f43f5e', bg: dark ? 'rgba(244,63,94,0.15)' : '#ffe4e6' };
                   return (
-                    <div key={i} className="flex items-center justify-between px-5 py-2.5 hover:bg-gray-50/70 transition-colors border-b border-gray-50 last:border-0">
+                    <div key={i} className="flex items-center justify-between px-5 py-2.5 hover:bg-gray-50/70 dark:hover:bg-gray-700/40 transition-colors border-b border-gray-50 dark:border-gray-700 last:border-0">
                       <div className="flex items-center gap-2.5 min-w-0 flex-1">
                         <span className="w-5 h-5 rounded-md flex items-center justify-center text-[9px] font-black text-white flex-shrink-0"
                           style={{ background: CHART_COLORS[i % CHART_COLORS.length] }}>
                           {i + 1}
                         </span>
-                        <span className="text-xs font-semibold text-gray-700 truncate">{e.fullName}</span>
+                        <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 truncate">{e.fullName}</span>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0 mr-2">
-                        <span className="text-[10px] text-gray-400 font-medium">{e.attempts} محاولة</span>
+                        <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">{e.attempts} محاولة</span>
                         <span className="text-[11px] font-black px-2 py-0.5 rounded-lg" style={{ color: sc.text, background: sc.bg }}>
                           {avg}%
                         </span>
@@ -568,7 +568,7 @@ export default function TeacherAnalytics() {
               </div>
             </div>
           ) : (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 flex items-center justify-center">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-8 flex items-center justify-center">
               <EmptyState icon={BarChart3} text="لا توجد بيانات اختبارات بعد" />
             </div>
           )}
@@ -614,16 +614,16 @@ export default function TeacherAnalytics() {
             </ChartCard>
 
             {/* Top Students by Avg Score */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow duration-300">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden hover:shadow-md transition-shadow duration-300">
               <div className="h-1 bg-gradient-to-r from-amber-400 via-orange-400 to-rose-400 flex-shrink-0" />
               <div className="p-5 pb-3">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0">
+                  <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
                     <Star className="w-4 h-4 text-amber-500" />
                   </div>
                   <div>
-                    <h2 className="font-black text-gray-800 text-sm">أفضل الطلاب أداءً</h2>
-                    <p className="text-[11px] text-gray-400 font-medium mt-0.5">ترتيب الطلاب حسب متوسط الدرجات</p>
+                    <h2 className="font-black text-gray-800 dark:text-gray-200 text-sm">أفضل الطلاب أداءً</h2>
+                    <p className="text-[11px] text-gray-400 dark:text-gray-500 font-medium mt-0.5">ترتيب الطلاب حسب متوسط الدرجات</p>
                   </div>
                 </div>
               </div>
@@ -632,13 +632,13 @@ export default function TeacherAnalytics() {
                   .sort((a, b) => parseFloat(b.avg_score) - parseFloat(a.avg_score))
                   .slice(0, 5);
                 return (
-                  <div className="border-t border-gray-50">
+                  <div className="border-t border-gray-50 dark:border-gray-700">
                     {top5.map((s, i) => {
                       const avg = Math.round(parseFloat(s.avg_score) || 0);
                       const sc = avg >= 70 ? { text: '#10b981', bg: dark ? 'rgba(16,185,129,0.15)' : '#dcfce7' } : avg >= 50 ? { text: '#6366f1', bg: dark ? 'rgba(99,102,241,0.15)' : '#ede9fe' } : { text: '#f43f5e', bg: dark ? 'rgba(244,63,94,0.15)' : '#ffe4e6' };
                       return (
                         <div key={s.id}
-                          className="flex items-center justify-between px-5 py-2.5 hover:bg-gray-50/70 transition-colors border-b border-gray-50 last:border-0 cursor-pointer"
+                          className="flex items-center justify-between px-5 py-2.5 hover:bg-gray-50/70 dark:hover:bg-gray-700/40 transition-colors border-b border-gray-50 dark:border-gray-700 last:border-0 cursor-pointer"
                           onClick={() => setSelectedStudentId(s.id)}>
                           <div className="flex items-center gap-2.5 min-w-0 flex-1">
                             <span className="w-5 h-5 rounded-md flex items-center justify-center text-[9px] font-black text-white flex-shrink-0"
@@ -646,8 +646,8 @@ export default function TeacherAnalytics() {
                               {i + 1}
                             </span>
                             <div className="min-w-0">
-                              <p className="text-xs font-semibold text-gray-700 truncate">{s.name}</p>
-                              <p className="text-[10px] text-gray-400 font-medium">{s.exams_taken} اختبار · {s.points} نقطة</p>
+                              <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 truncate">{s.name}</p>
+                              <p className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">{s.exams_taken} اختبار · {s.points} نقطة</p>
                             </div>
                           </div>
                           <span className="text-[11px] font-black px-2 py-0.5 rounded-lg flex-shrink-0 mr-2"
@@ -687,14 +687,14 @@ export default function TeacherAnalytics() {
                 </div>
                 <div className="flex-1 space-y-3">
                   {passFailData.map((d, i) => (
-                    <div key={i} className="flex items-center justify-between p-3 rounded-xl border border-gray-100 bg-gray-50/50">
-                      <span className="flex items-center gap-2 text-sm font-bold text-gray-700">
+                    <div key={i} className="flex items-center justify-between p-3 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/30">
+                      <span className="flex items-center gap-2 text-sm font-bold text-gray-700 dark:text-gray-300">
                         <span className="w-3 h-3 rounded-full" style={{ background: d.fill }} />
                         {d.name}
                       </span>
                       <div className="text-left">
                         <p className="text-lg font-black" style={{ color: d.fill }}>{d.value}</p>
-                        <p className="text-[10px] text-gray-400 font-medium">
+                        <p className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">
                           {passFailData.reduce((s,x)=>s+x.value,0) > 0
                             ? Math.round(d.value / passFailData.reduce((s,x)=>s+x.value,0) * 100) : 0}%
                         </p>
@@ -724,15 +724,15 @@ export default function TeacherAnalytics() {
         iconBg="bg-indigo-50"
         iconColor="text-indigo-500"
         headerAction={
-          <div className="flex items-center gap-1 bg-gray-50 rounded-xl p-1">
+          <div className="flex items-center gap-1 bg-gray-50 dark:bg-gray-700/50 rounded-xl p-1">
             {TREND_PERIODS.map(p => (
               <button
                 key={p.value}
                 onClick={() => setTrendMonths(p.value)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 ${
                   trendMonths === p.value
-                    ? 'bg-white text-indigo-600 shadow-sm border border-indigo-100'
-                    : 'text-gray-500 hover:text-gray-700'
+                    ? 'bg-white dark:bg-gray-600 text-indigo-600 dark:text-indigo-400 shadow-sm border border-indigo-100 dark:border-indigo-800'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
                 }`}>
                 {p.label}
               </button>
@@ -753,9 +753,9 @@ export default function TeacherAnalytics() {
         const currentExam = wrongQData[wrongQExamIdx];
         const letterColors = { A: '#6366f1', B: '#f59e0b', C: '#10b981', D: '#f43f5e' };
         return (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
             <div className="h-1 bg-gradient-to-r from-red-400 via-orange-400 to-yellow-400" />
-            <div className="p-5 border-b border-gray-50">
+            <div className="p-5 border-b border-gray-50 dark:border-gray-700">
               <div className="flex items-center justify-between flex-wrap gap-3">
                 <div className="flex items-center gap-2.5">
                   <div className="w-9 h-9 rounded-xl bg-red-50 flex items-center justify-center flex-shrink-0">
