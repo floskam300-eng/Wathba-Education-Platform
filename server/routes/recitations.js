@@ -1336,14 +1336,33 @@ router.get('/results/:resultId/review', authenticate, async (req, res) => {
       if (row.teacher_id !== teacherId) return res.status(403).json({ error: 'Access denied' });
     }
 
-    const answersRes = await pool.query(
-      'SELECT question_id, student_answer FROM recitation_answers WHERE result_id = $1',
-      [resultId]
-    );
+    // Build answer map from recitation_results.answers JSONB
+    // Format: [{question_id, answer, correct}]
     const answerMap = {};
-    answersRes.rows.forEach(a => { answerMap[a.question_id] = a.student_answer; });
+    try {
+      const storedAnswers = Array.isArray(row.answers) ? row.answers
+        : (typeof row.answers === 'string' ? JSON.parse(row.answers) : []);
+      storedAnswers.forEach(a => {
+        if (a.question_id != null) answerMap[a.question_id] = a.answer || null;
+      });
+    } catch (_) {}
 
-    const snapshot = Array.isArray(row.questions_snapshot) ? row.questions_snapshot : [];
+    // Get questions snapshot from recitation_sessions
+    const sessionRes = await pool.query(
+      'SELECT questions_snapshot FROM recitation_sessions WHERE student_id=$1 AND recitation_id=$2 ORDER BY started_at DESC LIMIT 1',
+      [row.student_id, row.recitation_id]
+    );
+    let snapshot = [];
+    if (sessionRes.rows.length && Array.isArray(sessionRes.rows[0].questions_snapshot)) {
+      snapshot = sessionRes.rows[0].questions_snapshot;
+    } else {
+      // Fallback: load questions directly from recitation_questions table
+      const qRes = await pool.query(
+        'SELECT * FROM recitation_questions WHERE recitation_id=$1 ORDER BY sort_order, id',
+        [row.recitation_id]
+      );
+      snapshot = qRes.rows;
+    }
 
     const review = snapshot.map(q => {
       const studentAns = answerMap[q.id] || null;

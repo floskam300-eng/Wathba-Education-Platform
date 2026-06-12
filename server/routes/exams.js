@@ -1377,13 +1377,25 @@ router.get('/results/:resultId/review', requireRole('teacher', 'assistant', 'stu
     // Build lookup map: question_id → answer entry
     const answerMap = {};
     if (isOldSeqFormat) {
-      // Map sequential index → question ID using sorted question list
+      // Old object format keys ARE the actual question IDs (e.g. {"11":"A","12":"B",...})
+      // Try direct question-ID lookup first; fall back to sequential position if no match.
       const seqMap = {};
       storedAnswers.forEach(a => { seqMap[a.seq] = a; });
-      questionsRes.rows.forEach((q, i) => {
-        const entry = seqMap[i + 1];
-        if (entry) answerMap[String(q.id)] = entry;
-      });
+
+      // Check if any key matches an actual question ID
+      const questionIds = new Set(questionsRes.rows.map(q => String(q.id)));
+      const keysAreIds = storedAnswers.some(a => questionIds.has(String(a.seq)));
+
+      if (keysAreIds) {
+        // Keys are question IDs — map directly
+        storedAnswers.forEach(a => { answerMap[String(a.seq)] = a; });
+      } else {
+        // Keys are 1-based sequential positions — map by position
+        questionsRes.rows.forEach((q, i) => {
+          const entry = seqMap[i + 1];
+          if (entry) answerMap[String(q.id)] = entry;
+        });
+      }
     } else {
       storedAnswers.forEach(a => { answerMap[String(a.question_id)] = a; });
     }
