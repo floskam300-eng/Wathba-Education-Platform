@@ -477,8 +477,8 @@ async function seed() {
       (title,duration_minutes,total_score,course_id,teacher_id,
        pass_score,is_published,start_date,end_date,
        points_on_attempt,points_on_pass)
-    VALUES ('مراجعة الدوال والرسوم البيانية',40,48,$1,$2,
-      29,true,$3,$4,5,10)
+    VALUES ('مراجعة الدوال والرسوم البيانية',40,57,$1,$2,
+      34,true,$3,$4,5,10)
     RETURNING id
   `, [c1.id, T1, past(3), future(5)]);
 
@@ -665,6 +665,25 @@ async function seed() {
   `, [e3.id,
      'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f7/Graph_of_f%28x%29%3Dx%5E2.svg/400px-Graph_of_f%28x%29%3Dx%5E2.svg.png']);
   e3QIds.push({ id: e3ImgQ.id, correct: 'C', pts: 8, question_text: 'سؤال بصورة', question_type: 'mcq', option_a: null, option_b: null, option_c: null, option_d: null });
+
+  // سؤال image_multi — e3 (صورة مع بنود متعددة — 9 درجات، 3 أسئلة فرعية)
+  const e3MultiSubs = JSON.stringify([
+    { label: '1', correct: 'B' },
+    { label: '2', correct: 'A' },
+    { label: '3', correct: 'C' },
+  ]);
+  const [e3MultiQ] = await q(`
+    INSERT INTO questions
+      (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,
+       correct_answer_letter,points,question_image_url,sub_questions)
+    VALUES ($1,'image_multi',
+      'انظر إلى الشكل التالي الذي يُظهر ثلاثة رسوم بيانية لدوال مختلفة — حدد نوع كل دالة من الخيارات الأربعة أمامك',
+      'A','B','C','D','A',9,$2,$3)
+    RETURNING id
+  `, [e3.id,
+     'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=600&h=350&fit=crop',
+     e3MultiSubs]);
+  e3QIds.push({ id: e3MultiQ.id, correct: 'A', pts: 9, question_type: 'image_multi', question_text: 'سؤال image_multi' });
 
   // أسئلة e5 (اختبار مشتقات — 30 درجة)
   const e5Questions = [
@@ -1456,7 +1475,7 @@ async function seed() {
     VALUES ($1,
       'تسميع قواعد التكامل',
       'أسئلة على قوانين التكامل الأساسية — مستوى متوسط',
-      'الصف الثالث الثانوي',12,18,11,2,8,
+      'الصف الثالث الثانوي',12,24,15,2,8,
       'once',
       $2,$3,true,false,true)
     RETURNING id
@@ -1575,6 +1594,23 @@ async function seed() {
       '2','4','6','8','B',3,6,$2)
   `, [r3.id,
      'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9f/Integral_approximation.svg/400px-Integral_approximation.svg.png']);
+
+  // سؤال image_multi — r3 (صورة مع بنود متعددة — 6 درجات، 3 أسئلة فرعية)
+  const r3MultiSubs = JSON.stringify([
+    { label: '1', correct: 'A' },
+    { label: '2', correct: 'C' },
+    { label: '3', correct: 'B' },
+  ]);
+  await q(`
+    INSERT INTO recitation_questions
+      (recitation_id,question_type,question_text,option_a,option_b,option_c,option_d,
+       correct_answer_letter,points,sort_order,question_image_url,sub_questions)
+    VALUES ($1,'image_multi',
+      'انظر إلى الشكل التالي الذي يوضح قواعد التكامل — حدد نتيجة كل تكامل من الخيارات',
+      'A','B','C','D','A',6,7,$2,$3)
+  `, [r3.id,
+     'https://images.unsplash.com/photo-1509228627152-72ae9ae6848d?w=600&h=350&fit=crop',
+     r3MultiSubs]);
 
   // أسئلة r4 (شامل — 30 درجة)
   const r4Questions = [
