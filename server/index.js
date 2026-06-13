@@ -405,14 +405,22 @@ app.get('/manifest.json', subdomainTenant, async (req, res) => {
     } catch (_) {}
   }
 
+  // Build absolute base URL from the incoming request so that start_url and
+  // scope resolve to the correct teacher subdomain, NOT the root domain.
+  // Using relative "/" can cause some Android browsers to fall back to the
+  // apex domain (wathba.site) instead of the subdomain (teacher.wathba.site).
+  const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+  const host  = req.get('host') || '';
+  const base  = `${proto}://${host}`;
+
   const tenantId = slug || 'default';
   const manifest = {
-    id: `wathba-${tenantId}`,
+    id: `${base}/`,                  // globally unique per origin
     name: slug ? `وثبة — ${teacherName}` : 'وثبة - المنصة التعليمية',
     short_name: slug ? teacherName : 'وثبة',
     description: 'منصة تعليمية متكاملة لمراكز الدروس الخصوصية في مصر',
-    start_url: '/',
-    scope: '/',
+    start_url: `${base}/`,           // absolute — always opens the teacher's subdomain
+    scope: `${base}/`,               // absolute — locks the PWA to this origin
     display: 'standalone',
     orientation: 'portrait',
     background_color: '#0F0E15',
@@ -420,16 +428,16 @@ app.get('/manifest.json', subdomainTenant, async (req, res) => {
     lang: 'ar',
     dir: 'rtl',
     icons: [
-      { src: '/icon-48.png',  sizes: '48x48',   type: 'image/png', purpose: 'any' },
-      { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-      { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-      { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+      { src: `${base}/icon-48.png`,  sizes: '48x48',   type: 'image/png', purpose: 'any' },
+      { src: `${base}/icon-192.png`, sizes: '192x192', type: 'image/png', purpose: 'any' },
+      { src: `${base}/icon-512.png`, sizes: '512x512', type: 'image/png', purpose: 'any' },
+      { src: `${base}/icon-512.png`, sizes: '512x512', type: 'image/png', purpose: 'maskable' },
     ],
     categories: ['education'],
     screenshots: [],
     shortcuts: [
-      { name: 'لوحتي',    short_name: 'لوحتي',  url: '/student',         icons: [{ src: '/icon-192.png', sizes: '192x192' }] },
-      { name: 'كورساتي', short_name: 'كورسات', url: '/student/courses', icons: [{ src: '/icon-192.png', sizes: '192x192' }] },
+      { name: 'لوحتي',    short_name: 'لوحتي',  url: `${base}/student`,         icons: [{ src: `${base}/icon-192.png`, sizes: '192x192' }] },
+      { name: 'كورساتي', short_name: 'كورسات', url: `${base}/student/courses`, icons: [{ src: `${base}/icon-192.png`, sizes: '192x192' }] },
     ],
   };
 
