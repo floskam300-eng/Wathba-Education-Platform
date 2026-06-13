@@ -23,6 +23,15 @@ export function useSSE(enabled, role) {
   useEffect(() => {
     if (!enabled) return;
 
+    // Cancellation flag: set to true in cleanup so any in-flight async connect()
+    // call aborts instead of creating an orphaned second EventSource connection.
+    // This is the root cause of duplicate toast notifications — React StrictMode
+    // double-invokes effects; if cleanup runs while the SSE-ticket fetch is still
+    // awaiting, the cleanup finds esRef.current===null (nothing to close), the
+    // second mount starts its own connect(), and then both async calls complete
+    // and each registers event listeners on their own EventSource.
+    let cancelled = false;
+
     const connect = async () => {
       if (esRef.current) {
         esRef.current.close();
@@ -41,17 +50,24 @@ export function useSSE(enabled, role) {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${freshToken}` },
         });
+        // Cleanup ran while we were awaiting the ticket — bail out immediately
+        // to avoid creating an orphaned EventSource.
+        if (cancelled) return;
         if (ticketRes.ok) {
           const { ticket } = await ticketRes.json();
+          if (cancelled) return;
           sseUrl = `/api/sse?ticket=${encodeURIComponent(ticket)}`;
         } else {
           // Token rejected — don't reconnect; auth context will handle redirect
           return;
         }
       } catch {
+        if (cancelled) return;
         // Network error fetching ticket — fall back to legacy token URL so
         // SSE still works (degraded security but better than no real-time)
-        sseUrl = `/api/sse?token=${encodeURIComponent(freshToken)}`;
+        const token = localStorage.getItem('wathba_token');
+        if (!token) return;
+        sseUrl = `/api/sse?token=${encodeURIComponent(token)}`;
       }
 
       const es = new EventSource(sseUrl);
@@ -65,6 +81,7 @@ export function useSSE(enabled, role) {
       es.onerror = () => {
         es.close();
         esRef.current = null;
+        if (cancelled) return; // don't reschedule if cleanup already ran
         const delay = Math.min(1000 * 2 ** retryCountRef.current, 30000);
         retryCountRef.current += 1;
         console.log(`[SSE] disconnected — reconnecting in ${delay / 1000}s`);
@@ -179,27 +196,21 @@ export function useSSE(enabled, role) {
           });
         });
 
-        es.addEventListener('live_ended', (e) => {
+        es.addEventListener('live_permission_update', (e) => {
           let data; try { data = JSON.parse(e.data); } catch { return; }
-          window.dispatchEvent(new CustomEvent('wathba_live_ended', { detail: data }));
-          toast('📴 انتهى البث المباشر', {
-            duration: 5000,
-            style: { fontFamily: 'inherit', direction: 'rtl' },
-          });
-        });
-
-        es.addEventListener('live_chat', (e) => {
-          let data; try { data = JSON.parse(e.data); } catch { return; }
-          window.dispatchEvent(new CustomEvent('wathba_live_chat', { detail: data }));
-        });
-
-        es.addEventListener('live_chat_toggle', (e) => {
-          let data; try { data = JSON.parse(e.data); } catch { return; }
-          window.dispatchEvent(new CustomEvent('wathba_live_chat_toggle', { detail: data }));
-          toast(data.enabled ? '💬 تم تفعيل الدردشة' : '🔇 الدردشة معطلة الآن', {
-            duration: 4000,
-            style: { fontFamily: 'inherit', direction: 'rtl' },
-          });
+          window.dispatchEvent(new CustomEvent('wathba_live_permission_update', { detail: data }));
+          if (data.can_speak) {
+            toast.success('🎤 منحك المعلم صلاحية التحدث!', {
+              duration: 6000,
+              style: { fontFamily: 'inherit', direction: 'rtl', background: '#1e3a5f', color: '#fff' },
+            });
+          }
+          if (data.can_share_screen) {
+            toast.success('🖥️ منحك المعلم صلاحية مشاركة الشاشة!', {
+              duration: 6000,
+              style: { fontFamily: 'inherit', direction: 'rtl', background: '#1e3a5f', color: '#fff' },
+            });
+          }
         });
 
         es.addEventListener('live_points_awarded', (e) => {
@@ -217,25 +228,6 @@ export function useSSE(enabled, role) {
             duration: 7000,
             style: { fontFamily: 'inherit', direction: 'rtl' },
           });
-        });
-
-        es.addEventListener('live_permission_update', (e) => {
-          let data; try { data = JSON.parse(e.data); } catch { return; }
-          window.dispatchEvent(new CustomEvent('wathba_live_permission_update', { detail: data }));
-          // FIX: use separate `if` statements — not `else if` — so both
-          // toasts show when teacher grants speak AND screen-share together.
-          if (data.can_speak) {
-            toast.success('🎤 منحك المعلم صلاحية التحدث!', {
-              duration: 6000,
-              style: { fontFamily: 'inherit', direction: 'rtl', background: '#1e3a5f', color: '#fff' },
-            });
-          }
-          if (data.can_share_screen) {
-            toast.success('🖥️ منحك المعلم صلاحية مشاركة الشاشة!', {
-              duration: 6000,
-              style: { fontFamily: 'inherit', direction: 'rtl', background: '#1e3a5f', color: '#fff' },
-            });
-          }
         });
       }
 
@@ -301,6 +293,7 @@ export function useSSE(enabled, role) {
     connect();
 
     return () => {
+      cancelled = true; // signal any in-flight connect() to abort
       clearTimeout(retryRef.current);
       if (esRef.current) {
         esRef.current.close();
