@@ -389,6 +389,55 @@ app.use('/api/whatsapp',     require('./routes/whatsapp'));
 app.use('/api/recitations', require('./routes/recitations'));
 app.use('/api/archive',    require('./routes/archive'));
 
+// ── Dynamic PWA manifest — must come BEFORE express.static so it takes
+//    precedence over the static client/dist/manifest.json.
+//    Each teacher subdomain gets its own `id`, `name`, and `short_name` so
+//    browsers treat them as distinct installable apps and allow multiple
+//    installs from the same device (one per teacher).
+app.get('/manifest.json', subdomainTenant, async (req, res) => {
+  const slug = req.tenantSlug || null;
+  let teacherName = 'وثبة';
+
+  if (slug && req.tenantTeacherId) {
+    try {
+      const r = await pool.query('SELECT name FROM teachers WHERE id=$1', [req.tenantTeacherId]);
+      if (r.rows.length) teacherName = r.rows[0].name;
+    } catch (_) {}
+  }
+
+  const tenantId = slug || 'default';
+  const manifest = {
+    id: `wathba-${tenantId}`,
+    name: slug ? `وثبة — ${teacherName}` : 'وثبة - المنصة التعليمية',
+    short_name: slug ? teacherName : 'وثبة',
+    description: 'منصة تعليمية متكاملة لمراكز الدروس الخصوصية في مصر',
+    start_url: '/',
+    scope: '/',
+    display: 'standalone',
+    orientation: 'portrait',
+    background_color: '#0F0E15',
+    theme_color: '#f97316',
+    lang: 'ar',
+    dir: 'rtl',
+    icons: [
+      { src: '/icon-48.png',  sizes: '48x48',   type: 'image/png', purpose: 'any' },
+      { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+      { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+      { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+    ],
+    categories: ['education'],
+    screenshots: [],
+    shortcuts: [
+      { name: 'لوحتي',    short_name: 'لوحتي',  url: '/student',         icons: [{ src: '/icon-192.png', sizes: '192x192' }] },
+      { name: 'كورساتي', short_name: 'كورسات', url: '/student/courses', icons: [{ src: '/icon-192.png', sizes: '192x192' }] },
+    ],
+  };
+
+  res.set('Content-Type', 'application/manifest+json');
+  res.set('Cache-Control', 'public, max-age=3600');
+  res.json(manifest);
+});
+
 const clientDist = path.join(__dirname, '../client/dist');
 if (process.env.NODE_ENV === 'production' || fs.existsSync(clientDist)) {
   app.use(express.static(clientDist));
