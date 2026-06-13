@@ -427,8 +427,7 @@ export default function StudentLayout() {
         )}
 
         {availableLive && !studentStream && !onLivePage && (
-          <div className="flex items-center justify-between gap-3 px-4 py-2 flex-shrink-0 border-b"
-            style={{ backgroundColor: '#1e3a2e', borderColor: 'rgba(34,197,94,0.35)' }}>
+          <div className="flex items-center justify-between gap-3 px-4 py-2 flex-shrink-0 border-b bg-[#0d2318] dark:bg-[#0a1a10] border-green-900/60 dark:border-green-900/40">
             <div className="flex items-center gap-2.5 min-w-0">
               <span className="flex items-center gap-1.5 bg-green-600 text-white text-xs font-black px-2.5 py-1 rounded-full animate-pulse flex-shrink-0">
                 <Radio className="w-3 h-3" /> بث جديد

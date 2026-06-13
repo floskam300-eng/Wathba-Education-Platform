@@ -56,16 +56,12 @@ export function useFCM(enabled) {
         setupDone.current = true;
         console.info('[FCM] Push notifications enabled successfully');
 
-        unsubscribeRef.current = onMessage(messaging, (payload) => {
-          const title = payload.notification?.title || '';
-          const body  = payload.notification?.body  || '';
-          const text  = [title, body].filter(Boolean).join(' — ');
-          if (text) {
-            toast(`🔔 ${text}`, {
-              duration: 7000,
-              style: { fontFamily: 'inherit', direction: 'rtl' },
-            });
-          }
+        // Foreground FCM messages are intentionally not toasted here.
+        // SSE (useSSE.js) already handles real-time toasts while the app is open.
+        // Showing both would double every notification for connected users.
+        // The service worker (firebase-messaging-sw.js) handles background push display.
+        unsubscribeRef.current = onMessage(messaging, (_payload) => {
+          // Silently keep the FCM channel alive so background notifications still work.
         });
       } catch (err) {
         console.error('[FCM] Setup failed:', err.message || err);

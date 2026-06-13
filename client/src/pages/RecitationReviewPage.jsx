@@ -43,7 +43,7 @@ export default function RecitationReviewPage() {
   const goBack = () => navigate(-1);
 
   return (
-    <div dir="rtl" className="max-w-3xl mx-auto space-y-5 pb-10">
+    <div dir="rtl" className="max-w-3xl mx-auto space-y-5 pb-10 px-4 lg:px-6">
 
       {/* ── Page header ────────────────────────────────────────────────────── */}
       <div className="bg-white dark:bg-[var(--dk-surface)] rounded-2xl border border-gray-100 dark:border-[var(--dk-border)] shadow-sm overflow-hidden">

@@ -694,17 +694,17 @@ export default function StudentExams() {
           const examId = result.result?.exam_id;
           const examTitle = exams.find(e => e.id === examId)?.title || '';
           return (
-            <div className={`card text-center border-2 ${passed ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50'}`}>
+            <div className={`card text-center border-2 ${passed ? 'border-green-300 dark:border-green-800/50 bg-green-50 dark:bg-green-900/20' : 'border-red-300 dark:border-red-800/50 bg-red-50 dark:bg-red-900/20'}`}>
               <div className="text-5xl mb-3">{passed ? '🎉' : '📚'}</div>
-              <h2 className="text-2xl font-black text-navy-700 mb-1">النتيجة</h2>
-              <p className={`text-4xl font-black mb-3 ${passed ? 'text-green-800' : 'text-red-800'}`}>
+              <h2 className="text-2xl font-black text-navy-700 dark:text-[var(--dk-text-1)] mb-1">النتيجة</h2>
+              <p className={`text-4xl font-black mb-3 ${passed ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
                 {result.normalizedScore}/{result.total_score ?? result.result?.total_score ?? 100}
               </p>
               <div className="flex justify-center gap-6 text-sm flex-wrap">
-                <span className="text-green-800 font-bold">✓ صواب: {result.result.correct_count}</span>
-                <span className="text-red-800 font-bold">✗ خطأ: {result.result.wrong_count}</span>
+                <span className="text-green-700 dark:text-green-400 font-bold">✓ صواب: {result.result.correct_count}</span>
+                <span className="text-red-700 dark:text-red-400 font-bold">✗ خطأ: {result.result.wrong_count}</span>
               </div>
-              {result.pointsEarned > 0 && <p className="mt-3 text-orange-700 font-bold">+{result.pointsEarned} نقطة! ⭐</p>}
+              {result.pointsEarned > 0 && <p className="mt-3 text-orange-700 dark:text-orange-400 font-bold">+{result.pointsEarned} نقطة! ⭐</p>}
 
               {passed ? (
                 <div className="mt-4 flex gap-3 justify-center flex-wrap">
@@ -712,16 +712,16 @@ export default function StudentExams() {
                   {result.result?.id && (
                     <button
                       onClick={() => { navigate(`/student/exam-review/${result.result.id}`); setResult(null); }}
-                      className="flex items-center gap-2 px-4 py-2 rounded-xl border-2 border-navy-200 hover:border-navy-400 hover:bg-navy-50 text-navy-700 font-bold text-sm transition-all">
+                      className="flex items-center gap-2 px-4 py-2 rounded-xl border-2 border-navy-200 dark:border-[var(--dk-border)] hover:border-navy-400 dark:hover:border-[var(--dk-border-md)] hover:bg-navy-50 dark:hover:bg-[var(--dk-elevated)] text-navy-700 dark:text-[var(--dk-text-1)] font-bold text-sm transition-all">
                       <Eye className="w-4 h-4" /> مراجعة الإجابات
                     </button>
                   )}
                 </div>
               ) : (
                 <div className="mt-5 space-y-3">
-                  <div className="bg-white/80 border border-red-200 rounded-xl px-4 py-3">
-                    <p className="text-navy-700 font-black text-base">هل تريد إعادة هذا الاختبار؟</p>
-                    <p className="text-gray-500 text-xs mt-1">
+                  <div className="bg-white/80 dark:bg-[var(--dk-elevated)] border border-red-200 dark:border-red-900/40 rounded-xl px-4 py-3">
+                    <p className="text-navy-700 dark:text-[var(--dk-text-1)] font-black text-base">هل تريد إعادة هذا الاختبار؟</p>
+                    <p className="text-gray-500 dark:text-[var(--dk-text-2)] text-xs mt-1">
                       لو اخترت "نعم" — سيُرسَل طلب للمعلم ولن تتمكن من مراجعة الإجابات حتى يُبَتّ في طلبك
                     </p>
                   </div>
@@ -737,14 +737,10 @@ export default function StudentExams() {
                       نعم، أريد الإعادة
                     </button>
                     <button
-                      onClick={() => {
-                        if (result.result?.id) navigate(`/student/exam-review/${result.result.id}`);
-                        setResult(null);
-                      }}
-                      className="flex-1 py-3 rounded-xl border-2 border-navy-200 hover:border-navy-400 hover:bg-navy-50 text-navy-700 font-black text-sm transition-all flex items-center justify-center gap-2"
+                      onClick={() => setResult(null)}
+                      className="flex-1 py-3 rounded-xl border-2 border-gray-200 dark:border-[var(--dk-border)] hover:border-gray-400 dark:hover:bg-[var(--dk-elevated)] text-gray-600 dark:text-[var(--dk-text-2)] font-black text-sm transition-all"
                     >
-                      <Eye className="w-4 h-4" />
-                      لا، مراجعة الإجابات
+                      لا، شكراً
                     </button>
                   </div>
                 </div>
@@ -806,7 +802,7 @@ export default function StudentExams() {
               const isUpcoming = scheduleStatus === 'upcoming';
               const isExpired = scheduleStatus === 'expired';
               return (
-                <div key={ex.id} className={`card !p-4 ${ex.already_taken ? 'border-2 border-green-300' : isExpired ? 'opacity-60' : ''}`}>
+                <div key={ex.id} className={`card !p-4 ${ex.already_taken ? 'border-2 border-green-300 dark:border-green-800/50' : isExpired ? 'opacity-60' : ''}`}>
                   {/* Card Header */}
                   <div className="flex items-start gap-3 mb-3">
                     <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${ex.already_taken ? 'bg-green-100' : isExpired || isUpcoming ? 'bg-gray-100' : 'bg-gradient-to-br from-orange-500 to-orange-700'}`}>
@@ -867,31 +863,36 @@ export default function StudentExams() {
                           {ex.score}/{ex.total_score}
                         </div>
 
-                        {/* مراجعة الإجابات — مخفية لو في طلب إعادة معلّق */}
-                        {myRetry?.status !== 'pending' ? (
+                        {/* Passed: always show review */}
+                        {passed && (
                           <button onClick={() => navigate(`/student/exam-review/${ex.already_taken}`)}
-                            className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border-2 border-navy-200 hover:border-navy-400 hover:bg-navy-50 text-navy-700 text-sm font-bold transition-all">
+                            className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border-2 border-navy-200 dark:border-[var(--dk-border)] hover:border-navy-400 dark:hover:bg-[var(--dk-elevated)] hover:bg-navy-50 text-navy-700 dark:text-[var(--dk-text-1)] text-sm font-bold transition-all">
                             <Eye className="w-4 h-4" /> مراجعة الإجابات
                           </button>
-                        ) : null}
+                        )}
 
+                        {/* Failed: show retry OR review depending on state */}
                         {!passed && (
                           myRetry?.status === 'pending' ? (
-                            <div className="space-y-1.5">
-                              <div className="flex items-center gap-2 px-3 py-2.5 bg-yellow-50 border border-yellow-200 rounded-xl text-xs text-yellow-800 font-bold">
-                                <Clock className="w-3.5 h-3.5 flex-shrink-0" />
-                                طلب الإعادة قيد المراجعة — المراجعة متاحة بعد البت في الطلب
-                              </div>
+                            <div className="flex items-center gap-2 px-3 py-2.5 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700/40 rounded-xl text-xs text-yellow-800 dark:text-yellow-300 font-bold">
+                              <Clock className="w-3.5 h-3.5 flex-shrink-0" />
+                              طلب الإعادة قيد المراجعة — المراجعة متاحة بعد البت في الطلب
                             </div>
                           ) : myRetry?.status === 'rejected' ? (
-                            <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-bold">
-                              <X className="w-3.5 h-3.5 flex-shrink-0" />
-                              رُفض طلب الإعادة{myRetry.teacher_note ? ` — ${myRetry.teacher_note}` : ''}
-                            </div>
+                            <>
+                              <div className="flex items-center gap-2 px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/40 rounded-xl text-xs text-red-700 dark:text-red-400 font-bold">
+                                <X className="w-3.5 h-3.5 flex-shrink-0" />
+                                رُفض طلب الإعادة{myRetry.teacher_note ? ` — ${myRetry.teacher_note}` : ''}
+                              </div>
+                              <button onClick={() => navigate(`/student/exam-review/${ex.already_taken}`)}
+                                className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border-2 border-navy-200 dark:border-[var(--dk-border)] hover:border-navy-400 dark:hover:bg-[var(--dk-elevated)] hover:bg-navy-50 text-navy-700 dark:text-[var(--dk-text-1)] text-sm font-bold transition-all">
+                                <Eye className="w-4 h-4" /> مراجعة الإجابات
+                              </button>
+                            </>
                           ) : (
                             <button
                               onClick={() => { setRetryModal(ex); setRetryMessage(''); }}
-                              className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border-2 border-orange-200 hover:border-orange-400 hover:bg-orange-50 text-orange-700 text-sm font-bold transition-all"
+                              className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border-2 border-orange-200 dark:border-orange-700/40 hover:border-orange-400 dark:hover:bg-orange-900/20 hover:bg-orange-50 text-orange-700 dark:text-orange-400 text-sm font-bold transition-all"
                             >
                               <RotateCcw className="w-4 h-4" /> طلب إعادة الاختبار
                             </button>

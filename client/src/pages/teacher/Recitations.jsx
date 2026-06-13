@@ -957,6 +957,30 @@ function AnalyticsTab({ analytics, dark, cardCls }) {
           ))}
         </div>
       </div>
+
+      {/* Recent recitations performance */}
+      {recent_recitations && recent_recitations.length > 0 && (
+        <div className={cardCls}>
+          <h3 className={`font-black mb-4 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>أداء التسميعات الأخيرة 📊</h3>
+          <div className="space-y-2">
+            {recent_recitations.map(r => (
+              <div key={r.id} className="flex items-center justify-between py-2 border-b last:border-0 gap-2" style={{ borderColor: dark ? 'var(--dk-border)' : '#f1f5f9' }}>
+                <div className="min-w-0 flex-1">
+                  <p className={`text-sm font-bold truncate ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>{r.title}</p>
+                  <p className={`text-xs ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>{r.academic_stage || '—'}</p>
+                </div>
+                <div className="flex items-center gap-3 text-xs flex-shrink-0">
+                  <span className={dark ? 'text-[var(--dk-text-2)]' : 'text-gray-500'}>
+                    <Users className="w-3 h-3 inline ml-0.5" />{r.participant_count}
+                  </span>
+                  <span className="font-black text-green-600">نجاح {r.pass_rate}%</span>
+                  <span className="font-black text-purple-600">متوسط {r.avg_score}%</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
