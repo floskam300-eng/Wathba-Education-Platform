@@ -477,8 +477,8 @@ async function seed() {
       (title,duration_minutes,total_score,course_id,teacher_id,
        pass_score,is_published,start_date,end_date,
        points_on_attempt,points_on_pass)
-    VALUES ('مراجعة الدوال والرسوم البيانية',40,40,$1,$2,
-      24,true,$3,$4,5,10)
+    VALUES ('مراجعة الدوال والرسوم البيانية',40,48,$1,$2,
+      29,true,$3,$4,5,10)
     RETURNING id
   `, [c1.id, T1, past(3), future(5)]);
 
@@ -630,7 +630,7 @@ async function seed() {
     e2QIds.push({ id: qr.id, correct: ans, pts });
   }
 
-  // أسئلة e3 (مراجعة الدوال — 40 درجة)
+  // أسئلة e3 (مراجعة الدوال — 48 درجة: 5 عادية + 1 بصورة)
   const e3Questions = [
     ['mcq','إذا f(x)=3x+1، فإن f(2)=','5','6','7','8','C',8,null],
     ['mcq','قاطع الصادات للمستقيم y=2x+5 هو','2','5','7','0','B',8,null],
@@ -648,6 +648,23 @@ async function seed() {
     `, [e3.id, qt, txt, a, b, c, d, ans, pts]);
     e3QIds.push({ id: qr.id, correct: ans, pts, question_text: txt, question_type: qt, option_a: a, option_b: b, option_c: c, option_d: d });
   }
+
+  // سؤال بصورة — e3 (الرسم البياني للدالة التربيعية f(x) = x²)
+  const [e3ImgQ] = await q(`
+    INSERT INTO questions
+      (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,
+       correct_answer_letter,points,question_image_url)
+    VALUES ($1,'mcq',
+      'انظر إلى الرسم البياني للدالة f(x) = x² أمامك — أيٌّ من العبارات التالية صحيحة؟',
+      'الدالة تتناقص على كامل مجالها',
+      'الدالة تزداد لليمين وتتناقص لليسار من نقطة الأصل',
+      'قيمة الدالة دائماً موجبة أو صفر لأي قيمة x',
+      'للدالة جذران حقيقيان مختلفان',
+      'C',8,$2)
+    RETURNING id
+  `, [e3.id,
+     'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f7/Graph_of_f%28x%29%3Dx%5E2.svg/400px-Graph_of_f%28x%29%3Dx%5E2.svg.png']);
+  e3QIds.push({ id: e3ImgQ.id, correct: 'C', pts: 8, question_text: 'سؤال بصورة', question_type: 'mcq', option_a: null, option_b: null, option_c: null, option_d: null });
 
   // أسئلة e5 (اختبار مشتقات — 30 درجة)
   const e5Questions = [
@@ -1439,7 +1456,7 @@ async function seed() {
     VALUES ($1,
       'تسميع قواعد التكامل',
       'أسئلة على قوانين التكامل الأساسية — مستوى متوسط',
-      'الصف الثالث الثانوي',12,15,9,2,8,
+      'الصف الثالث الثانوي',12,18,11,2,8,
       'once',
       $2,$3,true,false,true)
     RETURNING id
@@ -1531,7 +1548,7 @@ async function seed() {
     r2QIds.push({ id: qr.id, correct: ans, pts });
   }
 
-  // أسئلة r3 (تكامل — 15 درجة)
+  // أسئلة r3 (تكامل — 18 درجة: 5 عادية + 1 بصورة)
   const r3Questions = [
     ['mcq','∫3x² dx = ','x³+C','3x+C','x²+C','3x³+C','A',3,1],
     ['mcq','∫cos(x) dx = ','sin(x)+C','-sin(x)+C','cos(x)+C','-cos(x)+C','A',3,2],
@@ -1547,6 +1564,17 @@ async function seed() {
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
     `, [r3.id, qt, txt, a, b, c, d, ans, pts, ord]);
   }
+
+  // سؤال بصورة — r3 (الرسم البياني للتكامل المحدود بين x=0 و x=2)
+  await q(`
+    INSERT INTO recitation_questions
+      (recitation_id,question_type,question_text,option_a,option_b,option_c,option_d,
+       correct_answer_letter,points,sort_order,question_image_url)
+    VALUES ($1,'mcq',
+      'انظر إلى الرسم البياني أمامك — ما قيمة التكامل المحدود للدالة f(x) = 2x بين x=0 و x=2؟',
+      '2','4','6','8','B',3,6,$2)
+  `, [r3.id,
+     'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9f/Integral_approximation.svg/400px-Integral_approximation.svg.png']);
 
   // أسئلة r4 (شامل — 30 درجة)
   const r4Questions = [

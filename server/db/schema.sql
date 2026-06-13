@@ -697,7 +697,10 @@ DO $$ BEGIN
   ALTER TABLE device_alerts ADD CONSTRAINT chk_alert_type CHECK (alert_type IN ('device_limit_exceeded'));
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
-  ALTER TABLE device_alerts ADD CONSTRAINT chk_alert_status CHECK (status IN ('pending', 'resolved'));
+  ALTER TABLE device_alerts DROP CONSTRAINT IF EXISTS chk_alert_status;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE device_alerts ADD CONSTRAINT chk_alert_status CHECK (status IN ('pending', 'resolved', 'reactivated', 'dismissed'));
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- ── Grouped (multi-part) questions ────────────────────────────────────────────
