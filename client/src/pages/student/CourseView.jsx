@@ -524,16 +524,19 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
         style={{ pointerEvents: 'none' }}
       />
 
-      {/* Permanent black bar — covers YouTube title + channel name at top */}
+      {/* Permanent black bar — covers YouTube title + channel name at top
+          Mobile: 40px (fits within letterbox on small screens)
+          Desktop: 72px (more conservative for large viewports) */}
       <div
-        className="absolute top-0 left-0 right-0 bg-black"
-        style={{ height: '72px', zIndex: 13, pointerEvents: 'none' }}
+        className="absolute top-0 left-0 right-0 bg-black h-10 md:h-[72px]"
+        style={{ zIndex: 13, pointerEvents: 'none' }}
       />
 
-      {/* Permanent black bar — covers "More videos" row + YouTube logo at bottom */}
+      {/* Permanent black bar — covers YouTube logo at bottom
+          Mobile: 28px  Desktop: 52px */}
       <div
-        className="absolute bottom-0 left-0 right-0 bg-black"
-        style={{ height: '52px', zIndex: 13, pointerEvents: 'none' }}
+        className="absolute bottom-0 left-0 right-0 bg-black h-7 md:h-[52px]"
+        style={{ zIndex: 13, pointerEvents: 'none' }}
       />
 
       {/* Overlay strategy:
@@ -1219,7 +1222,7 @@ export default function CourseView() {
       <div className="flex-1 flex flex-col-reverse md:flex-row overflow-hidden">
 
         {/* ── Sidebar ── */}
-        <aside className="w-full h-[42vh] md:w-80 md:h-auto flex-shrink-0 bg-gray-900 border-t md:border-t-0 md:border-l border-white/10 flex flex-col overflow-hidden">
+        <aside className="w-full h-[34vh] md:w-80 md:h-auto flex-shrink-0 bg-gray-900 border-t md:border-t-0 md:border-l border-white/10 flex flex-col overflow-hidden">
 
           {/* Course info strip — desktop only */}
           <div className="hidden md:block flex-shrink-0 px-4 py-4 border-b border-white/10 bg-gradient-to-b from-orange-500/10 to-transparent">
