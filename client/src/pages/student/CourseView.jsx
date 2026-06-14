@@ -820,6 +820,17 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
     if (videoRef.current) videoRef.current.muted = next;
   };
 
+  const rewind10 = () => {
+    if (videoRef.current) videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 10);
+  };
+
+  const forward10 = () => {
+    if (videoRef.current) {
+      const d = videoRef.current.duration || Infinity;
+      videoRef.current.currentTime = Math.min(d, videoRef.current.currentTime + 10);
+    }
+  };
+
   const changeSpeed = (s) => {
     setSpeed(s);
     saveSpeed(s);
