@@ -421,6 +421,15 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
     } catch (_) {}
   };
 
+  const forward10 = () => {
+    try {
+      const d = playerRef.current?.getDuration() || 0;
+      const t = Math.min(d || Infinity, (playerRef.current?.getCurrentTime() || 0) + 10);
+      playerRef.current?.seekTo(t, true);
+      setCurrentTime(t);
+    } catch (_) {}
+  };
+
   const changeSpeed = (s) => {
     setSpeed(s);
     saveSpeed(s);
