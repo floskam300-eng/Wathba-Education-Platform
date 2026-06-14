@@ -590,63 +590,85 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
         </div>
       )}
 
-      {/* Speed picker popup */}
-      {showSpeed && (
-        <div className="absolute bottom-20 left-4 bg-gray-900/95 border border-white/10 rounded-xl overflow-hidden shadow-2xl" style={{ zIndex: 40 }}>
-          <p className="text-[10px] font-bold text-gray-400 px-3 pt-2 pb-1 border-b border-white/10">سرعة التشغيل</p>
-          {SPEEDS.map(s => (
-            <button key={s} onClick={() => changeSpeed(s)}
-              className={`w-full text-center px-5 py-1.5 text-sm font-bold transition-colors ${speed === s ? 'bg-orange-500 text-white' : 'text-gray-300 hover:bg-white/10'}`}>
-              {s === 1 ? 'عادي' : `${s}x`}
-            </button>
-          ))}
-        </div>
-      )}
-
       <div className={`absolute bottom-0 left-0 right-0 transition-opacity duration-300 ${showControls || !playing ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} style={{ zIndex: 30 }}>
-        <div className="bg-gradient-to-t from-black/95 via-black/60 to-transparent px-4 pt-10 pb-3">
-          <div className="mb-3">
+        <div className="bg-gradient-to-t from-black/95 via-black/60 to-transparent px-3 sm:px-4 pt-12 pb-2.5 sm:pb-3">
+          {/* Seek row: elapsed · slider · remaining */}
+          <div className="flex items-center gap-2.5 mb-1">
+            <span className="text-white/80 text-[11px] sm:text-xs font-mono tabular-nums flex-shrink-0 w-10 text-center">{fmtSec(currentTime)}</span>
             <input type="range" min="0" max="100" step="0.1" value={progress} dir="ltr"
-              className="player-range player-range-progress" style={{ '--pct': pct }}
+              aria-label="شريط التقدم"
+              className="player-range player-range-progress flex-1" style={{ '--pct': pct }}
               onMouseDown={() => { seeking.current = true; }}
               onMouseUp={() => { seeking.current = false; resetHide(); }}
               onTouchStart={() => { seeking.current = true; resetHide(); }}
               onTouchEnd={() => { seeking.current = false; resetHide(); }}
               onChange={onSeekChange} />
+            <span className="text-white/50 text-[11px] sm:text-xs font-mono tabular-nums flex-shrink-0 w-10 text-center">{fmtSec(Math.max(0, duration - currentTime))}</span>
           </div>
-          <div className="flex items-center gap-3">
-            <button onClick={toggle} className="text-white hover:text-orange-400 transition-colors flex-shrink-0">
+
+          {/* Control row: transport (right in RTL) · spacer · settings */}
+          <div className="flex items-center gap-1 sm:gap-2">
+            {/* ── Transport group ── */}
+            <button onClick={toggle} title={playing ? 'إيقاف مؤقت' : 'تشغيل'}
+              className="text-white hover:text-orange-400 transition-colors flex-shrink-0 p-1.5">
               {playing ? <Pause className="w-5 h-5 fill-white" /> : <Play className="w-5 h-5 fill-white" />}
             </button>
-            <button onClick={rewind10} className="text-white hover:text-orange-400 transition-colors flex-shrink-0">
-              <RotateCcw className="w-4 h-4" />
+            <button onClick={rewind10} title="رجوع ١٠ ثوانٍ"
+              className="text-white hover:text-orange-400 transition-colors flex-shrink-0 p-1.5">
+              <RotateCcw className="w-[18px] h-[18px]" />
             </button>
-            <span className="text-white/70 text-xs font-mono flex-shrink-0">{fmtSec(currentTime)} / {fmtSec(duration)}</span>
-            <div className="flex-1" />
-            {/* Speed button */}
-            <button onClick={() => setShowSpeed(p => !p)}
-              className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold transition-colors flex-shrink-0 ${speed !== 1 ? 'text-orange-400 bg-orange-400/10' : 'text-white/70 hover:text-white'}`}>
-              <Gauge className="w-3.5 h-3.5" />
-              {speed === 1 ? '1x' : `${speed}x`}
+            <button onClick={forward10} title="تقديم ١٠ ثوانٍ"
+              className="text-white hover:text-orange-400 transition-colors flex-shrink-0 p-1.5">
+              <RotateCw className="w-[18px] h-[18px]" />
             </button>
-            <button onClick={toggleMute} className="text-white hover:text-orange-400 transition-colors flex-shrink-0">
-              {muted || volume === 0 ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
-            </button>
-            <div className="w-20 flex-shrink-0 hidden sm:block">
-              <input type="range" min="0" max="100" step="1" value={muted ? 0 : volume} dir="ltr"
-                className="player-range player-range-volume" style={{ '--vol': vol }}
-                onChange={onVolumeChange} />
+
+            {/* Volume — mute always, slider reveals on hover (desktop) */}
+            <div className="group flex items-center flex-shrink-0">
+              <button onClick={toggleMute} title={muted || volume === 0 ? 'إلغاء الكتم' : 'كتم الصوت'}
+                className="text-white hover:text-orange-400 transition-colors p-1.5">
+                {muted || volume === 0 ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+              </button>
+              <div className="hidden sm:block w-0 group-hover:w-20 overflow-hidden transition-all duration-200">
+                <input type="range" min="0" max="100" step="1" value={muted ? 0 : volume} dir="ltr"
+                  aria-label="مستوى الصوت"
+                  className="player-range player-range-volume w-20" style={{ '--vol': vol }}
+                  onChange={onVolumeChange} />
+              </div>
             </div>
+
+            <div className="flex-1" />
+
+            {/* ── Settings group ── */}
+            <div className="relative flex-shrink-0">
+              <button onClick={() => setShowSpeed(p => !p)} title="سرعة التشغيل"
+                className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-bold transition-colors ${speed !== 1 ? 'text-orange-400 bg-orange-400/15' : 'text-white/80 hover:text-white hover:bg-white/10'}`}>
+                <Gauge className="w-3.5 h-3.5" />
+                {speed === 1 ? '1x' : `${speed}x`}
+              </button>
+              {showSpeed && (
+                <>
+                  <div className="fixed inset-0" style={{ zIndex: 39 }} onClick={() => setShowSpeed(false)} />
+                  <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-gray-900/95 border border-white/10 rounded-xl overflow-hidden shadow-2xl min-w-[96px]" style={{ zIndex: 40 }}>
+                    <p className="text-[10px] font-bold text-gray-400 px-3 pt-2 pb-1 border-b border-white/10 text-center">سرعة التشغيل</p>
+                    {SPEEDS.map(s => (
+                      <button key={s} onClick={() => changeSpeed(s)}
+                        className={`w-full text-center px-5 py-1.5 text-sm font-bold transition-colors ${speed === s ? 'bg-orange-500 text-white' : 'text-gray-300 hover:bg-white/10'}`}>
+                        {s === 1 ? 'عادي' : `${s}x`}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
             {/* زر تدوير الشاشة — يظهر على الموبايل فقط */}
-            <button
-              onClick={toggleLandscape}
-              className={`sm:hidden transition-colors flex-shrink-0 ${cssLandscape ? 'text-orange-400' : 'text-white hover:text-orange-400'}`}
-              title="تدوير الشاشة"
-            >
-              <RotateCw className="w-4 h-4" />
+            <button onClick={toggleLandscape} title="تدوير الشاشة"
+              className={`sm:hidden transition-colors flex-shrink-0 p-1.5 ${cssLandscape ? 'text-orange-400' : 'text-white hover:text-orange-400'}`}>
+              <RotateCw className="w-[18px] h-[18px]" />
             </button>
-            <button onClick={toggleFullscreen} className="text-white hover:text-orange-400 transition-colors flex-shrink-0">
-              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            <button onClick={toggleFullscreen} title={isFullscreen ? 'إنهاء ملء الشاشة' : 'ملء الشاشة'}
+              className="text-white hover:text-orange-400 transition-colors flex-shrink-0 p-1.5">
+              {isFullscreen ? <Minimize2 className="w-[18px] h-[18px]" /> : <Maximize2 className="w-[18px] h-[18px]" />}
             </button>
           </div>
         </div>
