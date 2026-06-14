@@ -656,10 +656,12 @@ html.dark ::-webkit-scrollbar-thumb:hover {
   background: transparent;
   cursor: pointer;
   width: 100%;
+  height: 16px;
+  display: block;
 }
 .player-range::-webkit-slider-runnable-track {
-  height: 4px;
-  border-radius: 2px;
+  height: 6px;
+  border-radius: 3px;
   background: rgba(255,255,255,0.2);
 }
 .player-range::-webkit-slider-thumb {
@@ -668,15 +670,17 @@ html.dark ::-webkit-scrollbar-thumb:hover {
   height: 14px;
   border-radius: 50%;
   background: #F5A623;
-  margin-top: -5px;
+  margin-top: -4px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.5);
   transition: transform 0.15s;
 }
-.player-range:hover::-webkit-slider-thumb {
-  transform: scale(1.25);
+.player-range:hover::-webkit-slider-thumb,
+.player-range:active::-webkit-slider-thumb {
+  transform: scale(1.35);
 }
 .player-range::-moz-range-track {
-  height: 4px;
-  border-radius: 2px;
+  height: 6px;
+  border-radius: 3px;
   background: rgba(255,255,255,0.2);
 }
 .player-range::-moz-range-thumb {
@@ -685,7 +689,19 @@ html.dark ::-webkit-scrollbar-thumb:hover {
   border-radius: 50%;
   background: #F5A623;
   border: none;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+  transition: transform 0.15s;
 }
+.player-range:hover::-moz-range-thumb,
+.player-range:active::-moz-range-thumb {
+  transform: scale(1.35);
+}
+/* The progress bar gets a slightly taller track than the volume slider */
+.player-range-progress::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; }
+.player-range-progress::-moz-range-track { height: 6px; border-radius: 3px; }
+.player-range-volume::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; }
+.player-range-volume::-moz-range-track { height: 4px; border-radius: 2px; }
+.player-range-volume::-webkit-slider-thumb { margin-top: -5px; }
 .player-range-progress {
   background: linear-gradient(
     to right,
