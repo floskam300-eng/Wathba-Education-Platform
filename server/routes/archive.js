@@ -309,6 +309,115 @@ router.get('/recitation-results', requireRole('teacher', 'assistant'), checkRecP
   }
 });
 
+// ── GET /api/archive/students ───────────────────────────────────────────────
+// Each student appears ONCE with aggregated exam + recitation stats.
+// Only students who have at least one result are included.
+// Supports: q (search), stage, sort (name/exams/recitations/score), order, page, limit
+router.get('/students', requireRole('teacher', 'assistant'), checkAnyPerm, async (req, res) => {
+  const teacherId = getTeacherId(req);
+  if (!teacherId) return res.status(400).json({ error: 'بيانات المعلم غير صالحة' });
+
+  const {
+    q, stage,
+    sort = 'name', order = 'asc',
+    page = 1, limit = 50,
+  } = req.query;
+
+  try {
+    // Dynamic outer WHERE conditions (s.teacher_id = $1 is always first).
+    // $1 is also reused inside the two subqueries — PostgreSQL allows this.
+    const conditions = ['s.teacher_id = $1', 's.deleted_at IS NULL',
+      '(COALESCE(ex.total_exams,0) > 0 OR COALESCE(rec.total_recitations,0) > 0)'];
+    const params = [teacherId];
+    let p = 2;
+
+    if (q && q.trim()) {
+      const like = `%${q.trim().slice(0, 100)}%`;
+      conditions.push(`(s.name ILIKE $${p} OR s.username ILIKE $${p})`);
+      params.push(like);
+      p++;
+    }
+    if (stage && stage !== 'الكل') {
+      conditions.push(`s.academic_stage = $${p++}`);
+      params.push(stage);
+    }
+
+    const sortMap = {
+      name:        's.name',
+      exams:       'COALESCE(ex.total_exams, 0)',
+      recitations: 'COALESCE(rec.total_recitations, 0)',
+      score:       'COALESCE(ex.avg_exam_score, 0)',
+    };
+    const sortCol = sortMap[sort] || 's.name';
+    const sortDir = order === 'desc' ? 'DESC' : 'ASC';
+
+    const pageNum  = Math.min(10000, Math.max(1, parseInt(page,  10) || 1));
+    const limitNum = Math.min(200,   Math.max(1, parseInt(limit, 10) || 50));
+    const offset   = (pageNum - 1) * limitNum;
+
+    const whereClause = conditions
+      .map((c, i) => (i === 0 ? `WHERE ${c}` : `AND ${c}`))
+      .join('\n      ');
+
+    // Subquery for exam stats (per student, this teacher only)
+    const examSub = `
+      SELECT er.student_id,
+        COUNT(*) FILTER (WHERE er.is_latest = true) AS total_exams,
+        COUNT(*) FILTER (WHERE er.is_latest = true AND er.score >= e.pass_score) AS passed_exams,
+        ROUND(AVG(er.score::numeric / NULLIF(e.total_score,0) * 100)
+              FILTER (WHERE er.is_latest = true), 1) AS avg_exam_score
+      FROM exam_results er
+      JOIN exams e ON er.exam_id = e.id
+      WHERE e.teacher_id = $1
+      GROUP BY er.student_id`;
+
+    // Subquery for recitation stats (per student, this teacher only)
+    const recSub = `
+      SELECT rr.student_id,
+        COUNT(*) AS total_recitations,
+        COUNT(*) FILTER (WHERE rr.passed = true) AS passed_recitations,
+        ROUND(AVG(rr.score::numeric / NULLIF(r.total_score,0) * 100), 1) AS avg_rec_score
+      FROM recitation_results rr
+      JOIN recitations r ON rr.recitation_id = r.id
+      WHERE r.teacher_id = $1
+      GROUP BY rr.student_id`;
+
+    const fromClause = `
+      FROM students s
+      LEFT JOIN (${examSub}) ex  ON ex.student_id  = s.id
+      LEFT JOIN (${recSub})  rec ON rec.student_id = s.id
+      ${whereClause}`;
+
+    const countQ = await pool.query(
+      `SELECT COUNT(*) AS total ${fromClause}`, params);
+
+    const dataQ = await pool.query(
+      `SELECT
+         s.id, s.name, s.username, s.academic_stage,
+         COALESCE(ex.total_exams,       0) AS total_exams,
+         COALESCE(ex.passed_exams,      0) AS passed_exams,
+         COALESCE(ex.avg_exam_score,    0) AS avg_exam_score,
+         COALESCE(rec.total_recitations,0) AS total_recitations,
+         COALESCE(rec.passed_recitations,0) AS passed_recitations,
+         COALESCE(rec.avg_rec_score,    0) AS avg_rec_score
+       ${fromClause}
+       ORDER BY ${sortCol} ${sortDir}, s.name ASC
+       LIMIT $${p} OFFSET $${p + 1}`,
+      [...params, limitNum, offset]
+    );
+
+    res.json({
+      total:    parseInt(countQ.rows[0].total, 10),
+      page:     pageNum,
+      limit:    limitNum,
+      students: dataQ.rows,
+    });
+  } catch (err) {
+    console.error('[archive/students]', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ── GET /api/archive/filters ────────────────────────────────────────────────
 // Returns all courses, exams, recitations, and academic stages for filter dropdowns
 // FIX-B1: filters uses checkAnyPerm (shows all filter options regardless of tab)

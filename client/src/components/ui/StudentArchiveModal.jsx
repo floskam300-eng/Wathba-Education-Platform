@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext';
 import {
   X, FileText, GraduationCap, CheckCircle2, XCircle,
@@ -34,6 +35,7 @@ const StatPill = ({ label, value, color }) => (
 // When mode is 'exams' or 'recitations', only that tab is shown (no tab switcher).
 export default function StudentArchiveModal({ student, onClose, mode = 'both' }) {
   const { dark } = useTheme();
+  const navigate = useNavigate();
   const [tab, setTab] = useState(mode === 'recitations' ? 'recitations' : 'exams');
   const [expandedExam, setExpandedExam] = useState(null);
   const [reviewResultId, setReviewResultId] = useState(null);
@@ -347,32 +349,43 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
                   return (
                     <div
                       key={r.id}
-                      className={`rounded-xl border px-4 py-3 flex items-center gap-3 transition-colors ${dark ? 'border-[var(--dk-border)] hover:bg-[var(--dk-elevated)]' : 'border-gray-100 hover:bg-purple-50/30'} ${r.passed ? (dark ? 'border-l-2 border-l-green-500' : 'border-l-2 border-l-green-400') : (dark ? 'border-l-2 border-l-red-500' : 'border-l-2 border-l-red-400')}`}
+                      className={`rounded-xl border overflow-hidden transition-all ${dark ? 'border-[var(--dk-border)]' : 'border-gray-100'} ${r.passed ? (dark ? 'border-l-2 border-l-green-500' : 'border-l-2 border-l-green-400') : (dark ? 'border-l-2 border-l-red-500' : 'border-l-2 border-l-red-400')}`}
                     >
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${r.passed ? 'bg-green-500' : 'bg-red-500'} text-white`}>
-                        {r.passed ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-xs font-black ${textPrimary}`}>{r.recitation_title}</p>
-                        <div className="flex items-center gap-3 mt-1">
-                          <div className="flex items-center gap-1.5">
-                            <MiniBar value={r.score} max={r.total_score} color={r.passed ? 'bg-green-500' : 'bg-red-500'} />
-                            <span className={`text-[10px] font-bold ${r.passed ? 'text-green-600' : 'text-red-500'}`}>{p}%</span>
+                      <div className={`px-4 py-3 flex items-center gap-3 ${dark ? 'hover:bg-[var(--dk-elevated)]' : 'hover:bg-purple-50/30'}`}>
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${r.passed ? 'bg-green-500' : 'bg-red-500'} text-white`}>
+                          {r.passed ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-xs font-black ${textPrimary}`}>{r.recitation_title}</p>
+                          <div className="flex items-center gap-3 mt-1">
+                            <div className="flex items-center gap-1.5">
+                              <MiniBar value={r.score} max={r.total_score} color={r.passed ? 'bg-green-500' : 'bg-red-500'} />
+                              <span className={`text-[10px] font-bold ${r.passed ? 'text-green-600' : 'text-red-500'}`}>{p}%</span>
+                            </div>
+                            <span className={`text-[10px] ${textSec}`}>{fmt(r.created_at)}</span>
                           </div>
-                          <span className={`text-[10px] ${textSec}`}>{fmt(r.created_at)}</span>
+                        </div>
+                        <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+                          <span className={`text-xs font-black ${r.passed ? 'text-green-500' : 'text-red-500'}`}>
+                            {r.score}/{r.total_score}
+                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <span className={`text-[10px] ${textSec}`}>صح: {r.correct_count}</span>
+                            <span className="text-[10px] text-red-400">خطأ: {r.wrong_count}</span>
+                          </div>
+                          {(r.points_earned > 0) && (
+                            <span className="text-[10px] text-amber-500 font-bold">+{r.points_earned} نقطة</span>
+                          )}
                         </div>
                       </div>
-                      <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
-                        <span className={`text-xs font-black ${r.passed ? 'text-green-500' : 'text-red-500'}`}>
-                          {r.score}/{r.total_score}
-                        </span>
-                        <div className="flex items-center gap-1.5">
-                          <span className={`text-[10px] ${textSec}`}>صح: {r.correct_count}</span>
-                          <span className={`text-[10px] text-red-400`}>خطأ: {r.wrong_count}</span>
-                        </div>
-                        {(r.points_earned > 0) && (
-                          <span className="text-[10px] text-amber-500 font-bold">+{r.points_earned} نقطة</span>
-                        )}
+                      <div className={`px-4 pb-3 flex justify-end border-t ${dark ? 'border-[var(--dk-border)] bg-[var(--dk-elevated)]' : 'border-gray-50 bg-gray-50'}`}>
+                        <button
+                          onClick={() => { onClose(); navigate(`/teacher/recitation-review/${r.id}`); }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white transition-colors mt-2"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          مراجعة الإجابات
+                        </button>
                       </div>
                     </div>
                   );
