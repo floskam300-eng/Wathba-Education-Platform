@@ -752,28 +752,31 @@ export default function TeacherExams() {
 
           {/* Points */}
           <div className="bg-amber-50 rounded-xl p-4 border border-amber-200 space-y-3">
-            <p className="text-sm font-black text-amber-800 flex items-center gap-1.5">⭐ نقاط المكافأة</p>
+            <p className="text-sm font-black text-amber-800 flex items-center gap-1.5">⭐ نقاط المكافأة (للناجحين فقط)</p>
+            <div className="bg-amber-100/60 rounded-lg px-3 py-2 text-xs text-amber-800 font-semibold flex items-start gap-1.5">
+              <span className="mt-0.5">ℹ️</span>
+              <span>لو الطالب رسب في الامتحان = لا يأخذ أي نقاط بغض النظر عن الإعداد. النقاط دي بس للناجحين.</span>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-bold text-amber-800 mb-1">نقاط لو قفل الامتحان ✅</label>
+                <label className="block text-xs font-bold text-amber-800 mb-1">نقاط لو قفّل الامتحان ✅</label>
                 <input type="number" min="0" max="9999" value={form.points_on_attempt}
                   onChange={e => setForm({ ...form, points_on_attempt: parseInt(e.target.value) || 0 })}
                   className="input-field text-sm" placeholder="0" />
-                <p className="text-xs text-gray-500 mt-1">الطالب يكسبها لما يسلّم الامتحان — سواء نجح أو رسب</p>
+                <p className="text-xs text-gray-500 mt-1">تُعطى لو نجح وسلّم الامتحان</p>
               </div>
               <div>
-                <label className="block text-xs font-bold text-amber-800 mb-1">نقاط لو نجح في الامتحان 🏆</label>
+                <label className="block text-xs font-bold text-amber-800 mb-1">نقاط إضافية لو نجح 🏆</label>
                 <input type="number" min="0" max="9999" value={form.points_on_pass}
                   onChange={e => setForm({ ...form, points_on_pass: parseInt(e.target.value) || 0 })}
                   className="input-field text-sm" placeholder="0" />
-                <p className="text-xs text-gray-500 mt-1">تُضاف بس لو الطالب عدّى درجة النجاح</p>
+                <p className="text-xs text-gray-500 mt-1">تُضاف فوق نقاط التسليم لو النجاح تم</p>
               </div>
             </div>
             {(form.points_on_attempt > 0 || form.points_on_pass > 0) && (
               <div className="bg-amber-100 rounded-lg p-2.5 text-xs text-amber-800 font-bold space-y-1">
-                {form.points_on_attempt > 0 && <p>✅ سلّم الامتحان (سواء نجح أو لأ) ← يكسب <span className="text-amber-900">{form.points_on_attempt} نقطة</span></p>}
-                {form.points_on_pass > 0 && <p>🏆 نجح في الامتحان ← يكسب <span className="text-amber-900">{(form.points_on_attempt || 0) + form.points_on_pass} نقطة</span> إجمالاً</p>}
-                {form.points_on_attempt === 0 && form.points_on_pass > 0 && <p className="text-gray-500 font-normal">مجرد التسليم بدون نجاح = 0 نقطة</p>}
+                <p>✅ نجح وسلّم ← يكسب <span className="text-amber-900">{(form.points_on_attempt || 0) + (form.points_on_pass || 0)} نقطة</span> إجمالاً</p>
+                <p className="text-red-600">❌ رسب ← لا يكسب أي نقاط</p>
               </div>
             )}
           </div>
@@ -781,7 +784,7 @@ export default function TeacherExams() {
           {/* Badge */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-bold text-navy-700 mb-1">اسم الشارة</label>
+              <label className="block text-sm font-bold text-navy-700 mb-1">اسم الشارة <span className="text-xs text-gray-400 font-normal">(للناجحين فقط)</span></label>
               <input value={form.badge_name} onChange={e => setForm({ ...form, badge_name: e.target.value })} className="input-field" placeholder="مثال: متميز" />
             </div>
             <div>

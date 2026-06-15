@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowRight, BookOpen, Video, FileText, FolderOpen, FolderPlus,
   Plus, Trash2, Pencil, Play, X, Check, Link, Upload, ExternalLink,
+  ChevronDown, ChevronUp,
 } from 'lucide-react';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
@@ -222,6 +223,11 @@ export default function CourseContent() {
   const [editingSectionId, setEditingSectionId] = useState(null);
   const [editingSectionTitle, setEditingSectionTitle] = useState('');
   const [previewVideo, setPreviewVideo] = useState(null);
+  const [expandedSections, setExpandedSections] = useState({});
+
+  const toggleSection = (sectionId) => {
+    setExpandedSections(prev => ({ ...prev, [sectionId]: !prev[sectionId] }));
+  };
 
   const { data: course } = useQuery({
     queryKey: ['course-single', courseId],
@@ -511,44 +517,91 @@ export default function CourseContent() {
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {sections.map(s => (
-                      <div key={s.id} className="flex items-center gap-3 p-4 bg-white rounded-xl shadow-sm border border-gray-100 hover:border-gray-200 transition-all">
-                        <FolderOpen className="w-5 h-5 text-indigo-400 flex-shrink-0" />
-                        {editingSectionId === s.id ? (
-                          <>
-                            <input autoFocus value={editingSectionTitle}
-                              onChange={e => setEditingSectionTitle(e.target.value)}
-                              onKeyDown={e => {
-                                if (e.key === 'Enter') updateSectionMut.mutate({ sectionId: s.id, title: editingSectionTitle });
-                                if (e.key === 'Escape') setEditingSectionId(null);
-                              }}
-                              className="input-field flex-1 !py-1.5 text-sm" />
-                            <button onClick={() => updateSectionMut.mutate({ sectionId: s.id, title: editingSectionTitle })}
-                              className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors">
-                              <Check className="w-4 h-4" />
-                            </button>
-                            <button onClick={() => setEditingSectionId(null)} className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg transition-colors">
-                              <X className="w-4 h-4" />
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <span className="flex-1 font-semibold text-navy-600 text-sm">{s.title}</span>
-                            <span className="text-xs text-gray-400 font-medium">
-                              {videos.filter(v => v.section_id === s.id).length} فيديو · {pdfs.filter(p => p.section_id === s.id).length} ملف
-                            </span>
-                            <button onClick={() => { setEditingSectionId(s.id); setEditingSectionTitle(s.title); }}
-                              className="p-1.5 text-navy-500 hover:bg-navy-50 rounded-lg transition-colors">
-                              <Pencil className="w-3.5 h-3.5" />
-                            </button>
-                            <button onClick={() => deleteSectionMut.mutate(s.id)}
-                              className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors">
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    ))}
+                    {sections.map(s => {
+                      const sectionVideos = videos.filter(v => v.section_id === s.id);
+                      const sectionPdfs = pdfs.filter(p => p.section_id === s.id);
+                      const totalItems = sectionVideos.length + sectionPdfs.length;
+                      const isExpanded = !!expandedSections[s.id];
+                      return (
+                        <div key={s.id} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                          {/* Section header row */}
+                          <div className="flex items-center gap-3 p-4">
+                            <FolderOpen className="w-5 h-5 text-indigo-400 flex-shrink-0" />
+                            {editingSectionId === s.id ? (
+                              <>
+                                <input autoFocus value={editingSectionTitle}
+                                  onChange={e => setEditingSectionTitle(e.target.value)}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') updateSectionMut.mutate({ sectionId: s.id, title: editingSectionTitle });
+                                    if (e.key === 'Escape') setEditingSectionId(null);
+                                  }}
+                                  className="input-field flex-1 !py-1.5 text-sm" />
+                                <button onClick={() => updateSectionMut.mutate({ sectionId: s.id, title: editingSectionTitle })}
+                                  className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors">
+                                  <Check className="w-4 h-4" />
+                                </button>
+                                <button onClick={() => setEditingSectionId(null)} className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg transition-colors">
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => totalItems > 0 && toggleSection(s.id)}
+                                  className={`flex-1 flex items-center gap-2 text-right min-w-0 ${totalItems > 0 ? 'cursor-pointer' : 'cursor-default'}`}>
+                                  <span className="flex-1 font-semibold text-navy-600 text-sm truncate">{s.title}</span>
+                                  <span className="text-xs text-gray-400 font-medium whitespace-nowrap flex-shrink-0">
+                                    {sectionVideos.length > 0 && <span>{sectionVideos.length} 🎬</span>}
+                                    {sectionVideos.length > 0 && sectionPdfs.length > 0 && <span className="mx-1">·</span>}
+                                    {sectionPdfs.length > 0 && <span>{sectionPdfs.length} 📄</span>}
+                                    {totalItems === 0 && <span className="text-gray-300">فارغ</span>}
+                                  </span>
+                                  {totalItems > 0 && (
+                                    <span className="flex-shrink-0 text-gray-400">
+                                      {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                    </span>
+                                  )}
+                                </button>
+                                <button onClick={() => { setEditingSectionId(s.id); setEditingSectionTitle(s.title); }}
+                                  className="p-1.5 text-navy-500 hover:bg-navy-50 rounded-lg transition-colors flex-shrink-0">
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                <button onClick={() => deleteSectionMut.mutate(s.id)}
+                                  className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0">
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </>
+                            )}
+                          </div>
+
+                          {/* Expandable content */}
+                          {isExpanded && totalItems > 0 && (
+                            <div className="border-t border-gray-100 px-4 pb-4 pt-3 space-y-4 bg-gray-50/50">
+                              {sectionVideos.length > 0 && (
+                                <div>
+                                  <p className="text-[11px] font-black text-gray-400 uppercase tracking-wide mb-2 flex items-center gap-1">
+                                    <Video className="w-3 h-3" /> الفيديوهات
+                                  </p>
+                                  <div className="space-y-2">
+                                    {sectionVideos.map(v => <VideoItem key={v.id} v={v} />)}
+                                  </div>
+                                </div>
+                              )}
+                              {sectionPdfs.length > 0 && (
+                                <div>
+                                  <p className="text-[11px] font-black text-gray-400 uppercase tracking-wide mb-2 flex items-center gap-1">
+                                    <FileText className="w-3 h-3" /> الملفات
+                                  </p>
+                                  <div className="space-y-2">
+                                    {sectionPdfs.map(p => <PdfItem key={p.id} p={p} />)}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>

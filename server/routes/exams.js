@@ -1164,7 +1164,7 @@ router.post('/:id/submit', submitLimiter, requireRole('student'), async (req, re
   const totalPoints = questionsData.reduce((s, q) => s + q.points, 0);
   const normalizedScore = totalPoints > 0 ? Math.round((score / totalPoints) * exam.total_score) : 0;
   const passed = normalizedScore >= exam.pass_score;
-  const pointsEarned = (exam.points_on_attempt || 0) + (passed ? (exam.points_on_pass || 0) : 0);
+  const pointsEarned = passed ? ((exam.points_on_attempt || 0) + (exam.points_on_pass || 0)) : 0;
 
   // ── Atomic DB write inside a transaction ──
   const client = await pool.connect();
