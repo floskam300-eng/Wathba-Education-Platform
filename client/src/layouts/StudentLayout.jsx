@@ -255,7 +255,6 @@ export default function StudentLayout() {
     { to: '/student',                icon: LayoutDashboard, label: 'لوحتي',       end: true },
     { to: '/student/courses',        icon: BookOpen,        label: 'كورساتي' },
     { to: '/student/exams',          icon: FileText,        label: 'الاختبارات' },
-    { to: '/student/recitations',    icon: GraduationCap,   label: 'التسميع' },
     { to: '/student/stats',          icon: BarChart2,       label: 'إحصائياتي' },
     { to: '/student/leaderboard',    icon: Trophy,          label: 'المتصدرون' },
     { to: '/student/live',           icon: Radio,           label: 'بث مباشر' },

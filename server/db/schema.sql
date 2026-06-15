@@ -1025,6 +1025,11 @@ CREATE TABLE IF NOT EXISTS recitation_streaks (
 
 ALTER TABLE assistants ADD COLUMN IF NOT EXISTS can_manage_recitations BOOLEAN DEFAULT false;
 
+-- Video-linked recitations
+ALTER TABLE recitations ADD COLUMN IF NOT EXISTS course_id INTEGER REFERENCES courses(id) ON DELETE SET NULL;
+ALTER TABLE recitations ADD COLUMN IF NOT EXISTS video_ids JSONB DEFAULT '[]';
+
 CREATE INDEX IF NOT EXISTS idx_recitations_teacher ON recitations(teacher_id);
+CREATE INDEX IF NOT EXISTS idx_recitations_course ON recitations(course_id);
 CREATE INDEX IF NOT EXISTS idx_recitation_results_student ON recitation_results(student_id);
 CREATE INDEX IF NOT EXISTS idx_recitation_results_recitation ON recitation_results(recitation_id);

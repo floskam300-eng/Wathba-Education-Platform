@@ -448,6 +448,7 @@ router.get('/:id/content', async (req, res) => {
       pool.query('SELECT * FROM sections WHERE course_id=$1 ORDER BY sort_order, id', [courseId]),
     ]);
     res.json({ videos: videos.rows, pdfs: pdfs.rows, exams: exams.rows, sections: sections.rows });
+    // Note: course recitations are fetched separately via GET /api/recitations/student/course/:courseId
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }

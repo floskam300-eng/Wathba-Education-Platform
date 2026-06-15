@@ -49,6 +49,7 @@ const emptyForm = {
   schedule_type: 'once', schedule_day: 0,
   start_date: '', end_date: '',
   shuffle_questions: false, shuffle_options: false,
+  course_id: '', video_ids: [],
 };
 
 const emptyQ = { question_text: '', question_image_url: '', question_type: 'mcq', option_a: '', option_b: '', option_c: '', option_d: '', correct_answer_letter: 'A', points: 1, sub_questions: [] };
@@ -72,6 +73,19 @@ export default function Recitations() {
   const { data: recitations = [], isLoading } = useQuery({
     queryKey: ['recitations'],
     queryFn: () => api.get('/recitations').then(r => r.data),
+  });
+
+  const { data: courses = [] } = useQuery({
+    queryKey: ['teacher-courses-list'],
+    queryFn: () => api.get('/courses').then(r => r.data),
+  });
+
+  const { data: courseVideos = [] } = useQuery({
+    queryKey: ['course-videos-for-rec', form.course_id],
+    queryFn: () => form.course_id
+      ? api.get(`/courses/${form.course_id}/content`).then(r => r.data.videos || [])
+      : Promise.resolve([]),
+    enabled: !!form.course_id,
   });
 
   const { data: results = [] } = useQuery({
@@ -130,6 +144,8 @@ export default function Recitations() {
       end_date: rec.end_date ? rec.end_date.slice(0, 16) : '',
       shuffle_questions: rec.shuffle_questions,
       shuffle_options: rec.shuffle_options,
+      course_id: rec.course_id ? String(rec.course_id) : '',
+      video_ids: Array.isArray(rec.video_ids) ? rec.video_ids.map(Number) : [],
     });
     setModal(true);
   };
@@ -353,6 +369,58 @@ export default function Recitations() {
                 <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
                   rows={2} placeholder="وصف مختصر..."
                   className={`w-full rounded-xl px-3 py-2.5 border text-sm resize-none ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`} />
+              </div>
+
+              {/* Course + video linking */}
+              <div className={`rounded-2xl border p-4 space-y-3 ${dark ? 'border-[var(--dk-border)] bg-[var(--dk-elevated)]' : 'border-purple-100 bg-purple-50/40'}`}>
+                <p className={`text-xs font-black uppercase tracking-wide ${dark ? 'text-purple-400' : 'text-purple-600'}`}>🔗 ربط بكورس وفيديوهات (اختياري)</p>
+                <div>
+                  <label className={`block text-xs font-bold mb-1 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-600'}`}>الكورس</label>
+                  <select
+                    value={form.course_id}
+                    onChange={e => setForm(f => ({ ...f, course_id: e.target.value, video_ids: [] }))}
+                    className={`w-full rounded-xl px-3 py-2 border text-sm ${dark ? 'bg-[var(--dk-surface)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`}
+                  >
+                    <option value="">بدون ربط بكورس</option>
+                    {courses.map(c => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
+                  </select>
+                </div>
+                {form.course_id && (
+                  <div>
+                    <label className={`block text-xs font-bold mb-1.5 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-600'}`}>
+                      الفيديوهات التي يقفل عليها هذا التسميع
+                      <span className={`mr-1.5 font-normal ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>(الطالب لازم يجتاز التسميع للانتقال للفيديو التالي)</span>
+                    </label>
+                    {courseVideos.length === 0 ? (
+                      <p className={`text-xs ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>لا توجد فيديوهات في هذا الكورس</p>
+                    ) : (
+                      <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                        {courseVideos.map((v, i) => {
+                          const checked = form.video_ids.includes(v.id);
+                          return (
+                            <label key={v.id} className={`flex items-center gap-2.5 px-3 py-2 rounded-xl cursor-pointer transition-colors ${
+                              checked
+                                ? dark ? 'bg-purple-500/20 border border-purple-500/40' : 'bg-purple-50 border border-purple-200'
+                                : dark ? 'hover:bg-[var(--dk-surface)]' : 'hover:bg-white'
+                            }`}>
+                              <input type="checkbox" checked={checked}
+                                onChange={() => setForm(f => ({
+                                  ...f,
+                                  video_ids: checked
+                                    ? f.video_ids.filter(id => id !== v.id)
+                                    : [...f.video_ids, v.id],
+                                }))}
+                                className="accent-purple-500 w-3.5 h-3.5 flex-shrink-0"
+                              />
+                              <span className={`text-xs font-semibold flex-shrink-0 ${dark ? 'text-purple-400' : 'text-purple-600'}`}>{i + 1}</span>
+                              <span className={`text-xs truncate ${dark ? 'text-[var(--dk-text)]' : 'text-gray-700'}`}>{v.title}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">

@@ -162,6 +162,7 @@ router.post('/', requireRole('teacher', 'assistant'), checkManageRecitationsPerm
     total_score, pass_score, points_on_attempt, points_on_pass,
     schedule_type, schedule_day, start_date, end_date,
     shuffle_questions, shuffle_options,
+    course_id, video_ids,
   } = req.body;
 
   if (!title || !String(title).trim())
@@ -175,25 +176,36 @@ router.post('/', requireRole('teacher', 'assistant'), checkManageRecitationsPerm
 
   const totalSc = parseInt(total_score, 10) || 10;
   const passSc  = parseInt(pass_score, 10)  || 5;
-  // [R7-FIX] Validate pass_score does not exceed total_score
   if (passSc > totalSc)
     return res.status(400).json({ error: 'درجة النجاح لا يمكن أن تتجاوز الدرجة الكلية' });
   if (passSc < 0 || totalSc < 1)
     return res.status(400).json({ error: 'الدرجات غير صالحة' });
 
-  // [R9-FIX] Validate date range
   if (start_date && end_date && new Date(end_date) <= new Date(start_date))
     return res.status(400).json({ error: 'تاريخ الانتهاء يجب أن يكون بعد تاريخ البداية' });
 
+  const parsedCourseId = course_id ? parseInt(course_id, 10) : null;
+  const parsedVideoIds = Array.isArray(video_ids) ? video_ids.map(v => parseInt(v, 10)).filter(v => v > 0) : [];
+
   try {
     const teacherId = getTeacherId(req);
+
+    // Verify course ownership if provided
+    if (parsedCourseId) {
+      const { rows: cRows } = await pool.query(
+        'SELECT id FROM courses WHERE id=$1 AND teacher_id=$2',
+        [parsedCourseId, teacherId]
+      );
+      if (!cRows.length) return res.status(403).json({ error: 'الكورس غير موجود أو ليس لك' });
+    }
+
     const { rows } = await pool.query(
       `INSERT INTO recitations
          (teacher_id, title, description, academic_stage, duration_minutes,
           total_score, pass_score, points_on_attempt, points_on_pass,
           schedule_type, schedule_day, start_date, end_date,
-          shuffle_questions, shuffle_options)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+          shuffle_questions, shuffle_options, course_id, video_ids)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
        RETURNING *`,
       [
         teacherId,
@@ -211,6 +223,8 @@ router.post('/', requireRole('teacher', 'assistant'), checkManageRecitationsPerm
         end_date || null,
         !!shuffle_questions,
         !!shuffle_options,
+        parsedCourseId,
+        JSON.stringify(parsedVideoIds),
       ]
     );
     logActivity({
@@ -337,6 +351,62 @@ router.get('/analytics', requireRole('teacher', 'assistant'), async (req, res) =
 // ════════════════════════════════════════════════════════════════════════════════
 // STUDENT FIXED-PATH ROUTES (must come before /:id routes)
 // ════════════════════════════════════════════════════════════════════════════════
+
+// GET /api/recitations/student/course/:courseId — recitations for a specific course
+// Returns each recitation with the student's result (if any) and which videos they're linked to.
+// Used by CourseView to gate video access.
+router.get('/student/course/:courseId', requireRole('student'), async (req, res) => {
+  const courseId = parseParamId(req.params.courseId);
+  if (!courseId) return res.status(400).json({ error: 'Invalid course ID' });
+
+  try {
+    const studentId = req.user.id;
+
+    // Tenant isolation: get teacher_id from student row
+    const { rows: stRows } = await pool.query(
+      'SELECT teacher_id FROM students WHERE id=$1 AND deleted_at IS NULL',
+      [studentId]
+    );
+    if (!stRows.length) return res.status(403).json({ error: 'غير مصرح' });
+    const { teacher_id: teacherId } = stRows[0];
+
+    // Verify student is enrolled in this course
+    const { rows: enrRows } = await pool.query(
+      `SELECT sce.id FROM student_course_enrollment sce
+         JOIN courses c ON c.id = sce.course_id
+        WHERE sce.student_id=$1 AND sce.course_id=$2 AND sce.status='active'
+          AND c.teacher_id=$3 AND c.is_published=true`,
+      [studentId, courseId, teacherId]
+    );
+    if (!enrRows.length) return res.status(403).json({ error: 'غير مسجل في هذا الكورس' });
+
+    // Fetch published recitations linked to this course, with most recent result per student
+    const { rows } = await pool.query(
+      `SELECT r.id, r.title, r.description, r.duration_minutes, r.total_score, r.pass_score,
+              r.start_date, r.end_date, r.shuffle_questions, r.shuffle_options,
+              r.video_ids,
+              (SELECT COUNT(*) FROM recitation_questions WHERE recitation_id=r.id) AS question_count,
+              rr.id AS result_id, rr.score AS my_score, rr.passed AS my_passed,
+              rr.correct_count AS my_correct, rr.wrong_count AS my_wrong,
+              rr.created_at AS my_submitted_at
+         FROM recitations r
+         LEFT JOIN LATERAL (
+           SELECT * FROM recitation_results rr2
+            WHERE rr2.student_id=$1
+              AND rr2.recitation_id=r.id
+            ORDER BY rr2.created_at DESC
+            LIMIT 1
+         ) rr ON true
+        WHERE r.course_id=$2 AND r.teacher_id=$3 AND r.is_published=true
+        ORDER BY r.created_at ASC`,
+      [studentId, courseId, teacherId]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('[recitations GET /student/course/:courseId]', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
 
 // GET /api/recitations/student/list — available recitations for student
 router.get('/student/list', requireRole('student'), async (req, res) => {
@@ -465,6 +535,7 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageRecitationsPe
     total_score, pass_score, points_on_attempt, points_on_pass,
     schedule_type, schedule_day, start_date, end_date,
     shuffle_questions, shuffle_options,
+    course_id, video_ids,
   } = req.body;
 
   if (!title || !String(title).trim())
@@ -476,15 +547,16 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageRecitationsPe
 
   const totalSc = parseInt(total_score, 10) || 10;
   const passSc  = parseInt(pass_score, 10)  || 5;
-  // [R7-FIX] Validate pass_score does not exceed total_score
   if (passSc > totalSc)
     return res.status(400).json({ error: 'درجة النجاح لا يمكن أن تتجاوز الدرجة الكلية' });
   if (passSc < 0 || totalSc < 1)
     return res.status(400).json({ error: 'الدرجات غير صالحة' });
 
-  // [R9-FIX] Validate date range
   if (start_date && end_date && new Date(end_date) <= new Date(start_date))
     return res.status(400).json({ error: 'تاريخ الانتهاء يجب أن يكون بعد تاريخ البداية' });
+
+  const parsedCourseId = course_id ? parseInt(course_id, 10) : null;
+  const parsedVideoIds = Array.isArray(video_ids) ? video_ids.map(v => parseInt(v, 10)).filter(v => v > 0) : [];
 
   try {
     const teacherId = getTeacherId(req);
@@ -492,13 +564,21 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageRecitationsPe
     if (!rec) return res.status(404).json({ error: 'التسميع غير موجود' });
     if (rec.is_published) return res.status(409).json({ error: 'لا يمكن تعديل تسميع منشور. قم بإلغاء النشر أولاً' });
 
+    if (parsedCourseId) {
+      const { rows: cRows } = await pool.query(
+        'SELECT id FROM courses WHERE id=$1 AND teacher_id=$2',
+        [parsedCourseId, teacherId]
+      );
+      if (!cRows.length) return res.status(403).json({ error: 'الكورس غير موجود أو ليس لك' });
+    }
+
     const { rows } = await pool.query(
       `UPDATE recitations SET
          title=$1, description=$2, academic_stage=$3, duration_minutes=$4,
          total_score=$5, pass_score=$6, points_on_attempt=$7, points_on_pass=$8,
          schedule_type=$9, schedule_day=$10, start_date=$11, end_date=$12,
-         shuffle_questions=$13, shuffle_options=$14
-       WHERE id=$15 AND teacher_id=$16 RETURNING *`,
+         shuffle_questions=$13, shuffle_options=$14, course_id=$15, video_ids=$16
+       WHERE id=$17 AND teacher_id=$18 RETURNING *`,
       [
         String(title).trim(), description || null, academic_stage || null, dur,
         totalSc, passSc,
@@ -507,6 +587,7 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageRecitationsPe
         schedule_day != null ? parseInt(schedule_day, 10) : null,
         start_date || null, end_date || null,
         !!shuffle_questions, !!shuffle_options,
+        parsedCourseId, JSON.stringify(parsedVideoIds),
         id, teacherId,
       ]
     );

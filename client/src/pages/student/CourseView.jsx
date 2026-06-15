@@ -1,11 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowRight, Play, FileText, BookOpen, Video, Clock,
   Download, CheckCircle2, Lock, ChevronRight, AlertCircle,
   Pause, Volume2, VolumeX, Maximize2, Minimize2, RotateCcw, RotateCw,
-  Settings, Gauge
+  Settings, Gauge, CheckCircle, XCircle, RefreshCw, Trophy, Eye
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
@@ -1093,6 +1093,446 @@ function PdfViewer({ pdf }) {
   );
 }
 
+/* ─── Recitations Tab Panel ──────────────────────────────
+   Renders inline recitation list + take/result flow inside
+   the CourseView sidebar without navigating away.
+── */
+function RecitationsTabPanel({ recitations, courseId, onRefresh }) {
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const dark = document.documentElement.classList.contains('dark');
+
+  const [view, setView] = useState('list'); // 'list' | 'take' | 'result'
+  const [selectedRec, setSelectedRec] = useState(null);
+  const [examData, setExamData] = useState(null);
+  const [answers, setAnswers] = useState({});
+  const [timeLeft, setTimeLeft] = useState(null);
+  const [starting, setStarting] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [result, setResult] = useState(null);
+  const [showCountdown, setShowCountdown] = useState(false);
+  const [countdown, setCountdown] = useState(3);
+
+  const timerRef = useRef(null);
+  const timerEpochRef = useRef(null);
+  const timerDurationRef = useRef(null);
+  const submittedRef = useRef(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  // 3-2-1 countdown
+  useEffect(() => {
+    if (!showCountdown) return;
+    if (countdown <= 0) { setShowCountdown(false); setView('take'); return; }
+    const id = setTimeout(() => setCountdown(c => c - 1), 1000);
+    return () => clearTimeout(id);
+  }, [showCountdown, countdown]);
+
+  // Drift-corrected server timer
+  useEffect(() => {
+    if (view !== 'take' || timeLeft === null) return;
+    if (timeLeft <= 0) { handleSubmit(true); return; }
+    timerRef.current = setTimeout(() => {
+      if (timerEpochRef.current !== null && timerDurationRef.current !== null) {
+        const elapsed = Date.now() - timerEpochRef.current;
+        const trueLeft = Math.max(0, Math.floor((timerDurationRef.current - elapsed) / 1000));
+        setTimeLeft(trueLeft);
+      } else {
+        setTimeLeft(t => Math.max(0, t - 1));
+      }
+    }, 1000);
+    return () => clearTimeout(timerRef.current);
+  }, [view, timeLeft]);
+
+  // Save answers to localStorage
+  useEffect(() => {
+    if (view === 'take' && selectedRec) {
+      localStorage.setItem(`recitation_answers_${selectedRec.id}`, JSON.stringify(answers));
+    }
+  }, [answers, view, selectedRec]);
+
+  // Cleanup saved answers on unmount if submitted
+  useEffect(() => {
+    return () => {
+      if (submittedRef.current && selectedRec?.id) {
+        localStorage.removeItem(`recitation_answers_${selectedRec.id}`);
+      }
+      submittedRef.current = false;
+    };
+  }, [selectedRec]);
+
+  // Keepalive on tab close
+  useEffect(() => {
+    if (view !== 'take' || !selectedRec) return;
+    const handleUnload = () => {
+      if (submittedRef.current) return;
+      const token = localStorage.getItem('wathba_token');
+      const tenantSlug = localStorage.getItem('wathba_teacher_slug') || '';
+      const qs2 = examData?.questions || [];
+      const payloadUnload = JSON.stringify({
+        answers: qs2.map(q => ({
+          question_id: q.id,
+          answer: q.question_type === 'image_multi'
+            ? JSON.stringify(answers[q.id] || {})
+            : (answers[q.id] || null),
+        }))
+      });
+      fetch(`/api/recitations/${selectedRec.id}/submit`, {
+        method: 'POST',
+        keepalive: true,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          ...(tenantSlug ? { 'X-Tenant-Slug': tenantSlug } : {}),
+        },
+        body: payloadUnload,
+      }).catch(() => {});
+    };
+    window.addEventListener('beforeunload', handleUnload);
+    return () => window.removeEventListener('beforeunload', handleUnload);
+  }, [view, selectedRec, answers, examData]);
+
+  const startRec = async (rec) => {
+    if (starting) return;
+    setStarting(true);
+    submittedRef.current = false;
+    try {
+      const { data } = await api.get(`/recitations/${rec.id}/take`);
+      setExamData(data);
+      setSelectedRec(rec);
+      const saved = localStorage.getItem(`recitation_answers_${rec.id}`);
+      setAnswers(saved ? JSON.parse(saved) : {});
+      const startedAt = new Date(data.server_started_at).getTime();
+      const durationMs = rec.duration_minutes * 60 * 1000;
+      const remaining = Math.max(0, durationMs - (Date.now() - startedAt));
+      timerEpochRef.current = startedAt;
+      timerDurationRef.current = durationMs;
+      setTimeLeft(Math.floor(remaining / 1000));
+      if (data.resumed) {
+        setView('take');
+      } else {
+        setShowCountdown(true);
+        setCountdown(3);
+      }
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'حدث خطأ');
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  const handleSubmit = useCallback(async (auto = false) => {
+    if (submittedRef.current || submitting) return;
+    submittedRef.current = true;
+    if (!mountedRef.current) return;
+    setSubmitting(true);
+    clearTimeout(timerRef.current);
+    const qs = examData?.questions || [];
+    const payload = qs.map(q => ({
+      question_id: q.id,
+      answer: q.question_type === 'image_multi'
+        ? JSON.stringify(answers[q.id] || {})
+        : (answers[q.id] || null),
+    }));
+    try {
+      const { data } = await api.post(`/recitations/${selectedRec.id}/submit`, { answers: payload });
+      if (!mountedRef.current) return;
+      localStorage.removeItem(`recitation_answers_${selectedRec.id}`);
+      setResult(data);
+      setView('result');
+      qc.invalidateQueries(['course-recitations', courseId]);
+      qc.invalidateQueries(['student-recitations']);
+    } catch (e) {
+      if (!mountedRef.current) return;
+      submittedRef.current = false;
+      setSubmitting(false);
+      const errData = e.response?.data || {};
+      if (errData.already_submitted) {
+        toast('تم تسليم التسميع بالفعل', { icon: 'ℹ️' });
+        localStorage.removeItem(`recitation_answers_${selectedRec?.id}`);
+        setView('list');
+        qc.invalidateQueries(['course-recitations', courseId]);
+      } else if (errData.timer_expired) {
+        toast.error('انتهى وقت التسميع');
+        localStorage.removeItem(`recitation_answers_${selectedRec?.id}`);
+        setView('list');
+        qc.invalidateQueries(['course-recitations', courseId]);
+      } else {
+        toast.error(errData.error || 'حدث خطأ أثناء التسليم');
+      }
+    }
+  }, [examData, answers, selectedRec, submitting, qc, courseId]);
+
+  const backToList = () => {
+    setView('list');
+    setResult(null);
+    setExamData(null);
+    submittedRef.current = false;
+    onRefresh?.();
+  };
+
+  // ── COUNTDOWN ──
+  if (showCountdown) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full min-h-[300px] bg-gradient-to-br from-purple-900 to-indigo-900">
+        <p className="text-white/80 text-sm font-bold mb-3">يبدأ التسميع بعد...</p>
+        <div className="text-white font-black" style={{ fontSize: 80, lineHeight: 1 }}>{countdown}</div>
+        <p className="text-white/60 text-xs mt-4">{selectedRec?.title}</p>
+      </div>
+    );
+  }
+
+  // ── TAKE VIEW ──
+  if (view === 'take' && examData) {
+    const questions = examData.questions || [];
+    const mins = Math.floor(timeLeft / 60);
+    const secs = timeLeft % 60;
+    const urgent = timeLeft < 60;
+    const answered = questions.filter(q => {
+      if (q.question_type === 'image_multi') return Object.keys(answers[q.id] || {}).length > 0;
+      return !!answers[q.id];
+    }).length;
+
+    return (
+      <div className="flex flex-col h-full overflow-hidden" dir="rtl">
+        {/* Timer bar */}
+        <div className="px-3 py-2 border-b border-white/10 flex items-center justify-between flex-shrink-0">
+          <div>
+            <p className="text-white text-xs font-black truncate max-w-[140px]">{selectedRec?.title}</p>
+            <p className="text-gray-500 text-[10px]">{answered}/{questions.length} إجابة</p>
+          </div>
+          <div className={`flex items-center gap-1 px-3 py-1.5 rounded-xl font-black text-sm tabular-nums ${
+            urgent ? 'bg-red-500/20 text-red-400 animate-pulse' : 'bg-purple-500/10 text-purple-400'
+          }`}>
+            <Clock className="w-3.5 h-3.5" />
+            {mins}:{String(secs).padStart(2, '0')}
+          </div>
+        </div>
+        {/* Questions scroll area */}
+        <div className="flex-1 overflow-y-auto p-3 space-y-3">
+          {questions.map((q, idx) => (
+            <SidebarQuestionCard key={q.id} q={q} idx={idx} answers={answers} setAnswers={setAnswers} />
+          ))}
+          <button
+            onClick={() => {
+              if (window.confirm(`هل أنت متأكد من تسليم التسميع؟\nأجبت على ${answered} من ${questions.length} أسئلة`)) {
+                handleSubmit(false);
+              }
+            }}
+            disabled={submitting}
+            className="w-full py-3 rounded-2xl font-black text-sm text-white bg-purple-500 hover:bg-purple-600 disabled:opacity-60 transition-colors mt-2">
+            {submitting ? <><RefreshCw className="w-4 h-4 inline ml-1.5 animate-spin" />جاري التسليم...</> : 'تسليم التسميع'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── RESULT VIEW ──
+  if (view === 'result' && result) {
+    const { score, correct, wrong, unanswered, passed, points_earned, total_score, pass_score } = result;
+    return (
+      <div className="flex flex-col h-full overflow-y-auto p-3 space-y-3" dir="rtl">
+        <div className={`rounded-2xl p-4 text-center ${passed ? 'bg-gradient-to-br from-green-600 to-emerald-700' : 'bg-gradient-to-br from-red-600 to-rose-700'} text-white`}>
+          <div className="text-4xl mb-1">{passed ? '🎉' : '📚'}</div>
+          <div className="text-3xl font-black">{score}<span className="text-base font-semibold opacity-70">/{total_score}</span></div>
+          <p className="text-sm font-bold mt-1">{passed ? 'نجحت! ✓' : 'لم تنجح'}</p>
+          <p className="text-white/70 text-xs mt-0.5">حد النجاح: {pass_score}/{total_score}</p>
+          {points_earned > 0 && (
+            <div className="mt-2 inline-flex items-center gap-1.5 bg-white/20 rounded-xl px-3 py-1.5 text-xs font-black">
+              <Trophy className="w-3.5 h-3.5" /> +{points_earned} نقطة
+            </div>
+          )}
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          {[['✅', 'صحيح', correct, 'text-green-400'], ['❌', 'خطأ', wrong, 'text-red-400'], ['⬜', 'بلا إجابة', unanswered, 'text-gray-400']].map(([icon, label, val, cls]) => (
+            <div key={label} className="bg-white/5 rounded-xl p-2.5 text-center border border-white/10">
+              <div className="text-lg">{icon}</div>
+              <div className={`text-lg font-black ${cls}`}>{val}</div>
+              <div className="text-[10px] text-gray-500">{label}</div>
+            </div>
+          ))}
+        </div>
+        {result?.result?.id && (
+          <button
+            onClick={() => navigate(`/student/recitation-review/${result.result.id}`)}
+            className="w-full flex items-center justify-center gap-2 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 font-bold text-xs py-2.5 rounded-xl transition-colors border border-indigo-500/30"
+          >
+            <Eye className="w-3.5 h-3.5" /> مراجعة مفصّلة
+          </button>
+        )}
+        {!passed && (
+          <button onClick={() => startRec(selectedRec)}
+            className="w-full flex items-center justify-center gap-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 font-bold text-xs py-2.5 rounded-xl transition-colors border border-purple-500/30">
+            <RefreshCw className="w-3.5 h-3.5" /> أعد المحاولة
+          </button>
+        )}
+        <button onClick={backToList}
+          className="w-full py-2.5 rounded-xl font-bold text-xs text-gray-400 hover:text-white hover:bg-white/5 transition-colors">
+          ← العودة للقائمة
+        </button>
+      </div>
+    );
+  }
+
+  // ── LIST VIEW ──
+  if (recitations.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full min-h-[200px] p-4 text-center">
+        <BookOpen className="w-10 h-10 text-gray-700 mb-2" />
+        <p className="text-gray-600 text-sm font-semibold">لا توجد تسميعات مرتبطة بهذا الكورس</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-3 space-y-2 overflow-y-auto" dir="rtl">
+      {recitations.map(rec => {
+        const hasResult = !!rec.result_id;
+        const passed = rec.my_passed;
+        return (
+          <div key={rec.id} className={`rounded-xl border p-3 transition-all ${
+            passed
+              ? 'border-green-500/30 bg-green-500/5'
+              : hasResult
+              ? 'border-red-500/30 bg-red-500/5'
+              : 'border-white/10 bg-white/5'
+          }`}>
+            <div className="flex items-start gap-2.5 mb-2">
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                passed ? 'bg-green-500/20' : hasResult ? 'bg-red-500/20' : 'bg-purple-500/10'
+              }`}>
+                {passed ? <CheckCircle className="w-4 h-4 text-green-400" /> :
+                 hasResult ? <XCircle className="w-4 h-4 text-red-400" /> :
+                 <BookOpen className="w-4 h-4 text-purple-400" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-white text-xs font-bold truncate">{rec.title}</p>
+                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                  <span className="text-[10px] text-gray-500">
+                    <Clock className="w-2.5 h-2.5 inline ml-0.5" />{rec.duration_minutes} دقيقة
+                  </span>
+                  <span className="text-[10px] text-gray-500">{rec.question_count} سؤال</span>
+                  {hasResult && (
+                    <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${
+                      passed ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                    }`}>
+                      {rec.my_score}/{rec.total_score} · {passed ? 'ناجح ✓' : 'راسب ✗'}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-1.5">
+              {!passed && (
+                <button
+                  onClick={() => startRec(rec)}
+                  disabled={starting}
+                  className="flex-1 py-1.5 rounded-lg text-[11px] font-black text-white bg-purple-500 hover:bg-purple-600 disabled:opacity-60 transition-colors">
+                  {starting && selectedRec?.id === rec.id ? (
+                    <RefreshCw className="w-3 h-3 inline animate-spin" />
+                  ) : hasResult ? 'أعد المحاولة' : 'ابدأ التسميع'}
+                </button>
+              )}
+              {rec.result_id && (
+                <button
+                  onClick={() => navigate(`/student/recitation-review/${rec.result_id}`)}
+                  className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-indigo-400 bg-indigo-500/10 hover:bg-indigo-500/20 transition-colors border border-indigo-500/20">
+                  <Eye className="w-3 h-3 inline ml-0.5" />مراجعة
+                </button>
+              )}
+              {passed && (
+                <div className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-bold text-green-400 bg-green-500/10 border border-green-500/20">
+                  <CheckCircle className="w-3 h-3" /> اجتزت التسميع
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function SidebarQuestionCard({ q, idx, answers, setAnswers }) {
+  const options = [
+    q.option_a && { letter: 'A', text: q.option_a },
+    q.option_b && { letter: 'B', text: q.option_b },
+    q.option_c && { letter: 'C', text: q.option_c },
+    q.option_d && { letter: 'D', text: q.option_d },
+  ].filter(Boolean);
+
+  const isImgMulti = q.question_type === 'image_multi';
+  const selected = answers[q.id];
+  const subAnswers = isImgMulti ? (selected || {}) : {};
+  const hasAny = isImgMulti ? Object.keys(subAnswers).length > 0 : !!selected;
+
+  return (
+    <div className={`rounded-xl p-3 border transition-all ${hasAny ? 'border-purple-500/40 bg-purple-500/5' : 'border-white/10 bg-white/5'}`}>
+      <div className="flex items-start gap-2 mb-2">
+        <span className="w-5 h-5 rounded-full bg-purple-500/20 text-purple-400 text-[10px] font-black flex items-center justify-center flex-shrink-0">{idx + 1}</span>
+        {q.question_text && (
+          <p className="text-gray-200 text-xs font-semibold flex-1">{q.question_text}</p>
+        )}
+      </div>
+      {q.question_image_url && (
+        <img src={q.question_image_url} alt="question" className="w-full max-h-32 object-contain rounded-lg border border-white/10 mb-2" />
+      )}
+      {isImgMulti ? (
+        <div className="space-y-1.5">
+          {options.some(o => o.text !== o.letter) && (
+            <div className="flex flex-wrap gap-1 mb-1.5">
+              {options.map(({ letter, text }) => (
+                <span key={letter} className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-gray-400">{letter}: {text}</span>
+              ))}
+            </div>
+          )}
+          {(q.sub_questions || []).map(sub => {
+            const subSel = subAnswers[sub.label];
+            return (
+              <div key={sub.label} className="rounded-lg p-2 bg-white/5 border border-white/10">
+                <p className="text-[10px] font-bold text-gray-300 mb-1">البند {sub.label}</p>
+                <div className="flex gap-1.5 flex-wrap">
+                  {options.map(({ letter }) => (
+                    <button key={letter}
+                      onClick={() => setAnswers(a => ({ ...a, [q.id]: { ...(a[q.id] || {}), [sub.label]: letter } }))}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all ${
+                        subSel === letter
+                          ? 'bg-purple-500 text-white border-purple-500'
+                          : 'bg-white/5 border-white/20 text-gray-300 hover:border-purple-400'
+                      }`}>
+                      {letter}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          {options.map(({ letter, text }) => (
+            <button key={letter}
+              onClick={() => setAnswers(a => ({ ...a, [q.id]: letter }))}
+              className={`w-full text-right flex items-center gap-2 px-2.5 py-2 rounded-lg border text-[11px] font-semibold transition-all ${
+                selected === letter
+                  ? 'bg-purple-500 text-white border-purple-500'
+                  : 'bg-white/5 border-white/15 text-gray-300 hover:border-purple-400'
+              }`}>
+              <span className={`w-4.5 h-4.5 rounded-full flex items-center justify-center text-[9px] font-black flex-shrink-0 ${selected === letter ? 'bg-white/20' : 'bg-white/10 text-purple-400'}`}>{letter}</span>
+              {text}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ─── Main Page ────────────────────────────────────────── */
 export default function CourseView() {
   const { courseId } = useParams();
@@ -1111,6 +1551,8 @@ export default function CourseView() {
 
   // Keep a ref to latest content so auto-advance in handleProgressUpdate always uses current data
   const contentRef = useRef(null);
+  // Keep a ref to latest courseRecitations so auto-advance respects lock state
+  const recitationsRef = useRef([]);
 
   const handleProgressUpdate = (videoId, watchedMinutes, progressPct, completed, lastPosition = 0, actualWatchedSec = 0) => {
     saveVidPos(videoId, lastPosition);
@@ -1129,7 +1571,15 @@ export default function CourseView() {
       if (idx !== -1) {
         const next = currentVids[idx + 1];
         if (next) {
-          setTimeout(() => setActiveVideo(next), 1500);
+          // Check if next video is locked by an uncleared recitation
+          const recs = recitationsRef.current || [];
+          const nextLocked = recs.some(rec => {
+            const vids = Array.isArray(rec.video_ids) ? rec.video_ids.map(Number) : [];
+            return vids.includes(next.id) && !rec.my_passed;
+          });
+          if (!nextLocked) {
+            setTimeout(() => setActiveVideo(next), 1500);
+          }
         }
       }
     }
@@ -1168,6 +1618,15 @@ export default function CourseView() {
     enabled: !!courseId,
   });
 
+  const { data: courseRecitations = [], refetch: refetchRecitations } = useQuery({
+    queryKey: ['course-recitations', courseId],
+    queryFn: () => api.get(`/recitations/student/course/${courseId}`).then(r => r.data),
+    enabled: !!courseId && !coursesLoading,
+  });
+
+  // Keep recitationsRef in sync so handleProgressUpdate auto-advance lock check uses latest data
+  useEffect(() => { recitationsRef.current = courseRecitations; }, [courseRecitations]);
+
   const course = courses.find(c => String(c.id) === String(courseId));
 
   /* ── Access guard: redirect if courses finished loading and this one isn't enrolled ── */
@@ -1185,13 +1644,26 @@ export default function CourseView() {
   const pdfs = content?.pdfs || [];
   const exams = content?.exams || [];
 
+  /* ── Video lock logic ──
+     A video is locked if there is at least one recitation linked to it that
+     the student has not yet passed. A recitation is "linked to video V" when
+     V.id is in recitation.video_ids. The first video is never locked.
+  ── */
+  const isVideoLocked = (video, videoIndex) => {
+    if (videoIndex === 0) return false;
+    return courseRecitations.some(rec => {
+      const vids = Array.isArray(rec.video_ids) ? rec.video_ids.map(Number) : [];
+      return vids.includes(video.id) && !rec.my_passed;
+    });
+  };
+
   const currentVideo = activeVideo || videos[0] || null;
   const currentPdf = activePdf || pdfs[0] || null;
 
   const tabs = [
     { key: 'videos', label: 'المحاضرات', icon: Video, count: videos.length },
     { key: 'pdfs', label: 'الملفات', icon: FileText, count: pdfs.length },
-    { key: 'exams', label: 'الاختبارات', icon: BookOpen, count: exams.length },
+    { key: 'recitations', label: 'التسميع', icon: BookOpen, count: courseRecitations.length },
   ];
 
   return (
@@ -1271,41 +1743,59 @@ export default function CourseView() {
                   <EmptyState icon={Video} text="لا توجد محاضرات بعد" />
                 ) : videos.map((v, i) => {
                   const isActive = currentVideo?.id === v.id;
+                  const locked = isVideoLocked(v, i);
                   return (
                     <button
                       key={v.id}
-                      onClick={() => { setActiveVideo(v); setActiveTab('videos'); }}
+                      onClick={() => {
+                        if (locked) {
+                          toast.error('يجب اجتياز التسميع أولاً للوصول لهذه المحاضرة');
+                          setActiveTab('recitations');
+                          return;
+                        }
+                        setActiveVideo(v); setActiveTab('videos');
+                      }}
                       className={`w-full text-right flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 ${
-                        isActive
+                        locked
+                          ? 'opacity-50 cursor-not-allowed text-gray-500'
+                          : isActive
                           ? 'bg-orange-500 shadow-lg shadow-orange-500/20'
                           : 'hover:bg-white/5 text-gray-400 hover:text-white'
                       }`}
                     >
                       <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-black ${
-                        isActive ? 'bg-white/20 text-white' : 'bg-white/5 text-gray-500'
+                        locked ? 'bg-white/5 text-gray-600'
+                          : isActive ? 'bg-white/20 text-white' : 'bg-white/5 text-gray-500'
                       }`}>
-                        {isActive
+                        {locked
+                          ? <Lock className="w-4 h-4" />
+                          : isActive
                           ? <Play className="w-4 h-4 text-white fill-white" />
                           : <span>{i + 1}</span>
                         }
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className={`font-bold text-sm truncate ${isActive ? 'text-white' : 'text-gray-300'}`}>
+                        <p className={`font-bold text-sm truncate ${isActive ? 'text-white' : locked ? 'text-gray-600' : 'text-gray-300'}`}>
                           {v.title}
                         </p>
                         <div className="flex items-center gap-2 mt-0.5">
-                          {v.duration_minutes > 0 && (
+                          {locked && (
+                            <span className="text-[10px] font-bold text-purple-400 bg-purple-400/10 px-1.5 py-0.5 rounded-full">
+                              🔒 يتطلب تسميع
+                            </span>
+                          )}
+                          {!locked && v.duration_minutes > 0 && (
                             <p className={`text-xs flex items-center gap-1 ${isActive ? 'text-white/60' : 'text-gray-600'}`}>
                               <Clock className="w-3 h-3" /> {fmt(v.duration_minutes)}
                             </p>
                           )}
-                          {v.saved_progress > 0 && (
+                          {!locked && v.saved_progress > 0 && (
                             <span className={`text-[10px] font-bold ${isActive ? 'text-white/70' : 'text-orange-400'}`}>
                               {Math.round(v.saved_progress)}%
                             </span>
                           )}
                         </div>
-                        {v.saved_progress > 0 && !isActive && (
+                        {!locked && v.saved_progress > 0 && !isActive && (
                           <div className="mt-1.5 h-0.5 w-full rounded-full bg-white/10 overflow-hidden">
                             <div
                               className="h-full rounded-full bg-orange-500/70"
@@ -1314,7 +1804,7 @@ export default function CourseView() {
                           </div>
                         )}
                       </div>
-                      {v.saved_progress >= 95 && (
+                      {!locked && v.saved_progress >= 95 && (
                         <CheckCircle2 className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-white/70' : 'text-green-400'}`} />
                       )}
                     </button>
@@ -1350,40 +1840,16 @@ export default function CourseView() {
                   );
                 })}
               </div>
-            ) : (
-              <div className="p-3 space-y-1.5">
-                {exams.length === 0 ? (
-                  <EmptyState icon={BookOpen} text="لا توجد اختبارات بعد" />
-                ) : exams.map(ex => {
-                  const myResult = examResults.find(r => String(r.exam_id) === String(ex.id));
-                  const passed = myResult && myResult.score >= ex.pass_score;
-                  return (
-                    <button
-                      key={ex.id}
-                      onClick={() => myResult ? navigate(`/student/exam-review/${myResult.id}`) : navigate('/student/exams')}
-                      className="w-full text-right flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-white/5 transition-all group"
-                    >
-                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${myResult ? (passed ? 'bg-green-500/20' : 'bg-red-500/20') : 'bg-purple-500/10'}`}>
-                        <BookOpen className={`w-4 h-4 ${myResult ? (passed ? 'text-green-400' : 'text-red-400') : 'text-purple-400'}`} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-sm text-gray-300 group-hover:text-white truncate transition-colors">
-                          {ex.title}
-                        </p>
-                        {myResult ? (
-                          <p className={`text-xs mt-0.5 font-bold ${passed ? 'text-green-400' : 'text-red-400'}`}>
-                            {myResult.score}/{ex.total_score} · {passed ? '✓ ناجح' : '✗ راسب'}
-                          </p>
-                        ) : (
-                          <p className="text-xs text-gray-600 mt-0.5">{ex.total_score} درجة · {ex.duration_minutes} دقيقة</p>
-                        )}
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-gray-600 group-hover:text-gray-400 transition-colors flex-shrink-0" />
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+            ) : activeTab === 'recitations' ? (
+              <RecitationsTabPanel
+                recitations={courseRecitations}
+                courseId={courseId}
+                onStartRec={(rec) => {
+                  navigate(`/student/recitations/${rec.id}/take`);
+                }}
+                onRefresh={() => refetchRecitations()}
+              />
+            ) : null}
           </div>
         </aside>
 
