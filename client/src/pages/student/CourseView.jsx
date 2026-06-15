@@ -2048,6 +2048,61 @@ export default function CourseView() {
                 <PdfViewer key={currentPdf?.id} pdf={currentPdf} />
               </div>
             </>
+          ) : activeTab === 'recitations' ? (
+            /* Recitations tab main area */
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="max-w-2xl mx-auto space-y-5">
+                <h2 className="text-white font-black text-xl mb-4 flex items-center gap-2">
+                  <BookOpen className="w-6 h-6 text-purple-400" /> درجاتي في التسميعات
+                </h2>
+
+                {courseRecitations.length === 0 ? (
+                  <div className="text-center py-16 text-gray-600">
+                    <BookOpen className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                    <p className="text-sm font-medium">لا توجد تسميعات مرتبطة بهذا الكورس</p>
+                  </div>
+                ) : courseRecitations.map(rec => {
+                  const passed = rec.my_passed;
+                  const hasResult = !!rec.result_id;
+                  const pct = hasResult ? Math.round((rec.my_score / rec.total_score) * 100) : 0;
+                  return (
+                    <div key={rec.id} className={`bg-white/5 rounded-2xl p-5 border ${hasResult ? (passed ? 'border-green-500/30' : 'border-red-500/30') : 'border-white/10'}`}>
+                      <div className="flex items-start justify-between gap-3 mb-3">
+                        <div>
+                          <h3 className="text-white font-bold text-sm">{rec.title}</h3>
+                          <p className="text-gray-500 text-xs mt-0.5">{rec.total_score} درجة · {rec.question_count} سؤال · {rec.duration_minutes} دقيقة</p>
+                        </div>
+                        {hasResult ? (
+                          <div className="text-left flex-shrink-0">
+                            <div className={`text-2xl font-black ${passed ? 'text-green-400' : 'text-red-400'}`}>
+                              {rec.my_score}<span className="text-sm text-gray-500">/{rec.total_score}</span>
+                            </div>
+                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${passed ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                              {passed ? '✓ ناجح' : '✗ راسب'}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-xs font-bold text-gray-500 bg-white/5 px-3 py-1.5 rounded-full">لم تُؤدَّ بعد</span>
+                        )}
+                      </div>
+                      {hasResult && (
+                        <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
+                          <div className={`h-2 rounded-full transition-all ${passed ? 'bg-green-500' : 'bg-red-400'}`} style={{ width: `${pct}%` }} />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                <button
+                  onClick={() => navigate('/student/recitations')}
+                  className="w-full flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white font-black px-6 py-3 rounded-2xl transition-all"
+                >
+                  <BookOpen className="w-4 h-4" />
+                  صفحة التسميعات الكاملة
+                </button>
+              </div>
+            </div>
           ) : (
             /* Exams tab main area — shows grades breakdown */
             <div className="flex-1 overflow-y-auto p-6">

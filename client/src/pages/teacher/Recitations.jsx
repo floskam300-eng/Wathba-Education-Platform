@@ -400,27 +400,52 @@ export default function Recitations() {
                     {courseVideos.length === 0 ? (
                       <p className={`text-xs ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>لا توجد فيديوهات في هذا الكورس</p>
                     ) : (
-                      <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                      <div className="space-y-1.5 max-h-40 overflow-y-auto pr-0.5">
                         {courseVideos.map((v, i) => {
                           const checked = form.video_ids.includes(v.id);
                           return (
-                            <label key={v.id} className={`flex items-center gap-2.5 px-3 py-2 rounded-xl cursor-pointer transition-colors ${
-                              checked
-                                ? dark ? 'bg-purple-500/20 border border-purple-500/40' : 'bg-purple-50 border border-purple-200'
-                                : dark ? 'hover:bg-[var(--dk-surface)]' : 'hover:bg-white'
-                            }`}>
-                              <input type="checkbox" checked={checked}
-                                onChange={() => setForm(f => ({
-                                  ...f,
-                                  video_ids: checked
-                                    ? f.video_ids.filter(id => id !== v.id)
-                                    : [...f.video_ids, v.id],
-                                }))}
-                                className="accent-purple-500 w-3.5 h-3.5 flex-shrink-0"
-                              />
-                              <span className={`text-xs font-semibold flex-shrink-0 ${dark ? 'text-purple-400' : 'text-purple-600'}`}>{i + 1}</span>
-                              <span className={`text-xs truncate ${dark ? 'text-[var(--dk-text)]' : 'text-gray-700'}`}>{v.title}</span>
-                            </label>
+                            <button
+                              type="button"
+                              key={v.id}
+                              onClick={() => setForm(f => ({
+                                ...f,
+                                video_ids: checked
+                                  ? f.video_ids.filter(id => id !== v.id)
+                                  : [...f.video_ids, v.id],
+                              }))}
+                              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl cursor-pointer transition-all border text-right ${
+                                checked
+                                  ? dark
+                                    ? 'bg-purple-500/15 border-purple-500/50 shadow-sm shadow-purple-500/10'
+                                    : 'bg-purple-50 border-purple-300 shadow-sm'
+                                  : dark
+                                  ? 'bg-transparent border-[var(--dk-border)] hover:bg-[var(--dk-surface)] hover:border-purple-500/30'
+                                  : 'bg-white border-gray-200 hover:border-purple-200 hover:bg-purple-50/40'
+                              }`}
+                            >
+                              {/* Custom checkbox indicator */}
+                              <div className={`w-5 h-5 rounded-md flex-shrink-0 flex items-center justify-center border-2 transition-all ${
+                                checked
+                                  ? 'bg-purple-500 border-purple-500'
+                                  : dark ? 'border-gray-600 bg-transparent' : 'border-gray-300 bg-white'
+                              }`}>
+                                {checked && (
+                                  <svg className="w-3 h-3 text-white" viewBox="0 0 12 12" fill="none">
+                                    <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                  </svg>
+                                )}
+                              </div>
+                              <span className={`text-[11px] font-black flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center ${
+                                checked
+                                  ? 'bg-purple-500/20 text-purple-400'
+                                  : dark ? 'bg-white/5 text-gray-500' : 'bg-gray-100 text-gray-500'
+                              }`}>{i + 1}</span>
+                              <span className={`text-xs font-semibold truncate flex-1 ${
+                                checked
+                                  ? dark ? 'text-purple-300' : 'text-purple-700'
+                                  : dark ? 'text-[var(--dk-text)]' : 'text-gray-700'
+                              }`}>{v.title}</span>
+                            </button>
                           );
                         })}
                       </div>
