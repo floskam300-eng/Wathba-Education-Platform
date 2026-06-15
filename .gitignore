@@ -50,3 +50,40 @@ artifacts/
 
 # WhatsApp session files — contain auth credentials, must never be committed
 whatsapp-sessions/
+
+# Env files (extra)
+.env.development
+.env.production
+.env.test
+*.env
+
+# Secrets & credentials
+*.pem
+*.key
+*.p12
+serviceAccountKey.json
+firebase-adminsdk*.json
+server/db/*.sqlite
+*.sqlite
+*.sqlite3
+
+# Vite / React cache
+.vite/
+client/.vite/
+*.local
+
+# Testing & coverage
+coverage/
+.nyc_output/
+server/tests/coverage/
+
+# Temp files
+tmp/
+temp/
+*.tmp
+*.bak
+
+# Yarn / pnpm (if used)
+.pnp.*
+.yarn/
+yarn-error.log
