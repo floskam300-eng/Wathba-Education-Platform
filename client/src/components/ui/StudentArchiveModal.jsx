@@ -30,10 +30,11 @@ const StatPill = ({ label, value, color }) => (
   </div>
 );
 
-// FIX-F2: removed unused baseRole prop from signature
-export default function StudentArchiveModal({ student, onClose, initialTab = 'exams' }) {
+// mode: 'exams' | 'recitations' | 'both'
+// When mode is 'exams' or 'recitations', only that tab is shown (no tab switcher).
+export default function StudentArchiveModal({ student, onClose, mode = 'both' }) {
   const { dark } = useTheme();
-  const [tab, setTab] = useState(initialTab);
+  const [tab, setTab] = useState(mode === 'recitations' ? 'recitations' : 'exams');
   const [expandedExam, setExpandedExam] = useState(null);
   const [reviewResultId, setReviewResultId] = useState(null);
 
@@ -180,38 +181,48 @@ export default function StudentArchiveModal({ student, onClose, initialTab = 'ex
 
         {/* Tabs + Print */}
         <div className={`flex items-center justify-between px-5 py-3 border-b flex-shrink-0 ${divider}`}>
-          <div className={`flex rounded-xl p-0.5 gap-0.5 ${dark ? 'bg-[var(--dk-elevated)]' : 'bg-gray-100'}`}>
-            <button
-              onClick={() => setTab('exams')}
-              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${tab === 'exams'
-                ? 'bg-orange-500 text-white shadow-sm'
-                : (dark ? 'text-[var(--dk-text-2)] hover:text-[var(--dk-text-1)]' : 'text-gray-500 hover:text-gray-700')
-              }`}
-            >
-              <FileText className="w-3.5 h-3.5" />
-              الاختبارات
-              {examResults && (
-                <span className={`text-[10px] px-1 rounded font-black ${tab === 'exams' ? 'bg-white/25' : (dark ? 'bg-[var(--dk-surface)]' : 'bg-white')}`}>
-                  {examResults.length}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => setTab('recitations')}
-              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${tab === 'recitations'
-                ? 'bg-purple-600 text-white shadow-sm'
-                : (dark ? 'text-[var(--dk-text-2)] hover:text-[var(--dk-text-1)]' : 'text-gray-500 hover:text-gray-700')
-              }`}
-            >
-              <GraduationCap className="w-3.5 h-3.5" />
-              التسميع
-              {recResults && (
-                <span className={`text-[10px] px-1 rounded font-black ${tab === 'recitations' ? 'bg-white/25' : (dark ? 'bg-[var(--dk-surface)]' : 'bg-white')}`}>
-                  {recResults.length}
-                </span>
-              )}
-            </button>
-          </div>
+          {/* When mode is fixed, show a plain label instead of a tab switcher */}
+          {mode === 'both' ? (
+            <div className={`flex rounded-xl p-0.5 gap-0.5 ${dark ? 'bg-[var(--dk-elevated)]' : 'bg-gray-100'}`}>
+              <button
+                onClick={() => setTab('exams')}
+                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${tab === 'exams'
+                  ? 'bg-orange-500 text-white shadow-sm'
+                  : (dark ? 'text-[var(--dk-text-2)] hover:text-[var(--dk-text-1)]' : 'text-gray-500 hover:text-gray-700')
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5" />
+                الاختبارات
+                {examResults && (
+                  <span className={`text-[10px] px-1 rounded font-black ${tab === 'exams' ? 'bg-white/25' : (dark ? 'bg-[var(--dk-surface)]' : 'bg-white')}`}>
+                    {examResults.length}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setTab('recitations')}
+                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${tab === 'recitations'
+                  ? 'bg-purple-600 text-white shadow-sm'
+                  : (dark ? 'text-[var(--dk-text-2)] hover:text-[var(--dk-text-1)]' : 'text-gray-500 hover:text-gray-700')
+                }`}
+              >
+                <GraduationCap className="w-3.5 h-3.5" />
+                التسميع
+                {recResults && (
+                  <span className={`text-[10px] px-1 rounded font-black ${tab === 'recitations' ? 'bg-white/25' : (dark ? 'bg-[var(--dk-surface)]' : 'bg-white')}`}>
+                    {recResults.length}
+                  </span>
+                )}
+              </button>
+            </div>
+          ) : (
+            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold ${mode === 'exams' ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-300' : 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-300'}`}>
+              {mode === 'exams'
+                ? <><FileText className="w-3.5 h-3.5" />نتائج الاختبارات{examResults && <span className="font-black">({examResults.length})</span>}</>
+                : <><GraduationCap className="w-3.5 h-3.5" />نتائج التسميع{recResults && <span className="font-black">({recResults.length})</span>}</>
+              }
+            </div>
+          )}
           <button
             onClick={tab === 'exams' ? handlePrintExams : handlePrintRecs}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${tab === 'exams'

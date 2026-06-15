@@ -738,12 +738,12 @@ export default function ArchivePage() {
         )}
       </div>
 
-      {/* Student Archive Modal — opens on the same tab context the user came from */}
+      {/* Student Archive Modal — mode is locked to the current tab context */}
       {selectedStudent && (
         <StudentArchiveModal
           student={selectedStudent}
           onClose={() => setSelectedStudent(null)}
-          initialTab={tab}
+          mode={tab === 'exams' ? 'exams' : 'recitations'}
         />
       )}
     </div>
