@@ -447,8 +447,47 @@ router.get('/:id/content', async (req, res) => {
         : pool.query('SELECT id,title,duration_minutes,total_score,pass_score,start_date,end_date,is_published FROM exams WHERE course_id=$1', [courseId]),
       pool.query('SELECT * FROM sections WHERE course_id=$1 ORDER BY sort_order, id', [courseId]),
     ]);
-    res.json({ videos: videos.rows, pdfs: pdfs.rows, exams: exams.rows, sections: sections.rows });
-    // Note: course recitations are fetched separately via GET /api/recitations/student/course/:courseId
+
+    // [C1-FIX] Server-side video lock enforcement for students.
+    // Build a set of video IDs that are locked by unpassed recitations.
+    // Lock logic: a video is locked if ANY published recitation links to it
+    // and the student has NEVER passed that recitation.
+    // The first video (sort_order/index 0) is NEVER locked by design.
+    let videoRows = videos.rows;
+    if (isStudent && videoRows.length > 1) {
+      const { rows: recLockRows } = await pool.query(
+        `SELECT r.video_ids,
+                bool_or(rr.passed) AS ever_passed
+           FROM recitations r
+           LEFT JOIN recitation_results rr
+             ON rr.recitation_id = r.id AND rr.student_id = $2
+          WHERE r.course_id = $1
+            AND r.is_published = true
+            AND r.video_ids IS NOT NULL
+            AND r.video_ids != '[]'::jsonb
+          GROUP BY r.id, r.video_ids`,
+        [courseId, req.user.id]
+      );
+
+      // Build set of locked video IDs
+      const lockedVideoIds = new Set();
+      for (const rec of recLockRows) {
+        if (!rec.ever_passed) {
+          const vids = Array.isArray(rec.video_ids) ? rec.video_ids : [];
+          for (const vid of vids) {
+            lockedVideoIds.add(Number(vid));
+          }
+        }
+      }
+
+      // Annotate each video — first video (index 0) is never locked
+      videoRows = videoRows.map((v, i) => ({
+        ...v,
+        is_locked: i > 0 && lockedVideoIds.has(v.id),
+      }));
+    }
+
+    res.json({ videos: videoRows, pdfs: pdfs.rows, exams: exams.rows, sections: sections.rows });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }

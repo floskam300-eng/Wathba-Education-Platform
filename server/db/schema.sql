@@ -1031,5 +1031,7 @@ ALTER TABLE recitations ADD COLUMN IF NOT EXISTS video_ids JSONB DEFAULT '[]';
 
 CREATE INDEX IF NOT EXISTS idx_recitations_teacher ON recitations(teacher_id);
 CREATE INDEX IF NOT EXISTS idx_recitations_course ON recitations(course_id);
+-- [L1-FIX] GIN index for JSONB containment queries on video_ids
+CREATE INDEX IF NOT EXISTS idx_recitations_video_ids ON recitations USING GIN (video_ids);
 CREATE INDEX IF NOT EXISTS idx_recitation_results_student ON recitation_results(student_id);
 CREATE INDEX IF NOT EXISTS idx_recitation_results_recitation ON recitation_results(recitation_id);

@@ -236,6 +236,12 @@ export default function Recitations() {
                           <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-semibold">
                             {SCHED_LABELS[rec.schedule_type] || 'مرة واحدة'}
                           </span>
+                          {/* [L2-FIX] Show indicator when recitation is linked to a course as a gatekeeper */}
+                          {rec.course_id && (
+                            <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-semibold flex items-center gap-0.5">
+                              🔗 مرتبط بكورس
+                            </span>
+                          )}
                         </div>
                         <h3 className={`font-bold text-sm truncate ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>{rec.title}</h3>
                         <div className={`flex items-center gap-3 mt-1 text-xs ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>

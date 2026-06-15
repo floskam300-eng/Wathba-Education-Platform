@@ -184,8 +184,10 @@ router.post('/', requireRole('teacher', 'assistant'), checkManageRecitationsPerm
   if (start_date && end_date && new Date(end_date) <= new Date(start_date))
     return res.status(400).json({ error: 'تاريخ الانتهاء يجب أن يكون بعد تاريخ البداية' });
 
-  const parsedCourseId = course_id ? parseInt(course_id, 10) : null;
-  const parsedVideoIds = Array.isArray(video_ids) ? video_ids.map(v => parseInt(v, 10)).filter(v => v > 0) : [];
+  // [M2-FIX] Guard against NaN from parseInt when course_id is non-numeric
+  const rawCourseId = parseInt(course_id, 10);
+  const parsedCourseId = Number.isFinite(rawCourseId) && rawCourseId > 0 ? rawCourseId : null;
+  const parsedVideoIds = Array.isArray(video_ids) ? video_ids.map(v => parseInt(v, 10)).filter(v => Number.isFinite(v) && v > 0) : [];
 
   try {
     const teacherId = getTeacherId(req);
@@ -197,6 +199,17 @@ router.post('/', requireRole('teacher', 'assistant'), checkManageRecitationsPerm
         [parsedCourseId, teacherId]
       );
       if (!cRows.length) return res.status(403).json({ error: 'الكورس غير موجود أو ليس لك' });
+
+      // [C3-FIX] Verify that all video IDs belong to the specified course
+      if (parsedVideoIds.length > 0) {
+        const { rows: validVids } = await pool.query(
+          'SELECT id FROM videos WHERE id = ANY($1::int[]) AND course_id = $2',
+          [parsedVideoIds, parsedCourseId]
+        );
+        if (validVids.length !== parsedVideoIds.length) {
+          return res.status(400).json({ error: 'بعض الفيديوهات المحددة لا تنتمي للكورس المختار' });
+        }
+      }
     }
 
     const { rows } = await pool.query(
@@ -380,10 +393,12 @@ router.get('/student/course/:courseId', requireRole('student'), async (req, res)
     );
     if (!enrRows.length) return res.status(403).json({ error: 'غير مسجل في هذا الكورس' });
 
-    // Fetch published recitations linked to this course, with most recent result per student
+    // Fetch published recitations linked to this course, with best result per student.
+    // [H5-FIX] ORDER BY passed DESC, created_at DESC so that if the student EVER passed,
+    // my_passed=true and the video gate opens — even if a later re-attempt failed.
     const { rows } = await pool.query(
       `SELECT r.id, r.title, r.description, r.duration_minutes, r.total_score, r.pass_score,
-              r.start_date, r.end_date, r.shuffle_questions, r.shuffle_options,
+              r.start_date, r.end_date,
               r.video_ids,
               (SELECT COUNT(*) FROM recitation_questions WHERE recitation_id=r.id) AS question_count,
               rr.id AS result_id, rr.score AS my_score, rr.passed AS my_passed,
@@ -394,7 +409,7 @@ router.get('/student/course/:courseId', requireRole('student'), async (req, res)
            SELECT * FROM recitation_results rr2
             WHERE rr2.student_id=$1
               AND rr2.recitation_id=r.id
-            ORDER BY rr2.created_at DESC
+            ORDER BY rr2.passed DESC, rr2.created_at DESC
             LIMIT 1
          ) rr ON true
         WHERE r.course_id=$2 AND r.teacher_id=$3 AND r.is_published=true
@@ -555,8 +570,10 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageRecitationsPe
   if (start_date && end_date && new Date(end_date) <= new Date(start_date))
     return res.status(400).json({ error: 'تاريخ الانتهاء يجب أن يكون بعد تاريخ البداية' });
 
-  const parsedCourseId = course_id ? parseInt(course_id, 10) : null;
-  const parsedVideoIds = Array.isArray(video_ids) ? video_ids.map(v => parseInt(v, 10)).filter(v => v > 0) : [];
+  // [M2-FIX] Guard against NaN from parseInt when course_id is non-numeric
+  const rawCourseIdPut = parseInt(course_id, 10);
+  const parsedCourseId = Number.isFinite(rawCourseIdPut) && rawCourseIdPut > 0 ? rawCourseIdPut : null;
+  const parsedVideoIds = Array.isArray(video_ids) ? video_ids.map(v => parseInt(v, 10)).filter(v => Number.isFinite(v) && v > 0) : [];
 
   try {
     const teacherId = getTeacherId(req);
@@ -570,6 +587,17 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageRecitationsPe
         [parsedCourseId, teacherId]
       );
       if (!cRows.length) return res.status(403).json({ error: 'الكورس غير موجود أو ليس لك' });
+
+      // [C3-FIX] Verify that all video IDs belong to the specified course
+      if (parsedVideoIds.length > 0) {
+        const { rows: validVids } = await pool.query(
+          'SELECT id FROM videos WHERE id = ANY($1::int[]) AND course_id = $2',
+          [parsedVideoIds, parsedCourseId]
+        );
+        if (validVids.length !== parsedVideoIds.length) {
+          return res.status(400).json({ error: 'بعض الفيديوهات المحددة لا تنتمي للكورس المختار' });
+        }
+      }
     }
 
     const { rows } = await pool.query(

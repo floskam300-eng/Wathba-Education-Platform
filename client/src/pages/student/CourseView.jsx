@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -1097,17 +1097,17 @@ function PdfViewer({ pdf }) {
    Renders inline recitation list + take/result flow inside
    the CourseView sidebar without navigating away.
 ── */
-function RecitationsTabPanel({ recitations, courseId, onRefresh }) {
+function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const dark = document.documentElement.classList.contains('dark');
+  // [H1-FIX] Removed stale dark-mode read — component uses hardcoded dark-themed colors
 
   const [view, setView] = useState('list'); // 'list' | 'take' | 'result'
   const [selectedRec, setSelectedRec] = useState(null);
   const [examData, setExamData] = useState(null);
   const [answers, setAnswers] = useState({});
   const [timeLeft, setTimeLeft] = useState(null);
-  const [starting, setStarting] = useState(false);
+  const [startingId, setStartingId] = useState(null); // [M3-FIX] tracks which rec.id is loading
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState(null);
   const [showCountdown, setShowCountdown] = useState(false);
@@ -1118,6 +1118,7 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh }) {
   const timerDurationRef = useRef(null);
   const submittedRef = useRef(false);
   const mountedRef = useRef(true);
+  const handleSubmitRef = useRef(null); // [H3-FIX] always-current ref, prevents stale closure in timer
 
   useEffect(() => {
     mountedRef.current = true;
@@ -1135,7 +1136,8 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh }) {
   // Drift-corrected server timer
   useEffect(() => {
     if (view !== 'take' || timeLeft === null) return;
-    if (timeLeft <= 0) { handleSubmit(true); return; }
+    // [H3-FIX] Use ref to avoid stale closure — handleSubmitRef.current is always the latest handleSubmit
+    if (timeLeft <= 0) { handleSubmitRef.current?.(true); return; }
     timerRef.current = setTimeout(() => {
       if (timerEpochRef.current !== null && timerDurationRef.current !== null) {
         const elapsed = Date.now() - timerEpochRef.current;
@@ -1197,15 +1199,21 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh }) {
   }, [view, selectedRec, answers, examData]);
 
   const startRec = async (rec) => {
-    if (starting) return;
-    setStarting(true);
+    if (startingId) return; // [M3-FIX] prevent double-start across all recs
+    setStartingId(rec.id);
     submittedRef.current = false;
     try {
       const { data } = await api.get(`/recitations/${rec.id}/take`);
       setExamData(data);
       setSelectedRec(rec);
+      // [H2-FIX] Guard against corrupted localStorage JSON (e.g. after a browser crash)
+      let restoredAnswers = {};
       const saved = localStorage.getItem(`recitation_answers_${rec.id}`);
-      setAnswers(saved ? JSON.parse(saved) : {});
+      if (saved) {
+        try { restoredAnswers = JSON.parse(saved); }
+        catch { localStorage.removeItem(`recitation_answers_${rec.id}`); }
+      }
+      setAnswers(restoredAnswers);
       const startedAt = new Date(data.server_started_at).getTime();
       const durationMs = rec.duration_minutes * 60 * 1000;
       const remaining = Math.max(0, durationMs - (Date.now() - startedAt));
@@ -1221,7 +1229,7 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh }) {
     } catch (e) {
       toast.error(e.response?.data?.error || 'حدث خطأ');
     } finally {
-      setStarting(false);
+      setStartingId(null); // [M3-FIX]
     }
   };
 
@@ -1246,6 +1254,8 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh }) {
       setView('result');
       qc.invalidateQueries(['course-recitations', courseId]);
       qc.invalidateQueries(['student-recitations']);
+      // [M4-FIX] If the student just passed, notify parent to switch to videos tab
+      if (data.passed) onPassed?.();
     } catch (e) {
       if (!mountedRef.current) return;
       submittedRef.current = false;
@@ -1265,7 +1275,11 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh }) {
         toast.error(errData.error || 'حدث خطأ أثناء التسليم');
       }
     }
-  }, [examData, answers, selectedRec, submitting, qc, courseId]);
+  }, [examData, answers, selectedRec, submitting, qc, courseId, onPassed]);
+
+  // [H3-FIX] Keep handleSubmitRef always pointing to the latest handleSubmit.
+  // Assigned in render so the timer effect never captures a stale closure.
+  handleSubmitRef.current = handleSubmit;
 
   const backToList = () => {
     setView('list');
@@ -1373,87 +1387,130 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh }) {
         )}
         <button onClick={backToList}
           className="w-full py-2.5 rounded-xl font-bold text-xs text-gray-400 hover:text-white hover:bg-white/5 transition-colors">
-          ← العودة للقائمة
+          العودة للقائمة →
         </button>
       </div>
     );
   }
 
+  // [M1-FIX] Determine schedule status for each recitation
+  const getRecStatus = (rec) => {
+    const now = new Date();
+    if (rec.start_date && new Date(rec.start_date) > now) return 'upcoming';
+    if (rec.end_date && new Date(rec.end_date) < now) return 'expired';
+    return 'open';
+  };
+
   // ── LIST VIEW ──
   if (recitations.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full min-h-[200px] p-4 text-center">
-        <BookOpen className="w-10 h-10 text-gray-700 mb-2" />
-        <p className="text-gray-600 text-sm font-semibold">لا توجد تسميعات مرتبطة بهذا الكورس</p>
+      <div className="flex flex-col h-full" dir="rtl">
+        <div className="flex flex-col items-center justify-center flex-1 min-h-[180px] p-4 text-center">
+          <BookOpen className="w-10 h-10 text-gray-700 mb-2" />
+          <p className="text-gray-600 text-sm font-semibold">لا توجد تسميعات مرتبطة بهذا الكورس</p>
+        </div>
+        {/* [C2-FIX] Link to standalone recitations so students can still access non-course-linked ones */}
+        <div className="px-3 pb-3 border-t border-white/10 pt-3 flex-shrink-0">
+          <button
+            onClick={() => navigate('/student/recitations')}
+            className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-bold text-gray-500 hover:text-purple-400 hover:bg-purple-500/5 transition-colors border border-white/5">
+            <BookOpen className="w-3.5 h-3.5" /> كل التسميعات (مستقلة)
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="p-3 space-y-2 overflow-y-auto" dir="rtl">
-      {recitations.map(rec => {
-        const hasResult = !!rec.result_id;
-        const passed = rec.my_passed;
-        return (
-          <div key={rec.id} className={`rounded-xl border p-3 transition-all ${
-            passed
-              ? 'border-green-500/30 bg-green-500/5'
-              : hasResult
-              ? 'border-red-500/30 bg-red-500/5'
-              : 'border-white/10 bg-white/5'
-          }`}>
-            <div className="flex items-start gap-2.5 mb-2">
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                passed ? 'bg-green-500/20' : hasResult ? 'bg-red-500/20' : 'bg-purple-500/10'
-              }`}>
-                {passed ? <CheckCircle className="w-4 h-4 text-green-400" /> :
-                 hasResult ? <XCircle className="w-4 h-4 text-red-400" /> :
-                 <BookOpen className="w-4 h-4 text-purple-400" />}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-white text-xs font-bold truncate">{rec.title}</p>
-                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                  <span className="text-[10px] text-gray-500">
-                    <Clock className="w-2.5 h-2.5 inline ml-0.5" />{rec.duration_minutes} دقيقة
-                  </span>
-                  <span className="text-[10px] text-gray-500">{rec.question_count} سؤال</span>
-                  {hasResult && (
-                    <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${
-                      passed ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
-                    }`}>
-                      {rec.my_score}/{rec.total_score} · {passed ? 'ناجح ✓' : 'راسب ✗'}
+    <div className="flex flex-col h-full" dir="rtl">
+      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+        {recitations.map(rec => {
+          const hasResult = !!rec.result_id;
+          const passed = rec.my_passed;
+          const status = getRecStatus(rec); // [M1-FIX]
+          const isExpired = status === 'expired';
+          const isUpcoming = status === 'upcoming';
+          const canStart = !passed && !isExpired && !isUpcoming;
+          return (
+            <div key={rec.id} className={`rounded-xl border p-3 transition-all ${
+              passed
+                ? 'border-green-500/30 bg-green-500/5'
+                : hasResult
+                ? 'border-red-500/30 bg-red-500/5'
+                : 'border-white/10 bg-white/5'
+            }`}>
+              <div className="flex items-start gap-2.5 mb-2">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                  passed ? 'bg-green-500/20' : hasResult ? 'bg-red-500/20' : 'bg-purple-500/10'
+                }`}>
+                  {passed ? <CheckCircle className="w-4 h-4 text-green-400" /> :
+                   hasResult ? <XCircle className="w-4 h-4 text-red-400" /> :
+                   <BookOpen className="w-4 h-4 text-purple-400" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white text-xs font-bold truncate">{rec.title}</p>
+                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                    <span className="text-[10px] text-gray-500">
+                      <Clock className="w-2.5 h-2.5 inline ml-0.5" />{rec.duration_minutes} دقيقة
                     </span>
-                  )}
+                    <span className="text-[10px] text-gray-500">{rec.question_count} سؤال</span>
+                    {hasResult && (
+                      <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${
+                        passed ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                      }`}>
+                        {rec.my_score}/{rec.total_score} · {passed ? 'ناجح ✓' : 'راسب ✗'}
+                      </span>
+                    )}
+                    {/* [M1-FIX] Schedule status badges */}
+                    {isExpired && (
+                      <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-gray-500/20 text-gray-400">
+                        انتهى الوقت
+                      </span>
+                    )}
+                    {isUpcoming && (
+                      <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400">
+                        لم يبدأ بعد
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
+              <div className="flex gap-1.5">
+                {canStart && (
+                  <button
+                    onClick={() => startRec(rec)}
+                    disabled={startingId === rec.id} // [M3-FIX] only disable the specific rec
+                    className="flex-1 py-1.5 rounded-lg text-[11px] font-black text-white bg-purple-500 hover:bg-purple-600 disabled:opacity-60 transition-colors">
+                    {startingId === rec.id ? ( // [M3-FIX]
+                      <RefreshCw className="w-3 h-3 inline animate-spin" />
+                    ) : hasResult ? 'أعد المحاولة' : 'ابدأ التسميع'}
+                  </button>
+                )}
+                {rec.result_id && (
+                  <button
+                    onClick={() => navigate(`/student/recitation-review/${rec.result_id}`)}
+                    className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-indigo-400 bg-indigo-500/10 hover:bg-indigo-500/20 transition-colors border border-indigo-500/20">
+                    <Eye className="w-3 h-3 inline ml-0.5" />مراجعة
+                  </button>
+                )}
+                {passed && (
+                  <div className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-bold text-green-400 bg-green-500/10 border border-green-500/20">
+                    <CheckCircle className="w-3 h-3" /> اجتزت التسميع
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="flex gap-1.5">
-              {!passed && (
-                <button
-                  onClick={() => startRec(rec)}
-                  disabled={starting}
-                  className="flex-1 py-1.5 rounded-lg text-[11px] font-black text-white bg-purple-500 hover:bg-purple-600 disabled:opacity-60 transition-colors">
-                  {starting && selectedRec?.id === rec.id ? (
-                    <RefreshCw className="w-3 h-3 inline animate-spin" />
-                  ) : hasResult ? 'أعد المحاولة' : 'ابدأ التسميع'}
-                </button>
-              )}
-              {rec.result_id && (
-                <button
-                  onClick={() => navigate(`/student/recitation-review/${rec.result_id}`)}
-                  className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-indigo-400 bg-indigo-500/10 hover:bg-indigo-500/20 transition-colors border border-indigo-500/20">
-                  <Eye className="w-3 h-3 inline ml-0.5" />مراجعة
-                </button>
-              )}
-              {passed && (
-                <div className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-bold text-green-400 bg-green-500/10 border border-green-500/20">
-                  <CheckCircle className="w-3 h-3" /> اجتزت التسميع
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
+      {/* [C2-FIX] Link to standalone recitations so students can still access non-course-linked ones */}
+      <div className="px-3 pb-3 border-t border-white/10 pt-2 flex-shrink-0">
+        <button
+          onClick={() => navigate('/student/recitations')}
+          className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-bold text-gray-500 hover:text-purple-400 hover:bg-purple-500/5 transition-colors border border-white/5">
+          <BookOpen className="w-3.5 h-3.5" /> كل التسميعات (مستقلة)
+        </button>
+      </div>
     </div>
   );
 }
@@ -1645,17 +1702,22 @@ export default function CourseView() {
   const exams = content?.exams || [];
 
   /* ── Video lock logic ──
-     A video is locked if there is at least one recitation linked to it that
-     the student has not yet passed. A recitation is "linked to video V" when
-     V.id is in recitation.video_ids. The first video is never locked.
+     [C1-FIX] Lock is now SERVER-AUTHORITATIVE: the server annotates each video
+     with is_locked=true when any linked recitation is not yet passed by this student.
+     The client falls back to the recitations data only when is_locked is not present
+     (e.g. teacher preview where the content endpoint returns no is_locked field).
+     [H6-FIX] Memoize the locked-id set so isVideoLocked is O(1) per call.
   ── */
-  const isVideoLocked = (video, videoIndex) => {
+  const isVideoLocked = useCallback((video, videoIndex) => {
     if (videoIndex === 0) return false;
+    // Use server-provided flag if available
+    if (typeof video.is_locked === 'boolean') return video.is_locked;
+    // Fallback for teacher preview (server does not set is_locked for non-students)
     return courseRecitations.some(rec => {
       const vids = Array.isArray(rec.video_ids) ? rec.video_ids.map(Number) : [];
       return vids.includes(video.id) && !rec.my_passed;
     });
-  };
+  }, [courseRecitations]);
 
   const currentVideo = activeVideo || videos[0] || null;
   const currentPdf = activePdf || pdfs[0] || null;
@@ -1844,10 +1906,8 @@ export default function CourseView() {
               <RecitationsTabPanel
                 recitations={courseRecitations}
                 courseId={courseId}
-                onStartRec={(rec) => {
-                  navigate(`/student/recitations/${rec.id}/take`);
-                }}
                 onRefresh={() => refetchRecitations()}
+                onPassed={() => { refetchRecitations(); setActiveTab('videos'); }} // [M4-FIX] auto-switch to videos after passing
               />
             ) : null}
           </div>
@@ -1881,14 +1941,27 @@ export default function CourseView() {
                   {(() => {
                     const idx = videos.findIndex(v => v.id === currentVideo.id);
                     const next = videos[idx + 1];
-                    return next ? (
+                    if (!next) return null;
+                    const nextLocked = isVideoLocked(next, idx + 1);
+                    return (
                       <button
-                        onClick={() => setActiveVideo(next)}
-                        className="flex-shrink-0 flex items-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white font-bold px-3 py-1.5 rounded-lg transition-all text-xs active:scale-95"
+                        onClick={() => {
+                          // [H4-FIX] Mobile next button must also respect the lock state
+                          if (nextLocked) {
+                            toast.error('يجب اجتياز التسميع أولاً للوصول لهذه المحاضرة');
+                            setActiveTab('recitations');
+                            return;
+                          }
+                          setActiveVideo(next);
+                        }}
+                        className={`flex-shrink-0 flex items-center gap-1.5 text-white font-bold px-3 py-1.5 rounded-lg transition-all text-xs active:scale-95 ${
+                          nextLocked ? 'bg-gray-600 opacity-60 cursor-not-allowed' : 'bg-orange-500 hover:bg-orange-600'
+                        }`}
                       >
+                        {nextLocked ? <Lock className="w-3 h-3" /> : null}
                         التالي <ChevronRight className="w-3.5 h-3.5" />
                       </button>
-                    ) : null;
+                    );
                   })()}
                 </div>
               )}
