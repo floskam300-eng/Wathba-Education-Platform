@@ -450,7 +450,7 @@ export default function QuestionBanks() {
                             <div className="flex items-center gap-2 pt-1">
                               <span className="text-[10px] font-bold text-blue-700 bg-blue-100 px-2 py-1 rounded-lg flex-1 text-center">📎 تضيف إلى نفس المجموعة</span>
                               <button type="button"
-                                onClick={() => { setQForm(prev => ({ ...emptyQ, group_context: prev.group_context, group_context_image: prev.group_context_image })); setNextGroupId(Date.now()); }}
+                                onClick={() => setQForm(prev => ({ ...emptyQ, group_context: prev.group_context, group_context_image: prev.group_context_image }))}
                                 className="text-[10px] font-bold text-orange-700 bg-orange-100 px-2 py-1 rounded-lg flex items-center gap-1">
                                 <X className="w-2.5 h-2.5" /> مجموعة جديدة
                               </button>

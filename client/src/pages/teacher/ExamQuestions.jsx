@@ -671,20 +671,26 @@ function SingleQuestionCard({ q, qNum, editQ, onEdit, onDelete }) {
           {q.question_image_url && (
             <img src={q.question_image_url} alt="question" className="w-40 h-24 object-cover rounded-lg mb-2 border border-gray-100" />
           )}
-          <div className="grid grid-cols-2 gap-1 text-xs">
-            {(q.question_type === 'true_false' ? ['A', 'B'] : ['A', 'B', 'C', 'D']).map(opt =>
-              q[`option_${opt.toLowerCase()}`] && q[`option_${opt.toLowerCase()}`] !== '-' && (
-                <div key={opt} className={`p-1.5 rounded-lg font-semibold flex items-center gap-1 ${
-                  q.correct_answer_letter === opt ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'
-                }`}>
-                  <span className={`w-4 h-4 rounded-full text-[10px] flex items-center justify-center font-black flex-shrink-0 ${
-                    q.correct_answer_letter === opt ? 'bg-green-600 text-white' : 'bg-gray-300 text-gray-600'
-                  }`}>{opt}</span>
-                  {q[`option_${opt.toLowerCase()}`]}
-                </div>
-              )
-            )}
-          </div>
+          {q.question_type === 'image_multi' ? (
+            <div className="inline-flex items-center gap-1 text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200 rounded-lg px-2 py-1">
+              🖼 {Array.isArray(q.sub_questions) ? q.sub_questions.length : 0} سؤال فرعي
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-1 text-xs">
+              {(q.question_type === 'true_false' ? ['A', 'B'] : ['A', 'B', 'C', 'D']).map(opt =>
+                q[`option_${opt.toLowerCase()}`] && q[`option_${opt.toLowerCase()}`] !== '-' && (
+                  <div key={opt} className={`p-1.5 rounded-lg font-semibold flex items-center gap-1 ${
+                    q.correct_answer_letter === opt ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'
+                  }`}>
+                    <span className={`w-4 h-4 rounded-full text-[10px] flex items-center justify-center font-black flex-shrink-0 ${
+                      q.correct_answer_letter === opt ? 'bg-green-600 text-white' : 'bg-gray-300 text-gray-600'
+                    }`}>{opt}</span>
+                    {q[`option_${opt.toLowerCase()}`]}
+                  </div>
+                )
+              )}
+            </div>
+          )}
         </div>
         <div className="flex flex-col gap-1 flex-shrink-0">
           <button onClick={onEdit} className="p-1.5 text-navy-600 hover:bg-navy-50 rounded-lg transition-colors">
@@ -738,20 +744,26 @@ function GroupQuestionCard({ entry, startNum, editQ, onEdit, onDelete }) {
                 </div>
                 {q.question_text && <p className="font-semibold text-navy-600 text-sm mb-1.5 leading-relaxed"><MathText text={q.question_text} /></p>}
                 {q.question_image_url && <img src={q.question_image_url} alt="q" className="w-32 h-20 object-cover rounded-lg mb-1.5 border border-gray-100" />}
-                <div className="grid grid-cols-2 gap-1 text-xs">
-                  {(q.question_type === 'true_false' ? ['A', 'B'] : ['A', 'B', 'C', 'D']).map(opt =>
-                    q[`option_${opt.toLowerCase()}`] && (
-                      <div key={opt} className={`p-1 rounded-lg font-semibold flex items-center gap-1 ${
-                        q.correct_answer_letter === opt ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'
-                      }`}>
-                        <span className={`w-3.5 h-3.5 rounded-full text-[9px] flex items-center justify-center font-black flex-shrink-0 ${
-                          q.correct_answer_letter === opt ? 'bg-green-600 text-white' : 'bg-gray-300 text-gray-600'
-                        }`}>{opt}</span>
-                        {q[`option_${opt.toLowerCase()}`]}
-                      </div>
-                    )
-                  )}
-                </div>
+                {q.question_type === 'image_multi' ? (
+                  <div className="inline-flex items-center gap-1 text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200 rounded-lg px-2 py-1">
+                    🖼 {Array.isArray(q.sub_questions) ? q.sub_questions.length : 0} سؤال فرعي
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-1 text-xs">
+                    {(q.question_type === 'true_false' ? ['A', 'B'] : ['A', 'B', 'C', 'D']).map(opt =>
+                      q[`option_${opt.toLowerCase()}`] && (
+                        <div key={opt} className={`p-1 rounded-lg font-semibold flex items-center gap-1 ${
+                          q.correct_answer_letter === opt ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'
+                        }`}>
+                          <span className={`w-3.5 h-3.5 rounded-full text-[9px] flex items-center justify-center font-black flex-shrink-0 ${
+                            q.correct_answer_letter === opt ? 'bg-green-600 text-white' : 'bg-gray-300 text-gray-600'
+                          }`}>{opt}</span>
+                          {q[`option_${opt.toLowerCase()}`]}
+                        </div>
+                      )
+                    )}
+                  </div>
+                )}
               </div>
               <div className="flex flex-col gap-1 flex-shrink-0">
                 <button onClick={() => onEdit(q)} className="p-1.5 text-navy-600 hover:bg-navy-50 rounded-lg transition-colors">

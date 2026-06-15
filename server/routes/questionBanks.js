@@ -93,14 +93,20 @@ router.post('/', requireRole('teacher', 'assistant'), checkManageExamsPerm, asyn
   const teacherId = getTeacherId(req);
   const { name, course_id } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: 'اسم البنك مطلوب' });
+  // [SV-1] cap bank name length
+  if (name.trim().length > 200) return res.status(400).json({ error: 'اسم البنك طويل جداً (الحد 200 حرف)' });
+  // [SV-2] validate course_id is a positive integer (treat 0, negatives, strings as invalid)
+  const hasCourseId = course_id != null && course_id !== '';
+  const parsedCourseId = hasCourseId ? parseParamId(String(course_id)) : null;
+  if (hasCourseId && !parsedCourseId) return res.status(400).json({ error: 'معرّف الكورس غير صالح' });
   try {
-    if (course_id) {
-      const courseCheck = await pool.query('SELECT id FROM courses WHERE id=$1 AND teacher_id=$2', [course_id, teacherId]);
+    if (parsedCourseId) {
+      const courseCheck = await pool.query('SELECT id FROM courses WHERE id=$1 AND teacher_id=$2', [parsedCourseId, teacherId]);
       if (!courseCheck.rows.length) return res.status(403).json({ error: 'الكورس غير موجود' });
     }
     const result = await pool.query(
       'INSERT INTO question_banks (name, course_id, teacher_id) VALUES ($1,$2,$3) RETURNING *',
-      [name.trim(), course_id || null, teacherId]
+      [name.trim(), parsedCourseId || null, teacherId]
     );
     res.status(201).json({ ...result.rows[0], question_count: 0 });
   } catch (err) {
@@ -117,14 +123,20 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageExamsPerm, as
   const teacherId = getTeacherId(req);
   const { name, course_id } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: 'اسم البنك مطلوب' });
+  // [SV-1] cap bank name length
+  if (name.trim().length > 200) return res.status(400).json({ error: 'اسم البنك طويل جداً (الحد 200 حرف)' });
+  // [SV-2] validate course_id is a positive integer (treat 0, negatives, strings as invalid)
+  const hasCourseId = course_id != null && course_id !== '';
+  const parsedCourseId = hasCourseId ? parseParamId(String(course_id)) : null;
+  if (hasCourseId && !parsedCourseId) return res.status(400).json({ error: 'معرّف الكورس غير صالح' });
   try {
-    if (course_id) {
-      const courseCheck = await pool.query('SELECT id FROM courses WHERE id=$1 AND teacher_id=$2', [course_id, teacherId]);
+    if (parsedCourseId) {
+      const courseCheck = await pool.query('SELECT id FROM courses WHERE id=$1 AND teacher_id=$2', [parsedCourseId, teacherId]);
       if (!courseCheck.rows.length) return res.status(403).json({ error: 'الكورس غير موجود' });
     }
     const result = await pool.query(
       'UPDATE question_banks SET name=$1, course_id=$2 WHERE id=$3 AND teacher_id=$4 RETURNING *',
-      [name.trim(), course_id || null, bankId, teacherId]
+      [name.trim(), parsedCourseId || null, bankId, teacherId]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'البنك غير موجود' });
     res.json(result.rows[0]);
@@ -230,12 +242,16 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageEx
       return res.status(400).json({ error: 'الإجابة الصحيحة يجب أن تكون A أو B أو C أو D أو T أو F' });
     }
 
+    // [SV-3] points range guard — parseInt(0)||1 would silently promote 0→1; use raw parse + NaN check
+    const parsedPoints = parseInt(points, 10);
+    if (isNaN(parsedPoints) || parsedPoints < 1 || parsedPoints > 1000) return res.status(400).json({ error: 'النقاط يجب أن تكون بين 1 و 1000' });
+
     const validDifficulties = ['easy', 'medium', 'hard'];
     const qDifficulty = validDifficulties.includes(difficulty) ? difficulty : 'medium';
 
     const result = await pool.query(
       'INSERT INTO bank_questions (bank_id, question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, question_type, difficulty, group_id, group_context, group_context_image, sub_questions) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *',
-      [bankId, question_text || null, question_image_url || null, optA, optB, isImgMulti ? 'C' : (option_c || null), isImgMulti ? 'D' : (option_d || null), correctLetter.toUpperCase(), points || 1, qType, qDifficulty, group_id || null, group_context || null, group_context_image || null, isImgMulti ? JSON.stringify(cleanSubQuestions) : '[]']
+      [bankId, question_text || null, question_image_url || null, optA, optB, isImgMulti ? 'C' : (option_c || null), isImgMulti ? 'D' : (option_d || null), correctLetter.toUpperCase(), parsedPoints, qType, qDifficulty, group_id || null, group_context || null, group_context_image || null, isImgMulti ? JSON.stringify(cleanSubQuestions) : '[]']
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -306,12 +322,16 @@ router.put('/questions/:qid', requireRole('teacher', 'assistant'), checkManageEx
       return res.status(400).json({ error: 'الإجابة الصحيحة يجب أن تكون A أو B أو C أو D أو T أو F' });
     }
 
+    // [SV-3] points range guard — parseInt(0)||1 would silently promote 0→1; use raw parse + NaN check
+    const parsedPoints = parseInt(points, 10);
+    if (isNaN(parsedPoints) || parsedPoints < 1 || parsedPoints > 1000) return res.status(400).json({ error: 'النقاط يجب أن تكون بين 1 و 1000' });
+
     const validDifficulties = ['easy', 'medium', 'hard'];
     const qDifficulty = validDifficulties.includes(difficulty) ? difficulty : 'medium';
 
     const result = await pool.query(
       'UPDATE bank_questions SET question_text=$1, question_image_url=$2, option_a=$3, option_b=$4, option_c=$5, option_d=$6, correct_answer_letter=$7, points=$8, question_type=$9, difficulty=$10, group_id=$11, group_context=$12, group_context_image=$13, sub_questions=$14 WHERE id=$15 RETURNING *',
-      [question_text || null, question_image_url || null, optA, optB, isImgMulti ? 'C' : (option_c || null), isImgMulti ? 'D' : (option_d || null), correctLetter.toUpperCase(), points || 1, qType, qDifficulty, group_id || null, group_context || null, group_context_image || null, isImgMulti ? JSON.stringify(cleanSubQuestions) : '[]', qid]
+      [question_text || null, question_image_url || null, optA, optB, isImgMulti ? 'C' : (option_c || null), isImgMulti ? 'D' : (option_d || null), correctLetter.toUpperCase(), parsedPoints, qType, qDifficulty, group_id || null, group_context || null, group_context_image || null, isImgMulti ? JSON.stringify(cleanSubQuestions) : '[]', qid]
     );
     res.json(result.rows[0]);
   } catch (err) {

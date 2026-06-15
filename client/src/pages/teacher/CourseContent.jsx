@@ -209,6 +209,45 @@ function VideoPreviewModal({ video, onClose }) {
   );
 }
 
+// [PF-1] VideoItem lifted to module scope — avoids React treating it as a new
+// component type on every parent render, which caused full unmount/remount of
+// every video row whenever any parent state changed.
+function VideoItem({ v, videoRecitationsMap, onPreview, onDelete }) {
+  const linkedRecs = videoRecitationsMap[Number(v.id)] || [];
+  return (
+    <div className="flex items-start gap-3 p-3 bg-white rounded-xl shadow-sm border border-gray-100 hover:border-gray-200 transition-all">
+      <button onClick={() => onPreview(v)}
+        className="w-10 h-10 bg-navy-100 rounded-lg flex items-center justify-center flex-shrink-0 hover:bg-navy-200 transition-colors group mt-0.5" title="معاينة الفيديو">
+        <Play className="w-5 h-5 text-navy-700 group-hover:text-navy-900" />
+      </button>
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold text-navy-600 text-sm truncate">{v.title}</p>
+        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+          {v.duration_minutes > 0 && <p className="text-xs text-gray-500 font-medium">{v.duration_minutes} دقيقة</p>}
+          {v.file_path_or_url && !v.file_path_or_url.startsWith('/uploads/') && (
+            <span className="text-[10px] bg-blue-50 text-blue-600 font-bold px-1.5 py-0.5 rounded-full flex items-center gap-1">
+              <Link className="w-2.5 h-2.5" /> رابط
+            </span>
+          )}
+        </div>
+        {linkedRecs.length > 0 && (
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {linkedRecs.map(rec => (
+              <span key={rec.id} className="inline-flex items-center gap-1 text-[10px] font-bold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full border border-purple-200">
+                <BookMarked className="w-2.5 h-2.5 flex-shrink-0" />
+                {rec.title}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+      <button onClick={() => onDelete(v.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg flex-shrink-0 transition-colors mt-0.5">
+        <Trash2 className="w-4 h-4" />
+      </button>
+    </div>
+  );
+}
+
 export default function CourseContent() {
   const { courseId } = useParams();
   const navigate = useNavigate();
@@ -304,41 +343,8 @@ export default function CourseContent() {
     return map;
   }, [courseRecitations]);
 
-  const VideoItem = ({ v }) => {
-    const linkedRecs = videoRecitationsMap[Number(v.id)] || [];
-    return (
-    <div className="flex items-start gap-3 p-3 bg-white rounded-xl shadow-sm border border-gray-100 hover:border-gray-200 transition-all">
-      <button onClick={() => setPreviewVideo(v)}
-        className="w-10 h-10 bg-navy-100 rounded-lg flex items-center justify-center flex-shrink-0 hover:bg-navy-200 transition-colors group mt-0.5" title="معاينة الفيديو">
-        <Play className="w-5 h-5 text-navy-700 group-hover:text-navy-900" />
-      </button>
-      <div className="flex-1 min-w-0">
-        <p className="font-semibold text-navy-600 text-sm truncate">{v.title}</p>
-        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-          {v.duration_minutes > 0 && <p className="text-xs text-gray-500 font-medium">{v.duration_minutes} دقيقة</p>}
-          {v.file_path_or_url && !v.file_path_or_url.startsWith('/uploads/') && (
-            <span className="text-[10px] bg-blue-50 text-blue-600 font-bold px-1.5 py-0.5 rounded-full flex items-center gap-1">
-              <Link className="w-2.5 h-2.5" /> رابط
-            </span>
-          )}
-        </div>
-        {linkedRecs.length > 0 && (
-          <div className="mt-1.5 flex flex-wrap gap-1">
-            {linkedRecs.map(rec => (
-              <span key={rec.id} className="inline-flex items-center gap-1 text-[10px] font-bold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full border border-purple-200">
-                <BookMarked className="w-2.5 h-2.5 flex-shrink-0" />
-                {rec.title}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-      <button onClick={() => setDeleteVideoId(v.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg flex-shrink-0 transition-colors mt-0.5">
-        <Trash2 className="w-4 h-4" />
-      </button>
-    </div>
-  );
-  };
+  const onPreviewVideo = useCallback((v) => setPreviewVideo(v), []);
+  const onDeleteVideo  = useCallback((id) => setDeleteVideoId(id), []);
 
   const PdfItem = ({ p }) => (
     <div className="flex items-center gap-3 p-3 bg-white rounded-xl shadow-sm border border-gray-100 hover:border-gray-200 transition-all">
@@ -459,7 +465,7 @@ export default function CourseContent() {
                             <span className="text-xs text-gray-400">({grouped[s.id].length})</span>
                           </div>
                           <div className="space-y-2 pr-4 border-r-2 border-indigo-100">
-                            {grouped[s.id].map(v => <VideoItem key={v.id} v={v} />)}
+                            {grouped[s.id].map(v => <VideoItem key={v.id} v={v} videoRecitationsMap={videoRecitationsMap} onPreview={onPreviewVideo} onDelete={onDeleteVideo} />)}
                           </div>
                         </div>
                       ))}
@@ -470,14 +476,14 @@ export default function CourseContent() {
                             <span className="text-xs font-black text-gray-400 uppercase tracking-wide">بدون فصل</span>
                           </div>
                           <div className="space-y-2 pr-4 border-r-2 border-gray-100">
-                            {grouped['_none'].map(v => <VideoItem key={v.id} v={v} />)}
+                            {grouped['_none'].map(v => <VideoItem key={v.id} v={v} videoRecitationsMap={videoRecitationsMap} onPreview={onPreviewVideo} onDelete={onDeleteVideo} />)}
                           </div>
                         </div>
                       )}
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      {videos.map(v => <VideoItem key={v.id} v={v} />)}
+                      {videos.map(v => <VideoItem key={v.id} v={v} videoRecitationsMap={videoRecitationsMap} onPreview={onPreviewVideo} onDelete={onDeleteVideo} />)}
                     </div>
                   )}
                 </div>
@@ -621,7 +627,7 @@ export default function CourseContent() {
                                     <Video className="w-3 h-3" /> الفيديوهات
                                   </p>
                                   <div className="space-y-2">
-                                    {sectionVideos.map(v => <VideoItem key={v.id} v={v} />)}
+                                    {sectionVideos.map(v => <VideoItem key={v.id} v={v} videoRecitationsMap={videoRecitationsMap} onPreview={onPreviewVideo} onDelete={onDeleteVideo} />)}
                                   </div>
                                 </div>
                               )}
