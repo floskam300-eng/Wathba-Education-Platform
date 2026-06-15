@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowRight, BookOpen, Video, FileText, FolderOpen, FolderPlus,
   Plus, Trash2, Pencil, Play, X, Check, Link, Upload, ExternalLink,
-  ChevronDown, ChevronUp,
+  ChevronDown, ChevronUp, BookMarked,
 } from 'lucide-react';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
@@ -279,15 +279,25 @@ export default function CourseContent() {
   const videos = content?.videos || [];
   const pdfs = content?.pdfs || [];
 
-  const VideoItem = ({ v }) => (
-    <div className="flex items-center gap-3 p-3 bg-white rounded-xl shadow-sm border border-gray-100 hover:border-gray-200 transition-all">
+  const { data: allRecitations = [] } = useQuery({
+    queryKey: ['recitations'],
+    queryFn: () => api.get('/recitations').then(r => r.data),
+  });
+  const courseRecitations = allRecitations.filter(rec => String(rec.course_id) === String(courseId));
+
+  const VideoItem = ({ v }) => {
+    const linkedRecs = courseRecitations.filter(rec =>
+      Array.isArray(rec.video_ids) && rec.video_ids.map(Number).includes(Number(v.id))
+    );
+    return (
+    <div className="flex items-start gap-3 p-3 bg-white rounded-xl shadow-sm border border-gray-100 hover:border-gray-200 transition-all">
       <button onClick={() => setPreviewVideo(v)}
-        className="w-10 h-10 bg-navy-100 rounded-lg flex items-center justify-center flex-shrink-0 hover:bg-navy-200 transition-colors group" title="معاينة الفيديو">
+        className="w-10 h-10 bg-navy-100 rounded-lg flex items-center justify-center flex-shrink-0 hover:bg-navy-200 transition-colors group mt-0.5" title="معاينة الفيديو">
         <Play className="w-5 h-5 text-navy-700 group-hover:text-navy-900" />
       </button>
       <div className="flex-1 min-w-0">
         <p className="font-semibold text-navy-600 text-sm truncate">{v.title}</p>
-        <div className="flex items-center gap-2 mt-0.5">
+        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
           {v.duration_minutes > 0 && <p className="text-xs text-gray-500 font-medium">{v.duration_minutes} دقيقة</p>}
           {v.file_path_or_url && !v.file_path_or_url.startsWith('/uploads/') && (
             <span className="text-[10px] bg-blue-50 text-blue-600 font-bold px-1.5 py-0.5 rounded-full flex items-center gap-1">
@@ -295,12 +305,23 @@ export default function CourseContent() {
             </span>
           )}
         </div>
+        {linkedRecs.length > 0 && (
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {linkedRecs.map(rec => (
+              <span key={rec.id} className="inline-flex items-center gap-1 text-[10px] font-bold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full border border-purple-200">
+                <BookMarked className="w-2.5 h-2.5 flex-shrink-0" />
+                {rec.title}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
-      <button onClick={() => setDeleteVideoId(v.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg flex-shrink-0 transition-colors">
+      <button onClick={() => setDeleteVideoId(v.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg flex-shrink-0 transition-colors mt-0.5">
         <Trash2 className="w-4 h-4" />
       </button>
     </div>
   );
+  };
 
   const PdfItem = ({ p }) => (
     <div className="flex items-center gap-3 p-3 bg-white rounded-xl shadow-sm border border-gray-100 hover:border-gray-200 transition-all">

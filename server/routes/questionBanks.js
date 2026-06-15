@@ -180,21 +180,38 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageEx
   const {
     question_text, question_image_url, option_a, option_b, option_c, option_d,
     correct_answer_letter, points, question_type, difficulty,
-    group_id, group_context, group_context_image,
+    group_id, group_context, group_context_image, sub_questions,
   } = req.body;
   try {
     const bank = await pool.query('SELECT id FROM question_banks WHERE id=$1 AND teacher_id=$2', [bankId, teacherId]);
     if (!bank.rows.length) return res.status(403).json({ error: 'Access denied' });
 
     const qType = question_type || 'mcq';
+    const isImgMulti = qType === 'image_multi';
     let optA = option_a, optB = option_b, correctLetter = correct_answer_letter;
-    if (qType === 'true_false') { optA = 'صح'; optB = 'خطأ'; correctLetter = correct_answer_letter || 'A'; }
 
-    if (!optA || !optB) return res.status(400).json({ error: 'الخيار الأول والثاني مطلوبان' });
+    if (isImgMulti) {
+      if (!Array.isArray(sub_questions) || sub_questions.length === 0)
+        return res.status(400).json({ error: 'image_multi يتطلب قائمة الأسئلة الفرعية' });
+      if (sub_questions.length > 50)
+        return res.status(400).json({ error: 'الحد الأقصى 50 سؤالاً فرعياً' });
+      const VALID_LETTERS = new Set(['A','B','C','D']);
+      for (const sub of sub_questions) {
+        if (!sub.label || !String(sub.label).trim())
+          return res.status(400).json({ error: 'كل بند يجب أن يحتوي على رقم/تسمية' });
+        if (!VALID_LETTERS.has(String(sub.correct || '').toUpperCase()))
+          return res.status(400).json({ error: 'الإجابة الصحيحة لكل بند يجب أن تكون A أو B أو C أو D' });
+      }
+      const labels = sub_questions.map(s => String(s.label).trim());
+      if (new Set(labels).size !== labels.length)
+        return res.status(400).json({ error: 'تسميات الأسئلة الفرعية يجب أن تكون فريدة' });
+      optA = 'A'; optB = 'B'; correctLetter = 'A';
+    } else if (qType === 'true_false') {
+      optA = 'صح'; optB = 'خطأ'; correctLetter = correct_answer_letter || 'A';
+    }
 
-    // [QB4-FIX] Validate correct_answer_letter is a recognised letter, not just truthy.
-    // Previously a value like "X" would pass the !correctLetter check and be stored,
-    // causing silent scoring failures when comparing student answers.
+    if (!isImgMulti && (!optA || !optB)) return res.status(400).json({ error: 'الخيار الأول والثاني مطلوبان' });
+
     if (!correctLetter || !VALID_ANSWER_LETTERS.has(String(correctLetter).toUpperCase())) {
       return res.status(400).json({ error: 'الإجابة الصحيحة يجب أن تكون A أو B أو C أو D أو T أو F' });
     }
@@ -203,8 +220,8 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageEx
     const qDifficulty = validDifficulties.includes(difficulty) ? difficulty : 'medium';
 
     const result = await pool.query(
-      'INSERT INTO bank_questions (bank_id, question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, question_type, difficulty, group_id, group_context, group_context_image) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *',
-      [bankId, question_text || null, question_image_url || null, optA, optB, option_c || null, option_d || null, correctLetter.toUpperCase(), points || 1, qType, qDifficulty, group_id || null, group_context || null, group_context_image || null]
+      'INSERT INTO bank_questions (bank_id, question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, question_type, difficulty, group_id, group_context, group_context_image, sub_questions) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *',
+      [bankId, question_text || null, question_image_url || null, optA, optB, isImgMulti ? 'C' : (option_c || null), isImgMulti ? 'D' : (option_d || null), correctLetter.toUpperCase(), points || 1, qType, qDifficulty, group_id || null, group_context || null, group_context_image || null, isImgMulti ? JSON.stringify(sub_questions) : '[]']
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -223,7 +240,7 @@ router.put('/questions/:qid', requireRole('teacher', 'assistant'), checkManageEx
   const {
     question_text, question_image_url, option_a, option_b, option_c, option_d,
     correct_answer_letter, points, question_type, difficulty,
-    group_id, group_context, group_context_image,
+    group_id, group_context, group_context_image, sub_questions,
   } = req.body;
   try {
     const ownership = await pool.query(
@@ -235,12 +252,30 @@ router.put('/questions/:qid', requireRole('teacher', 'assistant'), checkManageEx
     if (!ownership.rows.length) return res.status(403).json({ error: 'Access denied' });
 
     const qType = question_type || 'mcq';
+    const isImgMulti = qType === 'image_multi';
     let optA = option_a, optB = option_b, correctLetter = correct_answer_letter;
-    if (qType === 'true_false') { optA = 'صح'; optB = 'خطأ'; }
+
+    if (isImgMulti) {
+      if (!Array.isArray(sub_questions) || sub_questions.length === 0)
+        return res.status(400).json({ error: 'image_multi يتطلب قائمة الأسئلة الفرعية' });
+      if (sub_questions.length > 50)
+        return res.status(400).json({ error: 'الحد الأقصى 50 سؤالاً فرعياً' });
+      const VALID_LETTERS = new Set(['A','B','C','D']);
+      for (const sub of sub_questions) {
+        if (!sub.label || !String(sub.label).trim())
+          return res.status(400).json({ error: 'كل بند يجب أن يحتوي على رقم/تسمية' });
+        if (!VALID_LETTERS.has(String(sub.correct || '').toUpperCase()))
+          return res.status(400).json({ error: 'الإجابة الصحيحة لكل بند يجب أن تكون A أو B أو C أو D' });
+      }
+      const labels = sub_questions.map(s => String(s.label).trim());
+      if (new Set(labels).size !== labels.length)
+        return res.status(400).json({ error: 'تسميات الأسئلة الفرعية يجب أن تكون فريدة' });
+      optA = 'A'; optB = 'B'; correctLetter = 'A';
+    } else if (qType === 'true_false') {
+      optA = 'صح'; optB = 'خطأ';
+    }
 
     // [QB5-FIX] Guard against null/undefined correctLetter before .toUpperCase().
-    // The PUT handler previously had no validation for correct_answer_letter —
-    // passing null/undefined caused an unhandled TypeError crash → 500 response.
     if (!correctLetter || !VALID_ANSWER_LETTERS.has(String(correctLetter).toUpperCase())) {
       return res.status(400).json({ error: 'الإجابة الصحيحة يجب أن تكون A أو B أو C أو D أو T أو F' });
     }
@@ -249,8 +284,8 @@ router.put('/questions/:qid', requireRole('teacher', 'assistant'), checkManageEx
     const qDifficulty = validDifficulties.includes(difficulty) ? difficulty : 'medium';
 
     const result = await pool.query(
-      'UPDATE bank_questions SET question_text=$1, question_image_url=$2, option_a=$3, option_b=$4, option_c=$5, option_d=$6, correct_answer_letter=$7, points=$8, question_type=$9, difficulty=$10, group_id=$11, group_context=$12, group_context_image=$13 WHERE id=$14 RETURNING *',
-      [question_text || null, question_image_url || null, optA, optB, option_c || null, option_d || null, correctLetter.toUpperCase(), points || 1, qType, qDifficulty, group_id || null, group_context || null, group_context_image || null, qid]
+      'UPDATE bank_questions SET question_text=$1, question_image_url=$2, option_a=$3, option_b=$4, option_c=$5, option_d=$6, correct_answer_letter=$7, points=$8, question_type=$9, difficulty=$10, group_id=$11, group_context=$12, group_context_image=$13, sub_questions=$14 WHERE id=$15 RETURNING *',
+      [question_text || null, question_image_url || null, optA, optB, isImgMulti ? 'C' : (option_c || null), isImgMulti ? 'D' : (option_d || null), correctLetter.toUpperCase(), points || 1, qType, qDifficulty, group_id || null, group_context || null, group_context_image || null, isImgMulti ? JSON.stringify(sub_questions) : '[]', qid]
     );
     res.json(result.rows[0]);
   } catch (err) {

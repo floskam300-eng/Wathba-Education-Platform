@@ -907,7 +907,7 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
     let questions;
     if (exam.question_source === 'bank' && exam.bank_id) {
       const bankQRes = await pool.query(
-        'SELECT id,question_text,question_image_url,option_a,option_b,option_c,option_d,correct_answer_letter,points,question_type,difficulty,group_id,group_context,group_context_image FROM bank_questions WHERE bank_id=$1',
+        'SELECT id,question_text,question_image_url,option_a,option_b,option_c,option_d,correct_answer_letter,points,question_type,difficulty,group_id,group_context,group_context_image,sub_questions FROM bank_questions WHERE bank_id=$1',
         [exam.bank_id]
       );
       if (bankQRes.rows.length === 0) {

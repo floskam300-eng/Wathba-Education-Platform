@@ -349,30 +349,6 @@ export default function ExamQuestions() {
             </h3>
             <form onSubmit={handleQSubmit} className="space-y-4">
 
-              {/* ── Grouped toggle ─────────────────────────────────────── */}
-              {!editQ && (
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-blue-50 border border-blue-200">
-                  <Layers className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-blue-800">سؤال مجمّع (متعدد الأجزاء)</p>
-                    <p className="text-[10px] text-blue-600 mt-0.5">صورة أو نص مشترك فوق عدة أسئلة</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const next = !isGrouped;
-                      setIsGrouped(next);
-                      if (!next) {
-                        setQForm(prev => ({ ...prev, group_id: null, group_context: '', group_context_image: '' }));
-                        setCtxImageFile(null); setCtxImagePreview(''); setCtxImageInputMode('url');
-                        if (ctxImageFileRef.current) ctxImageFileRef.current.value = '';
-                      }
-                    }}
-                    className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${isGrouped ? 'bg-blue-600' : 'bg-gray-300'}`}>
-                    <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${isGrouped ? 'right-0.5' : 'left-0.5'}`} />
-                  </button>
-                </div>
-              )}
 
               {/* ── Group context fields (shown when grouped) ───────── */}
               {(isGrouped || (editQ && editQ.group_id)) && (

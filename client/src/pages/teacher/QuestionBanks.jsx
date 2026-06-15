@@ -8,7 +8,7 @@ import api from '../../lib/api';
 import toast from 'react-hot-toast';
 
 const emptyBank = { name: '', course_id: '' };
-const emptyQ = { question_text: '', question_image_url: '', option_a: '', option_b: '', option_c: '', option_d: '', correct_answer_letter: 'A', points: 1, question_type: 'mcq', difficulty: 'medium', group_id: null, group_context: '', group_context_image: '' };
+const emptyQ = { question_text: '', question_image_url: '', option_a: '', option_b: '', option_c: '', option_d: '', correct_answer_letter: 'A', points: 1, question_type: 'mcq', difficulty: 'medium', group_id: null, group_context: '', group_context_image: '', sub_questions: [] };
 
 const DIFFICULTIES = [
   { value: 'easy',   label: 'سهل',   color: 'bg-green-100 text-green-700 border-green-300' },
@@ -24,6 +24,7 @@ const difficultyBadge = (d) => {
 const Q_TYPES = [
   { value: 'mcq', label: '🔘 اختيار متعدد (MCQ)' },
   { value: 'true_false', label: '✅ صح / خطأ' },
+  { value: 'image_multi', label: '🖼 صورة مع أسئلة' },
 ];
 
 export default function QuestionBanks() {
@@ -42,14 +43,17 @@ export default function QuestionBanks() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const imageFileRef = useRef(null);
 
-  // grouped-question state
-  const [isGrouped, setIsGrouped] = useState(false);
+  // grouped-question state (kept for rendering existing grouped questions)
+  const [isGrouped] = useState(false);
   const [nextGroupId, setNextGroupId] = useState(() => Date.now());
   const [ctxImageInputMode, setCtxImageInputMode] = useState('url');
   const [ctxImageFile, setCtxImageFile] = useState(null);
   const [ctxImagePreview, setCtxImagePreview] = useState('');
   const [ctxUploadProgress, setCtxUploadProgress] = useState(0);
   const ctxImageFileRef = useRef(null);
+
+  // image_multi sub-questions count
+  const [imgMultiCount, setImgMultiCount] = useState(5);
 
   const { data: banks = [], isLoading } = useQuery({
     queryKey: ['question-banks'],
@@ -138,7 +142,6 @@ export default function QuestionBanks() {
     setImageFile(null);
     setImagePreview('');
     setImageInputMode('url');
-    setIsGrouped(false);
     setCtxImageFile(null);
     setCtxImagePreview('');
     setCtxImageInputMode('url');
@@ -162,12 +165,13 @@ export default function QuestionBanks() {
       group_id: q.group_id || null,
       group_context: q.group_context || '',
       group_context_image: q.group_context_image || '',
+      sub_questions: Array.isArray(q.sub_questions) ? q.sub_questions : [],
     });
-    setIsGrouped(!!q.group_id);
     setImagePreview(q.question_image_url || '');
     setImageInputMode('url');
     setCtxImagePreview(q.group_context_image || '');
     setCtxImageInputMode('url');
+    if (q.sub_questions?.length) setImgMultiCount(q.sub_questions.length);
   };
 
   const handleQSubmit = async (e) => {
@@ -219,7 +223,14 @@ export default function QuestionBanks() {
 
     const finalForm = { ...qForm, question_image_url: finalImageUrl, group_context_image: finalCtxImageUrl, group_id: finalGroupId };
     if (!finalForm.question_text && !finalImageUrl) return toast.error('أدخل نص السؤال أو صورة');
-    if (finalForm.question_type === 'mcq' && (!finalForm.option_a || !finalForm.option_b)) return toast.error('الخيار الأول والثاني مطلوبان');
+    if (finalForm.question_type === 'image_multi') {
+      if (!Array.isArray(finalForm.sub_questions) || finalForm.sub_questions.length === 0)
+        return toast.error('يجب توليد الأسئلة الفرعية أولاً');
+      finalForm.option_a = 'A'; finalForm.option_b = 'B'; finalForm.option_c = 'C'; finalForm.option_d = 'D';
+      finalForm.correct_answer_letter = 'A';
+    } else if (finalForm.question_type === 'mcq' && (!finalForm.option_a || !finalForm.option_b)) {
+      return toast.error('الخيار الأول والثاني مطلوبان');
+    }
     if (editQ) updateQMut.mutate({ qid: editQ.id, data: finalForm });
     else addQMut.mutate({ bankId: expandedBank, data: finalForm });
   };
@@ -325,7 +336,7 @@ export default function QuestionBanks() {
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 mb-2 flex-wrap">
                                       <span className="text-xs font-black bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">{num}</span>
-                                      <span className="text-xs text-gray-500 font-medium">{q.question_type === 'true_false' ? 'صح/خطأ' : 'MCQ'} · {q.points} نقطة</span>
+                                      <span className="text-xs text-gray-500 font-medium">{q.question_type === 'true_false' ? 'صح/خطأ' : q.question_type === 'image_multi' ? 'صورة+أسئلة' : 'MCQ'} · {q.points} نقطة</span>
                                       <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${d.cls}`}>{d.label}</span>
                                     </div>
                                     {q.question_image_url && <img src={q.question_image_url} alt="" className="max-h-32 rounded-lg mb-2 border border-gray-200" />}
@@ -372,7 +383,7 @@ export default function QuestionBanks() {
                                         <div className="flex-1 min-w-0">
                                           <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                                             <span className="text-xs font-black text-blue-700">س{startNum + si}</span>
-                                            <span className="text-xs text-gray-500 font-medium">{q.question_type === 'true_false' ? 'صح/خطأ' : 'MCQ'} · {q.points} نقطة</span>
+                                            <span className="text-xs text-gray-500 font-medium">{q.question_type === 'true_false' ? 'صح/خطأ' : q.question_type === 'image_multi' ? 'صورة+أسئلة' : 'MCQ'} · {q.points} نقطة</span>
                                             <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${d.cls}`}>{d.label}</span>
                                           </div>
                                           {q.question_image_url && <img src={q.question_image_url} alt="" className="max-h-24 rounded-lg mb-1.5 border border-gray-200" />}
@@ -407,28 +418,6 @@ export default function QuestionBanks() {
                     </h4>
                     <form onSubmit={handleQSubmit} className="space-y-3">
 
-                      {/* ── Grouped toggle ── */}
-                      {!editQ && (
-                        <div className="flex items-center gap-3 p-2.5 rounded-xl bg-blue-50 border border-blue-200">
-                          <Layers className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-bold text-blue-800">سؤال مجمّع (متعدد الأجزاء)</p>
-                          </div>
-                          <button type="button"
-                            onClick={() => {
-                              const next = !isGrouped;
-                              setIsGrouped(next);
-                              if (!next) {
-                                setQForm(prev => ({ ...prev, group_id: null, group_context: '', group_context_image: '' }));
-                                setCtxImageFile(null); setCtxImagePreview(''); setCtxImageInputMode('url');
-                                if (ctxImageFileRef.current) ctxImageFileRef.current.value = '';
-                              }
-                            }}
-                            className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${isGrouped ? 'bg-blue-600' : 'bg-gray-300'}`}>
-                            <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${isGrouped ? 'right-0.5' : 'left-0.5'}`} />
-                          </button>
-                        </div>
-                      )}
 
                       {/* ── Group context ── */}
                       {(isGrouped || (editQ && editQ.group_id)) && (
@@ -531,6 +520,52 @@ export default function QuestionBanks() {
                                 className={`flex-1 py-2 rounded-xl border-2 font-bold text-sm transition-all ${qForm.correct_answer_letter === v ? 'border-green-500 bg-green-50 text-green-800' : 'border-gray-200 hover:border-gray-300'}`}>{l}</button>
                             ))}
                           </div>
+                        </div>
+                      ) : qForm.question_type === 'image_multi' ? (
+                        <div>
+                          <label className="block text-xs font-bold text-navy-700 mb-2">الأسئلة الفرعية</label>
+                          <div className="flex items-center gap-2 mb-3">
+                            <input type="number" min={1} max={50} value={imgMultiCount}
+                              onChange={e => setImgMultiCount(Math.max(1, Math.min(50, parseInt(e.target.value) || 1)))}
+                              className="input-field w-20 text-sm" placeholder="العدد" />
+                            <button type="button"
+                              onClick={() => {
+                                const subs = Array.from({ length: imgMultiCount }, (_, i) => ({
+                                  label: String(i + 1), correct: 'A'
+                                }));
+                                setQForm(f => ({ ...f, sub_questions: subs }));
+                              }}
+                              className="btn-primary px-3 py-1.5 text-sm">توليد</button>
+                            {(qForm.sub_questions || []).length > 0 && (
+                              <span className="text-xs text-gray-500 font-semibold">{(qForm.sub_questions || []).length} سؤال</span>
+                            )}
+                          </div>
+                          {(qForm.sub_questions || []).length > 0 && (
+                            <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+                              {(qForm.sub_questions || []).map((sub, idx) => (
+                                <div key={sub.label} className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-1.5">
+                                  <span className="text-xs font-black text-navy-600 w-5 flex-shrink-0">{sub.label}</span>
+                                  <div className="flex gap-1 flex-1">
+                                    {['A', 'B', 'C', 'D'].map(letter => (
+                                      <button key={letter} type="button"
+                                        onClick={() => {
+                                          const updated = [...qForm.sub_questions];
+                                          updated[idx] = { ...updated[idx], correct: letter };
+                                          setQForm(f => ({ ...f, sub_questions: updated }));
+                                        }}
+                                        className={`flex-1 py-1 rounded text-xs font-bold border transition-all ${
+                                          sub.correct === letter
+                                            ? 'bg-green-600 text-white border-green-600'
+                                            : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
+                                        }`}>
+                                        {letter}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <div className="space-y-2">

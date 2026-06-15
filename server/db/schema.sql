@@ -1035,3 +1035,8 @@ CREATE INDEX IF NOT EXISTS idx_recitations_course ON recitations(course_id);
 CREATE INDEX IF NOT EXISTS idx_recitations_video_ids ON recitations USING GIN (video_ids);
 CREATE INDEX IF NOT EXISTS idx_recitation_results_student ON recitation_results(student_id);
 CREATE INDEX IF NOT EXISTS idx_recitation_results_recitation ON recitation_results(recitation_id);
+
+-- image_multi support for bank_questions
+ALTER TABLE bank_questions ADD COLUMN IF NOT EXISTS sub_questions JSONB DEFAULT '[]';
+ALTER TABLE bank_questions DROP CONSTRAINT IF EXISTS chk_bank_question_type;
+ALTER TABLE bank_questions ADD CONSTRAINT chk_bank_question_type CHECK (question_type IN ('mcq', 'true_false', 'image_multi'));
