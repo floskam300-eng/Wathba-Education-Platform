@@ -87,3 +87,6 @@ temp/
 .pnp.*
 .yarn/
 yarn-error.log
+
+# Canvas (Duo agent assets)
+.canvas/
