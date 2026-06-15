@@ -31,9 +31,9 @@ const StatPill = ({ label, value, color }) => (
 );
 
 // FIX-F2: removed unused baseRole prop from signature
-export default function StudentArchiveModal({ student, onClose }) {
+export default function StudentArchiveModal({ student, onClose, initialTab = 'exams' }) {
   const { dark } = useTheme();
-  const [tab, setTab] = useState('exams');
+  const [tab, setTab] = useState(initialTab);
   const [expandedExam, setExpandedExam] = useState(null);
   const [reviewResultId, setReviewResultId] = useState(null);
 
@@ -145,35 +145,36 @@ export default function StudentArchiveModal({ student, onClose }) {
           </button>
         </div>
 
-        {/* Summary Stats */}
+        {/* Summary Stats — shows only relevant section based on active tab */}
         {!sumLoading && summary && (
-          <div className={`grid grid-cols-2 gap-3 px-5 py-4 border-b flex-shrink-0 ${divider} ${dark ? 'bg-[var(--dk-elevated)]' : 'bg-gray-50'}`}>
-            {/* Exams stats */}
-            <div>
-              <div className="flex items-center gap-1.5 mb-2">
-                <FileText className="w-3.5 h-3.5 text-orange-500" />
-                <p className={`text-xs font-black ${textPrimary}`}>الاختبارات</p>
+          <div className={`px-5 py-4 border-b flex-shrink-0 ${divider} ${dark ? 'bg-[var(--dk-elevated)]' : 'bg-gray-50'}`}>
+            {tab === 'exams' ? (
+              <div>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <FileText className="w-3.5 h-3.5 text-orange-500" />
+                  <p className={`text-xs font-black ${textPrimary}`}>إحصائيات الاختبارات</p>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  <StatPill label="إجمالي" value={exE?.total_exams || 0} color={dark ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-50 text-blue-700'} />
+                  <StatPill label="ناجح" value={exE?.passed_exams || 0} color={dark ? 'bg-green-900/40 text-green-300' : 'bg-green-50 text-green-700'} />
+                  <StatPill label="راسب" value={exE?.failed_exams || 0} color={dark ? 'bg-red-900/40 text-red-300' : 'bg-red-50 text-red-700'} />
+                  <StatPill label="متوسط" value={`${exE?.avg_score || 0}%`} color={dark ? 'bg-purple-900/40 text-purple-300' : 'bg-purple-50 text-purple-700'} />
+                </div>
               </div>
-              <div className="flex gap-2 flex-wrap">
-                <StatPill label="إجمالي" value={exE?.total_exams || 0} color={dark ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-50 text-blue-700'} />
-                <StatPill label="ناجح" value={exE?.passed_exams || 0} color={dark ? 'bg-green-900/40 text-green-300' : 'bg-green-50 text-green-700'} />
-                <StatPill label="راسب" value={exE?.failed_exams || 0} color={dark ? 'bg-red-900/40 text-red-300' : 'bg-red-50 text-red-700'} />
-                <StatPill label="متوسط" value={`${exE?.avg_score || 0}%`} color={dark ? 'bg-purple-900/40 text-purple-300' : 'bg-purple-50 text-purple-700'} />
+            ) : (
+              <div>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <GraduationCap className="w-3.5 h-3.5 text-purple-500" />
+                  <p className={`text-xs font-black ${textPrimary}`}>إحصائيات التسميع</p>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  <StatPill label="إجمالي" value={exR?.total_recitations || 0} color={dark ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-50 text-blue-700'} />
+                  <StatPill label="ناجح" value={exR?.passed_recitations || 0} color={dark ? 'bg-green-900/40 text-green-300' : 'bg-green-50 text-green-700'} />
+                  <StatPill label="راسب" value={exR?.failed_recitations || 0} color={dark ? 'bg-red-900/40 text-red-300' : 'bg-red-50 text-red-700'} />
+                  <StatPill label="متوسط" value={`${exR?.avg_score || 0}%`} color={dark ? 'bg-purple-900/40 text-purple-300' : 'bg-purple-50 text-purple-700'} />
+                </div>
               </div>
-            </div>
-            {/* Recitations stats */}
-            <div>
-              <div className="flex items-center gap-1.5 mb-2">
-                <GraduationCap className="w-3.5 h-3.5 text-purple-500" />
-                <p className={`text-xs font-black ${textPrimary}`}>التسميع</p>
-              </div>
-              <div className="flex gap-2 flex-wrap">
-                <StatPill label="إجمالي" value={exR?.total_recitations || 0} color={dark ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-50 text-blue-700'} />
-                <StatPill label="ناجح" value={exR?.passed_recitations || 0} color={dark ? 'bg-green-900/40 text-green-300' : 'bg-green-50 text-green-700'} />
-                <StatPill label="راسب" value={exR?.failed_recitations || 0} color={dark ? 'bg-red-900/40 text-red-300' : 'bg-red-50 text-red-700'} />
-                <StatPill label="متوسط" value={`${exR?.avg_score || 0}%`} color={dark ? 'bg-purple-900/40 text-purple-300' : 'bg-purple-50 text-purple-700'} />
-              </div>
-            </div>
+            )}
           </div>
         )}
 

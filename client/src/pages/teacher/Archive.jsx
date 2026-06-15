@@ -738,11 +738,12 @@ export default function ArchivePage() {
         )}
       </div>
 
-      {/* Student Archive Modal — FIX-F2/F7: removed unused baseRole prop */}
+      {/* Student Archive Modal — opens on the same tab context the user came from */}
       {selectedStudent && (
         <StudentArchiveModal
           student={selectedStudent}
           onClose={() => setSelectedStudent(null)}
+          initialTab={tab}
         />
       )}
     </div>
