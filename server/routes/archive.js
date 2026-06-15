@@ -326,8 +326,19 @@ router.get('/students', requireRole('teacher', 'assistant'), checkAnyPerm, async
   try {
     // Dynamic outer WHERE conditions (s.teacher_id = $1 is always first).
     // $1 is also reused inside the two subqueries — PostgreSQL allows this.
-    const conditions = ['s.teacher_id = $1', 's.deleted_at IS NULL',
-      '(COALESCE(ex.total_exams,0) > 0 OR COALESCE(rec.total_recitations,0) > 0)'];
+    const conditions = ['s.teacher_id = $1', 's.deleted_at IS NULL'];
+    // has_type: '' = any results, 'exams' = has exams, 'recitations' = has recitations, 'both' = has both
+    const { has_type } = req.query;
+    if (has_type === 'exams') {
+      conditions.push('COALESCE(ex.total_exams,0) > 0');
+    } else if (has_type === 'recitations') {
+      conditions.push('COALESCE(rec.total_recitations,0) > 0');
+    } else if (has_type === 'both') {
+      conditions.push('COALESCE(ex.total_exams,0) > 0');
+      conditions.push('COALESCE(rec.total_recitations,0) > 0');
+    } else {
+      conditions.push('(COALESCE(ex.total_exams,0) > 0 OR COALESCE(rec.total_recitations,0) > 0)');
+    }
     const params = [teacherId];
     let p = 2;
 

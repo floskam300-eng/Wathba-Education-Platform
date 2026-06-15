@@ -60,55 +60,98 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
   const textSec = dark ? 'text-[var(--dk-text-2)]' : 'text-gray-500';
   const divider = dark ? 'border-[var(--dk-border)]' : 'border-gray-100';
 
+  const examRows = examResults?.map(r => [
+    r.course_name,
+    r.exam_title,
+    `${r.score}/${r.total_score}`,
+    `${pct(r.score, r.total_score)}%`,
+    Number(r.score) >= Number(r.pass_score) ? 'ناجح' : 'راسب',
+    r.attempt_number > 1 ? `إعادة (${r.attempt_number})` : 'أول محاولة',
+    `${r.correct_count} صح / ${r.wrong_count} خطأ / ${r.unanswered_count} بلا إجابة`,
+    r.points_earned > 0 ? `+${r.points_earned}` : '—',
+    fmt(r.created_at),
+  ]) || [];
+
+  const recRows = recResults?.map(r => [
+    r.recitation_title,
+    `${r.score}/${r.total_score}`,
+    `${pct(r.score, r.total_score)}%`,
+    r.passed ? 'ناجح' : 'راسب',
+    `${r.correct_count} صح / ${r.wrong_count} خطأ`,
+    r.points_earned > 0 ? `+${r.points_earned}` : '—',
+    fmt(r.created_at),
+  ]) || [];
+
+  const handlePrintFull = () => {
+    const hasExams = examRows.length > 0;
+    const hasRecs  = recRows.length > 0;
+    if (!hasExams && !hasRecs) { toast.error('لا توجد بيانات للطباعة'); return; }
+    const s = summary?.student;
+    const subtitle = `المرحلة: ${s?.academic_stage || '—'} | كود الدخول: ${s?.username || '—'} | النقاط: ${s?.points || 0}`;
+    generatePDFReport(
+      `التقرير الكامل للطالب: ${student.name}`,
+      [], [], `student-full-${student.id}.pdf`,
+      {
+        subtitle,
+        stats: [
+          { label: 'الاختبارات',       value: summary?.exams?.total_exams || 0,          color: '#f97316' },
+          { label: 'ناجح (اختبارات)', value: summary?.exams?.passed_exams || 0,          color: '#16a34a' },
+          { label: 'متوسط الاختبارات',value: `${summary?.exams?.avg_score || 0}%`,        color: '#7c3aed' },
+          { label: 'التسميع',          value: summary?.recitations?.total_recitations || 0, color: '#3b82f6' },
+          { label: 'ناجح (تسميع)',    value: summary?.recitations?.passed_recitations || 0, color: '#16a34a' },
+          { label: 'متوسط التسميع',   value: `${summary?.recitations?.avg_score || 0}%`,   color: '#8b5cf6' },
+        ],
+        sections: [
+          {
+            title: '📄 نتائج الاختبارات',
+            headers: ['الكورس', 'الاختبار', 'الدرجة', 'النسبة', 'الحالة', 'المحاولة', 'الإجابات', 'النقاط', 'التاريخ'],
+            data: examRows,
+          },
+          {
+            title: '📚 نتائج التسميع',
+            headers: ['التسميع', 'الدرجة', 'النسبة', 'الحالة', 'الإجابات', 'النقاط', 'التاريخ'],
+            data: recRows,
+          },
+        ],
+      }
+    );
+  };
+
   const handlePrintExams = () => {
-    if (!examResults?.length) { toast.error('لا توجد بيانات'); return; }
+    if (!examRows.length) { toast.error('لا توجد بيانات'); return; }
     const s = summary?.student;
     generatePDFReport(
       `نتائج اختبارات الطالب: ${student.name}`,
-      ['الكورس', 'الاختبار', 'الدرجة', 'النسبة', 'الحالة', 'المحاولة', 'التاريخ'],
-      examResults.map(r => [
-        r.course_name,
-        r.exam_title,
-        `${r.score}/${r.total_score}`,
-        `${pct(r.score, r.total_score)}%`,
-        r.score >= r.pass_score ? 'ناجح' : 'راسب',
-        r.attempt_number > 1 ? `إعادة (${r.attempt_number})` : 'أول محاولة',
-        fmt(r.created_at),
-      ]),
+      ['الكورس', 'الاختبار', 'الدرجة', 'النسبة', 'الحالة', 'المحاولة', 'الإجابات', 'النقاط', 'التاريخ'],
+      examRows,
       `student-exams-${student.id}.pdf`,
       {
-        subtitle: `المرحلة: ${s?.academic_stage || '—'} | النقاط: ${s?.points || 0}`,
+        subtitle: `المرحلة: ${s?.academic_stage || '—'} | كود: ${s?.username || '—'} | النقاط: ${s?.points || 0}`,
         stats: [
-          { label: 'إجمالي الاختبارات', value: summary?.exams?.total_exams || 0, color: '#1e3a5f' },
-          { label: 'ناجح', value: summary?.exams?.passed_exams || 0, color: '#16a34a' },
-          { label: 'راسب', value: summary?.exams?.failed_exams || 0, color: '#dc2626' },
-          { label: 'متوسط الدرجات', value: `${summary?.exams?.avg_score || 0}%`, color: '#7c3aed' },
+          { label: 'إجمالي الاختبارات', value: summary?.exams?.total_exams || 0,  color: '#1e3a5f' },
+          { label: 'ناجح',              value: summary?.exams?.passed_exams || 0,  color: '#16a34a' },
+          { label: 'راسب',              value: summary?.exams?.failed_exams || 0,  color: '#dc2626' },
+          { label: 'متوسط الدرجات',    value: `${summary?.exams?.avg_score || 0}%`, color: '#7c3aed' },
         ],
       }
     );
   };
 
   const handlePrintRecs = () => {
-    if (!recResults?.length) { toast.error('لا توجد بيانات'); return; }
+    if (!recRows.length) { toast.error('لا توجد بيانات'); return; }
     const s = summary?.student;
     generatePDFReport(
       `نتائج تسميع الطالب: ${student.name}`,
-      ['التسميع', 'الدرجة', 'النسبة', 'الحالة', 'التاريخ'],
-      recResults.map(r => [
-        r.recitation_title,
-        `${r.score}/${r.total_score}`,
-        `${pct(r.score, r.total_score)}%`,
-        r.passed ? 'ناجح' : 'راسب',
-        fmt(r.created_at),
-      ]),
+      ['التسميع', 'الدرجة', 'النسبة', 'الحالة', 'الإجابات', 'النقاط', 'التاريخ'],
+      recRows,
       `student-recs-${student.id}.pdf`,
       {
-        subtitle: `المرحلة: ${s?.academic_stage || '—'} | النقاط: ${s?.points || 0}`,
+        subtitle: `المرحلة: ${s?.academic_stage || '—'} | كود: ${s?.username || '—'} | النقاط: ${s?.points || 0}`,
         stats: [
-          { label: 'إجمالي التسميع', value: summary?.recitations?.total_recitations || 0, color: '#1e3a5f' },
-          { label: 'ناجح', value: summary?.recitations?.passed_recitations || 0, color: '#16a34a' },
-          { label: 'راسب', value: summary?.recitations?.failed_recitations || 0, color: '#dc2626' },
-          { label: 'متوسط الدرجات', value: `${summary?.recitations?.avg_score || 0}%`, color: '#7c3aed' },
+          { label: 'إجمالي التسميع', value: summary?.recitations?.total_recitations || 0,  color: '#1e3a5f' },
+          { label: 'ناجح',           value: summary?.recitations?.passed_recitations || 0,  color: '#16a34a' },
+          { label: 'راسب',           value: summary?.recitations?.failed_recitations || 0,  color: '#dc2626' },
+          { label: 'متوسط الدرجات', value: `${summary?.recitations?.avg_score || 0}%`,        color: '#7c3aed' },
         ],
       }
     );
@@ -225,16 +268,39 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
               }
             </div>
           )}
-          <button
-            onClick={tab === 'exams' ? handlePrintExams : handlePrintRecs}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${tab === 'exams'
-              ? 'bg-orange-500 hover:bg-orange-600 text-white'
-              : 'bg-purple-600 hover:bg-purple-700 text-white'
-            }`}
-          >
-            <Printer className="w-3.5 h-3.5" />
-            طباعة التقرير الفردي
-          </button>
+          {mode === 'both' ? (
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              <button
+                onClick={tab === 'exams' ? handlePrintExams : handlePrintRecs}
+                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all border ${
+                  tab === 'exams'
+                    ? (dark ? 'border-orange-700 text-orange-300 hover:bg-orange-900/30' : 'border-orange-200 text-orange-600 hover:bg-orange-50')
+                    : (dark ? 'border-purple-700 text-purple-300 hover:bg-purple-900/30' : 'border-purple-200 text-purple-600 hover:bg-purple-50')
+                }`}
+              >
+                <Printer className="w-3 h-3" />
+                {tab === 'exams' ? 'طباعة الاختبارات' : 'طباعة التسميع'}
+              </button>
+              <button
+                onClick={handlePrintFull}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-l from-orange-500 to-purple-600 text-white hover:opacity-90 transition-all shadow-sm"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                التقرير الكامل
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={tab === 'exams' ? handlePrintExams : handlePrintRecs}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${tab === 'exams'
+                ? 'bg-orange-500 hover:bg-orange-600 text-white'
+                : 'bg-purple-600 hover:bg-purple-700 text-white'
+              }`}
+            >
+              <Printer className="w-3.5 h-3.5" />
+              طباعة التقرير الفردي
+            </button>
+          )}
         </div>
 
         {/* Content */}

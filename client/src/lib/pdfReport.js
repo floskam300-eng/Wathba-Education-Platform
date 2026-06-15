@@ -60,6 +60,29 @@ export const generatePDFReport = (title, headers, data, filename = 'report.pdf',
     return cell;
   };
 
+  /* ── multi-section support ───────────────────────────────────────── */
+  const renderTable = (hdrs, rows) => {
+    if (!rows?.length) return `<div style="text-align:center;padding:28px;color:#94a3b8;font-size:13px;border:2px dashed #e2e8f0;border-radius:12px">لا توجد بيانات</div>`;
+    const trs = rows.map((row, ri) => `
+      <tr style="background:${ri % 2 === 0 ? '#fff' : '#f8fafc'}">
+        <td style="color:#94a3b8;font-size:11px;font-weight:700;padding:9px 10px;border-bottom:1px solid #f1f5f9;text-align:center">${ri + 1}</td>
+        ${row.map(cell => `<td style="padding:9px 12px;border-bottom:1px solid #f1f5f9;text-align:center;font-size:12px;vertical-align:middle">${renderCell(cell)}</td>`).join('')}
+      </tr>`).join('');
+    return `<table>
+      <thead><tr><th>#</th>${hdrs.map(h => `<th>${escapeHtml(h)}</th>`).join('')}</tr></thead>
+      <tbody>${trs}</tbody>
+    </table>`;
+  };
+
+  const sectionsHtml = opts.sections?.length
+    ? opts.sections.map(sec => `
+        <div class="section-bar" style="margin-top:28px">
+          <div class="section-title">${escapeHtml(sec.title || 'بيانات')}</div>
+          <span style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:20px;padding:3px 12px;font-size:12px;font-weight:700;color:#64748b">${(sec.data||[]).length} سجل</span>
+        </div>
+        ${renderTable(sec.headers || [], sec.data || [])}`).join('')
+    : null;
+
   /* ── summary stats bar ───────────────────────────────────────────── */
   const statsHtml = opts.stats?.length
     ? `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px">
@@ -202,21 +225,23 @@ export const generatePDFReport = (title, headers, data, filename = 'report.pdf',
     ${rowCountLabel}
   </div>
 
-  ${data.length === 0
-    ? `<div style="text-align:center;padding:40px;color:#94a3b8;font-size:14px;border:2px dashed #e2e8f0;border-radius:12px">
-         لا توجد بيانات لعرضها
-       </div>`
-    : `<table>
-        <thead>
-          <tr>
-            <th>#</th>
-            ${headers.map(h => `<th>${escapeHtml(h)}</th>`).join('')}
-          </tr>
-        </thead>
-        <tbody>
-          ${tableRows}
-        </tbody>
-       </table>`
+  ${sectionsHtml !== null
+    ? sectionsHtml
+    : (data.length === 0
+      ? `<div style="text-align:center;padding:40px;color:#94a3b8;font-size:14px;border:2px dashed #e2e8f0;border-radius:12px">
+           لا توجد بيانات لعرضها
+         </div>`
+      : `<table>
+          <thead>
+            <tr>
+              <th>#</th>
+              ${headers.map(h => `<th>${escapeHtml(h)}</th>`).join('')}
+            </tr>
+          </thead>
+          <tbody>
+            ${tableRows}
+          </tbody>
+         </table>`)
   }
 
   ${opts.note ? `<div class="note">💡 ${escapeHtml(opts.note)}</div>` : ''}
