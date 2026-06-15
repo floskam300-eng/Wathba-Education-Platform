@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -282,13 +282,30 @@ export default function CourseContent() {
   const { data: allRecitations = [] } = useQuery({
     queryKey: ['recitations'],
     queryFn: () => api.get('/recitations').then(r => r.data),
+    staleTime: 30_000,
+    retry: (failCount, err) => err?.response?.status !== 403 && failCount < 2,
   });
-  const courseRecitations = allRecitations.filter(rec => String(rec.course_id) === String(courseId));
+  const courseRecitations = useMemo(
+    () => allRecitations.filter(rec => String(rec.course_id) === String(courseId)),
+    [allRecitations, courseId]
+  );
+
+  // Pre-compute videoId → recitations[] map once instead of per-VideoItem-per-render
+  const videoRecitationsMap = useMemo(() => {
+    const map = {};
+    courseRecitations.forEach(rec => {
+      if (!Array.isArray(rec.video_ids)) return;
+      rec.video_ids.forEach(vid => {
+        const id = Number(vid);
+        if (!map[id]) map[id] = [];
+        map[id].push(rec);
+      });
+    });
+    return map;
+  }, [courseRecitations]);
 
   const VideoItem = ({ v }) => {
-    const linkedRecs = courseRecitations.filter(rec =>
-      Array.isArray(rec.video_ids) && rec.video_ids.map(Number).includes(Number(v.id))
-    );
+    const linkedRecs = videoRecitationsMap[Number(v.id)] || [];
     return (
     <div className="flex items-start gap-3 p-3 bg-white rounded-xl shadow-sm border border-gray-100 hover:border-gray-200 transition-all">
       <button onClick={() => setPreviewVideo(v)}

@@ -43,9 +43,8 @@ export default function QuestionBanks() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const imageFileRef = useRef(null);
 
-  // grouped-question state (kept for rendering existing grouped questions)
+  // grouped-question state (kept for rendering existing grouped questions when editing)
   const [isGrouped] = useState(false);
-  const [nextGroupId, setNextGroupId] = useState(() => Date.now());
   const [ctxImageInputMode, setCtxImageInputMode] = useState('url');
   const [ctxImageFile, setCtxImageFile] = useState(null);
   const [ctxImagePreview, setCtxImagePreview] = useState('');
@@ -90,26 +89,11 @@ export default function QuestionBanks() {
 
   const addQMut = useMutation({
     mutationFn: ({ bankId, data }) => api.post(`/question-banks/${bankId}/questions`, data),
-    onSuccess: (_, vars) => {
+    onSuccess: () => {
       qc.invalidateQueries(['bank-questions', expandedBank]);
       qc.invalidateQueries(['question-banks']);
       toast.success('تم إضافة السؤال');
-      if (vars.data.group_id) {
-        // keep context and group_id so sibling questions can be added
-        setQForm(prev => ({
-          ...emptyQ,
-          group_id: prev.group_id,
-          group_context: prev.group_context,
-          group_context_image: prev.group_context_image,
-        }));
-        setEditQ(null);
-        setImageFile(null); setImagePreview(''); setImageInputMode('url');
-        if (imageFileRef.current) imageFileRef.current.value = '';
-        setCtxImageFile(null);
-        if (ctxImageFileRef.current) ctxImageFileRef.current.value = '';
-      } else {
-        resetQForm();
-      }
+      resetQForm();
     },
     onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
   });
@@ -215,13 +199,7 @@ export default function QuestionBanks() {
       }
     }
 
-    let finalGroupId = qForm.group_id;
-    if (isGrouped && !finalGroupId && !editQ) {
-      finalGroupId = nextGroupId;
-      setNextGroupId(Date.now());
-    }
-
-    const finalForm = { ...qForm, question_image_url: finalImageUrl, group_context_image: finalCtxImageUrl, group_id: finalGroupId };
+    const finalForm = { ...qForm, question_image_url: finalImageUrl, group_context_image: finalCtxImageUrl, group_id: qForm.group_id || null };
     if (!finalForm.question_text && !finalImageUrl) return toast.error('أدخل نص السؤال أو صورة');
     if (finalForm.question_type === 'image_multi') {
       if (!Array.isArray(finalForm.sub_questions) || finalForm.sub_questions.length === 0)
@@ -341,13 +319,19 @@ export default function QuestionBanks() {
                                     </div>
                                     {q.question_image_url && <img src={q.question_image_url} alt="" className="max-h-32 rounded-lg mb-2 border border-gray-200" />}
                                     {q.question_text && <p className="font-semibold text-navy-700 text-sm mb-2"><MathText text={q.question_text} /></p>}
-                                    <div className="grid grid-cols-2 gap-1.5">
-                                      {['a','b','c','d'].map(opt => q[`option_${opt}`] && (
-                                        <div key={opt} className={`px-2 py-1 rounded-lg text-xs font-medium border ${q.correct_answer_letter?.toUpperCase() === opt.toUpperCase() ? 'border-green-400 bg-green-50 text-green-800 font-bold' : 'border-gray-200 text-gray-600'}`}>
-                                          <span className="font-black ml-1">{opt.toUpperCase()}.</span>{q[`option_${opt}`]}
-                                        </div>
-                                      ))}
-                                    </div>
+                                    {q.question_type === 'image_multi' ? (
+                                      <div className="inline-flex items-center gap-1 text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200 rounded-lg px-2 py-1">
+                                        🖼 {Array.isArray(q.sub_questions) ? q.sub_questions.length : 0} سؤال فرعي
+                                      </div>
+                                    ) : (
+                                      <div className="grid grid-cols-2 gap-1.5">
+                                        {['a','b','c','d'].map(opt => q[`option_${opt}`] && (
+                                          <div key={opt} className={`px-2 py-1 rounded-lg text-xs font-medium border ${q.correct_answer_letter?.toUpperCase() === opt.toUpperCase() ? 'border-green-400 bg-green-50 text-green-800 font-bold' : 'border-gray-200 text-gray-600'}`}>
+                                            <span className="font-black ml-1">{opt.toUpperCase()}.</span>{q[`option_${opt}`]}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
                                   </div>
                                   <div className="flex gap-1 flex-shrink-0">
                                     <button onClick={() => startEditQ(q)} className="p-1.5 text-gray-400 hover:text-navy-600 hover:bg-white rounded-lg transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
@@ -388,13 +372,19 @@ export default function QuestionBanks() {
                                           </div>
                                           {q.question_image_url && <img src={q.question_image_url} alt="" className="max-h-24 rounded-lg mb-1.5 border border-gray-200" />}
                                           {q.question_text && <p className="font-semibold text-navy-700 text-sm mb-1.5"><MathText text={q.question_text} /></p>}
-                                          <div className="grid grid-cols-2 gap-1">
-                                            {['a','b','c','d'].map(opt => q[`option_${opt}`] && (
-                                              <div key={opt} className={`px-2 py-0.5 rounded-lg text-xs font-medium border ${q.correct_answer_letter?.toUpperCase() === opt.toUpperCase() ? 'border-green-400 bg-green-50 text-green-800 font-bold' : 'border-gray-200 text-gray-600'}`}>
-                                                <span className="font-black ml-1">{opt.toUpperCase()}.</span>{q[`option_${opt}`]}
-                                              </div>
-                                            ))}
-                                          </div>
+                                          {q.question_type === 'image_multi' ? (
+                                            <div className="inline-flex items-center gap-1 text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200 rounded-lg px-2 py-1">
+                                              🖼 {Array.isArray(q.sub_questions) ? q.sub_questions.length : 0} سؤال فرعي
+                                            </div>
+                                          ) : (
+                                            <div className="grid grid-cols-2 gap-1">
+                                              {['a','b','c','d'].map(opt => q[`option_${opt}`] && (
+                                                <div key={opt} className={`px-2 py-0.5 rounded-lg text-xs font-medium border ${q.correct_answer_letter?.toUpperCase() === opt.toUpperCase() ? 'border-green-400 bg-green-50 text-green-800 font-bold' : 'border-gray-200 text-gray-600'}`}>
+                                                  <span className="font-black ml-1">{opt.toUpperCase()}.</span>{q[`option_${opt}`]}
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )}
                                         </div>
                                         <div className="flex gap-1 flex-shrink-0">
                                           <button onClick={() => startEditQ(q)} className="p-1.5 text-gray-400 hover:text-navy-600 hover:bg-gray-100 rounded-lg transition-colors"><Pencil className="w-3 h-3" /></button>

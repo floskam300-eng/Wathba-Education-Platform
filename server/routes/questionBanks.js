@@ -13,12 +13,14 @@ router.use(authenticate);
 
 const getTeacherId = (req) => req.user.role === 'teacher' ? req.user.id : req.user.teacher_id;
 
-// [QB1-FIX] parseParamId — integer validation + PG_INT_MAX guard.
-// All parameterised routes now use this instead of passing req.params.* directly
-// to pg, which accepted any string (e.g. "0;DROP TABLE") via implicit casting.
+// [QB1-FIX] parseParamId — strict integer validation + PG_INT_MAX guard.
+// Uses /^\d+$/ to reject any non-digit prefix (e.g. "1;DROP TABLE" → null).
+// parseInt alone is insufficient because parseInt("1;DROP", 10) === 1.
 const PG_INT_MAX = 2147483647;
 function parseParamId(raw) {
-  const n = parseInt(raw, 10);
+  const s = String(raw ?? '').trim();
+  if (!/^\d+$/.test(s)) return null;
+  const n = parseInt(s, 10);
   if (!Number.isFinite(n) || n < 1 || n > PG_INT_MAX) return null;
   return n;
 }
@@ -190,6 +192,11 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageEx
     const isImgMulti = qType === 'image_multi';
     let optA = option_a, optB = option_b, correctLetter = correct_answer_letter;
 
+    // [S1] require at least question_text or image
+    if (!question_text && !question_image_url)
+      return res.status(400).json({ error: 'السؤال يحتاج نصاً أو صورة' });
+
+    let cleanSubQuestions = [];
     if (isImgMulti) {
       if (!Array.isArray(sub_questions) || sub_questions.length === 0)
         return res.status(400).json({ error: 'image_multi يتطلب قائمة الأسئلة الفرعية' });
@@ -197,14 +204,21 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageEx
         return res.status(400).json({ error: 'الحد الأقصى 50 سؤالاً فرعياً' });
       const VALID_LETTERS = new Set(['A','B','C','D']);
       for (const sub of sub_questions) {
-        if (!sub.label || !String(sub.label).trim())
-          return res.status(400).json({ error: 'كل بند يجب أن يحتوي على رقم/تسمية' });
+        const lbl = String(sub.label ?? '').trim();
+        if (!lbl) return res.status(400).json({ error: 'كل بند يجب أن يحتوي على رقم/تسمية' });
+        // [S1] cap label length
+        if (lbl.length > 200) return res.status(400).json({ error: 'تسمية السؤال الفرعي طويلة جداً' });
         if (!VALID_LETTERS.has(String(sub.correct || '').toUpperCase()))
           return res.status(400).json({ error: 'الإجابة الصحيحة لكل بند يجب أن تكون A أو B أو C أو D' });
       }
       const labels = sub_questions.map(s => String(s.label).trim());
       if (new Set(labels).size !== labels.length)
         return res.status(400).json({ error: 'تسميات الأسئلة الفرعية يجب أن تكون فريدة' });
+      // [S2] strip extra fields — store only label + correct
+      cleanSubQuestions = sub_questions.map(s => ({
+        label: String(s.label).trim(),
+        correct: String(s.correct).toUpperCase(),
+      }));
       optA = 'A'; optB = 'B'; correctLetter = 'A';
     } else if (qType === 'true_false') {
       optA = 'صح'; optB = 'خطأ'; correctLetter = correct_answer_letter || 'A';
@@ -221,7 +235,7 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageEx
 
     const result = await pool.query(
       'INSERT INTO bank_questions (bank_id, question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, question_type, difficulty, group_id, group_context, group_context_image, sub_questions) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *',
-      [bankId, question_text || null, question_image_url || null, optA, optB, isImgMulti ? 'C' : (option_c || null), isImgMulti ? 'D' : (option_d || null), correctLetter.toUpperCase(), points || 1, qType, qDifficulty, group_id || null, group_context || null, group_context_image || null, isImgMulti ? JSON.stringify(sub_questions) : '[]']
+      [bankId, question_text || null, question_image_url || null, optA, optB, isImgMulti ? 'C' : (option_c || null), isImgMulti ? 'D' : (option_d || null), correctLetter.toUpperCase(), points || 1, qType, qDifficulty, group_id || null, group_context || null, group_context_image || null, isImgMulti ? JSON.stringify(cleanSubQuestions) : '[]']
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -255,6 +269,11 @@ router.put('/questions/:qid', requireRole('teacher', 'assistant'), checkManageEx
     const isImgMulti = qType === 'image_multi';
     let optA = option_a, optB = option_b, correctLetter = correct_answer_letter;
 
+    // [S1] require at least question_text or image
+    if (!question_text && !question_image_url)
+      return res.status(400).json({ error: 'السؤال يحتاج نصاً أو صورة' });
+
+    let cleanSubQuestions = [];
     if (isImgMulti) {
       if (!Array.isArray(sub_questions) || sub_questions.length === 0)
         return res.status(400).json({ error: 'image_multi يتطلب قائمة الأسئلة الفرعية' });
@@ -262,14 +281,21 @@ router.put('/questions/:qid', requireRole('teacher', 'assistant'), checkManageEx
         return res.status(400).json({ error: 'الحد الأقصى 50 سؤالاً فرعياً' });
       const VALID_LETTERS = new Set(['A','B','C','D']);
       for (const sub of sub_questions) {
-        if (!sub.label || !String(sub.label).trim())
-          return res.status(400).json({ error: 'كل بند يجب أن يحتوي على رقم/تسمية' });
+        const lbl = String(sub.label ?? '').trim();
+        if (!lbl) return res.status(400).json({ error: 'كل بند يجب أن يحتوي على رقم/تسمية' });
+        // [S1] cap label length
+        if (lbl.length > 200) return res.status(400).json({ error: 'تسمية السؤال الفرعي طويلة جداً' });
         if (!VALID_LETTERS.has(String(sub.correct || '').toUpperCase()))
           return res.status(400).json({ error: 'الإجابة الصحيحة لكل بند يجب أن تكون A أو B أو C أو D' });
       }
       const labels = sub_questions.map(s => String(s.label).trim());
       if (new Set(labels).size !== labels.length)
         return res.status(400).json({ error: 'تسميات الأسئلة الفرعية يجب أن تكون فريدة' });
+      // [S2] strip extra fields — store only label + correct
+      cleanSubQuestions = sub_questions.map(s => ({
+        label: String(s.label).trim(),
+        correct: String(s.correct).toUpperCase(),
+      }));
       optA = 'A'; optB = 'B'; correctLetter = 'A';
     } else if (qType === 'true_false') {
       optA = 'صح'; optB = 'خطأ';
@@ -285,7 +311,7 @@ router.put('/questions/:qid', requireRole('teacher', 'assistant'), checkManageEx
 
     const result = await pool.query(
       'UPDATE bank_questions SET question_text=$1, question_image_url=$2, option_a=$3, option_b=$4, option_c=$5, option_d=$6, correct_answer_letter=$7, points=$8, question_type=$9, difficulty=$10, group_id=$11, group_context=$12, group_context_image=$13, sub_questions=$14 WHERE id=$15 RETURNING *',
-      [question_text || null, question_image_url || null, optA, optB, isImgMulti ? 'C' : (option_c || null), isImgMulti ? 'D' : (option_d || null), correctLetter.toUpperCase(), points || 1, qType, qDifficulty, group_id || null, group_context || null, group_context_image || null, isImgMulti ? JSON.stringify(sub_questions) : '[]', qid]
+      [question_text || null, question_image_url || null, optA, optB, isImgMulti ? 'C' : (option_c || null), isImgMulti ? 'D' : (option_d || null), correctLetter.toUpperCase(), points || 1, qType, qDifficulty, group_id || null, group_context || null, group_context_image || null, isImgMulti ? JSON.stringify(cleanSubQuestions) : '[]', qid]
     );
     res.json(result.rows[0]);
   } catch (err) {
