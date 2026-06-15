@@ -659,8 +659,11 @@ export default function ArchivePage() {
                         </span>
                       </td>
                       <td className={`px-4 py-3 ${textSec} whitespace-nowrap`}>{fmt(r.created_at)}</td>
-                      <td className="px-4 py-3 flex items-center gap-1">
-                        <button onClick={() => navigate(`/teacher/recitation-review/${r.id}`)} className={`p-1.5 rounded-lg transition-colors ${dark ? 'hover:bg-[var(--dk-surface)] text-gray-400 hover:text-purple-400' : 'hover:bg-purple-50 text-gray-400 hover:text-purple-500'}`} title="مراجعة التسميع"><Eye className="w-3.5 h-3.5" /></button>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => setSelectedStudent({ id: r.student_id, name: r.student_name })} className={`p-1.5 rounded-lg transition-colors ${dark ? 'hover:bg-[var(--dk-surface)] text-gray-400 hover:text-purple-400' : 'hover:bg-purple-50 text-gray-400 hover:text-purple-500'}`} title="كل تسميعات الطالب"><Eye className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => navigate(`/teacher/recitation-review/${r.id}`)} className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-colors ${dark ? 'bg-purple-900/30 text-purple-300 hover:bg-purple-900/50' : 'bg-purple-50 text-purple-600 hover:bg-purple-100'}`} title="مراجعة هذا التسميع">مراجعة</button>
+                        </div>
                       </td>
                     </tr>
                   ))}
