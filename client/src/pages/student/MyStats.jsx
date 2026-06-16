@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 
 function printStatsPDF({ student, summary, examResults, courses, badges, payments }) {
   const escapeHtml = (str) => String(str ?? '—')
@@ -288,23 +289,24 @@ const fmtMins = (m) => m >= 60 ? `${Math.floor(m / 60)}س ${m % 60}د` : `${m} �
 
 const methodLabel = { instapay: 'إنستاباي', vodafone_cash: 'فودافون كاش', cash: 'كاش', bank: 'تحويل بنكي', bank_transfer: 'تحويل بنكي' };
 const statusConfig = {
-  completed: { label: 'مدفوع',    cls: 'bg-green-100 text-green-800' },
-  verified:  { label: 'موثّق',    cls: 'bg-blue-100 text-blue-800' },
-  pending:   { label: 'في الانتظار', cls: 'bg-yellow-100 text-yellow-800' },
-  rejected:  { label: 'مرفوض',   cls: 'bg-red-100 text-red-800' },
+  completed: { label: 'مدفوع',       light: 'bg-green-100 text-green-800',  dark: 'bg-green-900/40 text-green-300' },
+  verified:  { label: 'موثّق',       light: 'bg-blue-100 text-blue-800',    dark: 'bg-blue-900/40 text-blue-300' },
+  pending:   { label: 'في الانتظار', light: 'bg-yellow-100 text-yellow-800',dark: 'bg-yellow-900/40 text-yellow-300' },
+  rejected:  { label: 'مرفوض',      light: 'bg-red-100 text-red-800',      dark: 'bg-red-900/40 text-red-300' },
 };
 
-function SummaryCard({ icon: Icon, label, value, sub, iconBg, iconColor, accent }) {
+function SummaryCard({ icon: Icon, label, value, sub, iconBg, iconBgDark, iconColor, accent }) {
+  const { dark } = useTheme();
   return (
     <div className={`card !p-3 sm:!p-4 border-r-4 ${accent}`}>
       <div className="flex items-center gap-2 sm:gap-3">
-        <div className={`w-9 h-9 sm:w-11 sm:h-11 ${iconBg} rounded-xl flex items-center justify-center flex-shrink-0`}>
+        <div className={`w-9 h-9 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${dark ? (iconBgDark || 'bg-white/10') : iconBg}`}>
           <Icon className={`w-4 h-4 sm:w-5 sm:h-5 ${iconColor}`} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-lg sm:text-2xl font-black text-navy-700 leading-tight truncate">{value}</p>
-          <p className="text-[11px] sm:text-xs text-gray-600 font-semibold mt-0.5 leading-tight">{label}</p>
-          {sub && <p className="text-[10px] sm:text-xs text-gray-400 font-medium mt-0.5 leading-tight">{sub}</p>}
+          <p className={`text-lg sm:text-2xl font-black leading-tight truncate ${dark ? 'text-white' : 'text-navy-700'}`}>{value}</p>
+          <p className={`text-[11px] sm:text-xs font-semibold mt-0.5 leading-tight ${dark ? 'text-gray-400' : 'text-gray-600'}`}>{label}</p>
+          {sub && <p className={`text-[10px] sm:text-xs font-medium mt-0.5 leading-tight ${dark ? 'text-gray-500' : 'text-gray-400'}`}>{sub}</p>}
         </div>
       </div>
     </div>
@@ -313,13 +315,14 @@ function SummaryCard({ icon: Icon, label, value, sub, iconBg, iconColor, accent 
 
 function Section({ title, icon: Icon, children, defaultOpen = true }) {
   const [open, setOpen] = useState(defaultOpen);
+  const { dark } = useTheme();
   return (
     <div className="card !p-0 overflow-hidden">
       <button
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors"
+        className={`w-full flex items-center justify-between px-5 py-4 transition-colors ${dark ? 'hover:bg-[var(--dk-elevated)]' : 'hover:bg-gray-50'}`}
       >
-        <h2 className="text-base font-black text-navy-700 flex items-center gap-2">
+        <h2 className={`text-base font-black flex items-center gap-2 ${dark ? 'text-white' : 'text-navy-700'}`}>
           <Icon className="w-5 h-5 text-orange-500" />
           {title}
         </h2>
@@ -330,18 +333,18 @@ function Section({ title, icon: Icon, children, defaultOpen = true }) {
   );
 }
 
-function ScoreBar({ score, total, passScore }) {
+function ScoreBar({ score, total, passScore, dark }) {
   const pct = Math.round((score / total) * 100);
   const passed = score >= passScore;
   return (
     <div className="flex items-center gap-2 mt-1">
-      <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+      <div className={`flex-1 h-2 rounded-full overflow-hidden ${dark ? 'bg-gray-700' : 'bg-gray-100'}`}>
         <div
           className={`h-2 rounded-full transition-all ${passed ? 'bg-green-500' : 'bg-red-400'}`}
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className={`text-xs font-black w-8 text-right ${passed ? 'text-green-700' : 'text-red-600'}`}>{pct}%</span>
+      <span className={`text-xs font-black w-8 text-right ${passed ? (dark ? 'text-green-400' : 'text-green-700') : (dark ? 'text-red-400' : 'text-red-600')}`}>{pct}%</span>
     </div>
   );
 }
@@ -364,6 +367,7 @@ const EXAMS_PAGE = 3;
 
 export default function StudentMyStats() {
   const { user }  = useAuth();
+  const { dark }  = useTheme();
   const navigate  = useNavigate();
   const [showAllExams, setShowAllExams] = useState(false);
 
@@ -509,28 +513,38 @@ export default function StudentMyStats() {
                 {(showAllExams ? examResults : examResults.slice(0, EXAMS_PAGE)).map(r => {
                   const passed = r.score >= r.pass_score;
                   return (
-                    <div key={r.id} className={`rounded-xl border-2 p-4 ${passed ? 'border-green-200 bg-green-50/50' : 'border-red-200 bg-red-50/50'}`}>
+                    <div key={r.id} className={`rounded-xl border-2 p-4 ${
+                      passed
+                        ? dark ? 'border-green-700 bg-green-950/30' : 'border-green-200 bg-green-50/50'
+                        : dark ? 'border-red-700 bg-red-950/30'   : 'border-red-200 bg-red-50/50'
+                    }`}>
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
-                          <p className="font-bold text-navy-700 text-sm leading-tight">{r.exam_title}</p>
-                          {r.course_name && <p className="text-xs text-gray-500 font-medium mt-0.5">{r.course_name}</p>}
-                          <div className="flex flex-wrap gap-3 mt-2 text-xs font-semibold text-gray-600">
-                            <span className="flex items-center gap-1"><CheckCircle className="w-3.5 h-3.5 text-green-600" /> {r.correct_count} صواب</span>
-                            <span className="flex items-center gap-1"><XCircle className="w-3.5 h-3.5 text-red-500" /> {r.wrong_count} خطأ</span>
+                          <p className={`font-bold text-sm leading-tight ${dark ? 'text-white' : 'text-navy-700'}`}>{r.exam_title}</p>
+                          {r.course_name && <p className={`text-xs font-medium mt-0.5 ${dark ? 'text-gray-400' : 'text-gray-500'}`}>{r.course_name}</p>}
+                          <div className={`flex flex-wrap gap-3 mt-2 text-xs font-semibold ${dark ? 'text-gray-400' : 'text-gray-600'}`}>
+                            <span className="flex items-center gap-1"><CheckCircle className="w-3.5 h-3.5 text-green-500" /> {r.correct_count} صواب</span>
+                            <span className="flex items-center gap-1"><XCircle className="w-3.5 h-3.5 text-red-400" /> {r.wrong_count} خطأ</span>
                             {r.unanswered_count > 0 && <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-gray-400" /> {r.unanswered_count} بدون إجابة</span>}
-                            {r.points_earned > 0 && <span className="text-orange-600">+{r.points_earned} نقطة ⭐</span>}
+                            {r.points_earned > 0 && <span className="text-orange-500">+{r.points_earned} نقطة ⭐</span>}
                           </div>
                         </div>
                         <div className="text-center flex-shrink-0">
-                          <p className={`text-2xl font-black ${passed ? 'text-green-700' : 'text-red-600'}`}>{r.score}<span className="text-sm font-semibold text-gray-400">/{r.total_score}</span></p>
-                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${passed ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-700'}`}>
+                          <p className={`text-2xl font-black ${passed ? (dark ? 'text-green-400' : 'text-green-700') : (dark ? 'text-red-400' : 'text-red-600')}`}>
+                            {r.score}<span className={`text-sm font-semibold ${dark ? 'text-gray-500' : 'text-gray-400'}`}>/{r.total_score}</span>
+                          </p>
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                            passed
+                              ? dark ? 'bg-green-900/60 text-green-300' : 'bg-green-100 text-green-800'
+                              : dark ? 'bg-red-900/60 text-red-300'    : 'bg-red-100 text-red-700'
+                          }`}>
                             {passed ? '✓ ناجح' : '✗ راسب'}
                           </span>
                         </div>
                       </div>
-                      <ScoreBar score={r.score} total={r.total_score} passScore={r.pass_score} />
+                      <ScoreBar score={r.score} total={r.total_score} passScore={r.pass_score} dark={dark} />
                       <div className="flex items-center justify-between mt-3">
-                        <p className="text-xs text-gray-400">{fmtDate(r.created_at)}</p>
+                        <p className={`text-xs ${dark ? 'text-gray-500' : 'text-gray-400'}`}>{fmtDate(r.created_at)}</p>
                         <div className="flex items-center gap-2">
                           {r.badge_name && (
                             <span className="text-xs font-bold px-2 py-0.5 rounded-full text-white"
@@ -538,7 +552,9 @@ export default function StudentMyStats() {
                           )}
                           <button
                             onClick={() => navigate(`/student/exam-review/${r.id}`)}
-                            className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-navy-50 hover:bg-navy-100 text-navy-700 text-xs font-bold transition-colors border border-navy-200">
+                            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-colors border ${
+                              dark ? 'bg-navy-800 hover:bg-navy-700 text-navy-200 border-navy-600' : 'bg-navy-50 hover:bg-navy-100 text-navy-700 border-navy-200'
+                            }`}>
                             <Eye className="w-3.5 h-3.5" /> مراجعة
                           </button>
                         </div>
@@ -570,42 +586,41 @@ export default function StudentMyStats() {
               {courses.map(c => {
                 const progress = c.total_videos > 0 ? Math.round((c.watched_videos / c.total_videos) * 100) : 0;
                 return (
-                  <div key={c.id} className="rounded-xl border border-gray-200 p-4 bg-gray-50/50">
+                  <div key={c.id} className={`rounded-xl border p-4 ${dark ? 'border-[var(--dk-border-md)] bg-[var(--dk-elevated)]' : 'border-gray-200 bg-gray-50/50'}`}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
-                        <p className="font-bold text-navy-700 text-sm">{c.name}</p>
-                        {c.target_stage && <p className="text-xs text-gray-500 mt-0.5">{c.target_stage}</p>}
+                        <p className={`font-bold text-sm ${dark ? 'text-white' : 'text-navy-700'}`}>{c.name}</p>
+                        {c.target_stage && <p className={`text-xs mt-0.5 ${dark ? 'text-gray-400' : 'text-gray-500'}`}>{c.target_stage}</p>}
                       </div>
-                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${c.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${
+                        c.status === 'active'
+                          ? dark ? 'bg-green-900/50 text-green-300' : 'bg-green-100 text-green-700'
+                          : dark ? 'bg-gray-700 text-gray-400'      : 'bg-gray-100 text-gray-500'
+                      }`}>
                         {c.status === 'active' ? 'نشط' : c.status}
                       </span>
                     </div>
 
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
-                      <div className="text-center bg-white rounded-lg p-2 border border-gray-100">
-                        <p className="text-lg font-black text-navy-600">{c.watched_videos}<span className="text-xs text-gray-400">/{c.total_videos}</span></p>
-                        <p className="text-xs text-gray-500 font-medium">فيديو شاهدته</p>
-                      </div>
-                      <div className="text-center bg-white rounded-lg p-2 border border-gray-100">
-                        <p className="text-lg font-black text-orange-600">{fmtMins(c.total_watched_minutes)}</p>
-                        <p className="text-xs text-gray-500 font-medium">وقت المشاهدة</p>
-                      </div>
-                      <div className="text-center bg-white rounded-lg p-2 border border-gray-100">
-                        <p className="text-lg font-black text-indigo-600">{c.total_pdfs}</p>
-                        <p className="text-xs text-gray-500 font-medium">ملفات PDF</p>
-                      </div>
-                      <div className="text-center bg-white rounded-lg p-2 border border-gray-100">
-                        <p className="text-lg font-black text-teal-600">{progress}%</p>
-                        <p className="text-xs text-gray-500 font-medium">الإنجاز</p>
-                      </div>
+                      {[
+                        { val: <>{c.watched_videos}<span className={`text-xs ${dark ? 'text-gray-500' : 'text-gray-400'}`}>/{c.total_videos}</span></>, label: 'فيديو شاهدته', color: dark ? 'text-blue-300' : 'text-navy-600' },
+                        { val: fmtMins(c.total_watched_minutes), label: 'وقت المشاهدة', color: 'text-orange-500' },
+                        { val: c.total_pdfs, label: 'ملفات PDF', color: dark ? 'text-indigo-300' : 'text-indigo-600' },
+                        { val: `${progress}%`, label: 'الإنجاز', color: dark ? 'text-teal-300' : 'text-teal-600' },
+                      ].map(({ val, label, color }, i) => (
+                        <div key={i} className={`text-center rounded-lg p-2 border ${dark ? 'bg-[var(--dk-surface)] border-[var(--dk-border-md)]' : 'bg-white border-gray-100'}`}>
+                          <p className={`text-lg font-black ${color}`}>{val}</p>
+                          <p className={`text-xs font-medium ${dark ? 'text-gray-400' : 'text-gray-500'}`}>{label}</p>
+                        </div>
+                      ))}
                     </div>
 
                     <div className="mt-3">
-                      <div className="flex justify-between text-xs text-gray-500 font-medium mb-1">
+                      <div className={`flex justify-between text-xs font-medium mb-1 ${dark ? 'text-gray-400' : 'text-gray-500'}`}>
                         <span>التقدم في الكورس</span>
                         <span>{progress}%</span>
                       </div>
-                      <div className="h-2.5 bg-gray-200 rounded-full overflow-hidden">
+                      <div className={`h-2.5 rounded-full overflow-hidden ${dark ? 'bg-gray-700' : 'bg-gray-200'}`}>
                         <div
                           className="h-2.5 rounded-full transition-all bg-gradient-to-r from-navy-500 to-orange-500"
                           style={{ width: `${progress}%` }}
@@ -624,23 +639,23 @@ export default function StudentMyStats() {
           <Section title={`سجل مشاهدة الفيديوهات (${videoProgress.length})`} icon={Play} defaultOpen={false}>
             <div className="space-y-2 pt-1">
               {videoProgress.map(vp => (
-                <div key={vp.video_id} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100">
-                  <div className="w-9 h-9 bg-navy-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <Play className="w-4 h-4 text-navy-600" />
+                <div key={vp.video_id} className={`flex items-center gap-3 p-3 rounded-xl border ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border-md)]' : 'bg-gray-50 border-gray-100'}`}>
+                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${dark ? 'bg-navy-800' : 'bg-navy-100'}`}>
+                    <Play className={`w-4 h-4 ${dark ? 'text-navy-300' : 'text-navy-600'}`} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-navy-700 truncate">{vp.video_title}</p>
-                    <p className="text-xs text-gray-500 font-medium">{vp.course_name}</p>
+                    <p className={`text-sm font-bold truncate ${dark ? 'text-white' : 'text-navy-700'}`}>{vp.video_title}</p>
+                    <p className={`text-xs font-medium ${dark ? 'text-gray-400' : 'text-gray-500'}`}>{vp.course_name}</p>
                     <div className="flex items-center gap-2 mt-1.5">
-                      <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                      <div className={`flex-1 h-1.5 rounded-full overflow-hidden ${dark ? 'bg-gray-700' : 'bg-gray-200'}`}>
                         <div className="h-1.5 bg-orange-400 rounded-full" style={{ width: `${vp.progress_percentage}%` }} />
                       </div>
-                      <span className="text-xs font-bold text-gray-500 w-8">{Math.round(vp.progress_percentage)}%</span>
+                      <span className={`text-xs font-bold w-8 ${dark ? 'text-gray-400' : 'text-gray-500'}`}>{Math.round(vp.progress_percentage)}%</span>
                     </div>
                   </div>
                   <div className="text-left flex-shrink-0">
-                    <p className="text-xs font-bold text-gray-700">{fmtMins(vp.watched_minutes)}</p>
-                    <p className="text-xs text-gray-400">شاهدت {vp.watch_count}× </p>
+                    <p className={`text-xs font-bold ${dark ? 'text-gray-300' : 'text-gray-700'}`}>{fmtMins(vp.watched_minutes)}</p>
+                    <p className={`text-xs ${dark ? 'text-gray-500' : 'text-gray-400'}`}>شاهدت {vp.watch_count}×</p>
                   </div>
                 </div>
               ))}
@@ -656,36 +671,36 @@ export default function StudentMyStats() {
             <>
               {/* Totals */}
               <div className="grid grid-cols-2 gap-3 mb-4 pt-1">
-                <div className="rounded-xl bg-green-50 border border-green-200 p-3 text-center">
-                  <p className="text-xl font-black text-green-700">{fmt(summary.totalPaid)} ج.م</p>
-                  <p className="text-xs text-green-600 font-semibold mt-0.5">إجمالي المدفوع</p>
+                <div className={`rounded-xl border p-3 text-center ${dark ? 'bg-green-950/30 border-green-800' : 'bg-green-50 border-green-200'}`}>
+                  <p className={`text-xl font-black ${dark ? 'text-green-400' : 'text-green-700'}`}>{fmt(summary.totalPaid)} ج.م</p>
+                  <p className={`text-xs font-semibold mt-0.5 ${dark ? 'text-green-500' : 'text-green-600'}`}>إجمالي المدفوع</p>
                 </div>
-                <div className="rounded-xl bg-yellow-50 border border-yellow-200 p-3 text-center">
-                  <p className="text-xl font-black text-yellow-700">{fmt(summary.totalPending)} ج.م</p>
-                  <p className="text-xs text-yellow-600 font-semibold mt-0.5">في الانتظار</p>
+                <div className={`rounded-xl border p-3 text-center ${dark ? 'bg-yellow-950/30 border-yellow-800' : 'bg-yellow-50 border-yellow-200'}`}>
+                  <p className={`text-xl font-black ${dark ? 'text-yellow-400' : 'text-yellow-700'}`}>{fmt(summary.totalPending)} ج.م</p>
+                  <p className={`text-xs font-semibold mt-0.5 ${dark ? 'text-yellow-500' : 'text-yellow-600'}`}>في الانتظار</p>
                 </div>
               </div>
 
               <div className="space-y-2">
                 {payments.map(p => {
-                  const sc = statusConfig[p.status] || { label: p.status, cls: 'bg-gray-100 text-gray-600' };
+                  const sc = statusConfig[p.status] || { label: p.status, light: 'bg-gray-100 text-gray-600', dark: 'bg-gray-700 text-gray-300' };
                   return (
-                    <div key={p.id} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100">
-                      <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center flex-shrink-0 border border-gray-200">
-                        <CreditCard className="w-4 h-4 text-gray-500" />
+                    <div key={p.id} className={`flex items-center gap-3 p-3 rounded-xl border ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border-md)]' : 'bg-gray-50 border-gray-100'}`}>
+                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 border ${dark ? 'bg-[var(--dk-surface)] border-[var(--dk-border-md)]' : 'bg-white border-gray-200'}`}>
+                        <CreditCard className={`w-4 h-4 ${dark ? 'text-gray-400' : 'text-gray-500'}`} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-navy-700 truncate">{p.course_name || 'غير محدد'}</p>
-                        <p className="text-xs text-gray-500 font-medium">
+                        <p className={`text-sm font-bold truncate ${dark ? 'text-white' : 'text-navy-700'}`}>{p.course_name || 'غير محدد'}</p>
+                        <p className={`text-xs font-medium ${dark ? 'text-gray-400' : 'text-gray-500'}`}>
                           {methodLabel[p.method] || p.method} · {fmtDate(p.payment_date)}
                         </p>
                         {p.reference_number && (
-                          <p className="text-xs text-gray-400 font-mono mt-0.5">{p.reference_number}</p>
+                          <p className={`text-xs font-mono mt-0.5 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>{p.reference_number}</p>
                         )}
                       </div>
                       <div className="text-left flex-shrink-0">
-                        <p className="text-base font-black text-navy-700">{fmt(p.amount)} ج</p>
-                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${sc.cls}`}>{sc.label}</span>
+                        <p className={`text-base font-black ${dark ? 'text-white' : 'text-navy-700'}`}>{fmt(p.amount)} ج</p>
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${dark ? sc.dark : sc.light}`}>{sc.label}</span>
                       </div>
                     </div>
                   );
