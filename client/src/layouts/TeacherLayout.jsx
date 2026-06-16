@@ -113,7 +113,7 @@ export default function TeacherLayout() {
   );
 
   return (
-    <div className={`flex h-screen overflow-hidden ${dark ? '' : 'bg-navy-50'}`}
+    <div className={`app-root-layout flex overflow-hidden ${dark ? '' : 'bg-navy-50'}`}
          style={dark ? { backgroundColor: 'var(--dk-bg)' } : {}}>
       <aside className={`hidden lg:flex w-64 flex-col flex-shrink-0 ${dark ? 'dk-sidebar' : 'bg-navy-500'}`}
              style={dark ? { background: 'linear-gradient(180deg, #161422 0%, #100E1A 100%)', borderLeft: '1px solid rgba(230,175,80,0.12)' } : {}}>
@@ -122,7 +122,7 @@ export default function TeacherLayout() {
 
       {sidebarOpen && (
         <div className="lg:hidden fixed inset-0 z-50 flex">
-          <div className={`w-64 flex flex-col ${dark ? '' : 'bg-navy-500'}`}
+          <div className={`app-sidebar-panel w-64 flex flex-col ${dark ? '' : 'bg-navy-500'}`}
                style={dark ? { background: 'linear-gradient(180deg, #161422 0%, #100E1A 100%)' } : {}}>
             <Sidebar />
           </div>
@@ -131,13 +131,13 @@ export default function TeacherLayout() {
       )}
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className={`border-b px-4 lg:px-6 py-3 flex items-center justify-between flex-shrink-0 ${dark ? '' : 'bg-white border-gray-200 shadow-sm'}`}
+        <header className={`app-header-safe border-b px-4 lg:px-6 py-3 flex items-center justify-between gap-2 flex-shrink-0 ${dark ? '' : 'bg-white border-gray-200 shadow-sm'}`}
                 style={dark ? { backgroundColor: 'var(--dk-surface)', borderColor: 'var(--dk-border)', boxShadow: '0 1px 0 var(--dk-border)' } : {}}>
-          <button className={`lg:hidden p-2 rounded-lg transition-colors ${dark ? 'text-[var(--dk-text-2)] hover:bg-[var(--dk-elevated)]' : 'text-navy-600 hover:bg-gray-100'}`}
+          <button className={`lg:hidden flex-shrink-0 p-2 rounded-lg transition-colors ${dark ? 'text-[var(--dk-text-2)] hover:bg-[var(--dk-elevated)]' : 'text-navy-600 hover:bg-gray-100'}`}
                   onClick={() => setSidebarOpen(true)}>
             <Menu className="w-5 h-5" />
           </button>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 flex-shrink-0">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
               <span className={`text-sm font-medium ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-700'}`}>متصل</span>

@@ -516,6 +516,34 @@ html.dark .rounded-lg.border {
   border-color: var(--dk-border);
 }
 
+/* ══════════════════════════════════════════════════════
+   iOS / iPhone — Viewport & Safe Area fixes
+   viewport-fit=cover is set in index.html so env() vars
+   return real values (notch, home indicator, landscape bar)
+══════════════════════════════════════════════════════ */
+
+/* Full-height layout that accounts for iOS Safari URL bar
+   100dvh = dynamic viewport height (shrinks with URL bar shown) */
+.app-root-layout {
+  height: 100vh;    /* fallback */
+  height: 100dvh;   /* iOS 15.4+ Safari: adjusts when URL bar toggles */
+}
+
+/* Header safe area — pushes content below notch / Dynamic Island
+   Only has a visual effect when viewport-fit=cover is set AND
+   the app is running in standalone / PWA mode (or landscape with notch) */
+.app-header-safe {
+  padding-top: env(safe-area-inset-top);
+  padding-inline-start: env(safe-area-inset-right); /* RTL: start = right */
+  padding-inline-end:   env(safe-area-inset-left);  /* RTL: end   = left  */
+}
+
+/* Sidebar overlay — must also clear the safe area */
+.app-sidebar-panel {
+  padding-top:    env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
 /* ── Notification Bell Dropdown ── */
 .notif-dropdown {
   position: absolute;
@@ -532,10 +560,12 @@ html.dark .rounded-lg.border {
     position: fixed !important;
     left: 8px !important;
     right: 8px !important;
-    top: 60px !important;
+    /* 60px header height + notch safe area so it clears the header */
+    top: calc(60px + env(safe-area-inset-top)) !important;
     width: auto !important;
     max-width: none !important;
-    max-height: 75vh !important;
+    /* leave room for home indicator at bottom */
+    max-height: calc(75vh - env(safe-area-inset-bottom)) !important;
     overflow-y: auto !important;
   }
 }

@@ -41,11 +41,12 @@ export default function OfflineIndicator() {
 
   return (
     <div
-      className={`fixed bottom-4 right-4 left-4 sm:left-auto sm:w-80 z-[9999] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl transition-all duration-300 ${
+      className={`fixed right-4 left-4 sm:left-auto sm:w-80 z-[9999] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl transition-all duration-300 ${
         isBack
           ? 'bg-green-600 text-white'
           : 'bg-gray-900 text-white'
       }`}
+      style={{ bottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
       dir="rtl"
     >
       <WifiOff className={`w-4 h-4 flex-shrink-0 ${isBack ? 'hidden' : ''}`} />
