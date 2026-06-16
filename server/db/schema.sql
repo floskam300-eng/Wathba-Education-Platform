@@ -1040,3 +1040,7 @@ CREATE INDEX IF NOT EXISTS idx_recitation_results_recitation ON recitation_resul
 ALTER TABLE bank_questions ADD COLUMN IF NOT EXISTS sub_questions JSONB DEFAULT '[]';
 ALTER TABLE bank_questions DROP CONSTRAINT IF EXISTS chk_bank_question_type;
 ALTER TABLE bank_questions ADD CONSTRAINT chk_bank_question_type CHECK (question_type IN ('mcq', 'true_false', 'image_multi'));
+
+-- Absent marking: track students who missed a published exam
+ALTER TABLE exam_results ADD COLUMN IF NOT EXISTS is_absent BOOLEAN DEFAULT false NOT NULL;
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS absent_marked BOOLEAN DEFAULT false NOT NULL;

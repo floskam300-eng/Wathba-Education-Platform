@@ -28,6 +28,67 @@ const parseParamId = (raw) => {
 const QUESTION_IMG_DIR = path.join(__dirname, '../../uploads/question-images');
 fs.mkdirSync(QUESTION_IMG_DIR, { recursive: true });
 
+// ── Helper: mark absent records for students who missed a published exam ──────
+// Called on manual unpublish and from the ended-exam scheduler.
+// Only inserts for students who have NO existing result for this exam.
+async function markAbsentStudents(poolOrClient, examId, teacherId) {
+  try {
+    const examInfo = await poolOrClient.query(
+      'SELECT course_id FROM exams WHERE id=$1', [examId]
+    );
+    if (!examInfo.rows.length) return 0;
+    const courseId = examInfo.rows[0].course_id;
+
+    let eligibleRows;
+    if (courseId) {
+      const r = await poolOrClient.query(
+        `SELECT sce.student_id AS id
+         FROM student_course_enrollment sce
+         WHERE sce.course_id=$1 AND sce.status='active'
+           AND NOT EXISTS (
+             SELECT 1 FROM exam_results er
+             WHERE er.student_id=sce.student_id AND er.exam_id=$2
+           )`,
+        [courseId, examId]
+      );
+      eligibleRows = r.rows;
+    } else {
+      const r = await poolOrClient.query(
+        `SELECT s.id
+         FROM students s
+         WHERE s.teacher_id=$1 AND s.deleted_at IS NULL AND s.is_suspended=false
+           AND NOT EXISTS (
+             SELECT 1 FROM exam_results er
+             WHERE er.student_id=s.id AND er.exam_id=$2
+           )`,
+        [teacherId, examId]
+      );
+      eligibleRows = r.rows;
+    }
+
+    if (eligibleRows.length > 0) {
+      const studentIds = eligibleRows.map(r => r.id);
+      await poolOrClient.query(
+        `INSERT INTO exam_results
+           (student_id, exam_id, score, correct_count, wrong_count, unanswered_count,
+            is_absent, is_latest, attempt_number, points_earned)
+         SELECT s_id, $2, 0, 0, 0, 0, true, true, 1, 0
+         FROM unnest($1::int[]) AS s_id
+         WHERE NOT EXISTS (
+           SELECT 1 FROM exam_results er WHERE er.student_id=s_id AND er.exam_id=$2
+         )`,
+        [studentIds, examId]
+      );
+    }
+    await poolOrClient.query('UPDATE exams SET absent_marked=true WHERE id=$1', [examId]);
+    console.log(`[markAbsentStudents] exam=${examId} — marked ${eligibleRows.length} absent`);
+    return eligibleRows.length;
+  } catch (err) {
+    console.error('[markAbsentStudents] error:', err.message);
+    return 0;
+  }
+}
+
 const questionImageStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, QUESTION_IMG_DIR),
   filename: (req, file, cb) => {
@@ -299,6 +360,7 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExams
             );
           }
           await resetClient.query('DELETE FROM exam_results WHERE exam_id=$1', [examId]);
+          await resetClient.query('UPDATE exams SET absent_marked=false WHERE id=$1', [examId]);
           await resetClient.query(
             "UPDATE exam_retry_requests SET status='used', handled_at=NOW() WHERE exam_id=$1 AND status='pending'",
             [examId]
@@ -390,6 +452,10 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExams
           title: exam.title,
         });
       }
+      // Mark absent for every eligible student who never took this exam
+      markAbsentStudents(pool, exam.id, teacherId).catch(e =>
+        console.error('[unpublish] markAbsentStudents error:', e.message)
+      );
     }
 
     // Notify the teacher (and any logged-in assistants) in real-time
@@ -817,7 +883,28 @@ router.put('/retry-requests/:reqId/reject', requireRole('teacher', 'assistant'),
   }
 });
 
-// ── Student: list available exams (with scheduling check) ──
+// ── Student: full exam result history (all attempts, all exams incl. absent) ──
+router.get('/student/my-results', requireRole('student'), async (req, res) => {
+  const studentId = req.user.id;
+  try {
+    const { rows } = await pool.query(
+      `SELECT er.id, er.score, er.attempt_number, er.is_latest, er.is_absent, er.created_at,
+              e.id AS exam_id, e.title AS exam_title, e.total_score, e.pass_score, e.is_published,
+              COALESCE(c.name, '') AS course_name
+       FROM exam_results er
+       JOIN exams e ON er.exam_id = e.id
+       LEFT JOIN courses c ON e.course_id = c.id
+       WHERE er.student_id = $1
+       ORDER BY er.created_at DESC`,
+      [studentId]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('[exams/student/my-results]', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 router.get('/student/available', requireRole('student'), async (req, res) => {
   try {
     const result = await pool.query(

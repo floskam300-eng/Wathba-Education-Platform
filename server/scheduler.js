@@ -14,9 +14,11 @@ let _pool = null;
 let _intervalId = null;
 let _waIntervalId = null;
 let _recIntervalId = null;
+let _examEndIntervalId = null;
 let _isRunning = false;
 let _isWaRunning = false;
 let _isRecRunning = false;
+let _isEndRunning = false;
 
 async function runCheck() {
   if (!_pool || _isRunning) return;
@@ -344,6 +346,81 @@ async function runRecitationSchedule() {
   }
 }
 
+// ── Ended-exam absent marker ──────────────────────────────────────────────────
+// Runs every 5 minutes. Finds exams whose end_date has passed and marks every
+// eligible student with no result as "absent" — regardless of is_published state
+// so that manually-unpublished exams (already handled inline in the route) as
+// well as exams that simply expired are both covered.
+async function runEndedExamCheck() {
+  if (!_pool || _isEndRunning) return;
+  _isEndRunning = true;
+  try {
+    const { rows: endedExams } = await _pool.query(`
+      SELECT e.id, e.teacher_id, e.title, e.course_id
+      FROM exams e
+      WHERE e.end_date IS NOT NULL
+        AND e.end_date <= NOW()
+        AND e.absent_marked = false
+      LIMIT 50
+    `);
+
+    for (const exam of endedExams) {
+      try {
+        const courseId = exam.course_id;
+        let eligibleRows;
+        if (courseId) {
+          const r = await _pool.query(
+            `SELECT sce.student_id AS id
+             FROM student_course_enrollment sce
+             WHERE sce.course_id=$1 AND sce.status='active'
+               AND NOT EXISTS (
+                 SELECT 1 FROM exam_results er
+                 WHERE er.student_id=sce.student_id AND er.exam_id=$2
+               )`,
+            [courseId, exam.id]
+          );
+          eligibleRows = r.rows;
+        } else {
+          const r = await _pool.query(
+            `SELECT s.id
+             FROM students s
+             WHERE s.teacher_id=$1 AND s.deleted_at IS NULL AND s.is_suspended=false
+               AND NOT EXISTS (
+                 SELECT 1 FROM exam_results er
+                 WHERE er.student_id=s.id AND er.exam_id=$2
+               )`,
+            [exam.teacher_id, exam.id]
+          );
+          eligibleRows = r.rows;
+        }
+
+        if (eligibleRows.length > 0) {
+          const studentIds = eligibleRows.map(r => r.id);
+          await _pool.query(
+            `INSERT INTO exam_results
+               (student_id, exam_id, score, correct_count, wrong_count, unanswered_count,
+                is_absent, is_latest, attempt_number, points_earned)
+             SELECT s_id, $2, 0, 0, 0, 0, true, true, 1, 0
+             FROM unnest($1::int[]) AS s_id
+             WHERE NOT EXISTS (
+               SELECT 1 FROM exam_results er WHERE er.student_id=s_id AND er.exam_id=$2
+             )`,
+            [studentIds, exam.id]
+          );
+        }
+        await _pool.query('UPDATE exams SET absent_marked=true WHERE id=$1', [exam.id]);
+        console.log(`[Scheduler] Ended exam "${exam.title}" (id=${exam.id}) — marked ${eligibleRows.length} absent`);
+      } catch (e) {
+        console.error(`[Scheduler] Error marking absent for exam ${exam.id}:`, e.message);
+      }
+    }
+  } catch (err) {
+    console.error('[Scheduler] Error in ended exam check:', err.message);
+  } finally {
+    _isEndRunning = false;
+  }
+}
+
 function startScheduler(pool) {
   _pool = pool;
   runCheck();
@@ -353,15 +430,20 @@ function startScheduler(pool) {
   // Check recitation windows every 5 minutes
   runRecitationSchedule();
   _recIntervalId = setInterval(runRecitationSchedule, 5 * 60 * 1000);
+  // Check for ended exams and mark absent students every 5 minutes
+  runEndedExamCheck();
+  _examEndIntervalId = setInterval(runEndedExamCheck, 5 * 60 * 1000);
   console.log('[Scheduler] Exam start scheduler running (30s interval)');
   console.log('[Scheduler] WhatsApp schedule checker running (5min interval)');
   console.log('[Scheduler] Recitation window scheduler running (5min interval)');
+  console.log('[Scheduler] Ended-exam absent marker running (5min interval)');
 }
 
 function stopScheduler() {
-  if (_intervalId)   { clearInterval(_intervalId);   _intervalId   = null; }
-  if (_waIntervalId) { clearInterval(_waIntervalId); _waIntervalId = null; }
-  if (_recIntervalId) { clearInterval(_recIntervalId); _recIntervalId = null; }
+  if (_intervalId)       { clearInterval(_intervalId);       _intervalId       = null; }
+  if (_waIntervalId)     { clearInterval(_waIntervalId);     _waIntervalId     = null; }
+  if (_recIntervalId)    { clearInterval(_recIntervalId);    _recIntervalId    = null; }
+  if (_examEndIntervalId){ clearInterval(_examEndIntervalId); _examEndIntervalId = null; }
 }
 
 module.exports = { startScheduler, stopScheduler };

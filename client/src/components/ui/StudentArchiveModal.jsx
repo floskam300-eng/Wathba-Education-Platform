@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext';
 import {
   X, FileText, GraduationCap, CheckCircle2, XCircle,
-  Printer, ChevronDown, ChevronUp, Eye,
+  Printer, ChevronDown, ChevronUp, Eye, Clock,
 } from 'lucide-react';
 import api from '../../lib/api';
 import { generatePDFReport } from '../../lib/pdfReport';
@@ -323,48 +323,68 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
                   const passed = Number(r.score) >= Number(r.pass_score);
                   const isExpanded = expandedExam === r.id;
 
+                  const isAbsent = r.is_absent === true || r.is_absent === 'true';
+                  const borderClass = isAbsent
+                    ? (dark ? 'border-l-2 border-l-gray-500' : 'border-l-2 border-l-gray-400')
+                    : passed
+                      ? (dark ? 'border-l-2 border-l-green-500' : 'border-l-2 border-l-green-400')
+                      : (dark ? 'border-l-2 border-l-red-500' : 'border-l-2 border-l-red-400');
+
                   return (
                     <div
                       key={r.id}
-                      className={`rounded-xl border overflow-hidden transition-all ${dark ? 'border-[var(--dk-border)]' : 'border-gray-100'} ${passed ? (dark ? 'border-l-2 border-l-green-500' : 'border-l-2 border-l-green-400') : (dark ? 'border-l-2 border-l-red-500' : 'border-l-2 border-l-red-400')}`}
+                      className={`rounded-xl border overflow-hidden transition-all ${dark ? 'border-[var(--dk-border)]' : 'border-gray-100'} ${borderClass}`}
                     >
                       <button
-                        onClick={() => setExpandedExam(isExpanded ? null : r.id)}
-                        className={`w-full flex items-center gap-3 px-4 py-3 text-right transition-colors ${dark ? 'hover:bg-[var(--dk-elevated)]' : 'hover:bg-gray-50'}`}
+                        onClick={() => !isAbsent && setExpandedExam(isExpanded ? null : r.id)}
+                        className={`w-full flex items-center gap-3 px-4 py-3 text-right transition-colors ${isAbsent ? 'cursor-default' : (dark ? 'hover:bg-[var(--dk-elevated)]' : 'hover:bg-gray-50')}`}
                       >
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-black ${passed ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
-                          {passed ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-black ${isAbsent ? 'bg-gray-400 text-white' : passed ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
+                          {isAbsent ? <Clock className="w-4 h-4" /> : passed ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
                         </div>
                         <div className="flex-1 min-w-0 text-right">
                           <div className="flex items-center gap-2 flex-wrap">
                             <p className={`text-xs font-black truncate ${textPrimary}`}>{r.exam_title}</p>
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-500'}`}>
-                              {r.course_name}
-                            </span>
-                            {r.attempt_number > 1 && (
+                            {r.course_name && (
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-500'}`}>
+                                {r.course_name}
+                              </span>
+                            )}
+                            {isAbsent && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-gray-100 text-gray-500">
+                                غائب
+                              </span>
+                            )}
+                            {!isAbsent && !r.is_latest && (
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${dark ? 'bg-amber-900/40 text-amber-300' : 'bg-amber-50 text-amber-600'}`}>
+                                محاولة قديمة
+                              </span>
+                            )}
+                            {!isAbsent && r.attempt_number > 1 && r.is_latest && (
                               <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${dark ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-50 text-blue-600'}`}>
                                 إعادة {r.attempt_number}
                               </span>
                             )}
                           </div>
                           <div className="flex items-center gap-3 mt-1">
-                            <div className="flex items-center gap-1.5">
-                              {/* FIX-F1: removed undeclared `pending` variable — was causing ReferenceError crash */}
-                              <MiniBar value={r.score} max={r.total_score} color={passed ? 'bg-green-500' : 'bg-red-500'} />
-                              <span className={`text-[10px] font-bold ${passed ? 'text-green-600' : 'text-red-500'}`}>{p}%</span>
-                            </div>
+                            {!isAbsent && (
+                              <div className="flex items-center gap-1.5">
+                                <MiniBar value={r.score} max={r.total_score} color={passed ? 'bg-green-500' : 'bg-red-500'} />
+                                <span className={`text-[10px] font-bold ${passed ? 'text-green-600' : 'text-red-500'}`}>{p}%</span>
+                              </div>
+                            )}
                             <span className={`text-[10px] ${textSec}`}>{fmt(r.created_at)}</span>
                           </div>
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
-                          <span className={`text-xs font-black ${passed ? 'text-green-500' : 'text-red-500'}`}>
-                            {r.score}/{r.total_score}
+                          <span className={`text-xs font-black ${isAbsent ? 'text-gray-400' : passed ? 'text-green-500' : 'text-red-500'}`}>
+                            {isAbsent ? 'غائب' : `${r.score}/${r.total_score}`}
                           </span>
-                          {isExpanded ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
+                          {!isAbsent && (isExpanded ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />)}
                         </div>
                       </button>
 
-                      {isExpanded && (
+                      {!isAbsent && isExpanded && (
                         <div className={`px-4 pb-3 border-t ${divider} ${dark ? 'bg-[var(--dk-elevated)]' : 'bg-gray-50'}`}>
                           <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 pt-3">
                             {[

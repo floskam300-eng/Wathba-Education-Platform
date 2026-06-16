@@ -375,8 +375,15 @@ export default function ArchivePage() {
                         </td>
                         <td className="px-4 py-3"><StageBadge stage={st.academic_stage} dark={dark} /></td>
                         <td className="px-4 py-3">
-                          {Number(st.total_exams) > 0
-                            ? <PassBar passed={Number(st.passed_exams)} total={Number(st.total_exams)} dark={dark} />
+                          {(Number(st.total_exams) > 0 || Number(st.absent_exams) > 0)
+                            ? <div className="space-y-0.5">
+                                <PassBar passed={Number(st.passed_exams)} total={Number(st.total_exams)} dark={dark} />
+                                {Number(st.absent_exams) > 0 && (
+                                  <span className={`block text-[10px] font-bold ${dark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                    {st.absent_exams} غياب
+                                  </span>
+                                )}
+                              </div>
                             : <span className={`text-[10px] ${textSec}`}>—</span>}
                         </td>
                         <td className="px-4 py-3">
@@ -431,11 +438,12 @@ export default function ArchivePage() {
                       </div>
                       <p className={`text-[10px] mb-2 ${textSec}`}>{st.username}</p>
                       <div className="flex items-center gap-4 flex-wrap">
-                        {Number(st.total_exams) > 0 && (
+                        {(Number(st.total_exams) > 0 || Number(st.absent_exams) > 0) && (
                           <div className="flex items-center gap-1">
                             <FileText className="w-3 h-3 text-orange-400 flex-shrink-0" />
                             <span className={`text-[10px] font-bold ${examPct >= 60 ? 'text-green-600' : 'text-red-500'}`}>
                               {st.passed_exams}/{st.total_exams} اختبار ({examPct}%)
+                              {Number(st.absent_exams) > 0 && <span className="text-gray-400"> · {st.absent_exams} غياب</span>}
                             </span>
                           </div>
                         )}

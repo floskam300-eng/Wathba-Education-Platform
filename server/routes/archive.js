@@ -78,7 +78,7 @@ router.get('/exam-results', requireRole('teacher', 'assistant'), checkExamPerm, 
     return res.status(400).json({ error: 'تاريخ البداية يجب أن يكون قبل تاريخ النهاية' });
 
   try {
-    const conditions = ['e.teacher_id = $1', 's.deleted_at IS NULL', 'er.is_latest = true'];
+    const conditions = ['e.teacher_id = $1', 's.deleted_at IS NULL'];
     const params = [teacherId];
     let p = 2;
 
@@ -112,9 +112,11 @@ router.get('/exam-results', requireRole('teacher', 'assistant'), checkExamPerm, 
       params.push(stage);
     }
     if (status === 'pass') {
-      conditions.push(`er.score >= e.pass_score`);
+      conditions.push(`er.score >= e.pass_score AND er.is_absent = false`);
     } else if (status === 'fail') {
-      conditions.push(`er.score < e.pass_score`);
+      conditions.push(`er.score < e.pass_score AND er.is_absent = false`);
+    } else if (status === 'absent') {
+      conditions.push(`er.is_absent = true`);
     }
     if (attempt === 'first') {
       conditions.push(`er.attempt_number = 1`);
@@ -159,7 +161,7 @@ router.get('/exam-results', requireRole('teacher', 'assistant'), checkExamPerm, 
     const dataQ = await pool.query(
       `SELECT
          er.id, er.score, er.correct_count, er.wrong_count, er.unanswered_count,
-         er.points_earned, er.attempt_number, er.created_at,
+         er.points_earned, er.attempt_number, er.created_at, er.is_absent, er.is_latest,
          e.id AS exam_id, e.title AS exam_title, e.total_score, e.pass_score,
          e.course_id,
          COALESCE(c.name, '—') AS course_name,
@@ -373,10 +375,11 @@ router.get('/students', requireRole('teacher', 'assistant'), checkAnyPerm, async
     // Subquery for exam stats (per student, this teacher only)
     const examSub = `
       SELECT er.student_id,
-        COUNT(*) FILTER (WHERE er.is_latest = true) AS total_exams,
-        COUNT(*) FILTER (WHERE er.is_latest = true AND er.score >= e.pass_score) AS passed_exams,
+        COUNT(*) FILTER (WHERE er.is_latest = true AND er.is_absent = false) AS total_exams,
+        COUNT(*) FILTER (WHERE er.is_latest = true AND er.score >= e.pass_score AND er.is_absent = false) AS passed_exams,
+        COUNT(*) FILTER (WHERE er.is_latest = true AND er.is_absent = true) AS absent_exams,
         ROUND(AVG(er.score::numeric / NULLIF(e.total_score,0) * 100)
-              FILTER (WHERE er.is_latest = true), 1) AS avg_exam_score
+              FILTER (WHERE er.is_latest = true AND er.is_absent = false), 1) AS avg_exam_score
       FROM exam_results er
       JOIN exams e ON er.exam_id = e.id
       WHERE e.teacher_id = $1
@@ -407,6 +410,7 @@ router.get('/students', requireRole('teacher', 'assistant'), checkAnyPerm, async
          s.id, s.name, s.username, s.academic_stage,
          COALESCE(ex.total_exams,       0) AS total_exams,
          COALESCE(ex.passed_exams,      0) AS passed_exams,
+         COALESCE(ex.absent_exams,      0) AS absent_exams,
          COALESCE(ex.avg_exam_score,    0) AS avg_exam_score,
          COALESCE(rec.total_recitations,0) AS total_recitations,
          COALESCE(rec.passed_recitations,0) AS passed_recitations,
@@ -492,12 +496,12 @@ router.get('/student/:id/exam-results', requireRole('teacher', 'assistant'), che
     const { rows } = await pool.query(
       `SELECT
          er.id, er.score, er.correct_count, er.wrong_count, er.unanswered_count,
-         er.points_earned, er.attempt_number, er.created_at, er.is_latest,
+         er.points_earned, er.attempt_number, er.created_at, er.is_latest, er.is_absent,
          e.id AS exam_id, e.title AS exam_title, e.total_score, e.pass_score,
          c.id AS course_id, c.name AS course_name
        FROM exam_results er
        JOIN exams e ON er.exam_id = e.id
-       JOIN courses c ON e.course_id = c.id
+       LEFT JOIN courses c ON e.course_id = c.id
        WHERE er.student_id = $1 AND e.teacher_id = $2
        ORDER BY er.created_at DESC`,
       [studentId, teacherId]
