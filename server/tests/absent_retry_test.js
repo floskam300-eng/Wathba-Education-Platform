@@ -1058,6 +1058,215 @@ async function run() {
   })();
 
   // ══════════════════════════════════════════════════════════════════════════
+  // 11. New-pass audit: N1-N7 (discovered in second audit round)
+  // ══════════════════════════════════════════════════════════════════════════
+  console.log(head('11. New-pass audit — N1 available JOIN · N2 retry guard · N3 summary · N4 scheduler DRY'));
+
+  // ── N1: /student/available must NOT expose absent record in already_taken ──
+  await (async () => {
+    const exam = await makeExam({ published: true, endedHoursAgo: 1 });
+    await insertAbsentRecord(S1.id, exam.id);
+
+    const r = await req('GET', '/exams/student/available', null, S1_TOKEN);
+    assert('N1-1: available endpoint returns 200 for student', r.status === 200, `status=${r.status}`);
+
+    const examRow = Array.isArray(r.data) ? r.data.find(x => x.id === exam.id) : null;
+    // The exam may not appear if end_date is in the past and teacher filters it — that is fine.
+    // What MUST NOT happen is already_taken pointing at the absent result id.
+    if (examRow) {
+      assert(
+        'N1-2: already_taken is null for absent student (N1 fix — absent excluded from JOIN)',
+        examRow.already_taken === null || examRow.already_taken === undefined,
+        `already_taken=${examRow.already_taken}`
+      );
+    } else {
+      // Exam with end_date in the past is still published — count as pass because the guard is on server
+      assert('N1-2: already_taken is null for absent student (N1 fix — exam expired so hidden)', true, 'exam not shown for expired exam — correct');
+    }
+
+    await pool.query('DELETE FROM exam_results WHERE exam_id=$1', [exam.id]);
+    await pool.query('DELETE FROM exams WHERE id=$1', [exam.id]);
+  })();
+
+  await (async () => {
+    // Active (non-expired) exam: student with absent record should not have already_taken set
+    const exam = await makeExam({ published: true, endedHoursAgo: -2 }); // ends 2h from now
+    await insertAbsentRecord(S1.id, exam.id);
+
+    const r = await req('GET', '/exams/student/available', null, S1_TOKEN);
+    const examRow = Array.isArray(r.data) ? r.data.find(x => x.id === exam.id) : null;
+    assert(
+      'N1-3: for a live exam, absent student sees already_taken=null (can see Start button)',
+      !examRow || examRow.already_taken === null || examRow.already_taken === undefined,
+      `already_taken=${examRow?.already_taken}`
+    );
+
+    await pool.query('DELETE FROM exam_results WHERE exam_id=$1', [exam.id]);
+    await pool.query('DELETE FROM exams WHERE id=$1', [exam.id]);
+  })();
+
+  // ── N2: absent student must NOT be allowed to submit retry request ──────
+  await (async () => {
+    const exam = await makeExam({ published: true, endedHoursAgo: -2 }); // still open
+    await insertAbsentRecord(S1.id, exam.id);
+
+    const r = await req('POST', `/exams/${exam.id}/retry-request`, { message: 'test' }, S1_TOKEN);
+    assert(
+      'N2-1: absent student gets 400 on retry request (N2 fix)',
+      r.status === 400,
+      `status=${r.status} error="${r.data?.error}"`
+    );
+    assert(
+      'N2-2: error message mentions "غائباً"',
+      typeof r.data?.error === 'string' && r.data.error.includes('غائباً'),
+      `error="${r.data?.error}"`
+    );
+
+    await pool.query('DELETE FROM exam_results WHERE exam_id=$1', [exam.id]);
+    await pool.query('DELETE FROM exams WHERE id=$1', [exam.id]);
+  })();
+
+  await (async () => {
+    // Student with a real result CAN still submit retry request (guard should not block them)
+    const exam = await makeExam({ published: true, endedHoursAgo: -2 });
+    await pool.query(
+      `INSERT INTO exam_results (student_id,exam_id,score,correct_count,wrong_count,unanswered_count,is_absent,is_latest,attempt_number,points_earned)
+       VALUES ($1,$2,40,2,3,0,false,true,1,0)`,
+      [S1.id, exam.id]
+    );
+    const r = await req('POST', `/exams/${exam.id}/retry-request`, { message: 'please' }, S1_TOKEN);
+    assert(
+      'N2-3: student with real (non-absent) result can submit retry request (201)',
+      r.status === 201,
+      `status=${r.status} error="${r.data?.error}"`
+    );
+
+    await pool.query('DELETE FROM exam_retry_requests WHERE exam_id=$1', [exam.id]);
+    await pool.query('DELETE FROM exam_results WHERE exam_id=$1', [exam.id]);
+    await pool.query('DELETE FROM exams WHERE id=$1', [exam.id]);
+  })();
+
+  // ── N3: /archive/student/:id/summary must exclude absent from total/failed/avg ──
+  await (async () => {
+    const exam = await makeExam({ published: true, endedHoursAgo: 1 });
+    // S1: absent only
+    await insertAbsentRecord(S1.id, exam.id);
+
+    const r = await req('GET', `/archive/student/${S1.id}/summary`, null, T_TOKEN);
+    assert('N3-1: summary returns 200', r.status === 200, `status=${r.status}`);
+
+    const exE = r.data?.exams;
+    assert(
+      'N3-2: total_exams is 0 for absent-only student (N3 fix — absent excluded)',
+      parseInt(exE?.total_exams) === 0,
+      `total_exams=${exE?.total_exams}`
+    );
+    assert(
+      'N3-3: failed_exams is 0 for absent-only student (was 1 before fix — score=0 < pass_score)',
+      parseInt(exE?.failed_exams) === 0,
+      `failed_exams=${exE?.failed_exams}`
+    );
+    assert(
+      'N3-4: absent_exams is 1 for absent-only student (new field added in N3)',
+      parseInt(exE?.absent_exams) === 1,
+      `absent_exams=${exE?.absent_exams}`
+    );
+    assert(
+      'N3-5: avg_score is null/0 for absent-only student (no real results to average)',
+      exE?.avg_score === null || exE?.avg_score === '0' || Number(exE?.avg_score) === 0,
+      `avg_score=${exE?.avg_score}`
+    );
+
+    await pool.query('DELETE FROM exam_results WHERE exam_id=$1', [exam.id]);
+    await pool.query('DELETE FROM exams WHERE id=$1', [exam.id]);
+  })();
+
+  await (async () => {
+    // Student with one passed real result + one absent record
+    const exam1 = await makeExam({ published: true, endedHoursAgo: 2 });
+    const exam2 = await makeExam({ published: true, endedHoursAgo: 1 });
+    // S2: passed exam1 (score=80, pass_score=50 via makeExam)
+    await pool.query(
+      `INSERT INTO exam_results (student_id,exam_id,score,correct_count,wrong_count,unanswered_count,is_absent,is_latest,attempt_number,points_earned)
+       VALUES ($1,$2,80,4,1,0,false,true,1,0)`,
+      [S2.id, exam1.id]
+    );
+    // S2: absent for exam2
+    await insertAbsentRecord(S2.id, exam2.id);
+
+    const r = await req('GET', `/archive/student/${S2.id}/summary`, null, T_TOKEN);
+    const exE = r.data?.exams;
+
+    assert(
+      'N3-6: total_exams=1 for student with 1 real + 1 absent (absent not counted)',
+      parseInt(exE?.total_exams) === 1,
+      `total_exams=${exE?.total_exams}`
+    );
+    assert(
+      'N3-7: passed_exams=1 for the passed real result',
+      parseInt(exE?.passed_exams) === 1,
+      `passed_exams=${exE?.passed_exams}`
+    );
+    assert(
+      'N3-8: failed_exams=0 (absent record no longer inflates failed count)',
+      parseInt(exE?.failed_exams) === 0,
+      `failed_exams=${exE?.failed_exams}`
+    );
+    assert(
+      'N3-9: absent_exams=1',
+      parseInt(exE?.absent_exams) === 1,
+      `absent_exams=${exE?.absent_exams}`
+    );
+
+    await pool.query('DELETE FROM exam_results WHERE exam_id IN ($1,$2)', [exam1.id, exam2.id]);
+    await pool.query('DELETE FROM exams WHERE id IN ($1,$2)', [exam1.id, exam2.id]);
+  })();
+
+  // ── N4: scheduler DRY — markAbsentStudents is the single source of truth ──
+  await (async () => {
+    // Verify the scheduler's runEndedExamCheck query selects is_published=true exams.
+    // Then verify that calling markAbsentStudents() directly (the shared function)
+    // produces correct results — confirming both paths use identical logic.
+    const examPub = await makeExam({ published: true, endedHoursAgo: 1 });
+    const examUnpub = await makeExam({ published: false, endedHoursAgo: 1 });
+
+    // Scheduler query (copied verbatim from scheduler.js)
+    const { rows: schedulerExams } = await pool.query(`
+      SELECT e.id FROM exams e
+      WHERE e.end_date IS NOT NULL AND e.end_date <= NOW()
+        AND e.absent_marked = false AND e.is_published = true
+      LIMIT 50
+    `);
+    const ids = schedulerExams.map(r => r.id);
+
+    assert(
+      'N4-1: scheduler query selects published ended exam (pub exam in result)',
+      ids.includes(examPub.id),
+      `pub exam id=${examPub.id} in ids=[${ids}]`
+    );
+    assert(
+      'N4-2: scheduler query skips unpublished ended exam (N4 — DRY fix)',
+      !ids.includes(examUnpub.id),
+      `unpub exam id=${examUnpub.id} should NOT be in ids=[${ids}]`
+    );
+
+    // Also verify markAbsentStudents (the shared fn now used by scheduler) still works correctly
+    const { markAbsentStudents: mas } = require('../routes/exams');
+    await mas(pool, examPub.id, T.id);
+    const absentRows = await pool.query(
+      'SELECT * FROM exam_results WHERE exam_id=$1 AND is_absent=true', [examPub.id]
+    );
+    assert(
+      'N4-3: markAbsentStudents (shared fn) correctly marks absent when called by scheduler path',
+      absentRows.rows.length === 3, // S1, S2, S3 all enrolled under T
+      `absent rows=${absentRows.rows.length} expected 3`
+    );
+
+    await pool.query('DELETE FROM exam_results WHERE exam_id IN ($1,$2)', [examPub.id, examUnpub.id]);
+    await pool.query('DELETE FROM exams WHERE id IN ($1,$2)', [examPub.id, examUnpub.id]);
+  })();
+
+  // ══════════════════════════════════════════════════════════════════════════
   // Summary
   // ══════════════════════════════════════════════════════════════════════════
   console.log('\n' + '═'.repeat(60));

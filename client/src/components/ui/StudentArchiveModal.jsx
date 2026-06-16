@@ -60,17 +60,22 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
   const textSec = dark ? 'text-[var(--dk-text-2)]' : 'text-gray-500';
   const divider = dark ? 'border-[var(--dk-border)]' : 'border-gray-100';
 
-  const examRows = examResults?.map(r => [
-    r.course_name,
-    r.exam_title,
-    `${r.score}/${r.total_score}`,
-    `${pct(r.score, r.total_score)}%`,
-    Number(r.score) >= Number(r.pass_score) ? 'ناجح' : 'راسب',
-    r.attempt_number > 1 ? `إعادة (${r.attempt_number})` : 'أول محاولة',
-    `${r.correct_count} صح / ${r.wrong_count} خطأ / ${r.unanswered_count} بلا إجابة`,
-    r.points_earned > 0 ? `+${r.points_earned}` : '—',
-    fmt(r.created_at),
-  ]) || [];
+  const examRows = examResults?.map(r => {
+    const isAbsent = r.is_absent === true || r.is_absent === 'true';
+    return [
+      r.course_name,
+      r.exam_title,
+      isAbsent ? 'غائب' : `${r.score}/${r.total_score}`,
+      isAbsent ? '—' : `${pct(r.score, r.total_score)}%`,
+      // N6 FIX: absent records showed as 'راسب' because score=0 < pass_score.
+      // They must be labelled 'غائب' — the student never answered any questions.
+      isAbsent ? 'غائب' : Number(r.score) >= Number(r.pass_score) ? 'ناجح' : 'راسب',
+      isAbsent ? '—' : r.attempt_number > 1 ? `إعادة (${r.attempt_number})` : 'أول محاولة',
+      isAbsent ? '—' : `${r.correct_count} صح / ${r.wrong_count} خطأ / ${r.unanswered_count} بلا إجابة`,
+      isAbsent ? '—' : r.points_earned > 0 ? `+${r.points_earned}` : '—',
+      fmt(r.created_at),
+    ];
+  }) || [];
 
   const recRows = recResults?.map(r => [
     r.recitation_title,
@@ -204,6 +209,11 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
                   <StatPill label="إجمالي" value={exE?.total_exams || 0} color={dark ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-50 text-blue-700'} />
                   <StatPill label="ناجح" value={exE?.passed_exams || 0} color={dark ? 'bg-green-900/40 text-green-300' : 'bg-green-50 text-green-700'} />
                   <StatPill label="راسب" value={exE?.failed_exams || 0} color={dark ? 'bg-red-900/40 text-red-300' : 'bg-red-50 text-red-700'} />
+                  {/* N7 FIX: show absent count as a distinct pill — previously absent records
+                      inflated the "راسب" count since score=0 < pass_score */}
+                  {Number(exE?.absent_exams) > 0 && (
+                    <StatPill label="غائب" value={exE.absent_exams} color={dark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-500'} />
+                  )}
                   <StatPill label="متوسط" value={`${exE?.avg_score || 0}%`} color={dark ? 'bg-purple-900/40 text-purple-300' : 'bg-purple-50 text-purple-700'} />
                 </div>
               </div>

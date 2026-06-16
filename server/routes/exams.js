@@ -730,10 +730,16 @@ router.post('/:id/retry-request', requireRole('student'), async (req, res) => {
     }
 
     const taken = await pool.query(
-      'SELECT id, score FROM exam_results WHERE student_id=$1 AND exam_id=$2 AND is_latest=true',
+      'SELECT id, score, is_absent FROM exam_results WHERE student_id=$1 AND exam_id=$2 AND is_latest=true',
       [studentId, examId]
     );
     if (!taken.rows.length) return res.status(400).json({ error: 'لم تؤدِ هذا الاختبار بعد' });
+    // N2 FIX: absent records must not be treated as "took the exam" for retry purposes.
+    // An absent student (is_latest=true, is_absent=true) would otherwise pass this check
+    // and be allowed to submit a retry request — which is invalid business logic.
+    if (taken.rows[0].is_absent) {
+      return res.status(400).json({ error: 'لم تؤدِ هذا الاختبار — تم تسجيلك غائباً فقط' });
+    }
 
     // Enforce max retry limit per exam
     const usedRetries = await pool.query(
@@ -923,6 +929,7 @@ router.get('/student/available', requireRole('student'), async (req, res) => {
        LEFT JOIN courses c ON e.course_id = c.id
        LEFT JOIN student_course_enrollment sce ON e.course_id = sce.course_id AND sce.student_id = $1
        LEFT JOIN exam_results er ON e.id = er.exam_id AND er.student_id = $1 AND er.is_latest = true
+         AND er.is_absent = false
          AND NOT EXISTS (
            SELECT 1 FROM exam_retry_requests rr
            WHERE rr.student_id = $1 AND rr.exam_id = e.id AND rr.status = 'approved'

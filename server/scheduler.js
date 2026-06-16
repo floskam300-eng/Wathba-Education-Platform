@@ -9,6 +9,10 @@
 const { sendEvent } = require('./sse');
 const { sendFCMToStudents } = require('./lib/fcm');
 const { activeSends } = require('./lib/waActiveSends');
+// N4 FIX: import markAbsentStudents so the scheduler reuses the same logic as the
+// manual-unpublish path instead of duplicating it.  Any future bugfixes to
+// markAbsentStudents will automatically apply here too.
+const { markAbsentStudents } = require('./routes/exams');
 
 let _pool = null;
 let _intervalId = null;
@@ -370,50 +374,11 @@ async function runEndedExamCheck() {
 
     for (const exam of endedExams) {
       try {
-        const courseId = exam.course_id;
-        let eligibleRows;
-        if (courseId) {
-          const r = await _pool.query(
-            `SELECT sce.student_id AS id
-             FROM student_course_enrollment sce
-             WHERE sce.course_id=$1 AND sce.status='active'
-               AND NOT EXISTS (
-                 SELECT 1 FROM exam_results er
-                 WHERE er.student_id=sce.student_id AND er.exam_id=$2
-               )`,
-            [courseId, exam.id]
-          );
-          eligibleRows = r.rows;
-        } else {
-          const r = await _pool.query(
-            `SELECT s.id
-             FROM students s
-             WHERE s.teacher_id=$1 AND s.deleted_at IS NULL AND s.is_suspended=false
-               AND NOT EXISTS (
-                 SELECT 1 FROM exam_results er
-                 WHERE er.student_id=s.id AND er.exam_id=$2
-               )`,
-            [exam.teacher_id, exam.id]
-          );
-          eligibleRows = r.rows;
-        }
-
-        if (eligibleRows.length > 0) {
-          const studentIds = eligibleRows.map(r => r.id);
-          await _pool.query(
-            `INSERT INTO exam_results
-               (student_id, exam_id, score, correct_count, wrong_count, unanswered_count,
-                is_absent, is_latest, attempt_number, points_earned)
-             SELECT s_id, $2, 0, 0, 0, 0, true, true, 1, 0
-             FROM unnest($1::int[]) AS s_id
-             WHERE NOT EXISTS (
-               SELECT 1 FROM exam_results er WHERE er.student_id=s_id AND er.exam_id=$2
-             )`,
-            [studentIds, exam.id]
-          );
-        }
-        await _pool.query('UPDATE exams SET absent_marked=true WHERE id=$1', [exam.id]);
-        console.log(`[Scheduler] Ended exam "${exam.title}" (id=${exam.id}) — marked ${eligibleRows.length} absent`);
+        // N4 FIX: delegate to markAbsentStudents() instead of duplicating its logic here.
+        // Previously this block was a copy of that function — any future fix to the
+        // shared function (e.g. new eligibility rules) now automatically applies here.
+        const count = await markAbsentStudents(_pool, exam.id, exam.teacher_id);
+        console.log(`[Scheduler] Ended exam "${exam.title}" (id=${exam.id}) — marked ${count} absent`);
       } catch (e) {
         console.error(`[Scheduler] Error marking absent for exam ${exam.id}:`, e.message);
       }

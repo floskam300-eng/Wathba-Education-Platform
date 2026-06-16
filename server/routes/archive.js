@@ -571,13 +571,16 @@ router.get('/student/:id/summary', requireRole('teacher', 'assistant'), checkAny
     if (!studentQ.rows.length) return res.status(404).json({ error: 'الطالب غير موجود' });
 
     // FIX-A2: avg_score returns percentage (0-100) not raw score
+    // N3 FIX: exclude absent records from total/passed/failed/avg — absent ≠ "took the exam";
+    // count them separately so the modal can show a distinct "غائب" pill.
     const [examStatsQ, recStatsQ] = await Promise.all([
       pool.query(
         `SELECT
-           COUNT(*) FILTER (WHERE er.is_latest=true) AS total_exams,
-           COUNT(*) FILTER (WHERE er.is_latest=true AND er.score >= e.pass_score) AS passed_exams,
-           COUNT(*) FILTER (WHERE er.is_latest=true AND er.score < e.pass_score) AS failed_exams,
-           ROUND(AVG(er.score::numeric / NULLIF(e.total_score, 0) * 100) FILTER (WHERE er.is_latest=true), 1) AS avg_score
+           COUNT(*) FILTER (WHERE er.is_latest=true AND er.is_absent=false) AS total_exams,
+           COUNT(*) FILTER (WHERE er.is_latest=true AND er.is_absent=false AND er.score >= e.pass_score) AS passed_exams,
+           COUNT(*) FILTER (WHERE er.is_latest=true AND er.is_absent=false AND er.score < e.pass_score) AS failed_exams,
+           COUNT(*) FILTER (WHERE er.is_latest=true AND er.is_absent=true) AS absent_exams,
+           ROUND(AVG(er.score::numeric / NULLIF(e.total_score, 0) * 100) FILTER (WHERE er.is_latest=true AND er.is_absent=false), 1) AS avg_score
          FROM exam_results er
          JOIN exams e ON er.exam_id = e.id
          WHERE er.student_id=$1 AND e.teacher_id=$2`,
