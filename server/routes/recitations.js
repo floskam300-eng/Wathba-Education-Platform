@@ -1283,14 +1283,15 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
       const { rows: resultRows } = await client.query(
         `INSERT INTO recitation_results
            (student_id, recitation_id, score, correct_count, wrong_count, unanswered_count,
-            answers, points_earned, start_time, end_time, passed)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW(),$10) RETURNING *`,
+            answers, points_earned, start_time, end_time, passed, questions_snapshot)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW(),$10,$11) RETURNING *`,
         [
           studentId, id, finalScore, correct, wrong, unanswered,
           JSON.stringify(storedAnswers),
           pointsEarned,
           session.started_at,
           passed,
+          JSON.stringify(snapshot),
         ]
       );
 
@@ -1447,30 +1448,44 @@ router.get('/results/:resultId/review', authenticate, async (req, res) => {
 
     // Build answer map from recitation_results.answers JSONB
     // Format: [{question_id, answer, correct}]
+    // [SH-1] Also capture the stored `correct` flag so is_correct survives snapshot loss.
     const answerMap = {};
+    const storedCorrectMap = {};
     try {
       const storedAnswers = Array.isArray(row.answers) ? row.answers
         : (typeof row.answers === 'string' ? JSON.parse(row.answers) : []);
       storedAnswers.forEach(a => {
-        if (a.question_id != null) answerMap[a.question_id] = a.answer || null;
+        if (a.question_id != null) {
+          answerMap[a.question_id] = a.answer || null;
+          if (a.correct != null) storedCorrectMap[a.question_id] = !!a.correct;
+        }
       });
     } catch (_) {}
 
-    // Get questions snapshot from recitation_sessions
-    const sessionRes = await pool.query(
-      'SELECT questions_snapshot FROM recitation_sessions WHERE student_id=$1 AND recitation_id=$2 ORDER BY started_at DESC LIMIT 1',
-      [row.student_id, row.recitation_id]
-    );
+    // [SH-1] Priority: 1) snapshot stored in result row (since session is deleted post-submit)
+    //                  2) active session snapshot (edge case: re-take after retry)
+    //                  3) DB fallback (original questions — correct_answer_letter may differ when shuffle was on)
     let snapshot = [];
-    if (sessionRes.rows.length && Array.isArray(sessionRes.rows[0].questions_snapshot)) {
-      snapshot = sessionRes.rows[0].questions_snapshot;
+    const resultSnapshot = Array.isArray(row.questions_snapshot)
+      ? row.questions_snapshot
+      : (row.questions_snapshot ? (() => { try { return JSON.parse(row.questions_snapshot); } catch { return null; } })() : null);
+
+    if (resultSnapshot && resultSnapshot.length > 0) {
+      snapshot = resultSnapshot;
     } else {
-      // Fallback: load questions directly from recitation_questions table
-      const qRes = await pool.query(
-        'SELECT * FROM recitation_questions WHERE recitation_id=$1 ORDER BY sort_order, id',
-        [row.recitation_id]
+      const sessionRes = await pool.query(
+        'SELECT questions_snapshot FROM recitation_sessions WHERE student_id=$1 AND recitation_id=$2 ORDER BY started_at DESC LIMIT 1',
+        [row.student_id, row.recitation_id]
       );
-      snapshot = qRes.rows;
+      if (sessionRes.rows.length && Array.isArray(sessionRes.rows[0].questions_snapshot)) {
+        snapshot = sessionRes.rows[0].questions_snapshot;
+      } else {
+        const qRes = await pool.query(
+          'SELECT * FROM recitation_questions WHERE recitation_id=$1 ORDER BY sort_order, id',
+          [row.recitation_id]
+        );
+        snapshot = qRes.rows;
+      }
     }
 
     const review = snapshot.map(q => {
@@ -1485,6 +1500,8 @@ router.get('/results/:resultId/review', authenticate, async (req, res) => {
           student_answer: parsedAns[sub.label] || null,
           is_correct: String(parsedAns[sub.label] || '').toUpperCase() === String(sub.correct).toUpperCase(),
         }));
+        // [SH-1] Use stored is_correct if available (ground truth from submit time)
+        const storedIsCorrect = storedCorrectMap[q.id];
         return {
           id: q.id,
           question_text: q.question_text,
@@ -1494,11 +1511,13 @@ router.get('/results/:resultId/review', authenticate, async (req, res) => {
           sub_questions: subQs,
           sub_results: subResults,
           student_answer: studentAns,
-          is_correct: subResults.length > 0 && subResults.every(s => s.is_correct),
+          is_correct: storedIsCorrect != null ? storedIsCorrect : (subResults.length > 0 && subResults.every(s => s.is_correct)),
           points: q.points,
         };
       }
-      const isCorrect = studentAns === q.correct_answer_letter;
+      const recomputedCorrect = !!studentAns && studentAns === q.correct_answer_letter;
+      // [SH-1] Use stored correct flag as authoritative source (survives shuffle + snapshot loss)
+      const isCorrect = storedCorrectMap[q.id] != null ? storedCorrectMap[q.id] : recomputedCorrect;
       return {
         id: q.id,
         question_text: q.question_text,
@@ -1507,7 +1526,7 @@ router.get('/results/:resultId/review', authenticate, async (req, res) => {
         option_a: q.option_a, option_b: q.option_b, option_c: q.option_c, option_d: q.option_d,
         correct_answer_letter: q.correct_answer_letter,
         student_answer: studentAns,
-        is_correct: !!studentAns && isCorrect,
+        is_correct: isCorrect,
         points: q.points,
       };
     });
