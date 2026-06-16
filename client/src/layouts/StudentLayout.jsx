@@ -384,6 +384,8 @@ export default function StudentLayout() {
       )}
 
       <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-shrink-0 w-full"
+             style={{ height: 'env(safe-area-inset-top)', backgroundColor: dark ? 'var(--dk-surface)' : 'white' }} />
         <header className={`app-header-safe border-b px-4 py-3 flex items-center justify-between gap-2 flex-shrink-0 ${dark ? '' : 'bg-white border-gray-200 shadow-sm'}`}
                 style={dark ? { backgroundColor: 'var(--dk-surface)', borderColor: 'var(--dk-border)', boxShadow: '0 1px 0 var(--dk-border)' } : {}}>
           <button className={`lg:hidden flex-shrink-0 p-2 rounded-lg transition-colors ${dark ? 'text-[var(--dk-text-2)] hover:bg-[var(--dk-elevated)]' : 'text-navy-600 hover:bg-gray-100'}`}

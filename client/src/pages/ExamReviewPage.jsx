@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import MathText from '../components/MathText';
+import ImageLightbox from '../components/ImageLightbox';
 import {
   ArrowRight, CheckCircle, XCircle, Minus, Clock,
   Award
@@ -86,6 +87,7 @@ export default function ExamReviewPage() {
 
   const shuffleOptions = result?.shuffle_options || false;
   const studentId      = result?.student_id || 0;
+  const [lightboxSrc, setLightboxSrc] = useState(null);
 
   // Use the authoritative DB-stored counts (computed at submission time).
   // Recomputing from the questions array can diverge for image_multi questions
@@ -105,6 +107,7 @@ export default function ExamReviewPage() {
   };
 
   return (
+    <>
     <div className={`h-full overflow-y-auto font-cairo ${dark ? 'bg-[var(--dk-bg)]' : 'bg-gray-50'}`} dir="rtl">
 
       <div className="max-w-3xl mx-auto px-4 pt-6 pb-2">
@@ -300,7 +303,12 @@ export default function ExamReviewPage() {
                             </div>
                             <div className="p-3 space-y-2">
                               {q.group_context_image && (
-                                <img src={withToken(q.group_context_image)} alt="" className={`w-full max-h-56 object-contain rounded-lg border ${dark ? 'border-blue-700/30' : 'border-blue-200'}`} />
+                                <img
+                                  src={withToken(q.group_context_image)}
+                                  alt=""
+                                  className={`w-full max-h-56 object-contain rounded-lg border cursor-zoom-in ${dark ? 'border-blue-700/30' : 'border-blue-200'}`}
+                                  onClick={() => setLightboxSrc(withToken(q.group_context_image))}
+                                />
                               )}
                               {q.group_context && (
                                 <p className={`text-sm leading-relaxed whitespace-pre-wrap ${dark ? 'text-[var(--dk-text)]' : 'text-navy-800'}`}><MathText text={q.group_context} /></p>
@@ -311,7 +319,12 @@ export default function ExamReviewPage() {
                       })()}
                       {q.question_text && <p className={`font-bold text-base leading-relaxed mb-1 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}><MathText text={q.question_text} /></p>}
                       {q.question_image_url && (
-                        <img src={withToken(q.question_image_url)} alt="" className={`mt-2 mb-3 w-full max-w-sm rounded-xl border object-contain ${dark ? 'border-[var(--dk-border)]' : 'border-gray-200'}`} />
+                        <img
+                          src={withToken(q.question_image_url)}
+                          alt=""
+                          className={`mt-2 mb-3 w-full max-w-sm rounded-xl border object-contain cursor-zoom-in ${dark ? 'border-[var(--dk-border)]' : 'border-gray-200'}`}
+                          onClick={() => setLightboxSrc(withToken(q.question_image_url))}
+                        />
                       )}
 
                       {/* image_multi sub-questions */}
@@ -421,5 +434,10 @@ export default function ExamReviewPage() {
         )}
       </div>
     </div>
+
+    {lightboxSrc && (
+      <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
+    )}
+    </>
   );
 }

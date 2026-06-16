@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Clock, CheckCircle, Play, Eye, Calendar, Lock, RotateCcw, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { FileText, Clock, CheckCircle, Play, Eye, Calendar, Lock, RotateCcw, X, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
+import ImageLightbox from '../../components/ImageLightbox';
 import Modal from '../../components/ui/Modal';
 import MathText from '../../components/MathText';
 import Badge from '../../components/ui/Badge';
@@ -212,6 +213,15 @@ export default function StudentExams() {
   useEffect(() => { takingRef.current = taking; }, [taking]);
   useEffect(() => { examDataRef.current = examData; }, [examData]);
   useEffect(() => { startTimeRef.current = startTime; }, [startTime]);
+
+  const [lightboxSrc, setLightboxSrc] = useState(null);
+
+  useEffect(() => {
+    if (result) {
+      const el = document.querySelector('main');
+      if (el) el.scrollTop = 0;
+    }
+  }, [!!result]);
 
   // Must be declared here (before any early returns) to satisfy the Rules of Hooks.
   // When the exam-taking view is active, this will always return [] due to the
@@ -453,6 +463,17 @@ export default function StudentExams() {
     );
   }
 
+  if (taking && !examData && !taking.already_taken) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-10 h-10 text-orange-500 animate-spin mx-auto mb-3" />
+          <p className="text-gray-500 dark:text-[var(--dk-text-2)] font-bold">جاري تحميل الاختبار...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (taking && examData && !taking.already_taken) {
     const { exam, questions } = examData;
     const answered = Object.keys(answers).filter(k => {
@@ -462,6 +483,7 @@ export default function StudentExams() {
     }).length;
 
     return (
+      <>
       <div className="h-full overflow-y-auto p-3 sm:p-4 lg:p-6">
         <div className="space-y-4 sm:space-y-6">
           {/* Exam header bar */}
@@ -504,8 +526,9 @@ export default function StudentExams() {
                             <img
                               src={withToken(q.group_context_image)}
                               alt="سياق المجموعة"
-                              className="w-full max-w-full max-h-64 object-contain border border-blue-200 rounded-xl"
+                              className="w-full max-w-full max-h-64 object-contain border border-blue-200 rounded-xl cursor-zoom-in"
                               onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                              onClick={() => setLightboxSrc(withToken(q.group_context_image))}
                             />
                           </div>
                         )}
@@ -538,8 +561,9 @@ export default function StudentExams() {
                         <img
                           src={withToken(q.question_image_url)}
                           alt="سؤال"
-                          className="w-full max-w-full max-h-56 object-contain border border-gray-100 rounded-xl"
+                          className="w-full max-w-full max-h-56 object-contain border border-gray-100 rounded-xl cursor-zoom-in"
                           onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                          onClick={() => setLightboxSrc(withToken(q.question_image_url))}
                         />
                       </div>
                     )}
@@ -671,6 +695,8 @@ export default function StudentExams() {
           )}
         </div>
       </div>
+      {lightboxSrc && <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
+      </>
     );
   }
 

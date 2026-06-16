@@ -3,11 +3,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
   BookOpen, Clock, CheckCircle, XCircle, Flame, Trophy,
-  ChevronLeft, AlertCircle, BarChart2, RefreshCw, Lock, Eye
+  ChevronLeft, AlertCircle, BarChart2, RefreshCw, Lock, Eye, Loader2
 } from 'lucide-react';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
 import { useTheme } from '../../context/ThemeContext';
+import ImageLightbox from '../../components/ImageLightbox';
 
 function getStatus(rec) {
   const now = new Date();
@@ -57,6 +58,7 @@ export default function StudentRecitations() {
   // startRec is async; without this lock a second tap before the API responds
   // would start a second countdown sequence on top of the first.
   const [starting, setStarting] = useState(false);
+  const [lightboxSrc, setLightboxSrc] = useState(null);
   const submittedRef = useRef(false);
   const mountedRef = useRef(true);
   const timerRef = useRef(null);
@@ -122,6 +124,14 @@ export default function StudentRecitations() {
     mountedRef.current = true;
     return () => { mountedRef.current = false; };
   }, []);
+
+  // Scroll to top when entering/leaving exam view
+  useEffect(() => {
+    if (view === 'take' || view === 'result') {
+      const el = document.querySelector('main');
+      if (el) el.scrollTop = 0;
+    }
+  }, [view]);
 
   // 3-2-1 countdown
   useEffect(() => {
@@ -348,7 +358,7 @@ export default function StudentRecitations() {
             ) : (
               <>
                 {open.length > 0 && (
-                  <Section title="متاح الآن 🟢" items={open} dark={dark} cardCls={cardCls} onStart={startRec} navigate={navigate} />
+                  <Section title="متاح الآن 🟢" items={open} dark={dark} cardCls={cardCls} onStart={startRec} navigate={navigate} starting={starting} />
                 )}
                 {upcoming.length > 0 && (
                   <Section title="قادم قريباً ⏳" items={upcoming} dark={dark} cardCls={cardCls} onStart={null} navigate={navigate} />
@@ -393,6 +403,7 @@ export default function StudentRecitations() {
     }).length;
 
     return (
+      <>
       <div className={`min-h-screen ${dark ? 'bg-[var(--dk-bg)]' : 'bg-gray-50'}`} dir="rtl">
         {/* Sticky timer header */}
         <div className={`sticky top-0 z-20 border-b px-4 py-3 flex items-center justify-between ${dark ? 'bg-[var(--dk-surface)] border-[var(--dk-border)]' : 'bg-white border-gray-200 shadow-sm'}`}>
@@ -411,7 +422,7 @@ export default function StudentRecitations() {
         {/* Questions */}
         <div className="max-w-2xl mx-auto p-4 space-y-4">
           {questions.map((q, idx) => (
-            <QuestionCard key={q.id} q={q} idx={idx} answers={answers} setAnswers={setAnswers} dark={dark} />
+            <QuestionCard key={q.id} q={q} idx={idx} answers={answers} setAnswers={setAnswers} dark={dark} onImagePress={setLightboxSrc} />
           ))}
 
           <button
@@ -426,6 +437,8 @@ export default function StudentRecitations() {
           </button>
         </div>
       </div>
+      {lightboxSrc && <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
+      </>
     );
   }
 
@@ -433,6 +446,7 @@ export default function StudentRecitations() {
   if (view === 'result' && result) {
     const { score, correct, wrong, unanswered, passed, points_earned, total_score, pass_score, review } = result;
     return (
+      <>
       <div className={`min-h-screen ${dark ? 'bg-[var(--dk-bg)]' : 'bg-gray-50'} p-4 lg:p-6`} dir="rtl">
         <div className="max-w-2xl mx-auto space-y-4">
           {/* Score card */}
@@ -489,7 +503,13 @@ export default function StudentRecitations() {
                   </div>
 
                   {q.question_image_url && (
-                    <img src={q.question_image_url} alt="question" className="w-full max-h-40 object-contain rounded-xl border mb-2 mr-8" style={{ maxWidth: 'calc(100% - 2rem)' }} />
+                    <img
+                      src={q.question_image_url}
+                      alt="question"
+                      className="w-full max-h-40 object-contain rounded-xl border mb-2 mr-8 cursor-zoom-in"
+                      style={{ maxWidth: 'calc(100% - 2rem)' }}
+                      onClick={() => setLightboxSrc(q.question_image_url)}
+                    />
                   )}
 
                   {q.question_type === 'image_multi' ? (
@@ -557,13 +577,15 @@ export default function StudentRecitations() {
           </div>
         </div>
       </div>
+      {lightboxSrc && <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
+      </>
     );
   }
 
   return null;
 }
 
-function Section({ title, items, dark, cardCls, onStart, navigate }) {
+function Section({ title, items, dark, cardCls, onStart, navigate, starting = false }) {
   return (
     <div>
       <h2 className={`font-black mb-3 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>{title}</h2>
@@ -603,8 +625,10 @@ function Section({ title, items, dark, cardCls, onStart, navigate }) {
 
               {status === 'open' && onStart && (
                 <button onClick={() => onStart(rec)}
-                  className="flex-shrink-0 px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-xl text-sm font-black transition-colors">
-                  ابدأ
+                  disabled={starting}
+                  className="flex-shrink-0 px-4 py-2 bg-purple-500 hover:bg-purple-600 disabled:opacity-60 text-white rounded-xl text-sm font-black transition-colors flex items-center gap-1.5">
+                  {starting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                  {starting ? 'جاري...' : 'ابدأ'}
                 </button>
               )}
               {status === 'upcoming' && (
@@ -635,7 +659,7 @@ function Section({ title, items, dark, cardCls, onStart, navigate }) {
   );
 }
 
-function QuestionCard({ q, idx, answers, setAnswers, dark }) {
+function QuestionCard({ q, idx, answers, setAnswers, dark, onImagePress }) {
   const options = [
     q.option_a && { letter: 'A', text: q.option_a },
     q.option_b && { letter: 'B', text: q.option_b },
@@ -664,7 +688,12 @@ function QuestionCard({ q, idx, answers, setAnswers, dark }) {
       </div>
 
       {q.question_image_url && (
-        <img src={q.question_image_url} alt="question" className="w-full max-h-64 object-contain rounded-xl border mb-3" />
+        <img
+          src={q.question_image_url}
+          alt="question"
+          className={`w-full max-h-64 object-contain rounded-xl border mb-3 ${onImagePress ? 'cursor-zoom-in' : ''}`}
+          onClick={onImagePress ? () => onImagePress(q.question_image_url) : undefined}
+        />
       )}
 
       {isImgMulti ? (

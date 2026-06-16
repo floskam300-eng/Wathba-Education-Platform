@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, Clock, CheckCircle, XCircle, Minus, Award, BarChart2 } from 'lucide-react';
 import api from '../lib/api';
 import MathText from '../components/MathText';
+import ImageLightbox from '../components/ImageLightbox';
 import { withToken } from '../lib/mediaAccess';
 import { useAuth } from '../context/AuthContext';
 
@@ -39,10 +40,12 @@ export default function RecitationReviewPage() {
   const wrong      = questions.filter(q => !q.is_correct && q.student_answer).length;
   const unanswered = questions.filter(q => !q.student_answer).length;
   const pct        = questions.length > 0 ? Math.round((correct / questions.length) * 100) : 0;
+  const [lightboxSrc, setLightboxSrc] = useState(null);
 
   const goBack = () => navigate(-1);
 
   return (
+    <>
     <div dir="rtl" className="max-w-3xl mx-auto space-y-5 pb-10 px-4 lg:px-6">
 
       {/* ── Page header ────────────────────────────────────────────────────── */}
@@ -152,7 +155,12 @@ export default function RecitationReviewPage() {
                       </p>
                     )}
                     {q.question_image_url && (
-                      <img src={withToken(q.question_image_url)} alt="" className="mt-1 mb-3 w-full max-h-64 object-contain rounded-xl border border-gray-200 dark:border-[var(--dk-border)] bg-gray-50 dark:bg-[var(--dk-elevated)]" />
+                      <img
+                        src={withToken(q.question_image_url)}
+                        alt=""
+                        className="mt-1 mb-3 w-full max-h-64 object-contain rounded-xl border border-gray-200 dark:border-[var(--dk-border)] bg-gray-50 dark:bg-[var(--dk-elevated)] cursor-zoom-in"
+                        onClick={() => setLightboxSrc(withToken(q.question_image_url))}
+                      />
                     )}
 
                     {/* image_multi sub-results */}
@@ -279,5 +287,10 @@ export default function RecitationReviewPage() {
         </>
       )}
     </div>
+
+    {lightboxSrc && (
+      <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
+    )}
+    </>
   );
 }
