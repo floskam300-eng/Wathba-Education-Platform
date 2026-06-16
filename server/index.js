@@ -489,8 +489,8 @@ const initDB = async () => {
   }
 };
 
-const PORT = process.env.PORT || 5000;
-const server = app.listen(PORT, 'localhost', async () => {
+const PORT = process.env.PORT || 3001;
+const server = app.listen(PORT, '0.0.0.0', async () => {
   await initDB();
   initFCM();
   startScheduler(pool);
