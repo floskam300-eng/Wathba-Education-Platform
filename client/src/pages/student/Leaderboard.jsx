@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Trophy, GraduationCap, History, ChevronDown, ChevronUp, Clock } from 'lucide-react';
+import { Trophy, History, ChevronDown, ChevronUp, Clock, Globe, GraduationCap } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 
@@ -34,6 +34,82 @@ function CountdownBadge({ nextResetAt, onExpire }) {
   );
 }
 
+function RankCard({ rank, points, label, icon: Icon, isTop3 }) {
+  return (
+    <div className={`rounded-2xl p-4 text-center flex-1 min-w-0 border ${
+      isTop3 ? 'bg-gradient-to-b from-yellow-50 to-orange-50 border-yellow-300' : 'bg-white border-slate-200'
+    }`}>
+      <Icon className={`w-4 h-4 mx-auto mb-1 ${isTop3 ? 'text-yellow-600' : 'text-navy-600'}`} />
+      <p className="text-[11px] text-gray-500 font-semibold mb-0.5">{label}</p>
+      <p className={`text-3xl font-black ${isTop3 ? 'text-yellow-700' : 'text-navy-700'}`}>
+        {rank > 0 ? `#${rank}` : '—'}
+      </p>
+      {points != null && (
+        <p className="text-xs text-orange-600 font-bold mt-0.5">⭐ {points}</p>
+      )}
+    </div>
+  );
+}
+
+function LeaderboardList({ students, myName, emptyMsg }) {
+  if (students.length === 0) {
+    return (
+      <div className="bg-white rounded-2xl border border-slate-200 text-center py-10 px-6">
+        <Trophy className="w-10 h-10 mx-auto mb-2 text-gray-200" />
+        <p className="text-gray-400 text-sm font-semibold">{emptyMsg}</p>
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-2">
+      {students.map((s, i) => (
+        <div
+          key={s.id}
+          className={`flex items-center gap-3 rounded-2xl px-4 py-3 border transition-all ${
+            s.name === myName
+              ? 'border-orange-400 bg-orange-50 shadow-sm'
+              : i < 3
+                ? 'border-yellow-200 bg-yellow-50/40'
+                : 'border-slate-100 bg-white'
+          }`}
+        >
+          {/* Rank */}
+          <div className="w-9 h-9 flex items-center justify-center flex-shrink-0 font-black text-lg">
+            {i < 3 ? MEDAL[i] : <span className="text-gray-500 text-sm font-bold">{i + 1}</span>}
+          </div>
+
+          {/* Avatar */}
+          <div
+            className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
+            style={{ backgroundColor: i < 3 ? ['#B45309', '#6B7280', '#92400E'][i] : '#1A2E4A' }}
+          >
+            {s.name?.charAt(0)}
+          </div>
+
+          {/* Info */}
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-navy-600 text-sm truncate">
+              {s.name}
+              {s.name === myName && (
+                <span className="text-orange-600 font-semibold"> (أنت)</span>
+              )}
+            </p>
+            <p className="text-[11px] text-gray-500 font-medium">{s.academic_stage || ''}</p>
+          </div>
+
+          {/* Points */}
+          <div className="text-left flex-shrink-0">
+            <p className="text-orange-700 font-black text-sm">⭐ {s.points}</p>
+            {s.badge_count > 0 && (
+              <p className="text-[11px] text-gray-500 font-medium">🏅 {s.badge_count}</p>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function HistoryCard({ record, myName }) {
   const [open, setOpen] = useState(false);
   const top3 = (record.rankings || []).slice(0, 3);
@@ -59,7 +135,7 @@ function HistoryCard({ record, myName }) {
                 </span>
               )}
             </div>
-            <p className="text-xs text-gray-500 font-medium">{date} — {record.rankings?.length || 0} طالب</p>
+            <p className="text-xs text-gray-500 font-medium">{date}</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -76,9 +152,10 @@ function HistoryCard({ record, myName }) {
       </button>
 
       {open && (
-        <div className="border-t border-slate-100">
+        <div className="border-t border-slate-100 px-4 pb-4 pt-3 space-y-3">
+          {/* My result banner */}
           {myEntry && (
-            <div className="mx-4 my-3 bg-orange-50 border border-orange-200 rounded-xl px-4 py-2.5 flex items-center justify-between">
+            <div className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-2.5 flex items-center justify-between">
               <div>
                 <p className="text-xs text-orange-600 font-semibold">نتيجتك في هذا الشهر</p>
                 <p className="font-black text-navy-600">{myEntry.name}</p>
@@ -89,43 +166,13 @@ function HistoryCard({ record, myName }) {
               </div>
             </div>
           )}
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[350px]">
-              <thead>
-                <tr className="bg-gray-50">
-                  <th className="px-4 py-2 text-right text-xs font-bold text-gray-500">#</th>
-                  <th className="px-4 py-2 text-right text-xs font-bold text-gray-500">الطالب</th>
-                  <th className="px-4 py-2 text-right text-xs font-bold text-gray-500">النقاط</th>
-                  <th className="px-4 py-2 text-right text-xs font-bold text-gray-500">المرحلة</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(record.rankings || []).map((r) => (
-                  <tr key={r.student_id} className={`border-t border-slate-50 ${r.name === myName ? 'bg-orange-50/60' : r.rank <= 3 ? 'bg-yellow-50/30' : ''}`}>
-                    <td className="px-4 py-2.5 text-center">
-                      {r.rank <= 3
-                        ? <span className="text-xl">{MEDAL[r.rank - 1]}</span>
-                        : <span className="text-gray-600 font-bold text-sm">{r.rank}</span>}
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 bg-navy-600 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                          {r.name?.charAt(0)}
-                        </div>
-                        <span className={`font-semibold text-sm ${r.name === myName ? 'text-orange-600' : 'text-navy-600'}`}>
-                          {r.name}{r.name === myName && ' (أنت)'}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <span className="text-orange-700 font-black">⭐ {r.points}</span>
-                    </td>
-                    <td className="px-4 py-2.5 text-gray-600 text-sm">{r.academic_stage || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+
+          {/* Top 10 only */}
+          <LeaderboardList
+            students={(record.rankings || []).slice(0, 10)}
+            myName={myName}
+            emptyMsg="لا توجد بيانات"
+          />
         </div>
       )}
     </div>
@@ -135,7 +182,6 @@ function HistoryCard({ record, myName }) {
 export default function StudentLeaderboard() {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const [stageFilter, setStageFilter] = useState('الكل');
   const [tab, setTab] = useState('current');
 
   const { data: lbData = {}, isLoading, refetch: refetchLb } = useQuery({
@@ -152,28 +198,35 @@ export default function StudentLeaderboard() {
   const leaderboard = lbData.students || [];
   const tracker = lbData.tracker || null;
 
-  const stages = useMemo(() => {
-    const s = new Set(leaderboard.map(s => s.academic_stage).filter(Boolean));
-    return ['الكل', ...Array.from(s)];
-  }, [leaderboard]);
+  // Overall top 10
+  const top10Overall = useMemo(() => leaderboard.slice(0, 10), [leaderboard]);
 
-  const filtered = useMemo(() =>
-    stageFilter === 'الكل' ? leaderboard : leaderboard.filter(s => s.academic_stage === stageFilter),
-    [leaderboard, stageFilter]
-  );
+  // My stage top 10 — only students in the same academic_stage as the logged-in student
+  const myStage = user?.academic_stage || null;
+  const top10MyStage = useMemo(() => {
+    if (!myStage) return [];
+    return leaderboard.filter(s => s.academic_stage === myStage).slice(0, 10);
+  }, [leaderboard, myStage]);
 
-  const stageCounts = useMemo(() =>
-    stages.reduce((acc, s) => {
-      acc[s] = s === 'الكل' ? leaderboard.length : leaderboard.filter(x => x.academic_stage === s).length;
-      return acc;
-    }, {}),
-    [stages, leaderboard]
-  );
+  // My ranks
+  const myRankOverall = useMemo(() => {
+    const idx = leaderboard.findIndex(s => s.name === user?.name);
+    return idx >= 0 ? idx + 1 : 0;
+  }, [leaderboard, user]);
 
-  const myRankAll = leaderboard.findIndex(s => s.name === user?.name) + 1;
-  const myRankFiltered = filtered.findIndex(s => s.name === user?.name) + 1;
-  const myRank = stageFilter === 'الكل' ? myRankAll : myRankFiltered;
+  const myRankStage = useMemo(() => {
+    const stageList = myStage
+      ? leaderboard.filter(s => s.academic_stage === myStage)
+      : [];
+    const idx = stageList.findIndex(s => s.name === user?.name);
+    return idx >= 0 ? idx + 1 : 0;
+  }, [leaderboard, myStage, user]);
+
   const myData = leaderboard.find(s => s.name === user?.name);
+
+  // Whether the student appears in the top 10 list (to show "outside top 10" row)
+  const myInOverall = top10Overall.some(s => s.name === user?.name);
+  const myInStage   = top10MyStage.some(s => s.name === user?.name);
 
   return (
     <div className="h-full overflow-y-auto p-4 lg:p-6">
@@ -219,82 +272,121 @@ export default function StudentLeaderboard() {
 
         {tab === 'current' && (
           <>
-            {/* Stage Tabs */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
-              <div className="flex items-center gap-2 mb-3">
-                <GraduationCap className="w-4 h-4 text-gray-500" />
-                <span className="text-xs font-bold text-gray-500">تصفية حسب السنة الدراسية</span>
-              </div>
-              <div className="filter-scroll">
-                {stages.map(stage => (
-                  <button
-                    key={stage}
-                    onClick={() => setStageFilter(stage)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all duration-200 ${
-                      stageFilter === stage
-                        ? 'bg-navy-600 text-white shadow-sm'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    {stage}
-                    <span className={`text-xs rounded-full px-1.5 font-black ${
-                      stageFilter === stage ? 'bg-white/20 text-white' : 'bg-white text-gray-600'
-                    }`}>
-                      {stageCounts[stage] || 0}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* My rank card */}
-            {myRank > 0 && (
-              <div className="card bg-gradient-to-l from-navy-600 to-navy-700 text-white">
-                <p className="text-white/90 text-sm font-semibold mb-1">
-                  ترتيبك {stageFilter !== 'الكل' ? `في ${stageFilter}` : 'العام'}
-                </p>
-                <p className="text-4xl font-black text-orange-300">#{myRank}</p>
-                <p className="text-sm text-white/90 font-medium mt-1">
-                  نقاطك: {myData?.points || 0} ⭐
-                  {stageFilter !== 'الكل' && myRankAll > 0 && (
-                    <span className="text-white/60 mr-2">(ترتيبك العام: #{myRankAll})</span>
-                  )}
-                </p>
+            {/* My rank summary cards */}
+            {myData && (
+              <div className="flex gap-3">
+                <RankCard
+                  rank={myRankOverall}
+                  points={myData.points}
+                  label="ترتيبك العام"
+                  icon={Globe}
+                  isTop3={myRankOverall > 0 && myRankOverall <= 3}
+                />
+                {myStage && (
+                  <RankCard
+                    rank={myRankStage}
+                    points={null}
+                    label={`ترتيبك في ${myStage}`}
+                    icon={GraduationCap}
+                    isTop3={myRankStage > 0 && myRankStage <= 3}
+                  />
+                )}
               </div>
             )}
 
-            {/* List */}
-            <div className="space-y-3">
-              {isLoading ? (
-                [...Array(10)].map((_, i) => <div key={i} className="card h-16 animate-pulse bg-gray-100" />)
-              ) : filtered.length === 0 ? (
-                <div className="card text-center py-12">
-                  <Trophy className="w-16 h-16 mx-auto mb-3 text-gray-400" />
-                  <p className="text-gray-600 font-medium">لا توجد بيانات لهذه المرحلة</p>
+            {isLoading ? (
+              <div className="space-y-3">
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="h-16 bg-gray-100 animate-pulse rounded-2xl" />
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* Overall top 10 */}
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center flex-shrink-0">
+                      <Globe className="w-4 h-4 text-white" />
+                    </div>
+                    <h2 className="text-sm font-black text-navy-700">الترتيب العام على المنصة</h2>
+                    <span className="text-[11px] text-gray-400 font-semibold bg-gray-100 px-2 py-0.5 rounded-full">أعلى 10</span>
+                  </div>
+
+                  <LeaderboardList
+                    students={top10Overall}
+                    myName={user?.name}
+                    emptyMsg="لا توجد بيانات بعد"
+                  />
+
+                  {/* Show student's own row if outside top 10 overall */}
+                  {myData && !myInOverall && myRankOverall > 0 && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <div className="flex-1 border-t border-dashed border-gray-200" />
+                      <span className="text-[10px] text-gray-400 font-semibold">ترتيبك</span>
+                      <div className="flex-1 border-t border-dashed border-gray-200" />
+                    </div>
+                  )}
+                  {myData && !myInOverall && myRankOverall > 0 && (
+                    <div className="flex items-center gap-3 rounded-2xl px-4 py-3 border-2 border-orange-400 bg-orange-50 mt-1">
+                      <div className="w-9 h-9 flex items-center justify-center flex-shrink-0">
+                        <span className="text-gray-500 text-sm font-bold">#{myRankOverall}</span>
+                      </div>
+                      <div className="w-9 h-9 rounded-full bg-navy-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                        {myData.name?.charAt(0)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-navy-600 text-sm truncate">{myData.name} <span className="text-orange-600">(أنت)</span></p>
+                        <p className="text-[11px] text-gray-500">{myData.academic_stage || ''}</p>
+                      </div>
+                      <p className="text-orange-700 font-black text-sm flex-shrink-0">⭐ {myData.points}</p>
+                    </div>
+                  )}
                 </div>
-              ) : filtered.map((s, i) => (
-                <div key={s.id} className={`card flex items-center gap-4 ${s.name === user?.name ? 'border-2 border-orange-500 bg-orange-50' : ''} ${i < 3 ? 'shadow-navy-lg' : ''}`}>
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-lg flex-shrink-0 ${i < 3 ? '' : 'bg-gray-200 text-gray-700 text-sm font-bold'}`}>
-                    {i < 3 ? MEDAL[i] : i + 1}
+
+                {/* My stage top 10 — only shown when student has a stage */}
+                {myStage && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-navy-600 to-navy-700 flex items-center justify-center flex-shrink-0">
+                        <GraduationCap className="w-4 h-4 text-white" />
+                      </div>
+                      <h2 className="text-sm font-black text-navy-700">ترتيب {myStage}</h2>
+                      <span className="text-[11px] text-gray-400 font-semibold bg-gray-100 px-2 py-0.5 rounded-full">أعلى 10</span>
+                    </div>
+
+                    <LeaderboardList
+                      students={top10MyStage}
+                      myName={user?.name}
+                      emptyMsg={`لا توجد بيانات لـ${myStage} بعد`}
+                    />
+
+                    {/* Show student's own row if outside top 10 in stage */}
+                    {myData && !myInStage && myRankStage > 0 && (
+                      <>
+                        <div className="mt-2 flex items-center gap-2">
+                          <div className="flex-1 border-t border-dashed border-gray-200" />
+                          <span className="text-[10px] text-gray-400 font-semibold">ترتيبك في صفك</span>
+                          <div className="flex-1 border-t border-dashed border-gray-200" />
+                        </div>
+                        <div className="flex items-center gap-3 rounded-2xl px-4 py-3 border-2 border-orange-400 bg-orange-50 mt-1">
+                          <div className="w-9 h-9 flex items-center justify-center flex-shrink-0">
+                            <span className="text-gray-500 text-sm font-bold">#{myRankStage}</span>
+                          </div>
+                          <div className="w-9 h-9 rounded-full bg-navy-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                            {myData.name?.charAt(0)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-navy-600 text-sm truncate">{myData.name} <span className="text-orange-600">(أنت)</span></p>
+                            <p className="text-[11px] text-gray-500">{myStage}</p>
+                          </div>
+                          <p className="text-orange-700 font-black text-sm flex-shrink-0">⭐ {myData.points}</p>
+                        </div>
+                      </>
+                    )}
                   </div>
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0 text-sm"
-                    style={{ backgroundColor: i < 3 ? ['#B45309', '#6B7280', '#92400E'][i] : '#1A2E4A' }}>
-                    {s.name?.charAt(0)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-bold text-navy-600 text-sm truncate">
-                      {s.name}{' '}
-                      {s.name === user?.name && <span className="text-orange-700 font-semibold">(أنت)</span>}
-                    </p>
-                    <p className="text-xs text-gray-600 font-medium">{s.academic_stage || ''} — {s.exams_taken} اختبار</p>
-                  </div>
-                  <div className="text-left">
-                    <p className="text-orange-700 font-black">⭐ {s.points}</p>
-                    {s.badge_count > 0 && <p className="text-xs text-gray-600 font-medium">🏅 {s.badge_count}</p>}
-                  </div>
-                </div>
-              ))}
-            </div>
+                )}
+              </div>
+            )}
           </>
         )}
 
@@ -303,7 +395,7 @@ export default function StudentLeaderboard() {
             {histLoading ? (
               [...Array(3)].map((_, i) => <div key={i} className="h-16 bg-gray-100 animate-pulse rounded-2xl" />)
             ) : history.length === 0 ? (
-              <div className="card text-center py-16">
+              <div className="bg-white rounded-2xl border border-slate-200 text-center py-16 px-6">
                 <History className="w-16 h-16 mx-auto mb-3 text-gray-300" />
                 <p className="text-gray-500 font-semibold text-lg">لا يوجد سجل بعد</p>
                 <p className="text-gray-400 text-sm mt-1">سيظهر هنا ترتيب كل شهر بعد التصفير</p>

@@ -155,7 +155,8 @@ export default function TeacherLeaderboard() {
     [stages, leaderboard]
   );
 
-  const top3 = filtered.slice(0, 3);
+  const top10   = filtered.slice(0, 10);
+  const top3    = top10.slice(0, 3);
 
   const handleReset = () => setConfirmReset(true);
 
@@ -269,12 +270,12 @@ export default function TeacherLeaderboard() {
                 <tbody>
                   {isLoading ? (
                     [...Array(8)].map((_, i) => <tr key={i}><td colSpan={6}><div className="h-10 bg-gray-100 animate-pulse m-2 rounded" /></td></tr>)
-                  ) : filtered.length === 0 ? (
+                  ) : top10.length === 0 ? (
                     <tr><td colSpan={6} className="table-cell text-center py-12">
                       <Trophy className="w-12 h-12 mx-auto mb-2 text-gray-400" />
                       <p className="font-medium text-gray-500">لا توجد بيانات لهذه المرحلة</p>
                     </td></tr>
-                  ) : filtered.map((s, i) => (
+                  ) : top10.map((s, i) => (
                     <tr key={s.id} className={`table-row ${i < 3 ? 'bg-orange-50/50' : ''}`}>
                       <td data-label="#" className="table-cell">
                         {i < 3
