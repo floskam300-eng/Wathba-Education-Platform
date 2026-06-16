@@ -5,6 +5,7 @@ const { authenticate, requireRole, invalidateAssistantAuthCache } = require('../
 const { validateAssistant } = require('../middleware/validate');
 const { invalidatePermissions } = require('../lib/permissionsCache');
 const { logActivity, getActor, getIp } = require('../lib/activityLog');
+const { getCached, setCache } = require('../lib/analyticsCache');
 
 const router = express.Router();
 router.use(authenticate);
@@ -196,20 +197,35 @@ router.get('/course-stats', requireRole('teacher', 'assistant'), checkAnalyticsP
       if (!aRes.rows.length) return res.status(404).json({ error: 'Assistant not found' });
       teacherId = aRes.rows[0].teacher_id;
     }
+    // BUG-2 FIX: share teacher's cache key so assistant + teacher hit the same cached result
+    const cacheKey = `t${teacherId}_coursestats`;
+    const cached = getCached(cacheKey);
+    if (cached) return res.json(cached);
     const result = await pool.query(`
       SELECT c.id, c.name, c.target_stage,
              COUNT(DISTINCT sce.student_id)::int AS enrolled_count,
              COUNT(DISTINCT v.id)::int            AS total_videos,
-             COALESCE(ROUND(AVG(vp.progress_percentage)::numeric, 0), 0)::int AS avg_progress,
+             -- BUG-4/5 FIX: join vp per enrolled student only; compute true engagement
+             -- (sum of all student-video progress / total possible combinations)
+             -- so students who never watched count as 0%, not excluded from AVG
+             CASE
+               WHEN COUNT(DISTINCT sce.student_id) > 0 AND COUNT(DISTINCT v.id) > 0
+               THEN ROUND(
+                 SUM(COALESCE(vp.progress_percentage, 0))::numeric
+                 / (COUNT(DISTINCT sce.student_id)::numeric * COUNT(DISTINCT v.id)::numeric)
+               , 0)::int
+               ELSE 0
+             END AS avg_progress,
              COUNT(DISTINCT CASE WHEN vp.progress_percentage >= 80 THEN vp.student_id END)::int AS active_students
       FROM courses c
-      LEFT JOIN student_course_enrollment sce ON c.id = sce.course_id
+      LEFT JOIN student_course_enrollment sce ON c.id = sce.course_id AND sce.status = 'active'
       LEFT JOIN videos v  ON v.course_id = c.id
-      LEFT JOIN video_progress vp ON v.id = vp.video_id
+      LEFT JOIN video_progress vp ON v.id = vp.video_id AND vp.student_id = sce.student_id
       WHERE c.teacher_id = $1
       GROUP BY c.id, c.name, c.target_stage
       ORDER BY enrolled_count DESC
     `, [teacherId]);
+    setCache(cacheKey, result.rows);
     res.json(result.rows);
   } catch (err) {
     console.error(err);

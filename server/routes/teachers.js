@@ -230,6 +230,19 @@ router.get('/at-risk-students', requireRole('teacher'), async (req, res) => {
           (es.avg_exam_pct IS NOT NULL AND es.avg_exam_pct < 60)
           OR
           (COALESCE(vs.avg_video_pct, 0) < 30 AND COALESCE(en.enrolled_courses, 0) > 0)
+          OR
+          -- BUG-6 FIX: include students who are only inactive (no exam/video risk)
+          -- but haven't been active for 14 days and are actually enrolled
+          (
+            COALESCE(en.enrolled_courses, 0) > 0
+            AND (
+              GREATEST(es.last_exam_at, vs.last_video_at) < NOW() - INTERVAL '14 days'
+              OR (
+                GREATEST(es.last_exam_at, vs.last_video_at) IS NULL
+                AND COALESCE(en.first_enrolled_at, NOW()) < NOW() - INTERVAL '7 days'
+              )
+            )
+          )
         )
       ORDER BY es.avg_exam_pct ASC NULLS LAST, vs.avg_video_pct ASC
       LIMIT 20
@@ -427,12 +440,22 @@ router.get('/course-stats', requireRole('teacher'), async (req, res) => {
       SELECT c.id, c.name, c.target_stage,
              COUNT(DISTINCT sce.student_id)::int AS enrolled_count,
              COUNT(DISTINCT v.id)::int            AS total_videos,
-             COALESCE(ROUND(AVG(vp.progress_percentage)::numeric, 0), 0)::int AS avg_progress,
+             -- BUG-4/5 FIX: restrict vp to enrolled students only; compute true engagement
+             -- (sum of all student-video progress / total possible combinations)
+             -- so students who never watched count as 0%, not excluded from AVG
+             CASE
+               WHEN COUNT(DISTINCT sce.student_id) > 0 AND COUNT(DISTINCT v.id) > 0
+               THEN ROUND(
+                 SUM(COALESCE(vp.progress_percentage, 0))::numeric
+                 / (COUNT(DISTINCT sce.student_id)::numeric * COUNT(DISTINCT v.id)::numeric)
+               , 0)::int
+               ELSE 0
+             END AS avg_progress,
              COUNT(DISTINCT CASE WHEN vp.progress_percentage >= 80 THEN vp.student_id END)::int AS active_students
       FROM courses c
-      LEFT JOIN student_course_enrollment sce ON c.id = sce.course_id
+      LEFT JOIN student_course_enrollment sce ON c.id = sce.course_id AND sce.status = 'active'
       LEFT JOIN videos v  ON v.course_id = c.id
-      LEFT JOIN video_progress vp ON v.id = vp.video_id
+      LEFT JOIN video_progress vp ON v.id = vp.video_id AND vp.student_id = sce.student_id
       WHERE c.teacher_id = $1
       GROUP BY c.id, c.name, c.target_stage
       ORDER BY enrolled_count DESC

@@ -76,11 +76,13 @@ export default function AssistantAnalytics() {
   const { data: recData, isLoading: recLoading } = useQuery({
     queryKey: ['assistant-recitations-analytics'],
     queryFn: () => api.get('/recitations/analytics').then(r => r.data),
+    staleTime: 5 * 60 * 1000,
   });
 
   const { data: courseStatsData = [], isLoading: courseStatsLoading } = useQuery({
     queryKey: ['assistant-course-stats'],
     queryFn: () => api.get('/assistants/course-stats').then(r => r.data),
+    staleTime: 5 * 60 * 1000,
   });
 
   const examChartData = useMemo(() => (data?.examResults || []).map(e => ({
@@ -92,12 +94,16 @@ export default function AssistantAnalytics() {
     attempts: parseInt(e.attempt_count) || 0,
   })), [data]);
 
-  const pieData = (data?.examResults || [])
+  // BUG-1 FIX: wrap in useMemo to prevent recomputing on every render
+  // (every filter keystroke/sort change triggered these O(n) iterations)
+  const pieData = useMemo(() => (data?.examResults || [])
     .map(e => ({ name: e.title?.substring(0, 16), value: parseInt(e.attempt_count) || 0 }))
-    .filter(e => e.value > 0);
+    .filter(e => e.value > 0), [data]);
 
-  const totalAttempts = (data?.examResults || []).reduce((s, e) => s + parseInt(e.attempt_count || 0), 0);
-  const avgScore = (() => {
+  const totalAttempts = useMemo(() =>
+    (data?.examResults || []).reduce((s, e) => s + parseInt(e.attempt_count || 0), 0), [data]);
+
+  const avgScore = useMemo(() => {
     const results = data?.recentResults || [];
     if (results.length) {
       const total = results.reduce((s, r) => s + (r.total_score ? (r.score / r.total_score * 100) : 0), 0);
@@ -108,12 +114,13 @@ export default function AssistantAnalytics() {
     const weighted = exams.reduce((s, e) => s + parseFloat(e.avg_pct || 0) * parseInt(e.attempt_count || 1), 0);
     const totalW = exams.reduce((s, e) => s + parseInt(e.attempt_count || 1), 0);
     return totalW ? Math.round(weighted / totalW) : 0;
-  })();
-  const passRate = (() => {
+  }, [data]);
+
+  const passRate = useMemo(() => {
     const results = data?.recentResults || [];
     if (!results.length) return 0;
     return Math.round((results.filter(r => r.score >= r.pass_score).length / results.length) * 100);
-  })();
+  }, [data]);
 
   const passFailData = useMemo(() => {
     const results = data?.recentResults || [];
@@ -355,13 +362,16 @@ export default function AssistantAnalytics() {
   }), [recRecentChartData]);
 
   const courseEnrollOption = useMemo(() => {
-    const top = courseStatsData.slice(0, 8);
+    // BUG-3 FIX: reverse so highest-enrolled course appears at TOP of horizontal bar chart
+    // (ECharts renders category axis bottom-to-top, so first item = bottom)
+    const top = [...courseStatsData.slice(0, 8)].reverse();
     return {
       tooltip: {
         ...tooltipBase, trigger: 'axis', axisPointer: { type: 'shadow' },
+        // BUG-7 FIX: d.color is a gradient object → use fixed hex color
         formatter: p => {
           const d = p[0];
-          return `<div style="font-family:Cairo"><b style="color:#1e293b">${d.name}</b><br/>${d.marker} الطلاب المشتركون: <b style="color:${d.color}">${d.value}</b></div>`;
+          return `<div style="font-family:Cairo"><b style="color:#1e293b">${d.name}</b><br/>${d.marker} الطلاب المشتركون: <b style="color:#6366f1">${d.value}</b></div>`;
         }
       },
       grid: { left: 8, right: 32, top: 6, bottom: 4, containLabel: true },
@@ -379,13 +389,16 @@ export default function AssistantAnalytics() {
   }, [courseStatsData]);
 
   const courseProgressOption = useMemo(() => {
-    const top = courseStatsData.slice(0, 8);
+    // BUG-3 FIX: reverse so highest-progress course appears at TOP
+    const top = [...courseStatsData.slice(0, 8)].reverse();
     return {
       tooltip: {
         ...tooltipBase, trigger: 'axis', axisPointer: { type: 'shadow' },
+        // BUG-7 FIX: compute color from value instead of using gradient object d.color
         formatter: p => {
           const d = p[0];
-          return `<div style="font-family:Cairo"><b style="color:#1e293b">${d.name}</b><br/>${d.marker} متوسط التقدم: <b style="color:${d.color}">${d.value}%</b></div>`;
+          const color = d.value >= 70 ? '#10b981' : d.value >= 40 ? '#f59e0b' : '#f43f5e';
+          return `<div style="font-family:Cairo"><b style="color:#1e293b">${d.name}</b><br/>${d.marker} متوسط التقدم: <b style="color:${color}">${d.value}%</b></div>`;
         }
       },
       grid: { left: 8, right: 40, top: 6, bottom: 4, containLabel: true },
