@@ -1267,6 +1267,384 @@ async function run() {
   })();
 
   // ══════════════════════════════════════════════════════════════════════════
+  // 12. Third-pass audit — T1 take-guard · T2 submit-guard · T3 force_reset sessions
+  //                        T4 result_id subquery · T5 deleted students · T6 LIMIT
+  //                        T7 retryMap newest-wins (frontend source check)
+  // ══════════════════════════════════════════════════════════════════════════
+  console.log(head('12. Third-pass audit — T1–T7 (take/submit absent guard, force_reset session, retry list fixes)'));
+
+  // ── T1: GET /:id/take — absent record must NOT block student ─────────────
+  await (async () => {
+    // Create a live exam (end_date in the future — student can try to enter)
+    const exam = await makeExam({ published: true, endedHoursAgo: -2 });
+    await insertAbsentRecord(S1.id, exam.id);
+
+    // Student tries GET /take — with old query (no is_absent=false) they'd get
+    // 403 "لقد أديت هذا الاختبار بالفعل". With T1 fix they get through to
+    // the normal flow (200 with questions, or 400/409 for exam-setup reasons
+    // — but NOT the "already submitted" 403).
+    const r = await req('GET', `/exams/${exam.id}/take`, null, S1_TOKEN);
+    assert(
+      'T1-1: absent student does NOT get 403 "already submitted" on GET /take (T1 fix)',
+      r.status !== 403 || !String(r.data?.error).includes('أديت'),
+      `status=${r.status} error="${r.data?.error}"`
+    );
+    // Confirm the actual rejection reason is something other than "already submitted"
+    // (exam will fail with 400/409 for missing questions/snapshot, not the guard)
+    assert(
+      'T1-2: response is not the "already submitted" guard (403 with "أديت")',
+      !(r.status === 403 && String(r.data?.error || '').includes('أديت')),
+      `got ${r.status} "${r.data?.error}"`
+    );
+
+    await pool.query('DELETE FROM exam_results WHERE exam_id=$1', [exam.id]);
+    await pool.query('DELETE FROM exams WHERE id=$1', [exam.id]);
+  })();
+
+  await (async () => {
+    // Verify the DB-level query in the updated code excludes absent records.
+    // Directly replicate the exact WHERE clause from the T1-fixed take endpoint.
+    const exam = await makeExam({ published: true, endedHoursAgo: -2 });
+    await insertAbsentRecord(S1.id, exam.id);
+
+    const { rows } = await pool.query(
+      'SELECT id FROM exam_results WHERE student_id=$1 AND exam_id=$2 AND is_latest=true AND is_absent=false',
+      [S1.id, exam.id]
+    );
+    assert(
+      'T1-3: is_latest=true AND is_absent=false returns 0 rows for absent-only student (T1 fix)',
+      rows.length === 0,
+      `rows found=${rows.length}`
+    );
+
+    await pool.query('DELETE FROM exam_results WHERE exam_id=$1', [exam.id]);
+    await pool.query('DELETE FROM exams WHERE id=$1', [exam.id]);
+  })();
+
+  // ── T2: POST submit pre-flight — absent record must NOT block submission ──
+  await (async () => {
+    const exam = await makeExam({ published: true, endedHoursAgo: -2 });
+    await insertAbsentRecord(S1.id, exam.id);
+
+    // Replicate the exact pre-flight query from the T2-fixed submit endpoint.
+    // Should return 0 rows — absent record excluded by is_absent=false.
+    const { rows } = await pool.query(
+      'SELECT id FROM exam_results WHERE student_id=$1 AND exam_id=$2 AND is_latest=true AND is_absent=false',
+      [S1.id, exam.id]
+    );
+    assert(
+      'T2-1: submit pre-flight query with is_absent=false returns 0 for absent student (T2 fix)',
+      rows.length === 0,
+      `rows=${rows.length}`
+    );
+
+    await pool.query('DELETE FROM exam_results WHERE exam_id=$1', [exam.id]);
+    await pool.query('DELETE FROM exams WHERE id=$1', [exam.id]);
+
+    // T2-2: use a FRESH exam with only a real result — the partial unique index
+    // uidx_exam_results_latest on (student_id, exam_id) WHERE is_latest=true prevents
+    // a real result (is_latest=true) from being inserted after an absent record (is_latest=true)
+    // for the same (student_id, exam_id) in the same test block.
+    const examReal = await makeExam({ published: true, endedHoursAgo: -2 });
+    await pool.query(
+      `INSERT INTO exam_results
+         (student_id, exam_id, score, correct_count, wrong_count, unanswered_count,
+          start_time, end_time, answers, points_earned, attempt_number, is_latest, is_absent)
+       VALUES ($1, $2, 40, 1, 0, 0, NOW()-INTERVAL '1 hour', NOW(), '[]'::jsonb, 0, 1, true, false)`,
+      [S1.id, examReal.id]
+    );
+    const { rows: realRows } = await pool.query(
+      'SELECT id FROM exam_results WHERE student_id=$1 AND exam_id=$2 AND is_latest=true AND is_absent=false',
+      [S1.id, examReal.id]
+    );
+    assert(
+      'T2-2: submit pre-flight query correctly identifies real result (1 row) → blocks re-submit',
+      realRows.length === 1,
+      `rows=${realRows.length}`
+    );
+    await pool.query('DELETE FROM exam_results WHERE exam_id=$1', [examReal.id]);
+    await pool.query('DELETE FROM exams WHERE id=$1', [examReal.id]);
+  })();
+
+  // ── T3: force_reset must delete exam_sessions (stale timer bug) ───────────
+  // IMPORTANT: force_reset block only runs inside `if (isPublishing)` in the publish
+  // endpoint — i.e. when the exam is currently UNPUBLISHED and we are PUBLISHING it.
+  // So these tests create the exam as published=false, set question_source='bank'
+  // (to bypass the "no questions" 400 guard), then call PUT /publish to trigger the
+  // re-publish path where force_reset fires.
+  await (async () => {
+    // Exam starts UNPUBLISHED (simulating: was published, results collected, then unpublished)
+    const exam = await makeExam({ published: false });
+    // Use bank source to skip the "exam has no questions" validation on re-publish
+    await pool.query("UPDATE exams SET question_source='bank' WHERE id=$1", [exam.id]);
+
+    // Simulate a student who started the exam (created a session) but never submitted
+    await pool.query(
+      `INSERT INTO exam_sessions (student_id, exam_id, started_at, questions_snapshot)
+       VALUES ($1, $2, NOW() - INTERVAL '3 hours', '[]'::jsonb)
+       ON CONFLICT (student_id, exam_id) DO UPDATE SET started_at=EXCLUDED.started_at`,
+      [S1.id, exam.id]
+    );
+    await insertAbsentRecord(S1.id, exam.id);
+
+    // Verify session exists before reset
+    const beforeReset = await pool.query(
+      'SELECT id FROM exam_sessions WHERE student_id=$1 AND exam_id=$2',
+      [S1.id, exam.id]
+    );
+    assert(
+      'T3-1: exam_session exists before force_reset',
+      beforeReset.rows.length === 1,
+      `sessions found=${beforeReset.rows.length}`
+    );
+
+    // Call force_reset via publish endpoint — exam is unpublished → isPublishing=true
+    // → force_reset block fires → deletes results AND sessions
+    const r = await req('PUT', `/exams/${exam.id}/publish`, { force_reset: true }, T_TOKEN);
+    assert('T3-2: force_reset (re-publish) returns 200', r.status === 200, `status=${r.status} err=${JSON.stringify(r.data)}`);
+
+    // Verify session is deleted after reset (T3 fix)
+    const afterReset = await pool.query(
+      'SELECT id FROM exam_sessions WHERE student_id=$1 AND exam_id=$2',
+      [S1.id, exam.id]
+    );
+    assert(
+      'T3-3: exam_session deleted by force_reset (T3 fix — prevents stale timer)',
+      afterReset.rows.length === 0,
+      `sessions remaining=${afterReset.rows.length}`
+    );
+
+    // Verify exam_results are also cleared
+    const resultsAfter = await pool.query(
+      'SELECT id FROM exam_results WHERE exam_id=$1', [exam.id]
+    );
+    assert(
+      'T3-4: exam_results also cleared by force_reset',
+      resultsAfter.rows.length === 0,
+      `results remaining=${resultsAfter.rows.length}`
+    );
+
+    await pool.query('DELETE FROM exam_sessions WHERE exam_id=$1', [exam.id]);
+    await pool.query('DELETE FROM exams WHERE id=$1', [exam.id]);
+  })();
+
+  await (async () => {
+    // Verify force_reset with MULTIPLE students' sessions clears all of them
+    const exam = await makeExam({ published: false });
+    await pool.query("UPDATE exams SET question_source='bank' WHERE id=$1", [exam.id]);
+    for (const sid of [S1.id, S2.id, S3.id]) {
+      await pool.query(
+        `INSERT INTO exam_sessions (student_id, exam_id, started_at, questions_snapshot)
+         VALUES ($1, $2, NOW() - INTERVAL '2 hours', '[]'::jsonb)
+         ON CONFLICT (student_id, exam_id) DO UPDATE SET started_at=EXCLUDED.started_at`,
+        [sid, exam.id]
+      );
+      await insertAbsentRecord(sid, exam.id);
+    }
+    const r = await req('PUT', `/exams/${exam.id}/publish`, { force_reset: true }, T_TOKEN);
+    assert('T3-5a: multi-session force_reset returns 200', r.status === 200, `status=${r.status} err=${JSON.stringify(r.data)}`);
+    const remaining = await pool.query(
+      'SELECT id FROM exam_sessions WHERE exam_id=$1', [exam.id]
+    );
+    assert(
+      'T3-5: all exam_sessions (3 students) cleared by force_reset',
+      remaining.rows.length === 0,
+      `sessions remaining=${remaining.rows.length}`
+    );
+
+    await pool.query('DELETE FROM exams WHERE id=$1', [exam.id]);
+  })();
+
+  // ── T4: teacher retry-requests result_id excludes absent results ──────────
+  await (async () => {
+    const exam = await makeExam({ published: true, endedHoursAgo: 1 });
+    await insertAbsentRecord(S1.id, exam.id);
+    // S1 submits a retry request even though they're absent (simulated directly in DB)
+    await pool.query(
+      "INSERT INTO exam_retry_requests (student_id, exam_id, message, status) VALUES ($1,$2,'test','pending')",
+      [S1.id, exam.id]
+    );
+
+    const r = await req('GET', '/exams/retry-requests', null, T_TOKEN);
+    assert('T4-1: teacher retry-requests returns 200', r.status === 200, `status=${r.status}`);
+
+    const myReq = r.data?.find(x => x.exam_id === exam.id && x.student_id === S1.id);
+    assert(
+      'T4-2: retry request appears in teacher list',
+      !!myReq,
+      `request not found in list of ${r.data?.length} items`
+    );
+    assert(
+      'T4-3: result_id is null when only absent result exists (T4 fix — no absent result link)',
+      myReq?.result_id === null || myReq?.result_id === undefined,
+      `result_id=${myReq?.result_id}`
+    );
+
+    await pool.query('DELETE FROM exam_retry_requests WHERE exam_id=$1', [exam.id]);
+    await pool.query('DELETE FROM exam_results WHERE exam_id=$1', [exam.id]);
+    await pool.query('DELETE FROM exams WHERE id=$1', [exam.id]);
+  })();
+
+  await (async () => {
+    // T4 variant: when a real result exists, result_id SHOULD point to it (not null)
+    const exam = await makeExam({ published: true, endedHoursAgo: 1 });
+    await insertRealResult(S1.id, exam.id, 40, 1, true);
+    await pool.query(
+      "INSERT INTO exam_retry_requests (student_id, exam_id, message, status) VALUES ($1,$2,'test','pending')",
+      [S1.id, exam.id]
+    );
+
+    const r = await req('GET', '/exams/retry-requests', null, T_TOKEN);
+    const myReq = r.data?.find(x => x.exam_id === exam.id && x.student_id === S1.id);
+    assert(
+      'T4-4: result_id is non-null when real (non-absent) result exists',
+      myReq?.result_id !== null && myReq?.result_id !== undefined,
+      `result_id=${myReq?.result_id}`
+    );
+
+    await pool.query('DELETE FROM exam_retry_requests WHERE exam_id=$1', [exam.id]);
+    await pool.query('DELETE FROM exam_results WHERE exam_id=$1', [exam.id]);
+    await pool.query('DELETE FROM exams WHERE id=$1', [exam.id]);
+  })();
+
+  // ── T5: teacher retry-requests excludes soft-deleted students ─────────────
+  await (async () => {
+    const exam = await makeExam({ published: true, endedHoursAgo: 1 });
+    await insertRealResult(S1.id, exam.id, 40, 1, true);
+    await pool.query(
+      "INSERT INTO exam_retry_requests (student_id, exam_id, message, status) VALUES ($1,$2,'test','pending')",
+      [S1.id, exam.id]
+    );
+
+    // Soft-delete S1
+    await pool.query('UPDATE students SET deleted_at=NOW() WHERE id=$1', [S1.id]);
+
+    const r = await req('GET', '/exams/retry-requests', null, T_TOKEN);
+    const myReq = r.data?.find(x => x.exam_id === exam.id && x.student_id === S1.id);
+    assert(
+      'T5-1: soft-deleted student request NOT in teacher retry-requests (T5 fix)',
+      !myReq,
+      `request found for deleted student — should be hidden`
+    );
+
+    // Restore S1
+    await pool.query('UPDATE students SET deleted_at=NULL WHERE id=$1', [S1.id]);
+    await pool.query('DELETE FROM exam_retry_requests WHERE exam_id=$1', [exam.id]);
+    await pool.query('DELETE FROM exam_results WHERE exam_id=$1', [exam.id]);
+    await pool.query('DELETE FROM exams WHERE id=$1', [exam.id]);
+  })();
+
+  await (async () => {
+    // T5 variant: non-deleted student request SHOULD still appear
+    const exam = await makeExam({ published: true, endedHoursAgo: 1 });
+    await insertRealResult(S2.id, exam.id, 40, 1, true);
+    await pool.query(
+      "INSERT INTO exam_retry_requests (student_id, exam_id, message, status) VALUES ($1,$2,'test','pending')",
+      [S2.id, exam.id]
+    );
+
+    const r = await req('GET', '/exams/retry-requests', null, T_TOKEN);
+    const myReq = r.data?.find(x => x.exam_id === exam.id && x.student_id === S2.id);
+    assert(
+      'T5-2: non-deleted student request still appears in teacher list',
+      !!myReq,
+      `request not found — should appear`
+    );
+
+    await pool.query('DELETE FROM exam_retry_requests WHERE exam_id=$1', [exam.id]);
+    await pool.query('DELETE FROM exam_results WHERE exam_id=$1', [exam.id]);
+    await pool.query('DELETE FROM exams WHERE id=$1', [exam.id]);
+  })();
+
+  // ── T6: /student/retry-requests has LIMIT 200 ─────────────────────────────
+  await (async () => {
+    const src = require('fs').readFileSync(require('path').join(__dirname, '../routes/exams.js'), 'utf8');
+    // Find the /student/retry-requests handler and confirm LIMIT 200 is present
+    const retryReqBlock = src.match(/\/student\/retry-requests[\s\S]{0,600}?LIMIT\s+\d+/);
+    const limitMatch = retryReqBlock?.[0]?.match(/LIMIT\s+(\d+)/);
+    assert(
+      'T6-1: /student/retry-requests query contains LIMIT (T6 fix — prevents unbounded fetch)',
+      !!limitMatch,
+      `LIMIT not found in /student/retry-requests handler`
+    );
+    if (limitMatch) {
+      assert(
+        'T6-2: LIMIT value is 200 (reasonable cap for retry history)',
+        parseInt(limitMatch[1]) === 200,
+        `LIMIT=${limitMatch[1]}`
+      );
+    }
+  })();
+
+  // ── T7: retryMap first-wins (newest request shown in UI) ──────────────────
+  await (async () => {
+    // Verify the fix is in the source — first-wins pattern using `if (!acc[r.exam_id])`
+    const src = require('fs').readFileSync(
+      require('path').join(__dirname, '../../client/src/pages/student/Exams.jsx'), 'utf8'
+    );
+    const hasFirstWins = src.includes('if (!acc[r.exam_id])');
+    assert(
+      'T7-1: retryMap uses first-wins (newest entry kept) not last-wins (T7 fix)',
+      hasFirstWins,
+      hasFirstWins ? 'first-wins pattern found' : 'first-wins pattern missing — oldest request still wins'
+    );
+    // Also confirm the old single-assign pattern is gone
+    const hasOldPattern = src.includes("acc[r.exam_id] = r; return acc;");
+    assert(
+      'T7-2: old last-wins pattern removed from retryMap',
+      !hasOldPattern,
+      hasOldPattern ? 'old pattern still present!' : 'old pattern correctly removed'
+    );
+  })();
+
+  // ── T7 logic variant: simulate the retryMap reduce with DESC-sorted data ──
+  await (async () => {
+    const exam = await makeExam({ published: true, endedHoursAgo: 1 });
+    await insertRealResult(S1.id, exam.id, 40, 1, true);
+
+    // Insert two requests: first insert will be older, second newer
+    await pool.query(
+      "INSERT INTO exam_retry_requests (student_id, exam_id, message, status, created_at) VALUES ($1,$2,'old request','rejected', NOW()-INTERVAL '2 hours')",
+      [S1.id, exam.id]
+    );
+    await pool.query(
+      "INSERT INTO exam_retry_requests (student_id, exam_id, message, status, created_at) VALUES ($1,$2,'new request','pending', NOW()-INTERVAL '1 hour')",
+      [S1.id, exam.id]
+    );
+
+    // Fetch from API (as S1)
+    const r = await req('GET', '/exams/student/retry-requests', null, S1_TOKEN);
+    assert('T7-3: /student/retry-requests returns 200', r.status === 200, `status=${r.status}`);
+
+    const forExam = r.data?.filter(x => x.exam_id === exam.id) || [];
+    assert(
+      'T7-4: multiple requests for same exam both returned (so frontend retryMap has a choice)',
+      forExam.length >= 2,
+      `requests for this exam=${forExam.length}`
+    );
+
+    // Simulate the fixed retryMap reduce (first-wins on DESC order = newest first)
+    const retryMap = forExam.reduce((acc, x) => { if (!acc[x.exam_id]) acc[x.exam_id] = x; return acc; }, {});
+    assert(
+      'T7-5: first-wins retryMap picks the newest (pending) request, not the oldest (rejected)',
+      retryMap[exam.id]?.status === 'pending',
+      `retryMap status="${retryMap[exam.id]?.status}" — expected "pending"`
+    );
+
+    // Simulate the OLD broken reduce (last-wins on DESC order = oldest last)
+    const brokenMap = forExam.reduce((acc, x) => { acc[x.exam_id] = x; return acc; }, {});
+    assert(
+      'T7-6: old last-wins retryMap (broken) picks the OLDEST (rejected) request — confirms bug existed',
+      brokenMap[exam.id]?.status === 'rejected',
+      `brokenMap status="${brokenMap[exam.id]?.status}" — expected "rejected"`
+    );
+
+    await pool.query('DELETE FROM exam_retry_requests WHERE exam_id=$1', [exam.id]);
+    await pool.query('DELETE FROM exam_results WHERE exam_id=$1', [exam.id]);
+    await pool.query('DELETE FROM exams WHERE id=$1', [exam.id]);
+  })();
+
+  // ══════════════════════════════════════════════════════════════════════════
   // Summary
   // ══════════════════════════════════════════════════════════════════════════
   console.log('\n' + '═'.repeat(60));

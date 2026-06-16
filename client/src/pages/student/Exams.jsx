@@ -145,7 +145,13 @@ export default function StudentExams() {
     queryFn: () => api.get('/exams/student/retry-requests').then(r => r.data),
   });
 
-  const retryMap = retryRequests.reduce((acc, r) => { acc[r.exam_id] = r; return acc; }, {});
+  // T7 FIX: backend returns requests ORDER BY created_at DESC (newest first).
+  // The old last-wins reduce overwrote the newest entry with progressively older
+  // ones — so the OLDEST request won. Use first-wins so the newest request is kept.
+  const retryMap = retryRequests.reduce((acc, r) => {
+    if (!acc[r.exam_id]) acc[r.exam_id] = r;
+    return acc;
+  }, {});
 
   const { data: examData } = useQuery({
     queryKey: ['exam-take', taking?.id],

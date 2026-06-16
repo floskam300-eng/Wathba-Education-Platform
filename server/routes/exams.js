@@ -367,6 +367,11 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExams
             );
           }
           await resetClient.query('DELETE FROM exam_results WHERE exam_id=$1', [examId]);
+          // T3 FIX: also delete exam_sessions so students who had started the exam
+          // (creating a session with an old started_at) get a fresh timer on their
+          // next attempt. Without this, the server-side elapsed-time check fires
+          // immediately and blocks the student with "انتهت مدة الاختبار".
+          await resetClient.query('DELETE FROM exam_sessions WHERE exam_id=$1', [examId]);
           await resetClient.query('UPDATE exams SET absent_marked=false WHERE id=$1', [examId]);
           await resetClient.query(
             "UPDATE exam_retry_requests SET status='used', handled_at=NOW() WHERE exam_id=$1 AND status='pending'",
@@ -684,12 +689,15 @@ router.delete('/questions/:qid', requireRole('teacher', 'assistant'), checkManag
 // ── Student: get my retry requests ──
 router.get('/student/retry-requests', requireRole('student'), async (req, res) => {
   try {
+    // T6 FIX: add LIMIT 200 — without a cap, a student with many exams/requests
+    // causes an unbounded query that fetches all rows into memory.
     const result = await pool.query(
       `SELECT rr.*, e.title as exam_title
        FROM exam_retry_requests rr
        JOIN exams e ON rr.exam_id = e.id
        WHERE rr.student_id = $1
-       ORDER BY rr.created_at DESC`,
+       ORDER BY rr.created_at DESC
+       LIMIT 200`,
       [req.user.id]
     );
     res.json(result.rows);
@@ -798,10 +806,16 @@ router.get('/retry-requests', requireRole('teacher', 'assistant'), checkManageEx
   const teacherId = getTeacherId(req);
   try {
     const result = await pool.query(
+      // T4 FIX: add AND er.is_absent=false to result_id subquery — absent results have no
+      // answers to review, so linking the teacher to one produces a blank review page.
+      // T5 FIX: add AND s.deleted_at IS NULL — soft-deleted students should not appear.
       `SELECT rr.*, s.name as student_name, e.title as exam_title,
-              (SELECT er.id FROM exam_results er WHERE er.exam_id=rr.exam_id AND er.student_id=rr.student_id ORDER BY er.created_at DESC LIMIT 1) as result_id
+              (SELECT er.id FROM exam_results er
+               WHERE er.exam_id=rr.exam_id AND er.student_id=rr.student_id
+                 AND er.is_absent=false
+               ORDER BY er.created_at DESC LIMIT 1) as result_id
        FROM exam_retry_requests rr
-       JOIN students s ON rr.student_id = s.id
+       JOIN students s ON rr.student_id = s.id AND s.deleted_at IS NULL
        JOIN exams e ON rr.exam_id = e.id
        WHERE e.teacher_id = $1
        ORDER BY rr.created_at DESC`,
@@ -966,10 +980,12 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
   if (!examId) return res.status(400).json({ error: 'معرّف الاختبار غير صالح' });
   const studentId = req.user.id;
   try {
-    // Block students who already submitted without an approved retry
+    // Block students who already submitted without an approved retry.
+    // T1 FIX: use AND is_absent=false so that a student who was only marked absent
+    // (never submitted answers) is NOT blocked — absent ≠ "took the exam".
     const [existingRes, retryRes] = await Promise.all([
       pool.query(
-        'SELECT id FROM exam_results WHERE student_id=$1 AND exam_id=$2 AND is_latest=true',
+        'SELECT id FROM exam_results WHERE student_id=$1 AND exam_id=$2 AND is_latest=true AND is_absent=false',
         [studentId, examId]
       ),
       pool.query(
@@ -1131,8 +1147,11 @@ router.post('/:id/submit', submitLimiter, requireRole('student'), async (req, re
   // ── Pre-flight eligibility check (outside transaction for speed) ──
   let eligibilityRow, questionsData, serverSession;
   try {
+    // T2 FIX: add AND is_absent=false — an absent record (is_latest=true, is_absent=true)
+    // is not a real submission. Without this, an absent student who somehow reaches
+    // the submit endpoint would get a misleading 409 "أديت الاختبار مسبقاً".
     const existing = await pool.query(
-      'SELECT id FROM exam_results WHERE student_id=$1 AND exam_id=$2 AND is_latest=true',
+      'SELECT id FROM exam_results WHERE student_id=$1 AND exam_id=$2 AND is_latest=true AND is_absent=false',
       [studentId, examId]
     );
     if (existing.rows.length > 0) {
