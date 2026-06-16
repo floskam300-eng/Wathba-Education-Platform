@@ -123,6 +123,10 @@ router.get('/analytics', requireRole('teacher', 'assistant'), checkAnalyticsPerm
       teacherId = aRes.rows[0].teacher_id;
     }
 
+    const cacheKey = `t${teacherId}_asst_analytics`;
+    const cached = getCached(cacheKey);
+    if (cached) return res.json(cached);
+
     const [examResults, topStudents, recentResults, stageStats, totalStudentsRes] = await Promise.all([
       pool.query(`
         SELECT e.id, e.title, e.total_score,
@@ -174,13 +178,15 @@ router.get('/analytics', requireRole('teacher', 'assistant'), checkAnalyticsPerm
       ),
     ]);
 
-    res.json({
+    const result = {
       examResults: examResults.rows,
       topStudents: topStudents.rows,
       recentResults: recentResults.rows,
       stageStats: stageStats.rows,
       totalStudents: totalStudentsRes.rows[0].count,
-    });
+    };
+    setCache(cacheKey, result);
+    res.json(result);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });

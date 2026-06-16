@@ -15,6 +15,7 @@ import api from '../../lib/api';
 import StudentProfileModal from '../../components/ui/StudentProfileModal';
 
 const CHART_COLORS = ['#6366f1','#f97316','#10b981','#f59e0b','#8b5cf6','#06b6d4','#ec4899','#f43f5e'];
+const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 const TREND_PERIODS = [
   { label: 'شهر',    value: 1  },
@@ -102,17 +103,20 @@ export default function TeacherAnalytics() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ['teacher-analytics'],
     queryFn: () => api.get('/teachers/analytics').then(r => r.data),
+    staleTime: 5 * 60 * 1000,
   });
 
   const { data: trendData = [], isFetching: trendLoading } = useQuery({
     queryKey: ['teacher-analytics-trend', trendMonths],
     queryFn: () => api.get(`/teachers/analytics/trend?months=${trendMonths}`).then(r => r.data),
     keepPreviousData: true,
+    staleTime: 5 * 60 * 1000,
   });
 
   const { data: wrongQData = [] } = useQuery({
     queryKey: ['teacher-wrong-questions'],
     queryFn: () => api.get('/teachers/analytics/wrong-questions').then(r => r.data),
+    staleTime: 5 * 60 * 1000,
   });
   const [wrongQExamIdx, setWrongQExamIdx] = useState(0);
 
@@ -265,7 +269,7 @@ export default function TeacherAnalytics() {
       s.name, s.academic_stage || '—', s.gender || '—', s.points, s.exams_taken,
       Math.round(parseFloat(s.avg_score) || 0),
     ]);
-    const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -331,8 +335,8 @@ export default function TeacherAnalytics() {
       trigger: 'axis',
       axisPointer: { type: 'shadow', shadowStyle: { color: 'rgba(99,102,241,0.06)' } },
       formatter: params => {
-        let s = `<div style="font-family:Cairo;font-weight:900;color:#1e293b;border-bottom:1px solid #f1f5f9;padding-bottom:6px;margin-bottom:6px">${params[0]?.name}</div>`;
-        params.forEach(p => { s += `<div style="font-family:Cairo;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:2px 0">${p.marker}${p.seriesName}: <b style="color:${p.color}">${p.value}%</b></div>`; });
+        let s = `<div style="font-family:Cairo;font-weight:900;color:#1e293b;border-bottom:1px solid #f1f5f9;padding-bottom:6px;margin-bottom:6px">${esc(params[0]?.name)}</div>`;
+        params.forEach(p => { const c = p.seriesName === 'متوسط الدرجات' ? '#6366f1' : p.seriesName === 'أعلى درجة' ? '#10b981' : '#f43f5e'; s += `<div style="font-family:Cairo;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:2px 0">${p.marker}${esc(p.seriesName)}: <b style="color:${c}">${p.value}%</b></div>`; });
         return s;
       }
     },

@@ -12,6 +12,7 @@ import StudentProfileModal from '../../components/ui/StudentProfileModal';
 import api from '../../lib/api';
 
 const CHART_COLORS = ['#6366f1','#f97316','#10b981','#f59e0b','#8b5cf6','#06b6d4','#ec4899'];
+const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const STAGES = ['الكل', 'الصف الأول الثانوي', 'الصف الثاني الثانوي', 'الصف الثالث الثانوي', 'الصف الأول الإعدادي', 'الصف الثاني الإعدادي', 'الصف الثالث الإعدادي', 'جامعي'];
 const GENDERS = ['الكل', 'ذكر', 'أنثى'];
 const PERF_LEVELS = [
@@ -71,6 +72,7 @@ export default function AssistantAnalytics() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ['assistant-analytics'],
     queryFn: () => api.get('/assistants/analytics').then(r => r.data),
+    staleTime: 5 * 60 * 1000,
   });
 
   const { data: recData, isLoading: recLoading } = useQuery({
@@ -241,8 +243,8 @@ export default function AssistantAnalytics() {
       trigger: 'axis',
       axisPointer: { type: 'shadow', shadowStyle: { color: 'rgba(99,102,241,0.06)' } },
       formatter: params => {
-        let s = `<div style="font-family:Cairo;font-weight:900;color:#1e293b;border-bottom:1px solid #f1f5f9;padding-bottom:6px;margin-bottom:6px">${params[0]?.name}</div>`;
-        params.forEach(p => { s += `<div style="font-family:Cairo;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:2px 0">${p.marker}${p.seriesName}: <b style="color:${p.color}">${p.value}%</b></div>`; });
+        let s = `<div style="font-family:Cairo;font-weight:900;color:#1e293b;border-bottom:1px solid #f1f5f9;padding-bottom:6px;margin-bottom:6px">${esc(params[0]?.name)}</div>`;
+        params.forEach(p => { const c = p.seriesName === 'متوسط الدرجات' ? '#6366f1' : p.seriesName === 'أعلى درجة' ? '#10b981' : '#f43f5e'; s += `<div style="font-family:Cairo;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:2px 0">${p.marker}${esc(p.seriesName)}: <b style="color:${c}">${p.value}%</b></div>`; });
         return s;
       }
     },
