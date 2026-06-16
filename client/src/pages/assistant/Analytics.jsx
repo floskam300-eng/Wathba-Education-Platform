@@ -4,7 +4,7 @@ import {
   BarChart3, TrendingUp, Users, Award, Target, GraduationCap,
   CheckCircle2, XCircle, Clock, Star, ChevronUp, ChevronDown,
   Minus, Eye, Search, Filter, X as XIcon, Zap, Trophy, Activity,
-  BookOpen, Flame, PieChart
+  BookOpen, Flame, PieChart, Layers
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import ReactECharts from 'echarts-for-react';
@@ -76,6 +76,11 @@ export default function AssistantAnalytics() {
   const { data: recData, isLoading: recLoading } = useQuery({
     queryKey: ['assistant-recitations-analytics'],
     queryFn: () => api.get('/recitations/analytics').then(r => r.data),
+  });
+
+  const { data: courseStatsData = [], isLoading: courseStatsLoading } = useQuery({
+    queryKey: ['assistant-course-stats'],
+    queryFn: () => api.get('/assistants/course-stats').then(r => r.data),
   });
 
   const examChartData = useMemo(() => (data?.examResults || []).map(e => ({
@@ -349,6 +354,55 @@ export default function AssistantAnalytics() {
     ]
   }), [recRecentChartData]);
 
+  const courseEnrollOption = useMemo(() => {
+    const top = courseStatsData.slice(0, 8);
+    return {
+      tooltip: {
+        ...tooltipBase, trigger: 'axis', axisPointer: { type: 'shadow' },
+        formatter: p => {
+          const d = p[0];
+          return `<div style="font-family:Cairo"><b style="color:#1e293b">${d.name}</b><br/>${d.marker} الطلاب المشتركون: <b style="color:${d.color}">${d.value}</b></div>`;
+        }
+      },
+      grid: { left: 8, right: 32, top: 6, bottom: 4, containLabel: true },
+      xAxis: { type: 'value', minInterval: 1, axisLine:{ show:false }, axisTick:{ show:false }, splitLine:{ lineStyle:{ color:'#f1f5f9', type:'dashed' } }, axisLabel:{ fontFamily:'Cairo', color:'#94a3b8', fontSize:10 } },
+      yAxis: { type: 'category', data: top.map(c => c.name?.length > 18 ? c.name.substring(0,18)+'…' : c.name), axisLine:{ show:false }, axisTick:{ show:false }, axisLabel:{ fontFamily:'Cairo', color:'#64748b', fontSize:10 } },
+      series: [{
+        type: 'bar', name: 'طلاب', barMaxWidth: 20,
+        data: top.map((c, i) => ({
+          value: c.enrolled_count,
+          itemStyle: { borderRadius:[0,6,6,0], color:{ type:'linear',x:0,y:0,x2:1,y2:0, colorStops:[{offset:0,color:CHART_COLORS[i%CHART_COLORS.length]+'70'},{offset:1,color:CHART_COLORS[i%CHART_COLORS.length]}] } }
+        })),
+        label: { show: true, position:'right', fontFamily:'Cairo', fontSize:10, fontWeight:'bold', color:'#64748b', formatter:'{c}' }
+      }]
+    };
+  }, [courseStatsData]);
+
+  const courseProgressOption = useMemo(() => {
+    const top = courseStatsData.slice(0, 8);
+    return {
+      tooltip: {
+        ...tooltipBase, trigger: 'axis', axisPointer: { type: 'shadow' },
+        formatter: p => {
+          const d = p[0];
+          return `<div style="font-family:Cairo"><b style="color:#1e293b">${d.name}</b><br/>${d.marker} متوسط التقدم: <b style="color:${d.color}">${d.value}%</b></div>`;
+        }
+      },
+      grid: { left: 8, right: 40, top: 6, bottom: 4, containLabel: true },
+      xAxis: { type: 'value', max: 100, axisLine:{ show:false }, axisTick:{ show:false }, splitLine:{ lineStyle:{ color:'#f1f5f9', type:'dashed' } }, axisLabel:{ fontFamily:'Cairo', color:'#94a3b8', formatter:'{value}%', fontSize:10 } },
+      yAxis: { type: 'category', data: top.map(c => c.name?.length > 18 ? c.name.substring(0,18)+'…' : c.name), axisLine:{ show:false }, axisTick:{ show:false }, axisLabel:{ fontFamily:'Cairo', color:'#64748b', fontSize:10 } },
+      series: [{
+        type: 'bar', name: 'تقدم', barMaxWidth: 20,
+        data: top.map(c => {
+          const v = c.avg_progress;
+          const color = v >= 70 ? '#10b981' : v >= 40 ? '#f59e0b' : '#f43f5e';
+          return { value: v, itemStyle: { borderRadius:[0,6,6,0], color:{ type:'linear',x:0,y:0,x2:1,y2:0, colorStops:[{offset:0,color:color+'70'},{offset:1,color}] } } };
+        }),
+        label: { show: true, position:'right', fontFamily:'Cairo', fontSize:10, fontWeight:'bold', color:'#64748b', formatter:'{c}%' }
+      }]
+    };
+  }, [courseStatsData]);
+
   const attemptsDonutOption = useMemo(() => ({
     tooltip: {
       ...tooltipBase,
@@ -614,6 +668,148 @@ export default function AssistantAnalytics() {
               <div className="p-5 pt-0"><EmptyState icon={Zap} text="لا توجد بيانات كافية" /></div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ── Course Stats Section ──────────────────────────────────────── */}
+      {(courseStatsLoading || courseStatsData.length > 0) && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-400 to-violet-600 flex items-center justify-center shadow-md flex-shrink-0">
+              <Layers className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-lg font-black text-gray-800">إحصائيات الكورسات</h2>
+              <p className="text-xs text-gray-400 font-medium">أداء ومتابعة الكورسات ومستوى تقدم الطلاب</p>
+            </div>
+          </div>
+
+          {courseStatsLoading ? (
+            <div className="grid grid-cols-3 gap-3">
+              {[...Array(3)].map((_, i) => <div key={i} className="h-20 rounded-xl bg-gray-100 animate-pulse" />)}
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: 'إجمالي الكورسات',  value: courseStatsData.length, icon: Layers, color: '#6366f1', bg: 'bg-indigo-50' },
+                { label: 'إجمالي المشتركين', value: courseStatsData.reduce((s, c) => s + (c.enrolled_count || 0), 0), icon: Users, color: '#f97316', bg: 'bg-orange-50' },
+                { label: 'متوسط التقدم', value: courseStatsData.length ? `${Math.round(courseStatsData.reduce((s, c) => s + (c.avg_progress || 0), 0) / courseStatsData.length)}%` : '0%', icon: TrendingUp, color: '#10b981', bg: 'bg-emerald-50' },
+              ].map((s, i) => (
+                <div key={i} className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm hover:shadow-md transition-all">
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-2 ${s.bg}`} style={{ color: s.color }}>
+                    <s.icon className="w-4 h-4" />
+                  </div>
+                  <p className="text-xl font-black text-gray-800 leading-none">{s.value}</p>
+                  <p className="text-[10px] font-semibold text-gray-400 mt-1">{s.label}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {!courseStatsLoading && courseStatsData.length > 0 && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+                <div className="h-1 bg-gradient-to-r from-indigo-400 via-violet-400 to-purple-400" />
+                <div className="p-5 pb-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center flex-shrink-0">
+                      <Users className="w-4 h-4 text-indigo-500" />
+                    </div>
+                    <div>
+                      <h3 className="font-black text-gray-800 text-sm">عدد المشتركين بالكورس</h3>
+                      <p className="text-[11px] text-gray-400 font-medium mt-0.5">عدد الطلاب المسجلين في كل كورس</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="pb-3">
+                  <ReactECharts option={courseEnrollOption} style={{ height: `${Math.max(180, Math.min(courseStatsData.length, 8) * 36)}px` }} notMerge opts={{ renderer: 'svg' }} />
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+                <div className="h-1 bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400" />
+                <div className="p-5 pb-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                      <TrendingUp className="w-4 h-4 text-emerald-500" />
+                    </div>
+                    <div>
+                      <h3 className="font-black text-gray-800 text-sm">متوسط تقدم الفيديوهات</h3>
+                      <p className="text-[11px] text-gray-400 font-medium mt-0.5">متوسط نسبة مشاهدة الفيديوهات</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="pb-3">
+                  <ReactECharts option={courseProgressOption} style={{ height: `${Math.max(180, Math.min(courseStatsData.length, 8) * 36)}px` }} notMerge opts={{ renderer: 'svg' }} />
+                </div>
+                <div className="px-5 pb-3 flex items-center gap-3 flex-wrap border-t border-gray-50">
+                  <span className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-500"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />≥ 70% ممتاز</span>
+                  <span className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-500"><span className="w-2.5 h-2.5 rounded-full bg-amber-400" />40–69% متوسط</span>
+                  <span className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-500"><span className="w-2.5 h-2.5 rounded-full bg-rose-400" />&lt; 40% ضعيف</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!courseStatsLoading && courseStatsData.length > 0 && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="h-1 bg-gradient-to-r from-violet-400 via-fuchsia-400 to-pink-400" />
+              <div className="p-5 pb-3 border-b border-gray-50">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-violet-50 flex items-center justify-center flex-shrink-0">
+                    <GraduationCap className="w-4 h-4 text-violet-500" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-gray-800 text-sm">تفاصيل الكورسات</h3>
+                    <p className="text-[11px] text-gray-400 font-medium mt-0.5">ملخص أداء كل كورس</p>
+                  </div>
+                </div>
+              </div>
+              <div className="divide-y divide-gray-50">
+                {courseStatsData.slice(0, 10).map((c, i) => {
+                  const prog = c.avg_progress || 0;
+                  const progColor = prog >= 70 ? '#10b981' : prog >= 40 ? '#f59e0b' : '#f43f5e';
+                  const progBg = prog >= 70 ? '#dcfce7' : prog >= 40 ? '#fef3c7' : '#ffe4e6';
+                  return (
+                    <div key={c.id} className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50/70 transition-colors">
+                      <span className="w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black text-white flex-shrink-0" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }}>{i + 1}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-bold text-gray-800 truncate">{c.name}</p>
+                          {c.target_stage && <span className="text-[10px] font-medium text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full flex-shrink-0">{c.target_stage}</span>}
+                        </div>
+                        <div className="flex items-center gap-3 mt-1.5">
+                          <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full transition-all duration-700" style={{ width: `${prog}%`, background: progColor }} />
+                          </div>
+                          <span className="text-[10px] font-black flex-shrink-0 px-1.5 py-0.5 rounded-md" style={{ color: progColor, background: progBg }}>{prog}%</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 flex-shrink-0 text-right">
+                        <div className="text-center hidden sm:block">
+                          <p className="text-sm font-black text-indigo-500">{c.enrolled_count}</p>
+                          <p className="text-[9px] text-gray-400 font-medium">مشترك</p>
+                        </div>
+                        <div className="text-center hidden sm:block">
+                          <p className="text-sm font-black text-emerald-500">{c.active_students}</p>
+                          <p className="text-[9px] text-gray-400 font-medium">نشط</p>
+                        </div>
+                        <div className="text-center hidden sm:block">
+                          <p className="text-sm font-black text-gray-500">{c.total_videos}</p>
+                          <p className="text-[9px] text-gray-400 font-medium">فيديو</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {courseStatsData.length > 10 && (
+                <div className="px-5 py-3 border-t border-gray-50 bg-gray-50/50 text-center">
+                  <p className="text-xs text-gray-400 font-medium">يُعرض 10 من {courseStatsData.length} كورس</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

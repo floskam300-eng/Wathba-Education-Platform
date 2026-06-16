@@ -186,4 +186,35 @@ router.get('/analytics', requireRole('teacher', 'assistant'), checkAnalyticsPerm
   }
 });
 
+router.get('/course-stats', requireRole('teacher', 'assistant'), checkAnalyticsPerm, async (req, res) => {
+  try {
+    let teacherId;
+    if (req.user.role === 'teacher') {
+      teacherId = req.user.id;
+    } else {
+      const aRes = await pool.query('SELECT teacher_id FROM assistants WHERE id=$1', [req.user.id]);
+      if (!aRes.rows.length) return res.status(404).json({ error: 'Assistant not found' });
+      teacherId = aRes.rows[0].teacher_id;
+    }
+    const result = await pool.query(`
+      SELECT c.id, c.name, c.target_stage,
+             COUNT(DISTINCT sce.student_id)::int AS enrolled_count,
+             COUNT(DISTINCT v.id)::int            AS total_videos,
+             COALESCE(ROUND(AVG(vp.progress_percentage)::numeric, 0), 0)::int AS avg_progress,
+             COUNT(DISTINCT CASE WHEN vp.progress_percentage >= 80 THEN vp.student_id END)::int AS active_students
+      FROM courses c
+      LEFT JOIN student_course_enrollment sce ON c.id = sce.course_id
+      LEFT JOIN videos v  ON v.course_id = c.id
+      LEFT JOIN video_progress vp ON v.id = vp.video_id
+      WHERE c.teacher_id = $1
+      GROUP BY c.id, c.name, c.target_stage
+      ORDER BY enrolled_count DESC
+    `, [teacherId]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;
