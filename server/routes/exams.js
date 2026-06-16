@@ -331,16 +331,23 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExams
       }
       // If republishing (exam was taken before), clear previous results to allow re-attempt
       const existingResults = await pool.query(
-        'SELECT COUNT(id) as cnt FROM exam_results WHERE exam_id=$1',
+        'SELECT COUNT(id) as cnt, COUNT(id) FILTER (WHERE is_absent = false) as real_cnt FROM exam_results WHERE exam_id=$1',
         [examId]
       );
       const resultCount = parseInt(existingResults.rows[0].cnt);
+      const realCount   = parseInt(existingResults.rows[0].real_cnt);
       if (resultCount > 0) {
         if (!req.body.force_reset) {
+          // BUG-5 FIX: differentiate between absent records and real submissions
+          // to avoid misleading the teacher ("N took the exam" when they were marked absent)
+          const msg = realCount > 0
+            ? `يوجد ${realCount} طالب أدوا هذا الاختبار بالفعل — إعادة النشر ستمسح نتائجهم نهائياً`
+            : `يوجد ${resultCount} طالب مسجّلون كـ"غائب" في هذا الاختبار — إعادة النشر ستمسح سجلات الغياب وتتيح لهم الدخول`;
           return res.status(409).json({
-            error: `يوجد ${resultCount} طالب أدوا هذا الاختبار بالفعل — إعادة النشر ستمسح نتائجهم نهائياً`,
+            error: msg,
             code: 'RESULTS_EXIST',
             count: resultCount,
+            real_count: realCount,
           });
         }
         const resetClient = await pool.connect();
@@ -895,7 +902,8 @@ router.get('/student/my-results', requireRole('student'), async (req, res) => {
        JOIN exams e ON er.exam_id = e.id
        LEFT JOIN courses c ON e.course_id = c.id
        WHERE er.student_id = $1
-       ORDER BY er.created_at DESC`,
+       ORDER BY er.created_at DESC
+       LIMIT 500`,
       [studentId]
     );
     res.json(rows);
@@ -1287,6 +1295,9 @@ router.post('/:id/submit', submitLimiter, requireRole('student'), async (req, re
       : new Date(Date.now() - durationMs);
 
     // Insert new result with incremented attempt number
+    // BUG-5 FIX: when republishing an exam that has absent records (but no real submissions),
+    // the 409 check above counts absent rows as "students who took this exam", which is misleading.
+    // The 409 prompt is handled earlier in the publish flow — this comment is just for context.
     const resultRow = await client.query(
       'INSERT INTO exam_results (student_id,exam_id,score,correct_count,wrong_count,unanswered_count,start_time,end_time,answers,points_earned,attempt_number,is_latest) VALUES($1,$2,$3,$4,$5,$6,$7,NOW(),$8,$9,$10,true) RETURNING *',
       [studentId, examId, normalizedScore, correct, wrong, unanswered, safeStartTime, JSON.stringify(detailedAnswers), pointsEarned, nextAttemptNumber]
@@ -1327,9 +1338,11 @@ router.get('/student/course-results/:courseId', requireRole('student'), async (r
     if (!enrollCheck.rows.length)
       return res.status(403).json({ error: 'Access denied: not enrolled in this course' });
 
+    // BUG-9 FIX: include is_absent in SELECT so the frontend can display
+    // "غائب" badge instead of showing score=0 as a failed attempt
     const result = await pool.query(
       `SELECT er.id, er.score, er.correct_count, er.wrong_count, er.unanswered_count,
-              er.points_earned, er.created_at,
+              er.points_earned, er.created_at, er.is_absent,
               e.title as exam_title, e.total_score, e.pass_score, e.id as exam_id
        FROM exam_results er
        JOIN exams e ON er.exam_id = e.id
@@ -1393,7 +1406,7 @@ router.get('/results/:resultId/review', requireRole('teacher', 'assistant', 'stu
     const resultRes = await pool.query(
       `SELECT er.id, er.student_id, er.exam_id, er.score, er.correct_count, er.wrong_count,
               er.unanswered_count, er.points_earned, er.start_time, er.end_time, er.created_at,
-              er.answers, er.attempt_number,
+              er.answers, er.attempt_number, er.is_absent,
               s.name  AS student_name,
               e.title AS exam_title, e.total_score, e.pass_score, e.teacher_id AS exam_teacher_id,
               e.question_source, e.bank_id, e.shuffle_options
@@ -1409,6 +1422,10 @@ router.get('/results/:resultId/review', requireRole('teacher', 'assistant', 'stu
     if (req.user.role === 'student') {
       if (parseInt(row.student_id) !== parseInt(req.user.id)) {
         return res.status(403).json({ error: 'Access denied' });
+      }
+      // BUG-3 FIX: block review of absent records — student never answered any questions
+      if (row.is_absent) {
+        return res.status(403).json({ error: 'لا يمكن مراجعة اختبار تم تسجيلك غائباً فيه' });
       }
     } else {
       const teacherId = getTeacherId(req);
@@ -1538,3 +1555,4 @@ router.get('/results/:resultId/review', requireRole('teacher', 'assistant', 'stu
 });
 
 module.exports = router;
+module.exports.markAbsentStudents = markAbsentStudents;

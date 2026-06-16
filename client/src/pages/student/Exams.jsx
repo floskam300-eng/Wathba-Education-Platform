@@ -979,7 +979,8 @@ export default function StudentExams() {
                             <span className={`text-xs font-black ${passed ? 'text-green-600' : 'text-red-500'}`}>
                               {r.score}/{r.total_score}
                             </span>
-                            {r.is_latest && (
+                            {/* BUG-2 FIX: exclude absent records — is_latest=true but no answers to review */}
+                            {r.is_latest && !isAbsent && (
                               <button
                                 onClick={() => navigate(`/student/exam-review/${r.id}`)}
                                 className="p-1.5 rounded-lg text-gray-400 hover:text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors"

@@ -355,12 +355,16 @@ async function runEndedExamCheck() {
   if (!_pool || _isEndRunning) return;
   _isEndRunning = true;
   try {
+    // BUG-1 FIX: Only mark absent for PUBLISHED exams that have ended.
+    // Without is_published=true, exams that were never published (draft/expired)
+    // would incorrectly mark all students as absent.
     const { rows: endedExams } = await _pool.query(`
       SELECT e.id, e.teacher_id, e.title, e.course_id
       FROM exams e
       WHERE e.end_date IS NOT NULL
         AND e.end_date <= NOW()
         AND e.absent_marked = false
+        AND e.is_published = true
       LIMIT 50
     `);
 

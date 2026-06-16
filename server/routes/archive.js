@@ -331,15 +331,18 @@ router.get('/students', requireRole('teacher', 'assistant'), checkAnyPerm, async
     const conditions = ['s.teacher_id = $1', 's.deleted_at IS NULL'];
     // has_type: '' = any results, 'exams' = has exams, 'recitations' = has recitations, 'both' = has both
     const { has_type } = req.query;
+    // BUG-4+6 FIX: include absent_exams in the "has exams" filters so that
+    // students who were only marked absent (never actually took an exam) still
+    // appear in the archive list. Without this fix they are completely invisible.
     if (has_type === 'exams') {
-      conditions.push('COALESCE(ex.total_exams,0) > 0');
+      conditions.push('(COALESCE(ex.total_exams,0) + COALESCE(ex.absent_exams,0)) > 0');
     } else if (has_type === 'recitations') {
       conditions.push('COALESCE(rec.total_recitations,0) > 0');
     } else if (has_type === 'both') {
-      conditions.push('COALESCE(ex.total_exams,0) > 0');
+      conditions.push('(COALESCE(ex.total_exams,0) + COALESCE(ex.absent_exams,0)) > 0');
       conditions.push('COALESCE(rec.total_recitations,0) > 0');
     } else {
-      conditions.push('(COALESCE(ex.total_exams,0) > 0 OR COALESCE(rec.total_recitations,0) > 0)');
+      conditions.push('((COALESCE(ex.total_exams,0) + COALESCE(ex.absent_exams,0)) > 0 OR COALESCE(rec.total_recitations,0) > 0)');
     }
     const params = [teacherId];
     let p = 2;
