@@ -530,12 +530,18 @@ html.dark .rounded-lg.border {
 }
 
 /* Header safe area — pushes content below notch / Dynamic Island
-   Only has a visual effect when viewport-fit=cover is set AND
-   the app is running in standalone / PWA mode (or landscape with notch) */
+   Side insets (landscape notch) are always applied when viewport-fit=cover.
+   Top inset is only applied in standalone/PWA mode — in regular browser mode
+   both iOS and Android already handle the status bar so adding padding-top
+   here makes the header unnecessarily tall on Android. */
 .app-header-safe {
-  padding-top: env(safe-area-inset-top);
   padding-inline-start: env(safe-area-inset-right); /* RTL: start = right */
   padding-inline-end:   env(safe-area-inset-left);  /* RTL: end   = left  */
+}
+@media (display-mode: standalone) {
+  .app-header-safe {
+    padding-top: env(safe-area-inset-top);
+  }
 }
 
 /* Sidebar overlay — must also clear the safe area */

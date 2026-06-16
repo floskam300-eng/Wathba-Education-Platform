@@ -311,7 +311,7 @@ export default function ExamReviewPage() {
                       })()}
                       {q.question_text && <p className={`font-bold text-base leading-relaxed mb-1 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}><MathText text={q.question_text} /></p>}
                       {q.question_image_url && (
-                        <img src={withToken(q.question_image_url)} alt="" className={`mt-2 mb-3 max-w-sm rounded-xl border ${dark ? 'border-[var(--dk-border)]' : 'border-gray-200'}`} />
+                        <img src={withToken(q.question_image_url)} alt="" className={`mt-2 mb-3 w-full max-w-sm rounded-xl border object-contain ${dark ? 'border-[var(--dk-border)]' : 'border-gray-200'}`} />
                       )}
 
                       {/* image_multi sub-questions */}

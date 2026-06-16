@@ -262,7 +262,7 @@ export default function Attendance() {
                               : `border-gray-100 hover:bg-orange-50/30 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`
                           }`}
                         >
-                          <td className={`py-3 px-4 sticky right-0 z-10 ${dark ? 'bg-[var(--dk-surface)]' : idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
+                          <td className={`py-3 px-4 sticky right-0 z-10 ${dark ? 'bg-[var(--dk-surface)]' : idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
                             <div className="font-semibold text-navy-700 text-sm">{student.name}</div>
                             {student.academic_stage && (
                               <div className="text-xs text-gray-500">{student.academic_stage}</div>

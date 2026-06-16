@@ -773,15 +773,15 @@ export default function TeacherAnalytics() {
             <ChartCard title="توزيع المحاولات" subtitle="نسبة المحاولات لكل اختبار"
               icon={Target} iconBg="bg-orange-50" iconColor="text-orange-500">
               {pieData.length > 0 ? (
-                <div className="flex items-center gap-4">
-                  <div className="flex-shrink-0 w-[180px] relative">
-                    <ReactECharts option={attemptsDonutOption} style={{ height: '180px', width: '180px' }} notMerge opts={{ renderer: 'svg' }} />
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                  <div className="flex-shrink-0 relative w-[160px] sm:w-[180px]">
+                    <ReactECharts option={attemptsDonutOption} style={{ height: '160px', width: '160px' }} notMerge opts={{ renderer: 'svg' }} />
                     <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                       <p className="text-base font-black text-gray-700">{totalAttempts}</p>
                       <p className="text-[10px] text-gray-400 font-semibold">محاولة</p>
                     </div>
                   </div>
-                  <div className="flex-1 space-y-2 overflow-y-auto max-h-[200px] pl-1">
+                  <div className="flex-1 w-full space-y-2 overflow-y-auto max-h-[200px] pl-1">
                     {pieData.map((item, i) => {
                       const pct = totalAttempts > 0 ? Math.round((item.value / totalAttempts) * 100) : 0;
                       const color = CHART_COLORS[i % CHART_COLORS.length];
@@ -1323,15 +1323,15 @@ export default function TeacherAnalytics() {
           <ChartCard title="توزيع الطلاب بالجنس" subtitle="نسبة الذكور والإناث"
             icon={PieChart} iconBg="bg-pink-50" iconColor="text-pink-500">
             {genderDistData.length > 0 ? (
-              <div className="flex items-center gap-4">
-                <div className="flex-shrink-0 relative" style={{ width: '180px' }}>
-                  <ReactECharts option={genderDonutOption} style={{ height: '180px', width: '180px' }} notMerge opts={{ renderer: 'svg' }} />
+              <div className="flex flex-col sm:flex-row items-center gap-4">
+                <div className="flex-shrink-0 relative w-[160px] sm:w-[180px]">
+                  <ReactECharts option={genderDonutOption} style={{ height: '160px', width: '160px' }} notMerge opts={{ renderer: 'svg' }} />
                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                     <p className="text-base font-black text-gray-700 dark:text-gray-200">{genderDistData.reduce((s,d)=>s+d.value,0)}</p>
                     <p className="text-[10px] text-gray-400 font-semibold">طالب</p>
                   </div>
                 </div>
-                <div className="flex-1 space-y-2.5">
+                <div className="flex-1 w-full space-y-2.5">
                   {genderDistData.map((d, i) => {
                     const total = genderDistData.reduce((s, x) => s + x.value, 0);
                     const pct = total > 0 ? Math.round((d.value / total) * 100) : 0;
