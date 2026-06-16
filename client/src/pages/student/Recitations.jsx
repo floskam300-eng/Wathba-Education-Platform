@@ -93,13 +93,25 @@ export default function StudentRecitations() {
       setExamData(data);
       setSelectedRec(rec);
 
-      // Restore answers from localStorage
-      const saved = localStorage.getItem(`recitation_answers_${rec.id}`);
-      setAnswers(saved ? JSON.parse(saved) : {});
+      // [REC-1 FIX] Wrap JSON.parse in try-catch: corrupt localStorage must not
+      // propagate to the catch block and show a confusing "حدث خطأ" to the user.
+      // Also guard against JSON.parse('null') → null (valid JSON but invalid answers shape).
+      try {
+        const saved = localStorage.getItem(`recitation_answers_${rec.id}`);
+        const parsed = saved ? JSON.parse(saved) : {};
+        setAnswers((parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {});
+      } catch (_) {
+        setAnswers({});
+      }
 
-      // Server-authoritative timer
-      const startedAt = new Date(data.server_started_at).getTime();
-      const durationMs = rec.duration_minutes * 60 * 1000;
+      // [REC-2 FIX] Validate server_started_at before using it — an invalid/null
+      // value would produce NaN from getTime(), causing setTimeLeft(NaN) and the
+      // timer to render "NaN:aN".
+      const startedAt = data.server_started_at ? new Date(data.server_started_at).getTime() : null;
+      if (!startedAt || isNaN(startedAt)) {
+        throw new Error('server_started_at مفقود أو غير صالح من الخادم');
+      }
+      const durationMs = (rec.duration_minutes || 0) * 60 * 1000;
       const remaining = Math.max(0, durationMs - (Date.now() - startedAt));
       // [CL2-FIX] Record epoch + duration so the tick loop can self-correct drift.
       timerEpochRef.current = startedAt;

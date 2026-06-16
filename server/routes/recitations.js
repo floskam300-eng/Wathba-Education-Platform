@@ -1423,7 +1423,8 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
 router.get('/results/:resultId/review', authenticate, async (req, res) => {
   try {
     const resultId = parseInt(req.params.resultId, 10);
-    if (isNaN(resultId) || resultId <= 0) return res.status(400).json({ error: 'معرّف النتيجة غير صالح' });
+    // [SRV-1 FIX] Guard PG_INT_MAX — values >2147483647 cause a DB integer overflow error
+    if (isNaN(resultId) || resultId <= 0 || resultId > 2147483647) return res.status(400).json({ error: 'معرّف النتيجة غير صالح' });
 
     const teacherId = req.user.role === 'student' ? null : (req.user.teacher_id || req.user.id);
 
@@ -1531,8 +1532,10 @@ router.get('/results/:resultId/review', authenticate, async (req, res) => {
       };
     });
 
-    const correct = review.filter(q => q.is_correct).length;
-    const wrong   = review.filter(q => !q.is_correct && (q.question_type === 'image_multi' ? q.student_answer : q.student_answer)).length;
+    const correct    = review.filter(q => q.is_correct).length;
+    // [SRV-2 FIX] Removed redundant ternary — both branches were identical.
+    // "Wrong" = answered but not correct.
+    const wrong      = review.filter(q => !q.is_correct && !!q.student_answer).length;
     const unanswered = review.filter(q => !q.student_answer).length;
 
     res.json({

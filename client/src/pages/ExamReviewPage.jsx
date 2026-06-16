@@ -83,7 +83,8 @@ export default function ExamReviewPage() {
   const { result, questions = [] } = data || {};
 
   const passed = result && result.score >= result.pass_score;
-  const pct    = result ? Math.round((result.score / result.total_score) * 100) : 0;
+  // [ERP-2 FIX] Guard against total_score=0 to prevent pct=NaN
+  const pct    = result && result.total_score > 0 ? Math.round((result.score / result.total_score) * 100) : 0;
 
   const shuffleOptions = result?.shuffle_options || false;
   const studentId      = result?.student_id || 0;

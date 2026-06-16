@@ -42,7 +42,13 @@ export default function RecitationReviewPage() {
   const pct        = questions.length > 0 ? Math.round((correct / questions.length) * 100) : 0;
   const [lightboxSrc, setLightboxSrc] = useState(null);
 
-  const goBack = () => navigate(-1);
+  const goBack = () => {
+    // [RRP-3 FIX] Fallback route when user navigates directly to this URL
+    // (e.g. via notification link) — history.length ≤ 1 means no back-stack.
+    if (window.history.length > 1) navigate(-1);
+    else if (user?.role === 'teacher' || user?.role === 'assistant') navigate('/teacher/recitations');
+    else navigate('/student/recitations');
+  };
 
   return (
     <>

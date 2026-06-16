@@ -1,15 +1,43 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { X, ZoomOut } from 'lucide-react';
 
-export default function ImageLightbox({ src, alt = '', onClose }) {
-  const [scale, setScale] = useState(1);
-  const [translate, setTranslate] = useState({ x: 0, y: 0 });
+const MIN_SCALE = 1;
+const MAX_SCALE = 5;
 
-  const pinchStartDistRef = useRef(null);
+function clampTranslate(x, y, scale) {
+  const maxX = window.innerWidth  * (scale - 1) / 2;
+  const maxY = window.innerHeight * (scale - 1) / 2;
+  return {
+    x: Math.max(-maxX, Math.min(maxX, x)),
+    y: Math.max(-maxY, Math.min(maxY, y)),
+  };
+}
+
+export default function ImageLightbox({ src, alt = '', onClose }) {
+  const [scale, setScale]         = useState(1);
+  const [translate, setTranslate] = useState({ x: 0, y: 0 });
+  const [isGesturing, setIsGesturing] = useState(false);
+
+  // Refs for synchronous reads inside event handlers (avoid stale closures)
+  const scaleRef     = useRef(1);
+  const translateRef = useRef({ x: 0, y: 0 });
+  const containerRef = useRef(null);
+
+  const pinchStartDistRef  = useRef(null);
   const pinchStartScaleRef = useRef(1);
-  const lastTapRef = useRef(0);
-  const dragStartRef = useRef(null);
-  const isDraggingRef = useRef(false);
+  const lastTapRef         = useRef(0);
+  const dragStartRef       = useRef(null);
+
+  // Keep refs in sync with state
+  const applyScale = useCallback((newScale) => {
+    scaleRef.current = newScale;
+    setScale(newScale);
+  }, []);
+
+  const applyTranslate = useCallback((newTrans) => {
+    translateRef.current = newTrans;
+    setTranslate(newTrans);
+  }, []);
 
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose(); };
@@ -23,35 +51,40 @@ export default function ImageLightbox({ src, alt = '', onClose }) {
   }, [onClose]);
 
   const resetZoom = useCallback(() => {
-    setScale(1);
-    setTranslate({ x: 0, y: 0 });
-  }, []);
+    applyScale(1);
+    applyTranslate({ x: 0, y: 0 });
+  }, [applyScale, applyTranslate]);
 
+  // [IL-6 FIX] Use translateRef instead of translate state so handleTouchStart
+  // is not re-created on every translate change.
   const handleTouchStart = useCallback((e) => {
     if (e.touches.length === 2) {
+      // [IL-5 FIX] Clear lastTap to prevent accidental double-tap after pinch
+      lastTapRef.current = 0;
+      dragStartRef.current = null;
       const dx = e.touches[0].clientX - e.touches[1].clientX;
       const dy = e.touches[0].clientY - e.touches[1].clientY;
-      pinchStartDistRef.current = Math.hypot(dx, dy);
-      pinchStartScaleRef.current = scale;
-      isDraggingRef.current = false;
+      pinchStartDistRef.current  = Math.hypot(dx, dy);
+      pinchStartScaleRef.current = scaleRef.current;
+      setIsGesturing(true);
     } else if (e.touches.length === 1) {
       const now = Date.now();
       if (now - lastTapRef.current < 280) {
         lastTapRef.current = 0;
-        setScale(s => {
-          if (s > 1) { setTranslate({ x: 0, y: 0 }); return 1; }
-          return 2.5;
-        });
+        // [IL-1 FIX] Read scale from ref, update both in sequence (no nested setState)
+        const newScale = scaleRef.current > 1 ? 1 : 2.5;
+        applyScale(newScale);
+        if (newScale === 1) applyTranslate({ x: 0, y: 0 });
       } else {
         lastTapRef.current = now;
         dragStartRef.current = {
-          x: e.touches[0].clientX - translate.x,
-          y: e.touches[0].clientY - translate.y,
+          x: e.touches[0].clientX - translateRef.current.x,
+          y: e.touches[0].clientY - translateRef.current.y,
         };
-        isDraggingRef.current = true;
+        setIsGesturing(true);
       }
     }
-  }, [scale, translate]);
+  }, [applyScale, applyTranslate]);
 
   const handleTouchMove = useCallback((e) => {
     e.preventDefault();
@@ -59,41 +92,54 @@ export default function ImageLightbox({ src, alt = '', onClose }) {
       const dx = e.touches[0].clientX - e.touches[1].clientX;
       const dy = e.touches[0].clientY - e.touches[1].clientY;
       const dist = Math.hypot(dx, dy);
-      const newScale = Math.min(5, Math.max(1, pinchStartScaleRef.current * (dist / pinchStartDistRef.current)));
-      setScale(newScale);
-      if (newScale <= 1) setTranslate({ x: 0, y: 0 });
-    } else if (e.touches.length === 1 && isDraggingRef.current && dragStartRef.current) {
-      setScale(s => {
-        if (s <= 1) return s;
-        setTranslate({
-          x: e.touches[0].clientX - dragStartRef.current.x,
-          y: e.touches[0].clientY - dragStartRef.current.y,
-        });
-        return s;
-      });
+      const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE,
+        pinchStartScaleRef.current * (dist / pinchStartDistRef.current)));
+      applyScale(newScale);
+      if (newScale <= 1) applyTranslate({ x: 0, y: 0 });
+    } else if (e.touches.length === 1 && dragStartRef.current) {
+      // [IL-1 FIX] Direct setTranslate — no longer nested inside setScale callback
+      if (scaleRef.current <= 1) return;
+      const rawX = e.touches[0].clientX - dragStartRef.current.x;
+      const rawY = e.touches[0].clientY - dragStartRef.current.y;
+      // [IL-4 FIX] Clamp so image never fully leaves the viewport
+      applyTranslate(clampTranslate(rawX, rawY, scaleRef.current));
     }
-  }, []);
+  }, [applyScale, applyTranslate]);
 
   const handleTouchEnd = useCallback(() => {
     pinchStartDistRef.current = null;
-    isDraggingRef.current = false;
-    dragStartRef.current = null;
+    dragStartRef.current      = null;
+    setIsGesturing(false);
   }, []);
 
+  // [IL-2 FIX] Attach wheel listener manually with { passive: false } so
+  // e.preventDefault() actually works in Chrome/Safari (React's onWheel cannot
+  // set passive:false, causing the browser to ignore preventDefault).
   const handleWheel = useCallback((e) => {
     e.preventDefault();
     const factor = e.deltaY < 0 ? 1.15 : 0.87;
-    setScale(s => {
-      const ns = Math.min(5, Math.max(1, s * factor));
-      if (ns <= 1) setTranslate({ x: 0, y: 0 });
-      return ns;
-    });
-  }, []);
+    const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scaleRef.current * factor));
+    applyScale(newScale);
+    // [IL-4 FIX] Also clamp translate on zoom-out to prevent out-of-bounds state
+    if (newScale <= 1) {
+      applyTranslate({ x: 0, y: 0 });
+    } else {
+      applyTranslate(clampTranslate(translateRef.current.x, translateRef.current.y, newScale));
+    }
+  }, [applyScale, applyTranslate]);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => el.removeEventListener('wheel', handleWheel);
+  }, [handleWheel]);
 
   return (
     <div
+      ref={containerRef}
       className="fixed inset-0 z-[9999] bg-black/96 flex items-center justify-center"
-      onClick={(e) => { if (e.target === e.currentTarget && scale === 1) onClose(); }}
+      onClick={(e) => { if (e.target === e.currentTarget && scaleRef.current === 1) onClose(); }}
     >
       <button
         onClick={onClose}
@@ -125,12 +171,13 @@ export default function ImageLightbox({ src, alt = '', onClose }) {
           cursor: scale > 1 ? 'grab' : 'default',
           touchAction: 'none',
           willChange: 'transform',
-          transition: isDraggingRef.current || pinchStartDistRef.current ? 'none' : 'transform 0.15s ease',
+          // [IL-3 FIX] Use isGesturing STATE (not ref) so React re-renders and
+          // correctly removes the transition during active drag/pinch.
+          transition: isGesturing ? 'none' : 'transform 0.15s ease',
         }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        onWheel={handleWheel}
       >
         <img
           src={src}
