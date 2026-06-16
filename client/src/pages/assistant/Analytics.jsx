@@ -3,7 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import {
   BarChart3, TrendingUp, Users, Award, Target, GraduationCap,
   CheckCircle2, XCircle, Clock, Star, ChevronUp, ChevronDown,
-  Minus, Eye, Search, Filter, X as XIcon, Zap, Trophy, Activity
+  Minus, Eye, Search, Filter, X as XIcon, Zap, Trophy, Activity,
+  BookOpen, Flame, PieChart
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import ReactECharts from 'echarts-for-react';
@@ -72,13 +73,19 @@ export default function AssistantAnalytics() {
     queryFn: () => api.get('/assistants/analytics').then(r => r.data),
   });
 
-  const examChartData = (data?.examResults || []).map(e => ({
+  const { data: recData, isLoading: recLoading } = useQuery({
+    queryKey: ['assistant-recitations-analytics'],
+    queryFn: () => api.get('/recitations/analytics').then(r => r.data),
+  });
+
+  const examChartData = useMemo(() => (data?.examResults || []).map(e => ({
     name: e.title?.length > 14 ? e.title.substring(0, 14) + '…' : e.title,
     fullName: e.title,
     avg: Math.round(parseFloat(e.avg_pct) || 0),
     max: Math.round(parseFloat(e.max_pct)  || 0),
+    min: Math.round(parseFloat(e.min_pct)  || 0),
     attempts: parseInt(e.attempt_count) || 0,
-  }));
+  })), [data]);
 
   const pieData = (data?.examResults || [])
     .map(e => ({ name: e.title?.substring(0, 16), value: parseInt(e.attempt_count) || 0 }))
@@ -192,6 +199,29 @@ export default function AssistantAnalytics() {
   const activeFiltersCount = [genderFilter !== 'الكل', perfFilter !== 'الكل', stageFilter !== 'الكل'].filter(Boolean).length;
   const clearAllFilters = () => { setSearchQuery(''); setStageFilter('الكل'); setGenderFilter('الكل'); setPerfFilter('الكل'); };
 
+  const stageDistData = useMemo(() => {
+    const counts = {};
+    (data?.topStudents || []).forEach(s => {
+      const stage = (s.academic_stage || 'غير محدد')
+        .replace('الصف ', '').replace(' الثانوي', ' ث').replace(' الإعدادي', ' إع');
+      counts[stage] = (counts[stage] || 0) + 1;
+    });
+    return Object.entries(counts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+  }, [data]);
+
+  const genderDistData = useMemo(() => {
+    const counts = {};
+    (data?.topStudents || []).forEach(s => { const g = s.gender || 'غير محدد'; counts[g] = (counts[g] || 0) + 1; });
+    return Object.entries(counts).filter(([, v]) => v > 0).map(([name, value]) => ({ name, value }));
+  }, [data]);
+
+  const recRecentChartData = useMemo(() => (recData?.recent_recitations || []).map(r => ({
+    name: r.title?.length > 16 ? r.title.substring(0, 16) + '…' : r.title,
+    avg: Math.round(parseFloat(r.avg_score) || 0),
+    pass: Math.round(parseFloat(r.pass_rate) || 0),
+    count: parseInt(r.participant_count) || 0,
+  })).reverse(), [recData]);
+
   // ── ECharts Options ───────────────────────────────────────────────────────
   const examBarOption = useMemo(() => ({
     tooltip: {
@@ -218,18 +248,106 @@ export default function AssistantAnalytics() {
     },
     series: [
       {
-        name: 'متوسط الدرجات', type: 'bar', barMaxWidth: 22,
+        name: 'متوسط الدرجات', type: 'bar', barMaxWidth: 18,
         data: examChartData.map(e => e.avg),
         itemStyle: { borderRadius: [6,6,0,0], color: { type:'linear',x:0,y:0,x2:0,y2:1, colorStops:[{offset:0,color:'#6366f1'},{offset:1,color:'#4f46e5'}] } },
         emphasis: { itemStyle: { color: { type:'linear',x:0,y:0,x2:0,y2:1, colorStops:[{offset:0,color:'#818cf8'},{offset:1,color:'#6366f1'}] } } }
       },
       {
-        name: 'أعلى درجة', type: 'bar', barMaxWidth: 22,
+        name: 'أعلى درجة', type: 'bar', barMaxWidth: 18,
         data: examChartData.map(e => e.max),
-        itemStyle: { borderRadius: [6,6,0,0], color: { type:'linear',x:0,y:0,x2:0,y2:1, colorStops:[{offset:0,color:'#f97316'},{offset:1,color:'#ea580c'}] } }
+        itemStyle: { borderRadius: [6,6,0,0], color: { type:'linear',x:0,y:0,x2:0,y2:1, colorStops:[{offset:0,color:'#10b981'},{offset:1,color:'#059669'}] } },
+        emphasis: { itemStyle: { color: { type:'linear',x:0,y:0,x2:0,y2:1, colorStops:[{offset:0,color:'#34d399'},{offset:1,color:'#10b981'}] } } }
+      },
+      {
+        name: 'أدنى درجة', type: 'bar', barMaxWidth: 18,
+        data: examChartData.map(e => e.min),
+        itemStyle: { borderRadius: [6,6,0,0], color: { type:'linear',x:0,y:0,x2:0,y2:1, colorStops:[{offset:0,color:'#f43f5e'},{offset:1,color:'#e11d48'}] } },
+        emphasis: { itemStyle: { color: { type:'linear',x:0,y:0,x2:0,y2:1, colorStops:[{offset:0,color:'#fb7185'},{offset:1,color:'#f43f5e'}] } } }
       }
     ]
   }), [examChartData]);
+
+  const stageBarOption = useMemo(() => ({
+    tooltip: {
+      ...tooltipBase,
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      formatter: params => {
+        const p = params[0];
+        return `<div style="font-family:Cairo"><b style="color:#1e293b">${p.name}</b><br/>${p.marker} عدد الطلاب: <b style="color:${p.color}">${p.value}</b></div>`;
+      }
+    },
+    grid: { left: 8, right: 8, top: 8, bottom: 4, containLabel: true },
+    xAxis: { type: 'value', minInterval: 1, axisLine: { show: false }, axisTick: { show: false }, splitLine: { lineStyle: { color: '#f1f5f9', type: 'dashed' } }, axisLabel: { fontFamily: 'Cairo', color: '#94a3b8', fontSize: 10 } },
+    yAxis: { type: 'category', data: stageDistData.map(d => d.name), axisLine: { show: false }, axisTick: { show: false }, axisLabel: { fontFamily: 'Cairo', color: '#64748b', fontSize: 10 } },
+    series: [{
+      type: 'bar', name: 'طلاب', barMaxWidth: 20,
+      data: stageDistData.map((d, i) => ({
+        value: d.value,
+        itemStyle: { borderRadius: [0,6,6,0], color: { type:'linear',x:0,y:0,x2:1,y2:0, colorStops:[{offset:0,color:CHART_COLORS[i%CHART_COLORS.length]+'99'},{offset:1,color:CHART_COLORS[i%CHART_COLORS.length]}] } }
+      })),
+      label: { show: true, position: 'right', fontFamily: 'Cairo', fontSize: 10, fontWeight: 'bold', color: '#64748b', formatter: '{c}' }
+    }]
+  }), [stageDistData]);
+
+  const genderDonutOption = useMemo(() => ({
+    tooltip: {
+      ...tooltipBase,
+      trigger: 'item',
+      formatter: params => `<div style="font-family:Cairo"><b>${params.name}</b><br/>${params.marker} ${params.value} طالب <b style="color:${params.color}">(${params.percent}%)</b></div>`,
+    },
+    series: [{
+      type: 'pie', radius: ['50%','78%'], center: ['50%','50%'], padAngle: 4,
+      data: genderDistData.map(d => ({
+        value: d.value, name: d.name,
+        itemStyle: { color: d.name === 'ذكر' ? '#6366f1' : d.name === 'أنثى' ? '#ec4899' : '#94a3b8' }
+      })),
+      label: { show: false }, labelLine: { show: false },
+      emphasis: { scale: true, scaleSize: 6, itemStyle: { shadowBlur: 16, shadowColor: 'rgba(0,0,0,0.15)' } },
+      animationType: 'scale', animationEasing: 'elasticOut',
+    }]
+  }), [genderDistData]);
+
+  const recBarOption = useMemo(() => ({
+    tooltip: {
+      ...tooltipBase,
+      trigger: 'axis',
+      axisPointer: { type: 'shadow', shadowStyle: { color: 'rgba(16,185,129,0.06)' } },
+      formatter: params => {
+        let s = `<div style="font-family:Cairo;font-weight:900;color:#1e293b;border-bottom:1px solid #f1f5f9;padding-bottom:6px;margin-bottom:6px">${params[0]?.name}</div>`;
+        params.forEach(p => { s += `<div style="font-family:Cairo;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:2px 0">${p.marker}${p.seriesName}: <b style="color:${p.color}">${p.value}%</b></div>`; });
+        return s;
+      }
+    },
+    grid: { left: 8, right: 8, top: 12, bottom: 4, containLabel: true },
+    xAxis: {
+      type: 'category', data: recRecentChartData.map(r => r.name),
+      axisLine: { show: false }, axisTick: { show: false },
+      axisLabel: { fontFamily: 'Cairo', color: '#94a3b8', fontSize: 9 }
+    },
+    yAxis: {
+      type: 'value', max: 100,
+      splitLine: { lineStyle: { color: '#f1f5f9', type: 'dashed' } },
+      axisLabel: { fontFamily: 'Cairo', color: '#94a3b8', formatter: '{value}%', fontSize: 9 },
+      axisLine: { show: false }, axisTick: { show: false }
+    },
+    series: [
+      {
+        name: 'متوسط الدرجات', type: 'bar', barMaxWidth: 22,
+        data: recRecentChartData.map(r => r.avg),
+        itemStyle: { borderRadius: [6,6,0,0], color: { type:'linear',x:0,y:0,x2:0,y2:1, colorStops:[{offset:0,color:'#10b981'},{offset:1,color:'#059669'}] } },
+        emphasis: { itemStyle: { color: { type:'linear',x:0,y:0,x2:0,y2:1, colorStops:[{offset:0,color:'#34d399'},{offset:1,color:'#10b981'}] } } }
+      },
+      {
+        name: 'نسبة النجاح', type: 'line',
+        data: recRecentChartData.map(r => r.pass),
+        smooth: true, symbol: 'circle', symbolSize: 7,
+        lineStyle: { color: '#f97316', width: 2 },
+        itemStyle: { color: '#f97316', borderColor: '#fff', borderWidth: 2 },
+      }
+    ]
+  }), [recRecentChartData]);
 
   const attemptsDonutOption = useMemo(() => ({
     tooltip: {
@@ -356,12 +474,15 @@ export default function AssistantAnalytics() {
                 <div className="px-2">
                   <ReactECharts option={examBarOption} style={{ height: '240px' }} notMerge opts={{ renderer: 'svg' }} />
                 </div>
-                <div className="px-5 pb-3 flex items-center gap-5">
+                <div className="px-5 pb-3 flex items-center gap-4 flex-wrap">
                   <span className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-500">
                     <span className="w-3 h-3 rounded-sm" style={{ background: '#6366f1' }} />متوسط الدرجات
                   </span>
                   <span className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-500">
-                    <span className="w-3 h-3 rounded-sm" style={{ background: '#f97316' }} />أعلى درجة
+                    <span className="w-3 h-3 rounded-sm" style={{ background: '#10b981' }} />أعلى درجة
+                  </span>
+                  <span className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-500">
+                    <span className="w-3 h-3 rounded-sm" style={{ background: '#f43f5e' }} />أدنى درجة
                   </span>
                 </div>
               </>
@@ -492,6 +613,189 @@ export default function AssistantAnalytics() {
             ) : (
               <div className="p-5 pt-0"><EmptyState icon={Zap} text="لا توجد بيانات كافية" /></div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Recitations Analytics Section ─────────────────────────────── */}
+      {(recLoading || (recData?.summary?.total_recitations > 0)) && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center shadow-md flex-shrink-0">
+              <BookOpen className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-lg font-black text-gray-800">تحليلات المذاكرة</h2>
+              <p className="text-xs text-gray-400 font-medium">إحصائيات جلسات التسميع والتحفيظ</p>
+            </div>
+          </div>
+          {recLoading ? (
+            <div className="grid grid-cols-3 gap-3">
+              {[...Array(3)].map((_, i) => <div key={i} className="h-20 rounded-xl bg-gray-100 animate-pulse" />)}
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: 'إجمالي المذاكرات', value: recData?.summary?.total_recitations ?? 0, icon: BookOpen, color: '#10b981', bg: 'bg-emerald-50' },
+                { label: 'إجمالي الجلسات',   value: recData?.summary?.total_results ?? 0,     icon: Target,   color: '#6366f1', bg: 'bg-indigo-50' },
+                { label: 'متوسط الدرجات',    value: `${Math.round(recData?.summary?.avg_score ?? 0)}%`, icon: TrendingUp, color: '#f97316', bg: 'bg-orange-50' },
+              ].map((s, i) => (
+                <div key={i} className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm hover:shadow-md transition-all">
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-2 ${s.bg}`} style={{ color: s.color }}>
+                    <s.icon className="w-4 h-4" />
+                  </div>
+                  <p className="text-xl font-black text-gray-800 leading-none">{s.value}</p>
+                  <p className="text-[10px] font-semibold text-gray-400 mt-1">{s.label}</p>
+                </div>
+              ))}
+            </div>
+          )}
+          {!recLoading && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+                <div className="h-1 bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400" />
+                <div className="p-5 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                      <BarChart3 className="w-4 h-4 text-emerald-500" />
+                    </div>
+                    <div>
+                      <h3 className="font-black text-gray-800 text-sm">أداء المذاكرات الأخيرة</h3>
+                      <p className="text-[11px] text-gray-400 font-medium mt-0.5">متوسط الدرجات ونسبة النجاح</p>
+                    </div>
+                  </div>
+                </div>
+                {recRecentChartData.length > 0 ? (
+                  <>
+                    <div className="px-2">
+                      <ReactECharts option={recBarOption} style={{ height: '220px' }} notMerge opts={{ renderer: 'svg' }} />
+                    </div>
+                    <div className="px-5 pb-3 flex items-center gap-4">
+                      <span className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-500">
+                        <span className="w-3 h-3 rounded-sm bg-emerald-500" />متوسط الدرجات
+                      </span>
+                      <span className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-500">
+                        <span className="w-3 h-3 rounded-full bg-orange-400" />نسبة النجاح
+                      </span>
+                    </div>
+                  </>
+                ) : <div className="p-5 pt-0"><EmptyState icon={BookOpen} text="لا توجد مذاكرات بعد" /></div>}
+              </div>
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+                <div className="h-1 bg-gradient-to-r from-amber-400 via-orange-400 to-rose-400" />
+                <div className="p-5 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0">
+                      <Flame className="w-4 h-4 text-amber-500" />
+                    </div>
+                    <div>
+                      <h3 className="font-black text-gray-800 text-sm">أعلى الطلاب في الاستمرارية</h3>
+                      <p className="text-[11px] text-gray-400 font-medium mt-0.5">ترتيب حسب Streak المذاكرة</p>
+                    </div>
+                  </div>
+                </div>
+                {(recData?.top_students?.length > 0) ? (
+                  <div className="border-t border-gray-50 divide-y divide-gray-50">
+                    {recData.top_students.slice(0, 6).map((s, i) => {
+                      const avg = Math.round(parseFloat(s.avg_score) || 0);
+                      const sc = avg >= 70 ? { text: '#10b981', bg: '#dcfce7' } : avg >= 50 ? { text: '#6366f1', bg: '#ede9fe' } : { text: '#f43f5e', bg: '#ffe4e6' };
+                      return (
+                        <div key={s.id} onClick={() => setSelectedStudentId(s.id)} className="flex items-center justify-between px-5 py-2.5 hover:bg-gray-50/70 transition-colors cursor-pointer">
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                            <span className="w-5 h-5 rounded-md flex items-center justify-center text-[9px] font-black text-white flex-shrink-0" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }}>{i + 1}</span>
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold text-gray-700 truncate">{s.name}</p>
+                              <p className="text-[10px] text-gray-400 font-medium">{s.total_completed} جلسة</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            {parseInt(s.current_streak) > 0 && (
+                              <span className="flex items-center gap-0.5 text-[10px] font-bold text-amber-500 bg-amber-50 px-2 py-0.5 rounded-lg">
+                                🔥 {s.current_streak}
+                              </span>
+                            )}
+                            <span className="text-[11px] font-black px-2 py-0.5 rounded-lg" style={{ color: sc.text, background: sc.bg }}>{avg}%</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : <div className="p-5 pt-0"><EmptyState icon={Flame} text="لا توجد بيانات مذاكرة بعد" /></div>}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Student Distribution Charts ────────────────────────────────── */}
+      {!isLoading && (data?.topStudents?.length > 0) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          {/* By Stage */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+            <div className="h-1 bg-gradient-to-r from-blue-400 via-indigo-400 to-violet-400" />
+            <div className="p-5 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
+                  <GraduationCap className="w-4 h-4 text-blue-500" />
+                </div>
+                <div>
+                  <h3 className="font-black text-gray-800 text-sm">توزيع الطلاب بالمرحلة الدراسية</h3>
+                  <p className="text-[11px] text-gray-400 font-medium mt-0.5">عدد الطلاب في كل مرحلة</p>
+                </div>
+              </div>
+            </div>
+            {stageDistData.length > 0 ? (
+              <div className="pb-3">
+                <ReactECharts option={stageBarOption} style={{ height: `${Math.max(160, stageDistData.length * 34)}px` }} notMerge opts={{ renderer: 'svg' }} />
+              </div>
+            ) : <div className="p-5 pt-0"><EmptyState icon={GraduationCap} text="لا توجد بيانات" /></div>}
+          </div>
+
+          {/* By Gender */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+            <div className="h-1 bg-gradient-to-r from-pink-400 via-rose-400 to-red-400" />
+            <div className="p-5 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-pink-50 flex items-center justify-center flex-shrink-0">
+                  <PieChart className="w-4 h-4 text-pink-500" />
+                </div>
+                <div>
+                  <h3 className="font-black text-gray-800 text-sm">توزيع الطلاب بالجنس</h3>
+                  <p className="text-[11px] text-gray-400 font-medium mt-0.5">نسبة الذكور والإناث</p>
+                </div>
+              </div>
+            </div>
+            {genderDistData.length > 0 ? (
+              <div className="flex items-center gap-4 px-5 pb-5">
+                <div className="flex-shrink-0 relative" style={{ width: '180px' }}>
+                  <ReactECharts option={genderDonutOption} style={{ height: '180px', width: '180px' }} notMerge opts={{ renderer: 'svg' }} />
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <p className="text-base font-black text-gray-700">{genderDistData.reduce((s,d)=>s+d.value,0)}</p>
+                    <p className="text-[10px] text-gray-400 font-semibold">طالب</p>
+                  </div>
+                </div>
+                <div className="flex-1 space-y-2.5">
+                  {genderDistData.map((d, i) => {
+                    const total = genderDistData.reduce((s, x) => s + x.value, 0);
+                    const pct = total > 0 ? Math.round((d.value / total) * 100) : 0;
+                    const color = d.name === 'ذكر' ? '#6366f1' : d.name === 'أنثى' ? '#ec4899' : '#94a3b8';
+                    return (
+                      <div key={i}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="flex items-center gap-1.5 text-xs font-bold text-gray-600">
+                            <span className="w-2.5 h-2.5 rounded-full" style={{ background: color }} />{d.name}
+                          </span>
+                          <span className="text-xs font-black" style={{ color }}>{d.value} ({pct}%)</span>
+                        </div>
+                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: color }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : <div className="p-5 pt-0"><EmptyState icon={PieChart} text="لا توجد بيانات" /></div>}
           </div>
         </div>
       )}
