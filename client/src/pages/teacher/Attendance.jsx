@@ -223,6 +223,9 @@ export default function Attendance() {
             </div>
           ) : (
             <div className="card !p-0 overflow-hidden">
+              <p className="text-[10px] text-gray-400 font-semibold px-4 pt-2 text-center sm:hidden">
+                ← اسحب للجانب لرؤية كل الفيديوهات →
+              </p>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm min-w-max">
                   <thead className="bg-navy-600 text-white">

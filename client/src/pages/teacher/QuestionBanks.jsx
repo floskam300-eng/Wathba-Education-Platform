@@ -250,33 +250,33 @@ export default function QuestionBanks() {
         <div className="space-y-4">
           {banks.map(bank => (
             <div key={bank.id} className="card !p-0 overflow-hidden">
-              <div className="p-4 flex items-center gap-4">
-                <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-700 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <BookMarked className="w-6 h-6 text-white" />
+              <div className="p-3 sm:p-4 flex items-start sm:items-center gap-3">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-purple-500 to-purple-700 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <BookMarked className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-black text-navy-700 text-lg">{bank.name}</h3>
-                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  <h3 className="font-black text-navy-700 text-base sm:text-lg">{bank.name}</h3>
+                  <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                     {bank.course_name && (
                       <span className="flex items-center gap-1 px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-bold">
                         <BookOpen className="w-3 h-3" />{bank.course_name}
                       </span>
                     )}
                     <span className="text-xs text-gray-500 font-medium">{bank.question_count} سؤال</span>
-                    <span className="text-xs font-bold px-2 py-0.5 bg-green-100 text-green-700 rounded-full">{bank.easy_count || 0} سهل</span>
-                    <span className="text-xs font-bold px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded-full">{bank.medium_count || 0} متوسط</span>
-                    <span className="text-xs font-bold px-2 py-0.5 bg-red-100 text-red-700 rounded-full">{bank.hard_count || 0} صعب</span>
+                    <span className="text-xs font-bold px-1.5 py-0.5 bg-green-100 text-green-700 rounded-full">{bank.easy_count || 0} سهل</span>
+                    <span className="text-xs font-bold px-1.5 py-0.5 bg-yellow-100 text-yellow-700 rounded-full">{bank.medium_count || 0} متوسط</span>
+                    <span className="text-xs font-bold px-1.5 py-0.5 bg-red-100 text-red-700 rounded-full">{bank.hard_count || 0} صعب</span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => openEditBank(bank)} className="p-2 text-gray-500 hover:text-navy-600 hover:bg-navy-50 rounded-lg transition-colors">
-                    <Pencil className="w-4 h-4" />
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <button onClick={() => openEditBank(bank)} className="p-1.5 sm:p-2 text-gray-500 hover:text-navy-600 hover:bg-navy-50 rounded-lg transition-colors">
+                    <Pencil className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   </button>
-                  <button onClick={() => setDeleteBankId(bank.id)} className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                    <Trash2 className="w-4 h-4" />
+                  <button onClick={() => setDeleteBankId(bank.id)} className="p-1.5 sm:p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                    <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   </button>
-                  <button onClick={() => toggleBank(bank.id)} className="p-2 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
-                    {expandedBank === bank.id ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                  <button onClick={() => toggleBank(bank.id)} className="p-1.5 sm:p-2 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
+                    {expandedBank === bank.id ? <ChevronUp className="w-4 h-4 sm:w-5 sm:h-5" /> : <ChevronDown className="w-4 h-4 sm:w-5 sm:h-5" />}
                   </button>
                 </div>
               </div>

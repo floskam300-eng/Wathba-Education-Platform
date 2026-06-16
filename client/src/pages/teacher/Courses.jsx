@@ -169,8 +169,9 @@ export default function TeacherCourses() {
           <BookOpen className="w-7 h-7 text-orange-500" /> الكورسات
           <span className="text-sm font-semibold text-gray-600">({courses.length})</span>
         </h1>
-        <button onClick={openAdd} className="btn-primary flex items-center gap-2">
-          <Plus className="w-4 h-4" /> إضافة كورس
+        <button onClick={openAdd} className="btn-primary flex items-center gap-2 flex-shrink-0 text-sm">
+          <Plus className="w-4 h-4" />
+          <span className="hidden sm:inline">إضافة كورس</span>
         </button>
       </div>
 

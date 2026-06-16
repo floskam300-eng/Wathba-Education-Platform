@@ -235,7 +235,7 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
         )}
 
         {/* Tabs + Print */}
-        <div className={`flex items-center justify-between px-5 py-3 border-b flex-shrink-0 ${divider}`}>
+        <div className={`flex flex-wrap items-center justify-between gap-2 px-5 py-3 border-b flex-shrink-0 ${divider}`}>
           {/* When mode is fixed, show a plain label instead of a tab switcher */}
           {mode === 'both' ? (
             <div className={`flex rounded-xl p-0.5 gap-0.5 ${dark ? 'bg-[var(--dk-elevated)]' : 'bg-gray-100'}`}>

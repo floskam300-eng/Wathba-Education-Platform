@@ -202,12 +202,12 @@ export default function Recitations() {
           {/* Left: list */}
           <div className="lg:col-span-2 space-y-3">
             {/* Filters */}
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <input value={search} onChange={e => setSearch(e.target.value)}
                 placeholder="بحث عن تسميع..."
                 className={`flex-1 rounded-xl px-3 py-2 text-sm border transition-colors ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)] placeholder-[var(--dk-text-2)]' : 'bg-white border-gray-200 text-gray-800'}`} />
               <select value={stageFilter} onChange={e => setStageFilter(e.target.value)}
-                className={`rounded-xl px-3 py-2 text-sm border ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`}>
+                className={`rounded-xl px-3 py-2 text-sm border sm:max-w-[160px] ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`}>
                 <option value="">كل المراحل</option>
                 {PG_STAGES.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
@@ -251,6 +251,12 @@ export default function Recitations() {
                         </div>
                       </div>
                       <div className="flex flex-col gap-1">
+                        <button
+                          onClick={e => { e.stopPropagation(); navigate(`/${baseRole}/recitations/${rec.id}/questions`); }}
+                          title="إدارة الأسئلة"
+                          className={`p-1.5 rounded-lg transition-colors ${dark ? 'text-purple-400 hover:bg-[var(--dk-elevated)]' : 'text-purple-500 hover:bg-purple-50'}`}>
+                          <FileText className="w-3.5 h-3.5" />
+                        </button>
                         {/* [N5-FIX] Hide edit button for published recitations —
                             server rejects edits anyway (409) but showing the button
                             misleads the teacher. */}

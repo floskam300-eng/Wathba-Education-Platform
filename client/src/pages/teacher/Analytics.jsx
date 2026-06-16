@@ -693,7 +693,7 @@ export default function TeacherAnalytics() {
             <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden hover:shadow-md transition-shadow duration-300 flex flex-col">
               <div className="h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 flex-shrink-0" />
               <div className="p-5 pb-3 flex-shrink-0">
-                <div className="flex items-start justify-between gap-2">
+                <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm flex-shrink-0">
                       <BarChart3 className="w-5 h-5 text-white" />

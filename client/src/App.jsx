@@ -57,6 +57,8 @@ import RecitationReviewPage from './pages/RecitationReviewPage';
 import ParentPortal from './pages/ParentPortal';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsAndConditions from './pages/TermsAndConditions';
+import NotFoundPage from './pages/NotFoundPage';
+import OfflineIndicator from './components/ui/OfflineIndicator';
 
 // ─── Error Boundary ────────────────────────────────────────────────────────────
 class ErrorBoundary extends React.Component {
@@ -259,7 +261,7 @@ const TenantRoutes = () => {
           <ProtectedRoute allowedRoles={['student']}><StickmanRunPage /></ProtectedRoute>
         } />
 
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<NotFoundPage />} />
 
       </Route>
     </Routes>
@@ -292,6 +294,7 @@ export default function App() {
         <AuthProvider>
           <LiveStreamProvider>
             <AppRoutes />
+            <OfflineIndicator />
           </LiveStreamProvider>
         </AuthProvider>
       </ThemeProvider>

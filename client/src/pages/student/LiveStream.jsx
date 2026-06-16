@@ -422,7 +422,7 @@ function LiveView({ stream, user, dark, onLeave }) {
           <div
             className={`w-full md:w-72 md:flex-none border-t md:border-t-0 md:border-r flex flex-col
               ${dark ? 'bg-[#0F0E15] border-[rgba(230,175,80,0.12)]' : 'bg-white border-slate-200'}`}
-            style={{ minHeight: '360px', maxHeight: '520px', height: '420px' }}
+            style={{ height: 'clamp(280px, 45vw, 520px)', minHeight: '280px' }}
           >
             <ChatPanel
               stream={stream}

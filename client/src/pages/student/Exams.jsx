@@ -500,12 +500,14 @@ export default function StudentExams() {
                       </div>
                       <div className="p-4 space-y-3">
                         {q.group_context_image && (
-                          <img
-                            src={withToken(q.group_context_image)}
-                            alt="سياق المجموعة"
-                            className="w-full max-h-64 object-contain rounded-xl border border-blue-200"
-                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                          />
+                          <div className="overflow-hidden rounded-xl">
+                            <img
+                              src={withToken(q.group_context_image)}
+                              alt="سياق المجموعة"
+                              className="w-full max-w-full max-h-64 object-contain border border-blue-200 rounded-xl"
+                              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                            />
+                          </div>
                         )}
                         {q.group_context && (
                           <p className="text-sm text-navy-800 leading-relaxed whitespace-pre-wrap font-medium"><MathText text={q.group_context} /></p>
@@ -532,12 +534,14 @@ export default function StudentExams() {
                     )}
 
                     {q.question_image_url && (
-                      <img
-                        src={withToken(q.question_image_url)}
-                        alt="سؤال"
-                        className="w-full max-h-48 object-contain rounded-xl mb-3 border border-gray-100"
-                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                      />
+                      <div className="overflow-hidden rounded-xl mb-3">
+                        <img
+                          src={withToken(q.question_image_url)}
+                          alt="سؤال"
+                          className="w-full max-w-full max-h-56 object-contain border border-gray-100 rounded-xl"
+                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        />
+                      </div>
                     )}
 
                     {qType === 'true_false' ? (
@@ -676,6 +680,85 @@ export default function StudentExams() {
         <h1 className="text-2xl font-black text-navy-600 flex items-center gap-2">
           <FileText className="w-7 h-7 text-orange-500" /> الاختبارات
         </h1>
+
+        {/* ── My Exam History (all attempts + absent records) ─────────────────── */}
+        {myResults.length > 0 && (
+          <div className="card !p-0 overflow-hidden">
+            <button
+              onClick={() => setShowHistory(v => !v)}
+              className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-[var(--dk-elevated)] transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-gray-400" />
+                <span className="text-sm font-bold text-navy-700 dark:text-[var(--dk-text-1)]">سجل اختباراتي</span>
+                <span className="text-[10px] bg-gray-100 dark:bg-[var(--dk-elevated)] text-gray-500 dark:text-[var(--dk-text-2)] rounded-full px-2 py-0.5 font-bold">
+                  {myResults.length}
+                </span>
+              </div>
+              {showHistory ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+            </button>
+
+            {showHistory && (
+              <div className="divide-y divide-gray-100 dark:divide-[var(--dk-border)]">
+                {myResults.map(r => {
+                  const isAbsent = r.is_absent === true || r.is_absent === 'true';
+                  const passed = !isAbsent && Number(r.score) >= Number(r.pass_score);
+                  return (
+                    <div key={r.id} className="flex items-center gap-3 px-4 py-3">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${isAbsent ? 'bg-gray-100 dark:bg-[var(--dk-elevated)]' : passed ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'}`}>
+                        {isAbsent
+                          ? <Clock className="w-4 h-4 text-gray-400" />
+                          : passed
+                            ? <CheckCircle className="w-4 h-4 text-green-600" />
+                            : <X className="w-4 h-4 text-red-500" />}
+                      </div>
+                      <div className="flex-1 min-w-0 text-right">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="text-xs font-bold text-navy-700 dark:text-[var(--dk-text-1)] truncate">{r.exam_title}</p>
+                          {r.course_name && (
+                            <span className="text-[10px] text-gray-400 dark:text-[var(--dk-text-2)] font-medium">({r.course_name})</span>
+                          )}
+                          {isAbsent && (
+                            <span className="text-[10px] bg-gray-100 dark:bg-[var(--dk-elevated)] text-gray-500 rounded-full px-1.5 py-0.5 font-bold">غائب</span>
+                          )}
+                          {!isAbsent && !r.is_latest && (
+                            <span className="text-[10px] bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-300 rounded-full px-1.5 py-0.5 font-bold">محاولة سابقة</span>
+                          )}
+                          {!isAbsent && r.attempt_number > 1 && r.is_latest && (
+                            <span className="text-[10px] bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 rounded-full px-1.5 py-0.5 font-bold">إعادة</span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-gray-400 dark:text-[var(--dk-text-2)] mt-0.5">
+                          {new Date(r.created_at).toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' })}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        {isAbsent ? (
+                          <span className="text-xs font-black text-gray-400">غائب</span>
+                        ) : (
+                          <>
+                            <span className={`text-xs font-black ${passed ? 'text-green-600' : 'text-red-500'}`}>
+                              {r.score}/{r.total_score}
+                            </span>
+                            {r.is_latest && !isAbsent && (
+                              <button
+                                onClick={() => navigate(`/student/exam-review/${r.id}`)}
+                                className="p-1.5 rounded-lg text-gray-400 hover:text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors"
+                                title="مراجعة الإجابات"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── Stuck session warning ── */}
         {stuckExamIds.length > 0 && !taking && (
@@ -926,85 +1009,6 @@ export default function StudentExams() {
           </div>
         )}
 
-        {/* ── My Exam History (all attempts + absent records) ─────────────────── */}
-        {myResults.length > 0 && (
-          <div className="card !p-0 overflow-hidden mt-2">
-            <button
-              onClick={() => setShowHistory(v => !v)}
-              className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-[var(--dk-elevated)] transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-gray-400" />
-                <span className="text-sm font-bold text-navy-700 dark:text-[var(--dk-text-1)]">سجل اختباراتي</span>
-                <span className="text-[10px] bg-gray-100 dark:bg-[var(--dk-elevated)] text-gray-500 dark:text-[var(--dk-text-2)] rounded-full px-2 py-0.5 font-bold">
-                  {myResults.length}
-                </span>
-              </div>
-              {showHistory ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
-            </button>
-
-            {showHistory && (
-              <div className="divide-y divide-gray-100 dark:divide-[var(--dk-border)]">
-                {myResults.map(r => {
-                  const isAbsent = r.is_absent === true || r.is_absent === 'true';
-                  const passed = !isAbsent && Number(r.score) >= Number(r.pass_score);
-                  return (
-                    <div key={r.id} className="flex items-center gap-3 px-4 py-3">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${isAbsent ? 'bg-gray-100 dark:bg-[var(--dk-elevated)]' : passed ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'}`}>
-                        {isAbsent
-                          ? <Clock className="w-4 h-4 text-gray-400" />
-                          : passed
-                            ? <CheckCircle className="w-4 h-4 text-green-600" />
-                            : <X className="w-4 h-4 text-red-500" />}
-                      </div>
-                      <div className="flex-1 min-w-0 text-right">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <p className="text-xs font-bold text-navy-700 dark:text-[var(--dk-text-1)] truncate">{r.exam_title}</p>
-                          {r.course_name && (
-                            <span className="text-[10px] text-gray-400 dark:text-[var(--dk-text-2)] font-medium">({r.course_name})</span>
-                          )}
-                          {isAbsent && (
-                            <span className="text-[10px] bg-gray-100 dark:bg-[var(--dk-elevated)] text-gray-500 rounded-full px-1.5 py-0.5 font-bold">غائب</span>
-                          )}
-                          {!isAbsent && !r.is_latest && (
-                            <span className="text-[10px] bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-300 rounded-full px-1.5 py-0.5 font-bold">محاولة سابقة</span>
-                          )}
-                          {!isAbsent && r.attempt_number > 1 && r.is_latest && (
-                            <span className="text-[10px] bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 rounded-full px-1.5 py-0.5 font-bold">إعادة</span>
-                          )}
-                        </div>
-                        <p className="text-[10px] text-gray-400 dark:text-[var(--dk-text-2)] mt-0.5">
-                          {new Date(r.created_at).toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' })}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-1.5 flex-shrink-0">
-                        {isAbsent ? (
-                          <span className="text-xs font-black text-gray-400">غائب</span>
-                        ) : (
-                          <>
-                            <span className={`text-xs font-black ${passed ? 'text-green-600' : 'text-red-500'}`}>
-                              {r.score}/{r.total_score}
-                            </span>
-                            {/* BUG-2 FIX: exclude absent records — is_latest=true but no answers to review */}
-                            {r.is_latest && !isAbsent && (
-                              <button
-                                onClick={() => navigate(`/student/exam-review/${r.id}`)}
-                                className="p-1.5 rounded-lg text-gray-400 hover:text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors"
-                                title="مراجعة الإجابات"
-                              >
-                                <Eye className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );
