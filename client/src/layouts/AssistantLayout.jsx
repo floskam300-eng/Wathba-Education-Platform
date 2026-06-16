@@ -52,8 +52,8 @@ export default function AssistantLayout() {
     <div className="flex flex-col h-full">
       <div className="p-6 border-b border-white/10">
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl overflow-hidden bg-white flex-shrink-0 p-0.5">
-            <img src={displayLogo} alt={platformName} className="w-full h-full object-contain" />
+          <div className="w-11 h-11 rounded-xl overflow-hidden flex-shrink-0">
+            <img src={displayLogo} alt={platformName} className="w-full h-full object-cover" />
           </div>
           <div>
             <h1 className="text-white font-black text-xl leading-tight">{platformName}</h1>

@@ -400,7 +400,7 @@ export default function TeacherRequests() {
           </div>
 
           {/* Bulk actions */}
-          {visiblePendingEnroll.length > 1 && (
+          {visiblePendingEnroll.length > 0 && (
             <div className="flex items-center gap-3 flex-wrap">
               <span className={`text-xs font-bold ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-500'}`}>
                 {visiblePendingEnroll.length} طلب معلق في العرض الحالي:
@@ -567,7 +567,7 @@ export default function TeacherRequests() {
           </div>
 
           {/* Bulk actions */}
-          {visiblePendingRetry.length > 1 && (
+          {visiblePendingRetry.length > 0 && (
             <div className="flex items-center gap-3 flex-wrap">
               <span className={`text-xs font-bold ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-500'}`}>
                 {visiblePendingRetry.length} طلب معلق في العرض الحالي:
