@@ -82,6 +82,7 @@ export default function TeacherCourses() {
     mutationFn: (id) => api.put(`/courses/${id}/publish`),
     onSuccess: (res) => {
       qc.invalidateQueries(['courses']);
+      qc.invalidateQueries(['teacher-dashboard']);
       toast.success(res.data.is_published ? 'تم نشر الكورس للطلاب ✅' : 'تم إلغاء نشر الكورس 🔒');
     },
     onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
@@ -89,7 +90,12 @@ export default function TeacherCourses() {
 
   const createMut = useMutation({
     mutationFn: (data) => api.post('/courses', data),
-    onSuccess: () => { qc.invalidateQueries(['courses']); toast.success('تم إنشاء الكورس'); closeModal(); },
+    onSuccess: () => {
+      qc.invalidateQueries(['courses']);
+      qc.invalidateQueries(['teacher-dashboard']);
+      toast.success('تم إنشاء الكورس');
+      closeModal();
+    },
     onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
   });
 
@@ -101,7 +107,11 @@ export default function TeacherCourses() {
 
   const deleteMut = useMutation({
     mutationFn: (id) => api.delete(`/courses/${id}`),
-    onSuccess: () => { qc.invalidateQueries(['courses']); toast.success('تم حذف الكورس'); },
+    onSuccess: () => {
+      qc.invalidateQueries(['courses']);
+      qc.invalidateQueries(['teacher-dashboard']);
+      toast.success('تم حذف الكورس');
+    },
   });
 
   const [formErrors, setFormErrors] = useState({});
