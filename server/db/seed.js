@@ -184,6 +184,10 @@ async function seed() {
   const S_TH3 = [STD_ALI, sids['std_fatma'], sids['std_youssef'], sids['std_nada'], sids['std_omar']];
   const S_TH2 = [sids['std_mostafa'], sids['std_rana'], sids['std_adam'], sids['std_lina']];
   const S_TH1 = [sids['std_hana'], sids['std_hassan']];
+  // std_hana و std_hassan: طلاب ث1 — سيُسجَّلون في c3 ويغيبون عن e11 (سيناريو الغياب)
+  const stdHanaId = sids['std_hana'];
+  const stdHassanId = sids['std_hassan'];
+
   // طالب بدون نقاط لاختبار الحالات الحدية
   const [stdZero] = await q(`
     INSERT INTO students
@@ -831,6 +835,18 @@ async function seed() {
     `, [sid, c6.id]);
   }
 
+  // طلاب ث1 في c3 (مجاني) — سيغيبون عن e11 (سيناريو الغياب)
+  await q(`
+    INSERT INTO student_course_enrollment (student_id,course_id,status,enrollment_date)
+    VALUES ($1,$2,'active',NOW()-INTERVAL '29 days')
+    ON CONFLICT DO NOTHING
+  `, [stdHanaId, c3.id]);
+  await q(`
+    INSERT INTO student_course_enrollment (student_id,course_id,status,enrollment_date)
+    VALUES ($1,$2,'active',NOW()-INTERVAL '28 days')
+    ON CONFLICT DO NOTHING
+  `, [stdHassanId, c3.id]);
+
   // طلب تسجيل std_ali في C5 (معلّق pending) وطلب رفض لـ std_nada
   await q(`
     INSERT INTO course_enrollment_requests
@@ -840,7 +856,7 @@ async function seed() {
       ($3,$4,'rejected','أريد الانضمام للكورس',NOW()-INTERVAL '8 days')
   `, [STD_ALI, c5.id, sids['std_nada'], c2.id]);
 
-  console.log('  ✓ تسجيلات الكورسات (std_ali: C1+C2+C3 نشط، C5 معلّق)');
+  console.log('  ✓ تسجيلات الكورسات (std_ali: C1+C2+C3 نشط، C5 معلّق) + ث1 في c3 (غياب e11)');
 
   // ══════════════════════════════════════════════════════════
   // 10. المدفوعات (12 دفعة — كل الحالات)
@@ -991,7 +1007,21 @@ async function seed() {
   // e1 (الجبر — محاولة ثانية لـ std_nada بعد قبول الإعادة — راسب للمرة الثانية)
   await makeResult(sids['std_nada'], e1.id, e1QIds, 45, 2, true, 8, 18, 15, 5);  // أحدث محاولة راسبة
 
-  console.log('  ✓ نتائج الامتحانات: std_ali (ناجح×3، راسب×1، لم يؤده×3) + بيانات أرشيف شاملة');
+  // ── سيناريو الغياب: std_hana و std_hassan مسجَّلان في c3 ولم يؤدِّيا e11 ──
+  // [absent_marked] نفس البنية التي تولّدها markAbsentStudents() تلقائياً:
+  //   score=0، is_absent=true، is_latest=true، attempt_number=1، points_earned=0
+  await q(`
+    INSERT INTO exam_results
+      (student_id,exam_id,score,correct_count,wrong_count,unanswered_count,
+       is_absent,is_latest,attempt_number,points_earned)
+    VALUES
+      ($1,$2,0,0,0,0,true,true,1,0),
+      ($3,$2,0,0,0,0,true,true,1,0)
+  `, [stdHanaId, e11.id, stdHassanId]);
+
+  await q(`UPDATE exams SET absent_marked=true WHERE id=$1`, [e11.id]);
+
+  console.log('  ✓ نتائج الامتحانات: std_ali (ناجح×3، راسب×1، لم يؤده×3) + أرشيف شامل + غياب (std_hana+std_hassan في e11)');
 
   // ══════════════════════════════════════════════════════════
   // 12. طلبات إعادة الامتحان
@@ -1448,7 +1478,7 @@ async function seed() {
       'daily',
       $2,$3,true,false,false,$4,$5)
     RETURNING id
-  `, [T1, past(7), future(1), c2.id, JSON.stringify([c2v1, c2v2])]);
+  `, [T1, past(7), future(1), c2.id, JSON.stringify([c2v3, c2v4])]);
 
   // r2: تسميع أسبوعي على المثلثات — مرتبط بكورس الجبر (c1)
   const [r2] = await q(`
@@ -1464,7 +1494,7 @@ async function seed() {
       'weekly',6,
       $2,$3,true,true,false,$4,$5)
     RETURNING id
-  `, [T1, past(5), future(2), c1.id, JSON.stringify([c1v4, c1v5, c1v6])]);
+  `, [T1, past(5), future(2), c1.id, JSON.stringify([c1v7, c1v8, c1v9])]);
 
   // r3: تسميع قواعد التكامل — مرتبط بكورس التفاضل (c2)
   const [r3] = await q(`
@@ -1480,7 +1510,7 @@ async function seed() {
       'once',
       $2,$3,true,false,true,$4,$5)
     RETURNING id
-  `, [T1, past(1), future(4), c2.id, JSON.stringify([c2v4, c2v5, c2v6])]);
+  `, [T1, past(1), future(4), c2.id, JSON.stringify([c2v5, c2v6])]);
 
   // r4: تسميع شامل قادم (start_date في المستقبل) — لا كورس محدد
   const [r4] = await q(`
@@ -1510,7 +1540,7 @@ async function seed() {
       'once',
       $2,$3,true,$4,$5)
     RETURNING id
-  `, [T1, past(3), future(3), c4.id, JSON.stringify([c4v1, c4v2])]);
+  `, [T1, past(3), future(3), c4.id, JSON.stringify([c4v3, c4v4])]);
 
   // r6: تسميع مسودة (غير منشور) — لا كورس
   const [r6] = await q(`
