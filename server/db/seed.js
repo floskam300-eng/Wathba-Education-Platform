@@ -46,6 +46,7 @@ async function seed() {
   // ══════════════════════════════════════════════════════════
   console.log('\n⟳  مسح البيانات القديمة...');
   const tables = [
+    'revoked_tokens',
     'whatsapp_send_log', 'whatsapp_schedules',
     'activity_logs', 'game_session_tokens',
     'device_alerts', 'student_devices',
@@ -917,8 +918,8 @@ async function seed() {
     await q(`
       INSERT INTO exam_results
         (student_id,exam_id,score,correct_count,wrong_count,unanswered_count,
-         answers,start_time,end_time,points_earned,attempt_number,is_latest,created_at)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+         answers,start_time,end_time,points_earned,attempt_number,is_latest,is_absent,created_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,false,$13)
     `, [studentId, examId, score, correct, wrong, unanswered,
         JSON.stringify(answers), startT.toISOString(), endT.toISOString(),
         score >= passScore ? pointsOnPass : pointsOnAttempt, attemptNum, isLatest,
@@ -1433,55 +1434,55 @@ async function seed() {
   // ══════════════════════════════════════════════════════════
   console.log('\n⟳  إضافة التسميعات...');
 
-  // r1: تسميع يومي على الجبر — نشط (std_ali أدّاه ونجح ✓)
+  // r1: تسميع يومي على المشتقات — مرتبط بكورس التفاضل (c2)
   const [r1] = await q(`
     INSERT INTO recitations
       (teacher_id,title,description,academic_stage,duration_minutes,
        total_score,pass_score,points_on_attempt,points_on_pass,
        schedule_type,start_date,end_date,is_published,
-       shuffle_questions,shuffle_options)
+       shuffle_questions,shuffle_options,course_id,video_ids)
     VALUES ($1,
       'تسميع المشتقات اليومي',
       'تسميع سريع على قواعد المشتقات — 5 أسئلة خلال 10 دقائق',
       'الصف الثالث الثانوي',10,10,6,2,5,
       'daily',
-      $2,$3,true,false,false)
+      $2,$3,true,false,false,$4,$5)
     RETURNING id
-  `, [T1, past(7), future(1)]);
+  `, [T1, past(7), future(1), c2.id, JSON.stringify([c2v1, c2v2])]);
 
-  // r2: تسميع أسبوعي على المثلثات — نشط (std_ali أدّاه وراسب ✗)
+  // r2: تسميع أسبوعي على المثلثات — مرتبط بكورس الجبر (c1)
   const [r2] = await q(`
     INSERT INTO recitations
       (teacher_id,title,description,academic_stage,duration_minutes,
        total_score,pass_score,points_on_attempt,points_on_pass,
        schedule_type,schedule_day,start_date,end_date,is_published,
-       shuffle_questions,shuffle_options)
+       shuffle_questions,shuffle_options,course_id,video_ids)
     VALUES ($1,
       'مراجعة المثلثات الأسبوعية',
       'تسميع أسبوعي شامل على النسب المثلثية وقوانينها',
       'الصف الثالث الثانوي',15,20,12,3,10,
       'weekly',6,
-      $2,$3,true,true,false)
+      $2,$3,true,true,false,$4,$5)
     RETURNING id
-  `, [T1, past(5), future(2)]);
+  `, [T1, past(5), future(2), c1.id, JSON.stringify([c1v4, c1v5, c1v6])]);
 
-  // r3: تسميع لم يؤده std_ali بعد — نشط الآن
+  // r3: تسميع قواعد التكامل — مرتبط بكورس التفاضل (c2)
   const [r3] = await q(`
     INSERT INTO recitations
       (teacher_id,title,description,academic_stage,duration_minutes,
        total_score,pass_score,points_on_attempt,points_on_pass,
        schedule_type,start_date,end_date,is_published,
-       shuffle_questions,shuffle_options)
+       shuffle_questions,shuffle_options,course_id,video_ids)
     VALUES ($1,
       'تسميع قواعد التكامل',
       'أسئلة على قوانين التكامل الأساسية — مستوى متوسط',
       'الصف الثالث الثانوي',12,24,15,2,8,
       'once',
-      $2,$3,true,false,true)
+      $2,$3,true,false,true,$4,$5)
     RETURNING id
-  `, [T1, past(1), future(4)]);
+  `, [T1, past(1), future(4), c2.id, JSON.stringify([c2v4, c2v5, c2v6])]);
 
-  // r4: تسميع قادم (start_date في المستقبل) — لم يفتح بعد
+  // r4: تسميع شامل قادم (start_date في المستقبل) — لا كورس محدد
   const [r4] = await q(`
     INSERT INTO recitations
       (teacher_id,title,description,academic_stage,duration_minutes,
@@ -1496,22 +1497,22 @@ async function seed() {
     RETURNING id
   `, [T1, future(5), future(12)]);
 
-  // r5: تسميع ث2
+  // r5: تسميع ث2 — مرتبط بكورس الهندسة التحليلية (c4)
   const [r5] = await q(`
     INSERT INTO recitations
       (teacher_id,title,description,academic_stage,duration_minutes,
        total_score,pass_score,points_on_attempt,points_on_pass,
-       schedule_type,start_date,end_date,is_published)
+       schedule_type,start_date,end_date,is_published,course_id,video_ids)
     VALUES ($1,
       'تسميع الهندسة التحليلية — ث2',
       'أسئلة على الإحداثيات والمستقيمات',
       'الصف الثاني الثانوي',10,10,6,2,5,
       'once',
-      $2,$3,true)
+      $2,$3,true,$4,$5)
     RETURNING id
-  `, [T1, past(3), future(3)]);
+  `, [T1, past(3), future(3), c4.id, JSON.stringify([c4v1, c4v2])]);
 
-  // r6: تسميع مسودة (غير منشور)
+  // r6: تسميع مسودة (غير منشور) — لا كورس
   const [r6] = await q(`
     INSERT INTO recitations
       (teacher_id,title,description,academic_stage,duration_minutes,
@@ -1525,7 +1526,7 @@ async function seed() {
     RETURNING id
   `, [T1]);
 
-  console.log('  ✓ 6 تسميعات (نشط×4، قادم×1، مسودة×1)');
+  console.log('  ✓ 6 تسميعات (نشط×4، قادم×1، مسودة×1) — مرتبطة بالكورسات');
 
   // ── أسئلة التسميعات ─────────────────────────────────────
 
@@ -1661,32 +1662,40 @@ async function seed() {
   await q(`
     INSERT INTO recitation_results
       (student_id,recitation_id,score,correct_count,wrong_count,unanswered_count,
-       answers,points_earned,start_time,end_time,passed,created_at)
+       answers,points_earned,start_time,end_time,passed,created_at,questions_snapshot)
     VALUES ($1,$2,10,5,0,0,
       $3,7,
       NOW()-INTERVAL '5 days'-INTERVAL '10 minutes',
       NOW()-INTERVAL '5 days',
-      true,NOW()-INTERVAL '5 days')
+      true,NOW()-INTERVAL '5 days',$4)
   `, [STD_ALI, r1.id, JSON.stringify(
     r1QIds.map(q => ({ question_id: q.id, answer: q.correct, correct: true }))
-  )]);
+  ), makeRecitSnapshot(r1QIds)]);
 
   // std_ali في r2: راسب ✗ (8/20 — دون درجة النجاح 12)
   await q(`
     INSERT INTO recitation_results
       (student_id,recitation_id,score,correct_count,wrong_count,unanswered_count,
-       answers,points_earned,start_time,end_time,passed,created_at)
+       answers,points_earned,start_time,end_time,passed,created_at,questions_snapshot)
     VALUES ($1,$2,8,2,3,0,
       $3,3,
       NOW()-INTERVAL '4 days'-INTERVAL '14 minutes',
       NOW()-INTERVAL '4 days',
-      false,NOW()-INTERVAL '4 days')
+      false,NOW()-INTERVAL '4 days',$4)
   `, [STD_ALI, r2.id, JSON.stringify(
     r2QIds.map((q, i) => ({ question_id: q.id, answer: i < 2 ? q.correct : 'A', correct: i < 2 }))
-  )]);
+  ), makeRecitSnapshot(r2QIds)]);
 
   // r3: std_ali لم يؤده بعد (لا نتيجة)
   // r4: قادم — لم يفتح بعد (لا نتيجة)
+
+  // دالة مساعدة: بناء snapshot الأسئلة للتسميع (تُخزَّن في recitation_results)
+  function makeRecitSnapshot(qIds) {
+    return JSON.stringify(qIds.map(q => ({
+      question_id: q.id,
+      correct_answer_letter: q.correct,
+    })));
+  }
 
   // باقي طلاب في r2 (مراجعة المثلثات الأسبوعية)
   function makeRecitAnswers(qIds, correctCount, wrongCount) {
@@ -1705,42 +1714,42 @@ async function seed() {
   await q(`
     INSERT INTO recitation_results
       (student_id,recitation_id,score,correct_count,wrong_count,unanswered_count,
-       answers,points_earned,start_time,end_time,passed,created_at)
+       answers,points_earned,start_time,end_time,passed,created_at,questions_snapshot)
     VALUES ($1,$2,16,4,1,0,$3,10,
       NOW()-INTERVAL '4 days'-INTERVAL '12 minutes',
       NOW()-INTERVAL '4 days',
-      true,NOW()-INTERVAL '4 days')
-  `, [sids['std_fatma'],   r2.id, JSON.stringify(makeRecitAnswers(r2QIds, 4, 1))]);
+      true,NOW()-INTERVAL '4 days',$4)
+  `, [sids['std_fatma'],   r2.id, JSON.stringify(makeRecitAnswers(r2QIds, 4, 1)), makeRecitSnapshot(r2QIds)]);
 
   await q(`
     INSERT INTO recitation_results
       (student_id,recitation_id,score,correct_count,wrong_count,unanswered_count,
-       answers,points_earned,start_time,end_time,passed,created_at)
+       answers,points_earned,start_time,end_time,passed,created_at,questions_snapshot)
     VALUES ($1,$2,20,5,0,0,$3,10,
       NOW()-INTERVAL '4 days'-INTERVAL '11 minutes',
       NOW()-INTERVAL '4 days',
-      true,NOW()-INTERVAL '4 days')
-  `, [sids['std_youssef'], r2.id, JSON.stringify(makeRecitAnswers(r2QIds, 5, 0))]);
+      true,NOW()-INTERVAL '4 days',$4)
+  `, [sids['std_youssef'], r2.id, JSON.stringify(makeRecitAnswers(r2QIds, 5, 0)), makeRecitSnapshot(r2QIds)]);
 
   await q(`
     INSERT INTO recitation_results
       (student_id,recitation_id,score,correct_count,wrong_count,unanswered_count,
-       answers,points_earned,start_time,end_time,passed,created_at)
+       answers,points_earned,start_time,end_time,passed,created_at,questions_snapshot)
     VALUES ($1,$2,6,2,3,0,$3,3,
       NOW()-INTERVAL '3 days'-INTERVAL '14 minutes',
       NOW()-INTERVAL '3 days',
-      false,NOW()-INTERVAL '3 days')
-  `, [sids['std_nada'],    r2.id, JSON.stringify(makeRecitAnswers(r2QIds, 2, 3))]);
+      false,NOW()-INTERVAL '3 days',$4)
+  `, [sids['std_nada'],    r2.id, JSON.stringify(makeRecitAnswers(r2QIds, 2, 3)), makeRecitSnapshot(r2QIds)]);
 
   await q(`
     INSERT INTO recitation_results
       (student_id,recitation_id,score,correct_count,wrong_count,unanswered_count,
-       answers,points_earned,start_time,end_time,passed,created_at)
+       answers,points_earned,start_time,end_time,passed,created_at,questions_snapshot)
     VALUES ($1,$2,10,3,2,0,$3,3,
       NOW()-INTERVAL '3 days'-INTERVAL '13 minutes',
       NOW()-INTERVAL '3 days',
-      false,NOW()-INTERVAL '3 days')
-  `, [sids['std_omar'],    r2.id, JSON.stringify(makeRecitAnswers(r2QIds, 3, 2))]);
+      false,NOW()-INTERVAL '3 days',$4)
+  `, [sids['std_omar'],    r2.id, JSON.stringify(makeRecitAnswers(r2QIds, 3, 2)), makeRecitSnapshot(r2QIds)]);
 
   // باقي طلاب في r1
   const r1StudentConfig = [
@@ -1748,6 +1757,7 @@ async function seed() {
     { sid: sids['std_youssef'], correctCount: 5, wrongCount: 0 },
     { sid: sids['std_omar'],    correctCount: 3, wrongCount: 2 },
   ];
+  const r1Snapshot = makeRecitSnapshot(r1QIds);
   for (const { sid, correctCount, wrongCount } of r1StudentConfig) {
     const score = correctCount * 2;
     const passed = score >= 6;
@@ -1755,15 +1765,15 @@ async function seed() {
     await q(`
       INSERT INTO recitation_results
         (student_id,recitation_id,score,correct_count,wrong_count,unanswered_count,
-         answers,points_earned,start_time,end_time,passed,created_at)
+         answers,points_earned,start_time,end_time,passed,created_at,questions_snapshot)
       VALUES ($1,$2,$3,$4,$5,0,$6,$7,
         NOW()-INTERVAL '5 days'-INTERVAL '8 minutes',
-        NOW()-INTERVAL '5 days',$8,NOW()-INTERVAL '5 days')
+        NOW()-INTERVAL '5 days',$8,NOW()-INTERVAL '5 days',$9)
     `, [sid, r1.id,
         score, correctCount, wrongCount,
         JSON.stringify(answers),
         passed ? 7 : 2,
-        passed]);
+        passed, r1Snapshot]);
   }
 
   // طلاب ث2 في r5 (هندسة تحليلية)
@@ -1773,20 +1783,21 @@ async function seed() {
     [sids['std_adam'],    4,  2, 3, false, 1],
     [sids['std_lina'],    10, 5, 0, true,  1],
   ];
+  const r5Snapshot = makeRecitSnapshot(r5QIds);
   for (const [sid, score, correct, wrong, passed, daysAgo] of r5Results) {
     const answers = makeRecitAnswers(r5QIds, correct, wrong);
     await q(`
       INSERT INTO recitation_results
         (student_id,recitation_id,score,correct_count,wrong_count,unanswered_count,
-         answers,points_earned,start_time,end_time,passed,created_at)
+         answers,points_earned,start_time,end_time,passed,created_at,questions_snapshot)
       VALUES ($1,$2,$3,$4,$5,0,$6,$7,
         NOW()-INTERVAL '${daysAgo} days'-INTERVAL '9 minutes',
         NOW()-INTERVAL '${daysAgo} days',
-        $8,NOW()-INTERVAL '${daysAgo} days')
+        $8,NOW()-INTERVAL '${daysAgo} days',$9)
     `, [sid, r5.id, score, correct, wrong,
         JSON.stringify(answers),
         passed ? 7 : 2,
-        passed]);
+        passed, r5Snapshot]);
   }
 
   console.log('  ✓ نتائج التسميعات: std_ali (ناجح في r1، راسب في r2، لم يؤد r3+r4) + بيانات أرشيف شاملة');
