@@ -3,10 +3,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowRight, Play, FileText, BookOpen, Video, Clock,
-  Download, CheckCircle2, Lock, ChevronRight, AlertCircle,
+  CheckCircle2, Lock, ChevronRight, AlertCircle,
   Pause, Volume2, VolumeX, Maximize2, Minimize2, RotateCcw, RotateCw,
   Settings, Gauge, CheckCircle, XCircle, RefreshCw, Trophy, Eye
 } from 'lucide-react';
+import SecurePdfViewer from '../../components/SecurePdfViewer';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
@@ -1035,62 +1036,7 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
 
 /* ─── PDF Viewer ───────────────────────────────────────── */
 function PdfViewer({ pdf }) {
-  if (!pdf) return (
-    <div className="w-full h-full flex items-center justify-center bg-gray-50">
-      <div className="text-center text-gray-400">
-        <FileText className="w-20 h-20 mx-auto mb-4 opacity-20" />
-        <p className="font-semibold text-lg">اختر ملفاً للعرض</p>
-      </div>
-    </div>
-  );
-
-  const pdfSrc = withToken(pdf.file_url);
-
-  return (
-    <div className="flex flex-col w-full h-full bg-gray-100">
-      <div className="flex-shrink-0 bg-white border-b border-gray-200 px-4 py-2 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 min-w-0">
-          <FileText className="w-4 h-4 text-orange-500 flex-shrink-0" />
-          <span className="font-bold text-sm text-gray-800 truncate">{pdf.title}</span>
-        </div>
-        <a
-          href={pdfSrc}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex-shrink-0 flex items-center gap-1.5 text-xs font-bold text-orange-600 hover:text-orange-700 bg-orange-50 hover:bg-orange-100 border border-orange-200 px-3 py-1.5 rounded-lg transition-colors"
-        >
-          <Download className="w-3.5 h-3.5" /> فتح في تاب جديد
-        </a>
-      </div>
-      <div className="flex-1 overflow-hidden">
-        <object
-          key={pdf.id}
-          data={pdfSrc}
-          type="application/pdf"
-          className="w-full h-full"
-          onContextMenu={(e) => e.preventDefault()}
-        >
-          <div className="w-full h-full flex items-center justify-center bg-gray-50">
-            <div className="text-center p-8 max-w-sm">
-              <div className="w-20 h-20 rounded-2xl bg-orange-50 flex items-center justify-center mx-auto mb-5">
-                <FileText className="w-10 h-10 text-orange-500" />
-              </div>
-              <p className="font-black text-gray-800 text-xl mb-2">{pdf.title}</p>
-              <p className="text-gray-400 text-sm mb-6">اضغط الزر أدناه لفتح الملف</p>
-              <a
-                href={pdfSrc}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-bold px-6 py-3 rounded-xl transition-all hover:shadow-lg active:scale-95"
-              >
-                <Download className="w-4 h-4" /> فتح الملف
-              </a>
-            </div>
-          </div>
-        </object>
-      </div>
-    </div>
-  );
+  return <SecurePdfViewer pdf={pdf} />;
 }
 
 /* ─── Recitations Tab Panel ──────────────────────────────

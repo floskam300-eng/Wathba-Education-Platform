@@ -289,7 +289,14 @@ const makeProtectedUploadsMiddleware = (fileType) => async (req, res, next) => {
   next();
 };
 
-app.use('/uploads/pdfs',            makeProtectedUploadsMiddleware('pdf'),
+app.use('/uploads/pdfs',
+        makeProtectedUploadsMiddleware('pdf'),
+        (req, res, next) => {
+          res.setHeader('Content-Disposition', 'inline');
+          res.setHeader('Cache-Control', 'private, no-store, no-cache, must-revalidate');
+          res.setHeader('X-Content-Type-Options', 'nosniff');
+          next();
+        },
         express.static(path.join(__dirname, '../uploads/pdfs')));
 app.use('/uploads/videos',          makeProtectedUploadsMiddleware('video'),
         express.static(path.join(__dirname, '../uploads/videos')));
