@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>القالب الأول — Cinema Focus</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- زر تبديل الثيم -->
+  <button id="themeToggle" class="theme-toggle" title="تبديل الثيم">🌙</button>
+
+  <div class="app">
+    <!-- ── هيدر واحد رفيع ── -->
+    <header class="topbar">
+      <button class="crumb-back">
+        <span class="icon">→</span>
+        <span>كورساتي</span>
+      </button>
+      <span class="crumb-sep">/</span>
+      <span class="crumb-current">أساسيات الرياضيات</span>
+      <span class="crumb-meta">12 محاضرة · 3 ملفات</span>
+      <button id="toggleSidebar" class="collapse-btn" title="طي القائمة">⊟</button>
+    </header>
+
+    <!-- ── الجسم ── -->
+    <div class="body">
+      <!-- منطقة الفيديو -->
+      <main class="stage">
+        <div class="video-wrap">
+          <div class="video">
+            <div class="play-btn">▶</div>
+            <div class="wm">أحمد محمد · WB-2048</div>
+          </div>
+        </div>
+
+        <div class="video-info">
+          <div class="vi-head">
+            <div>
+              <h2 class="vi-title">الدرس الثاني: المعادلات الخطية</h2>
+              <p class="vi-sub">محاضرة 2 من 12 · ⏱ 12 دقيقة</p>
+            </div>
+            <button class="next-btn">التالي ›</button>
+          </div>
+          <div class="playlist-strip">
+            <span class="seg done"></span>
+            <span class="seg active"></span>
+            <span class="seg"></span>
+            <span class="seg"></span>
+            <span class="seg"></span>
+            <span class="seg"></span>
+          </div>
+        </div>
+      </main>
+
+      <!-- الـ sidebar -->
+      <aside class="sidebar" id="sidebar">
+        <div class="course-strip">
+          <p class="cs-name">أساسيات الرياضيات</p>
+          <span class="cs-stage">الصف الأول الثانوي</span>
+        </div>
+
+        <div class="tabs">
+          <button class="tab active" data-tab="videos"><span>🎬</span> المحاضرات <b>12</b></button>
+          <button class="tab" data-tab="files"><span>📄</span> الملفات <b>3</b></button>
+          <button class="tab" data-tab="quiz"><span>📖</span> التسميع <b>2</b></button>
+        </div>
+
+        <div class="list">
+          <button class="item done">
+            <span class="idx">✓</span>
+            <span class="it-main"><span class="it-title">المقدمة والتعريفات</span><span class="it-meta">⏱ 5:30 · 100%</span></span>
+          </button>
+          <button class="item active">
+            <span class="idx">▶</span>
+            <span class="it-main"><span class="it-title">المعادلات الخطية</span><span class="it-meta">⏱ 12:00 · 40%</span></span>
+          </button>
+          <button class="item">
+            <span class="idx">3</span>
+            <span class="it-main"><span class="it-title">حل المعادلات بالرسم</span><span class="it-meta">⏱ 8:15</span></span>
+          </button>
+          <button class="item locked">
+            <span class="idx">🔒</span>
+            <span class="it-main"><span class="it-title">تمارين تطبيقية</span><span class="it-meta">يتطلب اجتياز تسميع</span></span>
+          </button>
+          <button class="item">
+            <span class="idx">5</span>
+            <span class="it-main"><span class="it-title">المتباينات</span><span class="it-meta">⏱ 10:40</span></span>
+          </button>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
