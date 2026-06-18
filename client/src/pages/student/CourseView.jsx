@@ -5,7 +5,7 @@ import {
   ArrowRight, Play, FileText, BookOpen, Video, Clock,
   CheckCircle2, Lock, ChevronRight, AlertCircle,
   Pause, Volume2, VolumeX, Maximize2, Minimize2, RotateCcw, RotateCw,
-  Settings, Gauge, CheckCircle, XCircle, RefreshCw, Trophy, Eye
+  Settings, Gauge, CheckCircle, XCircle, RefreshCw, Trophy, Eye, Download
 } from 'lucide-react';
 import SecurePdfViewer from '../../components/SecurePdfViewer';
 import toast from 'react-hot-toast';
