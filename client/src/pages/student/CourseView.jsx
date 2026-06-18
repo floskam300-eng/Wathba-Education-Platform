@@ -5,7 +5,7 @@ import {
   ArrowRight, Play, FileText, BookOpen, Video, Clock,
   CheckCircle2, Lock, ChevronRight, AlertCircle,
   Pause, Volume2, VolumeX, Maximize2, Minimize2, RotateCcw, RotateCw,
-  Settings, Gauge, CheckCircle, XCircle, RefreshCw, Trophy, Eye, Download
+  Settings, Gauge, CheckCircle, XCircle, RefreshCw, Trophy, Eye
 } from 'lucide-react';
 import SecurePdfViewer from '../../components/SecurePdfViewer';
 import toast from 'react-hot-toast';
@@ -1843,7 +1843,7 @@ export default function CourseView() {
                       <p className={`flex-1 font-bold text-sm text-right truncate ${isActive ? 'text-white' : 'text-gray-300'}`}>
                         {p.title}
                       </p>
-                      {isActive && <Download className="w-3.5 h-3.5 text-white/60 flex-shrink-0" />}
+                      {isActive && <Eye className="w-3.5 h-3.5 text-white/60 flex-shrink-0" />}
                     </button>
                   );
                 })}
@@ -1980,14 +1980,9 @@ export default function CourseView() {
                       <p className="text-gray-500 text-xs">ملف PDF</p>
                     </div>
                   </div>
-                  <a
-                    href={withToken(currentPdf.file_url)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-xs font-bold text-orange-400 hover:text-orange-300 bg-orange-400/10 hover:bg-orange-400/20 px-3 py-1.5 rounded-lg transition-all"
-                  >
-                    <Download className="w-3.5 h-3.5" /> تحميل
-                  </a>
+                  <span className="flex items-center gap-1.5 text-xs font-medium text-gray-500">
+                    <Eye className="w-3.5 h-3.5" /> عرض فقط
+                  </span>
                 </div>
               )}
               <div className="flex-1 overflow-hidden">

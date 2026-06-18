@@ -1,41 +1,45 @@
 /**
- * SecurePdfViewer — renders PDFs on <canvas> via PDF.js so the raw file
- * bytes are never exposed as a downloadable resource in the browser.
+ * SecurePdfViewer — renders PDFs on <canvas> via PDF.js.
  *
- * Security measures applied here:
- *  1. PDF rendered page-by-page onto <canvas> — no <object>/<embed>/<iframe>
- *     so the browser's built-in "Save as PDF" toolbar never appears.
+ * Security measures:
+ *  1. PDF rendered page-by-page to <canvas> — browser never sees a raw PDF
+ *     file so its built-in "Save as PDF" / download toolbar never appears.
  *  2. Diagonal watermark (student name + ID) burned into every canvas frame.
- *  3. Right-click disabled on the canvas container.
+ *  3. Right-click disabled on the viewer container.
  *  4. Ctrl+S / Ctrl+P / Ctrl+U keyboard shortcuts blocked.
- *  5. CSS user-select:none + pointer-events:none on the canvas layer.
- *  6. No download / open-in-new-tab button exposed to the student.
+ *  5. CSS user-select:none + pointer-events:none on the canvas element.
+ *  6. No download / open-in-new-tab button is rendered.
+ *  7. Loading task cancelled on component unmount (no memory leak).
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
-import { FileText, ChevronRight, ChevronLeft, ZoomIn, ZoomOut, Loader2, AlertTriangle } from 'lucide-react';
+import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import {
+  FileText, ChevronRight, ChevronLeft,
+  ZoomIn, ZoomOut, Loader2, AlertTriangle, RefreshCw,
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { withToken } from '../lib/mediaAccess';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.mjs',
-  import.meta.url
-).href;
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
 
 export default function SecurePdfViewer({ pdf }) {
   const { user } = useAuth();
-  const [numPages, setNumPages]     = useState(0);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [scale, setScale]           = useState(1.3);
-  const [isLoading, setIsLoading]   = useState(true);
-  const [pageLoading, setPageLoading] = useState(false);
-  const [error, setError]           = useState(null);
 
-  const canvasRef     = useRef(null);
-  const pdfDocRef     = useRef(null);
-  const renderTaskRef = useRef(null);
-  const mountedRef    = useRef(true);
+  const [numPages,    setNumPages]    = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [scale,       setScale]       = useState(1.3);
+  const [isLoading,   setIsLoading]   = useState(true);
+  const [pageLoading, setPageLoading] = useState(false);
+  const [error,       setError]       = useState(null);
+  const [retryKey,    setRetryKey]    = useState(0);
+
+  const canvasRef      = useRef(null);
+  const pdfDocRef      = useRef(null);
+  const renderTaskRef  = useRef(null);
+  const loadTaskRef    = useRef(null);
+  const mountedRef     = useRef(true);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -46,36 +50,36 @@ export default function SecurePdfViewer({ pdf }) {
     ? `${user.name}   |   #${String(user.id).padStart(6, '0')}`
     : '';
 
+  /* ── Watermark ─────────────────────────────────────────────── */
   const drawWatermark = useCallback((canvas, label) => {
     if (!label) return;
     const ctx = canvas.getContext('2d');
     ctx.save();
 
-    const fontSize = Math.max(13, Math.round(canvas.width / 28));
-    ctx.font = `bold ${fontSize}px Arial, sans-serif`;
-    ctx.fillStyle = '#1a1a1a';
-    ctx.globalAlpha = 0.10;
-    ctx.textAlign  = 'center';
+    const fontSize = Math.max(12, Math.round(canvas.width / 30));
+    ctx.font        = `bold ${fontSize}px Arial, sans-serif`;
+    ctx.fillStyle   = '#1a1a1a';
+    ctx.globalAlpha = 0.11;
+    ctx.textAlign   = 'center';
     ctx.textBaseline = 'middle';
 
-    const angle   = -Math.PI / 7;
-    const stepX   = canvas.width  * 0.52;
-    const stepY   = canvas.height * 0.18;
-
     ctx.translate(canvas.width / 2, canvas.height / 2);
-    ctx.rotate(angle);
+    ctx.rotate(-Math.PI / 7);
 
-    const startX = -canvas.width;
-    const startY = -canvas.height;
+    const stepX  = canvas.width  * 0.55;
+    const stepY  = canvas.height * 0.17;
+    const startX = -canvas.width * 1.5;
+    const startY = -canvas.height * 1.5;
+
     for (let x = startX; x < canvas.width * 2; x += stepX) {
       for (let y = startY; y < canvas.height * 2; y += stepY) {
         ctx.fillText(label, x, y);
       }
     }
-
     ctx.restore();
   }, []);
 
+  /* ── Page render ────────────────────────────────────────────── */
   const renderPage = useCallback(async (doc, pageNum, sc) => {
     if (!doc || !canvasRef.current || !mountedRef.current) return;
 
@@ -87,6 +91,8 @@ export default function SecurePdfViewer({ pdf }) {
     setPageLoading(true);
     try {
       const page     = await doc.getPage(pageNum);
+      if (!mountedRef.current) return;
+
       const viewport = page.getViewport({ scale: sc });
       const canvas   = canvasRef.current;
       if (!canvas || !mountedRef.current) return;
@@ -94,13 +100,13 @@ export default function SecurePdfViewer({ pdf }) {
       const ctx = canvas.getContext('2d');
       canvas.height = viewport.height;
       canvas.width  = viewport.width;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       const task = page.render({ canvasContext: ctx, viewport });
       renderTaskRef.current = task;
       await task.promise;
 
       if (!mountedRef.current) return;
-
       drawWatermark(canvas, watermarkLabel);
     } catch (err) {
       if (err?.name === 'RenderingCancelledException') return;
@@ -110,69 +116,84 @@ export default function SecurePdfViewer({ pdf }) {
     }
   }, [drawWatermark, watermarkLabel]);
 
+  /* ── PDF load ───────────────────────────────────────────────── */
   useEffect(() => {
     if (!pdf?.file_url) return;
 
     let cancelled = false;
     setIsLoading(true);
     setError(null);
+    setNumPages(0);
     setCurrentPage(1);
+
+    if (renderTaskRef.current) {
+      try { renderTaskRef.current.cancel(); } catch (_) {}
+      renderTaskRef.current = null;
+    }
     if (pdfDocRef.current) {
       try { pdfDocRef.current.destroy(); } catch (_) {}
       pdfDocRef.current = null;
     }
 
-    const load = async () => {
-      try {
-        const url  = withToken(pdf.file_url);
-        const task = pdfjsLib.getDocument({ url, disableAutoFetch: false, disableStream: false });
-        const doc  = await task.promise;
+    const url  = withToken(pdf.file_url);
+    const task = pdfjsLib.getDocument({ url });
+    loadTaskRef.current = task;
+
+    task.promise
+      .then((doc) => {
         if (cancelled) { doc.destroy(); return; }
         pdfDocRef.current = doc;
         setNumPages(doc.numPages);
         setIsLoading(false);
-      } catch (err) {
-        if (!cancelled) {
-          console.error('[SecurePdfViewer] load error', err);
-          setError('تعذّر تحميل الملف، حاول مرة أخرى');
-          setIsLoading(false);
-        }
-      }
-    };
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error('[SecurePdfViewer] load error', err);
+        setError('تعذّر تحميل الملف');
+        setIsLoading(false);
+      });
 
-    load();
     return () => {
       cancelled = true;
+      try { loadTaskRef.current?.destroy(); } catch (_) {}
+      loadTaskRef.current = null;
       if (renderTaskRef.current) {
         try { renderTaskRef.current.cancel(); } catch (_) {}
         renderTaskRef.current = null;
       }
     };
-  }, [pdf?.file_url, pdf?.id]);
+  }, [pdf?.file_url, pdf?.id, retryKey]);
 
+  /* ── Trigger page render when doc / page / zoom changes ─────── */
   useEffect(() => {
-    if (!isLoading && pdfDocRef.current) {
+    if (!isLoading && !error && pdfDocRef.current) {
       renderPage(pdfDocRef.current, currentPage, scale);
     }
-  }, [currentPage, scale, isLoading, renderPage]);
+  }, [currentPage, scale, isLoading, error, renderPage]);
 
+  /* ── Block download / print keyboard shortcuts ──────────────── */
   useEffect(() => {
     const block = (e) => {
-      if ((e.ctrlKey || e.metaKey) && ['s', 'p', 'u', 'S', 'P', 'U'].includes(e.key)) {
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        ['s', 'S', 'p', 'P', 'u', 'U'].includes(e.key)
+      ) {
         e.preventDefault();
         e.stopPropagation();
-        return false;
       }
     };
     window.addEventListener('keydown', block, { capture: true });
     return () => window.removeEventListener('keydown', block, { capture: true });
   }, []);
 
+  /* ── Navigation helpers ─────────────────────────────────────── */
   const prevPage = () => setCurrentPage(p => Math.max(1, p - 1));
   const nextPage = () => setCurrentPage(p => Math.min(numPages, p + 1));
-  const zoomIn   = () => setScale(s => Math.min(3, parseFloat((s + 0.2).toFixed(1))));
+  const zoomIn   = () => setScale(s => Math.min(3.0, parseFloat((s + 0.2).toFixed(1))));
   const zoomOut  = () => setScale(s => Math.max(0.5, parseFloat((s - 0.2).toFixed(1))));
+  const retry    = () => { setError(null); setRetryKey(k => k + 1); };
 
+  /* ── Empty state ────────────────────────────────────────────── */
   if (!pdf) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-gray-50">
@@ -184,6 +205,7 @@ export default function SecurePdfViewer({ pdf }) {
     );
   }
 
+  /* ── Main render ────────────────────────────────────────────── */
   return (
     <div
       className="flex flex-col w-full h-full bg-gray-100 select-none"
@@ -197,10 +219,11 @@ export default function SecurePdfViewer({ pdf }) {
           <span className="font-bold text-sm text-gray-800 truncate">{pdf.title}</span>
         </div>
 
+        {/* Zoom controls */}
         <div className="flex items-center gap-1 bg-gray-100 rounded-lg px-1 py-0.5">
           <button
             onClick={zoomOut}
-            disabled={scale <= 0.5}
+            disabled={scale <= 0.5 || isLoading}
             className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-40 transition-colors"
             title="تصغير"
           >
@@ -211,7 +234,7 @@ export default function SecurePdfViewer({ pdf }) {
           </span>
           <button
             onClick={zoomIn}
-            disabled={scale >= 3}
+            disabled={scale >= 3.0 || isLoading}
             className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-40 transition-colors"
             title="تكبير"
           >
@@ -219,6 +242,7 @@ export default function SecurePdfViewer({ pdf }) {
           </button>
         </div>
 
+        {/* Page controls */}
         {numPages > 0 && (
           <div className="flex items-center gap-1">
             <button
@@ -245,7 +269,9 @@ export default function SecurePdfViewer({ pdf }) {
       </div>
 
       {/* ── Canvas area ── */}
-      <div className="flex-1 overflow-auto flex flex-col items-center py-4 px-2 relative">
+      <div className="flex-1 overflow-auto flex flex-col items-center py-4 px-2">
+
+        {/* Loading */}
         {isLoading && (
           <div className="flex flex-col items-center justify-center h-64 gap-3 text-gray-400">
             <Loader2 className="w-10 h-10 animate-spin text-orange-400" />
@@ -253,27 +279,32 @@ export default function SecurePdfViewer({ pdf }) {
           </div>
         )}
 
+        {/* Error with retry */}
         {error && !isLoading && (
-          <div className="flex flex-col items-center justify-center h-64 gap-3 text-red-400">
-            <AlertTriangle className="w-10 h-10" />
-            <span className="text-sm font-medium">{error}</span>
+          <div className="flex flex-col items-center justify-center h-64 gap-4">
+            <AlertTriangle className="w-12 h-12 text-red-400" />
+            <p className="text-sm font-bold text-red-500">{error}</p>
+            <button
+              onClick={retry}
+              className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold rounded-xl transition-colors active:scale-95"
+            >
+              <RefreshCw className="w-4 h-4" /> إعادة المحاولة
+            </button>
           </div>
         )}
 
+        {/* Canvas (always mounted once loaded, hidden during load/error) */}
         {!isLoading && !error && (
           <div className="relative">
             {pageLoading && (
-              <div className="absolute inset-0 flex items-center justify-center bg-white/60 z-10 rounded">
+              <div className="absolute inset-0 flex items-center justify-center bg-white/50 z-10 rounded">
                 <Loader2 className="w-8 h-8 animate-spin text-orange-400" />
               </div>
             )}
             <canvas
               ref={canvasRef}
               className="shadow-xl rounded max-w-full block"
-              style={{
-                imageRendering: 'high-quality',
-                pointerEvents: 'none',
-              }}
+              style={{ imageRendering: 'high-quality', pointerEvents: 'none' }}
               draggable={false}
               onDragStart={e => e.preventDefault()}
             />
@@ -281,7 +312,7 @@ export default function SecurePdfViewer({ pdf }) {
         )}
       </div>
 
-      {/* ── Page nav bottom bar ── */}
+      {/* ── Bottom page nav (only for multi-page docs) ── */}
       {numPages > 1 && (
         <div className="flex-shrink-0 bg-white border-t border-gray-200 px-4 py-2 flex items-center justify-center gap-3">
           <button
