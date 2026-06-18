@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>القالب الثالث — Theater Rail</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <button id="themeToggle" class="theme-toggle" title="تبديل الثيم">🌙</button>
+
+  <div class="theater">
+    <!-- الفيديو يملأ الشاشة بالكامل -->
+    <div class="screen">
+      <div class="play-btn">▶</div>
+      <div class="wm">أحمد محمد · WB-2048</div>
+
+      <!-- overlay علوي خفيف -->
+      <div class="top-overlay">
+        <button class="back">→ كورساتي</button>
+        <span class="course-name">الفيزياء الحديثة</span>
+      </div>
+
+      <!-- overlay سفلي بمعلومات المحاضرة -->
+      <div class="bottom-overlay">
+        <div class="bo-text">
+          <h2>النسبية الخاصة</h2>
+          <span>محاضرة 4 من 18 · ⏱ 16 دقيقة</span>
+        </div>
+        <button class="next-btn">التالي ›</button>
+      </div>
+    </div>
+
+    <!-- شريط رفيع بالأيقونات -->
+    <nav class="rail">
+      <button class="rail-btn active" data-panel="videos" title="المحاضرات">🎬</button>
+      <button class="rail-btn" data-panel="files" title="الملفات">📄</button>
+      <button class="rail-btn" data-panel="quiz" title="التسميع">📖</button>
+      <button class="rail-btn rail-bottom" id="closeDrawer" title="إخفاء">×</button>
+    </nav>
+
+    <!-- drawer منزلق فوق الفيديو -->
+    <aside class="drawer open" id="drawer">
+      <div class="d-head">
+        <h3>المحاضرات</h3>
+        <span class="d-count">18 درس</span>
+      </div>
+      <div class="d-list">
+        <button class="row done"><span class="dot">✓</span><span class="r-info"><b>تمهيد تاريخي</b><i>⏱ 7:10 · مكتمل</i></span></button>
+        <button class="row done"><span class="dot">✓</span><span class="r-info"><b>تجربة مايكلسون</b><i>⏱ 9:00 · مكتمل</i></span></button>
+        <button class="row done"><span class="dot">✓</span><span class="r-info"><b>الثوابت الأساسية</b><i>⏱ 5:40 · مكتمل</i></span></button>
+        <button class="row active"><span class="dot">▶</span><span class="r-info"><b>النسبية الخاصة</b><i>⏱ 16:00 · 45%</i></span></button>
+        <button class="row"><span class="dot">5</span><span class="r-info"><b>تمدد الزمن</b><i>⏱ 12:25</i></span></button>
+        <button class="row locked"><span class="dot">🔒</span><span class="r-info"><b>مسائل تطبيقية</b><i>يتطلب اجتياز تسميع</i></span></button>
+        <button class="row"><span class="dot">7</span><span class="r-info"><b>تكافؤ الكتلة والطاقة</b><i>⏱ 14:10</i></span></button>
+      </div>
+    </aside>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
