@@ -19,6 +19,14 @@ import { getTenantSlug } from './tenant';
 let _mediaToken = null;
 let _tokenExpiry = 0; // Unix ms timestamp when the token expires
 
+// [A-3 fix] Coalesce concurrent refreshMediaToken() calls.
+// Without this, two components that both call refreshMediaToken() before the
+// first resolves will fire two POST /api/auth/media-token requests.  The
+// second request's result simply overwrites the first — wasteful but also
+// causes a brief window where each caller holds a *different* token reference,
+// which can confuse downstream caches.
+let _pendingFetch = null;
+
 const TOKEN_LIFETIME_MS = 15 * 60 * 1000; // 15 min (matches server-side expiresIn: '15m')
 const REFRESH_AHEAD_MS  =  2 * 60 * 1000; // Refresh 2 min before expiry
 
@@ -47,16 +55,30 @@ async function _fetchMediaToken() {
 /**
  * Ensure the in-memory media token is fresh.
  * Call this from layout useEffect hooks.
+ *
+ * [A-3 fix] Concurrent calls share a single in-flight Promise so only one
+ * HTTP request is ever outstanding at a time.
  */
 export async function refreshMediaToken() {
   const now = Date.now();
   if (_mediaToken && now < _tokenExpiry - REFRESH_AHEAD_MS) return _mediaToken;
-  const token = await _fetchMediaToken();
-  if (token) {
-    _mediaToken = token;
-    _tokenExpiry = now + TOKEN_LIFETIME_MS;
+
+  // If a fetch is already in flight, return the same Promise instead of
+  // starting a second request.
+  if (!_pendingFetch) {
+    _pendingFetch = _fetchMediaToken()
+      .then((token) => {
+        if (token) {
+          _mediaToken = token;
+          _tokenExpiry = Date.now() + TOKEN_LIFETIME_MS;
+        }
+        return _mediaToken;
+      })
+      .catch(() => _mediaToken)
+      .finally(() => { _pendingFetch = null; });
   }
-  return _mediaToken;
+
+  return _pendingFetch;
 }
 
 /**
@@ -65,16 +87,24 @@ export async function refreshMediaToken() {
 export function clearMediaToken() {
   _mediaToken = null;
   _tokenExpiry = 0;
+  // Do NOT null-out _pendingFetch — any in-flight request will still settle and
+  // harmlessly overwrite _mediaToken (which will be re-cleared by the next
+  // logout call if the race resolves after logout).
 }
 
 /**
  * Append a short-lived media access token to an /uploads/* URL.
  * Falls back to the full session JWT if no media token has been fetched yet
  * (e.g., first render before initMediaToken completes).
+ *
+ * [A-2 fix] Use '&' as separator when the URL already contains a '?' so we
+ * produce valid query strings instead of malformed ones like
+ * "/uploads/file.pdf?foo=bar?token=X".
  */
 export function withToken(url) {
   if (!url || !url.startsWith('/uploads/')) return url;
   const token = _mediaToken || localStorage.getItem('wathba_token') || '';
   if (!token) return url;
-  return `${url}?token=${encodeURIComponent(token)}`;
+  const sep = url.includes('?') ? '&' : '?';
+  return `${url}${sep}token=${encodeURIComponent(token)}`;
 }

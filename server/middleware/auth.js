@@ -258,6 +258,19 @@ const verifyFullToken = async (token) => {
     }
   }
 
+  // [S-1 fix] Reject tokens that carry an unrecognised role.
+  // Without this, an attacker who crafts a signed JWT with role='superadmin'
+  // passes all three role-specific blocks (none match) and gets a decoded token
+  // back. checkFileAccess then returns false (403), but the proper response for
+  // an unrecognised credential is 401 Unauthorized, not 403 Forbidden.
+  const KNOWN_ROLES = ['teacher', 'student', 'assistant'];
+  if (!KNOWN_ROLES.includes(decoded.role)) {
+    throw Object.assign(
+      new Error('Unknown or unsupported role'),
+      { statusCode: 401 },
+    );
+  }
+
   return decoded;
 };
 

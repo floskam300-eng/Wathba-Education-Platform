@@ -153,14 +153,25 @@ export default function SecurePdfViewer({ pdf }) {
 
   /* ── PDF load ───────────────────────────────────────────────── */
   useEffect(() => {
-    if (!pdf?.file_url) return;
-
-    // [B-4 fix] don't render if user identity hasn't loaded yet — prevents
-    // a momentary watermark-less frame on slow connections.
-    // [B-2 fix] depend on user?.id, not the full user object — prevents
-    // unnecessary PDF reloads when AuthContext recreates the user object
-    // with the same data (e.g. after updateUser / background refresh).
-    if (!user?.id) return;
+    // [F-1 fix] If there is nothing to load, reset stale state immediately.
+    // Without this, isLoading starts as `true` and stays there forever when
+    // pdf.file_url is absent or user has not loaded yet.
+    if (!pdf?.file_url || !user?.id) {
+      setIsLoading(false);
+      setError(null);
+      setNumPages(0);
+      setCurrentPage(1);
+      setPageLoading(false);
+      if (renderTaskRef.current) {
+        try { renderTaskRef.current.cancel(); } catch (_) {}
+        renderTaskRef.current = null;
+      }
+      if (pdfDocRef.current) {
+        try { pdfDocRef.current.destroy(); } catch (_) {}
+        pdfDocRef.current = null;
+      }
+      return;
+    }
 
     let cancelled = false;
 

@@ -296,7 +296,12 @@ const makeProtectedUploadsMiddleware = (fileType) => async (req, res, next) => {
   try {
     decoded = await verifyFullToken(token);
   } catch (err) {
-    return res.status(err.statusCode || 401).send('Unauthorized');
+    // [A-1 fix] Send a response body that matches the HTTP status code.
+    // verifyFullToken throws 403 for suspended students — sending 'Unauthorized'
+    // on a 403 is semantically wrong; use 'Forbidden' instead.
+    const status = err.statusCode || 401;
+    const body   = status === 403 ? 'Forbidden' : 'Unauthorized';
+    return res.status(status).send(body);
   }
 
   const filename = req.path.replace(/^\/+/, '');
