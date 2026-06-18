@@ -94,6 +94,24 @@ const apiLimiter = rateLimit({
 });
 app.use('/api/', apiLimiter);
 
+// ── [X3 fix] Protected uploads rate limiter (120 req/min per IP) ──────────
+// The /api/ limiter above does NOT cover /uploads/* paths.  Without this, a
+// valid-token attacker can hammer e.g. /uploads/pdfs/secret.pdf with a
+// non-enrolled student token at unlimited speed — every request triggers a
+// fresh DB query because denied results are intentionally not cached (S-2 fix).
+// The skip logic mirrors apiLimiter so the test-runner is never throttled.
+const uploadsLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too Many Requests',
+  skip: (req) => {
+    const ip = req.ip || req.connection?.remoteAddress || '';
+    return ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+  },
+});
+
 // ── [C-1 + C-2] Protected upload directories ─────────────────
 //
 // File-access cache — prevents N+1 DB queries for video range requests.
@@ -188,21 +206,31 @@ const checkFileAccess = async (decoded, fileType, fullPath) => {
       }
 
     } else if (fileType === 'question-image') {
-      // First look in questions table (regular exam questions + group context images)
+      // First look in questions table (regular exam questions + group context images).
+      // [X12/X13 fix] LEFT JOIN courses so we can also check courses.is_published.
+      // COALESCE(c.is_published, TRUE) returns TRUE for standalone exams (no
+      // course_id → no JOIN match) so the standalone branch is not broken.
       const rq = await pool.query(
-        `SELECT e.id AS exam_id, e.teacher_id, e.course_id, e.is_published
+        `SELECT e.id AS exam_id, e.teacher_id, e.course_id,
+                e.is_published                  AS exam_published,
+                COALESCE(c.is_published, TRUE)  AS course_published
            FROM questions q
            JOIN exams e ON q.exam_id = e.id
+           LEFT JOIN courses c ON e.course_id = c.id
           WHERE q.question_image_url = $1 OR q.group_context_image = $1
           LIMIT 1`,
         [fullPath]
       );
 
-      let examId = null, teacherId = null, courseId = null, isPublished = false;
+      let examId = null, teacherId = null, courseId = null;
+      let isPublished = false, coursePublished = true;
 
       if (rq.rows.length) {
-        ({ exam_id: examId, teacher_id: teacherId, course_id: courseId,
-           is_published: isPublished } = rq.rows[0]);
+        examId          = rq.rows[0].exam_id;
+        teacherId       = rq.rows[0].teacher_id;
+        courseId        = rq.rows[0].course_id;         // null for standalone exams
+        isPublished     = rq.rows[0].exam_published;
+        coursePublished = rq.rows[0].course_published;  // TRUE for standalone via COALESCE
       } else {
         // Fall back to bank_questions (question bank images)
         const rb = await pool.query(
@@ -217,19 +245,24 @@ const checkFileAccess = async (decoded, fileType, fullPath) => {
         teacherId = rb.rows[0].teacher_id;
         const bankId = rb.rows[0].bank_id;
 
-        // For student access: find any published exam that uses this bank
+        // For student access: find any published exam that uses this bank.
+        // [X13 fix] Also join courses to capture courses.is_published.
         if (decoded.role === 'student') {
           const re = await pool.query(
-            `SELECT e.id, e.course_id, e.is_published
+            `SELECT e.id, e.course_id,
+                    e.is_published                  AS exam_published,
+                    COALESCE(c.is_published, TRUE)  AS course_published
                FROM exams e
+               LEFT JOIN courses c ON e.course_id = c.id
               WHERE e.bank_id = $1 AND e.is_published = true
               LIMIT 1`,
             [bankId]
           );
           if (re.rows.length) {
-            examId     = re.rows[0].id;
-            courseId   = re.rows[0].course_id;
-            isPublished = re.rows[0].is_published;
+            examId          = re.rows[0].id;
+            courseId        = re.rows[0].course_id;
+            isPublished     = re.rows[0].exam_published;
+            coursePublished = re.rows[0].course_published;
           }
         }
       }
@@ -239,40 +272,54 @@ const checkFileAccess = async (decoded, fileType, fullPath) => {
       } else if (decoded.role === 'assistant') {
         hasAccess = decoded.teacher_id === teacherId;
       } else if (decoded.role === 'student') {
-        if (examId && courseId && isPublished) {
-          // Course exam: active enrollment + not suspended required
-          // [S-1 fix] join students to check is_suspended
-          const e = await pool.query(
-            `SELECT 1
-               FROM student_course_enrollment sce
-               JOIN students s ON s.id = sce.student_id
-              WHERE sce.student_id=$1 AND sce.course_id=$2
-                AND sce.status='active' AND s.is_suspended = false`,
-            [decoded.id, courseId]
-          );
-          hasAccess = e.rows.length > 0;
-        } else if (examId) {
-          // Standalone exam: student must have an active session OR completed result
-          // AND must not be suspended — mirrors the course-exam branch above.
-          const sr = await pool.query(
-            `SELECT 1
-               FROM students st
-              WHERE st.id = $1
-                AND st.is_suspended = false
-                AND EXISTS (
-                  SELECT 1 FROM exam_sessions WHERE student_id = $1 AND exam_id = $2
-                  UNION ALL
-                  SELECT 1 FROM exam_results  WHERE student_id = $1 AND exam_id = $2
-                )`,
-            [decoded.id, examId]
-          );
-          hasAccess = sr.rows.length > 0;
+        if (examId && isPublished) {
+          if (courseId && coursePublished) {
+            // [X13 fix] Course exam — require BOTH the exam AND the hosting course
+            // to be published.  Previously only e.is_published was checked, so a
+            // student enrolled in an unpublished course could still access question
+            // images even though PDFs and videos of the same course were blocked.
+            const e = await pool.query(
+              `SELECT 1
+                 FROM student_course_enrollment sce
+                 JOIN students s ON s.id = sce.student_id
+                WHERE sce.student_id=$1 AND sce.course_id=$2
+                  AND sce.status='active' AND s.is_suspended = false`,
+              [decoded.id, courseId]
+            );
+            hasAccess = e.rows.length > 0;
+          } else if (!courseId) {
+            // [X12 fix] Standalone exam (courseId === null).  The old guard was
+            // `else if (examId)` with NO isPublished check — a student with a
+            // stale session from a previously-published exam could access images
+            // even after the teacher unpublished it.  Now `isPublished` is verified
+            // (and coursePublished is TRUE via COALESCE so it does not block here).
+            const sr = await pool.query(
+              `SELECT 1
+                 FROM students st
+                WHERE st.id = $1
+                  AND st.is_suspended = false
+                  AND EXISTS (
+                    SELECT 1 FROM exam_sessions WHERE student_id = $1 AND exam_id = $2
+                    UNION ALL
+                    SELECT 1 FROM exam_results  WHERE student_id = $1 AND exam_id = $2
+                  )`,
+              [decoded.id, examId]
+            );
+            hasAccess = sr.rows.length > 0;
+          }
+          // else: course exam with unpublished course → hasAccess stays false ✓
         }
+        // else: exam doesn't exist or isn't published → hasAccess stays false ✓
       }
     }
   } catch (err) {
+    // [X4 fix] Re-throw DB errors instead of silently returning false.
+    // Previously, any DB failure looked like "access denied" to the caller
+    // (both returned false → 403 Forbidden).  Callers now catch this and
+    // return 503 Service Unavailable, which is semantically correct and
+    // easier to distinguish in logs and monitoring.
     console.error('[checkFileAccess]', err.message);
-    return false;
+    throw err;
   }
 
   // [S-2 fix] only cache positive (allowed) results.
@@ -310,7 +357,16 @@ const makeProtectedUploadsMiddleware = (fileType) => async (req, res, next) => {
   }
   const fullPath = `${req.baseUrl}/${filename}`;
 
-  const allowed = await checkFileAccess(decoded, fileType, fullPath);
+  // [X4 fix] checkFileAccess now re-throws on DB errors (instead of returning
+  // false) so we can distinguish a genuine "access denied" (false → 403) from
+  // a database outage (thrown error → 503 Service Unavailable).
+  let allowed;
+  try {
+    allowed = await checkFileAccess(decoded, fileType, fullPath);
+  } catch (err) {
+    console.error('[makeProtectedUploadsMiddleware] checkFileAccess DB error:', err.message);
+    return res.status(503).send('Service Unavailable');
+  }
 
   if (allowed === null) {
     // File not registered in DB — treat as Not Found regardless of disk state
@@ -323,6 +379,7 @@ const makeProtectedUploadsMiddleware = (fileType) => async (req, res, next) => {
 };
 
 app.use('/uploads/pdfs',
+        uploadsLimiter,
         makeProtectedUploadsMiddleware('pdf'),
         (req, res, next) => {
           res.setHeader('Content-Disposition', 'inline');
@@ -334,9 +391,13 @@ app.use('/uploads/pdfs',
           next();
         },
         express.static(path.join(__dirname, '../uploads/pdfs')));
-app.use('/uploads/videos',          makeProtectedUploadsMiddleware('video'),
+app.use('/uploads/videos',
+        uploadsLimiter,
+        makeProtectedUploadsMiddleware('video'),
         express.static(path.join(__dirname, '../uploads/videos')));
-app.use('/uploads/question-images', makeProtectedUploadsMiddleware('question-image'),
+app.use('/uploads/question-images',
+        uploadsLimiter,
+        makeProtectedUploadsMiddleware('question-image'),
         express.static(path.join(__dirname, '../uploads/question-images')));
 
 // Images and thumbnails remain public (needed for login page / course cards)

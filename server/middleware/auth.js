@@ -134,6 +134,17 @@ const authenticate = async (req, res, next) => {
       }
     }
 
+    // [X1 fix] Reject tokens with unrecognised roles — mirrors the S-1 fix in
+    // verifyFullToken.  Without this an attacker who crafts a signed JWT with
+    // role='superadmin' passes all three role-specific blocks (none match),
+    // gets req.user set, and reaches every API endpoint that only calls
+    // authenticate (not verifyFullToken).  requireRole() would block them on
+    // role-gated routes, but role-agnostic routes (e.g. media-token) would not.
+    const KNOWN_ROLES = ['teacher', 'student', 'assistant'];
+    if (!KNOWN_ROLES.includes(decoded.role)) {
+      return res.status(401).json({ error: 'Unknown or unsupported role' });
+    }
+
     req.user = decoded;
     next();
   } catch (err) {
@@ -141,8 +152,13 @@ const authenticate = async (req, res, next) => {
   }
 };
 
+// [X2 fix] Delete the cache entry instead of setting { valid: false } without a
+// suspended flag.  The old approach caused a 30-second window where the cache-hit
+// path returned 401 instead of 403 for suspended students (cached.suspended was
+// undefined → falsy → wrong branch taken).  Deleting forces a fresh DB query on
+// the next request, which correctly populates both valid and suspended.
 const invalidateStudentAuthCache = (studentId) => {
-  _studentCache.set(studentId, { valid: false, at: Date.now() });
+  _studentCache.delete(studentId);
 };
 
 const invalidateAssistantAuthCache = (assistantId) => {
