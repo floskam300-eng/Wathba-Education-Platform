@@ -120,7 +120,12 @@ setInterval(() => {
  *         null  → file not registered in DB (pass through; static → 404).
  */
 const checkFileAccess = async (decoded, fileType, fullPath) => {
-  const cacheKey = `${decoded.role}_${decoded.id}:${fullPath}`;
+  // [S-3 fix] include teacher_id in cache key for assistants.
+  // Without this, two assistant tokens with the same id but different teacher_id
+  // values would share a cache entry, allowing cross-teacher access after a cache hit.
+  const cacheKey = decoded.role === 'assistant'
+    ? `assistant_${decoded.id}_${decoded.teacher_id ?? 'none'}:${fullPath}`
+    : `${decoded.role}_${decoded.id}:${fullPath}`;
   const cached = _fileAccessCache.get(cacheKey);
   if (cached && Date.now() - cached.at < FILE_ACCESS_TTL_MS) return cached.allowed;
 
@@ -142,9 +147,13 @@ const checkFileAccess = async (decoded, fileType, fullPath) => {
       } else if (decoded.role === 'assistant') {
         hasAccess = decoded.teacher_id === teacher_id;
       } else if (decoded.role === 'student' && is_published) {
+        // [S-1 fix] also require student is not suspended
         const e = await pool.query(
-          `SELECT 1 FROM student_course_enrollment
-            WHERE student_id=$1 AND course_id=$2 AND status='active'`,
+          `SELECT 1
+             FROM student_course_enrollment sce
+             JOIN students s ON s.id = sce.student_id
+            WHERE sce.student_id=$1 AND sce.course_id=$2
+              AND sce.status='active' AND s.is_suspended = false`,
           [decoded.id, course_id]
         );
         hasAccess = e.rows.length > 0;
@@ -166,9 +175,13 @@ const checkFileAccess = async (decoded, fileType, fullPath) => {
       } else if (decoded.role === 'assistant') {
         hasAccess = decoded.teacher_id === teacher_id;
       } else if (decoded.role === 'student' && is_published) {
+        // [S-1 fix] also require student is not suspended
         const e = await pool.query(
-          `SELECT 1 FROM student_course_enrollment
-            WHERE student_id=$1 AND course_id=$2 AND status='active'`,
+          `SELECT 1
+             FROM student_course_enrollment sce
+             JOIN students s ON s.id = sce.student_id
+            WHERE sce.student_id=$1 AND sce.course_id=$2
+              AND sce.status='active' AND s.is_suspended = false`,
           [decoded.id, course_id]
         );
         hasAccess = e.rows.length > 0;
@@ -227,10 +240,14 @@ const checkFileAccess = async (decoded, fileType, fullPath) => {
         hasAccess = decoded.teacher_id === teacherId;
       } else if (decoded.role === 'student') {
         if (examId && courseId && isPublished) {
-          // Course exam: active enrollment required
+          // Course exam: active enrollment + not suspended required
+          // [S-1 fix] join students to check is_suspended
           const e = await pool.query(
-            `SELECT 1 FROM student_course_enrollment
-              WHERE student_id=$1 AND course_id=$2 AND status='active'`,
+            `SELECT 1
+               FROM student_course_enrollment sce
+               JOIN students s ON s.id = sce.student_id
+              WHERE sce.student_id=$1 AND sce.course_id=$2
+                AND sce.status='active' AND s.is_suspended = false`,
             [decoded.id, courseId]
           );
           hasAccess = e.rows.length > 0;
@@ -252,7 +269,12 @@ const checkFileAccess = async (decoded, fileType, fullPath) => {
     return false;
   }
 
-  _fileAccessCache.set(cacheKey, { allowed: hasAccess, at: Date.now() });
+  // [S-2 fix] only cache positive (allowed) results.
+  // Denied results must NOT be cached — a newly-enrolled or un-suspended student
+  // would otherwise receive a false 403 for up to FILE_ACCESS_TTL_MS (60s).
+  if (hasAccess) {
+    _fileAccessCache.set(cacheKey, { allowed: true, at: Date.now() });
+  }
   return hasAccess;
 };
 
@@ -293,8 +315,11 @@ app.use('/uploads/pdfs',
         makeProtectedUploadsMiddleware('pdf'),
         (req, res, next) => {
           res.setHeader('Content-Disposition', 'inline');
-          res.setHeader('Cache-Control', 'private, no-store, no-cache, must-revalidate');
+          // [B-5 fix] no-cache + must-revalidate are redundant alongside no-store
+          res.setHeader('Cache-Control', 'private, no-store');
           res.setHeader('X-Content-Type-Options', 'nosniff');
+          // [B-6 fix] prevent search-engine crawlers from indexing PDF URLs
+          res.setHeader('X-Robots-Tag', 'noindex, nofollow');
           next();
         },
         express.static(path.join(__dirname, '../uploads/pdfs')));

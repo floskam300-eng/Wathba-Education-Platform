@@ -10,9 +10,10 @@
  *  5. CSS user-select:none + pointer-events:none on the canvas element.
  *  6. No download / open-in-new-tab button is rendered.
  *  7. Loading task cancelled on component unmount (no memory leak).
+ *  8. Rendering is blocked until user identity is confirmed (no watermark-less frames).
  */
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import {
@@ -24,31 +25,46 @@ import { withToken } from '../lib/mediaAccess';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
 
+/* ─── Constants ─────────────────────────────────────────────── */
+const DEFAULT_SCALE = 1.3;
+const MIN_SCALE     = 0.5;
+const MAX_SCALE     = 3.0;
+
 export default function SecurePdfViewer({ pdf }) {
   const { user } = useAuth();
 
   const [numPages,    setNumPages]    = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
-  const [scale,       setScale]       = useState(1.3);
+  const [scale,       setScale]       = useState(DEFAULT_SCALE);
   const [isLoading,   setIsLoading]   = useState(true);
   const [pageLoading, setPageLoading] = useState(false);
   const [error,       setError]       = useState(null);
   const [retryKey,    setRetryKey]    = useState(0);
 
-  const canvasRef      = useRef(null);
-  const pdfDocRef      = useRef(null);
-  const renderTaskRef  = useRef(null);
-  const loadTaskRef    = useRef(null);
-  const mountedRef     = useRef(true);
+  const canvasRef          = useRef(null);
+  const pdfDocRef          = useRef(null);
+  const renderTaskRef      = useRef(null);
+  const loadTaskRef        = useRef(null);
+  const mountedRef         = useRef(true);
+  // [P-2 fix] store latest label in a ref so renderPage never re-creates
+  // just because the user object identity changed.
+  const watermarkLabelRef  = useRef('');
 
   useEffect(() => {
     mountedRef.current = true;
     return () => { mountedRef.current = false; };
   }, []);
 
-  const watermarkLabel = user
-    ? `${user.name}   |   #${String(user.id).padStart(6, '0')}`
-    : '';
+  // [P-1 fix] memoize label — recomputes only when name/id actually change
+  const watermarkLabel = useMemo(
+    () => (user ? `${user.name}   |   #${String(user.id).padStart(6, '0')}` : ''),
+    [user?.name, user?.id],
+  );
+
+  // Keep the ref in sync with the memoized string
+  useEffect(() => {
+    watermarkLabelRef.current = watermarkLabel;
+  }, [watermarkLabel]);
 
   /* ── Watermark ─────────────────────────────────────────────── */
   const drawWatermark = useCallback((canvas, label) => {
@@ -80,6 +96,7 @@ export default function SecurePdfViewer({ pdf }) {
   }, []);
 
   /* ── Page render ────────────────────────────────────────────── */
+  // [P-2 fix] renderPage reads label from ref — no dependency on watermarkLabel
   const renderPage = useCallback(async (doc, pageNum, sc) => {
     if (!doc || !canvasRef.current || !mountedRef.current) return;
 
@@ -90,7 +107,7 @@ export default function SecurePdfViewer({ pdf }) {
 
     setPageLoading(true);
     try {
-      const page     = await doc.getPage(pageNum);
+      const page = await doc.getPage(pageNum);
       if (!mountedRef.current) return;
 
       const viewport = page.getViewport({ scale: sc });
@@ -107,24 +124,33 @@ export default function SecurePdfViewer({ pdf }) {
       await task.promise;
 
       if (!mountedRef.current) return;
-      drawWatermark(canvas, watermarkLabel);
+      // Read the label from ref so this callback never needs to be recreated
+      drawWatermark(canvas, watermarkLabelRef.current);
     } catch (err) {
       if (err?.name === 'RenderingCancelledException') return;
       console.error('[SecurePdfViewer] render error', err);
     } finally {
       if (mountedRef.current) setPageLoading(false);
     }
-  }, [drawWatermark, watermarkLabel]);
+  }, [drawWatermark]);                          // watermarkLabel removed from deps
 
   /* ── PDF load ───────────────────────────────────────────────── */
   useEffect(() => {
     if (!pdf?.file_url) return;
 
+    // [B-4 fix] don't render if user identity hasn't loaded yet — prevents
+    // a momentary watermark-less frame on slow connections.
+    if (!user) return;
+
     let cancelled = false;
+
+    // [B-2 fix] reset ALL loading/navigation state when switching PDFs
     setIsLoading(true);
     setError(null);
     setNumPages(0);
     setCurrentPage(1);
+    setPageLoading(false);    // ← was missing; prevented stale spinner
+    setScale(DEFAULT_SCALE);  // [B-3 fix] reset zoom per-document
 
     if (renderTaskRef.current) {
       try { renderTaskRef.current.cancel(); } catch (_) {}
@@ -162,14 +188,24 @@ export default function SecurePdfViewer({ pdf }) {
         renderTaskRef.current = null;
       }
     };
-  }, [pdf?.file_url, pdf?.id, retryKey]);
+  }, [pdf?.file_url, pdf?.id, retryKey, user]);
 
-  /* ── Trigger page render when doc / page / zoom changes ─────── */
+  /* ── Re-render page when doc / page / zoom changes ──────────── */
   useEffect(() => {
     if (!isLoading && !error && pdfDocRef.current) {
       renderPage(pdfDocRef.current, currentPage, scale);
     }
   }, [currentPage, scale, isLoading, error, renderPage]);
+
+  /* ── Re-draw watermark when label changes (user data update) ── */
+  useEffect(() => {
+    if (!isLoading && !error && canvasRef.current && watermarkLabel) {
+      // Re-render the current page so the updated label appears immediately
+      if (pdfDocRef.current) {
+        renderPage(pdfDocRef.current, currentPage, scale);
+      }
+    }
+  }, [watermarkLabel]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Block download / print keyboard shortcuts ──────────────── */
   useEffect(() => {
@@ -189,8 +225,8 @@ export default function SecurePdfViewer({ pdf }) {
   /* ── Navigation helpers ─────────────────────────────────────── */
   const prevPage = () => setCurrentPage(p => Math.max(1, p - 1));
   const nextPage = () => setCurrentPage(p => Math.min(numPages, p + 1));
-  const zoomIn   = () => setScale(s => Math.min(3.0, parseFloat((s + 0.2).toFixed(1))));
-  const zoomOut  = () => setScale(s => Math.max(0.5, parseFloat((s - 0.2).toFixed(1))));
+  const zoomIn   = () => setScale(s => Math.min(MAX_SCALE, parseFloat((s + 0.2).toFixed(1))));
+  const zoomOut  = () => setScale(s => Math.max(MIN_SCALE, parseFloat((s - 0.2).toFixed(1))));
   const retry    = () => { setError(null); setRetryKey(k => k + 1); };
 
   /* ── Empty state ────────────────────────────────────────────── */
@@ -201,6 +237,15 @@ export default function SecurePdfViewer({ pdf }) {
           <FileText className="w-20 h-20 mx-auto mb-4 opacity-20" />
           <p className="font-semibold text-lg">اختر ملفاً للعرض</p>
         </div>
+      </div>
+    );
+  }
+
+  // [B-4 fix] Block rendering until user is confirmed — prevents watermark race condition
+  if (!user) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-gray-50">
+        <Loader2 className="w-10 h-10 animate-spin text-orange-400" />
       </div>
     );
   }
@@ -223,9 +268,10 @@ export default function SecurePdfViewer({ pdf }) {
         <div className="flex items-center gap-1 bg-gray-100 rounded-lg px-1 py-0.5">
           <button
             onClick={zoomOut}
-            disabled={scale <= 0.5 || isLoading}
+            disabled={scale <= MIN_SCALE || isLoading}
             className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-40 transition-colors"
             title="تصغير"
+            aria-label="تصغير"
           >
             <ZoomOut className="w-3.5 h-3.5 text-gray-600" />
           </button>
@@ -234,9 +280,10 @@ export default function SecurePdfViewer({ pdf }) {
           </span>
           <button
             onClick={zoomIn}
-            disabled={scale >= 3.0 || isLoading}
+            disabled={scale >= MAX_SCALE || isLoading}
             className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-40 transition-colors"
             title="تكبير"
+            aria-label="تكبير"
           >
             <ZoomIn className="w-3.5 h-3.5 text-gray-600" />
           </button>
@@ -250,6 +297,7 @@ export default function SecurePdfViewer({ pdf }) {
               disabled={currentPage >= numPages || pageLoading}
               className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-40 transition-colors"
               title="الصفحة التالية"
+              aria-label="الصفحة التالية"
             >
               <ChevronRight className="w-4 h-4 text-gray-600" />
             </button>
@@ -261,6 +309,7 @@ export default function SecurePdfViewer({ pdf }) {
               disabled={currentPage <= 1 || pageLoading}
               className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-40 transition-colors"
               title="الصفحة السابقة"
+              aria-label="الصفحة السابقة"
             >
               <ChevronLeft className="w-4 h-4 text-gray-600" />
             </button>
@@ -304,7 +353,10 @@ export default function SecurePdfViewer({ pdf }) {
             <canvas
               ref={canvasRef}
               className="shadow-xl rounded max-w-full block"
-              style={{ imageRendering: 'high-quality', pointerEvents: 'none' }}
+              style={{
+                imageRendering: 'auto',   // [B-1 fix] 'high-quality' is not a valid CSS value
+                pointerEvents: 'none',
+              }}
               draggable={false}
               onDragStart={e => e.preventDefault()}
             />
@@ -318,6 +370,7 @@ export default function SecurePdfViewer({ pdf }) {
           <button
             onClick={nextPage}
             disabled={currentPage >= numPages || pageLoading}
+            aria-label="الصفحة التالية"
             className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-orange-50 text-orange-600 hover:bg-orange-100 disabled:opacity-40 transition-colors"
           >
             التالية <ChevronRight className="w-3.5 h-3.5" />
@@ -328,6 +381,7 @@ export default function SecurePdfViewer({ pdf }) {
           <button
             onClick={prevPage}
             disabled={currentPage <= 1 || pageLoading}
+            aria-label="الصفحة السابقة"
             className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-orange-50 text-orange-600 hover:bg-orange-100 disabled:opacity-40 transition-colors"
           >
             <ChevronLeft className="w-3.5 h-3.5" /> السابقة
