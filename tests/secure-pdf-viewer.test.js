@@ -48,6 +48,8 @@ async function test(name, fn) {
   }
 }
 
+const REQUEST_TIMEOUT_MS = 8000;
+
 function request(method, urlPath, { headers = {} } = {}) {
   return new Promise((resolve, reject) => {
     const url = new URL(urlPath, BASE_URL);
@@ -56,6 +58,10 @@ function request(method, urlPath, { headers = {} } = {}) {
       let body = '';
       res.on('data', d => { body += d; });
       res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body }));
+    });
+    // [T-1 fix] abort if server is unreachable — prevents test suite from hanging
+    req.setTimeout(REQUEST_TIMEOUT_MS, () => {
+      req.destroy(new Error(`Request timed out after ${REQUEST_TIMEOUT_MS}ms: ${method} ${urlPath}`));
     });
     req.on('error', reject);
     req.end();
@@ -74,7 +80,8 @@ function makeToken(payload, expiresIn = '1h') {
 let _teacherId, _teacher2Id, _assistantId;
 let _studentId, _suspendedStudentId, _otherStudentId;
 let _courseId, _unpubCourseId, _pdfId, _unpubPdfId;
-let _enrollId, _unpubEnrollId, _suspendedEnrollId;
+// Standalone exam fixtures (for B-3 question-image test)
+let _standaloneExamId, _questionId, _examSessionId;
 
 async function seed() {
   // [T-4 fix] use parameterized queries — avoids template-literal injection risk.
@@ -201,14 +208,63 @@ async function seed() {
     [_teacherId, 'test_pdf_other', hash],
   );
   _otherStudentId = s2.rows[0].id;
+
+  // ── Standalone exam + question image (for B-3 suspended student test) ────
+  // Pre-clean stale fixtures by known image URL
+  await Q(
+    `DELETE FROM questions WHERE question_image_url='/uploads/question-images/test-secure-q.jpg'`
+  );
+  await Q(`DELETE FROM exams WHERE title='PDF Standalone Exam Test' AND teacher_id=$1`, [_teacherId]);
+
+  const ex = await Q(
+    `INSERT INTO exams (title,teacher_id,course_id,duration_minutes,total_score,is_published)
+     VALUES('PDF Standalone Exam Test',$1,NULL,60,100,true) RETURNING id`,
+    [_teacherId],
+  );
+  _standaloneExamId = ex.rows[0].id;
+
+  const qr = await Q(
+    `INSERT INTO questions
+       (exam_id,question_text,question_image_url,option_a,option_b,correct_answer_letter,points)
+     VALUES($1,'Test Q','/uploads/question-images/test-secure-q.jpg','A','B','A',1)
+     RETURNING id`,
+    [_standaloneExamId],
+  );
+  _questionId = qr.rows[0].id;
+
+  // Give the *suspended* student an exam session so the old code would have granted access
+  await Q(
+    `INSERT INTO exam_sessions (student_id, exam_id)
+     VALUES($1,$2) ON CONFLICT DO NOTHING`,
+    [_suspendedStudentId, _standaloneExamId],
+  );
+  const esr = await Q(
+    `SELECT id FROM exam_sessions WHERE student_id=$1 AND exam_id=$2`,
+    [_suspendedStudentId, _standaloneExamId],
+  );
+  _examSessionId = esr.rows[0]?.id;
+
+  // Also give the *active* student an exam session (for the positive regression check)
+  await Q(
+    `INSERT INTO exam_sessions (student_id, exam_id)
+     VALUES($1,$2) ON CONFLICT DO NOTHING`,
+    [_studentId, _standaloneExamId],
+  );
 }
 
 async function cleanup() {
   // Delete in FK-safe order (children before parents)
   const Q = (sql, p) => pool.query(sql, p).catch(() => {});
 
-  if (_pdfId)            await Q('DELETE FROM pdf_files WHERE id=$1', [_pdfId]);
-  if (_unpubPdfId)       await Q('DELETE FROM pdf_files WHERE id=$1', [_unpubPdfId]);
+  // Standalone exam fixtures
+  if (_examSessionId)      await Q('DELETE FROM exam_sessions WHERE id=$1', [_examSessionId]);
+  if (_studentId && _standaloneExamId)
+    await Q('DELETE FROM exam_sessions WHERE student_id=$1 AND exam_id=$2', [_studentId, _standaloneExamId]);
+  if (_questionId)         await Q('DELETE FROM questions WHERE id=$1', [_questionId]);
+  if (_standaloneExamId)   await Q('DELETE FROM exams WHERE id=$1', [_standaloneExamId]);
+
+  if (_pdfId)              await Q('DELETE FROM pdf_files WHERE id=$1', [_pdfId]);
+  if (_unpubPdfId)         await Q('DELETE FROM pdf_files WHERE id=$1', [_unpubPdfId]);
 
   // Enrollments
   const delEnroll = (sid, cid) =>
@@ -474,6 +530,54 @@ async function runEdgeCaseTests() {
   });
 }
 
+async function runStandaloneImageTests() {
+  console.log('\n📋  I. Standalone-exam question-image suspended student gate  [B-3 fix]\n');
+
+  const IMAGE_PATH = '/uploads/question-images/test-secure-q.jpg';
+
+  await test('Suspended student with exam session cannot access standalone question image → 403', async () => {
+    const tok = makeToken({ id: _suspendedStudentId, role: 'student' }, '1m');
+    const r   = await request('GET', `${IMAGE_PATH}?token=${tok}`);
+    assert.strictEqual(
+      r.status, 403,
+      `suspended student should get 403 even with exam session, got ${r.status}`,
+    );
+  });
+
+  await test('Active student with exam session can access standalone question image → 404 (file missing)', async () => {
+    const tok = makeToken({ id: _studentId, role: 'student' }, '1m');
+    const r   = await request('GET', `${IMAGE_PATH}?token=${tok}`);
+    assert.ok(
+      r.status === 200 || r.status === 404,
+      `active student with session should get 200/404, got ${r.status}`,
+    );
+  });
+
+  await test('Student without any exam session cannot access standalone question image → 403', async () => {
+    const tok = makeToken({ id: _otherStudentId, role: 'student' }, '1m');
+    const r   = await request('GET', `${IMAGE_PATH}?token=${tok}`);
+    assert.strictEqual(
+      r.status, 403,
+      `student with no session should get 403, got ${r.status}`,
+    );
+  });
+
+  await test('Owner teacher can access standalone question image → 404 (file missing)', async () => {
+    const tok = makeToken({ id: _teacherId, role: 'teacher' }, '1m');
+    const r   = await request('GET', `${IMAGE_PATH}?token=${tok}`);
+    assert.ok(
+      r.status === 200 || r.status === 404,
+      `owner teacher should get 200/404, got ${r.status}`,
+    );
+  });
+
+  await test('Other teacher cannot access standalone question image → 403', async () => {
+    const tok = makeToken({ id: _teacher2Id, role: 'teacher' }, '1m');
+    const r   = await request('GET', `${IMAGE_PATH}?token=${tok}`);
+    assert.strictEqual(r.status, 403, `other teacher should get 403, got ${r.status}`);
+  });
+}
+
 /* ─── Manual / frontend checklist (printed to console) ─────── */
 
 function printFrontendChecklist() {
@@ -506,7 +610,7 @@ function printFrontendChecklist() {
 /* ─── Main ───────────────────────────────────────────────────── */
 
 (async () => {
-  console.log('\n🔐  SecurePdfViewer — Backend Test Suite (v2)');
+  console.log('\n🔐  SecurePdfViewer — Backend Test Suite (v3)');
   console.log('===============================================');
 
   try {
@@ -526,6 +630,7 @@ function printFrontendChecklist() {
     await runUnpublishedTests();
     await runOwnershipTests();
     await runEdgeCaseTests();
+    await runStandaloneImageTests();   // [B-3 fix] new suite
   } finally {
     await cleanup().catch(e => console.error('Cleanup error:', e.message));
     await pool.end();

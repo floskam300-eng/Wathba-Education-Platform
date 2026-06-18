@@ -253,11 +253,17 @@ const checkFileAccess = async (decoded, fileType, fullPath) => {
           hasAccess = e.rows.length > 0;
         } else if (examId) {
           // Standalone exam: student must have an active session OR completed result
+          // AND must not be suspended — mirrors the course-exam branch above.
           const sr = await pool.query(
-            `SELECT 1 FROM exam_sessions WHERE student_id=$1 AND exam_id=$2
-             UNION ALL
-             SELECT 1 FROM exam_results  WHERE student_id=$1 AND exam_id=$2
-             LIMIT 1`,
+            `SELECT 1
+               FROM students st
+              WHERE st.id = $1
+                AND st.is_suspended = false
+                AND EXISTS (
+                  SELECT 1 FROM exam_sessions WHERE student_id = $1 AND exam_id = $2
+                  UNION ALL
+                  SELECT 1 FROM exam_results  WHERE student_id = $1 AND exam_id = $2
+                )`,
             [decoded.id, examId]
           );
           hasAccess = sr.rows.length > 0;

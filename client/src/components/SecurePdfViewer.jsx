@@ -49,6 +49,10 @@ export default function SecurePdfViewer({ pdf }) {
   // [P-2 fix] store latest label in a ref so renderPage never re-creates
   // just because the user object identity changed.
   const watermarkLabelRef  = useRef('');
+  // [B-4 fix] keep current page and scale in refs for the watermark re-draw
+  // effect so it always reads the latest values (no stale closure).
+  const currentPageRef     = useRef(1);
+  const scaleRef           = useRef(DEFAULT_SCALE);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -106,6 +110,9 @@ export default function SecurePdfViewer({ pdf }) {
     }
 
     setPageLoading(true);
+    // [B-1 fix] track cancellation so finally doesn't clear the spinner
+    // that the *next* render already started.
+    let wasCancelled = false;
     try {
       const page = await doc.getPage(pageNum);
       if (!mountedRef.current) return;
@@ -127,12 +134,22 @@ export default function SecurePdfViewer({ pdf }) {
       // Read the label from ref so this callback never needs to be recreated
       drawWatermark(canvas, watermarkLabelRef.current);
     } catch (err) {
-      if (err?.name === 'RenderingCancelledException') return;
+      if (err?.name === 'RenderingCancelledException') {
+        // Do NOT clear pageLoading — the new render already owns the spinner.
+        wasCancelled = true;
+        return;
+      }
       console.error('[SecurePdfViewer] render error', err);
     } finally {
-      if (mountedRef.current) setPageLoading(false);
+      // Skip if cancelled: the replacement render will call setPageLoading(false).
+      if (mountedRef.current && !wasCancelled) setPageLoading(false);
     }
   }, [drawWatermark]);                          // watermarkLabel removed from deps
+
+  /* ── Keep currentPage/scale refs in sync with state ─────────── */
+  // [B-4 fix] so the watermark re-draw effect always reads the latest page/zoom
+  useEffect(() => { currentPageRef.current = currentPage; }, [currentPage]);
+  useEffect(() => { scaleRef.current = scale; }, [scale]);
 
   /* ── PDF load ───────────────────────────────────────────────── */
   useEffect(() => {
@@ -140,7 +157,10 @@ export default function SecurePdfViewer({ pdf }) {
 
     // [B-4 fix] don't render if user identity hasn't loaded yet — prevents
     // a momentary watermark-less frame on slow connections.
-    if (!user) return;
+    // [B-2 fix] depend on user?.id, not the full user object — prevents
+    // unnecessary PDF reloads when AuthContext recreates the user object
+    // with the same data (e.g. after updateUser / background refresh).
+    if (!user?.id) return;
 
     let cancelled = false;
 
@@ -188,7 +208,8 @@ export default function SecurePdfViewer({ pdf }) {
         renderTaskRef.current = null;
       }
     };
-  }, [pdf?.file_url, pdf?.id, retryKey, user]);
+  // [B-2 fix] depend on user?.id not the full user object reference
+  }, [pdf?.file_url, pdf?.id, retryKey, user?.id]);
 
   /* ── Re-render page when doc / page / zoom changes ──────────── */
   useEffect(() => {
@@ -198,14 +219,15 @@ export default function SecurePdfViewer({ pdf }) {
   }, [currentPage, scale, isLoading, error, renderPage]);
 
   /* ── Re-draw watermark when label changes (user data update) ── */
+  // [B-4 fix] read page/scale from refs so we never have a stale closure —
+  // if the user's name is updated while they're on page 7 at 200% zoom, the
+  // watermark re-draws correctly on page 7 at 200%, not on page 1 at 130%.
   useEffect(() => {
-    if (!isLoading && !error && canvasRef.current && watermarkLabel) {
-      // Re-render the current page so the updated label appears immediately
-      if (pdfDocRef.current) {
-        renderPage(pdfDocRef.current, currentPage, scale);
-      }
+    const doc = pdfDocRef.current;
+    if (doc && watermarkLabel) {
+      renderPage(doc, currentPageRef.current, scaleRef.current);
     }
-  }, [watermarkLabel]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [watermarkLabel, renderPage]);
 
   /* ── Block download / print keyboard shortcuts ──────────────── */
   useEffect(() => {
@@ -241,8 +263,8 @@ export default function SecurePdfViewer({ pdf }) {
     );
   }
 
-  // [B-4 fix] Block rendering until user is confirmed — prevents watermark race condition
-  if (!user) {
+  // [B-4 fix + B-2 fix] Block rendering until user identity is confirmed
+  if (!user?.id) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-gray-50">
         <Loader2 className="w-10 h-10 animate-spin text-orange-400" />
