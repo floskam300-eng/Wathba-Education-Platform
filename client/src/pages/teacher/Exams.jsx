@@ -5,11 +5,12 @@ import { useAuth } from '../../context/AuthContext';
 import {
   FileText, Plus, Pencil, Trash2, HelpCircle, ChevronDown, ChevronUp,
   Printer, Filter, Calendar, User, Eye, Search, AlertCircle,
-  Globe, EyeOff, CheckCircle, XCircle,
+  Globe, EyeOff, CheckCircle, XCircle, History,
 } from 'lucide-react';
 import Modal from '../../components/ui/Modal';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import Badge from '../../components/ui/Badge';
+import AttemptHistoryModal from '../../components/ui/AttemptHistoryModal';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
 import { generatePDFReport } from '../../lib/pdfReport';
@@ -61,6 +62,8 @@ export default function TeacherExams() {
   const [forceResetConfirm, setForceResetConfirm] = useState(null);
   const [unpublishConfirm, setUnpublishConfirm] = useState(null);
   const [formErrors, setFormErrors] = useState({});
+  // Attempt history modal: { examId, studentId, studentName, examTitle }
+  const [attemptHistory, setAttemptHistory] = useState(null);
 
   const { data: exams = [], isLoading } = useQuery({
     queryKey: ['exams'],
@@ -462,6 +465,11 @@ export default function TeacherExams() {
 
               {/* Student result strip */}
               {selectedStudent && (() => {
+                // Collect ALL attempts this student has for this exam (latest +
+                // archived) so the teacher can open the history even when a single
+                // "latest" map entry is shown for brevity.
+                const attempts = studentResults.filter(r => r.exam_id === ex.id);
+                const realAttempts = attempts.filter(r => !(r.is_absent === true || r.is_absent === 'true'));
                 const res = studentResultMap[ex.id];
                 if (!res) {
                   return (
@@ -473,6 +481,7 @@ export default function TeacherExams() {
                 }
                 const passed = res.score >= res.pass_score;
                 const pct = res.total_score > 0 ? Math.round((res.score / res.total_score) * 100) : 0;
+                const hasMultiple = realAttempts.length > 1;
                 return (
                   <div className={`mx-4 mb-4 flex items-center gap-3 px-4 py-2.5 rounded-xl border ${passed ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
                     {passed
@@ -481,6 +490,11 @@ export default function TeacherExams() {
                     <div className="flex-1 min-w-0">
                       <p className={`text-sm font-bold ${passed ? 'text-green-800' : 'text-red-800'}`}>
                         {selectedStudent.name} — {passed ? 'ناجح ✓' : 'راسب ✗'}
+                        {hasMultiple && (
+                          <span className="text-[11px] text-navy-600 font-bold mr-2">
+                            ({realAttempts.length} محاولات)
+                          </span>
+                        )}
                       </p>
                       <p className="text-xs text-gray-600 mt-0.5">
                         الدرجة: <span className="font-black">{res.score}/{res.total_score}</span>
@@ -492,6 +506,16 @@ export default function TeacherExams() {
                       onClick={() => navigate(`/${baseRole}/exam-review/${res.id}`)}
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-bold text-navy-700 hover:bg-navy-50 transition-colors flex-shrink-0">
                       <Eye className="w-3.5 h-3.5" /> مراجعة
+                    </button>
+                    <button
+                      onClick={() => setAttemptHistory({
+                        examId: ex.id,
+                        studentId: selectedStudent.id,
+                        studentName: selectedStudent.name,
+                        examTitle: ex.title,
+                      })}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-bold text-gray-700 hover:bg-gray-50 transition-colors flex-shrink-0">
+                      <History className="w-3.5 h-3.5" /> كل المحاولات
                     </button>
                   </div>
                 );
@@ -871,19 +895,21 @@ export default function TeacherExams() {
       {forceResetConfirm && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl text-center">
-            <div className="text-5xl mb-3">⚠️</div>
-            <h3 className="text-xl font-black text-red-700 mb-2">تحذير: مسح النتائج</h3>
-            <p className="text-gray-600 mb-4">
-              يوجد <span className="font-black text-red-600">{forceResetConfirm.count}</span> طالب أدوا هذا الاختبار بالفعل.
-              إعادة النشر ستمسح نتائجهم نهائياً ولا يمكن التراجع عن ذلك.
+            <div className="text-5xl mb-3">🗂️</div>
+            <h3 className="text-xl font-black text-amber-700 mb-2">إعادة النشر وأرشفة النتائج</h3>
+            <p className="text-gray-600 mb-2">
+              يوجد <span className="font-black text-amber-600">{forceResetConfirm.count}</span> طالب أدوا هذا الاختبار بالفعل.
+            </p>
+            <p className="text-gray-600 text-sm mb-4">
+              إعادة النشر ستؤرشف نتائجهم القديمة — <span className="font-bold">تبقى في السجلات</span> ويمكن للطالب والمدرس مراجعتها دائماً — وتتيح لهم إعادة التأدية من جديد.
             </p>
             <div className="flex gap-3">
               <button onClick={() => setForceResetConfirm(null)} className="flex-1 btn-secondary">إلغاء</button>
               <button
                 onClick={() => publishMut.mutate({ id: forceResetConfirm.id, force_reset: true })}
                 disabled={publishMut.isPending}
-                className="flex-1 font-bold py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white transition-all active:scale-95">
-                {publishMut.isPending ? 'جاري...' : 'نعم، امسح النتائج وأعد النشر'}
+                className="flex-1 font-bold py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white transition-all active:scale-95">
+                {publishMut.isPending ? 'جاري...' : 'نعم، أرشف النتائج وأعد النشر'}
               </button>
             </div>
           </div>
@@ -926,6 +952,17 @@ export default function TeacherExams() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Attempt history modal — shows every attempt (latest + archived) */}
+      {attemptHistory && (
+        <AttemptHistoryModal
+          examId={attemptHistory.examId}
+          studentId={attemptHistory.studentId}
+          studentName={attemptHistory.studentName}
+          examTitle={attemptHistory.examTitle}
+          onClose={() => setAttemptHistory(null)}
+        />
       )}
     </div>
   );

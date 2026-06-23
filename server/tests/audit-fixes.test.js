@@ -200,7 +200,8 @@ console.log('══════════════════════�
       [studentId, examId]
     );
 
-    // Run the force_reset logic (mirrors exams.js)
+    // Run the force_reset logic (mirrors exams.js) — deduct points then ARCHIVE
+    // (not delete) the results so the grade history is preserved.
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -215,13 +216,14 @@ console.log('══════════════════════�
           [row.pts, row.student_id]
         );
       }
-      await client.query('DELETE FROM exam_results WHERE exam_id=$1', [examId]);
+      await client.query('UPDATE exam_results SET is_latest=false WHERE exam_id=$1', [examId]);
       await client.query('COMMIT');
     } finally { client.release(); }
 
     const after = await pool.query('SELECT points FROM students WHERE id=$1', [studentId]);
     assertEqual(after.rows[0].points, 50, `Expected 50 pts remaining, got ${after.rows[0].points}`);
 
+    await pool.query('DELETE FROM exam_results WHERE exam_id=$1', [examId]);
     await pool.query('DELETE FROM exams WHERE id=$1',    [examId]);
     await pool.query('DELETE FROM students WHERE id=$1', [studentId]);
   });

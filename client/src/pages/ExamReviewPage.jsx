@@ -125,9 +125,19 @@ export default function ExamReviewPage() {
               <h1 className={`font-black text-lg leading-tight ${passed ? 'text-green-800 dark:text-green-300' : 'text-red-800 dark:text-red-300'}`}>
                 {result.exam_title}
               </h1>
-              {result.attempt_number > 1 && (
-                <p className="text-xs text-orange-600 dark:text-orange-400 font-bold mt-1">المحاولة #{result.attempt_number}</p>
-              )}
+              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                {result.attempt_number > 1 && (
+                  <span className="text-xs text-orange-600 dark:text-orange-400 font-bold">المحاولة #{result.attempt_number}</span>
+                )}
+                {/* Distinguish an archived (previous) attempt from the current/latest one
+                    so the viewer immediately knows this isn't the student's active grade. */}
+                {result.is_latest === false && (
+                  <span className="text-[10px] bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-300 rounded-full px-1.5 py-0.5 font-bold">محاولة سابقة</span>
+                )}
+                {result.is_latest === true && result.attempt_number > 1 && (
+                  <span className="text-[10px] bg-navy-50 dark:bg-navy-900/30 text-navy-600 dark:text-navy-300 rounded-full px-1.5 py-0.5 font-bold">الأخيرة</span>
+                )}
+              </div>
             </div>
             <div className="text-center flex-shrink-0">
               <div className={`text-3xl font-black ${passed ? 'text-green-700 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>

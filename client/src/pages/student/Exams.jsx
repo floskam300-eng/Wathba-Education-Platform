@@ -747,11 +747,11 @@ export default function StudentExams() {
                           {isAbsent && (
                             <span className="text-[10px] bg-gray-100 dark:bg-[var(--dk-elevated)] text-gray-500 rounded-full px-1.5 py-0.5 font-bold">غائب</span>
                           )}
+                          {!isAbsent && r.is_latest && (
+                            <span className="text-[10px] bg-navy-50 dark:bg-navy-900/30 text-navy-600 dark:text-navy-300 rounded-full px-1.5 py-0.5 font-bold">الأخيرة</span>
+                          )}
                           {!isAbsent && !r.is_latest && (
                             <span className="text-[10px] bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-300 rounded-full px-1.5 py-0.5 font-bold">محاولة سابقة</span>
-                          )}
-                          {!isAbsent && r.attempt_number > 1 && r.is_latest && (
-                            <span className="text-[10px] bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 rounded-full px-1.5 py-0.5 font-bold">إعادة</span>
                           )}
                         </div>
                         <p className="text-[10px] text-gray-400 dark:text-[var(--dk-text-2)] mt-0.5">
@@ -766,15 +766,16 @@ export default function StudentExams() {
                             <span className={`text-xs font-black ${passed ? 'text-green-600' : 'text-red-500'}`}>
                               {r.score}/{r.total_score}
                             </span>
-                            {r.is_latest && !isAbsent && (
-                              <button
-                                onClick={() => navigate(`/student/exam-review/${r.id}`)}
-                                className="p-1.5 rounded-lg text-gray-400 hover:text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors"
-                                title="مراجعة الإجابات"
-                              >
-                                <Eye className="w-3.5 h-3.5" />
-                              </button>
-                            )}
+                            {/* Review button is available for EVERY attempt (latest and
+                                archived) — the student must always be able to revisit a
+                                previous grade/answers, never only the last one. */}
+                            <button
+                              onClick={() => navigate(`/student/exam-review/${r.id}`)}
+                              className="p-1.5 rounded-lg text-gray-400 hover:text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors"
+                              title="مراجعة الإجابات"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </button>
                           </>
                         )}
                       </div>

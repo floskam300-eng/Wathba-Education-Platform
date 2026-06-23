@@ -355,10 +355,12 @@ router.get('/:id/profile', requireRole('teacher', 'assistant'), async (req, res)
         ORDER BY sce.enrollment_date DESC
       `, [studentId]),
 
-      // Last 5 exam results
+      // Last exam results (every attempt incl. archived is_latest=false) so the
+      // teacher can see previous grades for the same exam, not just the latest.
       pool.query(`
         SELECT er.id, er.score, er.correct_count, er.wrong_count,
                er.unanswered_count, er.points_earned, er.created_at,
+               er.attempt_number, er.is_latest, er.is_absent, er.exam_id,
                e.title as exam_title, e.total_score, e.pass_score,
                c.name as course_name
         FROM exam_results er
@@ -366,7 +368,7 @@ router.get('/:id/profile', requireRole('teacher', 'assistant'), async (req, res)
         LEFT JOIN courses c ON e.course_id = c.id
         WHERE er.student_id = $1
         ORDER BY er.created_at DESC
-        LIMIT 5
+        LIMIT 50
       `, [studentId]),
 
       // Payment history

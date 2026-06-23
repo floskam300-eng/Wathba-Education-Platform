@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import {
   X, User, Phone, BookOpen, Award, CreditCard,
   CheckCircle2, XCircle, Star, GraduationCap, Calendar, Clock,
-  Trophy, Wallet, Play, FileText, AlertCircle, ChevronDown, ChevronUp
+  Trophy, Wallet, Play, FileText, AlertCircle, ChevronDown, ChevronUp, Eye, History
 } from 'lucide-react';
 import api from '../../lib/api';
+import AttemptHistoryModal from './AttemptHistoryModal';
 
 const fmt = (date) => date ? new Date(date).toLocaleDateString('ar-EG', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 const fmtShort = (date) => date ? new Date(date).toLocaleDateString('ar-EG', { day: '2-digit', month: 'short' }) : '—';
@@ -51,6 +53,8 @@ function QuickStat({ label, value, color, bg }) {
 }
 
 export default function StudentProfileModal({ studentId, onClose }) {
+  const navigate = useNavigate();
+  const [attemptHistory, setAttemptHistory] = useState(null); // { examId, studentName, examTitle }
   const { data, isLoading, isError } = useQuery({
     queryKey: ['student-profile', studentId],
     queryFn: () => api.get(`/students/${studentId}/profile`).then(r => r.data),
@@ -75,9 +79,37 @@ export default function StudentProfileModal({ studentId, onClose }) {
   const badges = data?.badges || [];
   const recitations = data?.recitationResults || [];
 
-  const passedExams = exams.filter(e => e.score >= e.pass_score).length;
-  const avgScore = exams.length
-    ? Math.round(exams.reduce((a, e) => a + (e.score / Math.max(e.total_score, 1)) * 100, 0) / exams.length)
+  // Group attempts by exam_id so multiple attempts of the same exam collapse into
+  // one row in the UI (with an indicator of how many attempts exist). Aggregate
+  // stats (passed/avg) use only the latest attempt per exam to avoid double-counting.
+  const latestByExam = useMemo(() => {
+    const map = {};
+    for (const e of exams) {
+      // created_at comes back DESC from the server, so the first seen row per
+      // exam_id is the most recent — keep it.
+      if (!map[e.exam_id]) map[e.exam_id] = e;
+    }
+    return map;
+  }, [exams]);
+  const latestExams = Object.values(latestByExam);
+  // Only the latest REAL (non-absent) attempt per exam counts toward pass/fail/avg.
+  const latestRealExams = latestExams.filter(e => !(e.is_absent === true || e.is_absent === 'true'));
+  const attemptCountByExam = useMemo(() => {
+    const map = {};
+    for (const e of exams) {
+      const key = e.exam_id;
+      // Only count real (non-absent) attempts toward the "N attempts" badge
+      if (!(e.is_absent === true || e.is_absent === 'true')) {
+        map[key] = (map[key] || 0) + 1;
+      }
+    }
+    return map;
+  }, [exams]);
+
+  const passedExams = latestRealExams.filter(e => e.score >= e.pass_score).length;
+  const failedExams = latestRealExams.length - passedExams;
+  const avgScore = latestRealExams.length
+    ? Math.round(latestRealExams.reduce((a, e) => a + (e.score / Math.max(e.total_score, 1)) * 100, 0) / latestRealExams.length)
     : 0;
   const totalPaid = payments.filter(p => p.status === 'verified').reduce((a, p) => a + parseFloat(p.amount), 0);
   const initial = s?.name?.charAt(0) || '؟';
@@ -265,49 +297,98 @@ export default function StudentProfileModal({ studentId, onClose }) {
               </Section>
 
               {/* ── Exam Results ── */}
-              <Section title="نتائج الاختبارات" icon={Award} iconBg="bg-purple-100" iconColor="text-purple-600" count={exams.length}>
-                {exams.length === 0 ? (
+              <Section title="نتائج الاختبارات" icon={Award} iconBg="bg-purple-100" iconColor="text-purple-600" count={latestExams.length}>
+                {latestExams.length === 0 ? (
                   <p className="text-gray-400 text-sm font-medium text-center py-6">لم يحل أي اختبار بعد</p>
                 ) : (
                   <>
                     <div className="grid grid-cols-3 gap-3 mb-4">
                       <QuickStat label="ناجح" value={passedExams} color="text-emerald-600" bg="bg-emerald-50" />
-                      <QuickStat label="راسب" value={exams.length - passedExams} color="text-red-500" bg="bg-red-50" />
+                      <QuickStat label="راسب" value={failedExams} color="text-red-500" bg="bg-red-50" />
                       <QuickStat label="المتوسط" value={`${avgScore}%`} color={avgScore >= 50 ? 'text-blue-600' : 'text-orange-500'} bg="bg-blue-50" />
                     </div>
                     <div className="space-y-2.5">
-                      {exams.map(e => {
-                        const passed = e.score >= e.pass_score;
+                      {latestExams.map(e => {
+                        const isAbsent = e.is_absent === true || e.is_absent === 'true';
+                        const passed = !isAbsent && e.score >= e.pass_score;
                         const pct = Math.min(Math.round((e.score / Math.max(e.total_score, 1)) * 100), 100);
+                        const attemptCount = attemptCountByExam[e.exam_id] || 1;
+                        const hasMultiple = attemptCount > 1;
                         return (
                           <div key={e.id} className="flex items-center gap-3 p-3.5 bg-white border border-gray-100 rounded-2xl">
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${passed ? 'bg-emerald-100' : 'bg-red-100'}`}>
-                              {passed
-                                ? <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                                : <XCircle className="w-5 h-5 text-red-500" />}
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isAbsent ? 'bg-gray-100' : passed ? 'bg-emerald-100' : 'bg-red-100'}`}>
+                              {isAbsent
+                                ? <Clock className="w-5 h-5 text-gray-400" />
+                                : passed
+                                  ? <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                                  : <XCircle className="w-5 h-5 text-red-500" />}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="font-bold text-sm text-gray-800 truncate">{e.exam_title}</p>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="font-bold text-sm text-gray-800 truncate">{e.exam_title}</p>
+                                {isAbsent && (
+                                  <span className="text-[10px] bg-gray-100 text-gray-500 rounded-full px-1.5 py-0.5 font-bold">غائب</span>
+                                )}
+                                {!isAbsent && hasMultiple && (
+                                  <span className="text-[10px] bg-blue-50 text-blue-600 rounded-full px-1.5 py-0.5 font-bold">{attemptCount} محاولات</span>
+                                )}
+                              </div>
                               {e.course_name && <p className="text-[10px] text-gray-400 mt-0.5">{e.course_name}</p>}
                               <div className="flex items-center gap-3 mt-1.5 text-[11px] text-gray-400">
-                                <span className="flex items-center gap-1 text-emerald-500">
-                                  <CheckCircle2 className="w-3 h-3" /> {e.correct_count}
-                                </span>
-                                <span className="flex items-center gap-1 text-red-400">
-                                  <XCircle className="w-3 h-3" /> {e.wrong_count}
-                                </span>
+                                {!isAbsent && (
+                                  <>
+                                    <span className="flex items-center gap-1 text-emerald-500">
+                                      <CheckCircle2 className="w-3 h-3" /> {e.correct_count}
+                                    </span>
+                                    <span className="flex items-center gap-1 text-red-400">
+                                      <XCircle className="w-3 h-3" /> {e.wrong_count}
+                                    </span>
+                                  </>
+                                )}
                                 <span>{fmtShort(e.created_at)}</span>
                               </div>
                             </div>
-                            <div className="text-left flex-shrink-0 min-w-[60px]">
-                              <p className={`text-base font-black text-left ${passed ? 'text-emerald-600' : 'text-red-500'}`}>
-                                {e.score}<span className="text-xs font-semibold text-gray-400">/{e.total_score}</span>
-                              </p>
-                              <div className="w-full bg-gray-100 rounded-full h-1.5 mt-1 overflow-hidden">
-                                <div className={`h-1.5 rounded-full ${passed ? 'bg-emerald-500' : 'bg-red-400'}`}
-                                  style={{ width: `${pct}%` }} />
-                              </div>
-                              <p className={`text-[10px] font-bold text-left mt-0.5 ${passed ? 'text-emerald-500' : 'text-red-400'}`}>{pct}%</p>
+                            <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                              {!isAbsent ? (
+                                <>
+                                  <div className="flex items-center gap-1.5">
+                                    {!isAbsent && (
+                                      <button
+                                        onClick={() => navigate(`/teacher/exam-review/${e.id}`)}
+                                        title="مراجعة الإجابات"
+                                        className="p-1 rounded-lg text-gray-400 hover:text-navy-600 hover:bg-navy-50 transition-colors border border-gray-100"
+                                      >
+                                        <Eye className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
+                                    {hasMultiple && (
+                                      <button
+                                        onClick={() => setAttemptHistory({
+                                          examId: e.exam_id,
+                                          studentName: s?.name,
+                                          examTitle: e.exam_title,
+                                        })}
+                                        title="كل المحاولات"
+                                        className="p-1 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors border border-gray-100"
+                                      >
+                                        <History className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
+                                  </div>
+                                  <div className="text-left min-w-[56px]">
+                                    <p className={`text-base font-black text-left ${passed ? 'text-emerald-600' : 'text-red-500'}`}>
+                                      {e.score}<span className="text-xs font-semibold text-gray-400">/{e.total_score}</span>
+                                    </p>
+                                    <div className="w-full bg-gray-100 rounded-full h-1.5 mt-1 overflow-hidden">
+                                      <div className={`h-1.5 rounded-full ${passed ? 'bg-emerald-500' : 'bg-red-400'}`}
+                                        style={{ width: `${pct}%` }} />
+                                    </div>
+                                    <p className={`text-[10px] font-bold text-left mt-0.5 ${passed ? 'text-emerald-500' : 'text-red-400'}`}>{pct}%</p>
+                                  </div>
+                                </>
+                              ) : (
+                                <span className="text-xs font-black text-gray-400">غائب</span>
+                              )}
                             </div>
                           </div>
                         );
@@ -412,6 +493,17 @@ export default function StudentProfileModal({ studentId, onClose }) {
           )}
         </div>
       </div>
+
+      {/* Attempt history modal — shows every attempt (latest + archived) */}
+      {attemptHistory && (
+        <AttemptHistoryModal
+          examId={attemptHistory.examId}
+          studentId={studentId}
+          studentName={attemptHistory.studentName}
+          examTitle={attemptHistory.examTitle}
+          onClose={() => setAttemptHistory(null)}
+        />
+      )}
 
       <style>{`
         @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }

@@ -329,7 +329,8 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExams
           return res.status(400).json({ error: 'لا يمكن نشر اختبار بدون أسئلة — أضف أسئلة أولاً' });
         }
       }
-      // If republishing (exam was taken before), clear previous results to allow re-attempt
+      // If republishing (exam was taken before), archive previous results so students
+      // can re-attempt while keeping their old grades/scores in the history records.
       const existingResults = await pool.query(
         'SELECT COUNT(id) as cnt, COUNT(id) FILTER (WHERE is_absent = false) as real_cnt FROM exam_results WHERE exam_id=$1',
         [examId]
@@ -341,8 +342,8 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExams
           // BUG-5 FIX: differentiate between absent records and real submissions
           // to avoid misleading the teacher ("N took the exam" when they were marked absent)
           const msg = realCount > 0
-            ? `يوجد ${realCount} طالب أدوا هذا الاختبار بالفعل — إعادة النشر ستمسح نتائجهم نهائياً`
-            : `يوجد ${resultCount} طالب مسجّلون كـ"غائب" في هذا الاختبار — إعادة النشر ستمسح سجلات الغياب وتتيح لهم الدخول`;
+            ? `يوجد ${realCount} طالب أدوا هذا الاختبار بالفعل — إعادة النشر ستؤرشف نتائجهم القديمة (تبقى في السجلات) وتتيح لهم الإعادة`
+            : `يوجد ${resultCount} طالب مسجّلون كـ"غائب" في هذا الاختبار — إعادة النشر سيؤرشف سجلات الغياب (تبقى في السجلات) ويتيح لهم الدخول`;
           return res.status(409).json({
             error: msg,
             code: 'RESULTS_EXIST',
@@ -353,7 +354,8 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExams
         const resetClient = await pool.connect();
         try {
           await resetClient.query('BEGIN');
-          // Deduct points earned from this exam before deleting results
+          // Deduct points earned from this exam before archiving results.
+          // Only the latest attempt (is_latest=true) carries the active points.
           const earnedRows = await resetClient.query(
             `SELECT student_id, COALESCE(points_earned, 0) AS pts
              FROM exam_results
@@ -366,7 +368,9 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExams
               [row.pts, row.student_id]
             );
           }
-          await resetClient.query('DELETE FROM exam_results WHERE exam_id=$1', [examId]);
+          // Archive old results instead of deleting — preserves history so the
+          // student/teacher can always review previous grades even after republish.
+          await resetClient.query('UPDATE exam_results SET is_latest=false WHERE exam_id=$1', [examId]);
           // T3 FIX: also delete exam_sessions so students who had started the exam
           // (creating a session with an old started_at) get a fresh timer on their
           // next attempt. Without this, the server-side elapsed-time check fires
@@ -388,7 +392,7 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExams
           teacherId, actor: getActor(req), ip: getIp(req),
           action: 'force_reset_exam_results',
           entity: { type: 'exam', id: examId, name: currentExam.title },
-          details: { deleted_results: resultCount },
+          details: { archived_results: resultCount },
         });
       }
     }
@@ -1382,6 +1386,64 @@ router.get('/student/course-results/:courseId', requireRole('student'), async (r
   }
 });
 
+// ── All attempts of a student for a specific exam (history) ──
+// Literal path must come BEFORE /results/:resultId so Express doesn't treat
+// "by-exam-student" as a resultId.
+router.get('/results/by-exam-student/:examId/:studentId', requireRole('teacher', 'assistant', 'student'), async (req, res) => {
+  const examId = parseParamId(req.params.examId);
+  const studentIdParam = parseParamId(req.params.studentId);
+  if (!examId || !studentIdParam) return res.status(400).json({ error: 'معرّف غير صالح' });
+  try {
+    // Ownership / access check
+    const examRow = await pool.query(
+      'SELECT id, teacher_id, title FROM exams WHERE id=$1',
+      [examId]
+    );
+    if (!examRow.rows.length) return res.status(404).json({ error: 'Exam not found' });
+    const examTeacherId = examRow.rows[0].teacher_id;
+
+    if (req.user.role === 'student') {
+      // Student may only view their OWN attempts.
+      if (parseInt(studentIdParam) !== parseInt(req.user.id)) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+    } else {
+      // Teacher/assistant must own BOTH the exam and the student — otherwise a
+      // teacher could read another teacher's student results by passing that
+      // student's id with their own exam id.
+      const teacherId = getTeacherId(req);
+      if (parseInt(examTeacherId) !== parseInt(teacherId)) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      const studentCheck = await pool.query(
+        'SELECT id FROM students WHERE id=$1 AND teacher_id=$2 AND deleted_at IS NULL',
+        [studentIdParam, teacherId]
+      );
+      if (!studentCheck.rows.length) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+    }
+
+    // Return every attempt (latest + archived) for this student + exam.
+    const { rows } = await pool.query(
+      `SELECT er.id, er.score, er.correct_count, er.wrong_count, er.unanswered_count,
+              er.points_earned, er.attempt_number, er.is_latest, er.is_absent,
+              er.start_time, er.end_time, er.created_at,
+              e.title AS exam_title, e.total_score, e.pass_score
+       FROM exam_results er
+       JOIN exams e ON er.exam_id = e.id
+       WHERE er.exam_id = $1 AND er.student_id = $2
+       ORDER BY er.created_at DESC
+       LIMIT 100`,
+      [examId, studentIdParam]
+    );
+    res.json({ attempts: rows });
+  } catch (err) {
+    console.error('[exams/results/by-exam-student]', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ── Get result summary ──
 router.get('/results/:resultId', requireRole('teacher', 'assistant', 'student'), async (req, res) => {
   const resultId = parseParamId(req.params.resultId);
@@ -1432,7 +1494,7 @@ router.get('/results/:resultId/review', requireRole('teacher', 'assistant', 'stu
     const resultRes = await pool.query(
       `SELECT er.id, er.student_id, er.exam_id, er.score, er.correct_count, er.wrong_count,
               er.unanswered_count, er.points_earned, er.start_time, er.end_time, er.created_at,
-              er.answers, er.attempt_number, er.is_absent,
+              er.answers, er.attempt_number, er.is_latest, er.is_absent,
               s.name  AS student_name,
               e.title AS exam_title, e.total_score, e.pass_score, e.teacher_id AS exam_teacher_id,
               e.question_source, e.bank_id, e.shuffle_options

@@ -174,6 +174,15 @@ async function countAbsentRows(examId) {
   return parseInt(r.rows[0].cnt);
 }
 
+// Counts absent rows that are still ACTIVE (is_latest=true) — used to verify
+// that force_reset archives (rather than deletes) the records.
+async function countActiveAbsentRows(examId) {
+  const r = await pool.query(
+    `SELECT COUNT(*) AS cnt FROM exam_results WHERE exam_id=$1 AND is_absent=true AND is_latest=true`, [examId]
+  );
+  return parseInt(r.rows[0].cnt);
+}
+
 async function countRealRows(examId) {
   const r = await pool.query(
     `SELECT COUNT(*) AS cnt FROM exam_results WHERE exam_id=$1 AND is_absent=false`, [examId]
@@ -785,7 +794,9 @@ async function run() {
   })();
 
   await (async () => {
-    // force_reset wipes both absent and real records and resets absent_marked
+    // force_reset ARCHIVES both absent and real records (is_latest=false) and
+    // resets absent_marked. History is preserved per product requirement so the
+    // student/teacher can still review old grades/absence after republish.
     const exam = await makeExam({ published: false });
     await pool.query(
       `INSERT INTO questions (exam_id, question_text, option_a, option_b, correct_answer_letter, points)
@@ -798,12 +809,17 @@ async function run() {
     const r = await req('PUT', `/exams/${exam.id}/publish`, { force_reset: true }, T_TOKEN);
     assert('P-8: force_reset with absent records publishes successfully (200)', r.status === 200, `status=${r.status} err="${r.data?.error}"`);
 
-    const remaining = await countAbsentRows(exam.id);
-    assert('P-9: force_reset deletes all absent records', remaining === 0, `remaining=${remaining}`);
+    // No absent record should remain ACTIVE (is_latest=true) — they're archived.
+    const remaining = await countActiveAbsentRows(exam.id);
+    assert('P-9: force_reset archives all absent records (no active absent left)', remaining === 0, `remaining=${remaining}`);
+    // The archived row must still exist (history preserved).
+    const archived = await countAbsentRows(exam.id);
+    assert('P-9b: archived absent record still present in history', archived === 1, `archived=${archived}`);
 
     const flag = await pool.query(`SELECT absent_marked FROM exams WHERE id=$1`, [exam.id]);
     assert('P-10: force_reset resets absent_marked to false', flag.rows[0]?.absent_marked === false, `absent_marked=${flag.rows[0]?.absent_marked}`);
 
+    await pool.query('DELETE FROM exam_results WHERE exam_id=$1', [exam.id]);
     await pool.query('DELETE FROM questions WHERE exam_id=$1', [exam.id]);
     await pool.query('DELETE FROM exams WHERE id=$1', [exam.id]);
   })();
@@ -946,7 +962,10 @@ async function run() {
   // ══════════════════════════════════════════════════════════════════════════
 
   await (async () => {
-    // Absent record should NOT prevent further retry if exam is republished after force_reset
+    // Absent record should NOT prevent further retry if exam is republished after force_reset.
+    // force_reset now ARCHIVES the absent record (is_latest=false) instead of deleting it,
+    // so the take/submit guards (which filter is_latest=true AND is_absent=false) no longer
+    // see it — the student can retake. The history row is preserved.
     const exam = await makeExam({ published: false });
     await pool.query(
       `INSERT INTO questions (exam_id, question_text, option_a, option_b, correct_answer_letter, points)
@@ -955,12 +974,13 @@ async function run() {
     );
     // Start with absent record
     await insertAbsentRecord(S1.id, exam.id);
-    // Force reset wipes it
+    // Force reset archives it
     const r = await req('PUT', `/exams/${exam.id}/publish`, { force_reset: true }, T_TOKEN);
     assert('E-1: force_reset on exam with absent records succeeds (200)', r.status === 200, `status=${r.status}`);
-    const remaining = await countAbsentRows(exam.id);
-    assert('E-2: after force_reset no absent records remain', remaining === 0, `remaining=${remaining}`);
+    const activeRemaining = await countActiveAbsentRows(exam.id);
+    assert('E-2: after force_reset no ACTIVE absent records remain (archived)', activeRemaining === 0, `activeRemaining=${activeRemaining}`);
 
+    await pool.query('DELETE FROM exam_results WHERE exam_id=$1', [exam.id]);
     await pool.query('DELETE FROM questions WHERE exam_id=$1', [exam.id]);
     await pool.query('DELETE FROM exams WHERE id=$1', [exam.id]);
   })();
@@ -1414,16 +1434,23 @@ async function run() {
       `sessions remaining=${afterReset.rows.length}`
     );
 
-    // Verify exam_results are also cleared
+    // Verify exam_results are ARCHIVED (is_latest=false) by force_reset — not
+    // deleted. History must persist so grades are never lost.
     const resultsAfter = await pool.query(
-      'SELECT id FROM exam_results WHERE exam_id=$1', [exam.id]
+      'SELECT id, is_latest FROM exam_results WHERE exam_id=$1', [exam.id]
     );
     assert(
-      'T3-4: exam_results also cleared by force_reset',
-      resultsAfter.rows.length === 0,
+      'T3-4: exam_results preserved by force_reset (not deleted)',
+      resultsAfter.rows.length > 0,
       `results remaining=${resultsAfter.rows.length}`
     );
+    assert(
+      'T3-4b: all preserved results archived (is_latest=false)',
+      resultsAfter.rows.every(r => r.is_latest === false),
+      `is_latest values=${resultsAfter.rows.map(r => r.is_latest).join(',')}`
+    );
 
+    await pool.query('DELETE FROM exam_results WHERE exam_id=$1', [exam.id]);
     await pool.query('DELETE FROM exam_sessions WHERE exam_id=$1', [exam.id]);
     await pool.query('DELETE FROM exams WHERE id=$1', [exam.id]);
   })();
@@ -1452,6 +1479,7 @@ async function run() {
       `sessions remaining=${remaining.rows.length}`
     );
 
+    await pool.query('DELETE FROM exam_results WHERE exam_id=$1', [exam.id]);
     await pool.query('DELETE FROM exams WHERE id=$1', [exam.id]);
   })();
 

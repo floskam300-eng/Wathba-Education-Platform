@@ -489,14 +489,17 @@ async function run() {
   const repub = await req('PUT', `/exams/${examId}/publish`, {}, teacherToken);
   assert('TC36: Re-publish exam with existing results → 409 RESULTS_EXIST', repub.status === 409 && repub.data?.code === 'RESULTS_EXIST', `status=${repub.status} code=${repub.data?.code}`);
 
-  // TC37: Force reset → deletes results and publishes
+  // TC37: Force reset → archives results (is_latest=false) and publishes.
+  // Results are kept in history so the student/teacher can review old grades.
   const forceR = await req('PUT', `/exams/${examId}/publish`, { force_reset: true }, teacherToken);
   assert('TC37: Force reset + publish → 200', forceR.status === 200, `status=${forceR.status} err=${forceR.data?.error}`);
   assert('TC37b: is_published = true after force reset', forceR.data?.is_published === true, `published=${forceR.data?.is_published}`);
 
-  // TC38: Verify results were deleted after force reset
+  // TC38: Verify old results were ARCHIVED (not deleted) after force reset —
+  // the grade history must persist per product requirement.
   const oldResAfterReset = await req('GET', `/exams/results/${resultId}`, null, studentToken);
-  assert('TC38: Old results deleted after force reset → 404', oldResAfterReset.status === 404, `status=${oldResAfterReset.status}`);
+  assert('TC38: Old results preserved after force reset → 200', oldResAfterReset.status === 200, `status=${oldResAfterReset.status}`);
+  assert('TC38b: Old result is_latest = false after reset', oldResAfterReset.data?.is_latest === false, `is_latest=${oldResAfterReset.data?.is_latest}`);
 
   // TC39: Student can take exam again after force reset (no existing result)
   const stuAfterReset = await req('GET', '/exams/student/available', null, studentToken);

@@ -4,11 +4,12 @@ import { useNavigate } from 'react-router-dom';
 import {
   RotateCcw, CheckCircle, XCircle, Clock, User, FileText,
   MessageSquare, ChevronDown, ChevronUp, Filter, CheckCheck,
-  XOctagon, Eye, Calendar, BookOpen
+  XOctagon, Eye, Calendar, BookOpen, History
 } from 'lucide-react';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
 import { useTheme } from '../../context/ThemeContext';
+import AttemptHistoryModal from '../../components/ui/AttemptHistoryModal';
 
 const STATUS_META = {
   pending:  { label: '⏳ معلق',    bg: 'bg-yellow-100', text: 'text-yellow-800', stripe: 'bg-yellow-400', avatarGrad: 'from-orange-400 to-amber-500' },
@@ -67,6 +68,8 @@ export default function TeacherRetryRequests() {
   const [noteMap, setNoteMap] = useState({});
   const [confirmBulk, setConfirmBulk] = useState(null);
   const [bulkLoading, setBulkLoading] = useState(false);
+  // Attempt history modal: { examId, studentId, studentName, examTitle }
+  const [attemptHistory, setAttemptHistory] = useState(null);
 
   const card = dark
     ? 'bg-[var(--dk-surface)] border border-[var(--dk-border)]'
@@ -393,17 +396,32 @@ export default function TeacherRetryRequests() {
                       </div>
                     )}
 
-                    {/* View exam result button */}
-                    {req.result_id && (
+                    {/* View exam result buttons — latest + full history */}
+                    <div className="flex flex-wrap gap-2">
+                      {req.result_id && (
+                        <button
+                          onClick={() => navigate(`/teacher/exam-review/${req.result_id}`)}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+                            dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text)] hover:bg-[var(--dk-border)]' : 'bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700'
+                          }`}
+                        >
+                          <Eye className="w-3.5 h-3.5" /> عرض نتيجة الاختبار
+                        </button>
+                      )}
                       <button
-                        onClick={() => navigate(`/teacher/exam-review/${req.result_id}`)}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all w-fit ${
-                          dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text)] hover:bg-[var(--dk-border)]' : 'bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700'
+                        onClick={() => setAttemptHistory({
+                          examId: req.exam_id,
+                          studentId: req.student_id,
+                          studentName: req.student_name,
+                          examTitle: req.exam_title,
+                        })}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+                          dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text)] hover:bg-[var(--dk-border)]' : 'bg-navy-50 hover:bg-navy-100 border border-navy-200 text-navy-700'
                         }`}
                       >
-                        <Eye className="w-3.5 h-3.5" /> عرض نتيجة الاختبار
+                        <History className="w-3.5 h-3.5" /> كل المحاولات
                       </button>
-                    )}
+                    </div>
 
                     {/* Note + expanded action buttons */}
                     {isPending && (
@@ -489,6 +507,17 @@ export default function TeacherRetryRequests() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Attempt history modal — shows every attempt (latest + archived) */}
+      {attemptHistory && (
+        <AttemptHistoryModal
+          examId={attemptHistory.examId}
+          studentId={attemptHistory.studentId}
+          studentName={attemptHistory.studentName}
+          examTitle={attemptHistory.examTitle}
+          onClose={() => setAttemptHistory(null)}
+        />
       )}
     </div>
   );
