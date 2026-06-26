@@ -22,6 +22,22 @@ const parseParamId = (val) => {
   return (Number.isFinite(n) && n > 0 && n <= 2147483647) ? n : null;
 };
 
+// Extract the 11-char YouTube video id from any common URL form.
+// Used by the content endpoint to send ONLY the id (not the raw URL) to students,
+// so the full youtube.com/watch?v=... link is never exposed in the API response.
+const YOUTUBE_RE = [
+  /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/|youtube-nocookie\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
+  /youtube\.com\/watch\?.*[&?]v=([a-zA-Z0-9_-]{11})/,
+];
+function extractYoutubeId(url) {
+  if (!url || typeof url !== 'string') return null;
+  for (const re of YOUTUBE_RE) {
+    const m = url.match(re);
+    if (m) return m[1];
+  }
+  return null;
+}
+
 // Middleware: check course ownership BEFORE multer writes to disk
 const preCheckOwnership = async (req, res, next) => {
   const teacherId = getTeacherId(req);
@@ -485,6 +501,21 @@ router.get('/:id/content', async (req, res) => {
         ...v,
         is_locked: i > 0 && lockedVideoIds.has(v.id),
       }));
+    }
+
+    // [Student content protection] For students, never expose the raw YouTube URL
+    // (file_path_or_url) in the API response — only the extracted video id. This
+    // keeps the full youtube.com/watch?v=... link out of the Network tab and DOM.
+    // Uploaded (non-YouTube) videos keep file_path_or_url since it points to our
+    // /uploads/* endpoint protected by a short-lived media token.
+    if (isStudent) {
+      videoRows = videoRows.map((v) => {
+        const ytId = extractYoutubeId(v.file_path_or_url);
+        if (ytId) {
+          return { ...v, provider: 'youtube', youtube_id: ytId, file_path_or_url: undefined };
+        }
+        return { ...v, provider: 'upload', youtube_id: null };
+      });
     }
 
     res.json({ videos: videoRows, pdfs: pdfs.rows, exams: exams.rows, sections: sections.rows });

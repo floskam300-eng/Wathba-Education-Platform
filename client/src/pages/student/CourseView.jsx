@@ -166,8 +166,8 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
   const containerRef  = useRef(null);
   const playerRef     = useRef(null);
   const playerDivId   = useRef(`yt-${Math.random().toString(36).slice(2)}`).current;
-  const progressTimer = useRef(null);
   const saveTimer     = useRef(null);
+  const progressTimer = useRef(null);
   const hideTimer     = useRef(null);
   const seeking       = useRef(false);
   const maxPct        = useRef(0);
@@ -175,10 +175,10 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
   const playStart     = useRef(null);
   const onProgressUpdateRef = useRef(onProgressUpdate);
   const videoIdRef          = useRef(video?.id);
+  const initialPositionRef  = useRef(initialPosition);
 
   const [playing,      setPlaying]      = useState(false);
   const [buffering,    setBuffering]    = useState(true);
-  const [initialLoad,  setInitialLoad]  = useState(true);
   const [progress,     setProgress]     = useState(0);
   const [duration,     setDuration]     = useState(0);
   const [currentTime,  setCurrentTime]  = useState(0);
@@ -191,11 +191,15 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
   const [speed,        setSpeed]        = useState(() => loadSpeed());
   const [showSpeed,    setShowSpeed]    = useState(false);
 
-  const ytId = extractYoutubeId(video.file_path_or_url);
+  // Resolve the YouTube id: prefer the server-provided youtube_id (which hides the
+  // raw URL from the API response); fall back to extracting it from file_path_or_url
+  // for teacher preview / backwards compatibility.
+  const ytId = video?.youtube_id || extractYoutubeId(video?.file_path_or_url);
 
   /* ── keep prop refs current ── */
   useEffect(() => { onProgressUpdateRef.current = onProgressUpdate; }, [onProgressUpdate]);
   useEffect(() => { videoIdRef.current = video?.id; }, [video?.id]);
+  useEffect(() => { initialPositionRef.current = initialPosition; }, [initialPosition]);
 
   /* ── flush helper (safe to call from cleanup) ── */
   const flushYTProgress = () => {
@@ -215,21 +219,14 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
 
   /* ── reset state on video change (save previous first) ── */
   useEffect(() => {
-    return () => {
-      flushYTProgress();
-    };
-  }, [video?.id]); // eslint-disable-line
-
-  useEffect(() => {
-    setPlaying(false);
-    setBuffering(true);
-    setInitialLoad(true);
-    setProgress(0);
-    setCurrentTime(0);
     maxPct.current = 0;
     actualWatched.current = 0;
     playStart.current = null;
-  }, [video?.id]);
+    setBuffering(true);
+    setPlaying(false);
+    setProgress(0);
+    setCurrentTime(0);
+  }, [ytId]);
 
   /* ── fullscreen change listener ── */
   useEffect(() => {
@@ -240,18 +237,20 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
     };
     document.addEventListener('fullscreenchange', onFsChange);
     document.addEventListener('webkitfullscreenchange', onFsChange);
-    document.addEventListener('mozfullscreenchange', onFsChange);
     return () => {
       document.removeEventListener('fullscreenchange', onFsChange);
       document.removeEventListener('webkitfullscreenchange', onFsChange);
-      document.removeEventListener('mozfullscreenchange', onFsChange);
     };
   }, []);
 
   /* ── initialise / destroy player ── */
+  // controls:0 hides ALL YouTube chrome — title, channel, logo, "Watch on YouTube".
+  // This is the ONLY way to fully prevent the student from clicking through to
+  // youtube.com and stealing the URL. We render our own minimal controls instead.
   useEffect(() => {
     if (!ytId) return;
 
+    const startPos = initialPositionRef.current > 5 ? Math.floor(initialPositionRef.current) : 0;
     const savedVol   = loadVolume();
     const savedSpeed = loadSpeed();
 
@@ -266,7 +265,7 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
         videoId: ytId,
         playerVars: {
           autoplay: 1,
-          controls: 0,
+          controls: 0,          // ← hide ALL YouTube chrome (no link-theft vectors)
           disablekb: 1,
           fs: 0,
           modestbranding: 1,
@@ -274,7 +273,7 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
           iv_load_policy: 3,
           playsinline: 1,
           cc_load_policy: 0,
-          start: initialPosition > 5 ? Math.floor(initialPosition) : 0,
+          start: startPos,
         },
         events: {
           onReady: (e) => {
@@ -284,8 +283,8 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
             e.target.setVolume(savedVol);
             if (loadMuted()) { try { e.target.mute(); } catch (_) {} }
             try { e.target.setPlaybackRate(savedSpeed); } catch (_) {}
-            if (initialPosition > 5) {
-              try { e.target.seekTo(initialPosition, true); } catch (_) {}
+            if (startPos > 0) {
+              try { e.target.seekTo(startPos, true); } catch (_) {}
             }
           },
           onStateChange: (e) => {
@@ -293,7 +292,6 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
             if (e.data === S.PLAYING) {
               setPlaying(true);
               setBuffering(false);
-              setInitialLoad(false);
               playStart.current = Date.now();
               const d = e.target.getDuration();
               if (d > 0) setDuration(d);
@@ -328,10 +326,7 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
             } else if (e.data === S.BUFFERING) {
               setBuffering(true);
             } else if (e.data === -1 || e.data === 5) {
-              /* UNSTARTED / CUED — autoplay blocked or video cued but not playing yet.
-                 Clear the loading state so the play button becomes visible. */
               setBuffering(false);
-              setInitialLoad(false);
               setPlaying(false);
             } else {
               setPlaying(false);
@@ -342,23 +337,19 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
                 actualWatched.current += Math.round((Date.now() - playStart.current) / 1000);
                 playStart.current = null;
               }
-              if (e.data === S.ENDED) {
+              if (e.data === S.ENDED && onProgressUpdateRef.current && videoIdRef.current) {
+                const dur = playerRef.current?.getDuration?.() || 0;
                 setProgress(100);
-                if (onProgressUpdate && video?.id) {
-                  const dur = playerRef.current?.getDuration() || 0;
-                  saveVidPos(video.id, dur);
-                  onProgressUpdate(video.id, dur / 60, 100, true, dur, actualWatched.current);
-                }
-              } else if (e.data === S.PAUSED) {
-                if (onProgressUpdate && video?.id) {
-                  try {
-                    const dur = playerRef.current?.getDuration() || 0;
-                    const ct  = playerRef.current?.getCurrentTime() || 0;
-                    const watchedMin = dur > 0 ? (maxPct.current / 100) * (dur / 60) : 0;
-                    saveVidPos(video.id, ct);
-                    onProgressUpdate(video.id, watchedMin, maxPct.current, false, ct, actualWatched.current);
-                  } catch (_) {}
-                }
+                saveVidPos(videoIdRef.current, dur);
+                onProgressUpdateRef.current(videoIdRef.current, dur / 60, 100, true, dur, actualWatched.current);
+              } else if (onProgressUpdateRef.current && videoIdRef.current) {
+                try {
+                  const dur = playerRef.current?.getDuration?.() || 0;
+                  const ct  = playerRef.current?.getCurrentTime?.() || 0;
+                  const watchedMin = dur > 0 ? (maxPct.current / 100) * (dur / 60) : 0;
+                  saveVidPos(videoIdRef.current, ct);
+                  onProgressUpdateRef.current(videoIdRef.current, watchedMin, maxPct.current, false, ct, actualWatched.current);
+                } catch (_) {}
               }
             }
           },
@@ -414,14 +405,6 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
     } catch (_) {}
   };
 
-  const rewind10 = () => {
-    try {
-      const t = Math.max(0, (playerRef.current?.getCurrentTime() || 0) - 10);
-      playerRef.current?.seekTo(t, true);
-      setCurrentTime(t);
-    } catch (_) {}
-  };
-
   const changeSpeed = (s) => {
     setSpeed(s);
     saveSpeed(s);
@@ -429,26 +412,13 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
     try { playerRef.current?.setPlaybackRate(s); } catch (_) {}
   };
 
-  const toggleLandscape = () => {
-    if (cssLandscape) {
-      setCssLandscape(false);
-      setIsFullscreen(false);
-    } else {
-      setCssFullscreen(false);
-      setCssLandscape(true);
-      setIsFullscreen(true);
-    }
-  };
-
   const toggleFullscreen = () => {
     const inNativeFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
-    if (inNativeFs || cssFullscreen || cssLandscape) {
+    if (inNativeFs || cssFullscreen) {
       if (inNativeFs) {
         try { (document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen)?.call(document); } catch (_) {}
       }
-      try { screen.orientation?.unlock?.(); } catch (_) {}
       setCssFullscreen(false);
-      setCssLandscape(false);
       setIsFullscreen(false);
       return;
     }
@@ -456,16 +426,9 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
     if (!el) return;
     const fsReq = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen;
     if (fsReq) {
-      fsReq.call(el)
-        .then(() => {
-          try { screen.orientation?.lock?.('landscape').catch(() => {}); } catch (_) {}
-        })
-        .catch(() => {
-          setCssLandscape(true);
-          setIsFullscreen(true);
-        });
+      fsReq.call(el).then(() => setIsFullscreen(true)).catch(() => setCssFullscreen(true));
     } else {
-      setCssLandscape(true);
+      setCssFullscreen(true);
       setIsFullscreen(true);
     }
   };
@@ -474,7 +437,7 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
     setShowControls(true);
     clearTimeout(hideTimer.current);
     hideTimer.current = setTimeout(() => {
-      if (!seeking.current) setShowControls(false);
+      if (!seeking.current && playing) setShowControls(false);
     }, 3000);
   };
 
@@ -493,19 +456,10 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
     return `${m}:${Math.floor(s % 60).toString().padStart(2, '0')}`;
   };
 
-  const pct = `${progress}%`;
-  const vol = `${muted ? 0 : volume}%`;
+  const pctStr = `${progress}%`;
+  const volStr = `${muted ? 0 : volume}%`;
 
-  const fsStyle = cssLandscape ? {
-    position: 'fixed', top: 0, left: 0,
-    width: '100vh', height: '100vw',
-    transformOrigin: 'top left',
-    transform: 'rotate(-90deg) translateX(-100%)',
-    zIndex: 9999,
-  } : cssFullscreen ? {
-    position: 'fixed', inset: 0, zIndex: 9998,
-    width: '100vw', height: '100vh',
-  } : {};
+  const fsStyle = cssFullscreen ? { position: 'fixed', inset: 0, zIndex: 9998, width: '100vw', height: '100vh' } : {};
 
   return (
     <div
@@ -518,51 +472,18 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
     >
       <FloatingWatermark name={studentName} code={studentCode} />
 
-      {/* YouTube iframe — full size */}
+      {/* YouTube iframe — full size. controls:0 hides all chrome. */}
       <div
         id={playerDivId}
         className="absolute inset-0 w-full h-full"
         style={{ pointerEvents: 'none' }}
       />
 
-      {/* Permanent black bar — covers YouTube title + channel name at top
-          Mobile: 40px (fits within letterbox on small screens)
-          Desktop: 72px (more conservative for large viewports) */}
-      <div
-        className="absolute top-0 left-0 right-0 bg-black h-10 md:h-[72px]"
-        style={{ zIndex: 13, pointerEvents: 'none' }}
-      />
+      {/* Click interceptor — captures taps to toggle controls without letting
+          any click reach the (chromeless) iframe. */}
+      <div className="absolute inset-0" style={{ zIndex: 10 }} onClick={handleScreenTap} onContextMenu={(e) => e.preventDefault()} />
 
-      {/* Permanent black bar — covers YouTube logo at bottom
-          Mobile: 28px  Desktop: 52px */}
-      <div
-        className="absolute bottom-0 left-0 right-0 bg-black h-7 md:h-[52px]"
-        style={{ zIndex: 13, pointerEvents: 'none' }}
-      />
-
-      {/* Overlay strategy:
-          - initialLoad (before first play) → full black to hide blank iframe
-          - After first play starts → transparent forever, even on pause/re-buffer
-            so the last video frame always stays visible with no blackout */}
-      <div
-        className="absolute inset-0 bg-black"
-        style={{
-          zIndex: 11,
-          opacity: initialLoad ? 1 : 0,
-          transition: initialLoad ? 'opacity 0.15s ease-out' : 'opacity 2s ease-in',
-          pointerEvents: 'none',
-        }}
-      />
-
-      {/* Click interceptor — sits above overlay, handles focus-in/out taps */}
-      <div
-        className="absolute inset-0"
-        style={{ zIndex: 12 }}
-        onClick={handleScreenTap}
-        onContextMenu={(e) => e.preventDefault()}
-      />
-
-      {/* Play button — visible when paused and not buffering */}
+      {/* Play button — centered when paused */}
       {!playing && !buffering && (
         <div className="absolute inset-0 flex items-center justify-center" style={{ zIndex: 20, pointerEvents: 'none' }}>
           <div
@@ -595,27 +516,24 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
         </div>
       )}
 
+      {/* Bottom control bar — minimal, gradient, auto-hides while playing */}
       <div className={`absolute bottom-0 left-0 right-0 transition-opacity duration-300 ${showControls || !playing ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} style={{ zIndex: 30 }}>
-        <div className="bg-gradient-to-t from-black/95 via-black/60 to-transparent px-4 pt-10 pb-3">
-          <div className="mb-3">
+        <div className="bg-gradient-to-t from-black/95 via-black/60 to-transparent px-3 sm:px-4 pt-8 pb-2">
+          <div className="mb-2">
             <input type="range" min="0" max="100" step="0.1" value={progress} dir="ltr"
-              className="player-range player-range-progress" style={{ '--pct': pct }}
+              className="player-range player-range-progress" style={{ '--pct': pctStr }}
               onMouseDown={() => { seeking.current = true; }}
               onMouseUp={() => { seeking.current = false; resetHide(); }}
               onTouchStart={() => { seeking.current = true; resetHide(); }}
               onTouchEnd={() => { seeking.current = false; resetHide(); }}
               onChange={onSeekChange} />
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <button onClick={toggle} className="text-white hover:text-orange-400 transition-colors flex-shrink-0">
               {playing ? <Pause className="w-5 h-5 fill-white" /> : <Play className="w-5 h-5 fill-white" />}
             </button>
-            <button onClick={rewind10} className="text-white hover:text-orange-400 transition-colors flex-shrink-0">
-              <RotateCcw className="w-4 h-4" />
-            </button>
             <span className="text-white/70 text-xs font-mono flex-shrink-0">{fmtSec(currentTime)} / {fmtSec(duration)}</span>
             <div className="flex-1" />
-            {/* Speed button */}
             <button onClick={() => setShowSpeed(p => !p)}
               className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold transition-colors flex-shrink-0 ${speed !== 1 ? 'text-orange-400 bg-orange-400/10' : 'text-white/70 hover:text-white'}`}>
               <Gauge className="w-3.5 h-3.5" />
@@ -624,21 +542,13 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
             <button onClick={toggleMute} className="text-white hover:text-orange-400 transition-colors flex-shrink-0">
               {muted || volume === 0 ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
             </button>
-            <div className="w-20 flex-shrink-0 hidden sm:block">
+            <div className="w-16 sm:w-20 flex-shrink-0 hidden sm:block">
               <input type="range" min="0" max="100" step="1" value={muted ? 0 : volume} dir="ltr"
-                className="player-range player-range-volume" style={{ '--vol': vol }}
+                className="player-range player-range-volume" style={{ '--vol': volStr }}
                 onChange={onVolumeChange} />
             </div>
-            {/* زر تدوير الشاشة — يظهر على الموبايل فقط */}
-            <button
-              onClick={toggleLandscape}
-              className={`sm:hidden transition-colors flex-shrink-0 ${cssLandscape ? 'text-orange-400' : 'text-white hover:text-orange-400'}`}
-              title="تدوير الشاشة"
-            >
-              <RotateCw className="w-4 h-4" />
-            </button>
             <button onClick={toggleFullscreen} className="text-white hover:text-orange-400 transition-colors flex-shrink-0">
-              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+              {isFullscreen || cssFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </button>
           </div>
         </div>
@@ -853,7 +763,9 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
     </div>
   );
 
-  if (isYoutubeUrl(video.file_path_or_url)) {
+  // A video is a YouTube video if it carries a youtube_id (student API hides the
+  // raw URL) OR its raw file_path_or_url looks like a YouTube link (teacher preview).
+  if (video.youtube_id || isYoutubeUrl(video.file_path_or_url)) {
     return <YoutubePlayer video={video} onProgressUpdate={onProgressUpdate} studentName={studentName} studentCode={studentCode} initialPosition={initialPosition} />;
   }
 
@@ -1348,6 +1260,10 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
   };
 
   // ── LIST VIEW ──
+  // The course tab shows ONLY the recitations the student still has to do
+  // (not yet passed). Completed ones are available in the full recitations page.
+  const pendingRecitations = recitations.filter(rec => !rec.my_passed);
+
   if (recitations.length === 0) {
     return (
       <div className="flex flex-col h-full" dir="rtl">
@@ -1360,7 +1276,30 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
           <button
             onClick={() => navigate('/student/recitations')}
             className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-bold text-gray-500 hover:text-purple-400 hover:bg-purple-500/5 transition-colors border border-white/5">
-            <BookOpen className="w-3.5 h-3.5" /> كل التسميعات (مستقلة)
+            <BookOpen className="w-3.5 h-3.5" /> كل التسميعات
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (pendingRecitations.length === 0) {
+    // All recitations passed — celebrate and link to the full history page
+    return (
+      <div className="flex flex-col h-full" dir="rtl">
+        <div className="flex flex-col items-center justify-center flex-1 min-h-[200px] p-4 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-green-500/15 flex items-center justify-center mb-3">
+            <CheckCircle className="w-7 h-7 text-green-400" />
+          </div>
+          <p className="text-white text-sm font-black mb-1">أحسنت! 🎉</p>
+          <p className="text-gray-400 text-xs font-semibold">اجتزت كل التسميعات المطلوبة في هذا الكورس</p>
+          <p className="text-gray-600 text-[11px] mt-1">يمكنك الآن متابعة جميع المحاضرات</p>
+        </div>
+        <div className="px-3 pb-3 border-t border-white/10 pt-2 flex-shrink-0">
+          <button
+            onClick={() => navigate('/student/recitations')}
+            className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-bold text-gray-500 hover:text-purple-400 hover:bg-purple-500/5 transition-colors border border-white/5">
+            <BookOpen className="w-3.5 h-3.5" /> عرض كل التسميعات (المكتملة)
           </button>
         </div>
       </div>
@@ -1370,13 +1309,17 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
   return (
     <div className="flex flex-col h-full" dir="rtl">
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
-        {recitations.map(rec => {
+        {pendingRecitations.map((rec, idx) => {
           const hasResult = !!rec.result_id;
           const passed = rec.my_passed;
           const status = getRecStatus(rec); // [M1-FIX]
           const isExpired = status === 'expired';
           const isUpcoming = status === 'upcoming';
           const canStart = !passed && !isExpired && !isUpcoming;
+          // A recitation gates the next video only when it has linked videos AND
+          // the student hasn't passed it yet — surface this clearly so the student
+          // knows exactly what to do to proceed.
+          const gatesVideo = Array.isArray(rec.video_ids) && rec.video_ids.length > 0 && !passed;
           return (
             <div key={rec.id} className={`rounded-xl border p-3 transition-all ${
               passed
@@ -1386,12 +1329,11 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
                 : 'border-white/10 bg-white/5'
             }`}>
               <div className="flex items-start gap-2.5 mb-2">
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                  passed ? 'bg-green-500/20' : hasResult ? 'bg-red-500/20' : 'bg-purple-500/10'
+                {/* Sequential number so the student sees the required order (1, 2, 3...) */}
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-black ${
+                  passed ? 'bg-green-500/20 text-green-400' : hasResult ? 'bg-red-500/20 text-red-400' : 'bg-purple-500/20 text-purple-300'
                 }`}>
-                  {passed ? <CheckCircle className="w-4 h-4 text-green-400" /> :
-                   hasResult ? <XCircle className="w-4 h-4 text-red-400" /> :
-                   <BookOpen className="w-4 h-4 text-purple-400" />}
+                  {passed ? <CheckCircle className="w-4 h-4" /> : idx + 1}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-white text-xs font-bold truncate">{rec.title}</p>
@@ -1419,6 +1361,20 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
                       </span>
                     )}
                   </div>
+                  {/* Linked-video context: show which lecture this recitation unlocks */}
+                  {rec.linked_video_title && (
+                    <p className="text-[10px] text-gray-400 mt-1 flex items-center gap-1">
+                      <Video className="w-2.5 h-2.5 inline" />
+                      يفتح: <span className="text-gray-300 font-semibold truncate">{rec.linked_video_title}</span>
+                    </p>
+                  )}
+                  {/* Prominent gate hint for unpassed recitations that block the next video */}
+                  {gatesVideo && (
+                    <p className="text-[10px] font-black mt-1 flex items-center gap-1 text-orange-300 bg-orange-500/10 border border-orange-500/20 rounded-lg px-2 py-1">
+                      <Lock className="w-3 h-3 inline" />
+                      أجب هذا التسميع لفتح المحاضرة التالية
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="flex gap-1.5">
@@ -1449,12 +1405,13 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
           );
         })}
       </div>
-      {/* [C2-FIX] Link to standalone recitations so students can still access non-course-linked ones */}
+      {/* Link to the full recitations page — shows ALL recitations
+          (pending + completed) so the student can review past results. */}
       <div className="px-3 pb-3 border-t border-white/10 pt-2 flex-shrink-0">
         <button
           onClick={() => navigate('/student/recitations')}
           className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-bold text-gray-500 hover:text-purple-400 hover:bg-purple-500/5 transition-colors border border-white/5">
-          <BookOpen className="w-3.5 h-3.5" /> كل التسميعات (مستقلة)
+          <BookOpen className="w-3.5 h-3.5" /> عرض كل التسميعات (المكتملة والمطلوبة)
         </button>
       </div>
     </div>
@@ -1865,7 +1822,12 @@ export default function CourseView() {
             <>
               {/* Video area */}
               <div className="flex-1 bg-black overflow-hidden min-h-0">
+                {/* key forces a CLEAN remount on every video switch — without it React
+                    reuses the old player instance and the next video hangs (needs a full
+                    page refresh). Both VideoPlayer/YoutubePlayer have proper cleanup
+                    effects that flush progress before destruction. */}
                 <VideoPlayer
+                  key={currentVideo?.id}
                   video={currentVideo}
                   onProgressUpdate={handleProgressUpdate}
                   studentName={user?.name}

@@ -375,13 +375,13 @@ router.get('/student/course/:courseId', requireRole('student'), async (req, res)
   try {
     const studentId = req.user.id;
 
-    // Tenant isolation: get teacher_id from student row
+    // Tenant isolation: get teacher_id + academic_stage from student row
     const { rows: stRows } = await pool.query(
-      'SELECT teacher_id FROM students WHERE id=$1 AND deleted_at IS NULL',
+      'SELECT teacher_id, academic_stage FROM students WHERE id=$1 AND deleted_at IS NULL',
       [studentId]
     );
     if (!stRows.length) return res.status(403).json({ error: 'غير مصرح' });
-    const { teacher_id: teacherId } = stRows[0];
+    const { teacher_id: teacherId, academic_stage } = stRows[0];
 
     // Verify student is enrolled in this course
     const { rows: enrRows } = await pool.query(
@@ -393,9 +393,15 @@ router.get('/student/course/:courseId', requireRole('student'), async (req, res)
     );
     if (!enrRows.length) return res.status(403).json({ error: 'غير مسجل في هذا الكورس' });
 
-    // Fetch published recitations linked to this course, with best result per student.
-    // [H5-FIX] ORDER BY passed DESC, created_at DESC so that if the student EVER passed,
-    // my_passed=true and the video gate opens — even if a later re-attempt failed.
+    // Fetch published recitations RELATED to this course: either directly linked via
+    // course_id, OR stage-linked (course_id IS NULL but academic_stage matches the
+    // student's stage). Previously only course-linked recitations showed up, so
+    // stage-linked ones were invisible — "all recitations fail to load".
+    // Recitations are ORDERED by the minimum sort_order of their linked videos, so
+    // each recitation appears right before the video it gates — giving the student
+    // a logical, sequential order.
+    // [H5-FIX] LATERAL best-result uses passed DESC so an ever-passed attempt opens
+    // the gate even if a later re-attempt failed.
     const { rows } = await pool.query(
       `SELECT r.id, r.title, r.description, r.duration_minutes, r.total_score, r.pass_score,
               r.start_date, r.end_date,
@@ -403,7 +409,9 @@ router.get('/student/course/:courseId', requireRole('student'), async (req, res)
               (SELECT COUNT(*) FROM recitation_questions WHERE recitation_id=r.id) AS question_count,
               rr.id AS result_id, rr.score AS my_score, rr.passed AS my_passed,
               rr.correct_count AS my_correct, rr.wrong_count AS my_wrong,
-              rr.created_at AS my_submitted_at
+              rr.created_at AS my_submitted_at,
+              lv.min_sort_order,
+              lv.linked_video_title
          FROM recitations r
          LEFT JOIN LATERAL (
            SELECT * FROM recitation_results rr2
@@ -412,9 +420,28 @@ router.get('/student/course/:courseId', requireRole('student'), async (req, res)
             ORDER BY rr2.passed DESC, rr2.created_at DESC
             LIMIT 1
          ) rr ON true
-        WHERE r.course_id=$2 AND r.teacher_id=$3 AND r.is_published=true
-        ORDER BY r.created_at ASC`,
-      [studentId, courseId, teacherId]
+         LEFT JOIN LATERAL (
+           -- Resolve the FIRST linked video (lowest sort_order) for ordering + label.
+           -- video_ids is a JSONB array of video ids; we pick the one that appears
+           -- earliest in the course playlist.
+           SELECT v.sort_order AS min_sort_order, v.title AS linked_video_title
+             FROM videos v
+            WHERE v.course_id = $2
+              AND v.id = ANY (
+                ARRAY(
+                  SELECT jsonb_array_elements_text(
+                    CASE WHEN jsonb_typeof(r.video_ids) = 'array' THEN r.video_ids ELSE '[]'::jsonb END
+                  )::int
+                )
+              )
+            ORDER BY v.sort_order ASC, v.id ASC
+            LIMIT 1
+         ) lv ON true
+        WHERE r.teacher_id=$3
+          AND r.is_published=true
+          AND (r.course_id=$2 OR (r.course_id IS NULL AND r.academic_stage=$4))
+        ORDER BY COALESCE(lv.min_sort_order, 999999) ASC, r.created_at ASC`,
+      [studentId, courseId, teacherId, academic_stage]
     );
     res.json(rows);
   } catch (err) {

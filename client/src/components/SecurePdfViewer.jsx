@@ -19,6 +19,7 @@ import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import {
   FileText, ChevronRight, ChevronLeft,
   ZoomIn, ZoomOut, Loader2, AlertTriangle, RefreshCw,
+  Maximize2, Minimize2,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { withToken } from '../lib/mediaAccess';
@@ -40,8 +41,12 @@ export default function SecurePdfViewer({ pdf }) {
   const [pageLoading, setPageLoading] = useState(false);
   const [error,       setError]       = useState(null);
   const [retryKey,    setRetryKey]    = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const canvasRef          = useRef(null);
+  // Root container ref — used to enter fullscreen so the toolbar + canvas both
+  // expand together and stay usable while studying.
+  const containerRef       = useRef(null);
   const pdfDocRef          = useRef(null);
   const renderTaskRef      = useRef(null);
   const loadTaskRef        = useRef(null);
@@ -255,6 +260,34 @@ export default function SecurePdfViewer({ pdf }) {
     return () => window.removeEventListener('keydown', block, { capture: true });
   }, []);
 
+  /* ── Fullscreen ──────────────────────────────────────────────────
+     Keep state in sync when the user exits fullscreen via ESC / browser UI. */
+  useEffect(() => {
+    const onFsChange = () => {
+      setIsFullscreen(!!(document.fullscreenElement || document.webkitFullscreenElement));
+    };
+    document.addEventListener('fullscreenchange', onFsChange);
+    document.addEventListener('webkitfullscreenchange', onFsChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', onFsChange);
+      document.removeEventListener('webkitfullscreenchange', onFsChange);
+    };
+  }, []);
+
+  const toggleFullscreen = () => {
+    const el = containerRef.current;
+    if (!el) return;
+    // If already fullscreen (native or state), exit.
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+      try { (document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen)?.call(document); } catch (_) {}
+      return;
+    }
+    const fsReq = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen;
+    if (fsReq) {
+      fsReq.call(el).catch(() => {});
+    }
+  };
+
   /* ── Navigation helpers ─────────────────────────────────────── */
   const prevPage = () => setCurrentPage(p => Math.max(1, p - 1));
   const nextPage = () => setCurrentPage(p => Math.min(numPages, p + 1));
@@ -286,6 +319,7 @@ export default function SecurePdfViewer({ pdf }) {
   /* ── Main render ────────────────────────────────────────────── */
   return (
     <div
+      ref={containerRef}
       className="flex flex-col w-full h-full bg-gray-100 select-none"
       onContextMenu={e => e.preventDefault()}
       style={{ WebkitUserSelect: 'none', MozUserSelect: 'none', userSelect: 'none' }}
@@ -348,6 +382,18 @@ export default function SecurePdfViewer({ pdf }) {
             </button>
           </div>
         )}
+
+        {/* Fullscreen toggle — lets the student enlarge the page for studying */}
+        <button
+          onClick={toggleFullscreen}
+          className="p-1.5 rounded hover:bg-gray-200 transition-colors flex-shrink-0"
+          title={isFullscreen ? 'إنهاء الشاشة الكاملة' : 'شاشة كاملة'}
+          aria-label={isFullscreen ? 'إنهاء الشاشة الكاملة' : 'شاشة كاملة'}
+        >
+          {isFullscreen
+            ? <Minimize2 className="w-4 h-4 text-gray-600" />
+            : <Maximize2 className="w-4 h-4 text-gray-600" />}
+        </button>
       </div>
 
       {/* ── Canvas area ── */}
