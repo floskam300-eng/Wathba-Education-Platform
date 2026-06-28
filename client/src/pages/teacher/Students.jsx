@@ -488,13 +488,18 @@ export default function TeacherStudents() {
   };
 
   const handleDeleteModel = async () => {
+    console.log('[DELETE-MODEL] بدء طلب الحذف...');
     try {
-      await api.delete('/students/import-model');
+      const res = await api.delete('/students/import-model');
+      console.log('[DELETE-MODEL] نجح الحذف:', res.data);
       qc.invalidateQueries(['import-model']);
       toast.success('تم حذف نموذج الاستيراد');
       setDeleteModelConfirm(false);
-      setModelModal(false); // BUG-1 FIX: close model modal after deletion
-    } catch { toast.error('حدث خطأ في الحذف'); }
+      setModelModal(false);
+    } catch (err) {
+      console.error('[DELETE-MODEL] فشل الحذف — status:', err?.response?.status, '— data:', err?.response?.data, '— message:', err?.message);
+      toast.error('حدث خطأ في الحذف');
+    }
   };
 
   const openModelModal = () => {
@@ -509,11 +514,13 @@ export default function TeacherStudents() {
   const FIXED_PREFIX = '__fixed__:';
 
   const applyModelToRows = (rows, mappings) => {
-    return rows.map(row => {
-      // Build a normalized lookup so minor Unicode/whitespace differences
-      // between when the model was saved and when the file is re-uploaded
-      // don't cause a false "no match" result.
-      const normKey = (s) => String(s).trim().normalize('NFC');
+    console.log('[APPLY-MODEL] عدد الصفوف:', rows.length);
+    console.log('[APPLY-MODEL] مفاتيح أول صف:', rows[0] ? Object.keys(rows[0]) : '(لا يوجد)');
+    console.log('[APPLY-MODEL] الـ mappings:', mappings);
+
+    const normKey = (s) => String(s).trim().normalize('NFC');
+
+    const result = rows.map((row, rowIdx) => {
       const normalizedRow = {};
       for (const [k, v] of Object.entries(row)) {
         normalizedRow[normKey(k)] = v;
@@ -525,10 +532,12 @@ export default function TeacherStudents() {
         if (col.startsWith(FIXED_PREFIX)) {
           mapped[field] = col.slice(FIXED_PREFIX.length);
         } else {
-          // Try exact match first; fall back to normalized match
-          const val = row[col] !== undefined
-            ? row[col]
-            : normalizedRow[normKey(col)];
+          const exactVal   = row[col];
+          const normVal    = normalizedRow[normKey(col)];
+          const val        = exactVal !== undefined ? exactVal : normVal;
+          if (rowIdx === 0) {
+            console.log(`[APPLY-MODEL] field="${field}" col="${col}" exact=${exactVal} norm=${normVal} → val=${val}`);
+          }
           if (val !== undefined) {
             mapped[field] = String(val ?? '').trim();
           }
@@ -536,6 +545,9 @@ export default function TeacherStudents() {
       }
       return mapped;
     }).filter(r => r.name);
+
+    console.log('[APPLY-MODEL] نتيجة بعد filter:', result.length, 'صف');
+    return result;
   };
 
   const suspendMut = useMutation({
@@ -572,10 +584,14 @@ export default function TeacherStudents() {
         const wb = XLSX.read(evt.target.result, { type: 'array' });
         const ws = wb.Sheets[wb.SheetNames[0]];
         const { headers, headerMap, dataRows } = parseSheetSmart(ws);
+        console.log('[IMPORT-FILE] أسماء الأعمدة في الملف:', headers);
+        console.log('[IMPORT-FILE] عدد صفوف البيانات:', dataRows.length);
         if (!headers.length) { toast.error('لم يتم العثور على أعمدة صالحة في الملف'); return; }
         const rows = dataRowsToObjects(headerMap, dataRows);
+        console.log('[IMPORT-FILE] activeModel:', activeModel);
 
         if (activeModel?.mappings) {
+          console.log('[IMPORT-FILE] تطبيق النموذج المحفوظ...');
           const mapped = applyModelToRows(rows, activeModel.mappings);
           if (mapped.length) {
             setImportRows(mapped);

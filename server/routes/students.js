@@ -274,10 +274,15 @@ router.post('/import-model', requireRole('teacher', 'assistant'), async (req, re
 
 router.delete('/import-model', requireRole('teacher', 'assistant'), async (req, res) => {
   const teacherId = getTeacherId(req);
+  console.log('[SERVER DELETE /import-model] teacherId=', teacherId, 'user=', req.user);
   try {
-    await pool.query('DELETE FROM teacher_import_models WHERE teacher_id=$1', [teacherId]);
-    res.json({ success: true });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+    const result = await pool.query('DELETE FROM teacher_import_models WHERE teacher_id=$1 RETURNING id', [teacherId]);
+    console.log('[SERVER DELETE /import-model] حُذف', result.rowCount, 'صف');
+    res.json({ success: true, deleted: result.rowCount });
+  } catch (err) {
+    console.error('[SERVER DELETE /import-model] خطأ:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
 router.delete('/:id', requireRole('teacher', 'assistant'), (req, res, next) => checkPermission(req, res, next, 'can_delete_students'), async (req, res) => {
