@@ -520,33 +520,55 @@ export default function TeacherStudents() {
 
     const normKey = (s) => String(s).trim().normalize('NFC');
 
-    const result = rows.map((row, rowIdx) => {
-      const normalizedRow = {};
-      for (const [k, v] of Object.entries(row)) {
-        normalizedRow[normKey(k)] = v;
-      }
+    // Build normalized row lookup for a given row
+    const buildNorm = (row) => {
+      const n = {};
+      for (const [k, v] of Object.entries(row)) n[normKey(k)] = v;
+      return n;
+    };
 
+    const mapRow = (row, rowIdx) => {
+      const normalizedRow = buildNorm(row);
       const mapped = {};
       for (const [field, col] of Object.entries(mappings)) {
         if (!col) continue;
         if (col.startsWith(FIXED_PREFIX)) {
           mapped[field] = col.slice(FIXED_PREFIX.length);
         } else {
-          const exactVal   = row[col];
-          const normVal    = normalizedRow[normKey(col)];
-          const val        = exactVal !== undefined ? exactVal : normVal;
+          const exactVal = row[col];
+          const normVal  = normalizedRow[normKey(col)];
+          const val      = exactVal !== undefined ? exactVal : normVal;
           if (rowIdx === 0) {
-            console.log(`[APPLY-MODEL] field="${field}" col="${col}" exact=${exactVal} norm=${normVal} → val=${val}`);
+            console.log(`[APPLY-MODEL] field="${field}" col="${col}" exact=${JSON.stringify(exactVal)} norm=${JSON.stringify(normVal)} → val=${JSON.stringify(val)}`);
           }
-          if (val !== undefined) {
-            mapped[field] = String(val ?? '').trim();
-          }
+          if (val !== undefined) mapped[field] = String(val ?? '').trim();
         }
       }
       return mapped;
-    }).filter(r => r.name);
+    };
 
-    console.log('[APPLY-MODEL] نتيجة بعد filter:', result.length, 'صف');
+    // First pass: map all rows
+    const mapped = rows.map((row, i) => mapRow(row, i));
+
+    // Fill-down: Excel merged cells only store the value in the first cell of the merge.
+    // XLSX returns '' for the subsequent merged cells. We carry forward the last seen
+    // non-empty value for ALL identifying fields so every sub-row gets the student's info.
+    const FILL_FIELDS = ['name', 'phone', 'parent_phone', 'username', 'password', 'gender', 'academic_stage'];
+    const lastSeen = {};
+    const filled = mapped.map(row => {
+      const out = { ...row };
+      for (const f of FILL_FIELDS) {
+        if (out[f] && out[f].trim()) {
+          lastSeen[f] = out[f].trim();  // update carry
+        } else if (lastSeen[f]) {
+          out[f] = lastSeen[f];         // fill from carry
+        }
+      }
+      return out;
+    });
+
+    const result = filled.filter(r => r.name && r.name.trim());
+    console.log('[APPLY-MODEL] نتيجة بعد fill-down وfilter:', result.length, 'صف');
     return result;
   };
 

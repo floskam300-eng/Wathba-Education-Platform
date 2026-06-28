@@ -285,7 +285,22 @@ router.delete('/import-model', requireRole('teacher', 'assistant'), async (req, 
   }
 });
 
-router.delete('/:id', requireRole('teacher', 'assistant'), (req, res, next) => checkPermission(req, res, next, 'can_delete_students'), async (req, res) => {
+router.delete('/:id', requireRole('teacher', 'assistant'), async (req, res, next) => {
+  // Safety net: if Express somehow routes /import-model to /:id, handle it here
+  if (req.params.id === 'import-model') {
+    console.log('[DELETE /:id] caught import-model — handling it directly');
+    const teacherId = getTeacherId(req);
+    try {
+      const result = await pool.query('DELETE FROM teacher_import_models WHERE teacher_id=$1 RETURNING id', [teacherId]);
+      console.log('[DELETE /:id/import-model] حُذف', result.rowCount, 'صف');
+      return res.json({ success: true, deleted: result.rowCount });
+    } catch (err) {
+      console.error('[DELETE /:id/import-model] خطأ:', err.message);
+      return res.status(500).json({ error: 'Server error' });
+    }
+  }
+  next();
+}, (req, res, next) => checkPermission(req, res, next, 'can_delete_students'), async (req, res) => {
   const teacherId = getTeacherId(req);
   const studentId = parseInt(req.params.id, 10);
   if (isNaN(studentId) || studentId <= 0) return res.status(400).json({ error: 'Invalid student ID' });
