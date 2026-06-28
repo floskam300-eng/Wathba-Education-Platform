@@ -399,12 +399,40 @@ export default function TeacherStudents() {
   // headerMap preserves the ORIGINAL column index so dataRowsToObjects can
   // correctly align data even when the sheet has empty/gap columns.
   const parseSheetSmart = (ws) => {
-    // Expand merged cells — XLSX only stores the value in the top-left cell of
-    // each merged range; all other cells in the range are absent (read as '').
-    // We copy the top-left value into every cell of the range so that
-    // sheet_to_json and the fill-down step both see real values.
+    // ── Pass 1: detect header row on the UNMODIFIED sheet ─────────────────
+    // Expanding merged cells BEFORE this step would inflate metadata rows
+    // (school name, date banners, etc.) and cause the wrong row to be chosen.
+    const rawFirst = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+    console.log('[PARSE-SHEET] إجمالي صفوف الملف الخام:', rawFirst.length);
+    console.log('[PARSE-SHEET] الصف الخام [0]:', JSON.stringify(rawFirst[0]));
+    console.log('[PARSE-SHEET] الصف الخام [1]:', JSON.stringify(rawFirst[1]));
+    console.log('[PARSE-SHEET] الصف الخام [2]:', JSON.stringify(rawFirst[2]));
+    if (!rawFirst.length) return { headers: [], headerMap: [], dataRows: [] };
+
+    const nonEmptyCount = (row) =>
+      row.filter(cell => {
+        if (cell === null || cell === undefined || cell === '') return false;
+        const s = String(cell).trim();
+        return s !== '' && !/^__EMPTY/.test(s);
+      }).length;
+
+    let headerRowIdx = 0;
+    let maxCells = 0;
+    for (let i = 0; i < Math.min(rawFirst.length, 25); i++) {
+      const count = nonEmptyCount(rawFirst[i]);
+      if (count > maxCells) {
+        maxCells = count;
+        headerRowIdx = i;
+      }
+    }
+
+    // ── Pass 2: expand merged cells ONLY in data rows (> headerRowIdx) ────
+    // XLSX stores the value only in the top-left cell of a merged range; the
+    // rest are absent (read as ''). Expanding here lets the data rows carry
+    // the real value without corrupting header-row detection above.
     if (ws['!merges']) {
       for (const merge of ws['!merges']) {
+        if (merge.s.r <= headerRowIdx) continue; // skip header & metadata rows
         const topLeftAddr = XLSX.utils.encode_cell({ r: merge.s.r, c: merge.s.c });
         const sourceCell  = ws[topLeftAddr];
         if (!sourceCell) continue;
@@ -416,29 +444,9 @@ export default function TeacherStudents() {
         }
       }
     }
+
+    // ── Re-read with merges expanded in the data area ─────────────────────
     const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-    console.log('[PARSE-SHEET] إجمالي صفوف الملف الخام:', raw.length);
-    console.log('[PARSE-SHEET] الصف الخام [0]:', JSON.stringify(raw[0]));
-    console.log('[PARSE-SHEET] الصف الخام [1]:', JSON.stringify(raw[1]));
-    console.log('[PARSE-SHEET] الصف الخام [2]:', JSON.stringify(raw[2]));
-    if (!raw.length) return { headers: [], headerMap: [], dataRows: [] };
-
-    const nonEmptyCount = (row) =>
-      row.filter(cell => {
-        if (cell === null || cell === undefined || cell === '') return false;
-        const s = String(cell).trim();
-        return s !== '' && !/^__EMPTY/.test(s);
-      }).length;
-
-    let headerRowIdx = 0;
-    let maxCells = 0;
-    for (let i = 0; i < Math.min(raw.length, 25); i++) {
-      const count = nonEmptyCount(raw[i]);
-      if (count > maxCells) {
-        maxCells = count;
-        headerRowIdx = i;
-      }
-    }
 
     if (maxCells < 1) return { headers: [], headerMap: [], dataRows: [] };
 
