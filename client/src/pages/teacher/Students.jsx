@@ -403,10 +403,6 @@ export default function TeacherStudents() {
     // Expanding merged cells BEFORE this step would inflate metadata rows
     // (school name, date banners, etc.) and cause the wrong row to be chosen.
     const rawFirst = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-    console.log('[PARSE-SHEET] إجمالي صفوف الملف الخام:', rawFirst.length);
-    console.log('[PARSE-SHEET] الصف الخام [0]:', JSON.stringify(rawFirst[0]));
-    console.log('[PARSE-SHEET] الصف الخام [1]:', JSON.stringify(rawFirst[1]));
-    console.log('[PARSE-SHEET] الصف الخام [2]:', JSON.stringify(rawFirst[2]));
     if (!rawFirst.length) return { headers: [], headerMap: [], dataRows: [] };
 
     const nonEmptyCount = (row) =>
@@ -517,16 +513,13 @@ export default function TeacherStudents() {
   };
 
   const handleDeleteModel = async () => {
-    console.log('[DELETE-MODEL] بدء طلب الحذف...');
     try {
-      const res = await api.delete('/students/import-model');
-      console.log('[DELETE-MODEL] نجح الحذف:', res.data);
+      await api.delete('/students/import-model');
       qc.invalidateQueries(['import-model']);
       toast.success('تم حذف نموذج الاستيراد');
       setDeleteModelConfirm(false);
       setModelModal(false);
-    } catch (err) {
-      console.error('[DELETE-MODEL] فشل الحذف — status:', err?.response?.status, '— data:', err?.response?.data, '— message:', err?.message);
+    } catch {
       toast.error('حدث خطأ في الحذف');
     }
   };
@@ -543,10 +536,6 @@ export default function TeacherStudents() {
   const FIXED_PREFIX = '__fixed__:';
 
   const applyModelToRows = (rows, mappings) => {
-    console.log('[APPLY-MODEL] عدد الصفوف:', rows.length);
-    console.log('[APPLY-MODEL] مفاتيح أول صف:', rows[0] ? Object.keys(rows[0]) : '(لا يوجد)');
-    console.log('[APPLY-MODEL] الـ mappings:', mappings);
-
     const normKey = (s) => String(s).trim().normalize('NFC');
 
     // Build normalized row lookup for a given row
@@ -556,7 +545,7 @@ export default function TeacherStudents() {
       return n;
     };
 
-    const mapRow = (row, rowIdx) => {
+    const mapRow = (row) => {
       const normalizedRow = buildNorm(row);
       const mapped = {};
       for (const [field, col] of Object.entries(mappings)) {
@@ -567,9 +556,6 @@ export default function TeacherStudents() {
           const exactVal = row[col];
           const normVal  = normalizedRow[normKey(col)];
           const val      = exactVal !== undefined ? exactVal : normVal;
-          if (rowIdx === 0) {
-            console.log(`[APPLY-MODEL] field="${field}" col="${col}" exact=${JSON.stringify(exactVal)} norm=${JSON.stringify(normVal)} → val=${JSON.stringify(val)}`);
-          }
           if (val !== undefined) mapped[field] = String(val ?? '').trim();
         }
       }
@@ -577,7 +563,7 @@ export default function TeacherStudents() {
     };
 
     // First pass: map all rows
-    const mapped = rows.map((row, i) => mapRow(row, i));
+    const mapped = rows.map((row) => mapRow(row));
 
     // Fill-down: Excel merged cells only store the value in the first cell of the merge.
     // XLSX returns '' for the subsequent merged cells. We carry forward the last seen
@@ -597,7 +583,6 @@ export default function TeacherStudents() {
     });
 
     const result = filled.filter(r => r.name && r.name.trim());
-    console.log('[APPLY-MODEL] نتيجة بعد fill-down وfilter:', result.length, 'صف');
     return result;
   };
 
@@ -635,14 +620,10 @@ export default function TeacherStudents() {
         const wb = XLSX.read(evt.target.result, { type: 'array' });
         const ws = wb.Sheets[wb.SheetNames[0]];
         const { headers, headerMap, dataRows } = parseSheetSmart(ws);
-        console.log('[IMPORT-FILE] أسماء الأعمدة في الملف:', headers);
-        console.log('[IMPORT-FILE] عدد صفوف البيانات:', dataRows.length);
         if (!headers.length) { toast.error('لم يتم العثور على أعمدة صالحة في الملف'); return; }
         const rows = dataRowsToObjects(headerMap, dataRows);
-        console.log('[IMPORT-FILE] activeModel:', activeModel);
 
         if (activeModel?.mappings) {
-          console.log('[IMPORT-FILE] تطبيق النموذج المحفوظ...');
           const mapped = applyModelToRows(rows, activeModel.mappings);
           if (mapped.length) {
             setImportRows(mapped);
@@ -709,11 +690,6 @@ export default function TeacherStudents() {
         ...r,
         gender: normalizeGender(r.gender),
       }));
-      console.log('[BULK-SEND] إجمالي الصفوف المرسلة:', normalized.length);
-      console.log('[BULK-SEND] مفاتيح أول صف:', normalized[0] ? Object.keys(normalized[0]) : '(لا يوجد)');
-      normalized.forEach((r, i) => {
-        console.log(`[BULK-SEND][${i}] gender_raw="${importRows[i]?.gender}" → gender_norm="${r.gender}" | name="${r.name}" | username="${r.username}"`);
-      });
       const res = await api.post('/students/bulk', { students: normalized });
       const { success, failed, errors, created } = res.data;
       if (success > 0) { qc.invalidateQueries(['students']); toast.success(`تم إضافة ${success} طالب بنجاح${failed > 0 ? ` (${failed} فشل)` : ''}`); }
@@ -1112,7 +1088,9 @@ export default function TeacherStudents() {
                       </td>
                       <td data-label="المستخدم" className="table-cell font-mono text-sm text-gray-700">{s.username}</td>
                       <td data-label="كلمة المرور" className="table-cell hidden md:table-cell">
-                        <span className="text-gray-400 text-xs">—</span>
+                        {s.password
+                          ? <PasswordCell password={s.password} onCopy={copyToClipboard} />
+                          : <span className="text-gray-400 text-xs">—</span>}
                       </td>
                       <td data-label="الهاتف" className="table-cell text-gray-700 hidden md:table-cell">{s.phone || '—'}</td>
                       <td data-label="ولي الأمر" className="table-cell text-gray-700 hidden lg:table-cell">{s.parent_phone || '—'}</td>

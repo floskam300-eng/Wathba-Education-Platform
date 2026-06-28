@@ -109,7 +109,7 @@ router.get('/', requireRole('teacher', 'assistant'), (req, res, next) => checkPe
         countParams
       );
       const result = await pool.query(
-        `SELECT s.id, s.username, s.name, s.phone, s.parent_phone, s.academic_stage,
+        `SELECT s.id, s.username, s.name, s.password, s.phone, s.parent_phone, s.academic_stage,
                 s.gender, s.teacher_id, s.points, s.created_at, s.deleted_at, s.fcm_token,
                 COUNT(CASE WHEN sce.status = 'active' THEN sce.course_id END)::int as enrolled_courses
          FROM students s
@@ -122,7 +122,7 @@ router.get('/', requireRole('teacher', 'assistant'), (req, res, next) => checkPe
       return res.json({ students: result.rows, total: countRes.rows[0].total, page, pageSize });
     }
     const result = await pool.query(
-      `SELECT s.id, s.username, s.name, s.phone, s.parent_phone, s.academic_stage,
+      `SELECT s.id, s.username, s.name, s.password, s.phone, s.parent_phone, s.academic_stage,
               s.gender, s.teacher_id, s.points, s.created_at, s.deleted_at, s.fcm_token,
               COUNT(CASE WHEN sce.status = 'active' THEN sce.course_id END)::int as enrolled_courses
        FROM students s
