@@ -422,8 +422,8 @@ export default function TeacherStudents() {
       }
     }
 
-    // Must have at least 2 headers to be useful
-    if (maxCells < 2) return { headers: [], dataRows: [] };
+    // Must have at least 1 header to be useful
+    if (maxCells < 1) return { headers: [], dataRows: [] };
 
     // Extract and clean headers from that row
     const headers = raw[headerRowIdx]
@@ -491,6 +491,7 @@ export default function TeacherStudents() {
       qc.invalidateQueries(['import-model']);
       toast.success('تم حذف نموذج الاستيراد');
       setDeleteModelConfirm(false);
+      setModelModal(false); // BUG-1 FIX: close model modal after deletion
     } catch { toast.error('حدث خطأ في الحذف'); }
   };
 
@@ -554,18 +555,38 @@ export default function TeacherStudents() {
       try {
         const wb = XLSX.read(evt.target.result, { type: 'array' });
         const ws = wb.Sheets[wb.SheetNames[0]];
+        const { headers, dataRows } = parseSheetSmart(ws);
+        if (!headers.length) { toast.error('لم يتم العثور على أعمدة صالحة في الملف'); return; }
+        const rows = dataRowsToObjects(headers, dataRows);
+
         if (activeModel?.mappings) {
-          // Use smart header detection then apply saved model mappings
-          const { headers, dataRows } = parseSheetSmart(ws);
-          const rows = dataRowsToObjects(headers, dataRows);
+          // BUG-2/5 FIX: apply saved model mappings with a descriptive error on mismatch
           const mapped = applyModelToRows(rows, activeModel.mappings);
-          if (!mapped.length) { toast.error('لم يُعثر على بيانات طلاب في الملف باستخدام النموذج المحفوظ'); return; }
+          if (!mapped.length) {
+            const expectedCols = Object.values(activeModel.mappings)
+              .filter(v => v && !v.startsWith(FIXED_PREFIX))
+              .slice(0, 3);
+            toast.error(
+              `النموذج لا يتطابق مع الملف — النموذج يتوقع أعمدة مثل: ${expectedCols.join('، ')}`,
+              { duration: 5000 }
+            );
+            return;
+          }
           setImportRows(mapped);
         } else {
-          // No model — use smart detection and pass through as-is
-          const { headers, dataRows } = parseSheetSmart(ws);
-          const rows = dataRowsToObjects(headers, dataRows);
-          setImportRows(stripAutoFields(rows));
+          // BUG-2 FIX: auto-detect & normalize columns to system field keys so server
+          // always receives { name, phone, … } regardless of the file's original headers.
+          const autoMappings = autoDetectMappings(headers);
+          if (!autoMappings.name) {
+            toast.error(
+              'تعذّر تحديد عمود الاسم تلقائياً — أنشئ نموذج استيراد لربط الأعمدة',
+              { duration: 5000 }
+            );
+            return;
+          }
+          const mapped = applyModelToRows(rows, autoMappings);
+          if (!mapped.length) { toast.error('لم يُعثر على بيانات طلاب في الملف'); return; }
+          setImportRows(mapped);
         }
         setImportModal(true);
       } catch {
@@ -827,11 +848,22 @@ export default function TeacherStudents() {
                     <p className="text-green-700 font-semibold">✅ <strong>الاسم فقط مطلوب</strong> — اسم المستخدم وكلمة المرور يُولَّدان تلقائياً لكل طالب.</p>
                     <p className="text-amber-700">⬇️ بعد الاستيراد ستُنزَّل ملف Excel يحتوي على بيانات دخول كل طالب.</p>
                   </div>
+                  {/* BUG-4 FIX: map system field keys to readable Arabic labels */}
+                  {(() => {
+                    const FIELD_LABELS_MAP = {
+                      name: 'اسم الطالب', phone: 'رقم الهاتف',
+                      parent_phone: 'هاتف ولي الأمر', username: 'اسم المستخدم',
+                      password: 'كلمة المرور', gender: 'الجنس', academic_stage: 'المرحلة الدراسية',
+                    };
+                    const cols = importRows[0] ? Object.keys(importRows[0]) : [];
+                    return (
                   <table className="w-full text-xs border-collapse">
                     <thead>
                       <tr className="bg-gray-50">
-                        {importRows[0] && Object.keys(importRows[0]).map(k => (
-                          <th key={k} className="border border-gray-200 px-2 py-1.5 text-right font-semibold text-gray-600">{k}</th>
+                        {cols.map(k => (
+                          <th key={k} className="border border-gray-200 px-2 py-1.5 text-right font-semibold text-gray-600">
+                            {FIELD_LABELS_MAP[k] || k}
+                          </th>
                         ))}
                       </tr>
                     </thead>
@@ -845,6 +877,8 @@ export default function TeacherStudents() {
                       ))}
                     </tbody>
                   </table>
+                    );
+                  })()}
                   {importRows.length > 10 && (
                     <p className="text-center text-xs text-gray-400 mt-2">... و {importRows.length - 10} صف آخر</p>
                   )}
