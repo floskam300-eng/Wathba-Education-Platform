@@ -670,28 +670,38 @@ router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => ch
   try {
     await client.query('BEGIN');
 
-    for (const row of prepared) {
+    for (const [rowIdx, row] of prepared.entries()) {
       if (!row) continue; // was a validation error in phase 1
 
       const { name, manualUsername, manualPassword, finalPassword, hashed, phone, parent_phone, academic_stage, gender } = row;
+
+      // Use a SAVEPOINT per student so a single INSERT failure does NOT abort the
+      // whole transaction and cascade-fail every student that comes after it.
+      const sp = `sp_bulk_${rowIdx}`;
+      await client.query(`SAVEPOINT ${sp}`);
 
       try {
         let username = manualUsername || await generateUsername(teacherId, academic_stage || '', client);
         let retries = 0;
         while (retries < 5) {
           try {
+            console.log(`[BULK-IMPORT][DB][${rowIdx}] INSERT name="${name}" username="${username}" gender="${gender}" phone=${phone} stage="${academic_stage}"`);
             const insertRes = await client.query(
               'INSERT INTO students (username,password,name,phone,parent_phone,academic_stage,gender,teacher_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id',
               [username, hashed, name, phone, parent_phone, academic_stage, gender, teacherId]
             );
+            await client.query(`RELEASE SAVEPOINT ${sp}`);
             newStudentIds.push(insertRes.rows[0].id);
             results.success++;
             if (!manualPassword || !manualUsername) {
               results.created.push({ name, username, generated_password: finalPassword });
             }
+            console.log(`[BULK-IMPORT][DB][${rowIdx}] OK → id=${insertRes.rows[0].id}`);
             break;
           } catch (err) {
             if (err.code === '23505' && !manualUsername) {
+              // Retry with a fresh username — rollback to savepoint first so PG isn't in error state
+              await client.query(`ROLLBACK TO SAVEPOINT ${sp}`);
               retries++;
               username = await generateUsername(teacherId, academic_stage || '', client);
             } else {
@@ -700,15 +710,19 @@ router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => ch
           }
         }
         if (retries >= 5) {
+          await client.query(`ROLLBACK TO SAVEPOINT ${sp}`);
           results.failed++;
           results.errors.push(`${name}: تعذّر توليد اسم مستخدم فريد`);
         }
       } catch (err) {
+        // Roll back this student's savepoint so the transaction stays usable
+        await client.query(`ROLLBACK TO SAVEPOINT ${sp}`).catch(() => {});
         results.failed++;
         let reason = 'خطأ في الحفظ';
         if (err.code === '23505') reason = 'اسم المستخدم موجود مسبقاً';
-        else if (err.code === '23514') reason = 'قيمة غير مقبولة (تحقق من الجنس أو المرحلة)';
-        console.error(`[bulk-import] failed row "${name}":`, err.code, err.message);
+        else if (err.code === '23514') reason = `قيمة غير مقبولة — كود: ${err.constraint || err.code}`;
+        else if (err.code === '25P02') reason = 'خطأ داخلي في المعاملة';
+        console.error(`[BULK-IMPORT][DB][${rowIdx}] FAILED name="${name}" code=${err.code} constraint=${err.constraint} msg=${err.message}`);
         results.errors.push(`${name}: ${reason}`);
       }
     }
