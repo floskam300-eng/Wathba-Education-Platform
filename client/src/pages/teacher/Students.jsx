@@ -399,6 +399,23 @@ export default function TeacherStudents() {
   // headerMap preserves the ORIGINAL column index so dataRowsToObjects can
   // correctly align data even when the sheet has empty/gap columns.
   const parseSheetSmart = (ws) => {
+    // Expand merged cells — XLSX only stores the value in the top-left cell of
+    // each merged range; all other cells in the range are absent (read as '').
+    // We copy the top-left value into every cell of the range so that
+    // sheet_to_json and the fill-down step both see real values.
+    if (ws['!merges']) {
+      for (const merge of ws['!merges']) {
+        const topLeftAddr = XLSX.utils.encode_cell({ r: merge.s.r, c: merge.s.c });
+        const sourceCell  = ws[topLeftAddr];
+        if (!sourceCell) continue;
+        for (let r = merge.s.r; r <= merge.e.r; r++) {
+          for (let c = merge.s.c; c <= merge.e.c; c++) {
+            const addr = XLSX.utils.encode_cell({ r, c });
+            if (!ws[addr]) ws[addr] = { ...sourceCell };
+          }
+        }
+      }
+    }
     const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
     console.log('[PARSE-SHEET] إجمالي صفوف الملف الخام:', raw.length);
     console.log('[PARSE-SHEET] الصف الخام [0]:', JSON.stringify(raw[0]));
