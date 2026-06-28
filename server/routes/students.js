@@ -636,7 +636,15 @@ router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => ch
     if (rawPhone && !phone)       results.errors.push(`${name || '?'}: رقم الهاتف "${rawPhone}" غير صحيح — تم تجاهله`);
     if (rawParentPhone && !parent_phone) results.errors.push(`${name || '?'}: هاتف ولي الأمر "${rawParentPhone}" غير صحيح — تم تجاهله`);
     const academic_stage = (s['المرحلة'] || s['academic_stage'] || '').toString().trim() || null;
-    const gender         = (s['الجنس'] || s['gender'] || '').toString().trim() || null;
+    const rawGender      = (s['الجنس'] || s['gender'] || '').toString().trim();
+    // Normalize gender to match DB CHECK constraint (ذكر / أنثى)
+    const gender = (() => {
+      if (!rawGender) return null;
+      const g = rawGender.normalize('NFC').replace(/\s/g, '');
+      if (/^(ذكر|male|m|boy)$/i.test(g))   return 'ذكر';
+      if (/^(أنثى|انثى|أنثي|انثي|female|f|girl)$/i.test(g)) return 'أنثى';
+      return null; // unknown value → NULL (avoids CHECK violation)
+    })();
 
     if (!name) {
       results.failed++;
@@ -690,7 +698,11 @@ router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => ch
         }
       } catch (err) {
         results.failed++;
-        results.errors.push(`${name}: ${err.code === '23505' ? 'اسم المستخدم موجود مسبقاً' : 'خطأ في الحفظ'}`);
+        let reason = 'خطأ في الحفظ';
+        if (err.code === '23505') reason = 'اسم المستخدم موجود مسبقاً';
+        else if (err.code === '23514') reason = 'قيمة غير مقبولة (تحقق من الجنس أو المرحلة)';
+        console.error(`[bulk-import] failed row "${name}":`, err.code, err.message);
+        results.errors.push(`${name}: ${reason}`);
       }
     }
 

@@ -939,11 +939,29 @@ export default function TeacherStudents() {
                   </button>
                 </div>
                 <div className="overflow-auto flex-1 p-4">
-                  <div className="text-xs text-gray-600 mb-3 bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-1.5">
-                    <p><strong>الأعمدة المدعومة:</strong> الاسم، الهاتف، هاتف ولي الأمر، المرحلة، الجنس</p>
-                    <p className="text-green-700 font-semibold">✅ <strong>الاسم فقط مطلوب</strong> — اسم المستخدم وكلمة المرور يُولَّدان تلقائياً لكل طالب.</p>
-                    <p className="text-amber-700">⬇️ بعد الاستيراد ستُنزَّل ملف Excel يحتوي على بيانات دخول كل طالب.</p>
-                  </div>
+                  {(() => {
+                    const hasUsername = importRows.some(r => r.username?.trim());
+                    const hasPassword = importRows.some(r => r.password?.trim());
+                    const fromFile    = hasUsername || hasPassword;
+                    return (
+                      <div className="text-xs text-gray-600 mb-3 bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-1.5">
+                        <p><strong>الأعمدة المدعومة:</strong> الاسم، الهاتف، هاتف ولي الأمر، المرحلة، الجنس</p>
+                        {fromFile ? (
+                          <p className="text-blue-700 font-semibold">
+                            📋 <strong>بيانات الدخول مُستوردة من الملف</strong>
+                            {hasUsername && hasPassword && ' — اسم المستخدم وكلمة المرور موجودان في الملف.'}
+                            {hasUsername && !hasPassword && ' — اسم المستخدم من الملف، كلمة المرور ستُولَّد تلقائياً للطلاب الذين لا تمتلك لهم كلمة مرور.'}
+                            {!hasUsername && hasPassword && ' — كلمة المرور من الملف، اسم المستخدم سيُولَّد تلقائياً.'}
+                          </p>
+                        ) : (
+                          <p className="text-green-700 font-semibold">✅ <strong>الاسم فقط مطلوب</strong> — اسم المستخدم وكلمة المرور سيُولَّدان تلقائياً لكل طالب.</p>
+                        )}
+                        {!fromFile && (
+                          <p className="text-amber-700">⬇️ بعد الاستيراد ستُنزَّل ملف Excel يحتوي على بيانات دخول كل طالب.</p>
+                        )}
+                      </div>
+                    );
+                  })()}
                   {/* BUG-4 FIX: map system field keys to readable Arabic labels */}
                   {(() => {
                     const FIELD_LABELS_MAP = {
