@@ -401,24 +401,29 @@ export default function TeacherStudents() {
     const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
     if (!raw.length) return { headers: [], dataRows: [] };
 
-    const isRealText = (cell) => {
-      if (cell === null || cell === undefined || cell === '') return false;
-      const s = String(cell).trim();
-      if (!s) return false;
-      // Skip pure numbers (phone numbers, dates as serial numbers, etc.)
-      if (/^\d+(\.\d+)?$/.test(s)) return false;
-      // Skip auto-generated xlsx column names
-      if (/^__EMPTY/.test(s)) return false;
-      return true;
-    };
+    const nonEmptyCount = (row) =>
+      row.filter(cell => {
+        if (cell === null || cell === undefined || cell === '') return false;
+        const s = String(cell).trim();
+        return s !== '' && !/^__EMPTY/.test(s);
+      }).length;
 
-    // Find the first row where ≥ 3 cells are real text — that's the header row.
-    // Cap scan at first 25 rows to avoid reading into data.
+    // Strategy: the header row typically has the MOST non-empty cells among
+    // the first 25 rows (metadata rows have only a few filled cells, while
+    // the header row has one cell per column).
+    // We pick the FIRST row that achieves the maximum non-empty count.
     let headerRowIdx = 0;
+    let maxCells = 0;
     for (let i = 0; i < Math.min(raw.length, 25); i++) {
-      const realCells = raw[i].filter(isRealText);
-      if (realCells.length >= 3) { headerRowIdx = i; break; }
+      const count = nonEmptyCount(raw[i]);
+      if (count > maxCells) {
+        maxCells = count;
+        headerRowIdx = i;
+      }
     }
+
+    // Must have at least 2 headers to be useful
+    if (maxCells < 2) return { headers: [], dataRows: [] };
 
     // Extract and clean headers from that row
     const headers = raw[headerRowIdx]
