@@ -147,9 +147,9 @@ async function seed() {
 
   const [stdAliRow] = await q(`
     INSERT INTO students
-      (username,password,name,phone,parent_phone,
+      (username,password,plain_password,name,phone,parent_phone,
        academic_stage,gender,teacher_id,points,is_suspended)
-    VALUES ('std_ali',$1,'علي محمد رمضان',
+    VALUES ('std_ali',$1,'123456','علي محمد رمضان',
             '+201200000001','+201200000002',
             'الصف الثالث الثانوي','ذكر',$2,1250,false)
     RETURNING id,name
@@ -174,9 +174,9 @@ async function seed() {
   for (const [user, name, phone, pPhone, stage, gender, pts, susp] of studentsData) {
     const [r] = await q(`
       INSERT INTO students
-        (username,password,name,phone,parent_phone,
+        (username,password,plain_password,name,phone,parent_phone,
          academic_stage,gender,teacher_id,points,is_suspended)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+      VALUES ($1,$2,'123456',$3,$4,$5,$6,$7,$8,$9,$10)
       RETURNING id
     `, [user, pass6, name, phone, pPhone, stage, gender, T1, pts, susp]);
     sids[user] = r.id;
@@ -192,9 +192,9 @@ async function seed() {
   // طالب بدون نقاط لاختبار الحالات الحدية
   const [stdZero] = await q(`
     INSERT INTO students
-      (username,password,name,phone,parent_phone,
+      (username,password,plain_password,name,phone,parent_phone,
        academic_stage,gender,teacher_id,points,is_suspended)
-    VALUES ('std_zero',$1,'طالب اختبار — بدون نقاط',
+    VALUES ('std_zero',$1,'123456','طالب اختبار — بدون نقاط',
             '+201200000099','+201200000100',
             'الصف الثالث الثانوي','ذكر',$2,0,false)
     RETURNING id
