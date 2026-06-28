@@ -582,6 +582,10 @@ const initDB = async () => {
     await pool.query(schema);
     console.log('Database schema initialized');
 
+    // Migrations: add columns that may not exist in older deployments
+    await pool.query('ALTER TABLE students ADD COLUMN IF NOT EXISTS plain_password VARCHAR(255)');
+    await pool.query('ALTER TABLE students ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP');
+
     const existing = await pool.query("SELECT id FROM teachers WHERE username='admin' LIMIT 1");
     if (existing.rows.length === 0) {
       const bcrypt = require('bcryptjs');
