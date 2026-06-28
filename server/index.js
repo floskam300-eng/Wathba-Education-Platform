@@ -11,7 +11,7 @@ const { addClient, removeClient } = require('./sse');
 const { startScheduler } = require('./scheduler');
 const { initFCM } = require('./lib/fcm');
 const subdomainTenant = require('./middleware/subdomainTenant');
-const { verifyFullToken } = require('./middleware/auth');
+const { verifyFullToken, authenticate, requireRole } = require('./middleware/auth');
 const { consumeSSETicket } = require('./routes/auth');
 
 // Global unhandled rejection / uncaught exception guards
@@ -479,6 +479,19 @@ app.use('/api', subdomainTenant);
 app.use('/api/public', require('./routes/public'));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/teachers', require('./routes/teachers'));
+// Hard-coded route to bypass any Express router ordering mystery in students.js
+app.delete('/api/students/import-model', subdomainTenant, authenticate, requireRole('teacher', 'assistant'), async (req, res) => {
+  console.log('[index.js DELETE /api/students/import-model] teacherId intercept');
+  const teacherId = req.user.role === 'teacher' ? req.user.id : req.user.teacher_id;
+  try {
+    const result = await pool.query('DELETE FROM teacher_import_models WHERE teacher_id=$1 RETURNING id', [teacherId]);
+    console.log('[index.js DELETE /api/students/import-model] حُذف', result.rowCount, 'صف');
+    return res.json({ success: true, deleted: result.rowCount });
+  } catch (err) {
+    console.error('[index.js DELETE /api/students/import-model] خطأ:', err.message);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
 app.use('/api/students', require('./routes/students'));
 app.use('/api/courses', require('./routes/courses'));
 app.use('/api/exams', require('./routes/exams'));

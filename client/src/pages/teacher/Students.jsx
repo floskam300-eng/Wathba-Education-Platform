@@ -400,6 +400,10 @@ export default function TeacherStudents() {
   // correctly align data even when the sheet has empty/gap columns.
   const parseSheetSmart = (ws) => {
     const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+    console.log('[PARSE-SHEET] إجمالي صفوف الملف الخام:', raw.length);
+    console.log('[PARSE-SHEET] الصف الخام [0]:', JSON.stringify(raw[0]));
+    console.log('[PARSE-SHEET] الصف الخام [1]:', JSON.stringify(raw[1]));
+    console.log('[PARSE-SHEET] الصف الخام [2]:', JSON.stringify(raw[2]));
     if (!raw.length) return { headers: [], headerMap: [], dataRows: [] };
 
     const nonEmptyCount = (row) =>
