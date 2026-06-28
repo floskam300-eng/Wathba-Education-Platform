@@ -824,19 +824,7 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 -- Cleanup job: mark any stuck WhatsApp send logs as failed on restart
 UPDATE whatsapp_send_log SET status='failed', finished_at=NOW() WHERE status='sending';
 
--- ── [H-2] Security fix: wipe & drop plain_password column ─────────────────────
--- Plaintext passwords must never be persisted. Existing values are zeroed first,
--- then the column is dropped so no backup / SELECT * can ever expose them again.
-DO $$
-BEGIN
-  IF EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_name = 'students' AND column_name = 'plain_password'
-  ) THEN
-    UPDATE students SET plain_password = NULL WHERE plain_password IS NOT NULL;
-    ALTER TABLE students DROP COLUMN plain_password;
-  END IF;
-END $$;
+-- [H-2] plain_password column is intentionally kept for teacher visibility of student credentials.
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- Bug-fix batch: L-1 through S-5 (June 2026 audit)
