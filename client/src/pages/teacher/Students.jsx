@@ -380,7 +380,7 @@ export default function TeacherStudents() {
     phone:          ['هاتف', 'موبايل', 'phone', 'mobile', 'تليفون'],
     parent_phone:   ['ولي', 'parent', 'أب', 'أم', 'guardian'],
     username:       ['username', 'user', 'يوزر', 'مستخدم'],
-    password:       ['password', 'pass', 'كلمة', 'سر'],
+    password:       ['password', 'pass', 'كلمة', 'سر', 'باسورد', 'رمز', 'مرور', 'دخول', 'pin', 'code'],
     gender:         ['جنس', 'gender', 'نوع'],
     academic_stage: ['مرحلة', 'stage', 'grade', 'صف', 'سنة'],
   };

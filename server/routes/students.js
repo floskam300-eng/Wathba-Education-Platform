@@ -111,6 +111,7 @@ router.get('/', requireRole('teacher', 'assistant'), (req, res, next) => checkPe
       const result = await pool.query(
         `SELECT s.id, s.username, s.name, s.plain_password, s.phone, s.parent_phone, s.academic_stage,
                 s.gender, s.teacher_id, s.points, s.created_at, s.deleted_at, s.fcm_token,
+                s.is_suspended,
                 COUNT(CASE WHEN sce.status = 'active' THEN sce.course_id END)::int as enrolled_courses
          FROM students s
          LEFT JOIN student_course_enrollment sce ON s.id = sce.student_id
@@ -124,6 +125,7 @@ router.get('/', requireRole('teacher', 'assistant'), (req, res, next) => checkPe
     const result = await pool.query(
       `SELECT s.id, s.username, s.name, s.plain_password, s.phone, s.parent_phone, s.academic_stage,
               s.gender, s.teacher_id, s.points, s.created_at, s.deleted_at, s.fcm_token,
+              s.is_suspended,
               COUNT(CASE WHEN sce.status = 'active' THEN sce.course_id END)::int as enrolled_courses
        FROM students s
        LEFT JOIN student_course_enrollment sce ON s.id = sce.student_id
@@ -680,9 +682,7 @@ router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => ch
             await client.query(`RELEASE SAVEPOINT ${sp}`);
             newStudentIds.push(insertRes.rows[0].id);
             results.success++;
-            if (!manualPassword || !manualUsername) {
-              results.created.push({ name, username, generated_password: finalPassword });
-            }
+            results.created.push({ name, username, generated_password: finalPassword });
             break;
           } catch (err) {
             if (err.code === '23505' && !manualUsername) {
