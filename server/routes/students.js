@@ -622,8 +622,12 @@ router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => ch
   // ── Phase 1: Parse all rows and hash passwords BEFORE opening a DB transaction.
   //    bcrypt is CPU-bound and can take 100-300ms per hash. Holding a pool connection
   //    open during this time (especially for 100-200 students) exhausts the pool.
+  console.log(`[BULK-IMPORT] بدء المعالجة — ${students.length} صف وصلت من الفرونت`);
+  console.log(`[BULK-IMPORT] مفاتيح أول صف:`, students[0] ? Object.keys(students[0]) : '(لا يوجد)');
+  console.log(`[BULK-IMPORT] أول صف (raw):`, JSON.stringify(students[0]));
+
   const prepared = [];
-  for (const s of students) {
+  for (const [idx, s] of students.entries()) {
     const name           = (s['الاسم'] || s['name'] || '').toString().trim().replace(/[\x00-\x1f\x7f-\x9f<>]/g, '').slice(0, 100);
     const manualUsername = (s['اسم المستخدم'] || s['username'] || '').toString().trim().replace(/[\x00-\x1f\x7f-\x9f<>]/g, '');
     const manualPassword = (s['كلمة المرور'] || s['password'] || '').toString().trim();
@@ -646,6 +650,8 @@ router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => ch
       return null; // unknown value → NULL (avoids CHECK violation)
     })();
 
+    console.log(`[BULK-IMPORT][${idx}] name="${name}" username="${manualUsername}" password="${manualPassword ? '***' : '(سيُولَّد)'}" phone="${rawPhone}"→${phone||'null'} gender="${rawGender}"→${gender||'null'} stage="${academic_stage}"`);
+
     if (!name) {
       results.failed++;
       results.errors.push(`(صف فارغ): الاسم مطلوب`);
@@ -657,6 +663,7 @@ router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => ch
     const hashed        = await bcrypt.hash(finalPassword, 12); // OUTSIDE transaction — intentional (increased from 10 to 12 rounds)
     prepared.push({ name, manualUsername, manualPassword, finalPassword, hashed, phone, parent_phone, academic_stage, gender });
   }
+  console.log(`[BULK-IMPORT] Phase1 done — ${prepared.filter(Boolean).length} مستعد، ${prepared.filter(r => !r).length} فشل في التحقق`);
 
   // ── Phase 2: Open transaction and do all DB writes with pre-computed hashes
   const client = await pool.connect();

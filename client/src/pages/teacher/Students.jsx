@@ -697,6 +697,11 @@ export default function TeacherStudents() {
     if (!importRows.length) return;
     setImportLoading(true);
     try {
+      console.log('[BULK-SEND] إجمالي الصفوف المرسلة:', importRows.length);
+      console.log('[BULK-SEND] مفاتيح أول صف:', importRows[0] ? Object.keys(importRows[0]) : '(لا يوجد)');
+      importRows.forEach((r, i) => {
+        console.log(`[BULK-SEND][${i}]`, JSON.stringify(r));
+      });
       const res = await api.post('/students/bulk', { students: importRows });
       const { success, failed, errors, created } = res.data;
       if (success > 0) { qc.invalidateQueries(['students']); toast.success(`تم إضافة ${success} طالب بنجاح${failed > 0 ? ` (${failed} فشل)` : ''}`); }
