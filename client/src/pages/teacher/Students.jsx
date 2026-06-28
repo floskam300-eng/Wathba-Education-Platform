@@ -394,9 +394,54 @@ export default function TeacherStudents() {
     return result;
   };
 
-  // Filter xlsx auto-generated empty column names (__EMPTY, __EMPTY_1, etc.)
-  const filterRealHeaders = (rawHeaders) =>
-    rawHeaders.filter(h => h && !String(h).match(/^__EMPTY/) && String(h).trim() !== '');
+  // Detect the real header row in sheets that have metadata rows at the top.
+  // Returns { headers: string[], dataRows: any[][] }
+  const parseSheetSmart = (ws) => {
+    // Read as raw 2-D array so we can inspect each row freely
+    const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+    if (!raw.length) return { headers: [], dataRows: [] };
+
+    const isRealText = (cell) => {
+      if (cell === null || cell === undefined || cell === '') return false;
+      const s = String(cell).trim();
+      if (!s) return false;
+      // Skip pure numbers (phone numbers, dates as serial numbers, etc.)
+      if (/^\d+(\.\d+)?$/.test(s)) return false;
+      // Skip auto-generated xlsx column names
+      if (/^__EMPTY/.test(s)) return false;
+      return true;
+    };
+
+    // Find the first row where ≥ 3 cells are real text — that's the header row.
+    // Cap scan at first 25 rows to avoid reading into data.
+    let headerRowIdx = 0;
+    for (let i = 0; i < Math.min(raw.length, 25); i++) {
+      const realCells = raw[i].filter(isRealText);
+      if (realCells.length >= 3) { headerRowIdx = i; break; }
+    }
+
+    // Extract and clean headers from that row
+    const headers = raw[headerRowIdx]
+      .map(h => String(h ?? '').trim())
+      .filter(h => h && !/^__EMPTY/.test(h));
+
+    if (!headers.length) return { headers: [], dataRows: [] };
+
+    // Data rows come after the header row; skip fully-empty rows
+    const dataRows = raw
+      .slice(headerRowIdx + 1)
+      .filter(row => row.some(cell => cell !== '' && cell !== null && cell !== undefined));
+
+    return { headers, dataRows };
+  };
+
+  // Convert raw 2-D data rows into array-of-objects using detected headers
+  const dataRowsToObjects = (headers, dataRows) =>
+    dataRows.map(row => {
+      const obj = {};
+      headers.forEach((h, i) => { if (h) obj[h] = row[i] ?? ''; });
+      return obj;
+    });
 
   const handleModelFile = (e) => {
     const file = e.target.files?.[0];
@@ -407,13 +452,12 @@ export default function TeacherStudents() {
       try {
         const wb = XLSX.read(ev.target.result, { type: 'binary' });
         const ws = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
-        if (!rows.length) { toast.error('الملف فارغ'); return; }
-        const rawHeaders = Object.keys(rows[0]);
-        const headers = filterRealHeaders(rawHeaders);
+        const { headers, dataRows } = parseSheetSmart(ws);
         if (!headers.length) { toast.error('لم يتم العثور على أعمدة صالحة في الملف'); return; }
+        // Use first data row as sample preview
+        const sampleRow = dataRows[0] || [];
         const sample = {};
-        headers.forEach(h => { sample[h] = rows[0][h] ?? ''; });
+        headers.forEach((h, i) => { sample[h] = String(sampleRow[i] ?? ''); });
         setModelHeaders(headers);
         setModelSample(sample);
         setModelMappings(autoDetectMappings(headers));
@@ -496,12 +540,17 @@ export default function TeacherStudents() {
       try {
         const wb = XLSX.read(evt.target.result, { type: 'array' });
         const ws = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
         if (activeModel?.mappings) {
+          // Use smart header detection then apply saved model mappings
+          const { headers, dataRows } = parseSheetSmart(ws);
+          const rows = dataRowsToObjects(headers, dataRows);
           const mapped = applyModelToRows(rows, activeModel.mappings);
           if (!mapped.length) { toast.error('لم يُعثر على بيانات طلاب في الملف باستخدام النموذج المحفوظ'); return; }
           setImportRows(mapped);
         } else {
+          // No model — use smart detection and pass through as-is
+          const { headers, dataRows } = parseSheetSmart(ws);
+          const rows = dataRowsToObjects(headers, dataRows);
           setImportRows(stripAutoFields(rows));
         }
         setImportModal(true);
@@ -649,34 +698,39 @@ export default function TeacherStudents() {
           <Users className="w-7 h-7 text-orange-500" /> الطلاب
           <span className="text-sm font-semibold text-gray-600">({totalCount})</span>
         </h1>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap items-center">
           {canPrint && (
-            <button onClick={handlePrint} className="btn-secondary flex items-center gap-2">
+            <button onClick={handlePrint} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-semibold transition-all">
               <Printer className="w-4 h-4" /> طباعة
             </button>
           )}
           {canPrint && (
-            <button onClick={handleExportExcel} className="btn-secondary flex items-center gap-2 !border-blue-300 !text-blue-700 hover:!bg-blue-50">
-              <Download className="w-4 h-4" /> تصدير Excel
+            <button onClick={handleExportExcel} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm font-semibold transition-all">
+              <Download className="w-4 h-4" /> تصدير
             </button>
           )}
           {canAdd && (
             <>
               <input ref={importFileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleExcelFile} />
               <input ref={modelFileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleModelFile} />
-              <button onClick={openModelModal} className="btn-secondary flex items-center gap-2 !border-navy-400 !text-navy-700 hover:!bg-navy-50 relative">
-                <Layers className="w-4 h-4" /> نموذج الاستيراد
+
+              {/* Divider */}
+              <div className="w-px h-6 bg-slate-200 mx-1" />
+
+              <button onClick={openModelModal} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-navy-600 hover:bg-navy-700 text-white text-sm font-semibold transition-all relative shadow-sm">
+                <Layers className="w-4 h-4" />
+                نموذج
                 {activeModel && (
-                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-orange-500 rounded-full border-2 border-white" />
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-orange-400 rounded-full border-2 border-white shadow" />
                 )}
               </button>
-              <button onClick={downloadImportTemplate} className="btn-secondary flex items-center gap-2 !border-teal-300 !text-teal-700 hover:!bg-teal-50">
-                <Download className="w-4 h-4" /> قالب الاستيراد
+              <button onClick={downloadImportTemplate} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-700 text-sm font-semibold transition-all">
+                <Download className="w-4 h-4" /> قالب
               </button>
-              <button onClick={() => importFileRef.current?.click()} className="btn-secondary flex items-center gap-2 !border-green-300 !text-green-700 hover:!bg-green-50">
+              <button onClick={() => importFileRef.current?.click()} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-all shadow-sm">
                 <FileSpreadsheet className="w-4 h-4" /> استيراد Excel
               </button>
-              <button onClick={openAdd} className="btn-primary flex items-center gap-2">
+              <button onClick={openAdd} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold transition-all shadow-sm">
                 <Plus className="w-4 h-4" /> إضافة طالب
               </button>
             </>
