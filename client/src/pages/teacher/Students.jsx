@@ -576,19 +576,32 @@ export default function TeacherStudents() {
         const rows = dataRowsToObjects(headerMap, dataRows);
 
         if (activeModel?.mappings) {
-          // BUG-2/5 FIX: apply saved model mappings with a descriptive error on mismatch
           const mapped = applyModelToRows(rows, activeModel.mappings);
-          if (!mapped.length) {
-            const expectedCols = Object.values(activeModel.mappings)
-              .filter(v => v && !v.startsWith(FIXED_PREFIX))
-              .slice(0, 3);
-            toast.error(
-              `النموذج لا يتطابق مع الملف — النموذج يتوقع أعمدة مثل: ${expectedCols.join('، ')}`,
-              { duration: 5000 }
-            );
-            return;
+          if (mapped.length) {
+            setImportRows(mapped);
+          } else {
+            // النموذج غير متطابق — نحاول الكشف التلقائي للأعمدة كبديل
+            const autoMappings = autoDetectMappings(headers);
+            if (autoMappings.name) {
+              const autoMapped = applyModelToRows(rows, autoMappings);
+              if (autoMapped.length) {
+                toast(`تنبيه: أعمدة الملف تختلف عن النموذج المحفوظ — تم الاستيراد بالكشف التلقائي`, { icon: '⚠️', duration: 5000 });
+                setImportRows(autoMapped);
+              } else {
+                toast.error('لم يُعثر على بيانات طلاب صالحة في الملف', { duration: 5000 });
+                return;
+              }
+            } else {
+              const expectedCols = Object.values(activeModel.mappings)
+                .filter(v => v && !v.startsWith(FIXED_PREFIX))
+                .slice(0, 3);
+              toast.error(
+                `أعمدة الملف لا تطابق النموذج المحفوظ (يتوقع: ${expectedCols.join('، ')})`,
+                { duration: 6000 }
+              );
+              return;
+            }
           }
-          setImportRows(mapped);
         } else {
           // BUG-2 FIX: auto-detect & normalize columns to system field keys so server
           // always receives { name, phone, … } regardless of the file's original headers.
@@ -1249,7 +1262,7 @@ export default function TeacherStudents() {
                   يوجد نموذج محفوظ بـ {activeModel.headers?.length || 0} عمود
                 </div>
                 <button
-                  onClick={() => setDeleteModelConfirm(true)}
+                  onClick={() => { setModelModal(false); setDeleteModelConfirm(true); }}
                   className="flex items-center gap-1 text-xs text-red-600 hover:text-red-800 font-bold transition-colors"
                 >
                   <Trash className="w-3.5 h-3.5" /> حذف
