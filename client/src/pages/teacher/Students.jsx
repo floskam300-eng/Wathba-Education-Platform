@@ -395,11 +395,12 @@ export default function TeacherStudents() {
   };
 
   // Detect the real header row in sheets that have metadata rows at the top.
-  // Returns { headers: string[], dataRows: any[][] }
+  // Returns { headers: string[], headerMap: {idx,name}[], dataRows: any[][] }
+  // headerMap preserves the ORIGINAL column index so dataRowsToObjects can
+  // correctly align data even when the sheet has empty/gap columns.
   const parseSheetSmart = (ws) => {
-    // Read as raw 2-D array so we can inspect each row freely
     const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-    if (!raw.length) return { headers: [], dataRows: [] };
+    if (!raw.length) return { headers: [], headerMap: [], dataRows: [] };
 
     const nonEmptyCount = (row) =>
       row.filter(cell => {
@@ -408,10 +409,6 @@ export default function TeacherStudents() {
         return s !== '' && !/^__EMPTY/.test(s);
       }).length;
 
-    // Strategy: the header row typically has the MOST non-empty cells among
-    // the first 25 rows (metadata rows have only a few filled cells, while
-    // the header row has one cell per column).
-    // We pick the FIRST row that achieves the maximum non-empty count.
     let headerRowIdx = 0;
     let maxCells = 0;
     for (let i = 0; i < Math.min(raw.length, 25); i++) {
@@ -422,29 +419,33 @@ export default function TeacherStudents() {
       }
     }
 
-    // Must have at least 1 header to be useful
-    if (maxCells < 1) return { headers: [], dataRows: [] };
+    if (maxCells < 1) return { headers: [], headerMap: [], dataRows: [] };
 
-    // Extract and clean headers from that row
-    const headers = raw[headerRowIdx]
-      .map(h => String(h ?? '').trim())
-      .filter(h => h && !/^__EMPTY/.test(h));
+    // Build headerMap retaining original column indices — critical for
+    // correct alignment when the sheet has empty leading/gap columns.
+    const headerMap = [];
+    raw[headerRowIdx].forEach((h, i) => {
+      const s = String(h ?? '').trim();
+      if (s && !/^__EMPTY/.test(s)) headerMap.push({ idx: i, name: s });
+    });
 
-    if (!headers.length) return { headers: [], dataRows: [] };
+    if (!headerMap.length) return { headers: [], headerMap: [], dataRows: [] };
 
-    // Data rows come after the header row; skip fully-empty rows
+    const headers = headerMap.map(h => h.name);
+
     const dataRows = raw
       .slice(headerRowIdx + 1)
       .filter(row => row.some(cell => cell !== '' && cell !== null && cell !== undefined));
 
-    return { headers, dataRows };
+    return { headers, headerMap, dataRows };
   };
 
-  // Convert raw 2-D data rows into array-of-objects using detected headers
-  const dataRowsToObjects = (headers, dataRows) =>
+  // Convert raw 2-D data rows into array-of-objects.
+  // Uses headerMap (with original column idx) so gap columns don't shift values.
+  const dataRowsToObjects = (headerMap, dataRows) =>
     dataRows.map(row => {
       const obj = {};
-      headers.forEach((h, i) => { if (h) obj[h] = row[i] ?? ''; });
+      headerMap.forEach(({ idx, name }) => { if (name) obj[name] = row[idx] ?? ''; });
       return obj;
     });
 
@@ -455,21 +456,22 @@ export default function TeacherStudents() {
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
-        const wb = XLSX.read(ev.target.result, { type: 'binary' });
+        // Use ArrayBuffer (same as handleExcelFile) so both parse identically
+        const wb = XLSX.read(ev.target.result, { type: 'array' });
         const ws = wb.Sheets[wb.SheetNames[0]];
-        const { headers, dataRows } = parseSheetSmart(ws);
+        const { headers, headerMap, dataRows } = parseSheetSmart(ws);
         if (!headers.length) { toast.error('لم يتم العثور على أعمدة صالحة في الملف'); return; }
-        // Use first data row as sample preview
+        // Build sample using headerMap so column indices are correctly aligned
         const sampleRow = dataRows[0] || [];
         const sample = {};
-        headers.forEach((h, i) => { sample[h] = String(sampleRow[i] ?? ''); });
+        headerMap.forEach(({ idx, name }) => { sample[name] = String(sampleRow[idx] ?? ''); });
         setModelHeaders(headers);
         setModelSample(sample);
         setModelMappings(autoDetectMappings(headers));
         setModelStep(2);
       } catch { toast.error('تعذّر قراءة الملف'); }
     };
-    reader.readAsBinaryString(file);
+    reader.readAsArrayBuffer(file);
   };
 
   const handleSaveModel = async () => {
@@ -555,9 +557,9 @@ export default function TeacherStudents() {
       try {
         const wb = XLSX.read(evt.target.result, { type: 'array' });
         const ws = wb.Sheets[wb.SheetNames[0]];
-        const { headers, dataRows } = parseSheetSmart(ws);
+        const { headers, headerMap, dataRows } = parseSheetSmart(ws);
         if (!headers.length) { toast.error('لم يتم العثور على أعمدة صالحة في الملف'); return; }
-        const rows = dataRowsToObjects(headers, dataRows);
+        const rows = dataRowsToObjects(headerMap, dataRows);
 
         if (activeModel?.mappings) {
           // BUG-2/5 FIX: apply saved model mappings with a descriptive error on mismatch
@@ -1200,16 +1202,6 @@ export default function TeacherStudents() {
         danger
       />
 
-      {/* ── Delete model confirm ── */}
-      <ConfirmDialog
-        open={deleteModelConfirm}
-        onClose={() => setDeleteModelConfirm(false)}
-        onConfirm={handleDeleteModel}
-        title="حذف نموذج الاستيراد"
-        message="سيتم حذف التعيينات المحفوظة. ستحتاج لرفع ملف نموذجي مرة أخرى لإعادة الضبط."
-        danger
-      />
-
       {/* ── Import Model Modal ── */}
       {modelModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setModelModal(false)}>
@@ -1402,6 +1394,16 @@ export default function TeacherStudents() {
           </div>
         </div>
       )}
+
+      {/* ── Delete model confirm — placed AFTER model modal so it renders on top (same z-50) ── */}
+      <ConfirmDialog
+        open={deleteModelConfirm}
+        onClose={() => setDeleteModelConfirm(false)}
+        onConfirm={handleDeleteModel}
+        title="حذف نموذج الاستيراد"
+        message="سيتم حذف التعيينات المحفوظة. ستحتاج لرفع ملف نموذجي مرة أخرى لإعادة الضبط."
+        danger
+      />
     </div>
   );
 }
