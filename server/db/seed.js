@@ -61,6 +61,7 @@ async function seed() {
     'bank_questions', 'question_banks', 'questions', 'exams',
     'pdf_files', 'videos', 'sections', 'courses',
     'students', 'assistants',
+    'teacher_import_models',
   ];
   for (const t of tables) {
     try { await q(`DELETE FROM ${t}`); } catch (_) {}
@@ -457,8 +458,8 @@ async function seed() {
        pass_score,badge_name,badge_color,is_published,
        start_date,end_date,shuffle_questions,shuffle_options,
        points_on_attempt,points_on_pass)
-    VALUES ('امتحان الجبر والمتباينات',45,30,$1,$2,
-      18,'نجم الجبر','#f97316',true,
+    VALUES ('امتحان الجبر والمتباينات',45,36,$1,$2,
+      22,'نجم الجبر','#f97316',true,
       $3,$4,false,false,5,15)
     RETURNING id
   `, [c1.id, T1, past(25), past(5)]);
@@ -689,6 +690,45 @@ async function seed() {
      'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=600&h=350&fit=crop',
      e3MultiSubs]);
   e3QIds.push({ id: e3MultiQ.id, correct: 'A', pts: 9, question_type: 'image_multi', question_text: 'سؤال image_multi' });
+
+  // أسئلة مجمّعة (grouped) في e1 — سؤالان يشتركان في نص سياق واحد (group_id=1)
+  // يُظهر ميزة group_context / group_context_image
+  const GROUP_CTX = 'اقرأ النص التالي ثم أجب على السؤالين:\n\nأحمد حلّ معادلة x² - 5x + 6 = 0 ووجد أن الجذرين هما x=2 و x=3.\nاستخدم هذه النتيجة في الإجابة على الأسئلة التالية.';
+  const [eg1q1] = await q(`
+    INSERT INTO questions
+      (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,
+       correct_answer_letter,points,group_id,group_context)
+    VALUES ($1,'mcq',
+      'ما مجموع جذري المعادلة x² - 5x + 6 = 0؟',
+      '2','3','5','6','C',3,1,$2)
+    RETURNING id
+  `, [e1.id, GROUP_CTX]);
+  e1QIds.push({ id: eg1q1.id, correct: 'C', pts: 3 });
+
+  const [eg1q2] = await q(`
+    INSERT INTO questions
+      (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,
+       correct_answer_letter,points,group_id,group_context)
+    VALUES ($1,'mcq',
+      'ما حاصل ضرب جذري نفس المعادلة؟',
+      '5','6','8','10','B',3,1,$2)
+    RETURNING id
+  `, [e1.id, GROUP_CTX]);
+  e1QIds.push({ id: eg1q2.id, correct: 'B', pts: 3 });
+
+  // أسئلة مجمّعة في bank1 — سؤالان بنص + صورة مشتركة
+  const BANK_GROUP_CTX = 'انظر إلى الشكل الهندسي التالي وأجب على الأسئلة:';
+  const BANK_GROUP_IMG = 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Monfeltro_facet_02.jpg/320px-Monfeltro_facet_02.jpg';
+  await q(`
+    INSERT INTO bank_questions
+      (bank_id,question_type,question_text,option_a,option_b,option_c,option_d,
+       correct_answer_letter,points,difficulty,group_id,group_context,group_context_image)
+    VALUES
+      ($1,'mcq','ما نوع هذا الشكل الهندسي بناءً على خصائصه؟',
+       'مثلث','مربع','متوازي أضلاع','شبه منحرف','C',2,'medium',10,$2,$3),
+      ($1,'true_false','مجموع زوايا أي شكل رباعي = 360 درجة',
+       'صح','خطأ',null,null,'T',1,'easy',10,$2,$3)
+  `, [bank1.id, BANK_GROUP_CTX, BANK_GROUP_IMG]);
 
   // أسئلة e5 (اختبار مشتقات — 30 درجة)
   const e5Questions = [
@@ -1686,6 +1726,29 @@ async function seed() {
 
   console.log('  ✓ أسئلة التسميعات أضيفت');
 
+  // ── جلسات التسميعات النشطة ───────────────────────────────
+  // std_ali بدأ r3 (تسميع قواعد التكامل) لكن لم يكمله — جلسة نشطة
+  // (موازٍ لـ exam_sessions: std_ali في e3 بدأ ولم يكمل)
+  const r3ActiveQs = await q(`
+    SELECT id, question_text, question_type, option_a, option_b,
+           option_c, option_d, correct_answer_letter, points, sort_order, sub_questions
+    FROM recitation_questions WHERE recitation_id = $1 ORDER BY sort_order LIMIT 3
+  `, [r3.id]);
+  await q(`
+    INSERT INTO recitation_sessions (student_id, recitation_id, started_at, questions_snapshot)
+    VALUES ($1, $2, NOW()-INTERVAL '8 minutes', $3)
+    ON CONFLICT (student_id, recitation_id) DO NOTHING
+  `, [STD_ALI, r3.id, JSON.stringify(r3ActiveQs)]);
+  console.log('  ✓ جلسة تسميع نشطة: std_ali في r3 (بدأ ولم يكمل)');
+
+  // ── دالة مساعدة: بناء snapshot الأسئلة للتسميع ──────────
+  function makeRecitSnapshot(qIds) {
+    return JSON.stringify(qIds.map(q => ({
+      question_id: q.id,
+      correct_answer_letter: q.correct,
+    })));
+  }
+
   // ── نتائج التسميعات ──────────────────────────────────────
 
   // std_ali في r1: ناجح ✓ (10/10)
@@ -1716,16 +1779,8 @@ async function seed() {
     r2QIds.map((q, i) => ({ question_id: q.id, answer: i < 2 ? q.correct : 'A', correct: i < 2 }))
   ), makeRecitSnapshot(r2QIds)]);
 
-  // r3: std_ali لم يؤده بعد (لا نتيجة)
+  // r3: std_ali بدأ جلسة (أضيفت أعلاه) لكن لم يُسجّل نتيجة بعد
   // r4: قادم — لم يفتح بعد (لا نتيجة)
-
-  // دالة مساعدة: بناء snapshot الأسئلة للتسميع (تُخزَّن في recitation_results)
-  function makeRecitSnapshot(qIds) {
-    return JSON.stringify(qIds.map(q => ({
-      question_id: q.id,
-      correct_answer_letter: q.correct,
-    })));
-  }
 
   // باقي طلاب في r2 (مراجعة المثلثات الأسبوعية)
   function makeRecitAnswers(qIds, correctCount, wrongCount) {
@@ -1912,7 +1967,32 @@ async function seed() {
   }
 
   // ══════════════════════════════════════════════════════════
-  // 25. سجل النشاط (activity_logs)
+  // 25. نموذج استيراد الطلاب (teacher_import_models)
+  // ══════════════════════════════════════════════════════════
+  console.log('\n⟳  إضافة نموذج استيراد الطلاب...');
+  await q(`
+    INSERT INTO teacher_import_models (teacher_id, headers, sample_row, mappings)
+    VALUES ($1, $2, $3, $4)
+    ON CONFLICT (teacher_id) DO UPDATE
+      SET headers=$2, sample_row=$3, mappings=$4, updated_at=NOW()
+  `, [
+    T1,
+    JSON.stringify(['الاسم', 'اسم المستخدم', 'كلمة السر', 'رقم الهاتف', 'ولي الأمر', 'هاتف ولي الأمر', 'الصف']),
+    JSON.stringify({ 'الاسم': 'علي محمد رمضان', 'اسم المستخدم': 'std_ali', 'كلمة السر': '123456', 'رقم الهاتف': '01001234567', 'ولي الأمر': 'محمد رمضان', 'هاتف ولي الأمر': '01009876543', 'الصف': 'الصف الثالث الثانوي' }),
+    JSON.stringify({
+      name:              'الاسم',
+      username:          'اسم المستخدم',
+      password:          'كلمة السر',
+      phone:             'رقم الهاتف',
+      parent_name:       'ولي الأمر',
+      parent_phone:      'هاتف ولي الأمر',
+      academic_stage:    'الصف',
+    }),
+  ]);
+  console.log('  ✓ نموذج الاستيراد محفوظ لـ admin (7 أعمدة مع تعيين حقول كامل)');
+
+  // ══════════════════════════════════════════════════════════
+  // 26. سجل النشاط (activity_logs)
   // ══════════════════════════════════════════════════════════
   console.log('\n⟳  إضافة سجل النشاط...');
 
