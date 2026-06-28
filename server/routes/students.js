@@ -109,7 +109,7 @@ router.get('/', requireRole('teacher', 'assistant'), (req, res, next) => checkPe
         countParams
       );
       const result = await pool.query(
-        `SELECT s.id, s.username, s.name, s.password, s.phone, s.parent_phone, s.academic_stage,
+        `SELECT s.id, s.username, s.name, s.plain_password, s.phone, s.parent_phone, s.academic_stage,
                 s.gender, s.teacher_id, s.points, s.created_at, s.deleted_at, s.fcm_token,
                 COUNT(CASE WHEN sce.status = 'active' THEN sce.course_id END)::int as enrolled_courses
          FROM students s
@@ -122,7 +122,7 @@ router.get('/', requireRole('teacher', 'assistant'), (req, res, next) => checkPe
       return res.json({ students: result.rows, total: countRes.rows[0].total, page, pageSize });
     }
     const result = await pool.query(
-      `SELECT s.id, s.username, s.name, s.password, s.phone, s.parent_phone, s.academic_stage,
+      `SELECT s.id, s.username, s.name, s.plain_password, s.phone, s.parent_phone, s.academic_stage,
               s.gender, s.teacher_id, s.points, s.created_at, s.deleted_at, s.fcm_token,
               COUNT(CASE WHEN sce.status = 'active' THEN sce.course_id END)::int as enrolled_courses
        FROM students s
@@ -166,8 +166,8 @@ router.post('/', addStudentLimiter, requireRole('teacher', 'assistant'), (req, r
         try {
           const hashed = await bcrypt.hash(generatedPassword, 10);
         const result = await pool.query(
-          'INSERT INTO students (username,password,name,phone,parent_phone,academic_stage,gender,teacher_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
-          [username, hashed, name, phone, parent_phone, academic_stage, gender, teacherId]
+          'INSERT INTO students (username,password,plain_password,name,phone,parent_phone,academic_stage,gender,teacher_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',
+          [username, hashed, generatedPassword, name, phone, parent_phone, academic_stage, gender, teacherId]
         );
         invalidateCache(teacherId);
         // Auto-enroll new student in teacher's published free courses
@@ -218,8 +218,8 @@ router.put('/:id', requireRole('teacher', 'assistant'), (req, res, next) => chec
     let query, params;
     if (password) {
       const hashed = await bcrypt.hash(password, 10);
-      query = 'UPDATE students SET name=$1,phone=$2,parent_phone=$3,academic_stage=$4,gender=$5,password=$6 WHERE id=$7 AND teacher_id=$8 RETURNING *';
-      params = [name, phone, parent_phone, academic_stage, gender, hashed, studentId, teacherId];
+      query = 'UPDATE students SET name=$1,phone=$2,parent_phone=$3,academic_stage=$4,gender=$5,password=$6,plain_password=$7 WHERE id=$8 AND teacher_id=$9 RETURNING *';
+      params = [name, phone, parent_phone, academic_stage, gender, hashed, password, studentId, teacherId];
     } else {
       query = 'UPDATE students SET name=$1,phone=$2,parent_phone=$3,academic_stage=$4,gender=$5 WHERE id=$6 AND teacher_id=$7 RETURNING *';
       params = [name, phone, parent_phone, academic_stage, gender, studentId, teacherId];
@@ -274,13 +274,10 @@ router.post('/import-model', requireRole('teacher', 'assistant'), async (req, re
 
 router.delete('/import-model', requireRole('teacher', 'assistant'), async (req, res) => {
   const teacherId = getTeacherId(req);
-  console.log('[SERVER DELETE /import-model] teacherId=', teacherId, 'user=', req.user);
   try {
     const result = await pool.query('DELETE FROM teacher_import_models WHERE teacher_id=$1 RETURNING id', [teacherId]);
-    console.log('[SERVER DELETE /import-model] حُذف', result.rowCount, 'صف');
     res.json({ success: true, deleted: result.rowCount });
   } catch (err) {
-    console.error('[SERVER DELETE /import-model] خطأ:', err.message);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -288,14 +285,11 @@ router.delete('/import-model', requireRole('teacher', 'assistant'), async (req, 
 router.delete('/:id', requireRole('teacher', 'assistant'), async (req, res, next) => {
   // Safety net: if Express somehow routes /import-model to /:id, handle it here
   if (req.params.id === 'import-model') {
-    console.log('[DELETE /:id] caught import-model — handling it directly');
     const teacherId = getTeacherId(req);
     try {
       const result = await pool.query('DELETE FROM teacher_import_models WHERE teacher_id=$1 RETURNING id', [teacherId]);
-      console.log('[DELETE /:id/import-model] حُذف', result.rowCount, 'صف');
       return res.json({ success: true, deleted: result.rowCount });
     } catch (err) {
-      console.error('[DELETE /:id/import-model] خطأ:', err.message);
       return res.status(500).json({ error: 'Server error' });
     }
   }
@@ -622,9 +616,6 @@ router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => ch
   // ── Phase 1: Parse all rows and hash passwords BEFORE opening a DB transaction.
   //    bcrypt is CPU-bound and can take 100-300ms per hash. Holding a pool connection
   //    open during this time (especially for 100-200 students) exhausts the pool.
-  console.log(`[BULK-IMPORT] بدء المعالجة — ${students.length} صف وصلت من الفرونت`);
-  console.log(`[BULK-IMPORT] مفاتيح أول صف:`, students[0] ? Object.keys(students[0]) : '(لا يوجد)');
-  console.log(`[BULK-IMPORT] أول صف (raw):`, JSON.stringify(students[0]));
 
   const prepared = [];
   for (const [idx, s] of students.entries()) {
@@ -650,8 +641,6 @@ router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => ch
       return null; // unknown value → NULL (avoids CHECK violation)
     })();
 
-    console.log(`[BULK-IMPORT][${idx}] name="${name}" username="${manualUsername}" password="${manualPassword ? '***' : '(سيُولَّد)'}" phone="${rawPhone}"→${phone||'null'} gender="${rawGender}"→${gender||'null'} stage="${academic_stage}"`);
-
     if (!name) {
       results.failed++;
       results.errors.push(`(صف فارغ): الاسم مطلوب`);
@@ -663,7 +652,6 @@ router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => ch
     const hashed        = await bcrypt.hash(finalPassword, 12); // OUTSIDE transaction — intentional (increased from 10 to 12 rounds)
     prepared.push({ name, manualUsername, manualPassword, finalPassword, hashed, phone, parent_phone, academic_stage, gender });
   }
-  console.log(`[BULK-IMPORT] Phase1 done — ${prepared.filter(Boolean).length} مستعد، ${prepared.filter(r => !r).length} فشل في التحقق`);
 
   // ── Phase 2: Open transaction and do all DB writes with pre-computed hashes
   const client = await pool.connect();
@@ -685,10 +673,9 @@ router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => ch
         let retries = 0;
         while (retries < 5) {
           try {
-            console.log(`[BULK-IMPORT][DB][${rowIdx}] INSERT name="${name}" username="${username}" gender="${gender}" phone=${phone} stage="${academic_stage}"`);
             const insertRes = await client.query(
-              'INSERT INTO students (username,password,name,phone,parent_phone,academic_stage,gender,teacher_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id',
-              [username, hashed, name, phone, parent_phone, academic_stage, gender, teacherId]
+              'INSERT INTO students (username,password,plain_password,name,phone,parent_phone,academic_stage,gender,teacher_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id',
+              [username, hashed, finalPassword, name, phone, parent_phone, academic_stage, gender, teacherId]
             );
             await client.query(`RELEASE SAVEPOINT ${sp}`);
             newStudentIds.push(insertRes.rows[0].id);
@@ -696,7 +683,6 @@ router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => ch
             if (!manualPassword || !manualUsername) {
               results.created.push({ name, username, generated_password: finalPassword });
             }
-            console.log(`[BULK-IMPORT][DB][${rowIdx}] OK → id=${insertRes.rows[0].id}`);
             break;
           } catch (err) {
             if (err.code === '23505' && !manualUsername) {
@@ -722,7 +708,6 @@ router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => ch
         if (err.code === '23505') reason = 'اسم المستخدم موجود مسبقاً';
         else if (err.code === '23514') reason = `قيمة غير مقبولة — كود: ${err.constraint || err.code}`;
         else if (err.code === '25P02') reason = 'خطأ داخلي في المعاملة';
-        console.error(`[BULK-IMPORT][DB][${rowIdx}] FAILED name="${name}" code=${err.code} constraint=${err.constraint} msg=${err.message}`);
         results.errors.push(`${name}: ${reason}`);
       }
     }
@@ -753,7 +738,6 @@ router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => ch
     res.json(results);
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('[bulk import]', err.message);
     res.status(500).json({ error: 'حدث خطأ غير متوقع — تم التراجع عن جميع التغييرات، لم يُحفظ أي طالب' });
   } finally {
     client.release();

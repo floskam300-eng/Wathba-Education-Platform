@@ -1088,8 +1088,8 @@ export default function TeacherStudents() {
                       </td>
                       <td data-label="المستخدم" className="table-cell font-mono text-sm text-gray-700">{s.username}</td>
                       <td data-label="كلمة المرور" className="table-cell hidden md:table-cell">
-                        {s.password
-                          ? <PasswordCell password={s.password} onCopy={copyToClipboard} />
+                        {s.plain_password
+                          ? <PasswordCell password={s.plain_password} onCopy={copyToClipboard} />
                           : <span className="text-gray-400 text-xs">—</span>}
                       </td>
                       <td data-label="الهاتف" className="table-cell text-gray-700 hidden md:table-cell">{s.phone || '—'}</td>
