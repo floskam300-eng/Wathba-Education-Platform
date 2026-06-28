@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS students (
   id SERIAL PRIMARY KEY,
   username VARCHAR(100) UNIQUE NOT NULL,
   password VARCHAR(255) NOT NULL,
+  plain_password VARCHAR(255),
   name VARCHAR(200) NOT NULL,
   phone VARCHAR(20),
   parent_phone VARCHAR(20),
@@ -45,6 +46,7 @@ CREATE TABLE IF NOT EXISTS students (
   points INTEGER DEFAULT 0,
   created_at TIMESTAMP DEFAULT NOW()
 );
+ALTER TABLE students ADD COLUMN IF NOT EXISTS plain_password VARCHAR(255);
 
 CREATE TABLE IF NOT EXISTS courses (
   id SERIAL PRIMARY KEY,
