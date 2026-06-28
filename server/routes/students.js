@@ -156,6 +156,8 @@ router.post('/', addStudentLimiter, requireRole('teacher', 'assistant'), (req, r
   const { name, phone, parent_phone, academic_stage, gender } = req.body;
     // Auto-generate 6-digit numeric password using crypto (not Math.random)
     const generatedPassword = String(100000 + crypto.randomInt(0, 900000));
+    // Sanitize gender: empty string violates CHECK constraint, convert to NULL
+    const safeGender = gender || null;
     try {
       // Sanitize student name: trim, collapse whitespace, strip control characters
       const safeName = String(name || '').trim().replace(/[\x00-\x1f\x7f-\x9f]/g, '').slice(0, 100);
@@ -169,7 +171,7 @@ router.post('/', addStudentLimiter, requireRole('teacher', 'assistant'), (req, r
           const hashed = await bcrypt.hash(generatedPassword, 10);
         const result = await pool.query(
           'INSERT INTO students (username,password,plain_password,name,phone,parent_phone,academic_stage,gender,teacher_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',
-          [username, hashed, generatedPassword, name, phone, parent_phone, academic_stage, gender, teacherId]
+          [username, hashed, generatedPassword, name, phone, parent_phone, academic_stage, safeGender, teacherId]
         );
         invalidateCache(teacherId);
         // Auto-enroll new student in teacher's published free courses
@@ -216,15 +218,17 @@ router.put('/:id', requireRole('teacher', 'assistant'), (req, res, next) => chec
   const studentId = parseInt(req.params.id, 10);
   if (isNaN(studentId) || studentId <= 0) return res.status(400).json({ error: 'Invalid student ID' });
   const { name, phone, parent_phone, academic_stage, gender, password } = req.body;
+  // Sanitize gender: empty string violates CHECK constraint, convert to NULL
+  const safeGender = gender || null;
   try {
     let query, params;
     if (password) {
       const hashed = await bcrypt.hash(password, 10);
       query = 'UPDATE students SET name=$1,phone=$2,parent_phone=$3,academic_stage=$4,gender=$5,password=$6,plain_password=$7 WHERE id=$8 AND teacher_id=$9 RETURNING *';
-      params = [name, phone, parent_phone, academic_stage, gender, hashed, password, studentId, teacherId];
+      params = [name, phone, parent_phone, academic_stage, safeGender, hashed, password, studentId, teacherId];
     } else {
       query = 'UPDATE students SET name=$1,phone=$2,parent_phone=$3,academic_stage=$4,gender=$5 WHERE id=$6 AND teacher_id=$7 RETURNING *';
-      params = [name, phone, parent_phone, academic_stage, gender, studentId, teacherId];
+      params = [name, phone, parent_phone, academic_stage, safeGender, studentId, teacherId];
     }
     const result = await pool.query(query, params);
     if (!result.rows.length) return res.status(404).json({ error: 'Student not found' });

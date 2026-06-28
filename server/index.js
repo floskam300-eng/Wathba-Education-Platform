@@ -605,6 +605,27 @@ const initDB = async () => {
         "UPDATE teachers SET slug = regexp_replace(lower(trim(username)), '[^a-z0-9]+', '-', 'g') WHERE slug IS NULL OR slug = ''"
       );
     }
+
+    // ── Migration: set plain_password for students that have NULL (imported before feature was added) ──
+    try {
+      const { rows: nullPwStudents } = await pool.query(
+        "SELECT id FROM students WHERE (plain_password IS NULL OR plain_password = '') AND deleted_at IS NULL"
+      );
+      if (nullPwStudents.length > 0) {
+        const bcryptjs = require('bcryptjs');
+        const cryptoLib = require('crypto');
+        let fixedCount = 0;
+        for (const s of nullPwStudents) {
+          const pw = String(100000 + cryptoLib.randomInt(0, 900000));
+          const hashed = await bcryptjs.hash(pw, 10);
+          await pool.query('UPDATE students SET plain_password=$1, password=$2 WHERE id=$3', [pw, hashed, s.id]);
+          fixedCount++;
+        }
+        console.log(`[Migration] Set plain_password for ${fixedCount} student(s) that had NULL passwords`);
+      }
+    } catch (migErr) {
+      console.error('[Migration] plain_password fix error:', migErr.message);
+    }
   } catch (err) {
     console.error('DB init error:', err.message);
   }

@@ -85,8 +85,8 @@ function DeviceAlertsPanel({ canEdit }) {
   const actionMut = useMutation({
     mutationFn: ({ alertId, action }) => api.post(`/students/device-alerts/${alertId}/action`, { action }),
     onSuccess: () => {
-      qc.invalidateQueries(['device-alerts']);
-      qc.invalidateQueries(['students']);
+      qc.invalidateQueries({ queryKey: ['device-alerts'] });
+      qc.invalidateQueries({ queryKey: ['students'] });
       toast.success('تم تنفيذ الإجراء بنجاح');
       setActionAlert(null);
     },
@@ -341,19 +341,19 @@ export default function TeacherStudents() {
 
   const createMut = useMutation({
     mutationFn: (data) => api.post('/students', data),
-    onSuccess: (res) => { qc.invalidateQueries(['students']); setCreatedStudent(res.data); closeModal(); },
+    onSuccess: (res) => { qc.invalidateQueries({ queryKey: ['students'] }); setCreatedStudent(res.data); closeModal(); },
     onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
   });
 
   const updateMut = useMutation({
     mutationFn: ({ id, data }) => api.put(`/students/${id}`, data),
-    onSuccess: () => { qc.invalidateQueries(['students']); toast.success('تم تحديث بيانات الطالب'); closeModal(); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['students'] }); toast.success('تم تحديث بيانات الطالب'); closeModal(); },
     onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
   });
 
   const deleteMut = useMutation({
     mutationFn: (id) => api.delete(`/students/${id}`),
-    onSuccess: () => { qc.invalidateQueries(['students']); toast.success('تم حذف الطالب'); setDeleteId(null); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['students'] }); toast.success('تم حذف الطالب'); setDeleteId(null); },
     onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
   });
 
@@ -589,8 +589,8 @@ export default function TeacherStudents() {
   const suspendMut = useMutation({
     mutationFn: ({ id, action }) => api.post(`/students/${id}/suspend`, { action }),
     onSuccess: (_, vars) => {
-      qc.invalidateQueries(['students']);
-      qc.invalidateQueries(['device-alerts']);
+      qc.invalidateQueries({ queryKey: ['students'] });
+      qc.invalidateQueries({ queryKey: ['device-alerts'] });
       toast.success(vars.action === 'suspend' ? 'تم إيقاف الحساب' : 'تم إعادة تفعيل الحساب');
       setSuspendTarget(null);
     },
@@ -692,7 +692,7 @@ export default function TeacherStudents() {
       }));
       const res = await api.post('/students/bulk', { students: normalized });
       const { success, failed, errors, created } = res.data;
-      if (success > 0) { qc.invalidateQueries(['students']); toast.success(`تم إضافة ${success} طالب بنجاح${failed > 0 ? ` (${failed} فشل)` : ''}`); }
+      if (success > 0) { qc.invalidateQueries({ queryKey: ['students'] }); toast.success(`تم إضافة ${success} طالب بنجاح${failed > 0 ? ` (${failed} فشل)` : ''}`); }
       if (failed > 0 && success === 0) toast.error(`فشل استيراد جميع الصفوف (${failed})`);
       if (errors?.length) errors.slice(0, 3).forEach(e => toast.error(e, { duration: 4000 }));
       if (created?.length) {
