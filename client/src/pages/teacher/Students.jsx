@@ -510,14 +510,28 @@ export default function TeacherStudents() {
 
   const applyModelToRows = (rows, mappings) => {
     return rows.map(row => {
+      // Build a normalized lookup so minor Unicode/whitespace differences
+      // between when the model was saved and when the file is re-uploaded
+      // don't cause a false "no match" result.
+      const normKey = (s) => String(s).trim().normalize('NFC');
+      const normalizedRow = {};
+      for (const [k, v] of Object.entries(row)) {
+        normalizedRow[normKey(k)] = v;
+      }
+
       const mapped = {};
       for (const [field, col] of Object.entries(mappings)) {
         if (!col) continue;
         if (col.startsWith(FIXED_PREFIX)) {
-          // Hardcoded value — apply to every row
           mapped[field] = col.slice(FIXED_PREFIX.length);
-        } else if (row[col] !== undefined) {
-          mapped[field] = String(row[col] ?? '').trim();
+        } else {
+          // Try exact match first; fall back to normalized match
+          const val = row[col] !== undefined
+            ? row[col]
+            : normalizedRow[normKey(col)];
+          if (val !== undefined) {
+            mapped[field] = String(val ?? '').trim();
+          }
         }
       }
       return mapped;
@@ -1204,7 +1218,7 @@ export default function TeacherStudents() {
 
       {/* ── Import Model Modal ── */}
       {modelModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setModelModal(false)}>
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4" onClick={() => setModelModal(false)}>
           <div
             className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden"
             onClick={e => e.stopPropagation()}
