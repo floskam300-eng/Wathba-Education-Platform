@@ -502,11 +502,20 @@ export default function TeacherStudents() {
     setModelModal(true);
   };
 
+  // Fixed-value prefix used when a field is hardcoded (not mapped from a column)
+  const FIXED_PREFIX = '__fixed__:';
+
   const applyModelToRows = (rows, mappings) => {
     return rows.map(row => {
       const mapped = {};
       for (const [field, col] of Object.entries(mappings)) {
-        if (col && row[col] !== undefined) mapped[field] = String(row[col] ?? '').trim();
+        if (!col) continue;
+        if (col.startsWith(FIXED_PREFIX)) {
+          // Hardcoded value — apply to every row
+          mapped[field] = col.slice(FIXED_PREFIX.length);
+        } else if (row[col] !== undefined) {
+          mapped[field] = String(row[col] ?? '').trim();
+        }
       }
       return mapped;
     }).filter(r => r.name);
@@ -1279,34 +1288,71 @@ export default function TeacherStudents() {
 
                 {/* Mappings */}
                 <div className="space-y-2">
-                  {SYSTEM_FIELDS.map(({ key, label, required }) => (
-                    <div key={key} className="flex flex-col sm:flex-row sm:items-center gap-2 bg-gray-50 rounded-xl p-3 border border-gray-100">
-                      {/* System field label */}
-                      <div className="sm:w-36 flex-shrink-0">
-                        <span className={`text-sm font-bold ${required ? 'text-navy-700' : 'text-gray-600'}`}>
-                          {label}
-                        </span>
-                        {required && <span className="text-orange-500 text-xs mr-1">(مطلوب)</span>}
-                      </div>
+                  {SYSTEM_FIELDS.map(({ key, label, required }) => {
+                    const currentVal = modelMappings[key] || '';
+                    const isFixed = currentVal.startsWith(FIXED_PREFIX);
+                    const fixedStage = isFixed ? currentVal.slice(FIXED_PREFIX.length) : '';
 
-                      {/* Arrow (hidden on mobile) */}
-                      <div className="hidden sm:flex items-center justify-center">
-                        <ArrowLeft className="w-4 h-4 text-orange-400 rotate-180" />
-                      </div>
+                    return (
+                      <div key={key} className="flex flex-col gap-2 bg-gray-50 rounded-xl p-3 border border-gray-100">
+                        {/* Top row: label + (for academic_stage: mode toggle) */}
+                        <div className="flex items-center justify-between gap-2">
+                          <span className={`text-sm font-bold ${required ? 'text-navy-700' : 'text-gray-600'}`}>
+                            {label}
+                            {required && <span className="text-orange-500 text-xs mr-1">(مطلوب)</span>}
+                          </span>
 
-                      {/* Column select */}
-                      <select
-                        value={modelMappings[key] || ''}
-                        onChange={e => setModelMappings(prev => ({ ...prev, [key]: e.target.value }))}
-                        className="flex-1 text-sm border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:ring-2 focus:ring-navy-300 focus:border-navy-400 outline-none"
-                      >
-                        <option value="">— لا يوجد —</option>
-                        {modelHeaders.map(h => (
-                          <option key={h} value={h}>{h} {modelSample[h] ? `(${String(modelSample[h]).slice(0,20)})` : ''}</option>
-                        ))}
-                      </select>
-                    </div>
-                  ))}
+                          {/* Mode toggle — only for academic_stage */}
+                          {key === 'academic_stage' && (
+                            <div className="flex rounded-lg overflow-hidden border border-gray-200 text-xs font-semibold">
+                              <button
+                                type="button"
+                                onClick={() => setModelMappings(prev => ({ ...prev, academic_stage: '' }))}
+                                className={`px-2.5 py-1 transition-colors ${!isFixed ? 'bg-navy-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+                              >
+                                من الملف
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setModelMappings(prev => ({ ...prev, academic_stage: FIXED_PREFIX + (STAGES[0]) }))}
+                                className={`px-2.5 py-1 transition-colors ${isFixed ? 'bg-orange-500 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+                              >
+                                قيمة ثابتة
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Input row */}
+                        <div className="flex items-center gap-2">
+                          <ArrowLeft className="w-4 h-4 text-orange-400 rotate-180 flex-shrink-0" />
+
+                          {key === 'academic_stage' && isFixed ? (
+                            /* Fixed stage selector */
+                            <select
+                              value={fixedStage}
+                              onChange={e => setModelMappings(prev => ({ ...prev, academic_stage: FIXED_PREFIX + e.target.value }))}
+                              className="flex-1 text-sm border border-orange-300 rounded-lg px-2 py-1.5 bg-orange-50 focus:ring-2 focus:ring-orange-300 focus:border-orange-400 outline-none font-semibold text-orange-800"
+                            >
+                              {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
+                            </select>
+                          ) : (
+                            /* Column mapping selector */
+                            <select
+                              value={isFixed ? '' : currentVal}
+                              onChange={e => setModelMappings(prev => ({ ...prev, [key]: e.target.value }))}
+                              className="flex-1 text-sm border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:ring-2 focus:ring-navy-300 focus:border-navy-400 outline-none"
+                            >
+                              <option value="">— لا يوجد —</option>
+                              {modelHeaders.map(h => (
+                                <option key={h} value={h}>{h}{modelSample[h] ? ` (${String(modelSample[h]).slice(0, 20)})` : ''}</option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
