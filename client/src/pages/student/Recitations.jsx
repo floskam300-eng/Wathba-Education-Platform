@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
-  BookOpen, Clock, CheckCircle, XCircle, Flame, Trophy,
+  BookOpen, Clock, CheckCircle, XCircle, Trophy,
   ChevronLeft, AlertCircle, BarChart2, RefreshCw, Lock, Eye, Loader2
 } from 'lucide-react';
 import api from '../../lib/api';
@@ -57,7 +57,7 @@ export default function StudentRecitations() {
   // [CL3-FIX] startingRef prevents double-click spawning multiple countdowns.
   // startRec is async; without this lock a second tap before the API responds
   // would start a second countdown sequence on top of the first.
-  const [starting, setStarting] = useState(false);
+  const [startingId, setStartingId] = useState(null);
   const [lightboxSrc, setLightboxSrc] = useState(null);
   const submittedRef = useRef(false);
   const mountedRef = useRef(true);
@@ -72,11 +72,6 @@ export default function StudentRecitations() {
     queryFn: () => api.get('/recitations/student/list').then(r => r.data),
   });
 
-  const { data: streak } = useQuery({
-    queryKey: ['student-recitation-streak'],
-    queryFn: () => api.get('/recitations/student/streak').then(r => r.data),
-  });
-
   const { data: history = [] } = useQuery({
     queryKey: ['student-recitation-results'],
     queryFn: () => api.get('/recitations/student/results').then(r => r.data),
@@ -84,9 +79,8 @@ export default function StudentRecitations() {
   });
 
   const startRec = async (rec) => {
-    // [CL3-FIX] Prevent double-click: if a start is already in progress, bail out.
-    if (starting) return;
-    setStarting(true);
+    if (startingId) return;
+    setStartingId(rec.id);
     submittedRef.current = false;
     try {
       const { data } = await api.get(`/recitations/${rec.id}/take`);
@@ -127,7 +121,7 @@ export default function StudentRecitations() {
     } catch (e) {
       toast.error(e.response?.data?.error || 'حدث خطأ');
     } finally {
-      setStarting(false);
+      setStartingId(null);
     }
   };
 
@@ -252,7 +246,6 @@ export default function StudentRecitations() {
       setResult(data);
       setView('result');
       qc.invalidateQueries(['student-recitations']);
-      qc.invalidateQueries(['student-recitation-streak']);
     } catch (e) {
       if (!mountedRef.current) return;
       submittedRef.current = false;
@@ -301,23 +294,6 @@ export default function StudentRecitations() {
             </button>
           </div>
         </div>
-
-        {/* Streak card */}
-        {streak && (
-          <div className={`rounded-2xl p-4 flex items-center gap-4 ${dark ? 'bg-[var(--dk-surface)] border border-[var(--dk-border)]' : 'bg-gradient-to-l from-orange-50 to-amber-50 border border-orange-100'}`}>
-            <div className="w-14 h-14 rounded-2xl bg-orange-500 flex items-center justify-center flex-shrink-0">
-              <Flame className="w-8 h-8 text-white" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className={`font-black text-2xl ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>
-                {streak.current_streak} يوم 🔥
-              </p>
-              <p className={`text-sm ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-500'}`}>
-                أعلى streak: <strong>{streak.max_streak}</strong> يوم · إجمالي: <strong>{streak.total_completed}</strong> تسميع
-              </p>
-            </div>
-          </div>
-        )}
 
         {/* History tab */}
         {view === 'history' && (
@@ -370,7 +346,7 @@ export default function StudentRecitations() {
             ) : (
               <>
                 {open.length > 0 && (
-                  <Section title="متاح الآن 🟢" items={open} dark={dark} cardCls={cardCls} onStart={startRec} navigate={navigate} starting={starting} />
+                  <Section title="متاح الآن 🟢" items={open} dark={dark} cardCls={cardCls} onStart={startRec} navigate={navigate} startingId={startingId} />
                 )}
                 {upcoming.length > 0 && (
                   <Section title="قادم قريباً ⏳" items={upcoming} dark={dark} cardCls={cardCls} onStart={null} navigate={navigate} />
@@ -490,17 +466,6 @@ export default function StudentRecitations() {
             ))}
           </div>
 
-          {/* Streak notification */}
-          {streak && streak.current_streak > 0 && (
-            <div className={`rounded-2xl p-4 flex items-center gap-3 ${dark ? 'bg-orange-900/30 border border-orange-700/40' : 'bg-orange-50 border border-orange-200'}`}>
-              <Flame className="w-8 h-8 text-orange-500 flex-shrink-0" />
-              <div>
-                <p className={`font-black ${dark ? 'text-orange-300' : 'text-orange-700'}`}>Streak: {streak.current_streak} يوم! 🔥</p>
-                <p className={`text-xs ${dark ? 'text-orange-400' : 'text-orange-500'}`}>استمر على الانتظام لتكسر رقمك القياسي</p>
-              </div>
-            </div>
-          )}
-
           {/* Review */}
           {review && review.length > 0 && (
             <div className="space-y-3">
@@ -597,13 +562,14 @@ export default function StudentRecitations() {
   return null;
 }
 
-function Section({ title, items, dark, cardCls, onStart, navigate, starting = false }) {
+function Section({ title, items, dark, cardCls, onStart, navigate, startingId = null }) {
   return (
     <div>
       <h2 className={`font-black mb-3 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>{title}</h2>
       <div className="space-y-3">
         {items.map(rec => {
           const status = getStatus(rec);
+          const isStarting = startingId === rec.id;
           return (
             <div key={rec.id} className={`${cardCls} flex items-center justify-between gap-3`}>
               <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -637,10 +603,10 @@ function Section({ title, items, dark, cardCls, onStart, navigate, starting = fa
 
               {status === 'open' && onStart && (
                 <button onClick={() => onStart(rec)}
-                  disabled={starting}
+                  disabled={!!startingId}
                   className="flex-shrink-0 px-4 py-2 bg-purple-500 hover:bg-purple-600 disabled:opacity-60 text-white rounded-xl text-sm font-black transition-colors flex items-center gap-1.5">
-                  {starting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-                  {starting ? 'جاري...' : 'ابدأ'}
+                  {isStarting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                  {isStarting ? 'جاري...' : 'ابدأ'}
                 </button>
               )}
               {status === 'upcoming' && (

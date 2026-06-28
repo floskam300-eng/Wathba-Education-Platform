@@ -576,20 +576,6 @@ export default function TeacherStudents() {
     if (importFileRef.current) importFileRef.current.value = '';
   };
 
-  const downloadImportTemplate = () => {
-    const templateData = [
-      { 'الاسم': 'أحمد محمد علي', 'الهاتف': '01012345678', 'هاتف ولي الأمر': '01098765432', 'المرحلة': 'الصف الثالث الثانوي', 'الجنس': 'ذكر' },
-      { 'الاسم': 'فاطمة أحمد حسن', 'الهاتف': '01123456789', 'هاتف ولي الأمر': '', 'المرحلة': 'الصف الثاني الثانوي', 'الجنس': 'أنثى' },
-      { 'الاسم': 'محمود إبراهيم', 'الهاتف': '', 'هاتف ولي الأمر': '01056789012', 'المرحلة': 'الصف الأول الثانوي', 'الجنس': 'ذكر' },
-    ];
-    const ws = XLSX.utils.json_to_sheet(templateData);
-    ws['!cols'] = [{ wch: 25 }, { wch: 15 }, { wch: 18 }, { wch: 28 }, { wch: 10 }];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'الطلاب');
-    XLSX.writeFile(wb, 'قالب_استيراد_الطلاب.xlsx');
-    toast.success('تم تنزيل قالب الاستيراد');
-  };
-
   const handleBulkImport = async () => {
     if (!importRows.length) return;
     setImportLoading(true);
@@ -737,9 +723,6 @@ export default function TeacherStudents() {
                 {activeModel && (
                   <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-orange-400 rounded-full border-2 border-white shadow" />
                 )}
-              </button>
-              <button onClick={downloadImportTemplate} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-700 text-sm font-semibold transition-all">
-                <Download className="w-4 h-4" /> قالب
               </button>
               <button onClick={() => importFileRef.current?.click()} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-all shadow-sm">
                 <FileSpreadsheet className="w-4 h-4" /> استيراد Excel
