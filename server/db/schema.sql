@@ -1046,3 +1046,15 @@ ALTER TABLE bank_questions ADD CONSTRAINT chk_bank_question_type CHECK (question
 -- Absent marking: track students who missed a published exam
 ALTER TABLE exam_results ADD COLUMN IF NOT EXISTS is_absent BOOLEAN DEFAULT false NOT NULL;
 ALTER TABLE exams ADD COLUMN IF NOT EXISTS absent_marked BOOLEAN DEFAULT false NOT NULL;
+
+-- Import model: per-teacher column mapping for Excel imports
+CREATE TABLE IF NOT EXISTS teacher_import_models (
+  id SERIAL PRIMARY KEY,
+  teacher_id INTEGER NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+  headers JSONB NOT NULL DEFAULT '[]',
+  sample_row JSONB DEFAULT '{}',
+  mappings JSONB NOT NULL DEFAULT '{}',
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(teacher_id)
+);

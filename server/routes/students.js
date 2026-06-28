@@ -540,6 +540,49 @@ router.get('/me/stats', requireRole('student'), async (req, res) => {
   }
 });
 
+// ── Import Model ─────────────────────────────────────────────────────────────
+
+router.get('/import-model', requireRole('teacher', 'assistant'), async (req, res) => {
+  const teacherId = getTeacherId(req);
+  try {
+    const r = await pool.query(
+      'SELECT id, headers, sample_row, mappings, updated_at FROM teacher_import_models WHERE teacher_id = $1',
+      [teacherId]
+    );
+    res.json({ model: r.rows[0] || null });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+});
+
+router.post('/import-model', requireRole('teacher', 'assistant'), async (req, res) => {
+  const teacherId = getTeacherId(req);
+  const { headers, sample_row, mappings } = req.body;
+  if (!Array.isArray(headers) || !headers.length) return res.status(400).json({ error: 'يجب توفير أعمدة الملف' });
+  if (!mappings?.name) return res.status(400).json({ error: 'يجب ربط عمود اسم الطالب على الأقل' });
+  const ALLOWED = ['name','phone','parent_phone','username','password','gender','academic_stage'];
+  const clean = {};
+  for (const f of ALLOWED) { if (mappings[f] && typeof mappings[f] === 'string') clean[f] = mappings[f].slice(0, 200); }
+  try {
+    await pool.query(
+      `INSERT INTO teacher_import_models (teacher_id, headers, sample_row, mappings)
+       VALUES ($1,$2,$3,$4)
+       ON CONFLICT (teacher_id) DO UPDATE SET
+         headers=EXCLUDED.headers, sample_row=EXCLUDED.sample_row, mappings=EXCLUDED.mappings, updated_at=NOW()`,
+      [teacherId, JSON.stringify(headers.map(h=>String(h).slice(0,200))), JSON.stringify(sample_row||{}), JSON.stringify(clean)]
+    );
+    res.json({ success: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+});
+
+router.delete('/import-model', requireRole('teacher', 'assistant'), async (req, res) => {
+  const teacherId = getTeacherId(req);
+  try {
+    await pool.query('DELETE FROM teacher_import_models WHERE teacher_id=$1', [teacherId]);
+    res.json({ success: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+});
+
+// ── Bulk import ───────────────────────────────────────────────────────────────
+
 router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => checkPermission(req, res, next, 'can_add_students'), async (req, res) => {
   const teacherId = getTeacherId(req);
   const { students } = req.body;

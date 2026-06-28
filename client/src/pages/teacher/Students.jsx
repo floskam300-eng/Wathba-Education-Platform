@@ -6,6 +6,7 @@ import {
   GraduationCap, Upload, FileSpreadsheet, Download, X, Loader2,
   Copy, CheckCircle, AlertCircle, Ban, Lock, Unlock, ShieldAlert,
   Smartphone, Monitor, RefreshCw, AlertTriangle, ChevronRight,
+  Layers, Trash, ArrowLeft,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import Modal from '../../components/ui/Modal';
@@ -312,6 +313,16 @@ export default function TeacherStudents() {
   // Suspend / unsuspend state
   const [suspendTarget, setSuspendTarget] = useState(null); // { id, name, is_suspended }
 
+  // ── Import Model state ────────────────────────────────────────────────────
+  const [modelModal, setModelModal]             = useState(false);
+  const [modelStep, setModelStep]               = useState(1);
+  const [modelHeaders, setModelHeaders]         = useState([]);
+  const [modelSample, setModelSample]           = useState({});
+  const [modelMappings, setModelMappings]       = useState({});
+  const [modelSaving, setModelSaving]           = useState(false);
+  const [deleteModelConfirm, setDeleteModelConfirm] = useState(false);
+  const modelFileRef                            = useRef();
+
   const PAGE_SIZE = 20;
 
   const { data: students = [], isLoading, isFetching } = useQuery({
@@ -345,6 +356,112 @@ export default function TeacherStudents() {
     onSuccess: () => { qc.invalidateQueries(['students']); toast.success('تم حذف الطالب'); setDeleteId(null); },
     onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
   });
+
+  // ── Import Model query & mutations ────────────────────────────────────────
+  const { data: importModelData } = useQuery({
+    queryKey: ['import-model'],
+    queryFn: () => api.get('/students/import-model').then(r => r.data.model),
+    staleTime: 5 * 60 * 1000,
+  });
+  const activeModel = importModelData || null;
+
+  const SYSTEM_FIELDS = [
+    { key: 'name',           label: 'اسم الطالب *',     required: true },
+    { key: 'phone',          label: 'رقم الهاتف',        required: false },
+    { key: 'parent_phone',   label: 'هاتف ولي الأمر',   required: false },
+    { key: 'username',       label: 'اسم المستخدم',      required: false },
+    { key: 'password',       label: 'كلمة المرور',       required: false },
+    { key: 'gender',         label: 'الجنس',             required: false },
+    { key: 'academic_stage', label: 'المرحلة الدراسية',  required: false },
+  ];
+
+  const FIELD_KEYWORDS = {
+    name:           ['اسم', 'name', 'student', 'طالب'],
+    phone:          ['هاتف', 'موبايل', 'phone', 'mobile', 'تليفون'],
+    parent_phone:   ['ولي', 'parent', 'أب', 'أم', 'guardian'],
+    username:       ['username', 'user', 'يوزر', 'مستخدم'],
+    password:       ['password', 'pass', 'كلمة', 'سر'],
+    gender:         ['جنس', 'gender', 'نوع'],
+    academic_stage: ['مرحلة', 'stage', 'grade', 'صف', 'سنة'],
+  };
+
+  const autoDetectMappings = (headers) => {
+    const result = {};
+    for (const [field, kws] of Object.entries(FIELD_KEYWORDS)) {
+      const match = headers.find(h => kws.some(kw => h.toLowerCase().includes(kw)));
+      if (match) result[field] = match;
+    }
+    return result;
+  };
+
+  // Filter xlsx auto-generated empty column names (__EMPTY, __EMPTY_1, etc.)
+  const filterRealHeaders = (rawHeaders) =>
+    rawHeaders.filter(h => h && !String(h).match(/^__EMPTY/) && String(h).trim() !== '');
+
+  const handleModelFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const wb = XLSX.read(ev.target.result, { type: 'binary' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        if (!rows.length) { toast.error('الملف فارغ'); return; }
+        const rawHeaders = Object.keys(rows[0]);
+        const headers = filterRealHeaders(rawHeaders);
+        if (!headers.length) { toast.error('لم يتم العثور على أعمدة صالحة في الملف'); return; }
+        const sample = {};
+        headers.forEach(h => { sample[h] = rows[0][h] ?? ''; });
+        setModelHeaders(headers);
+        setModelSample(sample);
+        setModelMappings(autoDetectMappings(headers));
+        setModelStep(2);
+      } catch { toast.error('تعذّر قراءة الملف'); }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const handleSaveModel = async () => {
+    if (!modelMappings.name) { toast.error('يجب ربط عمود اسم الطالب على الأقل'); return; }
+    setModelSaving(true);
+    try {
+      await api.post('/students/import-model', { headers: modelHeaders, sample_row: modelSample, mappings: modelMappings });
+      qc.invalidateQueries(['import-model']);
+      toast.success('تم حفظ نموذج الاستيراد بنجاح');
+      setModelModal(false);
+      setModelStep(1);
+    } catch (e) { toast.error(e.response?.data?.error || 'حدث خطأ في الحفظ'); }
+    finally { setModelSaving(false); }
+  };
+
+  const handleDeleteModel = async () => {
+    try {
+      await api.delete('/students/import-model');
+      qc.invalidateQueries(['import-model']);
+      toast.success('تم حذف نموذج الاستيراد');
+      setDeleteModelConfirm(false);
+    } catch { toast.error('حدث خطأ في الحذف'); }
+  };
+
+  const openModelModal = () => {
+    setModelStep(1);
+    setModelHeaders([]);
+    setModelSample({});
+    setModelMappings({});
+    setModelModal(true);
+  };
+
+  const applyModelToRows = (rows, mappings) => {
+    return rows.map(row => {
+      const mapped = {};
+      for (const [field, col] of Object.entries(mappings)) {
+        if (col && row[col] !== undefined) mapped[field] = String(row[col] ?? '').trim();
+      }
+      return mapped;
+    }).filter(r => r.name);
+  };
 
   const suspendMut = useMutation({
     mutationFn: ({ id, action }) => api.post(`/students/${id}/suspend`, { action }),
@@ -380,7 +497,13 @@ export default function TeacherStudents() {
         const wb = XLSX.read(evt.target.result, { type: 'array' });
         const ws = wb.Sheets[wb.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
-        setImportRows(stripAutoFields(rows));
+        if (activeModel?.mappings) {
+          const mapped = applyModelToRows(rows, activeModel.mappings);
+          if (!mapped.length) { toast.error('لم يُعثر على بيانات طلاب في الملف باستخدام النموذج المحفوظ'); return; }
+          setImportRows(mapped);
+        } else {
+          setImportRows(stripAutoFields(rows));
+        }
         setImportModal(true);
       } catch {
         toast.error('تعذّر قراءة الملف — تأكد أنه Excel أو CSV');
@@ -540,6 +663,13 @@ export default function TeacherStudents() {
           {canAdd && (
             <>
               <input ref={importFileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleExcelFile} />
+              <input ref={modelFileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleModelFile} />
+              <button onClick={openModelModal} className="btn-secondary flex items-center gap-2 !border-navy-400 !text-navy-700 hover:!bg-navy-50 relative">
+                <Layers className="w-4 h-4" /> نموذج الاستيراد
+                {activeModel && (
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-orange-500 rounded-full border-2 border-white" />
+                )}
+              </button>
               <button onClick={downloadImportTemplate} className="btn-secondary flex items-center gap-2 !border-teal-300 !text-teal-700 hover:!bg-teal-50">
                 <Download className="w-4 h-4" /> قالب الاستيراد
               </button>
@@ -984,6 +1114,172 @@ export default function TeacherStudents() {
         message="سيتم إخفاء الطالب من القوائم ولن يتمكن من تسجيل الدخول. بياناته ونتائجه محفوظة في قاعدة البيانات ويمكن استرجاعها عند الحاجة."
         danger
       />
+
+      {/* ── Delete model confirm ── */}
+      <ConfirmDialog
+        open={deleteModelConfirm}
+        onClose={() => setDeleteModelConfirm(false)}
+        onConfirm={handleDeleteModel}
+        title="حذف نموذج الاستيراد"
+        message="سيتم حذف التعيينات المحفوظة. ستحتاج لرفع ملف نموذجي مرة أخرى لإعادة الضبط."
+        danger
+      />
+
+      {/* ── Import Model Modal ── */}
+      {modelModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setModelModal(false)}>
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-navy-600 flex items-center justify-center">
+                  <Layers className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h2 className="font-black text-navy-700 text-lg leading-tight">نموذج الاستيراد</h2>
+                  <p className="text-xs text-gray-500">
+                    {modelStep === 1 ? 'ارفع ملف من برنامجك لتعيين الأعمدة' : 'اربط أعمدة الملف بحقول الطلاب'}
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setModelModal(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Active model banner */}
+            {activeModel && modelStep === 1 && (
+              <div className="mx-6 mt-4 p-3 rounded-xl bg-orange-50 border border-orange-200 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-sm text-orange-800 font-semibold">
+                  <CheckCircle className="w-4 h-4 text-orange-500 flex-shrink-0" />
+                  يوجد نموذج محفوظ بـ {activeModel.headers?.length || 0} عمود
+                </div>
+                <button
+                  onClick={() => setDeleteModelConfirm(true)}
+                  className="flex items-center gap-1 text-xs text-red-600 hover:text-red-800 font-bold transition-colors"
+                >
+                  <Trash className="w-3.5 h-3.5" /> حذف
+                </button>
+              </div>
+            )}
+
+            {/* Step 1 — Upload */}
+            {modelStep === 1 && (
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                <div
+                  onClick={() => modelFileRef.current?.click()}
+                  className="border-2 border-dashed border-navy-300 rounded-2xl p-10 text-center cursor-pointer hover:bg-navy-50 transition-colors"
+                >
+                  <Upload className="w-10 h-10 text-navy-400 mx-auto mb-3" />
+                  <p className="font-bold text-navy-700 text-base mb-1">اسحب ملف أو اضغط للاختيار</p>
+                  <p className="text-sm text-gray-500">Excel أو CSV من برنامجك الخارجي</p>
+                </div>
+
+                {activeModel && (
+                  <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                    <p className="text-xs font-bold text-gray-500 mb-2">التعيينات الحالية:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {Object.entries(activeModel.mappings || {}).map(([field, col]) => {
+                        const sysField = SYSTEM_FIELDS.find(f => f.key === field);
+                        return (
+                          <span key={field} className="inline-flex items-center gap-1 bg-white border border-navy-200 rounded-lg px-2 py-1 text-xs font-semibold text-navy-700">
+                            <span className="text-gray-500">{col}</span>
+                            <ArrowLeft className="w-3 h-3 text-orange-400" />
+                            <span>{sysField?.label || field}</span>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                <p className="text-xs text-center text-gray-400">
+                  ارفع ملف نموذجي من برنامجك (سطر واحد يكفي) لتعيين الأعمدة مرة واحدة فقط
+                </p>
+              </div>
+            )}
+
+            {/* Step 2 — Map columns */}
+            {modelStep === 2 && (
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+                {/* Sample preview */}
+                <div className="bg-gray-50 rounded-xl p-3 border border-gray-200">
+                  <p className="text-xs font-bold text-gray-500 mb-2">معاينة أول صف:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {modelHeaders.map(h => (
+                      <span key={h} className="inline-flex flex-col items-start bg-white border border-gray-200 rounded-lg px-2 py-1 text-xs">
+                        <span className="font-bold text-navy-700">{h}</span>
+                        <span className="text-gray-400 truncate max-w-[10rem]">{String(modelSample[h] || '—').slice(0, 30)}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Mappings */}
+                <div className="space-y-2">
+                  {SYSTEM_FIELDS.map(({ key, label, required }) => (
+                    <div key={key} className="flex flex-col sm:flex-row sm:items-center gap-2 bg-gray-50 rounded-xl p-3 border border-gray-100">
+                      {/* System field label */}
+                      <div className="sm:w-36 flex-shrink-0">
+                        <span className={`text-sm font-bold ${required ? 'text-navy-700' : 'text-gray-600'}`}>
+                          {label}
+                        </span>
+                        {required && <span className="text-orange-500 text-xs mr-1">(مطلوب)</span>}
+                      </div>
+
+                      {/* Arrow (hidden on mobile) */}
+                      <div className="hidden sm:flex items-center justify-center">
+                        <ArrowLeft className="w-4 h-4 text-orange-400 rotate-180" />
+                      </div>
+
+                      {/* Column select */}
+                      <select
+                        value={modelMappings[key] || ''}
+                        onChange={e => setModelMappings(prev => ({ ...prev, [key]: e.target.value }))}
+                        className="flex-1 text-sm border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:ring-2 focus:ring-navy-300 focus:border-navy-400 outline-none"
+                      >
+                        <option value="">— لا يوجد —</option>
+                        {modelHeaders.map(h => (
+                          <option key={h} value={h}>{h} {modelSample[h] ? `(${String(modelSample[h]).slice(0,20)})` : ''}</option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-3">
+              {modelStep === 2 ? (
+                <>
+                  <button
+                    onClick={() => setModelStep(1)}
+                    className="btn-secondary flex items-center gap-2 text-sm"
+                  >
+                    <ArrowLeft className="w-4 h-4" /> رجوع
+                  </button>
+                  <button
+                    onClick={handleSaveModel}
+                    disabled={!modelMappings.name || modelSaving}
+                    className="btn-primary flex items-center gap-2 text-sm disabled:opacity-50"
+                  >
+                    {modelSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                    حفظ النموذج
+                  </button>
+                </>
+              ) : (
+                <button onClick={() => setModelModal(false)} className="btn-secondary text-sm mr-auto">
+                  إغلاق
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
