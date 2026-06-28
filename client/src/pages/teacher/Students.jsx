@@ -693,16 +693,28 @@ export default function TeacherStudents() {
     if (importFileRef.current) importFileRef.current.value = '';
   };
 
+  const normalizeGender = (raw) => {
+    if (!raw) return '';
+    const g = String(raw).trim().normalize('NFC').replace(/\s/g, '');
+    if (/^(ذكر|male|m|boy)$/i.test(g))                       return 'ذكر';
+    if (/^(أنثى|انثى|أنثي|انثي|female|f|girl|انثي|أنثي)$/i.test(g)) return 'أنثى';
+    return g; // pass through so server logs show the unrecognized value
+  };
+
   const handleBulkImport = async () => {
     if (!importRows.length) return;
     setImportLoading(true);
     try {
-      console.log('[BULK-SEND] إجمالي الصفوف المرسلة:', importRows.length);
-      console.log('[BULK-SEND] مفاتيح أول صف:', importRows[0] ? Object.keys(importRows[0]) : '(لا يوجد)');
-      importRows.forEach((r, i) => {
-        console.log(`[BULK-SEND][${i}]`, JSON.stringify(r));
+      const normalized = importRows.map(r => ({
+        ...r,
+        gender: normalizeGender(r.gender),
+      }));
+      console.log('[BULK-SEND] إجمالي الصفوف المرسلة:', normalized.length);
+      console.log('[BULK-SEND] مفاتيح أول صف:', normalized[0] ? Object.keys(normalized[0]) : '(لا يوجد)');
+      normalized.forEach((r, i) => {
+        console.log(`[BULK-SEND][${i}] gender_raw="${importRows[i]?.gender}" → gender_norm="${r.gender}" | name="${r.name}" | username="${r.username}"`);
       });
-      const res = await api.post('/students/bulk', { students: importRows });
+      const res = await api.post('/students/bulk', { students: normalized });
       const { success, failed, errors, created } = res.data;
       if (success > 0) { qc.invalidateQueries(['students']); toast.success(`تم إضافة ${success} طالب بنجاح${failed > 0 ? ` (${failed} فشل)` : ''}`); }
       if (failed > 0 && success === 0) toast.error(`فشل استيراد جميع الصفوف (${failed})`);
