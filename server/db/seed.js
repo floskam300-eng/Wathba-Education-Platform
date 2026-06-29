@@ -637,7 +637,18 @@ async function seed() {
     RETURNING id
   `, [c8.id, T1, past(4), future(6)]);
 
-  console.log('  ✓ 13 امتحان (منتهي×5، نشط×6، قادم×1، مسودة×1)');
+  // e14: اختبار تطبيقات الاستاتيكا والاتزان (نشط - غير ممتحن للطالب)
+  const [e14] = await q(`
+    INSERT INTO exams
+      (title,duration_minutes,total_score,course_id,teacher_id,
+       pass_score,is_published,start_date,end_date,
+       points_on_attempt,points_on_pass)
+    VALUES ('اختبار تطبيقات الاستاتيكا والاتزان',45,25,$1,$2,
+      12,true,$3,$4,5,15)
+    RETURNING id
+  `, [c7.id, T1, past(2), future(8)]);
+
+  console.log('  ✓ 14 امتحان (منتهي×5، نشط×7، قادم×1، مسودة×1)');
 
   // ══════════════════════════════════════════════════════════
   // 8. الأسئلة
@@ -917,7 +928,26 @@ async function seed() {
     e13QIds.push({ id: qr.id, correct: ans, pts });
   }
 
-  console.log('  ✓ الأسئلة أضيفت لكل الامتحانات');
+  // أسئلة e14 (تطبيقات الاستاتيكا والاتزان — 25 درجة، 5 أسئلة)
+  const e14Questions = [
+    ['mcq','تكون مجموعة القوى المستوية في حالة اتزان تام إذا كان:','المجموع الجبري لمركبات القوى في اتجاهين متعامدين ينعدم ومجموع العزوم حول أي نقطة ينعدم','المجموع الجبري للعزوم ينعدم فقط','المحصلة تساوي صفراً فقط','زاوية الاحتكاك تساوي صفراً','A',5,null],
+    ['mcq','إذا كان رد فعل وتد أملس يؤثر على قضيب، فإن اتجاه رد الفعل يكون:','موازياً للقضيب','عمودياً على القضيب','يميل بزاوية 45 درجة','غير معين الاتجاه','B',5,null],
+    ['mcq','أقل قوة أفقية لازمة لحفظ اتزان جسم وزنه W على حائط رأسي خشن معامل احتكاكه M هي:','W / M','M * W','W','W + M','A',5,null],
+    ['true_false','قوة الاحتكاك السكوني تكون دائماً مساوية لقوة الاحتكاك الحركي.','صح','خطأ',null,null,'F',5,null],
+    ['true_false','يكون الجسم على وشك الحركة إذا بلغت قوة الاحتكاك قيمتها النهائية العظمى.','صح','خطأ',null,null,'T',5,null],
+  ];
+  const e14QIds = [];
+  for (const [qt, txt, a, b, c, d, ans, pts] of e14Questions) {
+    const [qr] = await q(`
+      INSERT INTO questions
+        (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,
+         correct_answer_letter,points)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id
+    `, [e14.id, qt, txt, a, b, c, d, ans, pts]);
+    e14QIds.push({ id: qr.id, correct: ans, pts });
+  }
+
+  console.log('  ✓ الأسئلة أضيفت لكل الامتحانات بما فيها الاختبارات الجديدة');
 
   // ══════════════════════════════════════════════════════════
   // 9. تسجيل الطلاب في الكورسات
@@ -1767,7 +1797,22 @@ async function seed() {
     RETURNING id
   `, [T1, past(3), future(7), c8.id, JSON.stringify([c8v1])]);
 
-  console.log('  ✓ 8 تسميعات (نشط×6، قادم×1، مسودة×1) — مرتبطة بالكورسات');
+  // r9: تسميع القوى المتوازية — مرتبط بكورس الاستاتيكا (c7) (نشط - غير ممتحن للطالب)
+  const [r9] = await q(`
+    INSERT INTO recitations
+      (teacher_id,title,description,academic_stage,duration_minutes,
+       total_score,pass_score,points_on_attempt,points_on_pass,
+       schedule_type,start_date,end_date,is_published,course_id,video_ids)
+    VALUES ($1,
+      'تسميع القوى المتوازية المستوية',
+      'تسميع سريع على محصلة قوتين متوازيتين ومجموعة قوى متوازية مستوية.',
+      'الصف الثالث الثانوي',10,10,5,2,5,
+      'once',
+      $2,$3,true,$4,$5)
+    RETURNING id
+  `, [T1, past(2), future(8), c7.id, JSON.stringify([c7v1])]);
+
+  console.log('  ✓ 9 تسميعات (نشط×7، قادم×1، مسودة×1) — مرتبطة بالكورسات');
 
   // ── أسئلة التسميعات ─────────────────────────────────────
 
@@ -1933,7 +1978,25 @@ async function seed() {
     r8QIds.push({ id: qr.id, correct: ans, pts });
   }
 
-  console.log('  ✓ أسئلة التسميعات أضيفت');
+  // أسئلة r9 (القوى المتوازية — 10 درجات، 5 أسئلة)
+  const r9Questions = [
+    ['mcq','إذا كانت القوتان متوازيتين وفي نفس الاتجاه، فإن محصلتهما تكون مساوية لـ:','حاصل طرحهما وتعمل في عكس اتجاههما','مجموعهما وتعمل في نفس اتجاههما','حاصل ضربهما','صفر','B',2,1],
+    ['mcq','إذا كانت القوتان متوازيتين وفي اتجاهين متضادين (F1 > F2)، فإن المحصلة تساوي:','F1 + F2 وتعمل في اتجاه F1','F1 - F2 وتعمل في اتجاه F1','F2 - F1 وتعمل في اتجاه F2','صفر','B',2,2],
+    ['true_false','محصلة قوتين متوازيتين تؤثر دائماً في نقطة تقع بين خطي عملهما إذا كانتا في اتجاهين متضادين.','صح','خطأ',null,null,'F',2,3],
+    ['true_false','خط عمل محصلة قوتين متوازيتين يكون موازياً لخط عمل كل منهما.','صح','خطأ',null,null,'T',2,4],
+    ['mcq','إذا اتزن قضيب خفيف تحت تأثير قوتين متوازيتين فقط، فإن القوتين تكونان:','متساويتين في المقدار ومتضادتين في الاتجاه وعلى خط عمل واحد','متوازيتين فقط','متعامدتين','لا شيء مما سبق','A',2,5],
+  ];
+  const r9QIds = [];
+  for (const [qt, txt, a, b, c, d, ans, pts, ord] of r9Questions) {
+    await q(`
+      INSERT INTO recitation_questions
+        (recitation_id,question_type,question_text,option_a,option_b,option_c,option_d,
+         correct_answer_letter,points,sort_order)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+    `, [r9.id, qt, txt, a, b, c, d, ans, pts, ord]);
+  }
+
+  console.log('  ✓ أسئلة التسميعات أضيفت بالكامل بما فيها التسميعات الجديدة');
 
   // ── جلسات التسميعات النشطة ───────────────────────────────
   // std_ali بدأ r3 (تسميع قواعد التكامل) لكن لم يكمله — جلسة نشطة
@@ -2358,10 +2421,14 @@ async function seed() {
   await log('teacher',   T1, MR, 'publish_exam', 'exam', e12.id, 'اختبار عزوم القوى', {is_published:true}, 5, 7);
   await log('teacher',   T1, MR, 'create_exam',  'exam', e13.id, 'اختبار الهندسة الفراغية', {total_score:20,duration:30}, 4, 8);
   await log('teacher',   T1, MR, 'publish_exam', 'exam', e13.id, 'اختبار الهندسة الفراغية', {is_published:true}, 4, 7);
-  await log('teacher',   T1, MR, 'create_recitation', 'recitation', r7.id, 'تسميع قوانين الاتزان العام', {duration:10,total_score:10}, 4, 6);
-  await log('teacher',   T1, MR, 'publish_recitation', 'recitation', r7.id, 'تسميع قوانين الاتزان العام', {is_published:true}, 4, 5);
-  await log('teacher',   T1, MR, 'create_recitation', 'recitation', r8.id, 'تسميع المتجهات الفراغية السريع', {duration:10,total_score:10}, 3, 6);
-  await log('teacher',   T1, MR, 'publish_recitation', 'recitation', r8.id, 'تسميع المتجهات الفراغية السريع', {is_published:true}, 3, 5);
+  await log('teacher',   T1, MR, 'create_exam',  'exam', e14.id, 'اختبار تطبيقات الاستاتيكا والاتزان', {total_score:25,duration:45}, 4, 6);
+  await log('teacher',   T1, MR, 'publish_exam', 'exam', e14.id, 'اختبار تطبيقات الاستاتيكا والاتزان', {is_published:true}, 4, 5);
+  await log('teacher',   T1, MR, 'create_recitation', 'recitation', r7.id, 'تسميع قوانين الاتزان العام', {duration:10,total_score:10}, 4, 4);
+  await log('teacher',   T1, MR, 'publish_recitation', 'recitation', r7.id, 'تسميع قوانين الاتزان العام', {is_published:true}, 4, 3);
+  await log('teacher',   T1, MR, 'create_recitation', 'recitation', r8.id, 'تسميع المتجهات الفراغية السريع', {duration:10,total_score:10}, 3, 4);
+  await log('teacher',   T1, MR, 'publish_recitation', 'recitation', r8.id, 'تسميع المتجهات الفراغية السريع', {is_published:true}, 3, 3);
+  await log('teacher',   T1, MR, 'create_recitation', 'recitation', r9.id, 'تسميع القوى المتوازية المستوية', {duration:10,total_score:10}, 3, 2);
+  await log('teacher',   T1, MR, 'publish_recitation', 'recitation', r9.id, 'تسميع القوى المتوازية المستوية', {is_published:true}, 3, 1);
 
   console.log('  ✓ سجل النشاط: 70+ حدث شامل (تسجيل دخول، كورسات، طلاب، مدفوعات، امتحانات، تسميعات، واتساب، أجهزة)');
 
@@ -2380,10 +2447,10 @@ async function seed() {
   console.log('  │  📹 فيديوهات: 26       مع أقسام                             │');
   console.log('  │  📄 PDF: 16                                                  │');
   console.log('  │  🏦 بنوك أسئلة: 2      bank1 (15 سؤال) + bank2 (10 أسئلة)  │');
-  console.log('  │  📝 امتحانات: 13       منتهي×5، نشط×6، قادم×1، مسودة×1     │');
+  console.log('  │  📝 امتحانات: 14       منتهي×5، نشط×7، قادم×1، مسودة×1     │');
   console.log('  │  📊 نتائج امتحانات: شاملة (كل الطلاب × متعدد الامتحانات)   │');
-  console.log('  │  📖 تسميعات: 8         نشط×6، قادم×1، مسودة×1              │');
-  console.log('  │     std_ali: ناجح×3، راسب×1، لم يؤد×2 (r3 نشط + r4 قادم)  │');
+  console.log('  │  📖 تسميعات: 9         نشط×7، قادم×1، مسودة×1              │');
+  console.log('  │     std_ali: ناجح×3، راسب×1، لم يؤد×4 (r3 نشط + r4 قادم + r9 نشط)  │');
   console.log('  │  📋 نتائج تسميعات: شاملة (r1,r2,r5 لمتعدد الطلاب)         │');
   console.log('  │  💳 مدفوعات: 15        verified×11، pending×3، rejected×1   │');
   console.log('  │  🔔 إشعارات: 13 لـ std_ali + جماعية                         │');
@@ -2400,8 +2467,8 @@ async function seed() {
   console.log('     طالب    → std_ali / 123456    (الحساب المحوري)');
   console.log('\n  📊 سيناريوهات std_ali:');
   console.log('     كورسات   → C1+C2 مفتوح (جزئي)، C3 مكتمل، C7+C8 نشط، C5 طلب معلّق');
-  console.log('     امتحانات → ناجح×5، راسب×1، جلسة نشطة×1، قادم×1، لم يؤد×2');
-  console.log('     تسميعات → ناجح×3، راسب×1، متاح لم يؤده×1، قادم×1');
+  console.log('     امتحانات → ناجح×5، راسب×1، جلسة نشطة×1، قادم×1، لم يؤد×3');
+  console.log('     تسميعات → ناجح×3، راسب×1، متاح لم يؤده×2، قادم×1');
   console.log('     متصدرين → مركز 1 حالياً، 1 في أبريل، 2 في مايو');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 }
