@@ -151,7 +151,7 @@ async function seed() {
        academic_stage,gender,teacher_id,points,is_suspended)
     VALUES ('std_ali',$1,'123456','علي محمد رمضان',
             '+201200000001','+201200000002',
-            'الصف الثالث الثانوي','ذكر',$2,1250,false)
+            'الصف الثالث الثانوي','ذكر',$2,1380,false)
     RETURNING id,name
   `, [pass6, T1]);
   const STD_ALI = stdAliRow.id;
@@ -279,7 +279,31 @@ async function seed() {
     RETURNING id
   `, [T1]);
 
-  console.log('  ✓ 6 كورسات (مدفوع×3، مجاني×2، مسودة×1)');
+  const [c7] = await q(`
+    INSERT INTO courses
+      (name,description,price,teacher_id,target_stage,
+       is_published,is_free,points_on_complete,thumbnail_url)
+    VALUES (
+      'كورس الاستاتيكا وعزوم القوى للثانوية العامة',
+      'كورس متخصص لطلاب الصف الثالث الثانوي يتناول مفهوم عزم القوة بالنسبة لنقطة في المستوي ثنائي الأبعاد وثلاثي الأبعاد وتطبيقاته والاتزان العام.',
+      180,$1,'الصف الثالث الثانوي',true,false,50,
+      'https://images.unsplash.com/photo-1509228627152-72ae9ae6848d?w=600&h=340&fit=crop')
+    RETURNING id
+  `, [T1]);
+
+  const [c8] = await q(`
+    INSERT INTO courses
+      (name,description,price,teacher_id,target_stage,
+       is_published,is_free,points_on_complete,thumbnail_url)
+    VALUES (
+      'كورس الهندسة الفراغية المبسط',
+      'شرح مبسط للمتجهات في الفراغ ثلاثي الأبعاد والزوايا والجيوب وجيوب التمام والخطوط والمستويات في الفراغ.',
+      0,$1,'الصف الثالث الثانوي',true,true,30,
+      'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=600&h=340&fit=crop')
+    RETURNING id
+  `, [T1]);
+
+  console.log('  ✓ 8 كورسات (مدفوع×4، مجاني×3، مسودة×1)');
 
   // ══════════════════════════════════════════════════════════
   // 5. الأقسام والمحتوى (فيديوهات + PDF)
@@ -378,7 +402,17 @@ async function seed() {
   await addVid(c6.id, c6s1, 'مقدمة لطلاب الثاني الثانوي', YT1, 15, 1);
   await addPdf(c6.id, c6s1, 'خطة المنهج', PDF);
 
-  console.log('  ✓ الأقسام والفيديوهات والـ PDF اكتملت');
+  // ── C7: استاتيكا ث3 (1 قسم، 1 فيديو، 1 PDF) ──
+  const c7s1 = await addSec(c7.id, 'الباب الأول — عزوم القوى والاتزان العام', 1);
+  const c7v1 = await addVid(c7.id, c7s1, 'مقدمة في الاستاتيكا وعزوم القوى', YT1, 30, 1);
+  await addPdf(c7.id, c7s1, 'ملخص قوانين عزوم القوى PDF', PDF);
+
+  // ── C8: هندسة فراغية ث3 مجاني (1 قسم، 1 فيديو، 1 PDF) ──
+  const c8s1 = await addSec(c8.id, 'الباب الأول — المتجهات في الفراغ', 1);
+  const c8v1 = await addVid(c8.id, c8s1, 'المتجهات في الفراغ ثلاثي الأبعاد', YT2, 25, 1);
+  await addPdf(c8.id, c8s1, 'كتيب الهندسة الفراغية PDF', PDF);
+
+  console.log('  ✓ الأقسام والفيديوهات والـ PDF اكتملت لجميع الكورسات');
 
   // ══════════════════════════════════════════════════════════
   // 6. بنك الأسئلة (2 بنك)
@@ -581,7 +615,29 @@ async function seed() {
     RETURNING id
   `, [c3.id, T1, past(30), past(1)]);
 
-  console.log('  ✓ 11 امتحان (منتهي×5، نشط×4، قادم×1، مسودة×1)');
+  // e12: اختبار الاستاتيكا وعزوم القوى (نشط)
+  const [e12] = await q(`
+    INSERT INTO exams
+      (title,duration_minutes,total_score,course_id,teacher_id,
+       pass_score,is_published,start_date,end_date,
+       points_on_attempt,points_on_pass)
+    VALUES ('اختبار عزوم القوى في المستويات',40,30,$1,$2,
+      15,true,$3,$4,5,15)
+    RETURNING id
+  `, [c7.id, T1, past(5), future(5)]);
+
+  // e13: اختبار الهندسة الفراغية (نشط)
+  const [e13] = await q(`
+    INSERT INTO exams
+      (title,duration_minutes,total_score,course_id,teacher_id,
+       pass_score,is_published,start_date,end_date,
+       points_on_attempt,points_on_pass)
+    VALUES ('اختبار المتجهات والزوايا في الفراغ',30,20,$1,$2,
+      10,true,$3,$4,3,10)
+    RETURNING id
+  `, [c8.id, T1, past(4), future(6)]);
+
+  console.log('  ✓ 13 امتحان (منتهي×5، نشط×6، قادم×1، مسودة×1)');
 
   // ══════════════════════════════════════════════════════════
   // 8. الأسئلة
@@ -823,6 +879,44 @@ async function seed() {
     e10QIds.push({ id: qr.id, correct: ans, pts });
   }
 
+  // أسئلة e12 (الاستاتيكا — 30 درجة، 5 أسئلة)
+  const e12Questions = [
+    ['mcq','إذا كانت القوة F تؤثر في نقطة A، فإن عزم القوة F بالنسبة للنقطة O يساوي:','F × OA','OA × F','F · OA','لا شيء مما سبق','B',6,null],
+    ['mcq','يكون عزم القوة حول نقطة منعدماً إذا كانت:','القوة موازية للمستوي','خط عمل القوة يمر بتلك النقطة','النقطة تقع خارج المستوي','القوة عمودية على الذراع','B',6,null],
+    ['mcq','الذراع الممتد من O عمودياً على خط عمل القوة F طوله L، فإن مقدار العزم يساوي:','F / L','F + L','F * L','F - L','C',6,null],
+    ['true_false','عزم القوة هو كمية متجهة.','صح','خطأ',null,null,'T',6,null],
+    ['true_false','يتغير عزم القوة بتغير نقطة التأثير حتى لو ظل خط العمل ثابتاً.','صح','خطأ',null,null,'F',6,null],
+  ];
+  const e12QIds = [];
+  for (const [qt, txt, a, b, c, d, ans, pts] of e12Questions) {
+    const [qr] = await q(`
+      INSERT INTO questions
+        (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,
+         correct_answer_letter,points)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id
+    `, [e12.id, qt, txt, a, b, c, d, ans, pts]);
+    e12QIds.push({ id: qr.id, correct: ans, pts });
+  }
+
+  // أسئلة e13 (الهندسة الفراغية — 20 درجة، 5 أسئلة)
+  const e13Questions = [
+    ['mcq','المسافة بين النقطة (1, 2, 3) ونقطة الأصل (0, 0, 0) تساوي:','√6','√14','6','14','B',4,null],
+    ['mcq','المتجه A = (2, 3, 6)، فإن معيار المتجه A يساوي:','7','49','11','√11','A',4,null],
+    ['mcq','حاصل الضرب القياسي للمتجهين A=(1,0,0) و B=(0,1,0) يساوي:','1','-1','0','2','C',4,null],
+    ['true_false','المتجهان المتعامدان حاصل ضربهما القياسي يساوي صفراً.','صح','خطأ',null,null,'T',4,null],
+    ['true_false','المتجه الصفري ليس له اتجاه محدد.','صح','خطأ',null,null,'T',4,null],
+  ];
+  const e13QIds = [];
+  for (const [qt, txt, a, b, c, d, ans, pts] of e13Questions) {
+    const [qr] = await q(`
+      INSERT INTO questions
+        (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,
+         correct_answer_letter,points)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id
+    `, [e13.id, qt, txt, a, b, c, d, ans, pts]);
+    e13QIds.push({ id: qr.id, correct: ans, pts });
+  }
+
   console.log('  ✓ الأسئلة أضيفت لكل الامتحانات');
 
   // ══════════════════════════════════════════════════════════
@@ -837,8 +931,24 @@ async function seed() {
     VALUES
       ($1,$2,'active',NOW()-INTERVAL '25 days'),
       ($1,$3,'active',NOW()-INTERVAL '20 days'),
-      ($1,$4,'active',NOW()-INTERVAL '30 days')
-  `, [STD_ALI, c1.id, c2.id, c3.id]);
+      ($1,$4,'active',NOW()-INTERVAL '30 days'),
+      ($1,$5,'active',NOW()-INTERVAL '5 days'),
+      ($1,$6,'active',NOW()-INTERVAL '4 days')
+  `, [STD_ALI, c1.id, c2.id, c3.id, c7.id, c8.id]);
+
+  // تسجيل فاطمة ويوسف في الكورسين الجديدين
+  for (const sid of [sids['std_fatma'], sids['std_youssef']]) {
+    await q(`
+      INSERT INTO student_course_enrollment (student_id,course_id,status,enrollment_date)
+      VALUES ($1,$2,'active',NOW()-INTERVAL '4 days')
+      ON CONFLICT DO NOTHING
+    `, [sid, c7.id]);
+    await q(`
+      INSERT INTO student_course_enrollment (student_id,course_id,status,enrollment_date)
+      VALUES ($1,$2,'active',NOW()-INTERVAL '4 days')
+      ON CONFLICT DO NOTHING
+    `, [sid, c8.id]);
+  }
 
   // باقي طلاب ث3 في C1 و C3
   for (const sid of [sids['std_fatma'], sids['std_youssef'], sids['std_nada'], sids['std_omar']]) {
@@ -917,6 +1027,9 @@ async function seed() {
     [sids['std_adam'],     c4.id, 200, 'fawry',      'pending',   2, 'FAW-010-2025', null, null],
     [sids['std_lina'],     c4.id, 200, 'instapay',   'rejected',  9, 'INS-011-2025', asstKarim.id, 'كريم محمود'],
     [sids['std_lina'],     c4.id, 200, 'bank',       'pending',   1, 'BNK-012-2025', null, null],
+    [STD_ALI,              c7.id, 180, 'instapay',   'verified',  5, 'INS-013-2025', asstNour.id,  'نور أحمد حسين'],
+    [sids['std_fatma'],    c7.id, 180, 'fawry',      'verified',  4, 'FAW-014-2025', asstNour.id,  'نور أحمد حسين'],
+    [sids['std_youssef'],  c7.id, 180, 'instapay',   'verified',  4, 'INS-015-2025', asstNour.id,  'نور أحمد حسين'],
   ];
 
   for (const [sid, cid, amt, method, status, daysAgo, refNo, asstId, asstName] of payments) {
@@ -933,7 +1046,7 @@ async function seed() {
         verDate ? verDate.toISOString() : null]);
   }
 
-  console.log('  ✓ 12 دفعة (verified×8, pending×3, rejected×1)');
+  console.log('  ✓ 15 دفعة (verified×11, pending×3, rejected×1)');
 
   // ══════════════════════════════════════════════════════════
   // 11. نتائج الامتحانات (كل سيناريوهات std_ali + باقي الطلاب)
@@ -1000,8 +1113,14 @@ async function seed() {
 
   // e6 (تكامل): لم يؤده بعد
 
-  // e11 (أساسيات): ناجح ✓
+  // e11: امتحان أساسيات المجاني: ناجح ✓
   await makeResult(STD_ALI, e11.id, e11QIds, 100, 1, true, 25, 6, 5, 2);
+
+  // e12 (عزوم القوى): ناجح ✓
+  await makeResult(STD_ALI, e12.id, e12QIds, 80, 1, true, 4, 15, 15, 5);
+
+  // e13 (هندسة فراغية): ناجح ✓
+  await makeResult(STD_ALI, e13.id, e13QIds, 100, 1, true, 3, 10, 10, 3);
 
   // طلاب آخرون في e1
   await makeResult(sids['std_fatma'],   e1.id, e1QIds, 70, 1, true, 20, 18, 15, 5);
@@ -1061,7 +1180,13 @@ async function seed() {
 
   await q(`UPDATE exams SET absent_marked=true WHERE id=$1`, [e11.id]);
 
-  console.log('  ✓ نتائج الامتحانات: std_ali (ناجح×3، راسب×1، لم يؤده×3) + أرشيف شامل + غياب (std_hana+std_hassan في e11)');
+  // نتائج إضافية للكورسين الجديدين
+  await makeResult(sids['std_fatma'],   e12.id, e12QIds, 70, 1, true, 3, 15, 15, 5);
+  await makeResult(sids['std_youssef'], e12.id, e12QIds, 90, 1, true, 3, 15, 15, 5);
+  await makeResult(sids['std_fatma'],   e13.id, e13QIds, 90, 1, true, 2, 10, 10, 3);
+  await makeResult(sids['std_youssef'], e13.id, e13QIds, 80, 1, true, 2, 10, 10, 3);
+
+  console.log('  ✓ نتائج الامتحانات: std_ali (ناجح×5، راسب×1، لم يؤده×3) + أرشيف شامل + غياب (std_hana+std_hassan في e11)');
 
   // ══════════════════════════════════════════════════════════
   // 12. طلبات إعادة الامتحان
@@ -1186,6 +1311,12 @@ async function seed() {
   await setProgress(STD_ALI, c3v2, 18, 100, 28);
   await setProgress(STD_ALI, c3v3, 15, 100, 28);
 
+  // std_ali في C7 (استاتيكا): شاهد 80% من الفيديو الأول
+  await setProgress(STD_ALI, c7v1, 30, 80, 4);
+
+  // std_ali في C8 (هندسة فراغية): أكمله بالكامل
+  await setProgress(STD_ALI, c8v1, 25, 100, 3);
+
   // باقي طلاب ث3 في C1
   const c1Vids = [c1v1,c1v2,c1v3,c1v4,c1v5,c1v6,c1v7,c1v8,c1v9];
   const c1Durs = [28,35,22,30,40,38,32,25,20];
@@ -1234,6 +1365,12 @@ async function seed() {
 
   await q(`
     INSERT INTO course_completion_points (student_id,course_id,points_awarded,awarded_at)
+    VALUES ($1,$2,30,NOW()-INTERVAL '3 days')
+    ON CONFLICT (student_id,course_id) DO NOTHING
+  `, [STD_ALI, c8.id]);
+
+  await q(`
+    INSERT INTO course_completion_points (student_id,course_id,points_awarded,awarded_at)
     VALUES ($1,$2,80,NOW()-INTERVAL '5 days')
     ON CONFLICT (student_id,course_id) DO NOTHING
   `, [sids['std_youssef'], c1.id]);
@@ -1258,9 +1395,13 @@ async function seed() {
     ['تسميع جديد 📖',   'تم نشر تسميع جديد: "تسميع المشتقات اليومي". أدِّه قبل انتهاء الوقت!',   'new_recitation',  true,   4],
     ['امتحان قادم',     'تذكير: الاختبار النهائي سيبدأ بعد 7 أيام — ابدأ المراجعة الآن!',          'reminder',        false,  7],
     ['محتوى جديد',      'تم إضافة 3 فيديوهات جديدة في باب الدوال بكورس الجبر والمثلثات.',         'announcement',    false,  4],
-    ['تهنئة نقاط',      'عظيم! وصلت إلى 1250 نقطة وتحتل المركز الثالث في قائمة المتصدرين.',       'points',          false,  2],
+    ['تهنئة نقاط',      'عظيم! وصلت إلى 1380 نقطة وتحتل المركز الأول في قائمة المتصدرين.',        'points',          false,  2],
     ['امتحان جديد',     'تم نشر اختبار التكامل — لديك 6 أيام للإجابة. درجة الاجتياز 18/30.',      'new_exam',        false,  1],
     ['تسميع أسبوعي 📖', 'تذكير: لم تؤدِّ تسميع هذا الأسبوع بعد. المهلة تنتهي خلال يومين!',        'reminder',        false,  1],
+    ['تم قبول الدفع',   'تم تفعيل كورس الاستاتيكا وعزوم القوى بنجاح بعد تأكيد الدفع.',             'payment_approved',true,   5],
+    ['امتحان جديد',     'تم نشر اختبار عزوم القوى في المستويات لكورس الاستاتيكا.',                 'new_exam',        true,   5],
+    ['تسميع جديد 📖',   'تم نشر تسميع "الاتزان العام" لكورس الاستاتيكا.',                         'new_recitation',  true,   4],
+    ['نتيجة التسميع',   'تهانينا! حصلت على 10/10 في تسميع قوانين الاتزان العام. 🌟',              'recitation_result',true,  4],
   ];
   for (const [title, msg, type, isRead, daysAgo] of stdAliNotifs) {
     await q(`
@@ -1293,7 +1434,7 @@ async function seed() {
   console.log('\n⟳  إضافة سجل المتصدرين...');
 
   const junRankings = [
-    { student_id: STD_ALI,             name: 'علي محمد رمضان',    points: 1250, rank: 1 },
+    { student_id: STD_ALI,             name: 'علي محمد رمضان',    points: 1380, rank: 1 },
     { student_id: sids['std_youssef'], name: 'يوسف إبراهيم كمال', points: 1100, rank: 2 },
     { student_id: sids['std_fatma'],   name: 'فاطمة أحمد سعد',    points: 980,  rank: 3 },
     { student_id: sids['std_omar'],    name: 'عمر سامي فرج',      points: 720,  rank: 4 },
@@ -1596,7 +1737,37 @@ async function seed() {
     RETURNING id
   `, [T1]);
 
-  console.log('  ✓ 6 تسميعات (نشط×4، قادم×1، مسودة×1) — مرتبطة بالكورسات');
+  // r7: تسميع قوانين الاتزان العام — مرتبط بكورس الاستاتيكا (c7)
+  const [r7] = await q(`
+    INSERT INTO recitations
+      (teacher_id,title,description,academic_stage,duration_minutes,
+       total_score,pass_score,points_on_attempt,points_on_pass,
+       schedule_type,start_date,end_date,is_published,course_id,video_ids)
+    VALUES ($1,
+      'تسميع قوانين الاتزان العام',
+      'تسميع سريع على شروط اتزان جسم جاسي تحت تأثير مجموعة قوى مستوية.',
+      'الصف الثالث الثانوي',10,10,5,2,5,
+      'once',
+      $2,$3,true,$4,$5)
+    RETURNING id
+  `, [T1, past(4), future(6), c7.id, JSON.stringify([c7v1])]);
+
+  // r8: تسميع المتجهات الفراغية السريع — مرتبط بكورس الهندسة الفراغية (c8)
+  const [r8] = await q(`
+    INSERT INTO recitations
+      (teacher_id,title,description,academic_stage,duration_minutes,
+       total_score,pass_score,points_on_attempt,points_on_pass,
+       schedule_type,start_date,end_date,is_published,course_id,video_ids)
+    VALUES ($1,
+      'تسميع المتجهات الفراغية السريع',
+      'تسميع سريع على معيار المتجه والضرب القياسي والاتجاهي.',
+      'الصف الثالث الثانوي',10,10,5,2,5,
+      'once',
+      $2,$3,true,$4,$5)
+    RETURNING id
+  `, [T1, past(3), future(7), c8.id, JSON.stringify([c8v1])]);
+
+  console.log('  ✓ 8 تسميعات (نشط×6، قادم×1، مسودة×1) — مرتبطة بالكورسات');
 
   // ── أسئلة التسميعات ─────────────────────────────────────
 
@@ -1724,6 +1895,44 @@ async function seed() {
     r5QIds.push({ id: qr.id, correct: ans, pts });
   }
 
+  // أسئلة r7 (الاتزان العام — 10 درجات، 5 أسئلة)
+  const r7Questions = [
+    ['mcq','شرط اتزان مجموعة من القوى المستوية هو انعدام:','المحصلة فقط','العزوم حول أي نقطة فقط','المحصلة ومجموع العزوم حول أي نقطة','لا شيء مما سبق','C',2,1],
+    ['mcq','إذا اتزن جسم تحت تأثير قوتين، فإن القوتين تكونان:','متساويتين في المقدار ومتضادتين في الاتجاه وخط عملهما واحد','متساويتين فقط','متضادتين فقط','متعامدتين','A',2,2],
+    ['true_false','رد فعل المفصل دائماً يكون معلوماً اتجاهه.','صح','خطأ',null,null,'F',2,3],
+    ['true_false','إذا كان مجموع العزوم حول نقطة لا يساوي صفراً فإن الجسم متزن.','صح','خطأ',null,null,'F',2,4],
+    ['mcq','إذا كان خط عمل محصلة مجموعة قوى يمر بنقطة O، فإن مجموع عزوم هذه القوى حول O يساوي:','القوة F','الذراع L','صفر','معيار العزم','C',2,5],
+  ];
+  const r7QIds = [];
+  for (const [qt, txt, a, b, c, d, ans, pts, ord] of r7Questions) {
+    const [qr] = await q(`
+      INSERT INTO recitation_questions
+        (recitation_id,question_type,question_text,option_a,option_b,option_c,option_d,
+         correct_answer_letter,points,sort_order)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id
+    `, [r7.id, qt, txt, a, b, c, d, ans, pts, ord]);
+    r7QIds.push({ id: qr.id, correct: ans, pts });
+  }
+
+  // أسئلة r8 (المتجهات الفراغية — 10 درجات، 5 أسئلة)
+  const r8Questions = [
+    ['mcq','جيوب تمام الاتجاه للمتجه يصنع زوايا متساوية مع المحاور إذا كان المتجه:','(1, 1, 1)','(1, 0, 0)','(0, 1, 0)','(0, 0, 1)','A',2,1],
+    ['mcq','إذا كان المتجه A=(2, -1, 3)، فإن مركبة المتجه في اتجاه محور x تساوي:','-1','2','3','0','B',2,2],
+    ['true_false','معيار المتجه الوحدة دائماً يساوي واحداً.','صح','خطأ',null,null,'T',2,3],
+    ['true_false','حاصل الضرب الاتجاهي لمتجهين هو كمية قياسية.','صح','خطأ',null,null,'F',2,4],
+    ['mcq','حاصل الضرب القياسي للمتجه A=(2, 3, 4) في المتجه الصفري يساوي:','2','3','4','0','D',2,5],
+  ];
+  const r8QIds = [];
+  for (const [qt, txt, a, b, c, d, ans, pts, ord] of r8Questions) {
+    const [qr] = await q(`
+      INSERT INTO recitation_questions
+        (recitation_id,question_type,question_text,option_a,option_b,option_c,option_d,
+         correct_answer_letter,points,sort_order)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id
+    `, [r8.id, qt, txt, a, b, c, d, ans, pts, ord]);
+    r8QIds.push({ id: qr.id, correct: ans, pts });
+  }
+
   console.log('  ✓ أسئلة التسميعات أضيفت');
 
   // ── جلسات التسميعات النشطة ───────────────────────────────
@@ -1781,6 +1990,50 @@ async function seed() {
 
   // r3: std_ali بدأ جلسة (أضيفت أعلاه) لكن لم يُسجّل نتيجة بعد
   // r4: قادم — لم يفتح بعد (لا نتيجة)
+
+  // std_ali في r7: ناجح ✓ (10/10)
+  await q(`
+    INSERT INTO recitation_results
+      (student_id,recitation_id,score,correct_count,wrong_count,unanswered_count,
+       answers,points_earned,start_time,end_time,passed,created_at,questions_snapshot)
+    VALUES ($1,$2,10,5,0,0,
+      $3,5,
+      NOW()-INTERVAL '4 days'-INTERVAL '10 minutes',
+      NOW()-INTERVAL '4 days',
+      true,NOW()-INTERVAL '4 days',$4)
+  `, [STD_ALI, r7.id, JSON.stringify(
+    r7QIds.map(q => ({ question_id: q.id, answer: q.correct, correct: true }))
+  ), makeRecitSnapshot(r7QIds)]);
+
+  // std_ali في r8: ناجح ✓ (8/10)
+  await q(`
+    INSERT INTO recitation_results
+      (student_id,recitation_id,score,correct_count,wrong_count,unanswered_count,
+       answers,points_earned,start_time,end_time,passed,created_at,questions_snapshot)
+    VALUES ($1,$2,8,4,1,0,
+      $3,5,
+      NOW()-INTERVAL '3 days'-INTERVAL '10 minutes',
+      NOW()-INTERVAL '3 days',
+      true,NOW()-INTERVAL '3 days',$4)
+  `, [STD_ALI, r8.id, JSON.stringify(
+    r8QIds.map((q, i) => ({ question_id: q.id, answer: i < 4 ? q.correct : 'A', correct: i < 4 }))
+  ), makeRecitSnapshot(r8QIds)]);
+
+  // نتائج تسميعات إضافية للطلاب الآخرين في r7 و r8
+  for (const sid of [sids['std_fatma'], sids['std_youssef']]) {
+    await q(`
+      INSERT INTO recitation_results
+        (student_id,recitation_id,score,correct_count,wrong_count,unanswered_count,
+         answers,points_earned,start_time,end_time,passed,created_at,questions_snapshot)
+      VALUES ($1,$2,10,5,0,0,$3,5,NOW()-INTERVAL '3 days'-INTERVAL '8 minutes',NOW()-INTERVAL '3 days',true,NOW()-INTERVAL '3 days',$4)
+    `, [sid, r7.id, JSON.stringify(makeRecitAnswers(r7QIds, 5, 0)), makeRecitSnapshot(r7QIds)]);
+    await q(`
+      INSERT INTO recitation_results
+        (student_id,recitation_id,score,correct_count,wrong_count,unanswered_count,
+         answers,points_earned,start_time,end_time,passed,created_at,questions_snapshot)
+      VALUES ($1,$2,8,4,1,0,$3,5,NOW()-INTERVAL '3 days'-INTERVAL '7 minutes',NOW()-INTERVAL '3 days',true,NOW()-INTERVAL '3 days',$4)
+    `, [sid, r8.id, JSON.stringify(makeRecitAnswers(r8QIds, 4, 1)), makeRecitSnapshot(r8QIds)]);
+  }
 
   // باقي طلاب في r2 (مراجعة المثلثات الأسبوعية)
   function makeRecitAnswers(qIds, correctCount, wrongCount) {
@@ -1885,18 +2138,18 @@ async function seed() {
         passed, r5Snapshot]);
   }
 
-  console.log('  ✓ نتائج التسميعات: std_ali (ناجح في r1، راسب في r2، لم يؤد r3+r4) + بيانات أرشيف شاملة');
+  console.log('  ✓ نتائج التسميعات: std_ali (ناجح في r1+r7+r8، راسب في r2، لم يؤد r3+r4) + بيانات أرشيف شاملة');
 
   // ── سلاسل التسميعات (streaks) ────────────────────────────
 
-  // std_ali: streak=3 (أكمل 3 تسميعات متتالية)
+  // std_ali: streak=5 (أكمل 5 تسميعات متتالية)
   await q(`
     INSERT INTO recitation_streaks
       (student_id,teacher_id,current_streak,max_streak,last_completed_at,total_completed,updated_at)
-    VALUES ($1,$2,3,5,NOW()-INTERVAL '4 days',8,NOW()-INTERVAL '4 days')
+    VALUES ($1,$2,5,7,NOW()-INTERVAL '3 days',10,NOW()-INTERVAL '3 days')
     ON CONFLICT (student_id,teacher_id) DO UPDATE SET
       current_streak=$3,max_streak=$4,last_completed_at=$5,total_completed=$6,updated_at=NOW()
-  `, [STD_ALI, T1, 3, 5, past(4), 8]);
+  `, [STD_ALI, T1, 5, 7, past(3), 10]);
 
   await q(`
     INSERT INTO recitation_streaks
@@ -1912,7 +2165,7 @@ async function seed() {
     ON CONFLICT (student_id,teacher_id) DO NOTHING
   `, [sids['std_mostafa'], T1]);
 
-  console.log('  ✓ سلاسل التسميعات: std_ali (streak=3/max=5)');
+  console.log('  ✓ سلاسل التسميعات: std_ali (streak=5/max=7)');
 
   // ══════════════════════════════════════════════════════════
   // 24. واتساب
@@ -2095,7 +2348,22 @@ async function seed() {
   // الأجهزة
   await log('teacher', T1, MR, 'device_alert_review', 'student', sids['std_nada'],'ندى حسن عبد الله',{alert_type:'device_limit_exceeded',action:'pending'}, 3, 4);
 
-  console.log('  ✓ سجل النشاط: 60+ حدث شامل (تسجيل دخول، كورسات، طلاب، مدفوعات، امتحانات، تسميعات، واتساب، أجهزة)');
+  // الأنشطة الجديدة
+  await log('teacher',   T1, MR, 'create_course',  'course', c7.id, 'كورس الاستاتيكا وعزوم القوى', {price:180,stage:'ث3'}, 5, 10);
+  await log('teacher',   T1, MR, 'publish_course', 'course', c7.id, 'كورس الاستاتيكا وعزوم القوى', {is_published:true},    5, 9);
+  await log('teacher',   T1, MR, 'create_course',  'course', c8.id, 'كورس الهندسة الفراغية المبسط', {price:0,is_free:true}, 4, 10);
+  await log('teacher',   T1, MR, 'publish_course', 'course', c8.id, 'كورس الهندسة الفراغية المبسط', {is_published:true},    4, 9);
+  await log('assistant', asstNour.id, NOUR, 'approve_payment', 'payment', null, 'علي محمد رمضان', {amount:180,method:'instapay',status:'verified'}, 5, 2);
+  await log('teacher',   T1, MR, 'create_exam',  'exam', e12.id, 'اختبار عزوم القوى', {total_score:30,duration:40}, 5, 8);
+  await log('teacher',   T1, MR, 'publish_exam', 'exam', e12.id, 'اختبار عزوم القوى', {is_published:true}, 5, 7);
+  await log('teacher',   T1, MR, 'create_exam',  'exam', e13.id, 'اختبار الهندسة الفراغية', {total_score:20,duration:30}, 4, 8);
+  await log('teacher',   T1, MR, 'publish_exam', 'exam', e13.id, 'اختبار الهندسة الفراغية', {is_published:true}, 4, 7);
+  await log('teacher',   T1, MR, 'create_recitation', 'recitation', r7.id, 'تسميع قوانين الاتزان العام', {duration:10,total_score:10}, 4, 6);
+  await log('teacher',   T1, MR, 'publish_recitation', 'recitation', r7.id, 'تسميع قوانين الاتزان العام', {is_published:true}, 4, 5);
+  await log('teacher',   T1, MR, 'create_recitation', 'recitation', r8.id, 'تسميع المتجهات الفراغية السريع', {duration:10,total_score:10}, 3, 6);
+  await log('teacher',   T1, MR, 'publish_recitation', 'recitation', r8.id, 'تسميع المتجهات الفراغية السريع', {is_published:true}, 3, 5);
+
+  console.log('  ✓ سجل النشاط: 70+ حدث شامل (تسجيل دخول، كورسات، طلاب، مدفوعات، امتحانات، تسميعات، واتساب، أجهزة)');
 
   // ══════════════════════════════════════════════════════════
   // ملخص نهائي
@@ -2108,33 +2376,33 @@ async function seed() {
   console.log('  │  👨‍🏫 معلم: 1           admin / admin123                      │');
   console.log('  │  🧑‍💼 مساعدون: 3        asst_nour (كاملة) | asst_karim | asst_dina │');
   console.log('  │  🎒 طلاب: 11           std_ali / 123456  (الحساب المحوري)   │');
-  console.log('  │  📚 كورسات: 6          منشور×4، مجاني×2، مسودة×1            │');
-  console.log('  │  📹 فيديوهات: 24       مع أقسام                             │');
-  console.log('  │  📄 PDF: 14                                                  │');
+  console.log('  │  📚 كورسات: 8          منشور×6، مجاني×3، مسودة×1            │');
+  console.log('  │  📹 فيديوهات: 26       مع أقسام                             │');
+  console.log('  │  📄 PDF: 16                                                  │');
   console.log('  │  🏦 بنوك أسئلة: 2      bank1 (15 سؤال) + bank2 (10 أسئلة)  │');
-  console.log('  │  📝 امتحانات: 11       منتهي×5، نشط×4، قادم×1، مسودة×1     │');
+  console.log('  │  📝 امتحانات: 13       منتهي×5، نشط×6، قادم×1، مسودة×1     │');
   console.log('  │  📊 نتائج امتحانات: شاملة (كل الطلاب × متعدد الامتحانات)   │');
-  console.log('  │  📖 تسميعات: 6         نشط×4، قادم×1، مسودة×1              │');
-  console.log('  │     std_ali: ناجح×1، راسب×1، لم يؤد×2 (r3 نشط + r4 قادم)  │');
+  console.log('  │  📖 تسميعات: 8         نشط×6، قادم×1، مسودة×1              │');
+  console.log('  │     std_ali: ناجح×3، راسب×1، لم يؤد×2 (r3 نشط + r4 قادم)  │');
   console.log('  │  📋 نتائج تسميعات: شاملة (r1,r2,r5 لمتعدد الطلاب)         │');
-  console.log('  │  💳 مدفوعات: 12        verified×8، pending×3، rejected×1    │');
-  console.log('  │  🔔 إشعارات: 9 لـ std_ali + جماعية                          │');
+  console.log('  │  💳 مدفوعات: 15        verified×11، pending×3، rejected×1   │');
+  console.log('  │  🔔 إشعارات: 13 لـ std_ali + جماعية                         │');
   console.log('  │  🏅 شارات: std_ali (×2)                                     │');
   console.log('  │  📡 بث مباشر: 3        منتهي×1، نشط×1، مجدول×1             │');
   console.log('  │  🎮 فعاليات: 5         Stickman Run                         │');
   console.log('  │  📱 أجهزة: 3 (std_ali: 0 — حر للتسجيل) + 1 تنبيه          │');
   console.log('  │  💬 واتساب: 2 جدول + 2 سجل إرسال                           │');
-  console.log('  │  📊 سجل نشاط: 60+ حدث (يشمل أحداث التسميعات)              │');
+  console.log('  │  📊 سجل نشاط: 70+ حدث (يشمل أحداث التسميعات)              │');
   console.log('  └──────────────────────────────────────────────────────────────┘');
   console.log('\n  🔑 بيانات تسجيل الدخول:');
   console.log('     معلم    → admin / admin123');
   console.log('     مساعد   → asst_nour / 123456  (صلاحيات كاملة)');
   console.log('     طالب    → std_ali / 123456    (الحساب المحوري)');
   console.log('\n  📊 سيناريوهات std_ali:');
-  console.log('     كورسات   → C1+C2 مفتوح (جزئي)، C3 مكتمل، C5 طلب معلّق');
-  console.log('     امتحانات → ناجح×3، راسب×1، جلسة نشطة×1، قادم×1، لم يؤد×2');
-  console.log('     تسميعات → ناجح×1، راسب×1، متاح لم يؤده×1، قادم×1');
-  console.log('     متصدرين → مركز 3 حالياً، 1 في أبريل، 2 في مايو');
+  console.log('     كورسات   → C1+C2 مفتوح (جزئي)، C3 مكتمل، C7+C8 نشط، C5 طلب معلّق');
+  console.log('     امتحانات → ناجح×5، راسب×1، جلسة نشطة×1، قادم×1، لم يؤد×2');
+  console.log('     تسميعات → ناجح×3، راسب×1، متاح لم يؤده×1، قادم×1');
+  console.log('     متصدرين → مركز 1 حالياً، 1 في أبريل، 2 في مايو');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 }
 
