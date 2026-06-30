@@ -667,6 +667,7 @@ export default function Recitations() {
 function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, addQMut, deleteQMut, dark, cardCls }) {
   const [imgUploading, setImgUploading] = useState(false);
   const [imgMultiCount, setImgMultiCount] = useState(5);
+  const [imgPreviewBlob, setImgPreviewBlob] = useState(null);
   const imgInputRef = useRef();
 
   const tf = qForm.question_type === 'true_false';
@@ -675,6 +676,8 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    const blobUrl = URL.createObjectURL(file);
+    setImgPreviewBlob(blobUrl);
     const formData = new FormData();
     formData.append('image', file);
     setImgUploading(true);
@@ -684,6 +687,8 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
       });
       setQForm(f => ({ ...f, question_image_url: data.url }));
     } catch (err) {
+      URL.revokeObjectURL(blobUrl);
+      setImgPreviewBlob(null);
       toast.error(err.response?.data?.error || 'فشل رفع الصورة');
     } finally {
       setImgUploading(false);
@@ -739,13 +744,13 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
               <input ref={imgInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
               {qForm.question_image_url ? (
                 <div className="relative rounded-xl overflow-hidden border">
-                  <img src={withToken(qForm.question_image_url)} alt="question" className="w-full max-h-48 object-contain" />
+                  <img src={imgPreviewBlob || withToken(qForm.question_image_url)} alt="question" className="w-full max-h-48 object-contain" />
                   <div className="absolute top-2 left-2 flex gap-1.5">
                     <button onClick={() => imgInputRef.current?.click()}
                       className="px-2.5 py-1.5 bg-white/95 text-gray-700 text-xs rounded-lg font-bold shadow-sm hover:bg-white flex items-center gap-1">
                       <Upload className="w-3 h-3" /> تغيير
                     </button>
-                    <button onClick={() => setQForm(f => ({ ...f, question_image_url: '' }))}
+                    <button onClick={() => { if (imgPreviewBlob) { URL.revokeObjectURL(imgPreviewBlob); setImgPreviewBlob(null); } setQForm(f => ({ ...f, question_image_url: '' })); }}
                       className="px-2.5 py-1.5 bg-red-500/90 text-white text-xs rounded-lg font-bold shadow-sm hover:bg-red-500">
                       حذف
                     </button>
@@ -867,13 +872,13 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
                 <input type="number" min="1" value={qForm.points} onChange={e => setQForm(f => ({ ...f, points: parseInt(e.target.value) || 1 }))}
                   className={`w-20 rounded-xl px-3 py-2 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`} />
               </div>
-              <button onClick={() => addQMut.mutate(qForm)} disabled={addQMut.isPending || !canSubmit()}
+              <button onClick={() => { addQMut.mutate(qForm); if (imgPreviewBlob) { URL.revokeObjectURL(imgPreviewBlob); setImgPreviewBlob(null); } }} disabled={addQMut.isPending || !canSubmit()}
                 className="flex items-center gap-1.5 bg-purple-500 hover:bg-purple-600 disabled:opacity-50 text-white px-4 py-2 rounded-xl text-sm font-bold">
                 {addQMut.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                 {editQId ? 'حفظ' : 'إضافة'}
               </button>
               {editQId && (
-                <button onClick={() => { setEditQId(null); setQForm(emptyQ); }}
+                <button onClick={() => { setEditQId(null); setQForm(emptyQ); if (imgPreviewBlob) { URL.revokeObjectURL(imgPreviewBlob); setImgPreviewBlob(null); } }}
                   className={`px-4 py-2 rounded-xl text-sm font-bold ${dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-500'}`}>
                   إلغاء
                 </button>
@@ -950,6 +955,7 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
             {!rec.is_published && (
               <div className="flex gap-1 flex-shrink-0">
                 <button onClick={() => {
+                  if (imgPreviewBlob) { URL.revokeObjectURL(imgPreviewBlob); setImgPreviewBlob(null); }
                   setEditQId(q.id);
                   setQForm({ question_text: q.question_text || '', question_image_url: q.question_image_url || '', question_type: q.question_type, option_a: q.option_a || '', option_b: q.option_b || '', option_c: q.option_c || '', option_d: q.option_d || '', correct_answer_letter: q.correct_answer_letter, points: q.points, sub_questions: q.sub_questions || [] });
                 }}
