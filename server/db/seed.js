@@ -2338,7 +2338,84 @@ async function seed() {
     RETURNING id
   `, [T1, past(2), future(8), c7.id, JSON.stringify([c7v1])]);
 
-  console.log('  ✓ 9 تسميعات (نشط×7، قادم×1، مسودة×1) — مرتبطة بالكورسات');
+  // ══ التسميعات التجريبية (rt1 → rt5) — نشطة ومتاحة لـ std_ali بدون نتائج ══
+
+  // rt1: تسميع تجريبي — MCQ فقط بدون صور — c1
+  const [rt1] = await q(`
+    INSERT INTO recitations
+      (teacher_id,title,description,academic_stage,duration_minutes,
+       total_score,pass_score,points_on_attempt,points_on_pass,
+       schedule_type,start_date,end_date,is_published,
+       shuffle_questions,shuffle_options,course_id)
+    VALUES ($1,
+      'تسميع تجريبي: الجبر الأساسي (اختيار متعدد فقط)',
+      'تسميع تجريبي يغطي المعادلات والمتباينات بأسئلة اختيار متعدد فقط — بدون صور',
+      'الصف الثالث الثانوي',10,20,12,3,8,
+      'once',$2,$3,true,false,false,$4)
+    RETURNING id
+  `, [T1, past(3), future(10), c1.id]);
+
+  // rt2: تسميع تجريبي — MCQ + صح/خطأ بدون صور — c1
+  const [rt2] = await q(`
+    INSERT INTO recitations
+      (teacher_id,title,description,academic_stage,duration_minutes,
+       total_score,pass_score,points_on_attempt,points_on_pass,
+       schedule_type,start_date,end_date,is_published,
+       shuffle_questions,shuffle_options,course_id)
+    VALUES ($1,
+      'تسميع تجريبي: المثلثات المختلط (اختيار متعدد + صح/خطأ)',
+      'أسئلة مزيجة من اختيار متعدد وصح/خطأ على المثلثات — بدون صور',
+      'الصف الثالث الثانوي',12,24,14,3,10,
+      'once',$2,$3,true,true,false,$4)
+    RETURNING id
+  `, [T1, past(2), future(12), c1.id]);
+
+  // rt3: تسميع تجريبي — MCQ + أسئلة بصور — c2
+  const [rt3] = await q(`
+    INSERT INTO recitations
+      (teacher_id,title,description,academic_stage,duration_minutes,
+       total_score,pass_score,points_on_attempt,points_on_pass,
+       schedule_type,start_date,end_date,is_published,
+       shuffle_questions,shuffle_options,course_id)
+    VALUES ($1,
+      'تسميع تجريبي: التفاضل مع الرسوم البيانية (أسئلة بصور)',
+      'أسئلة على التفاضل مصحوبة بصور ورسوم بيانية لقراءتها والإجابة عنها',
+      'الصف الثالث الثانوي',15,25,15,3,10,
+      'once',$2,$3,true,false,true,$4)
+    RETURNING id
+  `, [T1, past(4), future(8), c2.id]);
+
+  // rt4: تسميع تجريبي — image_multi (صورة + بنود فرعية) — c2
+  const [rt4] = await q(`
+    INSERT INTO recitations
+      (teacher_id,title,description,academic_stage,duration_minutes,
+       total_score,pass_score,points_on_attempt,points_on_pass,
+       schedule_type,start_date,end_date,is_published,
+       shuffle_questions,shuffle_options,course_id)
+    VALUES ($1,
+      'تسميع تجريبي: التكامل — صور متعددة الأسئلة (image_multi)',
+      'أسئلة تحتوي على صورة واحدة مع عدة بنود فرعية مرتبطة بها — أعلى مستوى',
+      'الصف الثالث الثانوي',15,30,18,3,12,
+      'once',$2,$3,true,false,false,$4)
+    RETURNING id
+  `, [T1, past(1), future(14), c2.id]);
+
+  // rt5: تسميع تجريبي — مختلط كامل (MCQ + صح/خطأ + صورة + image_multi) — c7
+  const [rt5] = await q(`
+    INSERT INTO recitations
+      (teacher_id,title,description,academic_stage,duration_minutes,
+       total_score,pass_score,points_on_attempt,points_on_pass,
+       schedule_type,start_date,end_date,is_published,
+       shuffle_questions,shuffle_options,course_id)
+    VALUES ($1,
+      'تسميع تجريبي: الاستاتيكا الشاملة (كل أنواع الأسئلة)',
+      'تسميع يجمع كل الأنواع: اختيار متعدد + صح/خطأ + صورة + صورة متعددة الأسئلة',
+      'الصف الثالث الثانوي',18,36,22,3,14,
+      'once',$2,$3,true,true,true,$4)
+    RETURNING id
+  `, [T1, past(2), future(9), c7.id]);
+
+  console.log('  ✓ 9 تسميعات (نشط×7، قادم×1، مسودة×1) — مرتبطة بالكورسات + 5 تسميعات تجريبية لـ std_ali');
 
   // ── أسئلة التسميعات ─────────────────────────────────────
 
@@ -2522,6 +2599,190 @@ async function seed() {
     `, [r9.id, qt, txt, a, b, c, d, ans, pts, ord]);
     r9QIds.push({ id: qr.id, question_type: qt, question_text: txt, option_a: a, option_b: b, option_c: c, option_d: d, correct_answer_letter: ans, correct: ans, points: pts, pts, sort_order: ord });
   }
+
+  // ══════════════════════════════════════════════════════════
+  // أسئلة التسميعات التجريبية (rt1 → rt5)
+  // ══════════════════════════════════════════════════════════
+
+  // ── rt1: الجبر الأساسي — MCQ فقط بدون صور (8 أسئلة، 20 درجة) ──
+  const rt1Questions = [
+    ['mcq','ما قيمة x في: 4x - 8 = 12؟','4','5','6','7','B',2,1],
+    ['mcq','حل: (x+3)(x-2) = 0','x=3 أو x=-2','x=-3 أو x=2','x=3 أو x=2','x=-3 أو x=-2','B',3,2],
+    ['mcq','إذا كان x² = 49 فقيمة x الموجبة هي:','6','7','8','9','B',3,3],
+    ['mcq','ما مجموع جذري x² - 7x + 10 = 0 ؟','10','7','3','5','B',3,4],
+    ['mcq','حاصل ضرب جذري x² + 5x + 6 = 0 هو:','5','6','-5','10','B',3,5],
+    ['mcq','ما أكبر قيمة صحيحة تحقق: 3x - 4 < 11؟','4','5','6','7','A',3,6],
+    ['mcq','المنطقة الحقيقية لحل x² - 4 > 0 هي:','x > 2','x < -2 أو x > 2','−2 < x < 2','x < 2','B',3,7],
+  ];
+  for (const [qt, txt, a, b, c, d, ans, pts, ord] of rt1Questions) {
+    await q(`
+      INSERT INTO recitation_questions
+        (recitation_id,question_type,question_text,option_a,option_b,option_c,option_d,
+         correct_answer_letter,points,sort_order)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+    `, [rt1.id, qt, txt, a, b, c, d, ans, pts, ord]);
+  }
+
+  // ── rt2: المثلثات المختلط — MCQ + صح/خطأ بدون صور (8 أسئلة، 24 درجة) ──
+  const rt2Questions = [
+    ['mcq','في مثلث قائم: إذا كانت إحدى زوايته 30° فالأخرى هي:','45°','50°','60°','70°','C',3,1],
+    ['mcq','قانون الجيوب يُطبَّق عندما تعرف:','ضلعين وزاوية بينهما','ثلاثة أضلاع','ضلعاً وزاويتين','زاويتين فقط','C',3,2],
+    ['mcq','في مثلث ABC: إذا a=5, b=7 وA=30° — ما sin(B)؟','0.35','0.7','0.5','1','B',3,3],
+    ['mcq','قيمة cos(120°) تساوي:','1/2','-1/2','√3/2','-√3/2','B',3,4],
+    ['true_false','في أي مثلث: a/sin(A) = b/sin(B) = c/sin(C)','صح','خطأ',null,null,'T',3,5],
+    ['true_false','sin(180° - x) = sin(x)','صح','خطأ',null,null,'T',3,6],
+    ['true_false','cos(2x) = 1 - 2sin²(x)','صح','خطأ',null,null,'T',3,7],
+    ['true_false','tan(x) = sin(x) / cos(x) صحيحة لجميع قيم x','صح','خطأ',null,null,'F',3,8],
+  ];
+  for (const [qt, txt, a, b, c, d, ans, pts, ord] of rt2Questions) {
+    await q(`
+      INSERT INTO recitation_questions
+        (recitation_id,question_type,question_text,option_a,option_b,option_c,option_d,
+         correct_answer_letter,points,sort_order)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+    `, [rt2.id, qt, txt, a, b, c, d, ans, pts, ord]);
+  }
+
+  // ── rt3: التفاضل مع الرسوم البيانية — MCQ + صور (7 أسئلة، 25 درجة) ──
+  const rt3TextQs = [
+    ['mcq','مشتقة f(x) = 3x³ - 2x + 7 تساوي:','9x² - 2','9x + 2','3x² - 2','6x - 2','A',3,1],
+    ['mcq','عند نقطة الحد الأقصى المحلي لدالة ما، قيمة f\'(x) تساوي:','لا نهاية','1','-1','0','D',3,2],
+    ['mcq','إذا كانت f\'(x) > 0 على فترة ما فالدالة في هذه الفترة:','متناقصة','ثابتة','متزايدة','غير مستمرة','C',3,3],
+    ['true_false','إذا كانت f\'(a) = 0 فإن a نقطة حد قصوى أو أدنى بالضرورة','صح','خطأ',null,null,'F',3,4],
+  ];
+  for (const [qt, txt, a, b, c, d, ans, pts, ord] of rt3TextQs) {
+    await q(`
+      INSERT INTO recitation_questions
+        (recitation_id,question_type,question_text,option_a,option_b,option_c,option_d,
+         correct_answer_letter,points,sort_order)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+    `, [rt3.id, qt, txt, a, b, c, d, ans, pts, ord]);
+  }
+  // سؤال بصورة 1 — rt3
+  await q(`
+    INSERT INTO recitation_questions
+      (recitation_id,question_type,question_text,option_a,option_b,option_c,option_d,
+       correct_answer_letter,points,sort_order,question_image_url)
+    VALUES ($1,'mcq',
+      'من الرسم البياني للدالة — في أي نقطة تكون مشتقة الدالة تساوي صفراً؟',
+      'عند x = -2','عند x = 0 عند القمة','عند x = 2','عند x = 4','B',4,5,$2)
+  `, [rt3.id, 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f7/Graph_of_f%28x%29%3Dx%5E2.svg/400px-Graph_of_f%28x%29%3Dx%5E2.svg.png']);
+  // سؤال بصورة 2 — rt3 (قراءة معدل التغير من رسم بياني)
+  await q(`
+    INSERT INTO recitation_questions
+      (recitation_id,question_type,question_text,option_a,option_b,option_c,option_d,
+       correct_answer_letter,points,sort_order,question_image_url)
+    VALUES ($1,'mcq',
+      'من الرسم البياني — ما ميل المماس للمنحنى عند نقطة الأصل؟',
+      'صفر','1','2','لا يمكن تحديده','A',4,6,$2)
+  `, [rt3.id, 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9e/Integral_as_region_under_curve.svg/400px-Integral_as_region_under_curve.svg.png']);
+  // سؤال بصورة 3 — rt3 (تحديد فترة التزايد)
+  await q(`
+    INSERT INTO recitation_questions
+      (recitation_id,question_type,question_text,option_a,option_b,option_c,option_d,
+       correct_answer_letter,points,sort_order,question_image_url)
+    VALUES ($1,'mcq',
+      'من الرسم — حدد الفترة التي تكون فيها الدالة متزايدة:',
+      '(-∞, 0)','(0, +∞)','(-2, 2)','لا توجد فترة تزايد','B',4,7,$2)
+  `, [rt3.id, 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Logarithm_plots.png/400px-Logarithm_plots.png']);
+
+  // ── rt4: التكامل — image_multi (4 أسئلة متنوعة، 30 درجة) ──
+  const rt4TextQs = [
+    ['mcq','∫(4x³ - 6x + 1) dx = ','x⁴ - 3x² + x + C','4x⁴ - 6x² + x + C','x⁴ - 3x + C','4x² - 6 + C','A',5,1],
+    ['mcq','∫₁² (2x) dx = ','2','3','4','6','B',5,2],
+    ['true_false','التكامل المحدود يساوي دائماً مساحة موجبة','صح','خطأ',null,null,'F',5,3],
+  ];
+  for (const [qt, txt, a, b, c, d, ans, pts, ord] of rt4TextQs) {
+    await q(`
+      INSERT INTO recitation_questions
+        (recitation_id,question_type,question_text,option_a,option_b,option_c,option_d,
+         correct_answer_letter,points,sort_order)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+    `, [rt4.id, qt, txt, a, b, c, d, ans, pts, ord]);
+  }
+  // سؤال image_multi 1 — rt4 (3 بنود)
+  const rt4Multi1Subs = JSON.stringify([
+    { label: '1', correct: 'B' },
+    { label: '2', correct: 'A' },
+    { label: '3', correct: 'C' },
+  ]);
+  await q(`
+    INSERT INTO recitation_questions
+      (recitation_id,question_type,question_text,option_a,option_b,option_c,option_d,
+       correct_answer_letter,points,sort_order,question_image_url,sub_questions)
+    VALUES ($1,'image_multi',
+      'انظر إلى الرسم البياني — طابق كل تكامل محدود مع قيمته الصحيحة بالنظر إلى المساحات',
+      'المساحة 1','المساحة 2','المساحة 3','لا شيء','B',8,4,$2,$3)
+  `, [rt4.id,
+     'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9f/Integral_approximation.svg/400px-Integral_approximation.svg.png',
+     rt4Multi1Subs]);
+  // سؤال image_multi 2 — rt4 (2 بنود)
+  const rt4Multi2Subs = JSON.stringify([
+    { label: 'A', correct: 'A' },
+    { label: 'B', correct: 'C' },
+  ]);
+  await q(`
+    INSERT INTO recitation_questions
+      (recitation_id,question_type,question_text,option_a,option_b,option_c,option_d,
+       correct_answer_letter,points,sort_order,question_image_url,sub_questions)
+    VALUES ($1,'image_multi',
+      'من الشكل — حدد طبيعة كل منطقة: هل هي موجبة أم سالبة في التكامل المحدود؟',
+      'موجبة','سالبة','صفر','غير محددة','A',7,5,$2,$3)
+  `, [rt4.id,
+     'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9e/Integral_as_region_under_curve.svg/400px-Integral_as_region_under_curve.svg.png',
+     rt4Multi2Subs]);
+
+  // ── rt5: الاستاتيكا الشاملة — كل الأنواع (10 أسئلة، 36 درجة) ──
+  const rt5TextQs = [
+    ['mcq','شرط اتزان مجموعة قوى مستوية هو:','ΣFx=0 فقط','ΣFy=0 فقط','ΣFx=0 وΣFy=0 وΣM=0','ΣM=0 فقط','C',3,1],
+    ['mcq','قوة تؤثر على جسم وخط عملها يمر بمركز الثقل — عزمها بالنسبة لأي نقطة على خط عملها:','يساوي صفر','يساوي Q×d','يعتمد على المسافة','لا يمكن تحديده','A',3,2],
+    ['mcq','رد فعل الوتد الأملس:','موازٍ للسطح','عمودي على السطح','في أي اتجاه','عمودي على القضيب','B',3,3],
+    ['true_false','عزم القوة كمية اتجاهية تعتمد على نقطة المرجع','صح','خطأ',null,null,'T',3,4],
+    ['true_false','إذا كانت محصلة القوى صفراً فالجسم متزن بالضرورة','صح','خطأ',null,null,'F',3,5],
+    ['true_false','قوة الاحتكاك تعمل دائماً عكس اتجاه الحركة أو الحركة المحتملة','صح','خطأ',null,null,'T',3,6],
+  ];
+  for (const [qt, txt, a, b, c, d, ans, pts, ord] of rt5TextQs) {
+    await q(`
+      INSERT INTO recitation_questions
+        (recitation_id,question_type,question_text,option_a,option_b,option_c,option_d,
+         correct_answer_letter,points,sort_order)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+    `, [rt5.id, qt, txt, a, b, c, d, ans, pts, ord]);
+  }
+  // سؤال بصورة — rt5
+  await q(`
+    INSERT INTO recitation_questions
+      (recitation_id,question_type,question_text,option_a,option_b,option_c,option_d,
+       correct_answer_letter,points,sort_order,question_image_url)
+    VALUES ($1,'mcq',
+      'من الشكل — ما اتجاه ردود أفعال المسند الثابت (Pin Support) في النقطة A؟',
+      'رد فعل أفقي فقط','رد فعل رأسي فقط','رد فعل أفقي ورأسي','رد فعل في اتجاه القوة المؤثرة','C',4,7,$2)
+  `, [rt5.id, 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Monfeltro_facet_02.jpg/320px-Monfeltro_facet_02.jpg']);
+  // سؤال image_multi — rt5 (3 بنود)
+  const rt5MultiSubs = JSON.stringify([
+    { label: '1', correct: 'A' },
+    { label: '2', correct: 'C' },
+    { label: '3', correct: 'B' },
+  ]);
+  await q(`
+    INSERT INTO recitation_questions
+      (recitation_id,question_type,question_text,option_a,option_b,option_c,option_d,
+       correct_answer_letter,points,sort_order,question_image_url,sub_questions)
+    VALUES ($1,'image_multi',
+      'انظر إلى الجسم الخاضع لمجموعة قوى — حدد نوع كل تفاعل في النقاط A وB وC',
+      'مفصل (Pin)','بكرة (Roller)','جدار خشن','وتد أملس','A',4,8,$2,$3)
+  `, [rt5.id,
+     'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Beam_with_supports.svg/400px-Beam_with_supports.svg.png',
+     rt5MultiSubs]);
+  // سؤال صح/خطأ بصورة — rt5
+  await q(`
+    INSERT INTO recitation_questions
+      (recitation_id,question_type,question_text,option_a,option_b,option_c,option_d,
+       correct_answer_letter,points,sort_order,question_image_url)
+    VALUES ($1,'true_false',
+      'من الشكل — هل يمكن حل هذه المسألة بمعادلات الاتزان الثلاثة؟ (الجسم محدد إستاتيكياً)',
+      'صح','خطأ',null,null,'T',4,9,$2)
+  `, [rt5.id, 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Monfeltro_facet_02.jpg/320px-Monfeltro_facet_02.jpg']);
 
   console.log('  ✓ أسئلة التسميعات أضيفت بالكامل بما فيها التسميعات الجديدة');
 
