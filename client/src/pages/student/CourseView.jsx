@@ -1440,7 +1440,7 @@ function SidebarQuestionCard({ q, idx, answers, setAnswers }) {
         )}
       </div>
       {q.question_image_url && (
-        <img src={q.question_image_url} alt="question" className="w-full max-h-32 object-contain rounded-lg border border-white/10 mb-2" />
+        <img src={withToken(q.question_image_url)} alt="question" className="w-full max-h-32 object-contain rounded-lg border border-white/10 mb-2" />
       )}
       {isImgMulti ? (
         <div className="space-y-1.5">
