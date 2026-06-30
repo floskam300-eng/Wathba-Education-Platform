@@ -267,13 +267,13 @@ export default function RecitationReviewPage() {
                     )}
 
                     {/* Correction note for unanswered */}
-                    {!isImgMulti && !answered && q.correct_answer && (
+                    {!isImgMulti && !answered && (q.correct_answer_letter || q.correct_answer) && (
                       <div className="mt-3 flex items-center gap-2 text-xs font-semibold bg-gray-50 dark:bg-[var(--dk-elevated)] border border-gray-200 dark:border-[var(--dk-border)] rounded-xl px-4 py-2.5">
                         <Minus className="w-3.5 h-3.5 text-gray-400" />
                         <span className="text-gray-500 dark:text-[var(--dk-text-2)]">لم تُجِب</span>
                         <span className="mx-1 text-gray-300 dark:text-[var(--dk-text-3)]">—</span>
                         <CheckCircle className="w-3.5 h-3.5 text-green-600" />
-                        <span className="text-green-800 dark:text-green-400">الصحيح: <strong>{q.correct_answer}</strong></span>
+                        <span className="text-green-800 dark:text-green-400">الصحيح: <strong>{q.correct_answer_letter || q.correct_answer}</strong></span>
                       </div>
                     )}
                   </div>

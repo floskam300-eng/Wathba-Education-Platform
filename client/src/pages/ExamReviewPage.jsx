@@ -333,7 +333,7 @@ export default function ExamReviewPage() {
                         <img
                           src={withToken(q.question_image_url)}
                           alt=""
-                          className={`mt-2 mb-3 w-full max-w-sm rounded-xl border object-contain cursor-zoom-in ${dark ? 'border-[var(--dk-border)]' : 'border-gray-200'}`}
+                          className={`mt-2 mb-3 w-full max-w-full max-h-72 rounded-xl border object-contain cursor-zoom-in ${dark ? 'border-[var(--dk-border)]' : 'border-gray-200'}`}
                           onClick={() => setLightboxSrc(withToken(q.question_image_url))}
                         />
                       )}

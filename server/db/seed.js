@@ -2014,11 +2014,12 @@ async function seed() {
   console.log('  ✓ جلسة تسميع نشطة: std_ali في r3 (بدأ ولم يكمل)');
 
   // ── دالة مساعدة: بناء snapshot الأسئلة للتسميع ──────────
-  function makeRecitSnapshot(qIds) {
-    return JSON.stringify(qIds.map(q => ({
-      question_id: q.id,
-      correct_answer_letter: q.correct,
-    })));
+  // نحن نخزّن مصفوفة فارغة عمداً حتى يرجع endpoint المراجعة
+  // إلى جدول recitation_questions مباشرةً ويحصل على كامل بيانات
+  // الأسئلة (نص، خيارات، صورة). أي snapshot مختصر لا يحتوي على
+  // هذه الحقول يتسبب في ظهور صناديق فارغة في صفحة المراجعة.
+  function makeRecitSnapshot(_qIds) {
+    return JSON.stringify([]);
   }
 
   // ── نتائج التسميعات ──────────────────────────────────────
