@@ -37,6 +37,7 @@ export default function RecitationQuestions() {
   const [editQ, setEditQ] = useState(null);
   const [deleteQId, setDeleteQId] = useState(null);
   const [imgUploading, setImgUploading] = useState(false);
+  const [imgPreviewBlob, setImgPreviewBlob] = useState(null);
   const [imgMultiCount, setImgMultiCount] = useState(5);
   const imgInputRef = useRef(null);
   const formTopRef = useRef(null);
@@ -54,12 +55,18 @@ export default function RecitationQuestions() {
   const resetForm = () => {
     setEditQ(null);
     setQForm(emptyQ);
+    if (imgPreviewBlob) { URL.revokeObjectURL(imgPreviewBlob); setImgPreviewBlob(null); }
     if (imgInputRef.current) imgInputRef.current.value = '';
   };
 
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    // Create a local blob URL immediately so the preview works before the
+    // question is saved (server returns 404 for unregistered files).
+    const blobUrl = URL.createObjectURL(file);
+    if (imgPreviewBlob) URL.revokeObjectURL(imgPreviewBlob);
+    setImgPreviewBlob(blobUrl);
     const fd = new FormData();
     fd.append('image', file);
     setImgUploading(true);
@@ -69,6 +76,8 @@ export default function RecitationQuestions() {
       });
       setQForm(f => ({ ...f, question_image_url: data.url }));
     } catch (err) {
+      URL.revokeObjectURL(blobUrl);
+      setImgPreviewBlob(null);
       toast.error(err.response?.data?.error || 'فشل رفع الصورة');
     } finally {
       setImgUploading(false);
@@ -116,6 +125,7 @@ export default function RecitationQuestions() {
   };
 
   const startEdit = (q) => {
+    if (imgPreviewBlob) { URL.revokeObjectURL(imgPreviewBlob); setImgPreviewBlob(null); }
     setEditQ(q);
     setQForm({
       question_text: q.question_text || '',
@@ -284,7 +294,7 @@ export default function RecitationQuestions() {
                     {qForm.question_image_url ? (
                       <div className="relative rounded-xl overflow-hidden border border-gray-200 dark:border-[var(--dk-border)] min-h-28 bg-gray-50 dark:bg-[var(--dk-elevated)]">
                         <img
-                          src={withToken(qForm.question_image_url)}
+                          src={imgPreviewBlob || withToken(qForm.question_image_url)}
                           alt="question"
                           className="w-full max-h-48 object-contain"
                           style={{ display: 'block' }}
@@ -294,7 +304,10 @@ export default function RecitationQuestions() {
                             className="px-2.5 py-1.5 bg-white/95 dark:bg-[var(--dk-elevated)]/95 text-gray-700 dark:text-[var(--dk-text-1)] text-xs rounded-lg font-bold shadow-sm hover:bg-white dark:hover:bg-[var(--dk-hover)] flex items-center gap-1">
                             <Upload className="w-3 h-3" /> تغيير
                           </button>
-                          <button type="button" onClick={() => setQForm(f => ({ ...f, question_image_url: '' }))}
+                          <button type="button" onClick={() => {
+                            if (imgPreviewBlob) { URL.revokeObjectURL(imgPreviewBlob); setImgPreviewBlob(null); }
+                            setQForm(f => ({ ...f, question_image_url: '' }));
+                          }}
                             className="px-2.5 py-1.5 bg-red-500/90 text-white text-xs rounded-lg font-bold shadow-sm hover:bg-red-500">
                             حذف
                           </button>
