@@ -1448,7 +1448,7 @@ function SidebarQuestionCard({ q, idx, answers, setAnswers }) {
           <img
             src={withToken(q.question_image_url)}
             alt="question"
-            className="w-full max-h-32 object-contain rounded-lg border border-white/10 cursor-zoom-in"
+            className="w-full max-h-64 sm:max-h-80 object-contain rounded-lg border border-white/10 cursor-zoom-in"
             onClick={() => setLightboxSrc(withToken(q.question_image_url))}
           />
           <button
