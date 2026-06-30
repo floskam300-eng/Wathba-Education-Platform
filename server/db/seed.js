@@ -648,7 +648,139 @@ async function seed() {
     RETURNING id
   `, [c7.id, T1, past(2), future(8)]);
 
-  console.log('  ✓ 14 امتحان (منتهي×5، نشط×7، قادم×1، مسودة×1)');
+  // ══ الامتحانات التجريبية العشرة (et1 → et10) — كلها منتهية لتظهر في سجل std_ali ══
+
+  // et1: الحساب الذهني — MCQ فقط بدون صور — std_ali ناجح
+  const [et1] = await q(`
+    INSERT INTO exams
+      (title,duration_minutes,total_score,course_id,teacher_id,
+       pass_score,badge_name,badge_color,is_published,
+       start_date,end_date,shuffle_questions,shuffle_options,
+       points_on_attempt,points_on_pass)
+    VALUES ('امتحان تجريبي: الحساب الذهني',30,30,$1,$2,
+      18,'نجم الحساب','#22c55e',true,
+      $3,$4,false,false,5,15)
+    RETURNING id
+  `, [c1.id, T1, past(60), past(55)]);
+
+  // et2: المنطق الرياضي — MCQ + صح/خطأ بدون صور — std_ali راسب
+  const [et2] = await q(`
+    INSERT INTO exams
+      (title,duration_minutes,total_score,course_id,teacher_id,
+       pass_score,is_published,
+       start_date,end_date,shuffle_questions,shuffle_options,
+       points_on_attempt,points_on_pass)
+    VALUES ('امتحان تجريبي: المنطق الرياضي',40,40,$1,$2,
+      24,true,
+      $3,$4,true,false,5,15)
+    RETURNING id
+  `, [c1.id, T1, past(55), past(50)]);
+
+  // et3: الهندسة الأساسية — MCQ + أسئلة بصور — std_ali ناجح
+  const [et3] = await q(`
+    INSERT INTO exams
+      (title,duration_minutes,total_score,course_id,teacher_id,
+       pass_score,badge_name,badge_color,is_published,
+       start_date,end_date,shuffle_questions,shuffle_options,
+       points_on_attempt,points_on_pass)
+    VALUES ('امتحان تجريبي: الهندسة الأساسية',45,50,$1,$2,
+      30,'مهندس المستقبل','#3b82f6',true,
+      $3,$4,false,true,5,20)
+    RETURNING id
+  `, [c1.id, T1, past(50), past(45)]);
+
+  // et4: الجبر المتقدم — MCQ + image_multi — std_ali راسب
+  const [et4] = await q(`
+    INSERT INTO exams
+      (title,duration_minutes,total_score,course_id,teacher_id,
+       pass_score,is_published,
+       start_date,end_date,shuffle_questions,shuffle_options,
+       points_on_attempt,points_on_pass)
+    VALUES ('امتحان تجريبي: الجبر المتقدم',50,45,$1,$2,
+      27,true,
+      $3,$4,true,true,5,15)
+    RETURNING id
+  `, [c1.id, T1, past(45), past(40)]);
+
+  // et5: التفاضل والتكامل — MCQ + صح/خطأ + صورة — std_ali ناجح بامتياز
+  const [et5] = await q(`
+    INSERT INTO exams
+      (title,duration_minutes,total_score,course_id,teacher_id,
+       pass_score,badge_name,badge_color,is_published,
+       start_date,end_date,shuffle_questions,shuffle_options,
+       points_on_attempt,points_on_pass)
+    VALUES ('امتحان تجريبي: التفاضل والتكامل',60,60,$1,$2,
+      36,'أسطورة التفاضل','#a855f7',true,
+      $3,$4,false,false,5,25)
+    RETURNING id
+  `, [c2.id, T1, past(40), past(35)]);
+
+  // et6: الإحصاء والاحتمالات — MCQ + صح/خطأ بدون صور — std_ali ناجح بالحد الأدنى
+  const [et6] = await q(`
+    INSERT INTO exams
+      (title,duration_minutes,total_score,course_id,teacher_id,
+       pass_score,is_published,
+       start_date,end_date,shuffle_questions,shuffle_options,
+       points_on_attempt,points_on_pass)
+    VALUES ('امتحان تجريبي: الإحصاء والاحتمالات',35,30,$1,$2,
+      18,true,
+      $3,$4,false,false,5,12)
+    RETURNING id
+  `, [c2.id, T1, past(35), past(30)]);
+
+  // et7: الأعداد والمعاملات — MCQ + أسئلة مجمّعة (group) — std_ali راسب
+  const [et7] = await q(`
+    INSERT INTO exams
+      (title,duration_minutes,total_score,course_id,teacher_id,
+       pass_score,is_published,
+       start_date,end_date,shuffle_questions,shuffle_options,
+       points_on_attempt,points_on_pass)
+    VALUES ('امتحان تجريبي: الأعداد والمعاملات',40,40,$1,$2,
+      24,true,
+      $3,$4,true,false,5,15)
+    RETURNING id
+  `, [c1.id, T1, past(30), past(25)]);
+
+  // et8: المتتاليات والمتسلسلات — MCQ + صورة + صح/خطأ — std_ali ناجح
+  const [et8] = await q(`
+    INSERT INTO exams
+      (title,duration_minutes,total_score,course_id,teacher_id,
+       pass_score,badge_name,badge_color,is_published,
+       start_date,end_date,shuffle_questions,shuffle_options,
+       points_on_attempt,points_on_pass)
+    VALUES ('امتحان تجريبي: المتتاليات والمتسلسلات',45,36,$1,$2,
+      22,'نجم المتتاليات','#f59e0b',true,
+      $3,$4,false,true,5,15)
+    RETURNING id
+  `, [c2.id, T1, past(25), past(20)]);
+
+  // et9: الإحداثيات والتحويلات — MCQ + صح/خطأ + image_multi — std_ali ناجح
+  const [et9] = await q(`
+    INSERT INTO exams
+      (title,duration_minutes,total_score,course_id,teacher_id,
+       pass_score,badge_name,badge_color,is_published,
+       start_date,end_date,shuffle_questions,shuffle_options,
+       points_on_attempt,points_on_pass)
+    VALUES ('امتحان تجريبي: الإحداثيات والتحويلات',40,44,$1,$2,
+      26,'بطل الإحداثيات','#ec4899',true,
+      $3,$4,false,false,5,18)
+    RETURNING id
+  `, [c1.id, T1, past(20), past(15)]);
+
+  // et10: الرياضيات الشاملة — MCQ + صح/خطأ + صورة + مجمّع — std_ali راسب
+  const [et10] = await q(`
+    INSERT INTO exams
+      (title,duration_minutes,total_score,course_id,teacher_id,
+       pass_score,is_published,
+       start_date,end_date,shuffle_questions,shuffle_options,
+       points_on_attempt,points_on_pass)
+    VALUES ('امتحان تجريبي: الرياضيات الشاملة',75,80,$1,$2,
+      48,true,
+      $3,$4,true,true,5,30)
+    RETURNING id
+  `, [c1.id, T1, past(15), past(10)]);
+
+  console.log('  ✓ 14 امتحان (منتهي×5، نشط×7، قادم×1، مسودة×1) + 10 امتحانات تجريبية لـ std_ali');
 
   // ══════════════════════════════════════════════════════════
   // 8. الأسئلة
@@ -947,6 +1079,369 @@ async function seed() {
     e14QIds.push({ id: qr.id, correct: ans, pts });
   }
 
+  // ══════════════════════════════════════════════════════════
+  // أسئلة الامتحانات التجريبية العشرة
+  // ══════════════════════════════════════════════════════════
+
+  // ── et1: الحساب الذهني — MCQ فقط بدون صور (6 أسئلة، 30 درجة) ──
+  const et1Qs = [
+    ['mcq','ما ناتج: 17 × 8؟','126','136','130','140','B',5,null],
+    ['mcq','ما ناتج: 144 ÷ 12؟','11','12','13','14','B',5,null],
+    ['mcq','ما ناتج: 25² ؟','525','625','625','700','B',5,null],
+    ['mcq','ما قيمة: 3³ + 4²؟','39','43','43','47','B',5,null],
+    ['mcq','ما ناتج: √(169) ؟','11','12','13','14','C',5,null],
+    ['mcq','ما ناتج: 1000 - 387؟','513','613','623','713','B',5,null],
+  ];
+  const et1QIds = [];
+  for (const [qt, txt, a, b, c, d, ans, pts] of et1Qs) {
+    const [qr] = await q(`
+      INSERT INTO questions (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,correct_answer_letter,points)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id
+    `, [et1.id, qt, txt, a, b, c, d, ans, pts]);
+    et1QIds.push({ id: qr.id, correct: ans, pts });
+  }
+
+  // ── et2: المنطق الرياضي — MCQ + صح/خطأ بدون صور (8 أسئلة، 40 درجة) ──
+  const et2Qs = [
+    ['mcq','إذا كان p صحيحاً وq خاطئاً، فإن (p AND q) هو:','صحيح','خاطئ','غير محدد','يعتمد على السياق','B',5,null],
+    ['mcq','إذا كان p خاطئاً وq خاطئاً، فإن (p OR q) هو:','صحيح','خاطئ','صحيح دائماً','غير محدد','B',5,null],
+    ['mcq','نفي العبارة "كل الأعداد موجبة" هو:','لا يوجد عدد موجب','توجد أعداد غير موجبة','كل الأعداد سالبة','لا شيء مما سبق','B',5,null],
+    ['mcq','جملة: "إذا كانت n زوجية فإن n² زوجية" هي:','خاطئة دائماً','صحيحة دائماً','أحياناً صحيحة','لا يمكن تحديدها','B',5,null],
+    ['true_false','العبارة المنطقية (p → q) مكافئة لـ (¬q → ¬p)','صح','خطأ',null,null,'T',5,null],
+    ['true_false','إذا كانت p صحيحة فإن (NOT p) خاطئة','صح','خطأ',null,null,'T',5,null],
+    ['true_false','(p AND NOT p) تكون صحيحة أحياناً','صح','خطأ',null,null,'F',5,null],
+    ['true_false','(p OR NOT p) تكون دائماً صحيحة','صح','خطأ',null,null,'T',5,null],
+  ];
+  const et2QIds = [];
+  for (const [qt, txt, a, b, c, d, ans, pts] of et2Qs) {
+    const [qr] = await q(`
+      INSERT INTO questions (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,correct_answer_letter,points)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id
+    `, [et2.id, qt, txt, a, b, c, d, ans, pts]);
+    et2QIds.push({ id: qr.id, correct: ans, pts });
+  }
+
+  // ── et3: الهندسة الأساسية — MCQ + أسئلة بصور (10 أسئلة، 50 درجة) ──
+  const et3TextQs = [
+    ['mcq','مجموع زوايا المثلث يساوي:','90°','180°','270°','360°','B',5,null],
+    ['mcq','مساحة المربع الذي طول ضلعه 7 سم:','14 سم²','28 سم²','49 سم²','56 سم²','C',5,null],
+    ['mcq','محيط الدائرة التي نصف قطرها 5 سم (π≈3.14):','15.7 سم','31.4 سم','78.5 سم','157 سم','B',5,null],
+    ['mcq','أي مثلث له زاوية قائمة تساوي 90°؟','المثلث المتساوي الأضلاع','المثلث القائم','المثلث المتساوي الساقين','المثلث المنفرج','B',5,null],
+    ['true_false','مساحة المثلث = (القاعدة × الارتفاع) ÷ 2','صح','خطأ',null,null,'T',5,null],
+    ['true_false','الزاوية المستقيمة تساوي 180 درجة','صح','خطأ',null,null,'T',5,null],
+  ];
+  const et3QIds = [];
+  for (const [qt, txt, a, b, c, d, ans, pts] of et3TextQs) {
+    const [qr] = await q(`
+      INSERT INTO questions (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,correct_answer_letter,points)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id
+    `, [et3.id, qt, txt, a, b, c, d, ans, pts]);
+    et3QIds.push({ id: qr.id, correct: ans, pts });
+  }
+  // سؤالان بصورة — et3
+  const [et3img1] = await q(`
+    INSERT INTO questions
+      (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,
+       correct_answer_letter,points,question_image_url)
+    VALUES ($1,'mcq',
+      'انظر إلى الشكل الهندسي في الصورة — ما نوع هذا المضلع؟',
+      'مثلث','مربع','خماسي','سداسي','C',5,$2)
+    RETURNING id
+  `, [et3.id, 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/08/Simple_polygon.svg/400px-Simple_polygon.svg.png']);
+  et3QIds.push({ id: et3img1.id, correct: 'C', pts: 5 });
+
+  const [et3img2] = await q(`
+    INSERT INTO questions
+      (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,
+       correct_answer_letter,points,question_image_url)
+    VALUES ($1,'mcq',
+      'بالنظر إلى الشكل — ما قيمة الزاوية المجهولة x في المثلث إذا كانت الزاويتان الأخريان 60° و70°؟',
+      '40°','50°','60°','70°','B',5,$2)
+    RETURNING id
+  `, [et3.id, 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Triangle_illustration.svg/400px-Triangle_illustration.svg.png']);
+  et3QIds.push({ id: et3img2.id, correct: 'B', pts: 5 });
+
+  // ── et4: الجبر المتقدم — MCQ + image_multi (8 أسئلة، 45 درجة) ──
+  const et4TextQs = [
+    ['mcq','ما الحل العام لمعادلة ax² + bx + c = 0؟','x = -b/2a','x = (-b ± √(b²-4ac)) / 2a','x = (b ± √(b²-4ac)) / 2a','x = -b/a','B',5,null],
+    ['mcq','حل المعادلة: x² - 5x + 6 = 0','x=1 أو x=6','x=2 أو x=3','x=3 أو x=4','x=-2 أو x=-3','B',5,null],
+    ['mcq','ما قيمة المميز (Δ) للمعادلة x² + 4x + 4 = 0؟','4','0','16','8','B',5,null],
+    ['mcq','إذا كان المميز Δ < 0 فإن المعادلة التربيعية:','لها جذران حقيقيان مختلفان','لها جذران حقيقيان متساويان','لا تملك جذوراً حقيقية','لها ثلاثة جذور','C',5,null],
+    ['true_false','مجموع جذري المعادلة x² - 7x + 10 = 0 يساوي 7','صح','خطأ',null,null,'T',5,null],
+  ];
+  const et4QIds = [];
+  for (const [qt, txt, a, b, c, d, ans, pts] of et4TextQs) {
+    const [qr] = await q(`
+      INSERT INTO questions (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,correct_answer_letter,points)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id
+    `, [et4.id, qt, txt, a, b, c, d, ans, pts]);
+    et4QIds.push({ id: qr.id, correct: ans, pts });
+  }
+  // سؤال image_multi — et4 (3 بنود فرعية)
+  const et4MultiSubs = JSON.stringify([
+    { label: '1', correct: 'A' },
+    { label: '2', correct: 'C' },
+    { label: '3', correct: 'B' },
+  ]);
+  const [et4multi] = await q(`
+    INSERT INTO questions
+      (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,
+       correct_answer_letter,points,question_image_url,sub_questions)
+    VALUES ($1,'image_multi',
+      'انظر إلى الرسم البياني — حدد نوع كل معادلة من الثلاثة المعروضة',
+      'خطية','تربيعية','أسية','دائرية','A',10,$2,$3)
+    RETURNING id
+  `, [et4.id,
+     'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f7/Graph_of_f%28x%29%3Dx%5E2.svg/400px-Graph_of_f%28x%29%3Dx%5E2.svg.png',
+     et4MultiSubs]);
+  et4QIds.push({ id: et4multi.id, correct: 'A', pts: 10 });
+
+  // سؤال mcq بصورة — et4
+  const [et4img] = await q(`
+    INSERT INTO questions
+      (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,
+       correct_answer_letter,points,question_image_url)
+    VALUES ($1,'mcq',
+      'من الرسم البياني — ما مجموع جذري المعادلة المعروضة؟',
+      '3','5','7','9','B',5,$2)
+    RETURNING id
+  `, [et4.id, 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e5/Parabola_graph.svg/400px-Parabola_graph.svg.png']);
+  et4QIds.push({ id: et4img.id, correct: 'B', pts: 5 });
+
+  // ── et5: التفاضل والتكامل — MCQ + صح/خطأ + صورة (10 أسئلة، 60 درجة) ──
+  const et5TextQs = [
+    ['mcq','مشتقة f(x) = x⁴ - 3x² + 2 تساوي:','4x³ - 6x','4x³ - 3x','4x³ + 6x','x³ - 6x','A',6,null],
+    ['mcq','مشتقة ln(x) تساوي:','x','1/x','ln(x)','1','B',6,null],
+    ['mcq','مشتقة eˣ · sin(x) تساوي:','eˣ · cos(x)','eˣ(sin(x) + cos(x))','eˣ · sin(x)','eˣ(sin(x) - cos(x))','B',6,null],
+    ['mcq','∫x⁴ dx = ','x⁵ + C','x⁵/5 + C','4x³ + C','x⁵/4 + C','B',6,null],
+    ['mcq','∫₀¹ 2x dx = ','0','1','2','4','B',6,null],
+    ['true_false','مشتقة الدالة الثابتة تساوي صفراً','صح','خطأ',null,null,'T',6,null],
+    ['true_false','∫(f+g)dx = ∫f dx + ∫g dx','صح','خطأ',null,null,'T',6,null],
+  ];
+  const et5QIds = [];
+  for (const [qt, txt, a, b, c, d, ans, pts] of et5TextQs) {
+    const [qr] = await q(`
+      INSERT INTO questions (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,correct_answer_letter,points)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id
+    `, [et5.id, qt, txt, a, b, c, d, ans, pts]);
+    et5QIds.push({ id: qr.id, correct: ans, pts });
+  }
+  // سؤالان بصورة — et5
+  const [et5img1] = await q(`
+    INSERT INTO questions
+      (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,
+       correct_answer_letter,points,question_image_url)
+    VALUES ($1,'mcq',
+      'من الرسم البياني للدالة f(x) — ما قيمة المشتقة f′(x) عند نقطة القمة؟',
+      '-1','0','1','2','B',6,$2)
+    RETURNING id
+  `, [et5.id, 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f7/Graph_of_f%28x%29%3Dx%5E2.svg/400px-Graph_of_f%28x%29%3Dx%5E2.svg.png']);
+  et5QIds.push({ id: et5img1.id, correct: 'B', pts: 6 });
+
+  const [et5img2] = await q(`
+    INSERT INTO questions
+      (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,
+       correct_answer_letter,points,question_image_url)
+    VALUES ($1,'mcq',
+      'المساحة الملوّنة في الرسم تمثل التكامل المحدود ∫₀³ f(x) dx — ما تقريبها؟',
+      '4.5','9','18','27','A',6,$2)
+    RETURNING id
+  `, [et5.id, 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9e/Integral_as_region_under_curve.svg/400px-Integral_as_region_under_curve.svg.png']);
+  et5QIds.push({ id: et5img2.id, correct: 'A', pts: 6 });
+
+  // ── et6: الإحصاء والاحتمالات — MCQ + صح/خطأ (6 أسئلة، 30 درجة) ──
+  const et6Qs = [
+    ['mcq','متوسط الأعداد: 4, 8, 12, 16, 20 يساوي:','10','12','14','16','B',5,null],
+    ['mcq','الوسيط (Median) للأعداد: 3, 7, 5, 1, 9 يساوي:','3','5','7','9','B',5,null],
+    ['mcq','احتمال ظهور رقم زوجي عند قذف حجر نرد يساوي:','1/6','1/3','1/2','2/3','C',5,null],
+    ['mcq','إذا كانت مجموعة البيانات: 5,5,5,5 فإن الانحراف المعياري يساوي:','5','1','0','25','C',5,null],
+    ['true_false','مجموع جميع الاحتمالات في الفضاء العيّني يساوي 1','صح','خطأ',null,null,'T',5,null],
+    ['true_false','الوسيط يتأثر بالقيم الشاذة أكثر من المتوسط','صح','خطأ',null,null,'F',5,null],
+  ];
+  const et6QIds = [];
+  for (const [qt, txt, a, b, c, d, ans, pts] of et6Qs) {
+    const [qr] = await q(`
+      INSERT INTO questions (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,correct_answer_letter,points)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id
+    `, [et6.id, qt, txt, a, b, c, d, ans, pts]);
+    et6QIds.push({ id: qr.id, correct: ans, pts });
+  }
+
+  // ── et7: الأعداد والمعاملات — MCQ + أسئلة مجمّعة (8 أسئلة، 40 درجة) ──
+  const et7TextQs = [
+    ['mcq','ما أكبر قاسم مشترك للعددين 24 و 36؟','6','12','18','24','B',5,null],
+    ['mcq','ما أصغر مضاعف مشترك للعددين 4 و 6؟','12','18','24','36','A',5,null],
+    ['mcq','ما قيمة 2⁻³؟','1/8','1/6','1/4','1/2','A',5,null],
+    ['true_false','العدد 91 عدد أولي','صح','خطأ',null,null,'F',5,null],
+  ];
+  const et7QIds = [];
+  for (const [qt, txt, a, b, c, d, ans, pts] of et7TextQs) {
+    const [qr] = await q(`
+      INSERT INTO questions (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,correct_answer_letter,points)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id
+    `, [et7.id, qt, txt, a, b, c, d, ans, pts]);
+    et7QIds.push({ id: qr.id, correct: ans, pts });
+  }
+  // أسئلة مجمّعة — et7 (سياق مشترك)
+  const ET7_GROUP_CTX = 'اقرأ النص التالي ثم أجب على الأسئلة الأربعة:\n\nمصنع ينتج 2400 قطعة يومياً. يعمل المصنع 6 أيام في الأسبوع. القطعة سعرها 15 جنيه للبيع و8 جنيه للتكلفة.';
+  const et7GroupQs = [
+    ['mcq','كم قطعة يُنتج المصنع أسبوعياً؟','12000','14400','16000','18000','B'],
+    ['mcq','ما الربح من كل قطعة؟','7 جنيه','8 جنيه','15 جنيه','23 جنيه','A'],
+    ['mcq','ما إجمالي الإيرادات اليومية؟','19200 جنيه','28000 جنيه','36000 جنيه','48000 جنيه','C'],
+    ['true_false','الربح الإجمالي الأسبوعي يتجاوز 100,000 جنيه','صح','خطأ',null,null,'T'],
+  ];
+  for (const gq of et7GroupQs) {
+    const [qt, txt, a, b, c, d, ans] = gq;
+    const hasNull = gq.length === 6;
+    const [qr] = await q(`
+      INSERT INTO questions
+        (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,
+         correct_answer_letter,points,group_id,group_context)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,5,2,$9) RETURNING id
+    `, [et7.id, qt, txt, a, b, c, d, ans, ET7_GROUP_CTX]);
+    et7QIds.push({ id: qr.id, correct: ans, pts: 5 });
+  }
+
+  // ── et8: المتتاليات والمتسلسلات — MCQ + صورة + صح/خطأ (6 أسئلة، 36 درجة) ──
+  const et8TextQs = [
+    ['mcq','الحد العاشر في المتتالية: 3, 6, 9, 12, ... يساوي:','27','30','33','36','B',6,null],
+    ['mcq','مجموع أول 10 حدود للمتتالية الحسابية: a=2، d=3 يساوي:','155','165','175','185','A',6,null],
+    ['mcq','الحد العام للمتتالية الهندسية: 2, 6, 18, 54, ... هو:','2×3^(n-1)','3×2^(n-1)','2×n³','3^n','A',6,null],
+    ['true_false','مجموع المتتالية الهندسية اللانهائية يتقارب إذا كان |r| < 1','صح','خطأ',null,null,'T',6,null],
+    ['true_false','الحد الأول في المتتالية الحسابية هو المتوسط بين كل حدين متتاليين','صح','خطأ',null,null,'F',6,null],
+  ];
+  const et8QIds = [];
+  for (const [qt, txt, a, b, c, d, ans, pts] of et8TextQs) {
+    const [qr] = await q(`
+      INSERT INTO questions (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,correct_answer_letter,points)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id
+    `, [et8.id, qt, txt, a, b, c, d, ans, pts]);
+    et8QIds.push({ id: qr.id, correct: ans, pts });
+  }
+  // سؤال بصورة — et8
+  const [et8img] = await q(`
+    INSERT INTO questions
+      (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,
+       correct_answer_letter,points,question_image_url)
+    VALUES ($1,'mcq',
+      'من الرسم — ما نوع المتتالية الممثّلة بالنقاط: هندسية أم حسابية أم لا شيء؟',
+      'حسابية (تزداد بمقدار ثابت)','هندسية (تتضاعف بمعدل ثابت)','لا هذه ولا تلك','لا يمكن التحديد','A',6,$2)
+    RETURNING id
+  `, [et8.id, 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a3/Arithmetic_progression_illustration.svg/400px-Arithmetic_progression_illustration.svg.png']);
+  et8QIds.push({ id: et8img.id, correct: 'A', pts: 6 });
+
+  // ── et9: الإحداثيات والتحويلات — MCQ + صح/خطأ + image_multi (8 أسئلة، 44 درجة) ──
+  const et9TextQs = [
+    ['mcq','إذا انتقلت نقطة (3,4) بمقدار (2,−1)، فإن موضعها الجديد هو:','(5,3)','(1,5)','(5,5)','(3,3)','A',5,null],
+    ['mcq','ما محور التماثل للدالة f(x) = (x-3)² + 2 ؟','x = 2','x = 3','x = -3','y = 3','B',5,null],
+    ['mcq','ما صورة النقطة (4,−2) بالانعكاس حول محور x؟','(−4,−2)','(4,2)','(−4,2)','(2,−4)','B',5,null],
+    ['mcq','ما صورة النقطة (2,5) بالتدوير 90° حول نقطة الأصل؟','(−5,2)','(5,−2)','(−2,5)','(5,2)','A',5,null],
+    ['true_false','انعكاس نقطة على محور y يغيّر إشارة الإحداثي x فقط','صح','خطأ',null,null,'T',5,null],
+    ['true_false','التقاطع بين محوري الإحداثيات هو نقطة الأصل (0,0)','صح','خطأ',null,null,'T',5,null],
+  ];
+  const et9QIds = [];
+  for (const [qt, txt, a, b, c, d, ans, pts] of et9TextQs) {
+    const [qr] = await q(`
+      INSERT INTO questions (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,correct_answer_letter,points)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id
+    `, [et9.id, qt, txt, a, b, c, d, ans, pts]);
+    et9QIds.push({ id: qr.id, correct: ans, pts });
+  }
+  // سؤال image_multi — et9 (بنود فرعية 2)
+  const et9MultiSubs = JSON.stringify([
+    { label: '1', correct: 'C' },
+    { label: '2', correct: 'A' },
+  ]);
+  const [et9multi] = await q(`
+    INSERT INTO questions
+      (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,
+       correct_answer_letter,points,question_image_url,sub_questions)
+    VALUES ($1,'image_multi',
+      'انظر إلى المستوى الإحداثي — حدد موضع كل نقطة في الربع الصحيح',
+      'الربع الأول','الربع الثاني','الربع الثالث','الربع الرابع','C',7,$2,$3)
+    RETURNING id
+  `, [et9.id,
+     'https://upload.wikimedia.org/wikipedia/commons/thumb/0/0e/Cartesian_coordinate_system_handedness.svg/400px-Cartesian_coordinate_system_handedness.svg.png',
+     et9MultiSubs]);
+  et9QIds.push({ id: et9multi.id, correct: 'C', pts: 7 });
+
+  // سؤال بصورة إضافي — et9
+  const [et9img] = await q(`
+    INSERT INTO questions
+      (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,
+       correct_answer_letter,points,question_image_url)
+    VALUES ($1,'mcq',
+      'من الشكل — ما المسافة بين النقطتين A(1,1) و B(4,5) ؟',
+      '3','4','5','6','C',7,$2)
+    RETURNING id
+  `, [et9.id, 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/64/Distance_formula.svg/400px-Distance_formula.svg.png']);
+  et9QIds.push({ id: et9img.id, correct: 'C', pts: 7 });
+
+  // ── et10: الرياضيات الشاملة — MCQ + صح/خطأ + صورة + مجمّع (12 سؤالاً، 80 درجة) ──
+  const et10TextQs = [
+    ['mcq','ما قيمة x في: log₂(x) = 5 ؟','10','25','32','64','C',6,null],
+    ['mcq','ما مجموع ∑ k من k=1 إلى 10 ؟','50','55','60','65','B',6,null],
+    ['mcq','مشتقة f(x) = x·eˣ تساوي:','eˣ','(x+1)eˣ','x²eˣ','eˣ/x','B',6,null],
+    ['mcq','ما حل المعادلة: |2x - 3| = 7 ؟','x=5 أو x=-2','x=5 أو x=2','x=-5 أو x=-2','x=4 أو x=-2','A',6,null],
+    ['true_false','log(a·b) = log(a) + log(b) لأي قيمة موجبة لـ a,b','صح','خطأ',null,null,'T',6,null],
+    ['true_false','الدالة الزوجية تحقق f(-x) = f(x) لكل x في المجال','صح','خطأ',null,null,'T',6,null],
+    ['true_false','المشتقة الثانية توضح تقعّر الدالة أو تحدبها','صح','خطأ',null,null,'T',6,null],
+  ];
+  const et10QIds = [];
+  for (const [qt, txt, a, b, c, d, ans, pts] of et10TextQs) {
+    const [qr] = await q(`
+      INSERT INTO questions (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,correct_answer_letter,points)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id
+    `, [et10.id, qt, txt, a, b, c, d, ans, pts]);
+    et10QIds.push({ id: qr.id, correct: ans, pts });
+  }
+  // سؤال بصورة — et10
+  const [et10img] = await q(`
+    INSERT INTO questions
+      (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,
+       correct_answer_letter,points,question_image_url)
+    VALUES ($1,'mcq',
+      'من الرسم البياني للدالة ln(x) — ما اتجاه الدالة عند x > 1 ؟',
+      'متناقصة','ثابتة','متزايدة ببطء','متزايدة بسرعة','C',6,$2)
+    RETURNING id
+  `, [et10.id, 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Logarithm_plots.png/400px-Logarithm_plots.png']);
+  et10QIds.push({ id: et10img.id, correct: 'C', pts: 6 });
+
+  // سؤال image_multi — et10
+  const et10MultiSubs = JSON.stringify([
+    { label: '1', correct: 'B' },
+    { label: '2', correct: 'A' },
+    { label: '3', correct: 'C' },
+  ]);
+  const [et10multi] = await q(`
+    INSERT INTO questions
+      (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,
+       correct_answer_letter,points,question_image_url,sub_questions)
+    VALUES ($1,'image_multi',
+      'انظر إلى الرسوم البيانية الثلاثة — حدد طبيعة كل منحنى (تزايد/تناقص/ثابت)',
+      'تزايد','تناقص','ثابت','غير محدد','B',8,$2,$3)
+    RETURNING id
+  `, [et10.id,
+     'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e5/Parabola_graph.svg/400px-Parabola_graph.svg.png',
+     et10MultiSubs]);
+  et10QIds.push({ id: et10multi.id, correct: 'B', pts: 8 });
+
+  // أسئلة مجمّعة — et10 (سياق: مسألة تطبيقية متكاملة)
+  const ET10_GROUP_CTX = 'شركة استثمارية ضخّت 50,000 جنيه في مشروع يعطي عائداً سنوياً بنسبة 8%.\nالمشروع يعمل وفق النمو المركّب: A(t) = 50000 × (1.08)^t';
+  const et10GroupQs = [
+    ['mcq','ما قيمة المشروع بعد سنة واحدة (t=1)؟','54000 ج','55000 ج','56000 ج','58000 ج','A',6,3],
+    ['mcq','بعد كم سنة تقريباً تتضاعف قيمة المشروع؟ (قاعدة 72: 72/r)','8 سنوات','9 سنوات','10 سنوات','12 سنوات','B',6,3],
+  ];
+  for (const [qt, txt, a, b, c, d, ans, pts, gid] of et10GroupQs) {
+    const [qr] = await q(`
+      INSERT INTO questions
+        (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,
+         correct_answer_letter,points,group_id,group_context)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id
+    `, [et10.id, qt, txt, a, b, c, d, ans, pts, gid, ET10_GROUP_CTX]);
+    et10QIds.push({ id: qr.id, correct: ans, pts });
+  }
+
   console.log('  ✓ الأسئلة أضيفت لكل الامتحانات بما فيها الاختبارات الجديدة');
 
   // ══════════════════════════════════════════════════════════
@@ -1151,6 +1646,37 @@ async function seed() {
 
   // e13 (هندسة فراغية): ناجح ✓
   await makeResult(STD_ALI, e13.id, e13QIds, 100, 1, true, 3, 10, 10, 3);
+
+  // ══ نتائج الامتحانات التجريبية العشرة لـ std_ali ══
+  // et1 (الحساب الذهني — pass=18/30): ناجح بدرجة عالية ✓
+  await makeResult(STD_ALI, et1.id, et1QIds, 100, 1, true, 55, 18, 15, 5);
+
+  // et2 (المنطق الرياضي — pass=24/40): راسب ✗
+  await makeResult(STD_ALI, et2.id, et2QIds, 28, 1, true, 50, 24, 15, 5);
+
+  // et3 (الهندسة الأساسية — pass=30/50): ناجح ✓
+  await makeResult(STD_ALI, et3.id, et3QIds, 78, 1, true, 45, 30, 20, 5);
+
+  // et4 (الجبر المتقدم — pass=27/45): راسب ✗
+  await makeResult(STD_ALI, et4.id, et4QIds, 22, 1, true, 40, 27, 15, 5);
+
+  // et5 (التفاضل والتكامل — pass=36/60): ناجح بامتياز ✓
+  await makeResult(STD_ALI, et5.id, et5QIds, 95, 1, true, 35, 36, 25, 5);
+
+  // et6 (الإحصاء والاحتمالات — pass=18/30): ناجح بالحد الأدنى ✓
+  await makeResult(STD_ALI, et6.id, et6QIds, 62, 1, true, 30, 18, 12, 5);
+
+  // et7 (الأعداد والمعاملات — pass=24/40): راسب ✗
+  await makeResult(STD_ALI, et7.id, et7QIds, 30, 1, true, 25, 24, 15, 5);
+
+  // et8 (المتتاليات والمتسلسلات — pass=22/36): ناجح ✓
+  await makeResult(STD_ALI, et8.id, et8QIds, 82, 1, true, 20, 22, 15, 5);
+
+  // et9 (الإحداثيات والتحويلات — pass=26/44): ناجح ✓
+  await makeResult(STD_ALI, et9.id, et9QIds, 73, 1, true, 15, 26, 18, 5);
+
+  // et10 (الرياضيات الشاملة — pass=48/80): راسب ✗
+  await makeResult(STD_ALI, et10.id, et10QIds, 18, 1, true, 10, 48, 30, 5);
 
   // طلاب آخرون في e1
   await makeResult(sids['std_fatma'],   e1.id, e1QIds, 70, 1, true, 20, 18, 15, 5);
