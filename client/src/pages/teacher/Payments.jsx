@@ -176,9 +176,10 @@ export default function TeacherPayments() {
   }, [payments]);
 
   const handlePrint = () => {
-    const headers = ['الطالب', 'هاتف الطالب', 'الكورس', 'المبلغ', 'طريقة الدفع', 'المرجع', 'الحالة', 'التاريخ'];
+    const headers = ['الطالب', 'كود الطالب', 'هاتف الطالب', 'الكورس', 'المبلغ', 'طريقة الدفع', 'المرجع', 'الحالة', 'التاريخ'];
     const data = filtered.map(p => [
       p.student_name || '—',
+      p.student_username || '—',
       p.student_phone || '—',
       p.course_name || '—',
       p.amount != null ? `${parseFloat(p.amount).toLocaleString()} ج` : '—',

@@ -59,9 +59,10 @@ export default function AssistantPayments() {
     });
 
   const handlePrint = () => {
-    const headers = ['الطالب', 'الكورس', 'المبلغ', 'طريقة الدفع', 'المرجع', 'الحالة', 'التاريخ'];
+    const headers = ['الطالب', 'كود الطالب', 'الكورس', 'المبلغ', 'طريقة الدفع', 'المرجع', 'الحالة', 'التاريخ'];
     const data = filtered.map(p => [
       p.student_name || '—',
+      p.student_username || '—',
       p.course_name || '—',
       p.amount != null ? `${parseFloat(p.amount).toLocaleString()} ج` : '—',
       METHOD_LABELS[p.method] || p.method || '—',

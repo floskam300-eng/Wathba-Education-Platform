@@ -126,9 +126,10 @@ export default function ArchivePage() {
     const hasLabel   = HAS_TYPE_OPTIONS.find(o => o.value === filters.has_type)?.label || 'الكل';
     generatePDFReport(
       'أرشيف النتائج — قائمة الطلاب',
-      ['اسم الطالب', 'المرحلة', 'الاختبارات', 'ناجح/راسب', 'متوسط الاختبارات', 'التسميع', 'ناجح/راسب (تسميع)', 'متوسط التسميع'],
+      ['اسم الطالب', 'كود الطالب', 'المرحلة', 'الاختبارات', 'ناجح/راسب', 'متوسط الاختبارات', 'التسميع', 'ناجح/راسب (تسميع)', 'متوسط التسميع'],
       students.map(st => [
         st.name,
+        st.username || '—',
         st.academic_stage || '—',
         Number(st.total_exams) > 0      ? `${st.total_exams}`       : '—',
         Number(st.total_exams) > 0      ? `${st.passed_exams} ناجح / ${Number(st.total_exams) - Number(st.passed_exams)} راسب` : '—',

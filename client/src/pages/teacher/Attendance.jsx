@@ -93,7 +93,7 @@ export default function Attendance() {
   const exportCSV = () => {
     if (!attendance) return;
     const { students, videos, progressMap } = attendance;
-    const header = ['الطالب', 'المرحلة', ...videos.map(v => v.title), 'متوسط المشاهدة %', 'الحالة'];
+    const header = ['الطالب', 'كود الطالب', 'المرحلة', ...videos.map(v => v.title), 'متوسط المشاهدة %', 'الحالة'];
     const rows = students.map(s => {
       const pcts = videos.map(v => {
         const p = progressMap[s.id]?.[v.id];
@@ -105,7 +105,7 @@ export default function Attendance() {
         return st === 'present' ? 'حاضر' : st === 'partial' ? 'جزئي' : 'غائب';
       });
       const overallStatus = avg >= PRESENT_THRESHOLD ? 'حاضر' : avg >= PARTIAL_THRESHOLD ? 'جزئي' : 'غائب';
-      return [s.name, s.academic_stage || '', ...labels, `${avg}%`, overallStatus];
+      return [s.name, s.username || '', s.academic_stage || '', ...labels, `${avg}%`, overallStatus];
     });
     const csv = [header, ...rows].map(r => r.join(',')).join('\n');
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
