@@ -6,6 +6,7 @@ import {
   AlertCircle, Upload, RefreshCw, Image as ImageIcon,
 } from 'lucide-react';
 import api from '../../lib/api';
+import { withToken } from '../../lib/mediaAccess';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
@@ -283,7 +284,7 @@ export default function RecitationQuestions() {
                     {qForm.question_image_url ? (
                       <div className="relative rounded-xl overflow-hidden border border-gray-200 dark:border-[var(--dk-border)] min-h-28 bg-gray-50 dark:bg-[var(--dk-elevated)]">
                         <img
-                          src={qForm.question_image_url}
+                          src={withToken(qForm.question_image_url)}
                           alt="question"
                           className="w-full max-h-48 object-contain"
                           style={{ display: 'block' }}
@@ -496,7 +497,7 @@ function QuestionCard({ q, idx, isPublished, isEditing, onEdit, onDelete }) {
           </div>
 
           {q.question_image_url && (
-            <img src={q.question_image_url} alt="question" className="w-full max-h-40 object-contain rounded-xl border border-gray-100 dark:border-[var(--dk-border)] mb-2 bg-gray-50 dark:bg-[var(--dk-elevated)]" />
+            <img src={withToken(q.question_image_url)} alt="question" className="w-full max-h-40 object-contain rounded-xl border border-gray-100 dark:border-[var(--dk-border)] mb-2 bg-gray-50 dark:bg-[var(--dk-elevated)]" />
           )}
           {q.question_text && (
             <p className="font-semibold text-navy-600 dark:text-[var(--dk-text-1)] text-sm mb-2 leading-relaxed">{q.question_text}</p>
