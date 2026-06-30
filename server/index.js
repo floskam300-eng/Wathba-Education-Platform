@@ -241,29 +241,53 @@ const checkFileAccess = async (decoded, fileType, fullPath) => {
             LIMIT 1`,
           [fullPath]
         );
-        if (!rb.rows.length) return null;
-        teacherId = rb.rows[0].teacher_id;
-        const bankId = rb.rows[0].bank_id;
+        if (rb.rows.length) {
+          teacherId = rb.rows[0].teacher_id;
+          const bankId = rb.rows[0].bank_id;
 
-        // For student access: find any published exam that uses this bank.
-        // [X13 fix] Also join courses to capture courses.is_published.
-        if (decoded.role === 'student') {
-          const re = await pool.query(
-            `SELECT e.id, e.course_id,
-                    e.is_published                  AS exam_published,
-                    COALESCE(c.is_published, TRUE)  AS course_published
-               FROM exams e
-               LEFT JOIN courses c ON e.course_id = c.id
-              WHERE e.bank_id = $1 AND e.is_published = true
-              LIMIT 1`,
-            [bankId]
-          );
-          if (re.rows.length) {
-            examId          = re.rows[0].id;
-            courseId        = re.rows[0].course_id;
-            isPublished     = re.rows[0].exam_published;
-            coursePublished = re.rows[0].course_published;
+          // For student access: find any published exam that uses this bank.
+          // [X13 fix] Also join courses to capture courses.is_published.
+          if (decoded.role === 'student') {
+            const re = await pool.query(
+              `SELECT e.id, e.course_id,
+                      e.is_published                  AS exam_published,
+                      COALESCE(c.is_published, TRUE)  AS course_published
+                 FROM exams e
+                 LEFT JOIN courses c ON e.course_id = c.id
+                WHERE e.bank_id = $1 AND e.is_published = true
+                LIMIT 1`,
+              [bankId]
+            );
+            if (re.rows.length) {
+              examId          = re.rows[0].id;
+              courseId        = re.rows[0].course_id;
+              isPublished     = re.rows[0].exam_published;
+              coursePublished = re.rows[0].course_published;
+            }
           }
+        } else {
+          // Final fallback: recitation_questions (recitation question images).
+          // These are not linked to exams so we grant access based on teacher ownership
+          // + recitation published status + student tenant membership.
+          const rrq = await pool.query(
+            `SELECT r.teacher_id, r.is_published
+               FROM recitation_questions rq
+               JOIN recitations r ON rq.recitation_id = r.id
+              WHERE rq.question_image_url = $1
+              LIMIT 1`,
+            [fullPath]
+          );
+          if (!rrq.rows.length) return null;
+          teacherId = rrq.rows[0].teacher_id;
+          // Students: grant access when recitation is published + they belong to teacher + not suspended
+          if (decoded.role === 'student' && rrq.rows[0].is_published) {
+            const sr = await pool.query(
+              `SELECT 1 FROM students WHERE id=$1 AND teacher_id=$2 AND is_suspended=false`,
+              [decoded.id, teacherId]
+            );
+            hasAccess = sr.rows.length > 0;
+          }
+          // Teachers + assistants: handled by the common role guard below
         }
       }
 

@@ -739,7 +739,7 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
               <input ref={imgInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
               {qForm.question_image_url ? (
                 <div className="relative rounded-xl overflow-hidden border">
-                  <img src={qForm.question_image_url} alt="question" className="w-full max-h-48 object-contain" />
+                  <img src={withToken(qForm.question_image_url)} alt="question" className="w-full max-h-48 object-contain" />
                   <div className="absolute top-2 left-2 flex gap-1.5">
                     <button onClick={() => imgInputRef.current?.click()}
                       className="px-2.5 py-1.5 bg-white/95 text-gray-700 text-xs rounded-lg font-bold shadow-sm hover:bg-white flex items-center gap-1">

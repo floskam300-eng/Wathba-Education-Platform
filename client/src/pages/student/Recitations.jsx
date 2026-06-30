@@ -481,13 +481,21 @@ export default function StudentRecitations() {
                   </div>
 
                   {q.question_image_url && (
-                    <img
-                      src={q.question_image_url}
-                      alt="question"
-                      className="w-full max-h-40 object-contain rounded-xl border mb-2 mr-8 cursor-zoom-in"
-                      style={{ maxWidth: 'calc(100% - 2rem)' }}
-                      onClick={() => setLightboxSrc(q.question_image_url)}
-                    />
+                    <div className="relative mb-2 mr-8" style={{ maxWidth: 'calc(100% - 2rem)' }}>
+                      <img
+                        src={withToken(q.question_image_url)}
+                        alt="question"
+                        className="w-full max-h-40 object-contain rounded-xl border cursor-zoom-in"
+                        onClick={() => setLightboxSrc(withToken(q.question_image_url))}
+                      />
+                      <button
+                        onClick={() => setLightboxSrc(withToken(q.question_image_url))}
+                        className="absolute top-1 left-1 bg-black/50 hover:bg-black/70 text-white rounded-lg p-1 transition-colors"
+                        title="تكبير"
+                      >
+                        <ZoomIn className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   )}
 
                   {q.question_type === 'image_multi' ? (
