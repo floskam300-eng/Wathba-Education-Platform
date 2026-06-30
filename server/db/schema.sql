@@ -1041,6 +1041,9 @@ ALTER TABLE exams ADD COLUMN IF NOT EXISTS absent_marked BOOLEAN DEFAULT false N
 ALTER TABLE recitation_results ADD COLUMN IF NOT EXISTS is_absent BOOLEAN DEFAULT false NOT NULL;
 ALTER TABLE recitations       ADD COLUMN IF NOT EXISTS absent_marked BOOLEAN DEFAULT false NOT NULL;
 
+-- Allow retry: teacher controls whether students can retake after failing
+ALTER TABLE recitations ADD COLUMN IF NOT EXISTS allow_retry BOOLEAN NOT NULL DEFAULT true;
+
 -- Import model: per-teacher column mapping for Excel imports
 CREATE TABLE IF NOT EXISTS teacher_import_models (
   id SERIAL PRIMARY KEY,
