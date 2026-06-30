@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowRight, BookOpen, Video, FileText, FolderOpen, FolderPlus,
   Plus, Trash2, Pencil, Play, X, Check, Link, Upload, ExternalLink,
-  ChevronDown, ChevronUp, BookMarked,
+  ChevronDown, ChevronUp, BookMarked, Eye,
 } from 'lucide-react';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
@@ -166,16 +166,18 @@ function PdfUploadSection({ courseId, onSuccess, sections = [] }) {
 
 function VideoPreviewModal({ video, onClose }) {
   if (!video) return null;
-  const isYoutube = /youtube\.com|youtu\.be/.test(video.file_path_or_url || '');
-  const isDrive = /drive\.google\.com/.test(video.file_path_or_url || '');
-  const isLocal = (video.file_path_or_url || '').startsWith('/uploads/');
+  const url = video.file_path_or_url || '';
+  const isYoutube = /youtube\.com|youtu\.be/.test(url);
+  const isDrive = /drive\.google\.com/.test(url);
+  const isLocal = url.startsWith('/uploads/');
 
-  let embedUrl = video.file_path_or_url;
-  if (isYoutube) {
-    const match = video.file_path_or_url.match(/(?:v=|youtu\.be\/)([^&?/]+)/);
-    if (match) embedUrl = `https://www.youtube.com/embed/${match[1]}`;
-  } else if (isDrive) {
-    const match = video.file_path_or_url.match(/\/d\/([^/]+)/);
+  // Extract YouTube ID for thumbnail
+  const ytIdMatch = url.match(/(?:v=|youtu\.be\/|embed\/)([a-zA-Z0-9_-]{11})/);
+  const ytId = ytIdMatch ? ytIdMatch[1] : null;
+
+  let embedUrl = url;
+  if (isDrive) {
+    const match = url.match(/\/d\/([^/]+)/);
     if (match) embedUrl = `https://drive.google.com/file/d/${match[1]}/preview`;
   }
 
@@ -189,15 +191,41 @@ function VideoPreviewModal({ video, onClose }) {
           </button>
         </div>
         <div className="relative" style={{ paddingTop: '56.25%' }}>
-          {(isYoutube || isDrive) ? (
+          {isYoutube ? (
+            /* YouTube: show thumbnail + open-in-YouTube button (iframe embeds are
+               blocked by YouTube for unlisted/restricted videos in dev environments) */
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 gap-4">
+              {ytId && (
+                <img
+                  src={`https://img.youtube.com/vi/${ytId}/hqdefault.jpg`}
+                  alt={video.title}
+                  className="absolute inset-0 w-full h-full object-cover opacity-40"
+                />
+              )}
+              <div className="relative z-10 flex flex-col items-center gap-3 text-center px-6">
+                <div className="w-16 h-16 rounded-full bg-orange-500/90 flex items-center justify-center shadow-2xl">
+                  <Play className="w-7 h-7 text-white fill-white mr-[-2px]" />
+                </div>
+                <p className="text-white font-bold text-sm">{video.title}</p>
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold px-5 py-2.5 rounded-xl transition-all shadow-lg"
+                >
+                  <ExternalLink className="w-4 h-4" /> فتح على YouTube
+                </a>
+              </div>
+            </div>
+          ) : isDrive ? (
             <iframe src={embedUrl} className="absolute inset-0 w-full h-full" allowFullScreen
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" title={video.title} />
           ) : isLocal ? (
-            <video src={withToken(video.file_path_or_url)} className="absolute inset-0 w-full h-full object-contain bg-black" controls autoPlay />
+            <video src={withToken(url)} className="absolute inset-0 w-full h-full object-contain bg-black" controls autoPlay />
           ) : (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 gap-4">
               <p className="text-gray-400 text-sm text-center px-6">لا يمكن تشغيل هذا الرابط مباشرة — افتحه في نافذة جديدة</p>
-              <a href={video.file_path_or_url} target="_blank" rel="noopener noreferrer"
+              <a href={url} target="_blank" rel="noopener noreferrer"
                 className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-bold px-5 py-2.5 rounded-xl transition-all">
                 <ExternalLink className="w-4 h-4" /> فتح الرابط
               </a>
@@ -262,6 +290,7 @@ export default function CourseContent() {
   const [editingSectionId, setEditingSectionId] = useState(null);
   const [editingSectionTitle, setEditingSectionTitle] = useState('');
   const [previewVideo, setPreviewVideo] = useState(null);
+  const [previewPdf, setPreviewPdf] = useState(null);
   const [expandedSections, setExpandedSections] = useState({});
 
   const toggleSection = (sectionId) => {
@@ -354,6 +383,13 @@ export default function CourseContent() {
       <div className="flex-1 min-w-0">
         <p className="font-semibold text-navy-600 text-sm truncate">{p.title}</p>
       </div>
+      <button
+        onClick={() => setPreviewPdf(p)}
+        title="معاينة الملف"
+        className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg flex-shrink-0 transition-colors"
+      >
+        <Eye className="w-4 h-4" />
+      </button>
       <button onClick={() => setDeletePdfId(p.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg flex-shrink-0 transition-colors">
         <Trash2 className="w-4 h-4" />
       </button>
@@ -655,6 +691,30 @@ export default function CourseContent() {
       </div>
 
       <VideoPreviewModal video={previewVideo} onClose={() => setPreviewVideo(null)} />
+
+      {/* PDF Preview Modal */}
+      {previewPdf && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={() => setPreviewPdf(null)}>
+          <div className="bg-gray-900 rounded-2xl overflow-hidden w-full max-w-4xl shadow-2xl flex flex-col" style={{ height: '85vh' }} onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 bg-gray-800 flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-orange-400" />
+                <p className="text-white font-bold text-sm truncate">{previewPdf.title}</p>
+              </div>
+              <button onClick={() => setPreviewPdf(null)} className="text-gray-400 hover:text-white transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <iframe
+                src={withToken(previewPdf.file_url) + '#toolbar=1&navpanes=1'}
+                className="w-full h-full border-0"
+                title={previewPdf.title}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       <ConfirmDialog open={!!deleteVideoId} onClose={() => setDeleteVideoId(null)}
         onConfirm={() => deleteVideoMut.mutate(deleteVideoId)}

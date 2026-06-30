@@ -122,13 +122,16 @@ export default function SecurePdfViewer({ pdf }) {
       const page = await doc.getPage(pageNum);
       if (!mountedRef.current) return;
 
-      const viewport = page.getViewport({ scale: sc });
+      const dpr      = window.devicePixelRatio || 1;
+      const viewport = page.getViewport({ scale: sc * dpr });
       const canvas   = canvasRef.current;
       if (!canvas || !mountedRef.current) return;
 
       const ctx = canvas.getContext('2d');
-      canvas.height = viewport.height;
-      canvas.width  = viewport.width;
+      canvas.width        = viewport.width;
+      canvas.height       = viewport.height;
+      canvas.style.width  = `${viewport.width  / dpr}px`;
+      canvas.style.height = `${viewport.height / dpr}px`;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       const task = page.render({ canvasContext: ctx, viewport });

@@ -1273,14 +1273,14 @@ export default function TeacherStudents() {
                 <button
                   onClick={() => suspendMut.mutate({ id: suspendTarget.id, action: 'reactivate' })}
                   disabled={suspendMut.isPending}
-                  className="w-full btn-primary flex items-center justify-center gap-2"
+                  className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   <Unlock className="w-4 h-4" /> إعادة التفعيل (مع الأجهزة المسجّلة)
                 </button>
                 <button
                   onClick={() => suspendMut.mutate({ id: suspendTarget.id, action: 'reactivate_reset_devices' })}
                   disabled={suspendMut.isPending}
-                  className="w-full btn-secondary flex items-center justify-center gap-2 !border-orange-300 !text-orange-700"
+                  className="w-full border-2 border-green-300 text-green-700 hover:bg-green-50 font-bold py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   <RefreshCw className="w-4 h-4" /> إعادة التفعيل + مسح الأجهزة
                 </button>

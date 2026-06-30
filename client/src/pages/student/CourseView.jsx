@@ -484,15 +484,21 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
           any click reach the (chromeless) iframe. */}
       <div className="absolute inset-0" style={{ zIndex: 10 }} onClick={handleScreenTap} onContextMenu={(e) => e.preventDefault()} />
 
-      {/* Play button — centered when paused */}
-      {!playing && !buffering && (
-        <div className="absolute inset-0 flex items-center justify-center" style={{ zIndex: 20, pointerEvents: 'none' }}>
+      {/* Centered play/pause overlay — shows on hover (showControls) or when paused */}
+      {!buffering && (showControls || !playing) && (
+        <div
+          className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 ${showControls || !playing ? 'opacity-100' : 'opacity-0'}`}
+          style={{ zIndex: 20, pointerEvents: 'none' }}
+        >
           <div
-            className="w-20 h-20 rounded-full bg-orange-500/90 flex items-center justify-center shadow-2xl hover:scale-110 transition-transform cursor-pointer"
+            className="w-20 h-20 rounded-full bg-black/40 border-2 border-white/30 flex items-center justify-center shadow-2xl hover:bg-orange-500/80 hover:border-orange-400/50 hover:scale-110 transition-all cursor-pointer backdrop-blur-sm"
             style={{ pointerEvents: 'auto' }}
             onClick={(e) => { e.stopPropagation(); toggle(); }}
           >
-            <Play className="w-8 h-8 text-white fill-white mr-[-2px]" />
+            {playing
+              ? <Pause className="w-8 h-8 text-white fill-white" />
+              : <Play  className="w-8 h-8 text-white fill-white mr-[-2px]" />
+            }
           </div>
         </div>
       )}
@@ -874,10 +880,21 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
         onClick={handleScreenTap}
       />
 
-      {!playing && (
-        <div className="absolute inset-0 flex items-center justify-center" style={{ pointerEvents: 'none' }}>
-          <div className="w-20 h-20 rounded-full bg-orange-500/90 flex items-center justify-center shadow-2xl hover:scale-110 transition-all" style={{ pointerEvents: 'auto' }} onClick={(e) => { e.stopPropagation(); toggle(); }}>
-            <Play className="w-8 h-8 text-white fill-white mr-[-2px]" />
+      {/* Centered play/pause overlay — shows on hover (showControls) or when paused */}
+      {(showControls || !playing) && (
+        <div
+          className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 ${showControls || !playing ? 'opacity-100' : 'opacity-0'}`}
+          style={{ pointerEvents: 'none', zIndex: 15 }}
+        >
+          <div
+            className="w-20 h-20 rounded-full bg-black/40 border-2 border-white/30 flex items-center justify-center shadow-2xl hover:bg-orange-500/80 hover:border-orange-400/50 hover:scale-110 transition-all cursor-pointer backdrop-blur-sm"
+            style={{ pointerEvents: 'auto' }}
+            onClick={(e) => { e.stopPropagation(); toggle(); }}
+          >
+            {playing
+              ? <Pause className="w-8 h-8 text-white fill-white" />
+              : <Play  className="w-8 h-8 text-white fill-white mr-[-2px]" />
+            }
           </div>
         </div>
       )}

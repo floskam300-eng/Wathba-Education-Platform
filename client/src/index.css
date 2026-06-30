@@ -201,6 +201,7 @@ html.dark .input-field {
   background-color: var(--dk-elevated);
   border-color: var(--dk-border-md);
   color: var(--dk-text-1);
+  color-scheme: dark;
 }
 html.dark .input-field:focus {
   border-color: var(--dk-orange);
