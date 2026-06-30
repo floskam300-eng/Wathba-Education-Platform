@@ -82,7 +82,10 @@ export default function StudentRecitations() {
   });
 
   const startRec = async (rec) => {
-    if (startingId) return;
+    // Block if any start is in progress OR countdown is showing OR already in take view.
+    // startingId is NOT cleared until the view actually transitions to 'take' so there
+    // is no window during the 3-2-1 countdown where a second button click can slip through.
+    if (startingId || showCountdown || view === 'take') return;
     setStartingId(rec.id);
     submittedRef.current = false;
     try {
@@ -116,16 +119,22 @@ export default function StudentRecitations() {
       setTimeLeft(Math.floor(remaining / 1000));
 
       if (data.resumed) {
+        // Resuming: go directly to take view; clear the lock immediately.
+        setStartingId(null);
         setView('take');
       } else {
+        // New session: keep startingId set during the entire 3-2-1 countdown so
+        // no other button click can fire until the view actually changes to 'take'.
         setShowCountdown(true);
         setCountdown(3);
+        // startingId is cleared inside the countdown useEffect when it reaches 0.
       }
     } catch (e) {
-      toast.error(e.response?.data?.error || 'حدث خطأ');
-    } finally {
+      // On error always release the lock so the user can retry.
       setStartingId(null);
+      toast.error(e.response?.data?.error || 'حدث خطأ');
     }
+    // No finally — intentional. Success path clears startingId at the right moment.
   };
 
   // Mounted ref lifecycle
@@ -143,12 +152,29 @@ export default function StudentRecitations() {
   }, [view]);
 
   // 3-2-1 countdown
+  // When countdown reaches 0: clear startingId THEN switch to 'take'.
+  // This is the only place startingId is released on the success path,
+  // ensuring no second click can fire during the entire countdown window.
   useEffect(() => {
     if (!showCountdown) return;
-    if (countdown <= 0) { setShowCountdown(false); setView('take'); return; }
+    if (countdown <= 0) {
+      setStartingId(null);
+      setShowCountdown(false);
+      setView('take');
+      return;
+    }
     const id = setTimeout(() => setCountdown(c => c - 1), 1000);
     return () => clearTimeout(id);
   }, [showCountdown, countdown]);
+
+  const cancelCountdown = () => {
+    setShowCountdown(false);
+    setCountdown(3);
+    setStartingId(null);
+    setExamData(null);
+    setSelectedRec(null);
+    setAnswers({});
+  };
 
   // Main exam timer — [CL2-FIX] drift-corrected using server epoch
   // Simple setTimeout(…, 1000) drifts noticeably when the tab is backgrounded
@@ -409,6 +435,12 @@ export default function StudentRecitations() {
         <p className="text-white/80 text-lg font-bold mb-4">يبدأ التسميع بعد...</p>
         <div className="text-white font-black" style={{ fontSize: 120, lineHeight: 1 }}>{countdown}</div>
         <p className="text-white/60 text-sm mt-6">{selectedRec?.title}</p>
+        <button
+          onClick={cancelCountdown}
+          className="mt-10 px-6 py-2 rounded-full text-sm font-bold bg-white/20 hover:bg-white/30 text-white transition"
+        >
+          إلغاء
+        </button>
       </div>
     );
   }
