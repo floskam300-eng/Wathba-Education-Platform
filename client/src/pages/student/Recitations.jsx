@@ -3,12 +3,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
   BookOpen, Clock, CheckCircle, XCircle, Trophy,
-  ChevronLeft, AlertCircle, BarChart2, RefreshCw, Lock, Eye, Loader2
+  ChevronLeft, AlertCircle, BarChart2, RefreshCw, Lock, Eye, Loader2, ZoomIn
 } from 'lucide-react';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
 import { useTheme } from '../../context/ThemeContext';
 import ImageLightbox from '../../components/ImageLightbox';
+import { withToken } from '../../lib/mediaAccess';
 
 function getStatus(rec) {
   const now = new Date();
@@ -613,7 +614,7 @@ function Section({ title, items, dark, cardCls, onStart, navigate, startingId = 
                 <Lock className={`w-4 h-4 flex-shrink-0 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-300'}`} />
               )}
               {status === 'done' && (
-                <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
                   {rec.result_id && navigate && (
                     <button
                       onClick={() => navigate(`/student/recitation-review/${rec.result_id}`)}
@@ -621,6 +622,16 @@ function Section({ title, items, dark, cardCls, onStart, navigate, startingId = 
                     >
                       <Eye className="w-3.5 h-3.5" />
                       مراجعة
+                    </button>
+                  )}
+                  {rec.allow_retry && onStart && (
+                    <button
+                      onClick={() => onStart(rec)}
+                      disabled={!!startingId}
+                      className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${dark ? 'bg-purple-900/30 text-purple-300 hover:bg-purple-900/50' : 'bg-purple-50 text-purple-600 hover:bg-purple-100'}`}
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      إعادة
                     </button>
                   )}
                   <CheckCircle className="w-5 h-5 text-green-500" />
@@ -666,12 +677,23 @@ function QuestionCard({ q, idx, answers, setAnswers, dark, onImagePress }) {
       </div>
 
       {q.question_image_url && (
-        <img
-          src={q.question_image_url}
-          alt="question"
-          className={`w-full max-h-64 object-contain rounded-xl border mb-3 ${onImagePress ? 'cursor-zoom-in' : ''}`}
-          onClick={onImagePress ? () => onImagePress(q.question_image_url) : undefined}
-        />
+        <div className="relative mb-3">
+          <img
+            src={withToken(q.question_image_url)}
+            alt="question"
+            className={`w-full max-h-64 object-contain rounded-xl border ${onImagePress ? 'cursor-zoom-in' : ''}`}
+            onClick={onImagePress ? () => onImagePress(withToken(q.question_image_url)) : undefined}
+          />
+          {onImagePress && (
+            <button
+              onClick={() => onImagePress(withToken(q.question_image_url))}
+              className="absolute top-2 left-2 bg-black/50 hover:bg-black/70 text-white rounded-lg p-1.5 transition-colors"
+              title="تكبير الصورة"
+            >
+              <ZoomIn className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       )}
 
       {isImgMulti ? (

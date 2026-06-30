@@ -4,12 +4,13 @@ import { useNavigate } from 'react-router-dom';
 import {
   BookOpen, Plus, Trash2, Settings, ChevronDown, ChevronUp,
   CheckCircle, XCircle, Clock, Users, BarChart2, Edit3,
-  AlertCircle, Eye, FileText, RefreshCw, Flame, Image as ImageIcon, Upload
+  AlertCircle, Eye, FileText, RefreshCw, Flame, Image as ImageIcon, Upload, ZoomIn
 } from 'lucide-react';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import { withToken } from '../../lib/mediaAccess';
 
 const PG_STAGES = ['الصف الأول الثانوي', 'الصف الثاني الثانوي', 'الصف الثالث الثانوي',
   'الصف الأول الإعدادي', 'الصف الثاني الإعدادي', 'الصف الثالث الإعدادي',
@@ -50,6 +51,7 @@ const emptyForm = {
   start_date: '', end_date: '',
   shuffle_questions: false, shuffle_options: false,
   course_id: '', video_ids: [],
+  allow_retry: true,
 };
 
 const emptyQ = { question_text: '', question_image_url: '', question_type: 'mcq', option_a: '', option_b: '', option_c: '', option_d: '', correct_answer_letter: 'A', points: 1, sub_questions: [] };
@@ -146,6 +148,7 @@ export default function Recitations() {
       shuffle_options: rec.shuffle_options,
       course_id: rec.course_id ? String(rec.course_id) : '',
       video_ids: Array.isArray(rec.video_ids) ? rec.video_ids.map(Number) : [],
+      allow_retry: rec.allow_retry !== false,
     });
     setModal(true);
   };
@@ -593,6 +596,33 @@ export default function Recitations() {
                 </div>
               </div>
 
+              <button type="button"
+                onClick={() => setForm(f => ({ ...f, allow_retry: !f.allow_retry }))}
+                className={`flex items-start gap-3 p-3 rounded-2xl border-2 text-right transition-all ${
+                  form.allow_retry
+                    ? 'border-green-400 bg-green-50 shadow-sm shadow-green-100'
+                    : dark ? 'border-[var(--dk-border)] bg-[var(--dk-elevated)] hover:border-purple-400' : 'border-gray-200 bg-white hover:border-gray-300'
+                }`}>
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0 transition-all ${
+                  form.allow_retry ? 'bg-green-500' : dark ? 'bg-gray-700' : 'bg-gray-100'
+                }`}>🔄</div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                    <span className={`font-black text-xs sm:text-sm leading-tight ${form.allow_retry ? 'text-green-800' : dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>
+                      إعادة التسميع
+                    </span>
+                    <span className={`text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-full leading-none ${
+                      form.allow_retry ? 'bg-green-500 text-white' : dark ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'
+                    }`}>
+                      {form.allow_retry ? 'مفعّل' : 'معطّل'}
+                    </span>
+                  </div>
+                  <p className={`text-[10px] sm:text-xs leading-relaxed hidden sm:block ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-500'}`}>
+                    الطالب يقدر يعيد التسميع بدون إذن
+                  </p>
+                </div>
+              </button>
+
               <div className="flex gap-3 pt-2">
                 <button onClick={() => createMut.mutate(form)} disabled={createMut.isPending || !form.title.trim()}
                   className="flex-1 bg-purple-500 hover:bg-purple-600 disabled:opacity-50 text-white py-2.5 rounded-xl font-bold text-sm transition-colors">
@@ -876,7 +906,12 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
               </div>
 
               {q.question_image_url && (
-                <img src={q.question_image_url} alt="question" className="w-full max-h-32 object-contain rounded-xl border mb-2" />
+                <div className="relative mb-2">
+                  <img src={withToken(q.question_image_url)} alt="question" className="w-full max-h-32 object-contain rounded-xl border cursor-zoom-in" onClick={() => window.open(withToken(q.question_image_url), '_blank')} />
+                  <button onClick={() => window.open(withToken(q.question_image_url), '_blank')} className="absolute top-1 left-1 bg-black/50 hover:bg-black/70 text-white rounded p-1 transition-colors" title="تكبير">
+                    <ZoomIn className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               )}
               {q.question_text && (
                 <p className={`text-sm font-semibold mb-2 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>{q.question_text}</p>
@@ -934,6 +969,8 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
 }
 
 function ResultsPanel({ results, rec, dark, cardCls, navigate, baseRole = 'teacher' }) {
+  const [expandedStudent, setExpandedStudent] = useState(null);
+
   if (results.length === 0)
     return (
       <div className={`${cardCls} text-center py-8`}>
@@ -942,16 +979,28 @@ function ResultsPanel({ results, rec, dark, cardCls, navigate, baseRole = 'teach
       </div>
     );
 
-  const avg = Math.round(results.reduce((s, r) => s + r.score, 0) / results.length);
-  const passed = results.filter(r => r.passed).length;
+  // Group by student: keep latest result per student + all their attempts
+  const studentMap = new Map();
+  for (const r of results) {
+    if (!studentMap.has(r.student_id)) {
+      studentMap.set(r.student_id, { latest: r, all: [r] });
+    } else {
+      studentMap.get(r.student_id).all.push(r);
+    }
+  }
+  const grouped = Array.from(studentMap.values());
+
+  const uniqueStudents = grouped.length;
+  const avgScore = Math.round(grouped.reduce((s, g) => s + g.latest.score, 0) / uniqueStudents);
+  const passedCount = grouped.filter(g => g.latest.passed).length;
 
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-3 gap-2">
         {[
-          { label: 'شاركوا', value: results.length, color: 'purple' },
-          { label: 'متوسط الدرجة', value: `${avg}/${rec.total_score}`, color: 'blue' },
-          { label: 'نسبة النجاح', value: `${Math.round(passed/results.length*100)}%`, color: 'green' },
+          { label: 'شاركوا', value: uniqueStudents, color: 'purple' },
+          { label: 'متوسط الدرجة', value: `${avgScore}/${rec.total_score}`, color: 'blue' },
+          { label: 'نسبة النجاح', value: `${Math.round(passedCount/uniqueStudents*100)}%`, color: 'green' },
         ].map(({ label, value, color }) => (
           <div key={label} className={`rounded-xl p-3 text-center ${dark ? 'bg-[var(--dk-elevated)]' : `bg-${color}-50`}`}>
             <div className={`text-xl font-black text-${color}-600`}>{value}</div>
@@ -959,38 +1008,102 @@ function ResultsPanel({ results, rec, dark, cardCls, navigate, baseRole = 'teach
           </div>
         ))}
       </div>
-      {results.map(r => (
-        <div key={r.id} className={`${cardCls} flex items-center justify-between gap-3`}>
-          <div className="flex items-center gap-3">
-            <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm text-white ${r.passed ? 'bg-green-500' : 'bg-red-400'}`}>
-              {r.student_name?.charAt(0)}
+      {grouped.map(({ latest: r, all }) => {
+        const attemptCount = parseInt(r.attempt_count) || all.length;
+        const isExpanded = expandedStudent === r.student_id;
+        const hasMultiple = attemptCount > 1;
+        const firstScore = parseFloat(r.first_score);
+        const latestScore = r.score;
+        const scoreDiff = latestScore - firstScore;
+
+        return (
+          <div key={r.student_id} className={`${cardCls} space-y-2`}>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className={`w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center font-bold text-sm text-white ${r.passed ? 'bg-green-500' : 'bg-red-400'}`}>
+                  {r.student_name?.charAt(0)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className={`font-bold text-sm ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>{r.student_name}</p>
+                    {hasMultiple && (
+                      <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">
+                        {attemptCount} محاولات
+                      </span>
+                    )}
+                  </div>
+                  <p className={`text-xs ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>
+                    {r.academic_stage} · {new Date(r.created_at).toLocaleDateString('ar-EG')}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="text-left">
+                  <span className={`font-black text-lg ${r.passed ? 'text-green-600' : 'text-red-500'}`}>
+                    {latestScore}/{rec.total_score}
+                  </span>
+                  {hasMultiple && !isNaN(firstScore) && firstScore !== latestScore && (
+                    <p className={`text-[10px] ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>
+                      الأولى: {firstScore}/{rec.total_score}
+                      <span className={`mr-1 font-bold ${scoreDiff > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        {scoreDiff > 0 ? `+${scoreDiff}` : scoreDiff}
+                      </span>
+                    </p>
+                  )}
+                  <p className={`text-[10px] ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>
+                    {r.correct_count}✓ {r.wrong_count}✗
+                  </p>
+                </div>
+                {navigate && (
+                  <button onClick={() => navigate(`/${baseRole}/recitation-review/${r.id}`)}
+                    className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 transition-colors"
+                    title="مراجعة مفصّلة">
+                    <Eye className="w-4 h-4" />
+                  </button>
+                )}
+                {hasMultiple && (
+                  <button
+                    onClick={() => setExpandedStudent(isExpanded ? null : r.student_id)}
+                    className={`p-1.5 rounded-lg transition-colors ${dark ? 'hover:bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'hover:bg-gray-100 text-gray-500'}`}
+                    title="سجل المحاولات"
+                  >
+                    {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  </button>
+                )}
+              </div>
             </div>
-            <div>
-              <p className={`font-bold text-sm ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>{r.student_name}</p>
-              <p className={`text-xs ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>
-                {r.academic_stage} · {new Date(r.created_at).toLocaleDateString('ar-EG')}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="text-left">
-              <span className={`font-black text-lg ${r.passed ? 'text-green-600' : 'text-red-500'}`}>
-                {r.score}/{rec.total_score}
-              </span>
-              <p className={`text-xs ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>
-                {r.correct_count}✓ {r.wrong_count}✗
-              </p>
-            </div>
-            {navigate && (
-              <button onClick={() => navigate(`/${baseRole}/recitation-review/${r.id}`)}
-                className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 transition-colors flex-shrink-0"
-                title="مراجعة مفصّلة">
-                <Eye className="w-4 h-4" />
-              </button>
+
+            {isExpanded && hasMultiple && (
+              <div className={`rounded-xl overflow-hidden border ${dark ? 'border-[var(--dk-border)]' : 'border-gray-100'}`}>
+                {all.map((attempt, idx) => (
+                  <div key={attempt.id} className={`flex items-center justify-between px-3 py-2 gap-3 ${idx > 0 ? (dark ? 'border-t border-[var(--dk-border)]' : 'border-t border-gray-100') : ''} ${dark ? 'bg-[var(--dk-elevated)]' : 'bg-gray-50'}`}>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${attempt.passed ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                        محاولة {all.length - idx}
+                      </span>
+                      <span className={`text-xs ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>
+                        {new Date(attempt.created_at).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`font-bold text-sm ${attempt.passed ? 'text-green-600' : 'text-red-500'}`}>
+                        {attempt.score}/{rec.total_score}
+                      </span>
+                      {navigate && (
+                        <button onClick={() => navigate(`/${baseRole}/recitation-review/${attempt.id}`)}
+                          className="p-1 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-600 transition-colors"
+                          title="مراجعة">
+                          <Eye className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

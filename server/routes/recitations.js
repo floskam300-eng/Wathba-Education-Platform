@@ -162,7 +162,7 @@ router.post('/', requireRole('teacher', 'assistant'), checkManageRecitationsPerm
     total_score, pass_score, points_on_attempt, points_on_pass,
     schedule_type, schedule_day, start_date, end_date,
     shuffle_questions, shuffle_options,
-    course_id, video_ids,
+    course_id, video_ids, allow_retry,
   } = req.body;
 
   if (!title || !String(title).trim())
@@ -217,8 +217,8 @@ router.post('/', requireRole('teacher', 'assistant'), checkManageRecitationsPerm
          (teacher_id, title, description, academic_stage, duration_minutes,
           total_score, pass_score, points_on_attempt, points_on_pass,
           schedule_type, schedule_day, start_date, end_date,
-          shuffle_questions, shuffle_options, course_id, video_ids)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+          shuffle_questions, shuffle_options, course_id, video_ids, allow_retry)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
        RETURNING *`,
       [
         teacherId,
@@ -238,6 +238,7 @@ router.post('/', requireRole('teacher', 'assistant'), checkManageRecitationsPerm
         !!shuffle_options,
         parsedCourseId,
         JSON.stringify(parsedVideoIds),
+        allow_retry !== false,
       ]
     );
     logActivity({
@@ -577,7 +578,7 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageRecitationsPe
     total_score, pass_score, points_on_attempt, points_on_pass,
     schedule_type, schedule_day, start_date, end_date,
     shuffle_questions, shuffle_options,
-    course_id, video_ids,
+    course_id, video_ids, allow_retry,
   } = req.body;
 
   if (!title || !String(title).trim())
@@ -632,8 +633,9 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageRecitationsPe
          title=$1, description=$2, academic_stage=$3, duration_minutes=$4,
          total_score=$5, pass_score=$6, points_on_attempt=$7, points_on_pass=$8,
          schedule_type=$9, schedule_day=$10, start_date=$11, end_date=$12,
-         shuffle_questions=$13, shuffle_options=$14, course_id=$15, video_ids=$16
-       WHERE id=$17 AND teacher_id=$18 RETURNING *`,
+         shuffle_questions=$13, shuffle_options=$14, course_id=$15, video_ids=$16,
+         allow_retry=$17
+       WHERE id=$18 AND teacher_id=$19 RETURNING *`,
       [
         String(title).trim(), description || null, academic_stage || null, dur,
         totalSc, passSc,
@@ -643,6 +645,7 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageRecitationsPe
         start_date || null, end_date || null,
         !!shuffle_questions, !!shuffle_options,
         parsedCourseId, JSON.stringify(parsedVideoIds),
+        allow_retry !== false,
         id, teacherId,
       ]
     );
@@ -978,7 +981,11 @@ router.get('/:id/results', requireRole('teacher', 'assistant'), checkManageRecit
     if (!rec) return res.status(404).json({ error: 'التسميع غير موجود' });
 
     const { rows } = await pool.query(
-      `SELECT rr.*, s.name AS student_name, s.academic_stage
+      `SELECT rr.*, s.name AS student_name, s.academic_stage,
+              COUNT(*) OVER (PARTITION BY rr.student_id) AS attempt_count,
+              FIRST_VALUE(rr.score) OVER (PARTITION BY rr.student_id ORDER BY rr.created_at ASC) AS first_score,
+              FIRST_VALUE(rr.passed) OVER (PARTITION BY rr.student_id ORDER BY rr.created_at ASC) AS first_passed,
+              FIRST_VALUE(rr.created_at) OVER (PARTITION BY rr.student_id ORDER BY rr.created_at ASC) AS first_submitted_at
          FROM recitation_results rr
          JOIN students s ON rr.student_id = s.id
         WHERE rr.recitation_id = $1 AND s.teacher_id = $2
@@ -1028,18 +1035,7 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
     if (rec.end_date && new Date(rec.end_date) < now)
       return res.status(400).json({ error: 'انتهى وقت التسميع' });
 
-    // [R5-FIX] For recurring recitations: only block if student already submitted
-    // WITHIN the current window (start_date). This allows retaking in a new window.
-    const { rows: existing } = await pool.query(
-      `SELECT id FROM recitation_results
-        WHERE student_id=$1 AND recitation_id=$2
-          AND ($3::timestamp IS NULL OR created_at >= $3::timestamp)
-        LIMIT 1`,
-      [studentId, id, rec.start_date]
-    );
-    if (existing.length) return res.status(409).json({ error: 'لقد أديت هذا التسميع بالفعل', already_submitted: true });
-
-    // Check for existing session (resume)
+    // Check for existing session first (resume in-progress attempt, even when retrying)
     const { rows: sessRows } = await pool.query(
       'SELECT * FROM recitation_sessions WHERE student_id=$1 AND recitation_id=$2',
       [studentId, id]
@@ -1057,6 +1053,19 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
         resumed: true,
       });
     }
+
+    // [R5-FIX] For recurring recitations: only block if student already submitted
+    // WITHIN the current window (start_date). This allows retaking in a new window.
+    // [allow_retry] Skip the block entirely when allow_retry=true — students may retake freely.
+    const { rows: existing } = await pool.query(
+      `SELECT id FROM recitation_results
+        WHERE student_id=$1 AND recitation_id=$2
+          AND ($3::timestamp IS NULL OR created_at >= $3::timestamp)
+        LIMIT 1`,
+      [studentId, id, rec.start_date]
+    );
+    if (existing.length && !rec.allow_retry)
+      return res.status(409).json({ error: 'لقد أديت هذا التسميع بالفعل', already_submitted: true });
 
     // Create new session — load and snapshot questions
     const { rows: questions } = await pool.query(
