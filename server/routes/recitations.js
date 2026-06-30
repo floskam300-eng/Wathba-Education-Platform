@@ -1414,44 +1414,6 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
         points_earned: pointsEarned,
         total_score: rec.total_score,
         pass_score: rec.pass_score,
-        // Send back answers with correct letters for review
-        review: snapshot.map(q => {
-          const studentAns = answerMap[q.id] || null;
-          if (q.question_type === 'image_multi') {
-            const subQs = Array.isArray(q.sub_questions) ? q.sub_questions : [];
-            let parsedAns = {};
-            try { if (studentAns) parsedAns = JSON.parse(studentAns); } catch {}
-            const subResults = subQs.map(sub => ({
-              label: sub.label,
-              correct: sub.correct,
-              student_answer: parsedAns[sub.label] || null,
-              is_correct: String(parsedAns[sub.label] || '').toUpperCase() === String(sub.correct).toUpperCase(),
-            }));
-            return {
-              id: q.id,
-              question_text: q.question_text,
-              question_image_url: q.question_image_url,
-              question_type: q.question_type,
-              option_a: q.option_a, option_b: q.option_b, option_c: q.option_c, option_d: q.option_d,
-              sub_questions: subQs,
-              sub_results: subResults,
-              student_answer: studentAns,
-              is_correct: subResults.every(s => s.is_correct),
-              points: q.points,
-            };
-          }
-          return {
-            id: q.id,
-            question_text: q.question_text,
-            question_image_url: q.question_image_url,
-            question_type: q.question_type,
-            option_a: q.option_a, option_b: q.option_b, option_c: q.option_c, option_d: q.option_d,
-            correct_answer_letter: q.correct_answer_letter,
-            student_answer: studentAns,
-            is_correct: studentAns === q.correct_answer_letter,
-            points: q.points,
-          };
-        }),
       });
     } catch (txErr) {
       await client.query('ROLLBACK');
