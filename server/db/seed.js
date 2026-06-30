@@ -1832,7 +1832,7 @@ async function seed() {
          correct_answer_letter,points,sort_order)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id
     `, [r1.id, qt, txt, a, b, c, d, ans, pts, ord]);
-    r1QIds.push({ id: qr.id, correct: ans, pts });
+    r1QIds.push({ id: qr.id, question_type: qt, question_text: txt, option_a: a, option_b: b, option_c: c, option_d: d, correct_answer_letter: ans, correct: ans, points: pts, pts, sort_order: ord });
   }
 
   // أسئلة r2 (مثلثات — 20 درجة، 5 أسئلة)
@@ -1851,7 +1851,7 @@ async function seed() {
          correct_answer_letter,points,sort_order)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id
     `, [r2.id, qt, txt, a, b, c, d, ans, pts, ord]);
-    r2QIds.push({ id: qr.id, correct: ans, pts });
+    r2QIds.push({ id: qr.id, question_type: qt, question_text: txt, option_a: a, option_b: b, option_c: c, option_d: d, correct_answer_letter: ans, correct: ans, points: pts, pts, sort_order: ord });
   }
 
   // أسئلة r3 (تكامل — 18 درجة: 5 عادية + 1 بصورة)
@@ -1937,7 +1937,7 @@ async function seed() {
          correct_answer_letter,points,sort_order)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id
     `, [r5.id, qt, txt, a, b, c, d, ans, pts, ord]);
-    r5QIds.push({ id: qr.id, correct: ans, pts });
+    r5QIds.push({ id: qr.id, question_type: qt, question_text: txt, option_a: a, option_b: b, option_c: c, option_d: d, correct_answer_letter: ans, correct: ans, points: pts, pts, sort_order: ord });
   }
 
   // أسئلة r7 (الاتزان العام — 10 درجات، 5 أسئلة)
@@ -1956,7 +1956,7 @@ async function seed() {
          correct_answer_letter,points,sort_order)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id
     `, [r7.id, qt, txt, a, b, c, d, ans, pts, ord]);
-    r7QIds.push({ id: qr.id, correct: ans, pts });
+    r7QIds.push({ id: qr.id, question_type: qt, question_text: txt, option_a: a, option_b: b, option_c: c, option_d: d, correct_answer_letter: ans, correct: ans, points: pts, pts, sort_order: ord });
   }
 
   // أسئلة r8 (المتجهات الفراغية — 10 درجات، 5 أسئلة)
@@ -1975,7 +1975,7 @@ async function seed() {
          correct_answer_letter,points,sort_order)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id
     `, [r8.id, qt, txt, a, b, c, d, ans, pts, ord]);
-    r8QIds.push({ id: qr.id, correct: ans, pts });
+    r8QIds.push({ id: qr.id, question_type: qt, question_text: txt, option_a: a, option_b: b, option_c: c, option_d: d, correct_answer_letter: ans, correct: ans, points: pts, pts, sort_order: ord });
   }
 
   // أسئلة r9 (القوى المتوازية — 10 درجات، 5 أسئلة)
@@ -1988,12 +1988,13 @@ async function seed() {
   ];
   const r9QIds = [];
   for (const [qt, txt, a, b, c, d, ans, pts, ord] of r9Questions) {
-    await q(`
+    const [qr] = await q(`
       INSERT INTO recitation_questions
         (recitation_id,question_type,question_text,option_a,option_b,option_c,option_d,
          correct_answer_letter,points,sort_order)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id
     `, [r9.id, qt, txt, a, b, c, d, ans, pts, ord]);
+    r9QIds.push({ id: qr.id, question_type: qt, question_text: txt, option_a: a, option_b: b, option_c: c, option_d: d, correct_answer_letter: ans, correct: ans, points: pts, pts, sort_order: ord });
   }
 
   console.log('  ✓ أسئلة التسميعات أضيفت بالكامل بما فيها التسميعات الجديدة');
@@ -2014,12 +2015,23 @@ async function seed() {
   console.log('  ✓ جلسة تسميع نشطة: std_ali في r3 (بدأ ولم يكمل)');
 
   // ── دالة مساعدة: بناء snapshot الأسئلة للتسميع ──────────
-  // نحن نخزّن مصفوفة فارغة عمداً حتى يرجع endpoint المراجعة
-  // إلى جدول recitation_questions مباشرةً ويحصل على كامل بيانات
-  // الأسئلة (نص، خيارات، صورة). أي snapshot مختصر لا يحتوي على
-  // هذه الحقول يتسبب في ظهور صناديق فارغة في صفحة المراجعة.
-  function makeRecitSnapshot(_qIds) {
-    return JSON.stringify([]);
+  // نخزّن snapshot كامل بكل حقول السؤال حتى لا يحتاج endpoint
+  // المراجعة إلى DB ولا يعتمد على تطابق IDs بعد re-seed.
+  function makeRecitSnapshot(qRows) {
+    return JSON.stringify(qRows.map(q => ({
+      id:                    q.id,
+      question_type:         q.question_type,
+      question_text:         q.question_text,
+      option_a:              q.option_a   ?? null,
+      option_b:              q.option_b   ?? null,
+      option_c:              q.option_c   ?? null,
+      option_d:              q.option_d   ?? null,
+      correct_answer_letter: q.correct_answer_letter ?? q.correct ?? null,
+      points:                q.points     ?? q.pts ?? null,
+      sort_order:            q.sort_order ?? null,
+      question_image_url:    q.question_image_url ?? null,
+      sub_questions:         q.sub_questions ?? null,
+    })));
   }
 
   // ── نتائج التسميعات ──────────────────────────────────────
@@ -2177,6 +2189,20 @@ async function seed() {
         passed ? 7 : 2,
         passed, r1Snapshot]);
   }
+
+  // std_ali في r9: ناجح ✓ (8/10)
+  await q(`
+    INSERT INTO recitation_results
+      (student_id,recitation_id,score,correct_count,wrong_count,unanswered_count,
+       answers,points_earned,start_time,end_time,passed,created_at,questions_snapshot)
+    VALUES ($1,$2,8,4,1,0,
+      $3,5,
+      NOW()-INTERVAL '2 days'-INTERVAL '9 minutes',
+      NOW()-INTERVAL '2 days',
+      true,NOW()-INTERVAL '2 days',$4)
+  `, [STD_ALI, r9.id, JSON.stringify(
+    makeRecitAnswers(r9QIds, 4, 1)
+  ), makeRecitSnapshot(r9QIds)]);
 
   // طلاب ث2 في r5 (هندسة تحليلية)
   const r5Results = [
