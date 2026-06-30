@@ -3,7 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
   BookOpen, Clock, CheckCircle, XCircle, Trophy,
-  ChevronLeft, AlertCircle, BarChart2, RefreshCw, Lock, Eye, Loader2, ZoomIn
+  ChevronLeft, AlertCircle, BarChart2, RefreshCw, Lock, Eye, Loader2, ZoomIn,
+  ChevronDown, ChevronUp, X
 } from 'lucide-react';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
@@ -73,10 +74,11 @@ export default function StudentRecitations() {
     queryFn: () => api.get('/recitations/student/list').then(r => r.data),
   });
 
+  const [showHistory, setShowHistory] = useState(false);
+
   const { data: history = [] } = useQuery({
     queryKey: ['student-recitation-results'],
     queryFn: () => api.get('/recitations/student/results').then(r => r.data),
-    enabled: view === 'history',
   });
 
   const startRec = async (rec) => {
@@ -283,59 +285,93 @@ export default function StudentRecitations() {
 
     return (
       <div className="p-4 lg:p-6 space-y-6" dir="rtl">
-        {/* Header + streak */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className={`text-xl font-black flex items-center gap-2 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>
-            <BookOpen className="w-6 h-6 text-purple-500" /> التسميع
-          </h1>
-          <div className="flex items-center gap-2">
-            <button onClick={() => setView(view === 'history' ? 'list' : 'history')}
-              className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${view === 'history' ? 'bg-purple-500 text-white' : dark ? 'text-[var(--dk-text-2)] hover:bg-[var(--dk-elevated)]' : 'text-gray-600 hover:bg-gray-100'}`}>
-              <BarChart2 className="w-4 h-4 inline ml-1" />سجلي
-            </button>
-          </div>
-        </div>
+        {/* Header */}
+        <h1 className={`text-xl font-black flex items-center gap-2 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>
+          <BookOpen className="w-6 h-6 text-purple-500" /> التسميع
+        </h1>
 
-        {/* History tab */}
-        {view === 'history' && (
-          <div className="space-y-3">
-            {history.length === 0 ? (
-              <div className={`${cardCls} text-center py-10`}>
-                <BarChart2 className={`w-12 h-12 mx-auto mb-2 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-300'}`} />
-                <p className={`text-sm ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>لا توجد نتائج بعد</p>
+        {/* ── سجل تسميعاتي (always visible, collapsible) ─────────────────── */}
+        {history.length > 0 && (
+          <div className="card !p-0 overflow-hidden">
+            <button
+              onClick={() => setShowHistory(v => !v)}
+              className={`w-full flex items-center justify-between px-4 py-3 transition-colors ${dark ? 'hover:bg-[var(--dk-elevated)]' : 'hover:bg-gray-50'}`}
+            >
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-gray-400" />
+                <span className={`text-sm font-bold ${dark ? 'text-[var(--dk-text-1)]' : 'text-navy-700'}`}>سجل تسميعاتي</span>
+                <span className={`text-[10px] rounded-full px-2 py-0.5 font-bold ${dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-500'}`}>
+                  {history.length}
+                </span>
               </div>
-            ) : history.map(r => (
-              <div key={r.id} className={`${cardCls} flex items-center justify-between gap-3`}>
-                <div className="min-w-0 flex-1">
-                  <p className={`font-bold text-sm truncate ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>{r.title}</p>
-                  <p className={`text-xs ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>
-                    {new Date(r.created_at).toLocaleDateString('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' })}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <button
-                    onClick={() => navigate(`/student/recitation-review/${r.id}`)}
-                    className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${dark ? 'bg-indigo-900/30 text-indigo-300 hover:bg-indigo-900/50' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}
-                  >
-                    <Eye className="w-3.5 h-3.5" />
-                    مراجعة
-                  </button>
-                  <div className="text-left">
-                    <span className={`font-black text-xl ${r.passed ? 'text-green-600' : 'text-red-500'}`}>
-                      {r.score}/{r.total_score}
-                    </span>
-                    <p className={`text-xs ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>
-                      {r.passed ? '✅ ناجح' : '❌ راسب'}
-                    </p>
-                  </div>
-                </div>
+              {showHistory
+                ? <ChevronUp className="w-4 h-4 text-gray-400" />
+                : <ChevronDown className="w-4 h-4 text-gray-400" />}
+            </button>
+
+            {showHistory && (
+              <div className={`divide-y ${dark ? 'divide-[var(--dk-border)]' : 'divide-gray-100'}`}>
+                {history.map(r => {
+                  const isAbsent = r.is_absent === true || r.is_absent === 'true';
+                  const passed = !isAbsent && r.passed;
+                  return (
+                    <div key={r.id} className="flex items-center gap-3 px-4 py-3">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                        isAbsent ? (dark ? 'bg-[var(--dk-elevated)]' : 'bg-gray-100') :
+                        passed   ? (dark ? 'bg-green-900/30'          : 'bg-green-100') :
+                                   (dark ? 'bg-red-900/30'            : 'bg-red-100')
+                      }`}>
+                        {isAbsent
+                          ? <Clock className="w-4 h-4 text-gray-400" />
+                          : passed
+                            ? <CheckCircle className="w-4 h-4 text-green-600" />
+                            : <X className="w-4 h-4 text-red-500" />}
+                      </div>
+                      <div className="flex-1 min-w-0 text-right">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className={`text-xs font-bold truncate ${dark ? 'text-[var(--dk-text-1)]' : 'text-navy-700'}`}>{r.title}</p>
+                          {isAbsent && (
+                            <span className={`text-[10px] rounded-full px-1.5 py-0.5 font-bold ${dark ? 'bg-[var(--dk-elevated)] text-gray-400' : 'bg-gray-100 text-gray-500'}`}>غائب</span>
+                          )}
+                          {!isAbsent && passed && (
+                            <span className={`text-[10px] rounded-full px-1.5 py-0.5 font-bold ${dark ? 'bg-green-900/30 text-green-400' : 'bg-green-50 text-green-600'}`}>ناجح</span>
+                          )}
+                          {!isAbsent && !passed && (
+                            <span className={`text-[10px] rounded-full px-1.5 py-0.5 font-bold ${dark ? 'bg-red-900/30 text-red-400' : 'bg-red-50 text-red-600'}`}>راسب</span>
+                          )}
+                        </div>
+                        <p className={`text-[10px] mt-0.5 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>
+                          {new Date(r.created_at).toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' })}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        {isAbsent ? (
+                          <span className={`text-xs font-black ${dark ? 'text-gray-500' : 'text-gray-400'}`}>غائب</span>
+                        ) : (
+                          <>
+                            <span className={`text-xs font-black ${passed ? 'text-green-600' : 'text-red-500'}`}>
+                              {r.score}/{r.total_score}
+                            </span>
+                            <button
+                              onClick={() => navigate(`/student/recitation-review/${r.id}`)}
+                              className={`p-1.5 rounded-lg transition-colors ${dark ? 'text-gray-500 hover:text-purple-400 hover:bg-purple-900/20' : 'text-gray-400 hover:text-purple-500 hover:bg-purple-50'}`}
+                              title="مراجعة الإجابات"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            ))}
+            )}
           </div>
         )}
 
         {/* List sections */}
-        {view === 'list' && (
+        {(
           <div className="space-y-6">
             {isLoading ? (
               [...Array(3)].map((_, i) => <div key={i} className={`${cardCls} h-24 animate-pulse`} />)

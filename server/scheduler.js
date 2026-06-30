@@ -13,16 +13,19 @@ const { activeSends } = require('./lib/waActiveSends');
 // manual-unpublish path instead of duplicating it.  Any future bugfixes to
 // markAbsentStudents will automatically apply here too.
 const { markAbsentStudents } = require('./routes/exams');
+const { markAbsentRecitationStudents } = require('./routes/recitations');
 
 let _pool = null;
 let _intervalId = null;
 let _waIntervalId = null;
 let _recIntervalId = null;
 let _examEndIntervalId = null;
+let _recEndIntervalId = null;
 let _isRunning = false;
 let _isWaRunning = false;
 let _isRecRunning = false;
 let _isEndRunning = false;
+let _isRecEndRunning = false;
 
 async function runCheck() {
   if (!_pool || _isRunning) return;
@@ -239,8 +242,9 @@ async function runRecitationSchedule() {
         const txClient = await _pool.connect();
         try {
           await txClient.query('BEGIN');
+          // Also reset absent_marked so a new window can record absences again.
           await txClient.query(
-            `UPDATE recitations SET start_date=$1, end_date=$2, start_notified=false
+            `UPDATE recitations SET start_date=$1, end_date=$2, start_notified=false, absent_marked=false
               WHERE id=$3`,
             [newStart.toISOString(), newEnd.toISOString(), rec.id]
           );
@@ -350,6 +354,40 @@ async function runRecitationSchedule() {
   }
 }
 
+// ── Ended-recitation absent marker ───────────────────────────────────────────
+// Runs every 5 minutes. Finds 'once' recitations whose end_date has passed and
+// marks every eligible student with no result as "absent".
+// Recurring recitations are excluded — their windows are reset by runRecitationSchedule.
+async function runEndedRecitationCheck() {
+  if (!_pool || _isRecEndRunning) return;
+  _isRecEndRunning = true;
+  try {
+    const { rows: endedRecs } = await _pool.query(`
+      SELECT r.id, r.teacher_id, r.title
+        FROM recitations r
+       WHERE r.end_date IS NOT NULL
+         AND r.end_date <= NOW()
+         AND r.absent_marked = false
+         AND r.is_published = true
+         AND r.schedule_type = 'once'
+       LIMIT 50
+    `);
+
+    for (const rec of endedRecs) {
+      try {
+        const count = await markAbsentRecitationStudents(_pool, rec.id, rec.teacher_id);
+        console.log(`[Scheduler] Ended recitation "${rec.title}" (id=${rec.id}) — marked ${count} absent`);
+      } catch (e) {
+        console.error(`[Scheduler] Error marking absent for recitation ${rec.id}:`, e.message);
+      }
+    }
+  } catch (err) {
+    console.error('[Scheduler] Error in ended recitation check:', err.message);
+  } finally {
+    _isRecEndRunning = false;
+  }
+}
+
 // ── Ended-exam absent marker ──────────────────────────────────────────────────
 // Runs every 5 minutes. Finds exams whose end_date has passed and marks every
 // eligible student with no result as "absent" — regardless of is_published state
@@ -402,17 +440,22 @@ function startScheduler(pool) {
   // Check for ended exams and mark absent students every 5 minutes
   runEndedExamCheck();
   _examEndIntervalId = setInterval(runEndedExamCheck, 5 * 60 * 1000);
+  // Check for ended 'once' recitations and mark absent students every 5 minutes
+  runEndedRecitationCheck();
+  _recEndIntervalId = setInterval(runEndedRecitationCheck, 5 * 60 * 1000);
   console.log('[Scheduler] Exam start scheduler running (30s interval)');
   console.log('[Scheduler] WhatsApp schedule checker running (5min interval)');
   console.log('[Scheduler] Recitation window scheduler running (5min interval)');
   console.log('[Scheduler] Ended-exam absent marker running (5min interval)');
+  console.log('[Scheduler] Ended-recitation absent marker running (5min interval)');
 }
 
 function stopScheduler() {
-  if (_intervalId)       { clearInterval(_intervalId);       _intervalId       = null; }
-  if (_waIntervalId)     { clearInterval(_waIntervalId);     _waIntervalId     = null; }
-  if (_recIntervalId)    { clearInterval(_recIntervalId);    _recIntervalId    = null; }
-  if (_examEndIntervalId){ clearInterval(_examEndIntervalId); _examEndIntervalId = null; }
+  if (_intervalId)        { clearInterval(_intervalId);        _intervalId        = null; }
+  if (_waIntervalId)      { clearInterval(_waIntervalId);      _waIntervalId      = null; }
+  if (_recIntervalId)     { clearInterval(_recIntervalId);     _recIntervalId     = null; }
+  if (_examEndIntervalId) { clearInterval(_examEndIntervalId); _examEndIntervalId = null; }
+  if (_recEndIntervalId)  { clearInterval(_recEndIntervalId);  _recEndIntervalId  = null; }
 }
 
 module.exports = { startScheduler, stopScheduler };

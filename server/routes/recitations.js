@@ -714,7 +714,12 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageRecit
     }
 
     const { rows } = await pool.query(
-      `UPDATE recitations SET is_published=$1, start_notified=false
+      `UPDATE recitations
+          SET is_published=$1,
+              start_notified=false,
+              -- Reset absent_marked when re-publishing so the scheduler and new
+              -- unpublish can mark absent again for the fresh window.
+              absent_marked = CASE WHEN $1 THEN false ELSE absent_marked END
         WHERE id=$2 AND teacher_id=$3 RETURNING *`,
       [newPublished, id, teacherId]
     );
@@ -756,6 +761,11 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageRecit
         action: 'publish_recitation',
         entity: { type: 'recitation', id, name: rec2.title },
       });
+    } else {
+      // Unpublishing — mark absent for every eligible student who never submitted
+      markAbsentRecitationStudents(pool, id, teacherId).catch(e =>
+        console.error('[unpublish recitation] markAbsentRecitationStudents error:', e.message)
+      );
     }
 
     res.json(rows[0]);
@@ -1599,4 +1609,73 @@ router.get('/results/:resultId/review', authenticate, async (req, res) => {
   }
 });
 
+// ── Absent marking for recitations ────────────────────────────────────────────
+// Mirrors markAbsentStudents() in exams.js. Inserts an is_absent=true row for
+// every eligible student who has no result yet for this recitation.
+// Eligibility: all non-suspended, non-deleted students of this teacher,
+// filtered by academic_stage if the recitation has one set.
+async function markAbsentRecitationStudents(poolOrClient, recitationId, teacherId) {
+  try {
+    const recInfo = await poolOrClient.query(
+      'SELECT academic_stage FROM recitations WHERE id=$1', [recitationId]
+    );
+    if (!recInfo.rows.length) return 0;
+    const { academic_stage } = recInfo.rows[0];
+
+    let eligibleRows;
+    if (academic_stage) {
+      const r = await poolOrClient.query(
+        `SELECT s.id
+           FROM students s
+          WHERE s.teacher_id=$1 AND s.academic_stage=$2
+            AND s.deleted_at IS NULL AND s.is_suspended=false
+            AND NOT EXISTS (
+              SELECT 1 FROM recitation_results rr
+               WHERE rr.student_id=s.id AND rr.recitation_id=$3
+            )`,
+        [teacherId, academic_stage, recitationId]
+      );
+      eligibleRows = r.rows;
+    } else {
+      const r = await poolOrClient.query(
+        `SELECT s.id
+           FROM students s
+          WHERE s.teacher_id=$1
+            AND s.deleted_at IS NULL AND s.is_suspended=false
+            AND NOT EXISTS (
+              SELECT 1 FROM recitation_results rr
+               WHERE rr.student_id=s.id AND rr.recitation_id=$3
+            )`,
+        [teacherId, recitationId]
+      );
+      eligibleRows = r.rows;
+    }
+
+    if (eligibleRows.length > 0) {
+      const studentIds = eligibleRows.map(r => r.id);
+      await poolOrClient.query(
+        `INSERT INTO recitation_results
+           (student_id, recitation_id, score, correct_count, wrong_count,
+            unanswered_count, is_absent, passed, points_earned)
+         SELECT s_id, $2, 0, 0, 0, 0, true, false, 0
+           FROM unnest($1::int[]) AS s_id
+          WHERE NOT EXISTS (
+            SELECT 1 FROM recitation_results rr
+             WHERE rr.student_id=s_id AND rr.recitation_id=$2
+          )`,
+        [studentIds, recitationId]
+      );
+    }
+    await poolOrClient.query(
+      'UPDATE recitations SET absent_marked=true WHERE id=$1', [recitationId]
+    );
+    console.log(`[markAbsentRecitationStudents] recitation=${recitationId} — marked ${eligibleRows.length} absent`);
+    return eligibleRows.length;
+  } catch (err) {
+    console.error('[markAbsentRecitationStudents] error:', err.message);
+    return 0;
+  }
+}
+
 module.exports = router;
+module.exports.markAbsentRecitationStudents = markAbsentRecitationStudents;

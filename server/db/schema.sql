@@ -1037,6 +1037,10 @@ ALTER TABLE bank_questions ADD CONSTRAINT chk_bank_question_type CHECK (question
 ALTER TABLE exam_results ADD COLUMN IF NOT EXISTS is_absent BOOLEAN DEFAULT false NOT NULL;
 ALTER TABLE exams ADD COLUMN IF NOT EXISTS absent_marked BOOLEAN DEFAULT false NOT NULL;
 
+-- Absent marking: track students who missed a published recitation
+ALTER TABLE recitation_results ADD COLUMN IF NOT EXISTS is_absent BOOLEAN DEFAULT false NOT NULL;
+ALTER TABLE recitations       ADD COLUMN IF NOT EXISTS absent_marked BOOLEAN DEFAULT false NOT NULL;
+
 -- Import model: per-teacher column mapping for Excel imports
 CREATE TABLE IF NOT EXISTS teacher_import_models (
   id SERIAL PRIMARY KEY,
