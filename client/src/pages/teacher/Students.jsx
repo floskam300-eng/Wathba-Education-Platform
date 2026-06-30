@@ -1051,7 +1051,7 @@ export default function TeacherStudents() {
                   <tr>
                     <th className="table-header rounded-r-lg hidden sm:table-cell">#</th>
                     <th className="table-header">الاسم</th>
-                    <th className="table-header">اسم المستخدم</th>
+                    <th className="table-header">كود الطالب</th>
                     <th className="table-header hidden md:table-cell">كلمة المرور</th>
                     <th className="table-header hidden md:table-cell">الهاتف</th>
                     <th className="table-header hidden lg:table-cell">رقم ولي الأمر</th>
@@ -1086,7 +1086,7 @@ export default function TeacherStudents() {
                           {s.name}
                         </div>
                       </td>
-                      <td data-label="المستخدم" className="table-cell font-mono text-sm text-gray-700">{s.username}</td>
+                      <td data-label="كود الطالب" className="table-cell font-mono text-sm text-gray-700">{s.username}</td>
                       <td data-label="كلمة المرور" className="table-cell hidden md:table-cell">
                         {s.plain_password
                           ? <PasswordCell password={s.plain_password} onCopy={copyToClipboard} />
@@ -1109,8 +1109,8 @@ export default function TeacherStudents() {
                               onClick={() => setSuspendTarget(s)}
                               className={`p-1.5 rounded-lg transition-colors ${
                                 s.is_suspended
-                                  ? 'text-green-700 hover:bg-green-50'
-                                  : 'text-red-600 hover:bg-red-50'
+                                  ? 'text-red-600 hover:bg-red-50'
+                                  : 'text-green-600 hover:bg-green-50'
                               }`}
                               title={s.is_suspended ? 'إعادة تفعيل الحساب' : 'إيقاف الحساب'}
                             >

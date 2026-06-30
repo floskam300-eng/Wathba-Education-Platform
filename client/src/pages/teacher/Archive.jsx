@@ -347,7 +347,7 @@ export default function ArchivePage() {
               <table className="w-full text-xs">
                 <thead>
                   <tr className={dark ? 'bg-[var(--dk-elevated)]' : 'bg-gray-50'}>
-                    {['الطالب', 'المرحلة', 'الاختبارات', 'التسميع', 'متوسط الاختبارات', 'متوسط التسميع', ''].map(h => (
+                    {['الطالب', 'كود الطالب', 'المرحلة', 'الاختبارات', 'التسميع', 'متوسط الاختبارات', 'متوسط التسميع', ''].map(h => (
                       <th key={h} className={`px-4 py-3 text-right font-black text-[10px] uppercase tracking-wide ${textSec}`}>{h}</th>
                     ))}
                   </tr>
@@ -367,11 +367,11 @@ export default function ArchivePage() {
                             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-400 to-purple-500 flex items-center justify-center text-white text-xs font-black flex-shrink-0">
                               {st.name?.charAt(0)}
                             </div>
-                            <div>
-                              <p className={`font-bold group-hover:text-orange-500 transition-colors ${textPrimary}`}>{st.name}</p>
-                              <p className={`text-[10px] ${textSec}`}>{st.username}</p>
-                            </div>
+                            <p className={`font-bold group-hover:text-orange-500 transition-colors ${textPrimary}`}>{st.name}</p>
                           </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`font-mono font-bold text-xs ${textPrimary}`}>{st.username}</span>
                         </td>
                         <td className="px-4 py-3"><StageBadge stage={st.academic_stage} dark={dark} /></td>
                         <td className="px-4 py-3">

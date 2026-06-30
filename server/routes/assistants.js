@@ -154,7 +154,7 @@ router.get('/analytics', requireRole('teacher', 'assistant'), checkAnalyticsPerm
       pool.query(`
         SELECT er.id, er.score, er.correct_count, er.wrong_count,
                er.unanswered_count, er.created_at,
-               s.name as student_name, s.academic_stage,
+               s.name as student_name, s.username as student_username, s.academic_stage,
                e.title as exam_title, e.total_score, e.pass_score
         FROM exam_results er
         JOIN students s ON er.student_id = s.id

@@ -1563,6 +1563,7 @@ export default function TeacherAnalytics() {
               <tr className="bg-gray-50/50">
                 {[
                   { key: 'name', label: 'الطالب' },
+                  { key: 'username', label: 'كود الطالب' },
                   { key: 'academic_stage', label: 'المرحلة' },
                   { key: 'points', label: 'النقاط' },
                   { key: 'exams_taken', label: 'اختبارات' },
@@ -1580,7 +1581,7 @@ export default function TeacherAnalytics() {
             <tbody>
               {isLoading ? (
                 [...Array(5)].map((_, i) => (
-                  <tr key={i}><td colSpan={6}><div className="h-10 bg-gray-100 animate-pulse m-2 rounded" /></td></tr>
+                  <tr key={i}><td colSpan={7}><div className="h-10 bg-gray-100 animate-pulse m-2 rounded" /></td></tr>
                 ))
               ) : filteredStudents.slice(0, studentsPage).map((s, i) => {
                 const avg = Math.round(parseFloat(s.avg_score) || 0);
@@ -1591,11 +1592,11 @@ export default function TeacherAnalytics() {
                       <div className="flex items-center gap-2.5">
                         <span className="w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black text-white flex-shrink-0"
                           style={{ background: CHART_COLORS[i % CHART_COLORS.length] }}>{i + 1}</span>
-                        <div>
-                          <p className="text-sm font-bold text-gray-800">{s.name}</p>
-                          <p className="text-[10px] text-gray-400">{s.username}</p>
-                        </div>
+                        <p className="text-sm font-bold text-gray-800">{s.name}</p>
                       </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="font-mono font-bold text-xs text-orange-600">{s.username}</span>
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-500 font-medium">{s.academic_stage || '—'}</td>
                     <td className="px-4 py-3">
@@ -1623,7 +1624,7 @@ export default function TeacherAnalytics() {
                 );
               })}
               {!isLoading && filteredStudents.length === 0 && (
-                <tr><td colSpan={6} className="text-center py-10 text-gray-400 text-sm font-semibold">لا توجد نتائج</td></tr>
+                <tr><td colSpan={7} className="text-center py-10 text-gray-400 text-sm font-semibold">لا توجد نتائج</td></tr>
               )}
             </tbody>
           </table>
@@ -1680,6 +1681,7 @@ export default function TeacherAnalytics() {
             <thead>
               <tr className="bg-gray-50/50">
                 <th className="px-4 py-3 text-right text-[11px] font-black text-gray-500">الطالب</th>
+                <th className="px-4 py-3 text-right text-[11px] font-black text-gray-500">كود الطالب</th>
                 <th className="px-4 py-3 text-right text-[11px] font-black text-gray-500">الاختبار</th>
                 <th className="px-4 py-3 text-center text-[11px] font-black text-gray-500">الدرجة</th>
                 <th className="px-4 py-3 text-center text-[11px] font-black text-gray-500">الحالة</th>
@@ -1694,6 +1696,7 @@ export default function TeacherAnalytics() {
                 return (
                   <tr key={r.id} className="border-t border-gray-50 hover:bg-gray-50/60 transition-colors group">
                     <td className="px-4 py-3 font-bold text-gray-800 text-sm">{r.student_name}</td>
+                    <td className="px-4 py-3 font-mono font-bold text-xs text-orange-600">{r.student_username || '—'}</td>
                     <td className="px-4 py-3 text-gray-600 text-xs max-w-[150px] truncate font-medium">{r.exam_title}</td>
                     <td className="px-4 py-3 text-center">
                       <div className="flex flex-col items-center gap-0.5">

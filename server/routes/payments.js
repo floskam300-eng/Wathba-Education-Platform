@@ -155,7 +155,7 @@ router.get('/', requireRole('teacher', 'assistant'), (req, res, next) => checkPe
   const teacherId = getTeacherId(req);
   try {
     const result = await pool.query(
-      `SELECT p.*, s.name as student_name, s.phone as student_phone, c.name as course_name
+      `SELECT p.*, s.name as student_name, s.username as student_username, s.phone as student_phone, c.name as course_name
        FROM payments p JOIN students s ON p.student_id=s.id
        LEFT JOIN courses c ON p.course_id=c.id
        WHERE s.teacher_id=$1 AND s.deleted_at IS NULL ORDER BY p.payment_date DESC`,

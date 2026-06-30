@@ -361,6 +361,7 @@ export default function TeacherPayments() {
             <thead>
               <tr>
                 <th className="table-header rounded-r-lg">الطالب</th>
+                <th className="table-header hidden sm:table-cell">كود الطالب</th>
                 <th className="table-header hidden sm:table-cell">الكورس</th>
                 <th className="table-header">المبلغ</th>
                 <th className="table-header hidden md:table-cell">طريقة الدفع</th>
@@ -371,9 +372,9 @@ export default function TeacherPayments() {
             </thead>
             <tbody>
               {isLoading ? (
-                [...Array(5)].map((_, i) => <tr key={i}><td colSpan={7}><div className="h-10 bg-gray-100 animate-pulse m-2 rounded" /></td></tr>)
+                [...Array(5)].map((_, i) => <tr key={i}><td colSpan={8}><div className="h-10 bg-gray-100 animate-pulse m-2 rounded" /></td></tr>)
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={7} className="table-cell text-center text-gray-600 py-12 col-span-all">
+                <tr><td colSpan={8} className="table-cell text-center text-gray-600 py-12 col-span-all">
                   <CreditCard className="w-12 h-12 mx-auto mb-2 text-gray-400" />
                   <p className="font-medium">لا توجد دفعات تطابق الفلاتر المحددة</p>
                 </td></tr>
@@ -387,6 +388,7 @@ export default function TeacherPayments() {
                       )}
                     </div>
                   </td>
+                  <td data-label="كود الطالب" className="table-cell font-mono font-bold text-xs text-orange-700 hidden sm:table-cell">{p.student_username || '—'}</td>
                   <td data-label="الكورس" className="table-cell text-gray-700 font-medium hidden sm:table-cell">{p.course_name || '—'}</td>
                   <td data-label="المبلغ" className="table-cell font-bold text-navy-700">{parseFloat(p.amount).toLocaleString()} ج</td>
                   <td data-label="طريقة الدفع" className="table-cell text-gray-700 hidden md:table-cell">{p.method ? (METHOD_LABELS[p.method] || p.method) : <span className="text-gray-400 text-xs">—</span>}</td>

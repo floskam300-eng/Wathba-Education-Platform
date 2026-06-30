@@ -343,7 +343,7 @@ export default function TeacherExams() {
                       </div>
                       <div>
                         <p className="font-semibold text-navy-700 text-sm">{s.name}</p>
-                        <p className="text-xs text-gray-500">{s.academic_stage || '—'}</p>
+                        <p className="text-xs text-gray-500">{s.academic_stage || '—'} · <span className="font-mono font-bold text-orange-600">{s.username}</span></p>
                       </div>
                     </button>
                   ))}

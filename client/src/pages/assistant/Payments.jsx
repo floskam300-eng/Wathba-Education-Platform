@@ -171,6 +171,7 @@ export default function AssistantPayments() {
             <thead>
               <tr>
                 <th className="table-header rounded-r-lg">الطالب</th>
+                <th className="table-header">كود الطالب</th>
                 <th className="table-header">الكورس</th>
                 <th className="table-header">طريقة الدفع</th>
                 <th className="table-header">رقم المرجع</th>
@@ -183,14 +184,14 @@ export default function AssistantPayments() {
               {isLoading ? (
                 [...Array(5)].map((_, i) => (
                   <tr key={i}>
-                    <td colSpan={7}>
+                    <td colSpan={8}>
                       <div className="h-10 bg-gray-100 animate-pulse m-2 rounded" />
                     </td>
                   </tr>
                 ))
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="table-cell text-center py-16">
+                  <td colSpan={8} className="table-cell text-center py-16">
                     <CreditCard className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                     <p className="font-semibold text-gray-500">لا توجد دفعات</p>
                     <p className="text-xs text-gray-400 mt-1">
@@ -202,6 +203,7 @@ export default function AssistantPayments() {
                 filtered.map(p => (
                   <tr key={p.id} className="table-row">
                     <td className="table-cell font-bold text-navy-700">{p.student_name}</td>
+                    <td className="table-cell font-mono font-bold text-xs text-orange-700">{p.student_username || '—'}</td>
                     <td className="table-cell text-gray-700 font-medium">{p.course_name || '—'}</td>
                     <td className="table-cell text-gray-700">{METHOD_LABELS[p.method] || p.method}</td>
                     <td className="table-cell font-mono text-xs text-gray-600">{p.reference_number || '—'}</td>

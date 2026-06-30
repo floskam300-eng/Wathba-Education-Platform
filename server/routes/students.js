@@ -908,7 +908,7 @@ router.get('/attendance/:courseId', requireRole('teacher', 'assistant'), async (
     const [students, videos, progress] = await Promise.all([
       // BUG-17 FIX: exclude soft-deleted students from attendance view
       pool.query(
-        `SELECT s.id, s.name, s.academic_stage
+        `SELECT s.id, s.name, s.username, s.academic_stage
          FROM students s
          JOIN student_course_enrollment sce ON s.id = sce.student_id
          WHERE sce.course_id = $1 AND s.deleted_at IS NULL
