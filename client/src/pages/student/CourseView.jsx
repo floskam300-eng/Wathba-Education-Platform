@@ -5,9 +5,10 @@ import {
   ArrowRight, Play, FileText, BookOpen, Video, Clock,
   CheckCircle2, Lock, ChevronRight, AlertCircle,
   Pause, Volume2, VolumeX, Maximize2, Minimize2, RotateCcw, RotateCw,
-  Settings, Gauge, CheckCircle, XCircle, RefreshCw, Trophy, Eye
+  Settings, Gauge, CheckCircle, XCircle, RefreshCw, Trophy, Eye, ZoomIn
 } from 'lucide-react';
 import SecurePdfViewer from '../../components/SecurePdfViewer';
+import ImageLightbox from '../../components/ImageLightbox';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
@@ -1419,6 +1420,8 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
 }
 
 function SidebarQuestionCard({ q, idx, answers, setAnswers }) {
+  const [lightboxSrc, setLightboxSrc] = useState(null);
+
   const options = [
     q.option_a && { letter: 'A', text: q.option_a },
     q.option_b && { letter: 'B', text: q.option_b },
@@ -1432,6 +1435,7 @@ function SidebarQuestionCard({ q, idx, answers, setAnswers }) {
   const hasAny = isImgMulti ? Object.keys(subAnswers).length > 0 : !!selected;
 
   return (
+    <>
     <div className={`rounded-xl p-3 border transition-all ${hasAny ? 'border-purple-500/40 bg-purple-500/5' : 'border-white/10 bg-white/5'}`}>
       <div className="flex items-start gap-2 mb-2">
         <span className="w-5 h-5 rounded-full bg-purple-500/20 text-purple-400 text-[10px] font-black flex items-center justify-center flex-shrink-0">{idx + 1}</span>
@@ -1440,7 +1444,21 @@ function SidebarQuestionCard({ q, idx, answers, setAnswers }) {
         )}
       </div>
       {q.question_image_url && (
-        <img src={withToken(q.question_image_url)} alt="question" className="w-full max-h-32 object-contain rounded-lg border border-white/10 mb-2" />
+        <div className="relative mb-2">
+          <img
+            src={withToken(q.question_image_url)}
+            alt="question"
+            className="w-full max-h-32 object-contain rounded-lg border border-white/10 cursor-zoom-in"
+            onClick={() => setLightboxSrc(withToken(q.question_image_url))}
+          />
+          <button
+            onClick={() => setLightboxSrc(withToken(q.question_image_url))}
+            className="absolute top-1 left-1 bg-black/50 hover:bg-black/70 text-white rounded-lg p-1 transition-colors"
+            title="تكبير"
+          >
+            <ZoomIn className="w-3 h-3" />
+          </button>
+        </div>
       )}
       {isImgMulti ? (
         <div className="space-y-1.5">
@@ -1490,6 +1508,8 @@ function SidebarQuestionCard({ q, idx, answers, setAnswers }) {
         </div>
       )}
     </div>
+    {lightboxSrc && <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
+    </>
   );
 }
 
