@@ -82,7 +82,10 @@ export default function StudentRecitations() {
   });
 
   const startRec = async (rec) => {
-    if (startingId) return;
+    // Block if any start is in progress OR countdown is showing OR already in take view.
+    // startingId is NOT cleared until the view actually transitions to 'take' so there
+    // is no window during the 3-2-1 countdown where a second button click can slip through.
+    if (startingId || showCountdown || view === 'take') return;
     setStartingId(rec.id);
     submittedRef.current = false;
     try {
@@ -116,16 +119,22 @@ export default function StudentRecitations() {
       setTimeLeft(Math.floor(remaining / 1000));
 
       if (data.resumed) {
+        // Resuming: go directly to take view; clear the lock immediately.
+        setStartingId(null);
         setView('take');
       } else {
+        // New session: keep startingId set during the entire 3-2-1 countdown so
+        // no other button click can fire until the view actually changes to 'take'.
         setShowCountdown(true);
         setCountdown(3);
+        // startingId is cleared inside the countdown useEffect when it reaches 0.
       }
     } catch (e) {
-      toast.error(e.response?.data?.error || 'حدث خطأ');
-    } finally {
+      // On error always release the lock so the user can retry.
       setStartingId(null);
+      toast.error(e.response?.data?.error || 'حدث خطأ');
     }
+    // No finally — intentional. Success path clears startingId at the right moment.
   };
 
   // Mounted ref lifecycle
@@ -143,12 +152,29 @@ export default function StudentRecitations() {
   }, [view]);
 
   // 3-2-1 countdown
+  // When countdown reaches 0: clear startingId THEN switch to 'take'.
+  // This is the only place startingId is released on the success path,
+  // ensuring no second click can fire during the entire countdown window.
   useEffect(() => {
     if (!showCountdown) return;
-    if (countdown <= 0) { setShowCountdown(false); setView('take'); return; }
+    if (countdown <= 0) {
+      setStartingId(null);
+      setShowCountdown(false);
+      setView('take');
+      return;
+    }
     const id = setTimeout(() => setCountdown(c => c - 1), 1000);
     return () => clearTimeout(id);
   }, [showCountdown, countdown]);
+
+  const cancelCountdown = () => {
+    setShowCountdown(false);
+    setCountdown(3);
+    setStartingId(null);
+    setExamData(null);
+    setSelectedRec(null);
+    setAnswers({});
+  };
 
   // Main exam timer — [CL2-FIX] drift-corrected using server epoch
   // Simple setTimeout(…, 1000) drifts noticeably when the tab is backgrounded
@@ -409,6 +435,12 @@ export default function StudentRecitations() {
         <p className="text-white/80 text-lg font-bold mb-4">يبدأ التسميع بعد...</p>
         <div className="text-white font-black" style={{ fontSize: 120, lineHeight: 1 }}>{countdown}</div>
         <p className="text-white/60 text-sm mt-6">{selectedRec?.title}</p>
+        <button
+          onClick={cancelCountdown}
+          className="mt-10 px-6 py-2 rounded-full text-sm font-bold bg-white/20 hover:bg-white/30 text-white transition"
+        >
+          إلغاء
+        </button>
       </div>
     );
   }
@@ -469,7 +501,7 @@ export default function StudentRecitations() {
 
   // ── RESULT VIEW ──────────────────────────────────────────────────────────────
   if (view === 'result' && result) {
-    const { score, correct, wrong, unanswered, passed, points_earned, total_score, pass_score, review } = result;
+    const { score, correct, wrong, unanswered, passed, points_earned, total_score, pass_score } = result;
     return (
       <>
       <div className={`min-h-screen ${dark ? 'bg-[var(--dk-bg)]' : 'bg-gray-50'} p-4 lg:p-6`} dir="rtl">
@@ -502,87 +534,6 @@ export default function StudentRecitations() {
               </div>
             ))}
           </div>
-
-          {/* Review */}
-          {review && review.length > 0 && (
-            <div className="space-y-3">
-              <h3 className={`font-black text-lg ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>مراجعة الإجابات</h3>
-              {review.map((q, idx) => (
-                <div key={q.id} className={`${cardCls} border-r-4 ${q.is_correct ? 'border-green-400' : q.student_answer ? 'border-red-400' : 'border-gray-300'}`}>
-                  <div className="flex items-start gap-2 mb-2">
-                    <span className="w-6 h-6 rounded-full bg-gray-100 text-gray-600 text-xs font-black flex items-center justify-center flex-shrink-0">{idx+1}</span>
-                    <div className="flex-1 min-w-0">
-                      {q.question_text && <p className={`text-sm font-semibold ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>{q.question_text}</p>}
-                    </div>
-                  </div>
-
-                  {q.question_image_url && (
-                    <div className="relative mb-2 mr-8" style={{ maxWidth: 'calc(100% - 2rem)' }}>
-                      <img
-                        src={withToken(q.question_image_url)}
-                        alt="question"
-                        className="w-full max-h-40 object-contain rounded-xl border cursor-zoom-in"
-                        onClick={() => setLightboxSrc(withToken(q.question_image_url))}
-                      />
-                      <button
-                        onClick={() => setLightboxSrc(withToken(q.question_image_url))}
-                        className="absolute top-1 left-1 bg-black/50 hover:bg-black/70 text-white rounded-lg p-1 transition-colors"
-                        title="تكبير"
-                      >
-                        <ZoomIn className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  )}
-
-                  {q.question_type === 'image_multi' ? (
-                    <div className="mr-8 space-y-2">
-                      <div className="flex flex-wrap gap-1.5 mb-2">
-                        {[['A', q.option_a],['B', q.option_b],['C', q.option_c],['D', q.option_d]].filter(([,v]) => v).map(([l, val]) => (
-                          <span key={l} className={`text-xs px-2 py-0.5 rounded-lg ${dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-600'}`}>{l}: {val}</span>
-                        ))}
-                      </div>
-                      {(q.sub_results || []).map(sub => (
-                        <div key={sub.label} className={`flex items-center gap-2 text-xs px-3 py-2 rounded-xl ${sub.is_correct ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-                          <span className="font-black">{sub.label}</span>
-                          <span>← إجابتك: <strong>{sub.student_answer || 'لم تُجب'}</strong></span>
-                          {!sub.is_correct && <span className="opacity-70">· الصحيح: <strong>{sub.correct}</strong></span>}
-                          <span className="mr-auto">{sub.is_correct ? '✓' : '✗'}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="flex flex-wrap gap-1.5 mr-8">
-                      {[['A', q.option_a],['B', q.option_b],['C', q.option_c],['D', q.option_d]].filter(([,v]) => v).map(([l, val]) => {
-                        const isCorrect = l === q.correct_answer_letter;
-                        const isStudentAnswer = l === q.student_answer;
-                        return (
-                          <span key={l} className={`text-xs px-2.5 py-1 rounded-lg font-semibold ${
-                            isCorrect ? 'bg-green-100 text-green-700 ring-1 ring-green-400' :
-                            isStudentAnswer && !isCorrect ? 'bg-red-100 text-red-700 ring-1 ring-red-400' :
-                            dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-500'
-                          }`}>
-                            {l}: {val}
-                            {isCorrect && ' ✓'}
-                            {isStudentAnswer && !isCorrect && ' ✗'}
-                          </span>
-                        );
-                      })}
-                      {!q.student_answer && (
-                        <p className="w-full text-xs text-gray-400 mt-1">
-                          {`لم يتم الإجابة · الصحيح: `}
-                          {q.correct_answer_letter === 'A' ? (q.option_a || 'A') :
-                           q.correct_answer_letter === 'B' ? (q.option_b || 'B') :
-                           q.correct_answer_letter === 'C' ? (q.option_c || 'C') :
-                           q.correct_answer_letter === 'D' ? (q.option_d || 'D') :
-                           q.correct_answer_letter}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
 
           <div className="flex gap-3">
             {result?.result?.id && (

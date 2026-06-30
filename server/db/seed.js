@@ -2790,9 +2790,7 @@ async function seed() {
   // std_ali بدأ r3 (تسميع قواعد التكامل) لكن لم يكمله — جلسة نشطة
   // (موازٍ لـ exam_sessions: std_ali في e3 بدأ ولم يكمل)
   const r3ActiveQs = await q(`
-    SELECT id, question_text, question_type, option_a, option_b,
-           option_c, option_d, correct_answer_letter, points, sort_order, sub_questions
-    FROM recitation_questions WHERE recitation_id = $1 ORDER BY sort_order LIMIT 3
+    SELECT * FROM recitation_questions WHERE recitation_id = $1 ORDER BY sort_order ASC, id ASC
   `, [r3.id]);
   await q(`
     INSERT INTO recitation_sessions (student_id, recitation_id, started_at, questions_snapshot)
