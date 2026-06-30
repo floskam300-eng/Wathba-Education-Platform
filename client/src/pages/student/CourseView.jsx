@@ -1232,7 +1232,7 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
         </div>
         {result?.result?.id && (
           <button
-            onClick={() => navigate(`/student/recitation-review/${result.result.id}`)}
+            onClick={() => navigate(`/student/recitation-review/${result.result.id}`, { state: { backTo: `/student/courses/${courseId}` } })}
             className="w-full flex items-center justify-center gap-2 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 font-bold text-xs py-2.5 rounded-xl transition-colors border border-indigo-500/30"
           >
             <Eye className="w-3.5 h-3.5" /> مراجعة مفصّلة
@@ -1391,7 +1391,7 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
                 )}
                 {rec.result_id && (
                   <button
-                    onClick={() => navigate(`/student/recitation-review/${rec.result_id}`)}
+                    onClick={() => navigate(`/student/recitation-review/${rec.result_id}`, { state: { backTo: `/student/courses/${courseId}` } })}
                     className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-indigo-400 bg-indigo-500/10 hover:bg-indigo-500/20 transition-colors border border-indigo-500/20">
                     <Eye className="w-3 h-3 inline ml-0.5" />مراجعة
                   </button>
@@ -1995,15 +1995,17 @@ export default function CourseView() {
                 <PdfViewer key={currentPdf?.id} pdf={currentPdf} />
               </div>
             </>
-          ) : activeTab === 'recitations' ? (
-            /* Recitations tab main area — full interactive panel */
+          ) : null}
+          {/* Recitations tab — always mounted so in-progress state survives tab switches */}
+          <div className={activeTab === 'recitations' ? 'contents' : 'hidden'}>
             <RecitationsTabPanel
               recitations={courseRecitations}
               courseId={courseId}
               onRefresh={() => refetchRecitations()}
               onPassed={() => { refetchRecitations(); setActiveTab('videos'); }}
             />
-          ) : (
+          </div>
+          {activeTab !== 'recitations' && activeTab !== 'pdfs' && activeTab !== 'videos' ? (
             /* Exams tab main area — shows grades breakdown */
             <div className="flex-1 overflow-y-auto p-6">
               <div className="max-w-2xl mx-auto space-y-5">

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, Clock, CheckCircle, XCircle, Minus, Award, BarChart2 } from 'lucide-react';
 import api from '../lib/api';
@@ -25,6 +25,7 @@ function StatBadge({ label, value, color = 'text-gray-700', bg = 'bg-gray-50', d
 export default function RecitationReviewPage() {
   const { resultId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
 
   const { data, isLoading, isError } = useQuery({
@@ -43,6 +44,9 @@ export default function RecitationReviewPage() {
   const [lightboxSrc, setLightboxSrc] = useState(null);
 
   const goBack = () => {
+    // If opened from a course page, go back to it directly instead of -1
+    // so the browser history stack doesn't lose the course context.
+    if (location.state?.backTo) return navigate(location.state.backTo);
     // [RRP-3 FIX] Fallback route when user navigates directly to this URL
     // (e.g. via notification link) — history.length ≤ 1 means no back-stack.
     if (window.history.length > 1) navigate(-1);
