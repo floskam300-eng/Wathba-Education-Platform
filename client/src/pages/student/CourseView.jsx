@@ -19,6 +19,10 @@ const fmt = (min) => min >= 60
   ? `${Math.floor(min / 60)}س ${min % 60}د`
   : `${min} دقيقة`;
 
+// A student is "passed" if they ever passed (stable once earned),
+// regardless of whether a later retry attempt failed.
+const isRecPassed = (rec) => rec.my_ever_passed ?? rec.my_passed ?? false;
+
 /* ─── Player settings persistence (localStorage) ─────── */
 const STORAGE_VOLUME   = 'wathba_player_volume';
 const STORAGE_MUTED    = 'wathba_player_muted';
@@ -1280,9 +1284,6 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
   // ── LIST VIEW ──
   // The course tab shows ONLY the recitations the student still has to do
   // (not yet passed). Completed ones are available in the full recitations page.
-  // Helper: a student is "passed" if they ever passed (stable once earned),
-  // regardless of whether a later retry attempt failed.
-  const isRecPassed = (rec) => rec.my_ever_passed ?? rec.my_passed ?? false;
   const pendingRecitations = recitations.filter(rec => !isRecPassed(rec));
 
   if (recitations.length === 0) {
