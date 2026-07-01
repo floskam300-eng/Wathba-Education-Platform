@@ -2023,7 +2023,7 @@ export default function CourseView() {
               recitations={courseRecitations}
               courseId={courseId}
               onRefresh={() => refetchRecitations()}
-              onPassed={() => { refetchRecitations(); setActiveTab('videos'); }}
+              onPassed={() => { refetchRecitations(); }}
             />
           </div>
           {(activeTab !== 'recitations' && activeTab !== 'pdfs' && activeTab !== 'videos') && (
