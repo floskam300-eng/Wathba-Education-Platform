@@ -614,6 +614,75 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageEx
   }
 });
 
+// ── Bulk import questions from CSV ──
+router.post('/:id/questions/import', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
+  const examId = parseParamId(req.params.id);
+  if (!examId) return res.status(400).json({ error: 'معرّف الاختبار غير صالح' });
+  const teacherId = getTeacherId(req);
+  const { questions } = req.body;
+  if (!Array.isArray(questions) || questions.length === 0)
+    return res.status(400).json({ error: 'لا توجد أسئلة للاستيراد' });
+  if (questions.length > 500)
+    return res.status(400).json({ error: 'الحد الأقصى للاستيراد 500 سؤال في المرة الواحدة' });
+  try {
+    const examRow = await getExamForOwner(examId, teacherId);
+    if (!examRow) return res.status(403).json({ error: 'Access denied: exam not yours' });
+    if (examRow.is_published)
+      return res.status(409).json({ error: 'لا يمكن إضافة أسئلة لاختبار منشور — أوقف النشر أولاً' });
+
+    // Resolve CSV string group_id labels → numeric IDs (stable within this import batch)
+    const groupIdMap = {};
+    let nextGroupId = Date.now();
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const q of questions) {
+        const qType = q.question_type === 'true_false' ? 'true_false' : 'mcq';
+        const optA = qType === 'true_false' ? 'صح' : (q.option_a || null);
+        const optB = qType === 'true_false' ? 'خطأ' : (q.option_b || null);
+        let correctLetter = String(q.correct_answer_letter || 'A').toUpperCase();
+        if (qType === 'true_false' && !['A', 'B'].includes(correctLetter)) correctLetter = 'A';
+        if (qType === 'mcq' && !['A', 'B', 'C', 'D'].includes(correctLetter)) correctLetter = 'A';
+        const pts = parseInt(q.points, 10);
+        const finalPoints = (!isNaN(pts) && pts >= 1 && pts <= 1000) ? pts : 1;
+        let resolvedGroupId = null;
+        if (q.group_id) {
+          if (!groupIdMap[q.group_id]) groupIdMap[q.group_id] = nextGroupId++;
+          resolvedGroupId = groupIdMap[q.group_id];
+        }
+        await client.query(
+          'INSERT INTO questions (question_text,option_a,option_b,option_c,option_d,correct_answer_letter,points,exam_id,question_type,group_id,group_context,sub_questions) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',
+          [
+            (q.question_text || '').trim() || null,
+            optA,
+            optB,
+            q.option_c || null,
+            q.option_d || null,
+            correctLetter,
+            finalPoints,
+            examId,
+            qType,
+            resolvedGroupId,
+            (q.group_context || '').trim() || null,
+            '[]',
+          ]
+        );
+      }
+      await client.query('COMMIT');
+      res.status(201).json({ imported: questions.length });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ── Update question ──
 router.put('/questions/:qid', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
   const qid = parseParamId(req.params.qid);

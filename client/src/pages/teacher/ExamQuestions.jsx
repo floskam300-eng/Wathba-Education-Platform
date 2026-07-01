@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowRight, FileText, HelpCircle, Plus, Pencil, Trash2,
-  AlertCircle, Link, Upload, Layers, X,
+  AlertCircle, Link, Upload, Layers, X, FileDown,
 } from 'lucide-react';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
@@ -11,6 +11,7 @@ import { useAuth } from '../../context/AuthContext';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import MathText from '../../components/MathText';
 import MathToolbar from '../../components/MathToolbar';
+import CsvImportModal from '../../components/CsvImportModal';
 
 const QUESTION_TYPES = [
   { value: 'mcq', label: '🔘 اختيار متعدد (MCQ)' },
@@ -54,6 +55,9 @@ export default function ExamQuestions() {
   const [ctxImagePreview, setCtxImagePreview] = useState('');
   const [ctxUploadProgress, setCtxUploadProgress] = useState(0);
   const ctxImageFileRef = useRef(null);
+
+  // CSV import modal
+  const [showImport, setShowImport] = useState(false);
 
   // grouped-question mode
   const [isGrouped, setIsGrouped] = useState(false);
@@ -343,10 +347,22 @@ export default function ExamQuestions() {
         {/* Add/Edit Question Form */}
         <div className="lg:col-span-2 order-1 lg:order-2 lg:sticky lg:top-4">
           <div className="bg-white rounded-2xl border-2 border-dashed border-orange-300 p-5 shadow-sm">
-            <h3 className="font-black text-navy-700 mb-4 flex items-center gap-2">
-              <Plus className="w-4 h-4 text-orange-500" />
-              {editQ ? 'تعديل السؤال' : 'إضافة سؤال جديد'}
-            </h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-black text-navy-700 flex items-center gap-2">
+                <Plus className="w-4 h-4 text-orange-500" />
+                {editQ ? 'تعديل السؤال' : 'إضافة سؤال جديد'}
+              </h3>
+              {!editQ && (
+                <button
+                  type="button"
+                  onClick={() => setShowImport(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border-2 border-purple-300 text-purple-700 bg-purple-50 hover:bg-purple-100 hover:border-purple-400 transition-all"
+                >
+                  <FileDown className="w-3.5 h-3.5" />
+                  استيراد CSV
+                </button>
+              )}
+            </div>
             <form onSubmit={handleQSubmit} className="space-y-4">
 
 
@@ -646,6 +662,14 @@ export default function ExamQuestions() {
         message="هل أنت متأكد من حذف هذا السؤال نهائياً؟"
         danger
       />
+
+      <CsvImportModal
+        open={showImport}
+        onClose={() => setShowImport(false)}
+        mode="exam"
+        targetId={examId}
+        onSuccess={() => qc.invalidateQueries({ queryKey: ['questions', examId] })}
+      />
     </div>
   );
 }
@@ -780,3 +804,4 @@ function GroupQuestionCard({ entry, startNum, editQ, onEdit, onDelete }) {
     </div>
   );
 }
+

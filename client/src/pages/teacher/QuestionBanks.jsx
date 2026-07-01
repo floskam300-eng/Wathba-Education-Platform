@@ -1,11 +1,12 @@
 import React, { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { BookMarked, Plus, Pencil, Trash2, ChevronDown, ChevronUp, Upload, Link, BookOpen, Layers, X } from 'lucide-react';
+import { BookMarked, Plus, Pencil, Trash2, ChevronDown, ChevronUp, Upload, Link, BookOpen, Layers, X, FileDown } from 'lucide-react';
 import Modal from '../../components/ui/Modal';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import MathText from '../../components/MathText';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
+import CsvImportModal from '../../components/CsvImportModal';
 
 const emptyBank = { name: '', course_id: '' };
 const emptyQ = { question_text: '', question_image_url: '', option_a: '', option_b: '', option_c: '', option_d: '', correct_answer_letter: 'A', points: 1, question_type: 'mcq', difficulty: 'medium', group_id: null, group_context: '', group_context_image: '', sub_questions: [] };
@@ -53,6 +54,10 @@ export default function QuestionBanks() {
 
   // image_multi sub-questions count
   const [imgMultiCount, setImgMultiCount] = useState(5);
+
+  // CSV import modal state
+  const [showImport, setShowImport] = useState(false);
+  const [importBankId, setImportBankId] = useState(null);
 
   const { data: banks = [], isLoading } = useQuery({
     queryKey: ['question-banks'],
@@ -403,9 +408,21 @@ export default function QuestionBanks() {
                   )}
 
                   <div className="bg-white border-2 border-dashed border-purple-300 rounded-2xl p-4 space-y-3">
-                    <h4 className="font-black text-purple-700 text-sm flex items-center gap-1.5">
-                      <Plus className="w-4 h-4" /> {editQ ? 'تعديل السؤال' : 'إضافة سؤال جديد'}
-                    </h4>
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-black text-purple-700 text-sm flex items-center gap-1.5">
+                        <Plus className="w-4 h-4" /> {editQ ? 'تعديل السؤال' : 'إضافة سؤال جديد'}
+                      </h4>
+                      {!editQ && (
+                        <button
+                          type="button"
+                          onClick={() => { setImportBankId(expandedBank); setShowImport(true); }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border-2 border-purple-300 text-purple-700 bg-purple-50 hover:bg-purple-100 hover:border-purple-400 transition-all"
+                        >
+                          <FileDown className="w-3.5 h-3.5" />
+                          استيراد CSV
+                        </button>
+                      )}
+                    </div>
                     <form onSubmit={handleQSubmit} className="space-y-3">
 
 
@@ -648,6 +665,14 @@ export default function QuestionBanks() {
         title="حذف السؤال"
         message="سيتم حذف هذا السؤال من البنك نهائياً. هل أنت متأكد؟"
         confirmLabel="حذف" danger />
+
+      <CsvImportModal
+        open={showImport}
+        onClose={() => { setShowImport(false); setImportBankId(null); }}
+        mode="bank"
+        targetId={importBankId}
+        onSuccess={() => qc.invalidateQueries({ queryKey: ['bank-questions', importBankId] })}
+      />
     </div>
   );
 }
