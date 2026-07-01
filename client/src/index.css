@@ -203,6 +203,12 @@ html.dark .input-field {
   color: var(--dk-text-1);
   color-scheme: dark;
 }
+
+/* ── Number inputs: keep spinners on the right regardless of RTL page direction ── */
+input[type="number"] {
+  direction: ltr;
+  text-align: right;
+}
 html.dark .input-field:focus {
   border-color: var(--dk-orange);
   box-shadow: 0 0 0 3px var(--dk-orange-dim);

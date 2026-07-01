@@ -1280,7 +1280,10 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
   // ── LIST VIEW ──
   // The course tab shows ONLY the recitations the student still has to do
   // (not yet passed). Completed ones are available in the full recitations page.
-  const pendingRecitations = recitations.filter(rec => !rec.my_passed);
+  // Helper: a student is "passed" if they ever passed (stable once earned),
+  // regardless of whether a later retry attempt failed.
+  const isRecPassed = (rec) => rec.my_ever_passed ?? rec.my_passed ?? false;
+  const pendingRecitations = recitations.filter(rec => !isRecPassed(rec));
 
   if (recitations.length === 0) {
     return (
@@ -1329,7 +1332,7 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
         {pendingRecitations.map((rec, idx) => {
           const hasResult = !!rec.result_id;
-          const passed = rec.my_passed;
+          const passed = isRecPassed(rec);
           const status = getRecStatus(rec); // [M1-FIX]
           const isExpired = status === 'expired';
           const isUpcoming = status === 'upcoming';
@@ -1572,7 +1575,7 @@ export default function CourseView() {
           const recs = recitationsRef.current || [];
           const nextLocked = recs.some(rec => {
             const vids = Array.isArray(rec.video_ids) ? rec.video_ids.map(Number) : [];
-            return vids.includes(next.id) && !rec.my_passed;
+            return vids.includes(next.id) && !isRecPassed(rec);
           });
           if (!nextLocked) {
             setTimeout(() => setActiveVideo(next), 1500);
@@ -1655,7 +1658,7 @@ export default function CourseView() {
     // Fallback for teacher preview (server does not set is_locked for non-students)
     return courseRecitations.some(rec => {
       const vids = Array.isArray(rec.video_ids) ? rec.video_ids.map(Number) : [];
-      return vids.includes(video.id) && !rec.my_passed;
+      return vids.includes(video.id) && !isRecPassed(rec);
     });
   }, [courseRecitations]);
 
@@ -1850,7 +1853,7 @@ export default function CourseView() {
                     <p className="text-xs font-medium">لا توجد تسميعات</p>
                   </div>
                 ) : courseRecitations.map(rec => {
-                  const passed = rec.my_passed;
+                  const passed = isRecPassed(rec);
                   const hasResult = !!rec.result_id;
                   return (
                     <div key={rec.id} className={`rounded-xl p-3 border ${hasResult ? (passed ? 'border-green-500/30 bg-green-500/5' : 'border-red-500/30 bg-red-500/5') : 'border-white/10 bg-white/5'}`}>

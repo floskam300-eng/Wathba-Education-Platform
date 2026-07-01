@@ -408,17 +408,21 @@ router.get('/student/course/:courseId', requireRole('student'), async (req, res)
               r.start_date, r.end_date,
               r.video_ids,
               (SELECT COUNT(*) FROM recitation_questions WHERE recitation_id=r.id) AS question_count,
-              rr.id AS result_id, rr.score AS my_score, rr.passed AS my_passed,
+              rr.id AS result_id, rr.score AS my_score, rr.passed AS my_passed, rr.ever_passed AS my_ever_passed,
               rr.correct_count AS my_correct, rr.wrong_count AS my_wrong,
               rr.created_at AS my_submitted_at,
               lv.min_sort_order,
               lv.linked_video_title
          FROM recitations r
          LEFT JOIN LATERAL (
-           SELECT * FROM recitation_results rr2
+           SELECT rr2.id, rr2.score, rr2.passed,
+                  (SELECT bool_or(rr3.passed) FROM recitation_results rr3
+                    WHERE rr3.student_id=$1 AND rr3.recitation_id=r.id) AS ever_passed,
+                  rr2.correct_count, rr2.wrong_count, rr2.created_at
+            FROM recitation_results rr2
             WHERE rr2.student_id=$1
               AND rr2.recitation_id=r.id
-            ORDER BY rr2.passed DESC, rr2.created_at DESC
+            ORDER BY rr2.created_at DESC
             LIMIT 1
          ) rr ON true
          LEFT JOIN LATERAL (

@@ -775,32 +775,32 @@ export default function TeacherExams() {
           </div>
 
           {/* Points */}
-          <div className="bg-amber-50 rounded-xl p-4 border border-amber-200 space-y-3">
-            <p className="text-sm font-black text-amber-800 flex items-center gap-1.5">⭐ نقاط المكافأة (للناجحين فقط)</p>
-            <div className="bg-amber-100/60 rounded-lg px-3 py-2 text-xs text-amber-800 font-semibold flex items-start gap-1.5">
+          <div className="bg-amber-50 dark:bg-amber-950/40 rounded-xl p-4 border border-amber-200 dark:border-amber-800/40 space-y-3">
+            <p className="text-sm font-black text-amber-800 dark:text-amber-400 flex items-center gap-1.5">⭐ نقاط المكافأة (للناجحين فقط)</p>
+            <div className="bg-amber-100/60 dark:bg-amber-900/30 rounded-lg px-3 py-2 text-xs text-amber-800 dark:text-amber-300 font-semibold flex items-start gap-1.5">
               <span className="mt-0.5">ℹ️</span>
               <span>لو الطالب رسب في الامتحان = لا يأخذ أي نقاط بغض النظر عن الإعداد. النقاط دي بس للناجحين.</span>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-bold text-amber-800 mb-1">نقاط لو قفّل الامتحان ✅</label>
+                <label className="block text-xs font-bold text-amber-800 dark:text-amber-400 mb-1">نقاط لو قفّل الامتحان ✅</label>
                 <input type="number" min="0" max="9999" value={form.points_on_attempt}
                   onChange={e => setForm({ ...form, points_on_attempt: parseInt(e.target.value) || 0 })}
-                  className="input-field text-sm" placeholder="0" />
-                <p className="text-xs text-gray-500 mt-1">تُعطى لو نجح وسلّم الامتحان</p>
+                  className="input-field text-sm" placeholder="0" dir="ltr" />
+                <p className="text-xs text-gray-500 mt-1">تُعطى لو نجح وقفّل الامتحان</p>
               </div>
               <div>
-                <label className="block text-xs font-bold text-amber-800 mb-1">نقاط إضافية لو نجح 🏆</label>
+                <label className="block text-xs font-bold text-amber-800 dark:text-amber-400 mb-1">نقاط إضافية لو قفّل 🔒</label>
                 <input type="number" min="0" max="9999" value={form.points_on_pass}
                   onChange={e => setForm({ ...form, points_on_pass: parseInt(e.target.value) || 0 })}
-                  className="input-field text-sm" placeholder="0" />
+                  className="input-field text-sm" placeholder="0" dir="ltr" />
                 <p className="text-xs text-gray-500 mt-1">تُضاف فوق نقاط التسليم لو النجاح تم</p>
               </div>
             </div>
             {(form.points_on_attempt > 0 || form.points_on_pass > 0) && (
-              <div className="bg-amber-100 rounded-lg p-2.5 text-xs text-amber-800 font-bold space-y-1">
-                <p>✅ نجح وسلّم ← يكسب <span className="text-amber-900">{(form.points_on_attempt || 0) + (form.points_on_pass || 0)} نقطة</span> إجمالاً</p>
-                <p className="text-red-600">❌ رسب ← لا يكسب أي نقاط</p>
+              <div className="bg-amber-100 dark:bg-amber-900/40 rounded-lg p-2.5 text-xs text-amber-800 dark:text-amber-300 font-bold space-y-1">
+                <p>✅ نجح وقفّل ← يكسب <span className="text-amber-900 dark:text-amber-200">{(form.points_on_attempt || 0) + (form.points_on_pass || 0)} نقطة</span> إجمالاً</p>
+                <p className="text-red-600 dark:text-red-400">❌ رسب ← لا يكسب أي نقاط</p>
               </div>
             )}
           </div>
