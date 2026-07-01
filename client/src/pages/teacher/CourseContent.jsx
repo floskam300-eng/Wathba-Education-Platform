@@ -234,6 +234,71 @@ function VideoPreviewModal({ video, onClose }) {
   );
 }
 
+// ── PdfItem at module scope (same reason as VideoItem below) ──────────────────
+function PdfItem({ p, onDragStart, onDragEnd, isDragging, onPreview, onDelete }) {
+  return (
+    <div
+      draggable
+      onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; onDragStart(p.id, p.section_id); }}
+      onDragEnd={onDragEnd}
+      className={`flex items-center gap-3 p-3 bg-white rounded-xl shadow-sm border border-gray-100 hover:border-gray-200 transition-all select-none
+        ${isDragging ? 'opacity-40 scale-95' : 'cursor-grab active:cursor-grabbing'}`}
+    >
+      <div className="flex items-center self-stretch text-gray-300 hover:text-gray-400 cursor-grab flex-shrink-0 -mr-1">
+        <GripVertical className="w-4 h-4" />
+      </div>
+      <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
+        <FileText className="w-5 h-5 text-orange-600" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold text-navy-600 text-sm truncate">{p.title}</p>
+      </div>
+      <button
+        onClick={() => onPreview(p)}
+        title="معاينة الملف"
+        className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg flex-shrink-0 transition-colors"
+      >
+        <Eye className="w-4 h-4" />
+      </button>
+      <button onClick={() => onDelete(p.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg flex-shrink-0 transition-colors">
+        <Trash2 className="w-4 h-4" />
+      </button>
+    </div>
+  );
+}
+
+// ── SectionDropZone at module scope ───────────────────────────────────────────
+function SectionDropZone({ sectionKey, label, icon, labelColor, isDraggingAny, dragOverKey, onDragOver, onDragLeave, onDrop, children }) {
+  const isOver = dragOverKey === sectionKey;
+  return (
+    <div
+      onDragOver={e => onDragOver(e, sectionKey)}
+      onDragLeave={onDragLeave}
+      onDrop={e => onDrop(e, sectionKey)}
+      className={`rounded-xl transition-all duration-150 p-2 -m-2 ${
+        isDraggingAny
+          ? isOver
+            ? 'ring-2 ring-orange-400 bg-orange-50/60 shadow-md'
+            : 'ring-1 ring-dashed ring-gray-200'
+          : ''
+      }`}
+    >
+      <div className="flex items-center gap-2 mb-2 px-1">
+        {icon}
+        <span className={`text-xs font-black uppercase tracking-wide ${labelColor}`}>{label}</span>
+        {isDraggingAny && (
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full transition-all duration-150 ${
+            isOver ? 'bg-orange-400 text-white' : 'bg-gray-100 text-gray-400'
+          }`}>
+            {isOver ? 'أفلت هنا ↓' : 'منطقة إفلات'}
+          </span>
+        )}
+      </div>
+      {children}
+    </div>
+  );
+}
+
 // [PF-1] VideoItem lifted to module scope — avoids React treating it as a new
 // component type on every parent render, which caused full unmount/remount of
 // every video row whenever any parent state changed.
@@ -440,6 +505,11 @@ export default function CourseContent() {
 
   const onPreviewVideo = useCallback((v) => setPreviewVideo(v), []);
   const onDeleteVideo  = useCallback((id) => setDeleteVideoId(id), []);
+  const onPreviewPdf   = useCallback((p) => setPreviewPdf(p), []);
+  const onDeletePdf    = useCallback((id) => setDeletePdfId(id), []);
+
+  const onDragStartVideo = useCallback((id, sid) => handleDragStart('video', id, sid), [handleDragStart]);
+  const onDragStartPdf   = useCallback((id, sid) => handleDragStart('pdf',  id, sid), [handleDragStart]);
 
   const buildGrouped = (items) => {
     const grouped = {};
@@ -453,69 +523,10 @@ export default function CourseContent() {
     return grouped;
   };
 
-  // Drop zone wrapper used in Videos/PDFs tabs
-  const SectionDropZone = ({ sectionKey, children, label, icon, iconColor, borderColor, labelColor, isDraggingAny }) => {
-    const isOver = dragOverKey === sectionKey;
-    return (
-      <div
-        onDragOver={e => handleDragOver(e, sectionKey)}
-        onDragLeave={handleDragLeave}
-        onDrop={e => handleDrop(e, sectionKey)}
-        className={`rounded-xl transition-all duration-150 ${
-          isDraggingAny
-            ? isOver
-              ? 'ring-2 ring-orange-400 bg-orange-50/60 shadow-lg'
-              : 'ring-1 ring-dashed ring-gray-300'
-            : ''
-        }`}
-      >
-        <div className="flex items-center gap-2 mb-2 px-1">
-          {icon}
-          <span className={`text-xs font-black uppercase tracking-wide ${labelColor}`}>{label}</span>
-          {isDraggingAny && (
-            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full transition-all ${
-              isOver ? 'bg-orange-400 text-white' : 'bg-gray-100 text-gray-400'
-            }`}>
-              {isOver ? 'اسحب هنا ↓' : 'منطقة إسقاط'}
-            </span>
-          )}
-        </div>
-        {children}
-      </div>
-    );
-  };
-
   const isDraggingAny = draggingId !== null;
 
-  const PdfItem = useCallback(({ p }) => (
-    <div
-      draggable
-      onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; handleDragStart('pdf', p.id, p.section_id); }}
-      onDragEnd={handleDragEnd}
-      className={`flex items-center gap-3 p-3 bg-white rounded-xl shadow-sm border border-gray-100 hover:border-gray-200 transition-all select-none
-        ${draggingId === p.id ? 'opacity-40 scale-95' : 'cursor-grab active:cursor-grabbing'}`}
-    >
-      <div className="flex items-center self-stretch text-gray-300 hover:text-gray-400 cursor-grab flex-shrink-0 -mr-1">
-        <GripVertical className="w-4 h-4" />
-      </div>
-      <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
-        <FileText className="w-5 h-5 text-orange-600" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="font-semibold text-navy-600 text-sm truncate">{p.title}</p>
-      </div>
-      <button
-        onClick={() => setPreviewPdf(p)}
-        title="معاينة الملف"
-        className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg flex-shrink-0 transition-colors"
-      >
-        <Eye className="w-4 h-4" />
-      </button>
-      <button onClick={() => setDeletePdfId(p.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg flex-shrink-0 transition-colors">
-        <Trash2 className="w-4 h-4" />
-      </button>
-    </div>
-  ), [draggingId, handleDragStart, handleDragEnd]);
+  // Shared props passed to every SectionDropZone
+  const dropZoneProps = { dragOverKey, onDragOver: handleDragOver, onDragLeave: handleDragLeave, onDrop: handleDrop };
 
   return (
     <div className="-m-4 lg:-m-6 h-[calc(100%+2rem)] lg:h-[calc(100%+3rem)] flex flex-col overflow-hidden" dir="rtl">
@@ -615,6 +626,7 @@ export default function CourseContent() {
                           icon={<FolderOpen className="w-4 h-4 text-indigo-500" />}
                           labelColor="text-indigo-600"
                           isDraggingAny={isDraggingAny}
+                          {...dropZoneProps}
                         >
                           {grouped[s.id]?.length > 0 ? (
                             <div className="space-y-2 pr-4 border-r-2 border-indigo-100">
@@ -625,7 +637,7 @@ export default function CourseContent() {
                                   videoRecitationsMap={videoRecitationsMap}
                                   onPreview={onPreviewVideo}
                                   onDelete={onDeleteVideo}
-                                  onDragStart={(id, sid) => handleDragStart('video', id, sid)}
+                                  onDragStart={onDragStartVideo}
                                   onDragEnd={handleDragEnd}
                                   isDragging={draggingId === v.id}
                                 />
@@ -635,7 +647,7 @@ export default function CourseContent() {
                             <div className={`pr-4 border-r-2 border-indigo-50 py-3 text-center text-xs text-gray-400 rounded-lg transition-all ${
                               dragOverKey === s.id ? 'bg-orange-50 text-orange-500 border-r-orange-300' : ''
                             }`}>
-                              {dragOverKey === s.id ? '↓ اسحب هنا' : 'فارغ'}
+                              {dragOverKey === s.id ? '↓ أفلت هنا' : 'فارغ'}
                             </div>
                           )}
                         </SectionDropZone>
@@ -649,6 +661,7 @@ export default function CourseContent() {
                           icon={<FolderOpen className="w-4 h-4 text-gray-400" />}
                           labelColor="text-gray-400"
                           isDraggingAny={isDraggingAny}
+                          {...dropZoneProps}
                         >
                           {grouped['_none']?.length > 0 ? (
                             <div className="space-y-2 pr-4 border-r-2 border-gray-100">
@@ -659,7 +672,7 @@ export default function CourseContent() {
                                   videoRecitationsMap={videoRecitationsMap}
                                   onPreview={onPreviewVideo}
                                   onDelete={onDeleteVideo}
-                                  onDragStart={(id, sid) => handleDragStart('video', id, sid)}
+                                  onDragStart={onDragStartVideo}
                                   onDragEnd={handleDragEnd}
                                   isDragging={draggingId === v.id}
                                 />
@@ -669,7 +682,7 @@ export default function CourseContent() {
                             <div className={`pr-4 border-r-2 border-gray-100 py-3 text-center text-xs rounded-lg transition-all ${
                               dragOverKey === '_none' ? 'bg-orange-50 text-orange-500 border-r-orange-300' : 'text-gray-400'
                             }`}>
-                              {dragOverKey === '_none' ? '↓ اسحب هنا لإزالة من الفصل' : 'اسحب هنا لإزالة من الفصل'}
+                              {dragOverKey === '_none' ? '↓ أفلت هنا لإزالة من الفصل' : 'اسحب هنا لإزالة من الفصل'}
                             </div>
                           ) : null}
                         </SectionDropZone>
@@ -684,7 +697,7 @@ export default function CourseContent() {
                           videoRecitationsMap={videoRecitationsMap}
                           onPreview={onPreviewVideo}
                           onDelete={onDeleteVideo}
-                          onDragStart={(id, sid) => handleDragStart('video', id, sid)}
+                          onDragStart={onDragStartVideo}
                           onDragEnd={handleDragEnd}
                           isDragging={draggingId === v.id}
                         />
@@ -717,16 +730,26 @@ export default function CourseContent() {
                           icon={<FolderOpen className="w-4 h-4 text-orange-400" />}
                           labelColor="text-orange-500"
                           isDraggingAny={isDraggingAny}
+                          {...dropZoneProps}
                         >
                           {grouped[s.id]?.length > 0 ? (
                             <div className="space-y-2 pr-4 border-r-2 border-orange-100">
-                              {grouped[s.id].map(p => <PdfItem key={p.id} p={p} />)}
+                              {grouped[s.id].map(p => (
+                                <PdfItem
+                                  key={p.id} p={p}
+                                  onDragStart={onDragStartPdf}
+                                  onDragEnd={handleDragEnd}
+                                  isDragging={draggingId === p.id}
+                                  onPreview={onPreviewPdf}
+                                  onDelete={onDeletePdf}
+                                />
+                              ))}
                             </div>
                           ) : (
                             <div className={`pr-4 border-r-2 border-orange-50 py-3 text-center text-xs text-gray-400 rounded-lg transition-all ${
                               dragOverKey === s.id ? 'bg-orange-50 text-orange-500 border-r-orange-300' : ''
                             }`}>
-                              {dragOverKey === s.id ? '↓ اسحب هنا' : 'فارغ'}
+                              {dragOverKey === s.id ? '↓ أفلت هنا' : 'فارغ'}
                             </div>
                           )}
                         </SectionDropZone>
@@ -739,16 +762,26 @@ export default function CourseContent() {
                           icon={<FolderOpen className="w-4 h-4 text-gray-400" />}
                           labelColor="text-gray-400"
                           isDraggingAny={isDraggingAny}
+                          {...dropZoneProps}
                         >
                           {grouped['_none']?.length > 0 ? (
                             <div className="space-y-2 pr-4 border-r-2 border-gray-100">
-                              {grouped['_none'].map(p => <PdfItem key={p.id} p={p} />)}
+                              {grouped['_none'].map(p => (
+                                <PdfItem
+                                  key={p.id} p={p}
+                                  onDragStart={onDragStartPdf}
+                                  onDragEnd={handleDragEnd}
+                                  isDragging={draggingId === p.id}
+                                  onPreview={onPreviewPdf}
+                                  onDelete={onDeletePdf}
+                                />
+                              ))}
                             </div>
                           ) : isDraggingAny ? (
                             <div className={`pr-4 border-r-2 border-gray-100 py-3 text-center text-xs rounded-lg transition-all ${
                               dragOverKey === '_none' ? 'bg-orange-50 text-orange-500 border-r-orange-300' : 'text-gray-400'
                             }`}>
-                              {dragOverKey === '_none' ? '↓ اسحب هنا لإزالة من الفصل' : 'اسحب هنا لإزالة من الفصل'}
+                              {dragOverKey === '_none' ? '↓ أفلت هنا لإزالة من الفصل' : 'اسحب هنا لإزالة من الفصل'}
                             </div>
                           ) : null}
                         </SectionDropZone>
@@ -756,7 +789,16 @@ export default function CourseContent() {
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      {pdfs.map(p => <PdfItem key={p.id} p={p} />)}
+                      {pdfs.map(p => (
+                        <PdfItem
+                          key={p.id} p={p}
+                          onDragStart={onDragStartPdf}
+                          onDragEnd={handleDragEnd}
+                          isDragging={draggingId === p.id}
+                          onPreview={onPreviewPdf}
+                          onDelete={onDeletePdf}
+                        />
+                      ))}
                     </div>
                   )}
                 </div>
@@ -879,7 +921,16 @@ export default function CourseContent() {
                                     <FileText className="w-3 h-3" /> الملفات
                                   </p>
                                   <div className="space-y-2">
-                                    {sectionPdfs.map(p => <PdfItem key={p.id} p={p} />)}
+                                    {sectionPdfs.map(p => (
+                                      <PdfItem
+                                        key={p.id} p={p}
+                                        onDragStart={onDragStartPdf}
+                                        onDragEnd={handleDragEnd}
+                                        isDragging={draggingId === p.id}
+                                        onPreview={onPreviewPdf}
+                                        onDelete={onDeletePdf}
+                                      />
+                                    ))}
                                   </div>
                                 </div>
                               )}
