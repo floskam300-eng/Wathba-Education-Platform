@@ -899,7 +899,7 @@ async function seed() {
       'C',8,$2)
     RETURNING id
   `, [e3.id,
-     'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f7/Graph_of_f%28x%29%3Dx%5E2.svg/400px-Graph_of_f%28x%29%3Dx%5E2.svg.png']);
+     'https://images.unsplash.com/photo-1509228627152-72ae9ae6848d?w=600&h=400&fit=crop']);
   e3QIds.push({ id: e3ImgQ.id, correct: 'C', pts: 8, question_text: 'سؤال بصورة', question_type: 'mcq', option_a: null, option_b: null, option_c: null, option_d: null });
 
   // سؤال image_multi — e3 (صورة مع بنود متعددة — 9 درجات، 3 أسئلة فرعية)
@@ -948,7 +948,7 @@ async function seed() {
 
   // أسئلة مجمّعة في bank1 — سؤالان بنص + صورة مشتركة
   const BANK_GROUP_CTX = 'انظر إلى الشكل الهندسي التالي وأجب على الأسئلة:';
-  const BANK_GROUP_IMG = 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Monfeltro_facet_02.jpg/320px-Monfeltro_facet_02.jpg';
+  const BANK_GROUP_IMG = 'https://images.unsplash.com/photo-1596495578065-6e0763fa1178?w=600&h=400&fit=crop';
   await q(`
     INSERT INTO bank_questions
       (bank_id,question_type,question_text,option_a,option_b,option_c,option_d,
@@ -1178,7 +1178,7 @@ async function seed() {
       'انظر إلى الشكل الهندسي في الصورة — ما نوع هذا المضلع؟',
       'مثلث','مربع','خماسي','سداسي','C',5,$2)
     RETURNING id
-  `, [et3.id, 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/08/Simple_polygon.svg/400px-Simple_polygon.svg.png']);
+  `, [et3.id, 'https://images.unsplash.com/photo-1596495578065-6e0763fa1178?w=600&h=400&fit=crop']);
   et3QIds.push({ id: et3img1.id, correct: 'C', pts: 5 });
 
   const [et3img2] = await q(`
@@ -1189,7 +1189,7 @@ async function seed() {
       'بالنظر إلى الشكل — ما قيمة الزاوية المجهولة x في المثلث إذا كانت الزاويتان الأخريان 60° و70°؟',
       '40°','50°','60°','70°','B',5,$2)
     RETURNING id
-  `, [et3.id, 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Triangle_illustration.svg/400px-Triangle_illustration.svg.png']);
+  `, [et3.id, 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=600&h=400&fit=crop']);
   et3QIds.push({ id: et3img2.id, correct: 'B', pts: 5 });
 
   // ── et4: الجبر المتقدم — MCQ + image_multi (8 أسئلة، 45 درجة) ──
@@ -1223,7 +1223,7 @@ async function seed() {
       'خطية','تربيعية','أسية','دائرية','A',10,$2,$3)
     RETURNING id
   `, [et4.id,
-     'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f7/Graph_of_f%28x%29%3Dx%5E2.svg/400px-Graph_of_f%28x%29%3Dx%5E2.svg.png',
+     'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=600&h=400&fit=crop',
      et4MultiSubs]);
   et4QIds.push({ id: et4multi.id, correct: 'A', pts: 10 });
 
@@ -1236,7 +1236,7 @@ async function seed() {
       'من الرسم البياني — ما مجموع جذري المعادلة المعروضة؟',
       '3','5','7','9','B',5,$2)
     RETURNING id
-  `, [et4.id, 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e5/Parabola_graph.svg/400px-Parabola_graph.svg.png']);
+  `, [et4.id, 'https://images.unsplash.com/photo-1509228627152-72ae9ae6848d?w=600&h=400&fit=crop']);
   et4QIds.push({ id: et4img.id, correct: 'B', pts: 5 });
 
   // ── et5: التفاضل والتكامل — MCQ + صح/خطأ + صورة (10 أسئلة، 60 درجة) ──
@@ -1266,7 +1266,7 @@ async function seed() {
       'من الرسم البياني للدالة f(x) — ما قيمة المشتقة f′(x) عند نقطة القمة؟',
       '-1','0','1','2','B',6,$2)
     RETURNING id
-  `, [et5.id, 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f7/Graph_of_f%28x%29%3Dx%5E2.svg/400px-Graph_of_f%28x%29%3Dx%5E2.svg.png']);
+  `, [et5.id, 'https://images.unsplash.com/photo-1518186285589-2f7649de83e0?w=600&h=400&fit=crop']);
   et5QIds.push({ id: et5img1.id, correct: 'B', pts: 6 });
 
   const [et5img2] = await q(`
@@ -1277,7 +1277,7 @@ async function seed() {
       'المساحة الملوّنة في الرسم تمثل التكامل المحدود ∫₀³ f(x) dx — ما تقريبها؟',
       '4.5','9','18','27','A',6,$2)
     RETURNING id
-  `, [et5.id, 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9e/Integral_as_region_under_curve.svg/400px-Integral_as_region_under_curve.svg.png']);
+  `, [et5.id, 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=600&h=400&fit=crop']);
   et5QIds.push({ id: et5img2.id, correct: 'A', pts: 6 });
 
   // ── et6: الإحصاء والاحتمالات — MCQ + صح/خطأ (6 أسئلة، 30 درجة) ──
@@ -1358,7 +1358,7 @@ async function seed() {
       'من الرسم — ما نوع المتتالية الممثّلة بالنقاط: هندسية أم حسابية أم لا شيء؟',
       'حسابية (تزداد بمقدار ثابت)','هندسية (تتضاعف بمعدل ثابت)','لا هذه ولا تلك','لا يمكن التحديد','A',6,$2)
     RETURNING id
-  `, [et8.id, 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a3/Arithmetic_progression_illustration.svg/400px-Arithmetic_progression_illustration.svg.png']);
+  `, [et8.id, 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=600&h=400&fit=crop']);
   et8QIds.push({ id: et8img.id, correct: 'A', pts: 6 });
 
   // ── et9: الإحداثيات والتحويلات — MCQ + صح/خطأ + image_multi (8 أسئلة، 44 درجة) ──
@@ -1392,7 +1392,7 @@ async function seed() {
       'الربع الأول','الربع الثاني','الربع الثالث','الربع الرابع','C',7,$2,$3)
     RETURNING id
   `, [et9.id,
-     'https://upload.wikimedia.org/wikipedia/commons/thumb/0/0e/Cartesian_coordinate_system_handedness.svg/400px-Cartesian_coordinate_system_handedness.svg.png',
+     'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=600&h=400&fit=crop',
      et9MultiSubs]);
   et9QIds.push({ id: et9multi.id, correct: 'C', pts: 7 });
 
@@ -1405,7 +1405,7 @@ async function seed() {
       'من الشكل — ما المسافة بين النقطتين A(1,1) و B(4,5) ؟',
       '3','4','5','6','C',7,$2)
     RETURNING id
-  `, [et9.id, 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/64/Distance_formula.svg/400px-Distance_formula.svg.png']);
+  `, [et9.id, 'https://images.unsplash.com/photo-1518186285589-2f7649de83e0?w=600&h=400&fit=crop']);
   et9QIds.push({ id: et9img.id, correct: 'C', pts: 7 });
 
   // ── et10: الرياضيات الشاملة — MCQ + صح/خطأ + صورة + مجمّع (12 سؤالاً، 80 درجة) ──
@@ -1435,7 +1435,7 @@ async function seed() {
       'من الرسم البياني للدالة ln(x) — ما اتجاه الدالة عند x > 1 ؟',
       'متناقصة','ثابتة','متزايدة ببطء','متزايدة بسرعة','C',6,$2)
     RETURNING id
-  `, [et10.id, 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Logarithm_plots.png/400px-Logarithm_plots.png']);
+  `, [et10.id, 'https://images.unsplash.com/photo-1518186285589-2f7649de83e0?w=600&h=400&fit=crop']);
   et10QIds.push({ id: et10img.id, correct: 'C', pts: 6 });
 
   // سؤال image_multi — et10
@@ -1453,7 +1453,7 @@ async function seed() {
       'تزايد','تناقص','ثابت','غير محدد','B',8,$2,$3)
     RETURNING id
   `, [et10.id,
-     'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e5/Parabola_graph.svg/400px-Parabola_graph.svg.png',
+     'https://images.unsplash.com/photo-1509228627152-72ae9ae6848d?w=600&h=400&fit=crop',
      et10MultiSubs]);
   et10QIds.push({ id: et10multi.id, correct: 'B', pts: 8 });
 
@@ -2514,7 +2514,7 @@ async function seed() {
       'انظر إلى الرسم البياني أمامك — ما قيمة التكامل المحدود للدالة f(x) = 2x بين x=0 و x=2؟',
       '2','4','6','8','B',3,6,$2)
   `, [r3.id,
-     'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9f/Integral_approximation.svg/400px-Integral_approximation.svg.png']);
+     'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=600&h=400&fit=crop']);
 
   // سؤال image_multi — r3 (صورة مع بنود متعددة — 6 درجات، 3 أسئلة فرعية)
   const r3MultiSubs = JSON.stringify([
@@ -2697,7 +2697,7 @@ async function seed() {
     VALUES ($1,'mcq',
       'من الرسم البياني للدالة — في أي نقطة تكون مشتقة الدالة تساوي صفراً؟',
       'عند x = -2','عند x = 0 عند القمة','عند x = 2','عند x = 4','B',4,5,$2)
-  `, [rt3.id, 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f7/Graph_of_f%28x%29%3Dx%5E2.svg/400px-Graph_of_f%28x%29%3Dx%5E2.svg.png']);
+  `, [rt3.id, 'https://images.unsplash.com/photo-1509228627152-72ae9ae6848d?w=600&h=400&fit=crop']);
   // سؤال بصورة 2 — rt3 (قراءة معدل التغير من رسم بياني)
   await q(`
     INSERT INTO recitation_questions
@@ -2706,7 +2706,7 @@ async function seed() {
     VALUES ($1,'mcq',
       'من الرسم البياني — ما ميل المماس للمنحنى عند نقطة الأصل؟',
       'صفر','1','2','لا يمكن تحديده','A',4,6,$2)
-  `, [rt3.id, 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9e/Integral_as_region_under_curve.svg/400px-Integral_as_region_under_curve.svg.png']);
+  `, [rt3.id, 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=600&h=400&fit=crop']);
   // سؤال بصورة 3 — rt3 (تحديد فترة التزايد)
   await q(`
     INSERT INTO recitation_questions
@@ -2715,7 +2715,7 @@ async function seed() {
     VALUES ($1,'mcq',
       'من الرسم — حدد الفترة التي تكون فيها الدالة متزايدة:',
       '(-∞, 0)','(0, +∞)','(-2, 2)','لا توجد فترة تزايد','B',4,7,$2)
-  `, [rt3.id, 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Logarithm_plots.png/400px-Logarithm_plots.png']);
+  `, [rt3.id, 'https://images.unsplash.com/photo-1518186285589-2f7649de83e0?w=600&h=400&fit=crop']);
 
   // ── rt4: التكامل — image_multi (4 أسئلة متنوعة، 30 درجة) ──
   const rt4TextQs = [
@@ -2745,7 +2745,7 @@ async function seed() {
       'انظر إلى الرسم البياني — طابق كل تكامل محدود مع قيمته الصحيحة بالنظر إلى المساحات',
       'المساحة 1','المساحة 2','المساحة 3','لا شيء','B',8,4,$2,$3)
   `, [rt4.id,
-     'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9f/Integral_approximation.svg/400px-Integral_approximation.svg.png',
+     'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=600&h=400&fit=crop',
      rt4Multi1Subs]);
   // سؤال image_multi 2 — rt4 (2 بنود)
   const rt4Multi2Subs = JSON.stringify([
@@ -2760,7 +2760,7 @@ async function seed() {
       'من الشكل — حدد طبيعة كل منطقة: هل هي موجبة أم سالبة في التكامل المحدود؟',
       'موجبة','سالبة','صفر','غير محددة','A',7,5,$2,$3)
   `, [rt4.id,
-     'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9e/Integral_as_region_under_curve.svg/400px-Integral_as_region_under_curve.svg.png',
+     'https://images.unsplash.com/photo-1518186285589-2f7649de83e0?w=600&h=400&fit=crop',
      rt4Multi2Subs]);
 
   // ── rt5: الاستاتيكا الشاملة — كل الأنواع (10 أسئلة، 36 درجة) ──
@@ -2788,7 +2788,7 @@ async function seed() {
     VALUES ($1,'mcq',
       'من الشكل — ما اتجاه ردود أفعال المسند الثابت (Pin Support) في النقطة A؟',
       'رد فعل أفقي فقط','رد فعل رأسي فقط','رد فعل أفقي ورأسي','رد فعل في اتجاه القوة المؤثرة','C',4,7,$2)
-  `, [rt5.id, 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Monfeltro_facet_02.jpg/320px-Monfeltro_facet_02.jpg']);
+  `, [rt5.id, 'https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=600&h=400&fit=crop']);
   // سؤال image_multi — rt5 (3 بنود)
   const rt5MultiSubs = JSON.stringify([
     { label: '1', correct: 'A' },
@@ -2803,7 +2803,7 @@ async function seed() {
       'انظر إلى الجسم الخاضع لمجموعة قوى — حدد نوع كل تفاعل في النقاط A وB وC',
       'مفصل (Pin)','بكرة (Roller)','جدار خشن','وتد أملس','A',4,8,$2,$3)
   `, [rt5.id,
-     'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Beam_with_supports.svg/400px-Beam_with_supports.svg.png',
+     'https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=600&h=400&fit=crop',
      rt5MultiSubs]);
   // سؤال صح/خطأ بصورة — rt5
   await q(`
@@ -2813,7 +2813,7 @@ async function seed() {
     VALUES ($1,'true_false',
       'من الشكل — هل يمكن حل هذه المسألة بمعادلات الاتزان الثلاثة؟ (الجسم محدد إستاتيكياً)',
       'صح','خطأ',null,null,'T',4,9,$2)
-  `, [rt5.id, 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Monfeltro_facet_02.jpg/320px-Monfeltro_facet_02.jpg']);
+  `, [rt5.id, 'https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=600&h=400&fit=crop']);
 
   console.log('  ✓ أسئلة التسميعات أضيفت بالكامل بما فيها التسميعات الجديدة');
 
