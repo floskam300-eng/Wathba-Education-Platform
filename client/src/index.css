@@ -203,9 +203,12 @@ html.dark .input-field {
   color: var(--dk-text-1);
   color-scheme: dark;
 }
-html.dark .input-field option {
+html.dark select option {
   background-color: var(--dk-elevated);
   color: var(--dk-text-1);
+}
+html.dark select {
+  color-scheme: dark;
 }
 
 /* ── Number inputs: keep spinners on the right regardless of RTL page direction ── */
