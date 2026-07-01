@@ -210,6 +210,14 @@ export default function SecurePdfViewer({ pdf }) {
       cMapUrl: `${CDN}/cmaps/`,
       cMapPacked: true,
       standardFontDataUrl: `${CDN}/standard_fonts/`,
+      // Some Arabic PDFs (especially exports from older Arabic word processors)
+      // embed fonts whose glyphs get mis-shaped/disconnected when the browser's
+      // native @font-face engine applies its own ligature/shaping rules on top
+      // of glyphs the PDF already positioned explicitly. Disabling @font-face
+      // forces PDF.js to rasterize each glyph itself from the parsed outline
+      // data, which renders the letters exactly as the PDF's content stream
+      // intends (properly joined, correct order) instead of double-shaped.
+      disableFontFace: true,
     });
     loadTaskRef.current = task;
 
