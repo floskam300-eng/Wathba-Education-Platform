@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowRight, BookOpen, Video, FileText, FolderOpen, FolderPlus,
   Plus, Trash2, Pencil, Play, X, Check, Link, Upload, ExternalLink,
-  ChevronDown, ChevronUp, BookMarked, Eye,
+  ChevronDown, ChevronUp, BookMarked, Eye, GripVertical,
 } from 'lucide-react';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
@@ -171,7 +171,6 @@ function VideoPreviewModal({ video, onClose }) {
   const isDrive = /drive\.google\.com/.test(url);
   const isLocal = url.startsWith('/uploads/');
 
-  // Extract YouTube ID for thumbnail
   const ytIdMatch = url.match(/(?:v=|youtu\.be\/|embed\/)([a-zA-Z0-9_-]{11})/);
   const ytId = ytIdMatch ? ytIdMatch[1] : null;
 
@@ -192,8 +191,6 @@ function VideoPreviewModal({ video, onClose }) {
         </div>
         <div className="relative" style={{ paddingTop: '56.25%' }}>
           {isYoutube ? (
-            /* YouTube: show thumbnail + open-in-YouTube button (iframe embeds are
-               blocked by YouTube for unlisted/restricted videos in dev environments) */
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 gap-4">
               {ytId && (
                 <img
@@ -240,10 +237,19 @@ function VideoPreviewModal({ video, onClose }) {
 // [PF-1] VideoItem lifted to module scope — avoids React treating it as a new
 // component type on every parent render, which caused full unmount/remount of
 // every video row whenever any parent state changed.
-function VideoItem({ v, videoRecitationsMap, onPreview, onDelete }) {
+function VideoItem({ v, videoRecitationsMap, onPreview, onDelete, onDragStart, onDragEnd, isDragging }) {
   const linkedRecs = videoRecitationsMap[Number(v.id)] || [];
   return (
-    <div className="flex items-start gap-3 p-3 bg-white rounded-xl shadow-sm border border-gray-100 hover:border-gray-200 transition-all">
+    <div
+      draggable
+      onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; onDragStart(v.id, v.section_id); }}
+      onDragEnd={onDragEnd}
+      className={`flex items-start gap-3 p-3 bg-white rounded-xl shadow-sm border border-gray-100 hover:border-gray-200 transition-all select-none
+        ${isDragging ? 'opacity-40 scale-95' : 'cursor-grab active:cursor-grabbing'}`}
+    >
+      <div className="flex items-center self-stretch text-gray-300 hover:text-gray-400 cursor-grab active:cursor-grabbing flex-shrink-0 -mr-1">
+        <GripVertical className="w-4 h-4" />
+      </div>
       <button onClick={() => onPreview(v)}
         className="w-10 h-10 bg-navy-100 rounded-lg flex items-center justify-center flex-shrink-0 hover:bg-navy-200 transition-colors group mt-0.5" title="معاينة الفيديو">
         <Play className="w-5 h-5 text-navy-700 group-hover:text-navy-900" />
@@ -292,6 +298,11 @@ export default function CourseContent() {
   const [previewVideo, setPreviewVideo] = useState(null);
   const [previewPdf, setPreviewPdf] = useState(null);
   const [expandedSections, setExpandedSections] = useState({});
+
+  // Drag-and-drop state
+  const dragItem = useRef(null); // { type: 'video'|'pdf', id, sectionId }
+  const [draggingId, setDraggingId] = useState(null);   // item id being dragged
+  const [dragOverKey, setDragOverKey] = useState(null); // section key being hovered
 
   const toggleSection = (sectionId) => {
     setExpandedSections(prev => ({ ...prev, [sectionId]: !prev[sectionId] }));
@@ -343,6 +354,62 @@ export default function CourseContent() {
     onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
   });
 
+  // Move item between sections
+  const moveVideoMut = useMutation({
+    mutationFn: ({ videoId, sectionId }) =>
+      api.put(`/courses/${courseId}/videos/${videoId}/section`, { section_id: sectionId || null }),
+    onSuccess: () => { refreshContent(); toast.success('تم نقل الفيديو ✅'); },
+    onError: (e) => toast.error(e.response?.data?.error || 'فشل نقل الفيديو'),
+  });
+
+  const movePdfMut = useMutation({
+    mutationFn: ({ pdfId, sectionId }) =>
+      api.put(`/courses/${courseId}/pdfs/${pdfId}/section`, { section_id: sectionId || null }),
+    onSuccess: () => { refreshContent(); toast.success('تم نقل الملف ✅'); },
+    onError: (e) => toast.error(e.response?.data?.error || 'فشل نقل الملف'),
+  });
+
+  // Drag handlers
+  const handleDragStart = useCallback((type, id, currentSectionId) => {
+    dragItem.current = { type, id, sectionId: currentSectionId ?? null };
+    setDraggingId(id);
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    dragItem.current = null;
+    setDraggingId(null);
+    setDragOverKey(null);
+  }, []);
+
+  const handleDragOver = useCallback((e, sectionKey) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverKey(sectionKey);
+  }, []);
+
+  const handleDragLeave = useCallback((e) => {
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+      setDragOverKey(null);
+    }
+  }, []);
+
+  const handleDrop = useCallback((e, sectionKey) => {
+    e.preventDefault();
+    setDragOverKey(null);
+    const item = dragItem.current;
+    if (!item) return;
+    const newSectionId = sectionKey === '_none' ? null : Number(sectionKey);
+    const oldSectionId = item.sectionId ? Number(item.sectionId) : null;
+    if (newSectionId === oldSectionId) return; // same section, no-op
+    if (item.type === 'video') {
+      moveVideoMut.mutate({ videoId: item.id, sectionId: newSectionId });
+    } else {
+      movePdfMut.mutate({ pdfId: item.id, sectionId: newSectionId });
+    }
+    dragItem.current = null;
+    setDraggingId(null);
+  }, [moveVideoMut, movePdfMut]);
+
   const sections = content?.sections || [];
   const videos = content?.videos || [];
   const pdfs = content?.pdfs || [];
@@ -358,7 +425,6 @@ export default function CourseContent() {
     [allRecitations, courseId]
   );
 
-  // Pre-compute videoId → recitations[] map once instead of per-VideoItem-per-render
   const videoRecitationsMap = useMemo(() => {
     const map = {};
     courseRecitations.forEach(rec => {
@@ -375,8 +441,63 @@ export default function CourseContent() {
   const onPreviewVideo = useCallback((v) => setPreviewVideo(v), []);
   const onDeleteVideo  = useCallback((id) => setDeleteVideoId(id), []);
 
-  const PdfItem = ({ p }) => (
-    <div className="flex items-center gap-3 p-3 bg-white rounded-xl shadow-sm border border-gray-100 hover:border-gray-200 transition-all">
+  const buildGrouped = (items) => {
+    const grouped = {};
+    sections.forEach(s => { grouped[s.id] = []; });
+    grouped['_none'] = [];
+    items.forEach(item => {
+      const key = item.section_id ? item.section_id : '_none';
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(item);
+    });
+    return grouped;
+  };
+
+  // Drop zone wrapper used in Videos/PDFs tabs
+  const SectionDropZone = ({ sectionKey, children, label, icon, iconColor, borderColor, labelColor, isDraggingAny }) => {
+    const isOver = dragOverKey === sectionKey;
+    return (
+      <div
+        onDragOver={e => handleDragOver(e, sectionKey)}
+        onDragLeave={handleDragLeave}
+        onDrop={e => handleDrop(e, sectionKey)}
+        className={`rounded-xl transition-all duration-150 ${
+          isDraggingAny
+            ? isOver
+              ? 'ring-2 ring-orange-400 bg-orange-50/60 shadow-lg'
+              : 'ring-1 ring-dashed ring-gray-300'
+            : ''
+        }`}
+      >
+        <div className="flex items-center gap-2 mb-2 px-1">
+          {icon}
+          <span className={`text-xs font-black uppercase tracking-wide ${labelColor}`}>{label}</span>
+          {isDraggingAny && (
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full transition-all ${
+              isOver ? 'bg-orange-400 text-white' : 'bg-gray-100 text-gray-400'
+            }`}>
+              {isOver ? 'اسحب هنا ↓' : 'منطقة إسقاط'}
+            </span>
+          )}
+        </div>
+        {children}
+      </div>
+    );
+  };
+
+  const isDraggingAny = draggingId !== null;
+
+  const PdfItem = useCallback(({ p }) => (
+    <div
+      draggable
+      onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; handleDragStart('pdf', p.id, p.section_id); }}
+      onDragEnd={handleDragEnd}
+      className={`flex items-center gap-3 p-3 bg-white rounded-xl shadow-sm border border-gray-100 hover:border-gray-200 transition-all select-none
+        ${draggingId === p.id ? 'opacity-40 scale-95' : 'cursor-grab active:cursor-grabbing'}`}
+    >
+      <div className="flex items-center self-stretch text-gray-300 hover:text-gray-400 cursor-grab flex-shrink-0 -mr-1">
+        <GripVertical className="w-4 h-4" />
+      </div>
       <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
         <FileText className="w-5 h-5 text-orange-600" />
       </div>
@@ -394,23 +515,11 @@ export default function CourseContent() {
         <Trash2 className="w-4 h-4" />
       </button>
     </div>
-  );
-
-  const buildGrouped = (items) => {
-    const grouped = {};
-    sections.forEach(s => { grouped[s.id] = []; });
-    grouped['_none'] = [];
-    items.forEach(item => {
-      const key = item.section_id ? item.section_id : '_none';
-      if (!grouped[key]) grouped[key] = [];
-      grouped[key].push(item);
-    });
-    return grouped;
-  };
+  ), [draggingId, handleDragStart, handleDragEnd]);
 
   return (
     <div className="-m-4 lg:-m-6 h-[calc(100%+2rem)] lg:h-[calc(100%+3rem)] flex flex-col overflow-hidden" dir="rtl">
-      {/* Fixed Header — flex-shrink-0 keeps it always visible above scroll */}
+      {/* Fixed Header */}
       <div className="flex-shrink-0 bg-white border-b border-gray-200 shadow-sm">
         <div className="px-4 lg:px-6 py-3 flex items-center gap-2 sm:gap-3">
           <button
@@ -434,7 +543,6 @@ export default function CourseContent() {
             <span className="text-xs text-gray-500 font-bold hidden sm:flex items-center gap-1">
               <FileText className="w-3.5 h-3.5" /> {pdfs.length} ملف
             </span>
-            {/* Mobile counts */}
             <span className="sm:hidden text-xs font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
               {videos.length}🎬 · {pdfs.length}📄
             </span>
@@ -442,7 +550,7 @@ export default function CourseContent() {
         </div>
       </div>
 
-      {/* Tab Bar — always visible, no sticky needed */}
+      {/* Tab Bar */}
       <div className="flex-shrink-0 bg-white border-b border-gray-100">
         <div className="px-4 lg:px-6">
           <div className="flex gap-0 overflow-x-auto">
@@ -467,7 +575,15 @@ export default function CourseContent() {
         </div>
       </div>
 
-      {/* Scrollable Content — owns the scroll, so header stays fixed */}
+      {/* Drag hint banner — shown while dragging */}
+      {isDraggingAny && sections.length > 0 && (
+        <div className="flex-shrink-0 bg-orange-50 border-b border-orange-200 px-4 py-2 flex items-center justify-center gap-2">
+          <GripVertical className="w-3.5 h-3.5 text-orange-500" />
+          <p className="text-xs font-bold text-orange-600">اسحب العنصر فوق اسم الفصل لنقله إليه</p>
+        </div>
+      )}
+
+      {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto min-h-0 p-4 lg:p-6">
         {isLoading ? (
           <div className="space-y-3">
@@ -482,10 +598,8 @@ export default function CourseContent() {
               const grouped = buildGrouped(videos);
               return (
                 <div className="space-y-6">
-                  {/* Upload section at the top */}
                   <VideoUrlSection courseId={courseId} onSuccess={refreshContent} sections={sections} />
 
-                  {/* List */}
                   {videos.length === 0 ? (
                     <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-gray-200">
                       <Video className="w-12 h-12 mx-auto mb-3 text-gray-300" />
@@ -493,33 +607,88 @@ export default function CourseContent() {
                     </div>
                   ) : sections.length > 0 ? (
                     <div className="space-y-5">
-                      {sections.map(s => grouped[s.id]?.length > 0 && (
-                        <div key={s.id}>
-                          <div className="flex items-center gap-2 mb-2">
-                            <FolderOpen className="w-4 h-4 text-indigo-500" />
-                            <span className="text-xs font-black text-indigo-600 uppercase tracking-wide">{s.title}</span>
-                            <span className="text-xs text-gray-400">({grouped[s.id].length})</span>
-                          </div>
-                          <div className="space-y-2 pr-4 border-r-2 border-indigo-100">
-                            {grouped[s.id].map(v => <VideoItem key={v.id} v={v} videoRecitationsMap={videoRecitationsMap} onPreview={onPreviewVideo} onDelete={onDeleteVideo} />)}
-                          </div>
-                        </div>
+                      {sections.map(s => (
+                        <SectionDropZone
+                          key={s.id}
+                          sectionKey={s.id}
+                          label={s.title}
+                          icon={<FolderOpen className="w-4 h-4 text-indigo-500" />}
+                          labelColor="text-indigo-600"
+                          isDraggingAny={isDraggingAny}
+                        >
+                          {grouped[s.id]?.length > 0 ? (
+                            <div className="space-y-2 pr-4 border-r-2 border-indigo-100">
+                              {grouped[s.id].map(v => (
+                                <VideoItem
+                                  key={v.id}
+                                  v={v}
+                                  videoRecitationsMap={videoRecitationsMap}
+                                  onPreview={onPreviewVideo}
+                                  onDelete={onDeleteVideo}
+                                  onDragStart={(id, sid) => handleDragStart('video', id, sid)}
+                                  onDragEnd={handleDragEnd}
+                                  isDragging={draggingId === v.id}
+                                />
+                              ))}
+                            </div>
+                          ) : (
+                            <div className={`pr-4 border-r-2 border-indigo-50 py-3 text-center text-xs text-gray-400 rounded-lg transition-all ${
+                              dragOverKey === s.id ? 'bg-orange-50 text-orange-500 border-r-orange-300' : ''
+                            }`}>
+                              {dragOverKey === s.id ? '↓ اسحب هنا' : 'فارغ'}
+                            </div>
+                          )}
+                        </SectionDropZone>
                       ))}
-                      {grouped['_none']?.length > 0 && (
-                        <div>
-                          <div className="flex items-center gap-2 mb-2">
-                            <FolderOpen className="w-4 h-4 text-gray-400" />
-                            <span className="text-xs font-black text-gray-400 uppercase tracking-wide">بدون فصل</span>
-                          </div>
-                          <div className="space-y-2 pr-4 border-r-2 border-gray-100">
-                            {grouped['_none'].map(v => <VideoItem key={v.id} v={v} videoRecitationsMap={videoRecitationsMap} onPreview={onPreviewVideo} onDelete={onDeleteVideo} />)}
-                          </div>
-                        </div>
+
+                      {/* "No section" drop zone */}
+                      {(grouped['_none']?.length > 0 || isDraggingAny) && (
+                        <SectionDropZone
+                          sectionKey="_none"
+                          label="بدون فصل"
+                          icon={<FolderOpen className="w-4 h-4 text-gray-400" />}
+                          labelColor="text-gray-400"
+                          isDraggingAny={isDraggingAny}
+                        >
+                          {grouped['_none']?.length > 0 ? (
+                            <div className="space-y-2 pr-4 border-r-2 border-gray-100">
+                              {grouped['_none'].map(v => (
+                                <VideoItem
+                                  key={v.id}
+                                  v={v}
+                                  videoRecitationsMap={videoRecitationsMap}
+                                  onPreview={onPreviewVideo}
+                                  onDelete={onDeleteVideo}
+                                  onDragStart={(id, sid) => handleDragStart('video', id, sid)}
+                                  onDragEnd={handleDragEnd}
+                                  isDragging={draggingId === v.id}
+                                />
+                              ))}
+                            </div>
+                          ) : isDraggingAny ? (
+                            <div className={`pr-4 border-r-2 border-gray-100 py-3 text-center text-xs rounded-lg transition-all ${
+                              dragOverKey === '_none' ? 'bg-orange-50 text-orange-500 border-r-orange-300' : 'text-gray-400'
+                            }`}>
+                              {dragOverKey === '_none' ? '↓ اسحب هنا لإزالة من الفصل' : 'اسحب هنا لإزالة من الفصل'}
+                            </div>
+                          ) : null}
+                        </SectionDropZone>
                       )}
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      {videos.map(v => <VideoItem key={v.id} v={v} videoRecitationsMap={videoRecitationsMap} onPreview={onPreviewVideo} onDelete={onDeleteVideo} />)}
+                      {videos.map(v => (
+                        <VideoItem
+                          key={v.id}
+                          v={v}
+                          videoRecitationsMap={videoRecitationsMap}
+                          onPreview={onPreviewVideo}
+                          onDelete={onDeleteVideo}
+                          onDragStart={(id, sid) => handleDragStart('video', id, sid)}
+                          onDragEnd={handleDragEnd}
+                          isDragging={draggingId === v.id}
+                        />
+                      ))}
                     </div>
                   )}
                 </div>
@@ -540,21 +709,49 @@ export default function CourseContent() {
                     </div>
                   ) : sections.length > 0 ? (
                     <div className="space-y-5">
-                      {sections.map(s => grouped[s.id]?.length > 0 && (
-                        <div key={s.id}>
-                          <div className="flex items-center gap-2 mb-2">
-                            <FolderOpen className="w-4 h-4 text-orange-400" />
-                            <span className="text-xs font-black text-orange-500 uppercase tracking-wide">{s.title}</span>
-                          </div>
-                          <div className="space-y-2 pr-4 border-r-2 border-orange-100">
-                            {grouped[s.id].map(p => <PdfItem key={p.id} p={p} />)}
-                          </div>
-                        </div>
+                      {sections.map(s => (
+                        <SectionDropZone
+                          key={s.id}
+                          sectionKey={s.id}
+                          label={s.title}
+                          icon={<FolderOpen className="w-4 h-4 text-orange-400" />}
+                          labelColor="text-orange-500"
+                          isDraggingAny={isDraggingAny}
+                        >
+                          {grouped[s.id]?.length > 0 ? (
+                            <div className="space-y-2 pr-4 border-r-2 border-orange-100">
+                              {grouped[s.id].map(p => <PdfItem key={p.id} p={p} />)}
+                            </div>
+                          ) : (
+                            <div className={`pr-4 border-r-2 border-orange-50 py-3 text-center text-xs text-gray-400 rounded-lg transition-all ${
+                              dragOverKey === s.id ? 'bg-orange-50 text-orange-500 border-r-orange-300' : ''
+                            }`}>
+                              {dragOverKey === s.id ? '↓ اسحب هنا' : 'فارغ'}
+                            </div>
+                          )}
+                        </SectionDropZone>
                       ))}
-                      {grouped['_none']?.length > 0 && (
-                        <div className="space-y-2 pr-4 border-r-2 border-gray-100">
-                          {grouped['_none'].map(p => <PdfItem key={p.id} p={p} />)}
-                        </div>
+
+                      {(grouped['_none']?.length > 0 || isDraggingAny) && (
+                        <SectionDropZone
+                          sectionKey="_none"
+                          label="بدون فصل"
+                          icon={<FolderOpen className="w-4 h-4 text-gray-400" />}
+                          labelColor="text-gray-400"
+                          isDraggingAny={isDraggingAny}
+                        >
+                          {grouped['_none']?.length > 0 ? (
+                            <div className="space-y-2 pr-4 border-r-2 border-gray-100">
+                              {grouped['_none'].map(p => <PdfItem key={p.id} p={p} />)}
+                            </div>
+                          ) : isDraggingAny ? (
+                            <div className={`pr-4 border-r-2 border-gray-100 py-3 text-center text-xs rounded-lg transition-all ${
+                              dragOverKey === '_none' ? 'bg-orange-50 text-orange-500 border-r-orange-300' : 'text-gray-400'
+                            }`}>
+                              {dragOverKey === '_none' ? '↓ اسحب هنا لإزالة من الفصل' : 'اسحب هنا لإزالة من الفصل'}
+                            </div>
+                          ) : null}
+                        </SectionDropZone>
                       )}
                     </div>
                   ) : (
@@ -604,7 +801,6 @@ export default function CourseContent() {
                       const isExpanded = !!expandedSections[s.id];
                       return (
                         <div key={s.id} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                          {/* Section header row */}
                           <div className="flex items-center gap-3 p-4">
                             <FolderOpen className="w-5 h-5 text-indigo-400 flex-shrink-0" />
                             {editingSectionId === s.id ? (
@@ -654,7 +850,6 @@ export default function CourseContent() {
                             )}
                           </div>
 
-                          {/* Expandable content */}
                           {isExpanded && totalItems > 0 && (
                             <div className="border-t border-gray-100 px-4 pb-4 pt-3 space-y-4 bg-gray-50/50">
                               {sectionVideos.length > 0 && (
@@ -663,7 +858,18 @@ export default function CourseContent() {
                                     <Video className="w-3 h-3" /> الفيديوهات
                                   </p>
                                   <div className="space-y-2">
-                                    {sectionVideos.map(v => <VideoItem key={v.id} v={v} videoRecitationsMap={videoRecitationsMap} onPreview={onPreviewVideo} onDelete={onDeleteVideo} />)}
+                                    {sectionVideos.map(v => (
+                                      <VideoItem
+                                        key={v.id}
+                                        v={v}
+                                        videoRecitationsMap={videoRecitationsMap}
+                                        onPreview={onPreviewVideo}
+                                        onDelete={onDeleteVideo}
+                                        onDragStart={(id, sid) => handleDragStart('video', id, sid)}
+                                        onDragEnd={handleDragEnd}
+                                        isDragging={draggingId === v.id}
+                                      />
+                                    ))}
                                   </div>
                                 </div>
                               )}
