@@ -281,8 +281,12 @@ router.put('/:id/verify', requireRole('teacher', 'assistant'), (req, res, next) 
       // Store verifier id + name at verification time so the audit trail
       // survives even after the assistant account is later deleted (ON DELETE SET NULL
       // clears verified_by but verified_by_name remains as a textual record)
-      params.push(req.user.id);
-      updateFields.push(`verified_by=$${params.length}`);
+      if (req.user.role === 'assistant') {
+        params.push(req.user.id);
+        updateFields.push(`verified_by=$${params.length}`);
+      } else {
+        updateFields.push('verified_by=NULL');
+      }
       const verifierName = req.user.name || req.user.username || '';
       params.push(verifierName);
       updateFields.push(`verified_by_name=$${params.length}`);

@@ -145,8 +145,8 @@ async function setup() {
 
   // Enroll student A
   await pool.query(
-    "INSERT INTO student_course_enrollment (student_id,course_id,status) VALUES ($1,$2,'active'),($1,$3,'active')",
-    [T.studentAId, T.coursePaidId, T.courseFreeId]);
+    "INSERT INTO student_course_enrollment (student_id,course_id,status) VALUES ($1,$2,'active')",
+    [T.studentAId, T.courseFreeId]);
 
   // Exam (standalone — no course_id) to verify archive fix
   const [exStandalone] = (await pool.query(
@@ -254,6 +254,17 @@ async function runTests() {
     assert(listR.body.length > 0, 'Should have enrollment requests');
     const req = listR.body.find(r => r.student_id === T.studentAId && r.course_id === T.coursePaidId);
     assert(req, 'Request for our student+course should exist');
+
+    // Find and verify the auto-created payment first to satisfy enrollment requirements
+    const payRes = await pool.query(
+      "SELECT id FROM payments WHERE student_id=$1 AND course_id=$2",
+      [T.studentAId, T.coursePaidId]
+    );
+    assert(payRes.rows.length > 0, 'Auto-created payment should exist');
+    const payId = payRes.rows[0].id;
+    const payVerify = await request('PUT', `/api/payments/${payId}/verify`, { status: 'verified' }, T.teacherAToken);
+    assertEqual(payVerify.status, 200, `Payment verification failed: ${JSON.stringify(payVerify.body)}`);
+
     const r = await request('PUT', `/api/courses/enrollment-requests/${req.id}`, { action: 'approve' }, T.teacherAToken);
     assertEqual(r.status, 200, `Approve failed: ${JSON.stringify(r.body)}`);
     // Verify the status was set to 'approved' without constraint violation
@@ -286,18 +297,21 @@ async function runTests() {
   console.log('\n▶  BUG-5: Auto-enroll reactivates inactive enrollments');
 
   await test('[B5] Free course auto-enroll works for new student', async () => {
-    const pw = await bcrypt.hash('Fresh2026!', 10);
-    const [fresh] = (await pool.query(
-      "INSERT INTO students (username,password,name,teacher_id,academic_stage) VALUES ('_audit_fresh',$1,'Fresh Student',$2,'الصف الثالث الثانوي') RETURNING id",
-      [pw, T.teacherAId])).rows;
+    const r = await request('POST', '/api/students', {
+      name: 'Fresh Student',
+      academic_stage: 'الصف الثالث الثانوي',
+      gender: 'ذكر',
+    }, T.teacherAToken);
+    assertEqual(r.status, 201, `Create student failed: ${JSON.stringify(r.body)}`);
+    const freshId = r.body.id;
     // The student should be auto-enrolled in the free course
     const { rows } = await pool.query(
       "SELECT status FROM student_course_enrollment WHERE student_id=$1 AND course_id=$2",
-      [fresh.id, T.courseFreeId]
+      [freshId, T.courseFreeId]
     );
     assert(rows.length > 0, 'Fresh student should be auto-enrolled in free course');
     assertEqual(rows[0].status, 'active', 'Status should be active');
-    await pool.query('DELETE FROM students WHERE id=$1', [fresh.id]);
+    await pool.query('DELETE FROM students WHERE id=$1', [freshId]);
   });
 
   await test('[B5] Auto-enroll reactivates inactive enrollment', async () => {
