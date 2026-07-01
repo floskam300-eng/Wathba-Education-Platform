@@ -153,25 +153,55 @@ const checkPermission = async (req, res, next, perm) => {
 
 router.post('/', addStudentLimiter, requireRole('teacher', 'assistant'), (req, res, next) => checkPermission(req, res, next, 'can_add_students'), validateStudent, async (req, res) => {
   const teacherId = getTeacherId(req);
-  const { name, phone, parent_phone, academic_stage, gender } = req.body;
-    // Auto-generate 6-digit numeric password using crypto (not Math.random)
-    const generatedPassword = String(100000 + crypto.randomInt(0, 900000));
-    // Sanitize gender: empty string violates CHECK constraint, convert to NULL
-    const safeGender = gender || null;
-    try {
-      // Sanitize student name: trim, collapse whitespace, strip control characters
-      const safeName = String(name || '').trim().replace(/[\x00-\x1f\x7f-\x9f]/g, '').slice(0, 100);
-      if (!safeName) return res.status(400).json({ error: 'اسم الطالب مطلوب' });
-      // Auto-generate username based on academic stage
-      let username = await generateUsername(teacherId, academic_stage || '', pool);
-      // Retry up to 5 times if race condition causes duplicate
-      let retries = 0;
-      while (retries < 5) {
-        try {
-          const hashed = await bcrypt.hash(generatedPassword, 10);
+  const { name, phone, parent_phone, academic_stage, gender, credMode, manualUsername, manualPassword } = req.body;
+
+  // Resolve credential mode: default to 'auto' for backward-compat
+  const isManualMode = credMode === 'manual';
+
+  // Manual mode requires both fields; auto mode ignores them entirely
+  if (isManualMode) {
+    if (!manualUsername || !String(manualUsername).trim())
+      return res.status(400).json({ error: 'اسم المستخدم مطلوب في وضع الإدخال اليدوي' });
+    if (!manualPassword || String(manualPassword).length < 6)
+      return res.status(400).json({ error: 'كلمة المرور مطلوبة ويجب أن تكون 6 أحرف على الأقل' });
+  }
+
+  // Password: manual or auto-generated
+  const finalPassword = isManualMode
+    ? String(manualPassword).trim()
+    : String(100000 + crypto.randomInt(0, 900000));
+
+  // Sanitize gender: empty string violates CHECK constraint, convert to NULL
+  const safeGender = gender || null;
+  try {
+    // Sanitize student name: trim, collapse whitespace, strip control characters
+    const safeName = String(name || '').trim().replace(/[\x00-\x1f\x7f-\x9f]/g, '').slice(0, 100);
+    if (!safeName) return res.status(400).json({ error: 'اسم الطالب مطلوب' });
+
+    // Username: manual or auto-generated (auto mode ignores manualUsername entirely)
+    let username;
+    if (isManualMode) {
+      username = String(manualUsername).trim();
+      // Check uniqueness within this teacher's students
+      const { rows: existing } = await pool.query(
+        'SELECT id FROM students WHERE username=$1 AND teacher_id=$2 AND deleted_at IS NULL',
+        [username, teacherId]
+      );
+      if (existing.length > 0) {
+        return res.status(409).json({ error: `اسم المستخدم "${username}" مستخدم بالفعل لدى طالب آخر` });
+      }
+    } else {
+      username = await generateUsername(teacherId, academic_stage || '', pool);
+    }
+
+    // Retry up to 5 times on race-condition duplicate (only relevant for auto-generated usernames)
+    let retries = 0;
+    while (retries < 5) {
+      try {
+        const hashed = await bcrypt.hash(finalPassword, 10);
         const result = await pool.query(
           'INSERT INTO students (username,password,plain_password,name,phone,parent_phone,academic_stage,gender,teacher_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',
-          [username, hashed, generatedPassword, name, phone, parent_phone, academic_stage, safeGender, teacherId]
+          [username, hashed, finalPassword, name, phone, parent_phone, academic_stage, safeGender, teacherId]
         );
         invalidateCache(teacherId);
         // Auto-enroll new student in teacher's published free courses
@@ -197,11 +227,14 @@ router.post('/', addStudentLimiter, requireRole('teacher', 'assistant'), (req, r
           entity: { type: 'student', id: safe.id, name: safe.name },
           details: { username: safe.username, academic_stage, gender },
         });
-        return res.status(201).json({ ...safe, generated_password: generatedPassword, ...(enrollWarning ? { warning: enrollWarning } : {}) });
+        return res.status(201).json({ ...safe, generated_password: finalPassword, ...(enrollWarning ? { warning: enrollWarning } : {}) });
       } catch (err) {
-        if (err.code === '23505') {
+        if (err.code === '23505' && !isManualMode) {
+          // Race condition on auto-generated username — retry with a new one
           retries++;
           username = await generateUsername(teacherId, academic_stage || '', pool);
+        } else if (err.code === '23505' && isManualMode) {
+          return res.status(409).json({ error: `اسم المستخدم "${username}" مستخدم بالفعل لدى طالب آخر` });
         } else {
           throw err;
         }

@@ -53,7 +53,7 @@ function PasswordCell({ password, onCopy }) {
   );
 }
 
-const emptyForm = { name: '', phone: '', parent_phone: '', academic_stage: '', gender: '' };
+const emptyForm = { name: '', phone: '', parent_phone: '', academic_stage: '', gender: '', manualUsername: '', manualPassword: '' };
 
 const STAGE_PREFIX_LABELS = {
   'الصف الأول الثانوي':   'H',
@@ -309,6 +309,7 @@ export default function TeacherStudents() {
   const [previewUsername, setPreviewUsername] = useState('');
   const [previewLoading, setPreviewLoading]   = useState(false);
   const [createdStudent, setCreatedStudent]   = useState(null);
+  const [credMode, setCredMode]               = useState('auto'); // 'auto' | 'manual'
 
   // Suspend / unsuspend state
   const [suspendTarget, setSuspendTarget] = useState(null); // { id, name, is_suspended }
@@ -739,9 +740,9 @@ export default function TeacherStudents() {
   const canDelete = user?.role === 'teacher' || user?.can_delete_students;
   const canPrint  = user?.role === 'teacher' || user?.can_view_analytics;
 
-  const openAdd  = () => { setEditData(null); setForm(emptyForm); setPreviewUsername(''); setFormErrors({}); setModal(true); };
-  const openEdit = (s) => { setEditData(s); setForm({ ...s, password: '' }); setPreviewUsername(''); setFormErrors({}); setModal(true); };
-  const closeModal = () => { setModal(false); setEditData(null); setForm(emptyForm); setPreviewUsername(''); setFormErrors({}); };
+  const openAdd  = () => { setEditData(null); setForm(emptyForm); setPreviewUsername(''); setFormErrors({}); setCredMode('auto'); setModal(true); };
+  const openEdit = (s) => { setEditData(s); setForm({ ...s, password: '' }); setPreviewUsername(''); setFormErrors({}); setCredMode('auto'); setModal(true); };
+  const closeModal = () => { setModal(false); setEditData(null); setForm(emptyForm); setPreviewUsername(''); setFormErrors({}); setCredMode('auto'); };
 
   // Auto-open add modal when navigating from Dashboard quick action
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -755,7 +756,7 @@ export default function TeacherStudents() {
   const copyToClipboard = (text) => { navigator.clipboard.writeText(text).then(() => toast.success('تم النسخ!')); };
 
   useEffect(() => {
-    if (editData || !modal) return;
+    if (editData || !modal || credMode !== 'auto') { setPreviewUsername(''); return; }
     if (!form.academic_stage) { setPreviewUsername(''); return; }
     let cancelled = false;
     setPreviewLoading(true);
@@ -764,18 +765,26 @@ export default function TeacherStudents() {
       .catch(() => { if (!cancelled) { const p = STAGE_PREFIX_LABELS[form.academic_stage] || 'S'; setPreviewUsername(`${p}???`); } })
       .finally(() => { if (!cancelled) setPreviewLoading(false); });
     return () => { cancelled = true; };
-  }, [form.academic_stage, editData, modal]);
+  }, [form.academic_stage, editData, modal, credMode]);
 
   const [formErrors, setFormErrors] = useState({});
   const clearError = (field) => setFormErrors(prev => { const n = { ...prev }; delete n[field]; return n; });
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const errs = validateStudentForm(form, !!editData);
+    const errs = validateStudentForm(form, !!editData, credMode);
     if (hasErrors(errs)) { setFormErrors(errs); return; }
     setFormErrors({});
-    if (editData) updateMut.mutate({ id: editData.id, data: form });
-    else createMut.mutate(form);
+    if (editData) {
+      updateMut.mutate({ id: editData.id, data: form });
+    } else {
+      // Always strip manual fields from base payload so stale values never leak
+      const { manualUsername, manualPassword, ...baseForm } = form;
+      const payload = credMode === 'manual'
+        ? { ...baseForm, credMode: 'manual', manualUsername: manualUsername.trim(), manualPassword }
+        : { ...baseForm, credMode: 'auto' };
+      createMut.mutate(payload);
+    }
   };
 
   const stageCounts = ['الكل', ...STAGES].reduce((acc, s) => {
@@ -1165,26 +1174,100 @@ export default function TeacherStudents() {
       {/* Add/Edit Modal */}
       <Modal open={modal} onClose={closeModal} title={editData ? 'تعديل بيانات طالب' : 'إضافة طالب جديد'}>
         <form onSubmit={handleSubmit} className="space-y-4">
+
           {editData ? (
+            /* ── Edit mode: show current username (read-only) ── */
             <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
               <span className="text-xs font-bold text-slate-500">كود الطالب</span>
               <span className="font-mono font-black text-navy-700 tracking-widest text-lg">{editData.username}</span>
             </div>
           ) : (
-            <div className="flex items-center gap-3 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3">
-              <span className="text-xs font-bold text-orange-600">الكود التلقائي</span>
-              {form.academic_stage ? (
-                previewLoading ? (
-                  <span className="font-mono text-sm text-orange-400 animate-pulse">جاري التوليد...</span>
-                ) : (
-                  <span className="font-mono font-black text-orange-700 tracking-widest text-lg">{previewUsername}</span>
-                )
-              ) : (
-                <span className="text-xs text-orange-400">اختر المرحلة الدراسية أولاً لظهور الكود</span>
+            <>
+              {/* ── Mode toggle ── */}
+              <div className="flex rounded-xl border border-gray-200 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => { setCredMode('auto'); setFormErrors(prev => { const n = { ...prev }; delete n.manualUsername; delete n.manualPassword; return n; }); }}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-bold transition-colors ${
+                    credMode === 'auto'
+                      ? 'bg-orange-500 text-white'
+                      : 'bg-white text-gray-500 hover:bg-gray-50'
+                  }`}
+                >
+                  <RefreshCw className="w-4 h-4" /> توليد تلقائي
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCredMode('manual')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-bold transition-colors border-r border-gray-200 ${
+                    credMode === 'manual'
+                      ? 'bg-navy-600 text-white'
+                      : 'bg-white text-gray-500 hover:bg-gray-50'
+                  }`}
+                >
+                  <Pencil className="w-4 h-4" /> إدخال يدوي
+                </button>
+              </div>
+
+              {/* ── Auto mode: preview username + password note ── */}
+              {credMode === 'auto' && (
+                <>
+                  <div className="flex items-center gap-3 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3">
+                    <span className="text-xs font-bold text-orange-600">الكود التلقائي</span>
+                    {form.academic_stage ? (
+                      previewLoading ? (
+                        <span className="font-mono text-sm text-orange-400 animate-pulse">جاري التوليد...</span>
+                      ) : (
+                        <span className="font-mono font-black text-orange-700 tracking-widest text-lg">{previewUsername}</span>
+                      )
+                    ) : (
+                      <span className="text-xs text-orange-400">اختر المرحلة الدراسية أولاً لظهور الكود</span>
+                    )}
+                  </div>
+                  <div className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-orange-500 flex-shrink-0" />
+                    <p className="text-sm text-orange-700">سيتم توليد كلمة مرور من 6 أرقام تلقائياً وعرضها بعد الحفظ</p>
+                  </div>
+                </>
               )}
-            </div>
+
+              {/* ── Manual mode: username + password inputs ── */}
+              {credMode === 'manual' && (
+                <div className="space-y-3 bg-blue-50 border border-blue-200 rounded-xl p-4">
+                  <p className="text-xs font-bold text-blue-700 flex items-center gap-1.5">
+                    <Pencil className="w-3.5 h-3.5" /> أدخل بيانات الدخول يدوياً
+                  </p>
+                  <div>
+                    <label className="block text-sm font-bold text-navy-700 mb-1">اسم المستخدم (الكود) *</label>
+                    <input
+                      value={form.manualUsername}
+                      onChange={e => { setForm({ ...form, manualUsername: e.target.value }); clearError('manualUsername'); }}
+                      className={`input-field ${formErrors.manualUsername ? 'border-red-400 focus:ring-red-300' : ''}`}
+                      placeholder="مثال: H050 أو أي كود تريده"
+                      dir="ltr"
+                      autoComplete="off"
+                    />
+                    <FieldError error={formErrors.manualUsername} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-navy-700 mb-1">كلمة المرور *</label>
+                    <input
+                      type="text"
+                      value={form.manualPassword}
+                      onChange={e => { setForm({ ...form, manualPassword: e.target.value }); clearError('manualPassword'); }}
+                      className={`input-field ${formErrors.manualPassword ? 'border-red-400 focus:ring-red-300' : ''}`}
+                      placeholder="6 أحرف أو أرقام على الأقل"
+                      dir="ltr"
+                      autoComplete="new-password"
+                    />
+                    <FieldError error={formErrors.manualPassword} />
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
+          {/* ── Name ── */}
           <div>
             <label className="block text-sm font-bold text-navy-700 mb-1">الاسم *</label>
             <input value={form.name} onChange={e => { setForm({ ...form, name: e.target.value }); clearError('name'); }}
@@ -1192,6 +1275,7 @@ export default function TeacherStudents() {
             <FieldError error={formErrors.name} />
           </div>
 
+          {/* ── Password (edit only) ── */}
           {editData && (
             <div>
               <label className="block text-sm font-bold text-navy-700 mb-1">كلمة المرور (اتركها فارغة للإبقاء)</label>
@@ -1200,13 +1284,8 @@ export default function TeacherStudents() {
               <FieldError error={formErrors.password} />
             </div>
           )}
-          {!editData && (
-            <div className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-orange-500 flex-shrink-0" />
-              <p className="text-sm text-orange-700">سيتم توليد كلمة مرور من 6 أرقام تلقائياً وعرضها بعد الحفظ</p>
-            </div>
-          )}
 
+          {/* ── Stage + Gender ── */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-bold text-navy-700 mb-1">المرحلة الدراسية</label>
@@ -1225,6 +1304,7 @@ export default function TeacherStudents() {
             </div>
           </div>
 
+          {/* ── Phones ── */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-bold text-navy-700 mb-1">هاتف الطالب</label>
@@ -1240,6 +1320,7 @@ export default function TeacherStudents() {
             </div>
           </div>
 
+          {/* ── Actions ── */}
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={closeModal} className="flex-1 btn-secondary">إلغاء</button>
             <button type="submit" disabled={createMut.isPending || updateMut.isPending} className="flex-1 btn-primary">

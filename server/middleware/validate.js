@@ -60,6 +60,19 @@ function validateStudent(req, res, next) {
     if (String(password).length < 6) errors.password = 'كلمة المرور يجب أن تكون 6 أحرف على الأقل';
   }
 
+  // Manual credentials (create only — validated when provided)
+  const { manualUsername, manualPassword } = req.body;
+  if (manualUsername !== undefined && manualUsername !== '') {
+    const mu = String(manualUsername).trim();
+    if (mu.length < 3) errors.manualUsername = 'اسم المستخدم يجب أن يكون 3 أحرف على الأقل';
+    else if (mu.length > 50) errors.manualUsername = 'اسم المستخدم طويل جداً (الحد الأقصى 50 حرف)';
+    else if (/\s/.test(mu)) errors.manualUsername = 'اسم المستخدم لا يجب أن يحتوي على مسافات';
+    else if (!/^[a-zA-Z0-9_\-.]+$/.test(mu)) errors.manualUsername = 'اسم المستخدم يجب أن يحتوي على أحرف إنجليزية وأرقام والرموز _ - . فقط';
+  }
+  if (manualPassword !== undefined && manualPassword !== '') {
+    if (String(manualPassword).length < 6) errors.manualPassword = 'كلمة المرور يجب أن تكون 6 أحرف على الأقل';
+  }
+
   if (Object.keys(errors).length > 0) return fail(res, errors);
   next();
 }

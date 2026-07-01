@@ -106,7 +106,7 @@ export function validateDates(startDate, endDate, durationMinutes) {
 
 // ── Aggregate validators (return { field: errorMsg } object) ──
 
-export function validateStudentForm(form, isEdit = false) {
+export function validateStudentForm(form, isEdit = false, credMode = 'auto') {
   const errors = {};
   const e = (f, v) => { if (v) errors[f] = v; };
   e('name', validateName(form.name, 'اسم الطالب'));
@@ -118,6 +118,11 @@ export function validateStudentForm(form, isEdit = false) {
     if (cleanPhone === cleanParent) errors.parent_phone = 'رقم ولي الأمر يجب أن يكون مختلفاً عن رقم الطالب';
   }
   if (isEdit && form.password) e('password', validatePassword(form.password, false));
+  // Manual credentials — only validated on create in manual mode
+  if (!isEdit && credMode === 'manual') {
+    e('manualUsername', validateUsername(form.manualUsername));
+    e('manualPassword', validatePassword(form.manualPassword, true));
+  }
   return errors;
 }
 
