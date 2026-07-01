@@ -201,7 +201,16 @@ export default function SecurePdfViewer({ pdf }) {
     }
 
     const url  = withToken(pdf.file_url);
-    const task = pdfjsLib.getDocument({ url });
+    // cMapUrl + standardFontDataUrl fix Arabic/non-Latin text rendering in PDF.js.
+    // Without cMaps, Arabic characters from embedded fonts appear as garbled symbols.
+    const PDFJS_VERSION = '5.6.205';
+    const CDN = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}`;
+    const task = pdfjsLib.getDocument({
+      url,
+      cMapUrl: `${CDN}/cmaps/`,
+      cMapPacked: true,
+      standardFontDataUrl: `${CDN}/standard_fonts/`,
+    });
     loadTaskRef.current = task;
 
     task.promise

@@ -247,7 +247,8 @@ export default function StudentExams() {
   const handleSubmit = useCallback(() => {
     if (!taking || !examData || submittedRef.current) return;
     submittedRef.current = true;
-    submitMut.mutate({ id: taking.id, data: { answers: answersRef.current, start_time: startTime } });
+    // locked: true = student manually submitted (قفّل الامتحان بنفسه) → earns lock bonus
+    submitMut.mutate({ id: taking.id, data: { answers: answersRef.current, start_time: startTime, locked: true } });
   }, [taking, examData, startTime]);
 
   // ── Save answers to localStorage whenever they change ──
@@ -263,7 +264,8 @@ export default function StudentExams() {
       submittedRef.current = true;
       const token = localStorage.getItem('wathba_token');
       if (!token) return;
-      const payload = JSON.stringify({ answers: answersRef.current, start_time: startTimeRef.current });
+      // locked: false = auto-submit on tab close (not a voluntary lock → no lock bonus)
+      const payload = JSON.stringify({ answers: answersRef.current, start_time: startTimeRef.current, locked: false });
       // keepalive fetch is intentional here (axios doesn't support keepalive for
       // tab-close unload events). Include X-Tenant-Slug so the server can resolve
       // the tenant on multi-tenant setups. [M-18 keepalive fix]
@@ -365,7 +367,8 @@ export default function StudentExams() {
       localStorage.removeItem(storageKey);
       if (!submittedRef.current) {
         submittedRef.current = true;
-        submitMut.mutate({ id: examId, data: { answers: answersRef.current, start_time: startIso } });
+        // locked: false = timer already expired, not a voluntary lock
+        submitMut.mutate({ id: examId, data: { answers: answersRef.current, start_time: startIso, locked: false } });
       }
       return;
     }
@@ -381,7 +384,8 @@ export default function StudentExams() {
           // Guard: only submit if component still mounted AND not already submitted
           if (timerActive && !submittedRef.current) {
             submittedRef.current = true;
-            submitMut.mutate({ id: examId, data: { answers: answersRef.current, start_time: startIso } });
+            // locked: false = timer ran out, not a voluntary lock
+            submitMut.mutate({ id: examId, data: { answers: answersRef.current, start_time: startIso, locked: false } });
           }
           return 0;
         }

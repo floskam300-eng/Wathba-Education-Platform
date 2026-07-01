@@ -1358,7 +1358,18 @@ router.post('/:id/submit', submitLimiter, requireRole('student'), async (req, re
   const totalPoints = questionsData.reduce((s, q) => s + q.points, 0);
   const normalizedScore = totalPoints > 0 ? Math.round((score / totalPoints) * exam.total_score) : 0;
   const passed = normalizedScore >= exam.pass_score;
-  const pointsEarned = passed ? ((exam.points_on_attempt || 0) + (exam.points_on_pass || 0)) : 0;
+  // Server-authoritative lock detection: compare submission time against the session
+  // deadline. A student who submits before the timer expires "locked" the exam
+  // voluntarily and earns the lock bonus. This cannot be forged by the client.
+  // +15 s grace for network latency so a submit in-flight right at expiry still counts.
+  const sessionStartedAt = serverSession?.started_at ? new Date(serverSession.started_at) : null;
+  const examDeadlineMs   = sessionStartedAt
+    ? sessionStartedAt.getTime() + (exam.duration_minutes || 60) * 60 * 1000
+    : null;
+  const locked = examDeadlineMs ? (Date.now() <= examDeadlineMs + 15_000) : false;
+  const passPoints = exam.points_on_pass || 0;
+  const lockBonus  = exam.points_on_attempt || 0;
+  const pointsEarned = passed ? (passPoints + (locked ? lockBonus : 0)) : 0;
 
   // ── Atomic DB write inside a transaction ──
   const client = await pool.connect();

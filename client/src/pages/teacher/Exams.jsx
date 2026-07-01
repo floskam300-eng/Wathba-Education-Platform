@@ -783,23 +783,26 @@ export default function TeacherExams() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-bold text-amber-800 dark:text-amber-400 mb-1">نقاط لو قفّل الامتحان ✅</label>
-                <input type="number" min="0" max="9999" value={form.points_on_attempt}
-                  onChange={e => setForm({ ...form, points_on_attempt: parseInt(e.target.value) || 0 })}
-                  className="input-field text-sm" placeholder="0" dir="ltr" />
-                <p className="text-xs text-gray-500 mt-1">تُعطى لو نجح وقفّل الامتحان</p>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-amber-800 dark:text-amber-400 mb-1">نقاط إضافية لو قفّل 🔒</label>
+                <label className="block text-xs font-bold text-amber-800 dark:text-amber-400 mb-1">✅ نقاط لو نجح</label>
                 <input type="number" min="0" max="9999" value={form.points_on_pass}
                   onChange={e => setForm({ ...form, points_on_pass: parseInt(e.target.value) || 0 })}
                   className="input-field text-sm" placeholder="0" dir="ltr" />
-                <p className="text-xs text-gray-500 mt-1">تُضاف فوق نقاط التسليم لو النجاح تم</p>
+                <p className="text-xs text-gray-500 mt-1">تُعطى للطالب لو نجح في الامتحان</p>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-amber-800 dark:text-amber-400 mb-1">🔒 نقاط إضافية لو قفّل</label>
+                <input type="number" min="0" max="9999" value={form.points_on_attempt}
+                  onChange={e => setForm({ ...form, points_on_attempt: parseInt(e.target.value) || 0 })}
+                  className="input-field text-sm" placeholder="0" dir="ltr" />
+                <p className="text-xs text-gray-500 mt-1">تُضاف فوق نقاط النجاح لو الطالب قفّل الامتحان بنفسه</p>
               </div>
             </div>
             {(form.points_on_attempt > 0 || form.points_on_pass > 0) && (
               <div className="bg-amber-100 dark:bg-amber-900/40 rounded-lg p-2.5 text-xs text-amber-800 dark:text-amber-300 font-bold space-y-1">
-                <p>✅ نجح وقفّل ← يكسب <span className="text-amber-900 dark:text-amber-200">{(form.points_on_attempt || 0) + (form.points_on_pass || 0)} نقطة</span> إجمالاً</p>
+                <p>✅ نجح فقط ← يكسب <span className="text-amber-900 dark:text-amber-200">{form.points_on_pass || 0} نقطة</span></p>
+                {form.points_on_attempt > 0 && (
+                  <p>🔒 نجح وقفّل ← يكسب <span className="text-amber-900 dark:text-amber-200">{(form.points_on_pass || 0) + (form.points_on_attempt || 0)} نقطة</span> إجمالاً</p>
+                )}
                 <p className="text-red-600 dark:text-red-400">❌ رسب ← لا يكسب أي نقاط</p>
               </div>
             )}
