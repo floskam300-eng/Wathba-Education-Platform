@@ -25,7 +25,10 @@
  * ─────────────────────────────────────────────────────────────────
  */
 
-require('dotenv').config({ path: require('path').join(__dirname, '../../.env') });
+const path = require('path');
+const fs = require('fs');
+const crypto = require('crypto');
+require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 const pool = require('./connection');
 const bcrypt = require('bcryptjs');
 
@@ -328,7 +331,36 @@ async function seed() {
     return v.id;
   };
 
-  const addPdf = async (courseId, sectionId, title, url) => {
+  // Each seeded PDF needs its own real, unique local file — an external
+  // shared placeholder URL breaks PDF.js (no CORS headers) and a shared
+  // file_url across rows would make checkFileAccess() resolve to the wrong
+  // course/section (it looks up a single row by file_url).
+  const makePlaceholderPdf = (label) => {
+    const escaped = String(label).replace(/[()\\]/g, '');
+    const content = `BT /F1 24 Tf 50 700 Td (${escaped}) Tj ET`;
+    const objs = [
+      '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n',
+      '2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n',
+      '3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /MediaBox [0 0 612 792] /Contents 4 0 R >>\nendobj\n',
+      `4 0 obj\n<< /Length ${content.length} >>\nstream\n${content}\nendstream\nendobj\n`,
+      '5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n',
+    ];
+    let pdf = '%PDF-1.4\n';
+    const offsets = [];
+    for (const o of objs) { offsets.push(pdf.length); pdf += o; }
+    const xrefStart = pdf.length;
+    pdf += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n`;
+    for (const off of offsets) pdf += String(off).padStart(10, '0') + ' 00000 n \n';
+    pdf += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`;
+    return Buffer.from(pdf, 'latin1');
+  };
+
+  const addPdf = async (courseId, sectionId, title) => {
+    const pdfDir = path.join(__dirname, '../../uploads/pdfs');
+    if (!fs.existsSync(pdfDir)) fs.mkdirSync(pdfDir, { recursive: true });
+    const filename = `seed-pdf-${crypto.randomBytes(8).toString('hex')}.pdf`;
+    fs.writeFileSync(path.join(pdfDir, filename), makePlaceholderPdf(`WATHBA — ${title}`));
+    const url = `/uploads/pdfs/${filename}`;
     const [p] = await q(
       `INSERT INTO pdf_files (course_id,section_id,title,file_url) VALUES ($1,$2,$3,$4) RETURNING id`,
       [courseId, sectionId, title, url]
@@ -340,7 +372,6 @@ async function seed() {
   const YT2 = 'https://www.youtube.com/watch?v=tNkZsRW7h2c';
   const YT3 = 'https://www.youtube.com/watch?v=VVn5OEucnQs';
   const YT4 = 'https://www.youtube.com/watch?v=kMiUGiSWMEI';
-  const PDF = 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf';
 
   // ── C1: جبر ومثلثات (3 أقسام، 9 فيديوهات، 4 PDF) ──
   const c1s1 = await addSec(c1.id, 'الباب الأول — المعادلات والمتباينات', 1);
@@ -356,10 +387,10 @@ async function seed() {
   const c1v7 = await addVid(c1.id, c1s3, 'الدوال الخطية والتربيعية — رسم البيان', YT1, 32, 1);
   const c1v8 = await addVid(c1.id, c1s3, 'التطبيقات العملية على الدوال', YT4, 25, 2);
   const c1v9 = await addVid(c1.id, c1s3, 'مراجعة شاملة — الباب الثالث', YT2, 20, 3);
-  await addPdf(c1.id, c1s1, 'ملخص المعادلات والمتباينات PDF', PDF);
-  await addPdf(c1.id, c1s2, 'جدول النسب المثلثية + تدريبات محلولة', PDF);
-  await addPdf(c1.id, c1s3, 'ورقة عمل الدوال — 50 سؤال محلول', PDF);
-  await addPdf(c1.id, c1s1, 'بنك أسئلة المعادلات من الثانوية العامة', PDF);
+  await addPdf(c1.id, c1s1, 'ملخص المعادلات والمتباينات PDF');
+  await addPdf(c1.id, c1s2, 'جدول النسب المثلثية + تدريبات محلولة');
+  await addPdf(c1.id, c1s3, 'ورقة عمل الدوال — 50 سؤال محلول');
+  await addPdf(c1.id, c1s1, 'بنك أسئلة المعادلات من الثانوية العامة');
 
   // ── C2: تفاضل وتكامل (2 قسم، 6 فيديوهات، 3 PDF) ──
   const c2s1 = await addSec(c2.id, 'الوحدة الأولى — مفهوم المشتقة وقواعدها', 1);
@@ -371,16 +402,16 @@ async function seed() {
   const c2v4 = await addVid(c2.id, c2s2, 'مقدمة التكامل — مفهوم المضاد', YT4, 30, 1);
   const c2v5 = await addVid(c2.id, c2s2, 'قوانين التكامل الأساسية', YT1, 45, 2);
   const c2v6 = await addVid(c2.id, c2s2, 'التكامل المحدود وحساب المساحات', YT2, 40, 3);
-  await addPdf(c2.id, c2s1, 'ملخص قواعد المشتقة المكثف', PDF);
-  await addPdf(c2.id, c2s2, 'تمارين التكامل — 100 مسألة محلولة', PDF);
-  await addPdf(c2.id, c2s2, 'نماذج امتحانات الثانوية العامة في التفاضل', PDF);
+  await addPdf(c2.id, c2s1, 'ملخص قواعد المشتقة المكثف');
+  await addPdf(c2.id, c2s2, 'تمارين التكامل — 100 مسألة محلولة');
+  await addPdf(c2.id, c2s2, 'نماذج امتحانات الثانوية العامة في التفاضل');
 
   // ── C3: مجاني (1 قسم، 3 فيديوهات، 1 PDF) ──
   const c3s1 = await addSec(c3.id, 'الدرس التعريفي المجاني', 1);
   const c3v1 = await addVid(c3.id, c3s1, 'درس مجاني — الحساب الذهني وأساسيات الجبر', YT1, 20, 1);
   const c3v2 = await addVid(c3.id, c3s1, 'درس مجاني — مقدمة في علم الرياضيات', YT2, 18, 2);
   const c3v3 = await addVid(c3.id, c3s1, 'درس مجاني — كيف تستعد لمنهج الثانوية', YT3, 15, 3);
-  await addPdf(c3.id, c3s1, 'خطة المنهج والجدول الزمني الكامل', PDF);
+  await addPdf(c3.id, c3s1, 'خطة المنهج والجدول الزمني الكامل');
 
   // ── C4: هندسة تحليلية ث2 (2 قسم، 4 فيديوهات، 2 PDF) ──
   const c4s1 = await addSec(c4.id, 'الباب الأول — الإحداثيات والمسافة', 1);
@@ -389,28 +420,28 @@ async function seed() {
   const c4v2 = await addVid(c4.id, c4s1, 'المسافة بين نقطتين ومنتصف القطعة', YT2, 30, 2);
   const c4v3 = await addVid(c4.id, c4s2, 'معادلة المستقيم بأشكالها المختلفة', YT3, 35, 1);
   const c4v4 = await addVid(c4.id, c4s2, 'الدائرة — معادلتها وتطبيقاتها', YT4, 40, 2);
-  await addPdf(c4.id, c4s1, 'ملخص الإحداثيات', PDF);
-  await addPdf(c4.id, c4s2, 'تدريبات الدائرة والمستقيم', PDF);
+  await addPdf(c4.id, c4s1, 'ملخص الإحداثيات');
+  await addPdf(c4.id, c4s2, 'تدريبات الدائرة والمستقيم');
 
   // ── C5: مسودة (1 قسم، 1 فيديو، 1 PDF) ──
   const c5s1 = await addSec(c5.id, 'الباب الأول — مقدمة في الإحصاء', 1);
   await addVid(c5.id, c5s1, 'مقدمة الإحصاء — المفاهيم الأساسية', YT1, 22, 1);
-  await addPdf(c5.id, c5s1, 'مخطط المحتوى القادم', PDF);
+  await addPdf(c5.id, c5s1, 'مخطط المحتوى القادم');
 
   // ── C6: مجاني ث2 (1 قسم، 1 فيديو، 1 PDF) ──
   const c6s1 = await addSec(c6.id, 'الدرس التعريفي', 1);
   await addVid(c6.id, c6s1, 'مقدمة لطلاب الثاني الثانوي', YT1, 15, 1);
-  await addPdf(c6.id, c6s1, 'خطة المنهج', PDF);
+  await addPdf(c6.id, c6s1, 'خطة المنهج');
 
   // ── C7: استاتيكا ث3 (1 قسم، 1 فيديو، 1 PDF) ──
   const c7s1 = await addSec(c7.id, 'الباب الأول — عزوم القوى والاتزان العام', 1);
   const c7v1 = await addVid(c7.id, c7s1, 'مقدمة في الاستاتيكا وعزوم القوى', YT1, 30, 1);
-  await addPdf(c7.id, c7s1, 'ملخص قوانين عزوم القوى PDF', PDF);
+  await addPdf(c7.id, c7s1, 'ملخص قوانين عزوم القوى PDF');
 
   // ── C8: هندسة فراغية ث3 مجاني (1 قسم، 1 فيديو، 1 PDF) ──
   const c8s1 = await addSec(c8.id, 'الباب الأول — المتجهات في الفراغ', 1);
   const c8v1 = await addVid(c8.id, c8s1, 'المتجهات في الفراغ ثلاثي الأبعاد', YT2, 25, 1);
-  await addPdf(c8.id, c8s1, 'كتيب الهندسة الفراغية PDF', PDF);
+  await addPdf(c8.id, c8s1, 'كتيب الهندسة الفراغية PDF');
 
   console.log('  ✓ الأقسام والفيديوهات والـ PDF اكتملت لجميع الكورسات');
 

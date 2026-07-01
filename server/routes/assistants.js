@@ -141,14 +141,14 @@ router.get('/analytics', requireRole('teacher', 'assistant'), checkAnalyticsPerm
         ORDER BY attempt_count DESC LIMIT 10
       `, [teacherId]),
       pool.query(`
-        SELECT s.id, s.name, s.username, s.student_code, s.points, s.academic_stage, s.gender,
+        SELECT s.id, s.name, s.username, s.points, s.academic_stage, s.gender,
                COUNT(er.id) as exams_taken,
                COALESCE(ROUND(AVG(er.score::numeric / NULLIF(e.total_score,0) * 100), 1), 0) as avg_score
         FROM students s
         LEFT JOIN exam_results er ON s.id = er.student_id AND er.is_latest = true
         LEFT JOIN exams e ON er.exam_id = e.id
         WHERE s.teacher_id = $1 AND s.deleted_at IS NULL
-        GROUP BY s.id, s.name, s.username, s.student_code, s.points, s.academic_stage, s.gender
+        GROUP BY s.id, s.name, s.username, s.points, s.academic_stage, s.gender
         ORDER BY s.points DESC LIMIT 50
       `, [teacherId]),
       pool.query(`

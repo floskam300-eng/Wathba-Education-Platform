@@ -696,7 +696,7 @@ CREATE TABLE IF NOT EXISTS device_alerts (
 CREATE INDEX IF NOT EXISTS idx_device_alerts_teacher ON device_alerts(teacher_id, status);
 CREATE INDEX IF NOT EXISTS idx_device_alerts_student ON device_alerts(student_id);
 DO $$ BEGIN
-  ALTER TABLE device_alerts ADD CONSTRAINT chk_alert_type CHECK (alert_type IN ('device_limit_exceeded'));
+  ALTER TABLE device_alerts ADD CONSTRAINT chk_alert_type CHECK (alert_type IN ('device_limit_exceeded', 'capture_attempt'));
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   ALTER TABLE device_alerts DROP CONSTRAINT IF EXISTS chk_alert_status;

@@ -284,14 +284,14 @@ router.get('/analytics', requireRole('teacher'), async (req, res) => {
 
     const [topStudents, recentResults, totalStudentsRes] = await Promise.all([
       pool.query(`
-        SELECT s.id, s.name, s.username, s.student_code, s.points, s.academic_stage, s.gender,
+        SELECT s.id, s.name, s.username, s.points, s.academic_stage, s.gender,
                COUNT(er.id) as exams_taken,
                COALESCE(ROUND(AVG(er.score::numeric / NULLIF(e.total_score,0) * 100), 1), 0) as avg_score
         FROM students s
         LEFT JOIN exam_results er ON s.id = er.student_id AND er.is_latest = true AND er.is_absent = false
         LEFT JOIN exams e ON er.exam_id = e.id
         WHERE s.teacher_id = $1 AND s.deleted_at IS NULL
-        GROUP BY s.id, s.name, s.username, s.student_code, s.points, s.academic_stage, s.gender
+        GROUP BY s.id, s.name, s.username, s.points, s.academic_stage, s.gender
         ORDER BY s.points DESC LIMIT 50
       `, [teacherId]),
       pool.query(`
@@ -373,6 +373,7 @@ router.get('/analytics/wrong-questions', requireRole('teacher', 'assistant'), as
       LEFT JOIN questions q ON q.id = (ans->>'question_id')::integer AND e.question_source != 'bank'
       LEFT JOIN bank_questions bq ON bq.id = (ans->>'question_id')::integer AND e.question_source = 'bank'
       WHERE e.teacher_id = $1
+        AND jsonb_typeof(er.answers) = 'array'
         AND (ans->>'question_type' = 'mcq' OR ans->>'question_type' IS NULL OR ans->>'question_type' = '')
         AND ans->>'is_correct' IS NOT NULL
         AND (q.id IS NOT NULL OR bq.id IS NOT NULL)

@@ -264,9 +264,9 @@ export default function TeacherAnalytics() {
   ];
 
   const exportCSV = () => {
-    const headers = ['الاسم', 'كود الطالب', 'المرحلة الدراسية', 'الجنس', 'النقاط', 'عدد الاختبارات', 'متوسط الدرجات%'];
+    const headers = ['الاسم', 'اسم المستخدم', 'المرحلة الدراسية', 'الجنس', 'النقاط', 'عدد الاختبارات', 'متوسط الدرجات%'];
     const rows = filteredStudents.map(s => [
-      s.name, s.student_code || '—', s.academic_stage || '—', s.gender || '—', s.points, s.exams_taken,
+      s.name, s.username || '—', s.academic_stage || '—', s.gender || '—', s.points, s.exams_taken,
       Math.round(parseFloat(s.avg_score) || 0),
     ]);
     const csv = [headers, ...rows].map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
