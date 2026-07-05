@@ -102,7 +102,9 @@ export function useSSE(enabled, role) {
           qc.invalidateQueries({ queryKey: ['student-exams'] });
           qc.invalidateQueries({ queryKey: ['student-dashboard'] });
           qc.invalidateQueries({ queryKey: ['my-notifications'] });
-          window.dispatchEvent(new CustomEvent('wathba_platform_notification', { detail: data }));
+          // [DUP-3 FIX] Removed wathba_platform_notification dispatch: StudentLayout
+          // was receiving it and invalidating ['my-notifications'] a second time,
+          // causing a redundant refetch. The invalidation above is sufficient.
           toast.success(`${EVENT_ICONS.new_exam} اختبار جديد متاح الآن: ${data.title}`,
             { duration: 6000, style: { fontFamily: 'inherit', direction: 'rtl' } });
         });

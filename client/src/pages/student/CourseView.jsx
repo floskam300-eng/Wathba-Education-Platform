@@ -2041,16 +2041,23 @@ export default function CourseView() {
                   </div>
                 ) : exams.map(ex => {
                   const myResult = examResults.find(r => String(r.exam_id) === String(ex.id));
-                  const passed = myResult && myResult.score >= ex.pass_score;
-                  const pct = myResult ? Math.round((myResult.score / ex.total_score) * 100) : 0;
+                  const isAbsent = myResult && (myResult.is_absent === true || myResult.is_absent === 'true');
+                  const passed = myResult && !isAbsent && myResult.score >= ex.pass_score;
+                  const pct = myResult && !isAbsent ? Math.round((myResult.score / ex.total_score) * 100) : 0;
                   return (
-                    <div key={ex.id} className={`bg-white/5 rounded-2xl p-5 border ${myResult ? (passed ? 'border-green-500/30' : 'border-red-500/30') : 'border-white/10'}`}>
+                    <div key={ex.id} className={`bg-white/5 rounded-2xl p-5 border ${
+                      isAbsent ? 'border-gray-600/30'
+                      : myResult ? (passed ? 'border-green-500/30' : 'border-red-500/30')
+                      : 'border-white/10'
+                    }`}>
                       <div className="flex items-start justify-between gap-3 mb-3">
                         <div>
                           <h3 className="text-white font-bold text-sm">{ex.title}</h3>
                           <p className="text-gray-500 text-xs mt-0.5">{ex.total_score} درجة · حد النجاح {ex.pass_score}</p>
                         </div>
-                        {myResult ? (
+                        {isAbsent ? (
+                          <span className="text-xs font-bold text-gray-400 bg-gray-500/20 px-3 py-1.5 rounded-full">غائب</span>
+                        ) : myResult ? (
                           <div className="text-left flex-shrink-0">
                             <div className={`text-2xl font-black ${passed ? 'text-green-400' : 'text-red-400'}`}>
                               {myResult.score}<span className="text-sm text-gray-500">/{ex.total_score}</span>
@@ -2063,7 +2070,8 @@ export default function CourseView() {
                           <span className="text-xs font-bold text-gray-500 bg-white/5 px-3 py-1.5 rounded-full">لم تُؤدَّ بعد</span>
                         )}
                       </div>
-                      {myResult && (
+                      {/* Score breakdown + review button: hidden for absent students */}
+                      {myResult && !isAbsent && (
                         <>
                           <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden mb-3">
                             <div className={`h-2 rounded-full transition-all ${passed ? 'bg-green-500' : 'bg-red-400'}`} style={{ width: `${pct}%` }} />

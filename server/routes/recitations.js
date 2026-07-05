@@ -688,10 +688,25 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageRecit
         return res.status(400).json({ error: 'أضف أسئلة للتسميع قبل النشر' });
     }
 
+    // [DUP-2 FIX] Atomically set start_notified based on whether the recitation
+    // window is already open, in the same UPDATE that flips is_published.
+    // Previously start_notified was always reset to false on publish, which caused
+    // the scheduler (running every 5 min) to find the recitation with
+    // start_notified=false and send another new_recitation SSE — even though the
+    // route had just sent one — resulting in duplicate SSE events and a potential
+    // second notification_log row from the scheduler's window-reset path.
+    //
+    // Logic when publishing ($1=true):
+    //   • start_date is null or already past  → start_notified=true  (route handles it now)
+    //   • start_date is in the future         → start_notified=false (scheduler fires when window opens)
+    // When unpublishing: leave start_notified unchanged.
     const { rows } = await pool.query(
       `UPDATE recitations
           SET is_published=$1,
-              start_notified=false,
+              start_notified = CASE
+                WHEN $1 THEN (start_date IS NULL OR start_date <= NOW())
+                ELSE start_notified
+              END,
               -- Reset absent_marked when re-publishing so the scheduler and new
               -- unpublish can mark absent again for the fresh window.
               absent_marked = CASE WHEN $1 THEN false ELSE absent_marked END
@@ -702,34 +717,41 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageRecit
     // Notify eligible students on publish
     if (newPublished) {
       const rec2 = rows[0];
+      const recStartDate = rec2.start_date ? new Date(rec2.start_date) : null;
+      const isAvailableNow = !recStartDate || recStartDate <= new Date();
+
       let studentQuery, params;
       if (rec2.academic_stage) {
-        studentQuery = 'SELECT id FROM students WHERE teacher_id=$1 AND academic_stage=$2 AND deleted_at IS NULL';
+        studentQuery = 'SELECT id FROM students WHERE teacher_id=$1 AND academic_stage=$2 AND deleted_at IS NULL AND is_suspended = false';
         params = [teacherId, rec2.academic_stage];
       } else {
-        studentQuery = 'SELECT id FROM students WHERE teacher_id=$1 AND deleted_at IS NULL';
+        studentQuery = 'SELECT id FROM students WHERE teacher_id=$1 AND deleted_at IS NULL AND is_suspended = false';
         params = [teacherId];
       }
       const { rows: students } = await pool.query(studentQuery, params);
       const studentIds = students.map(s => s.id);
 
-      for (const sid of studentIds) {
-        sendEvent(`student_${sid}`, 'new_recitation', {
-          title: rec2.title,
-          recitationId: rec2.id,
-        });
-        pool.query(
-          `INSERT INTO notification_log (teacher_id, student_id, title, message, type, source)
-           VALUES ($1,$2,$3,$4,'new_recitation','platform')`,
-          [teacherId, sid, 'تسميع جديد 📖', `تم نشر تسميع جديد: "${rec2.title}"`]
+      // Only send real-time SSE + notification_log when the window is open now.
+      // If start_date is in the future, the scheduler will fire when the window opens
+      // (start_notified=false ensures the scheduler picks it up).
+      if (isAvailableNow) {
+        for (const sid of studentIds) {
+          sendEvent(`student_${sid}`, 'new_recitation', {
+            title: rec2.title,
+            recitationId: rec2.id,
+          });
+          pool.query(
+            `INSERT INTO notification_log (teacher_id, student_id, title, message, type, source)
+             VALUES ($1,$2,$3,$4,'new_recitation','platform')`,
+            [teacherId, sid, 'تسميع جديد 📖', `تم نشر تسميع جديد: "${rec2.title}"`]
+          ).catch(() => {});
+        }
+        sendFCMToStudents(pool, studentIds,
+          'تسميع جديد 📖',
+          `تم نشر تسميع: "${rec2.title}"`,
+          { recitationId: String(rec2.id) }
         ).catch(() => {});
       }
-
-      sendFCMToStudents(pool, studentIds,
-        'تسميع جديد 📖',
-        `تم نشر تسميع: "${rec2.title}"`,
-        { recitationId: String(rec2.id) }
-      ).catch(() => {});
 
       logActivity({
         teacherId, actor: getActor(req), ip: getIp(req),
