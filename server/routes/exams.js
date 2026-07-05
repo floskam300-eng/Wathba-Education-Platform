@@ -562,7 +562,7 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageEx
   const examId = parseParamId(req.params.id);
   if (!examId) return res.status(400).json({ error: 'معرّف الاختبار غير صالح' });
   const teacherId = getTeacherId(req);
-  const { question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, question_type, group_id, group_context, group_context_image } = req.body;
+  const { question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, question_type } = req.body;
   try {
     const examRow = await getExamForOwner(examId, teacherId);
     if (!examRow) return res.status(403).json({ error: 'Access denied: exam not yours' });
@@ -604,8 +604,8 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageEx
     }
 
     const result = await pool.query(
-      'INSERT INTO questions (question_text,question_image_url,option_a,option_b,option_c,option_d,correct_answer_letter,points,exam_id,question_type,group_id,group_context,group_context_image,sub_questions) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *',
-      [question_text || null, question_image_url || null, optA, optB, isImgMulti ? 'C' : (option_c || null), isImgMulti ? 'D' : (option_d || null), correctLetter, points || 1, examId, qType, group_id || null, group_context || null, group_context_image || null, subQs ? JSON.stringify(subQs) : '[]']
+      'INSERT INTO questions (question_text,question_image_url,option_a,option_b,option_c,option_d,correct_answer_letter,points,exam_id,question_type,sub_questions) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *',
+      [question_text || null, question_image_url || null, optA, optB, isImgMulti ? 'C' : (option_c || null), isImgMulti ? 'D' : (option_d || null), correctLetter, points || 1, examId, qType, subQs ? JSON.stringify(subQs) : '[]']
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -630,9 +630,7 @@ router.post('/:id/questions/import', requireRole('teacher', 'assistant'), checkM
     if (examRow.is_published)
       return res.status(409).json({ error: 'لا يمكن إضافة أسئلة لاختبار منشور — أوقف النشر أولاً' });
 
-    // Resolve CSV string group_id labels → numeric IDs (stable within this import batch)
-    const groupIdMap = {};
-    let nextGroupId = Date.now();
+
 
     const client = await pool.connect();
     try {
@@ -646,13 +644,8 @@ router.post('/:id/questions/import', requireRole('teacher', 'assistant'), checkM
         if (qType === 'mcq' && !['A', 'B', 'C', 'D'].includes(correctLetter)) correctLetter = 'A';
         const pts = parseInt(q.points, 10);
         const finalPoints = (!isNaN(pts) && pts >= 1 && pts <= 1000) ? pts : 1;
-        let resolvedGroupId = null;
-        if (q.group_id) {
-          if (!groupIdMap[q.group_id]) groupIdMap[q.group_id] = nextGroupId++;
-          resolvedGroupId = groupIdMap[q.group_id];
-        }
         await client.query(
-          'INSERT INTO questions (question_text,option_a,option_b,option_c,option_d,correct_answer_letter,points,exam_id,question_type,group_id,group_context,sub_questions) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',
+          'INSERT INTO questions (question_text,option_a,option_b,option_c,option_d,correct_answer_letter,points,exam_id,question_type,sub_questions) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
           [
             (q.question_text || '').trim() || null,
             optA,
@@ -663,8 +656,6 @@ router.post('/:id/questions/import', requireRole('teacher', 'assistant'), checkM
             finalPoints,
             examId,
             qType,
-            resolvedGroupId,
-            (q.group_context || '').trim() || null,
             '[]',
           ]
         );
@@ -688,7 +679,7 @@ router.put('/questions/:qid', requireRole('teacher', 'assistant'), checkManageEx
   const qid = parseParamId(req.params.qid);
   if (!qid) return res.status(400).json({ error: 'معرّف السؤال غير صالح' });
   const teacherId = getTeacherId(req);
-  const { question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, question_type, group_id, group_context, group_context_image } = req.body;
+  const { question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, question_type } = req.body;
   try {
     const examRow = await getExamForQuestion(qid, teacherId);
     if (!examRow) return res.status(403).json({ error: 'Access denied: question not yours' });
@@ -730,8 +721,8 @@ router.put('/questions/:qid', requireRole('teacher', 'assistant'), checkManageEx
     }
 
     const result = await pool.query(
-      'UPDATE questions SET question_text=$1,question_image_url=$2,option_a=$3,option_b=$4,option_c=$5,option_d=$6,correct_answer_letter=$7,points=$8,question_type=$9,group_id=$10,group_context=$11,group_context_image=$12,sub_questions=$13 WHERE id=$14 RETURNING *',
-      [question_text || null, question_image_url || null, optA, optB, isImgMulti ? 'C' : (option_c || null), isImgMulti ? 'D' : (option_d || null), correctLetter, points || 1, qType, group_id || null, group_context || null, group_context_image || null, subQs ? JSON.stringify(subQs) : '[]', qid]
+      'UPDATE questions SET question_text=$1,question_image_url=$2,option_a=$3,option_b=$4,option_c=$5,option_d=$6,correct_answer_letter=$7,points=$8,question_type=$9,sub_questions=$10 WHERE id=$11 RETURNING *',
+      [question_text || null, question_image_url || null, optA, optB, isImgMulti ? 'C' : (option_c || null), isImgMulti ? 'D' : (option_d || null), correctLetter, points || 1, qType, subQs ? JSON.stringify(subQs) : '[]', qid]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'السؤال غير موجود' });
     res.json(result.rows[0]);
@@ -1098,7 +1089,7 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
     let questions;
     if (exam.question_source === 'bank' && exam.bank_id) {
       const bankQRes = await pool.query(
-        'SELECT id,question_text,question_image_url,option_a,option_b,option_c,option_d,correct_answer_letter,points,question_type,difficulty,group_id,group_context,group_context_image,sub_questions FROM bank_questions WHERE bank_id=$1',
+        'SELECT id,question_text,question_image_url,option_a,option_b,option_c,option_d,correct_answer_letter,points,question_type,difficulty,sub_questions FROM bank_questions WHERE bank_id=$1',
         [exam.bank_id]
       );
       if (bankQRes.rows.length === 0) {
@@ -1130,7 +1121,7 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
       }
     } else {
       const questionsRes = await pool.query(
-        'SELECT id,question_text,question_image_url,option_a,option_b,option_c,option_d,points,question_type,group_id,group_context,group_context_image FROM questions WHERE exam_id=$1 ORDER BY id',
+        'SELECT id,question_text,question_image_url,option_a,option_b,option_c,option_d,points,question_type FROM questions WHERE exam_id=$1 ORDER BY id',
         [examId]
       );
       if (questionsRes.rows.length === 0) {

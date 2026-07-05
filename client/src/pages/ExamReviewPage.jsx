@@ -302,32 +302,6 @@ export default function ExamReviewPage() {
 
                     {/* Question body */}
                     <div className="px-5 py-4">
-                      {/* ── Group context (shown once per group) ── */}
-                      {q.group_id && (q.group_context || q.group_context_image) && (() => {
-                        const idx = questions.indexOf(q);
-                        const isFirst = idx === 0 || questions[idx - 1]?.group_id !== q.group_id;
-                        if (!isFirst) return null;
-                        return (
-                          <div className={`mb-4 rounded-xl border-2 overflow-hidden ${dark ? 'border-blue-700/40 bg-blue-900/20' : 'border-blue-200 bg-blue-50'}`}>
-                            <div className={`px-3 py-2 border-b ${dark ? 'bg-blue-900/30 border-blue-700/30' : 'bg-blue-100 border-blue-200'}`}>
-                              <span className={`text-xs font-black ${dark ? 'text-blue-300' : 'text-blue-800'}`}>📎 السياق المشترك للمجموعة</span>
-                            </div>
-                            <div className="p-3 space-y-2">
-                              {q.group_context_image && (
-                                <img
-                                  src={withToken(q.group_context_image)}
-                                  alt=""
-                                  className={`w-full max-h-56 object-contain rounded-lg border cursor-zoom-in ${dark ? 'border-blue-700/30' : 'border-blue-200'}`}
-                                  onClick={() => setLightboxSrc(withToken(q.group_context_image))}
-                                />
-                              )}
-                              {q.group_context && (
-                                <p className={`text-sm leading-relaxed whitespace-pre-wrap ${dark ? 'text-[var(--dk-text)]' : 'text-navy-800'}`}><MathText text={q.group_context} /></p>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })()}
                       {q.question_text && <p className={`font-bold text-base leading-relaxed mb-1 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}><MathText text={q.question_text} /></p>}
                       {q.question_image_url && (
                         <img

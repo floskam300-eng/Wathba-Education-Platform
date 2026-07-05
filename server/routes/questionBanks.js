@@ -193,8 +193,7 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageEx
   const teacherId = getTeacherId(req);
   const {
     question_text, question_image_url, option_a, option_b, option_c, option_d,
-    correct_answer_letter, points, question_type, difficulty,
-    group_id, group_context, group_context_image, sub_questions,
+    correct_answer_letter, points, question_type, difficulty, sub_questions,
   } = req.body;
   try {
     const bank = await pool.query('SELECT id FROM question_banks WHERE id=$1 AND teacher_id=$2', [bankId, teacherId]);
@@ -250,8 +249,8 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageEx
     const qDifficulty = validDifficulties.includes(difficulty) ? difficulty : 'medium';
 
     const result = await pool.query(
-      'INSERT INTO bank_questions (bank_id, question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, question_type, difficulty, group_id, group_context, group_context_image, sub_questions) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *',
-      [bankId, question_text || null, question_image_url || null, optA, optB, isImgMulti ? 'C' : (option_c || null), isImgMulti ? 'D' : (option_d || null), correctLetter.toUpperCase(), parsedPoints, qType, qDifficulty, group_id || null, group_context || null, group_context_image || null, isImgMulti ? JSON.stringify(cleanSubQuestions) : '[]']
+      'INSERT INTO bank_questions (bank_id, question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, question_type, difficulty, sub_questions) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *',
+      [bankId, question_text || null, question_image_url || null, optA, optB, isImgMulti ? 'C' : (option_c || null), isImgMulti ? 'D' : (option_d || null), correctLetter.toUpperCase(), parsedPoints, qType, qDifficulty, isImgMulti ? JSON.stringify(cleanSubQuestions) : '[]']
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -275,9 +274,7 @@ router.post('/:id/questions/import', requireRole('teacher', 'assistant'), checkM
     if (!bank.rows.length) return res.status(403).json({ error: 'Access denied' });
 
     const VALID_DIFFICULTIES = ['easy', 'medium', 'hard'];
-    // Resolve CSV string group_id labels → numeric IDs (stable within this import batch)
-    const groupIdMap = {};
-    let nextGroupId = Date.now();
+
 
     const client = await pool.connect();
     try {
@@ -292,13 +289,8 @@ router.post('/:id/questions/import', requireRole('teacher', 'assistant'), checkM
         const pts = parseInt(q.points, 10);
         const finalPoints = (!isNaN(pts) && pts >= 1 && pts <= 1000) ? pts : 1;
         const diff = VALID_DIFFICULTIES.includes((q.difficulty || '').toLowerCase()) ? q.difficulty.toLowerCase() : 'medium';
-        let resolvedGroupId = null;
-        if (q.group_id) {
-          if (!groupIdMap[q.group_id]) groupIdMap[q.group_id] = nextGroupId++;
-          resolvedGroupId = groupIdMap[q.group_id];
-        }
         await client.query(
-          'INSERT INTO bank_questions (bank_id,question_text,option_a,option_b,option_c,option_d,correct_answer_letter,points,question_type,difficulty,group_id,group_context,sub_questions) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)',
+          'INSERT INTO bank_questions (bank_id,question_text,option_a,option_b,option_c,option_d,correct_answer_letter,points,question_type,difficulty,sub_questions) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',
           [
             bankId,
             (q.question_text || '').trim() || null,
@@ -310,8 +302,6 @@ router.post('/:id/questions/import', requireRole('teacher', 'assistant'), checkM
             finalPoints,
             qType,
             diff,
-            resolvedGroupId,
-            (q.group_context || '').trim() || null,
             '[]',
           ]
         );
@@ -339,8 +329,7 @@ router.put('/questions/:qid', requireRole('teacher', 'assistant'), checkManageEx
   const teacherId = getTeacherId(req);
   const {
     question_text, question_image_url, option_a, option_b, option_c, option_d,
-    correct_answer_letter, points, question_type, difficulty,
-    group_id, group_context, group_context_image, sub_questions,
+    correct_answer_letter, points, question_type, difficulty, sub_questions,
   } = req.body;
   try {
     const ownership = await pool.query(
@@ -400,8 +389,8 @@ router.put('/questions/:qid', requireRole('teacher', 'assistant'), checkManageEx
     const qDifficulty = validDifficulties.includes(difficulty) ? difficulty : 'medium';
 
     const result = await pool.query(
-      'UPDATE bank_questions SET question_text=$1, question_image_url=$2, option_a=$3, option_b=$4, option_c=$5, option_d=$6, correct_answer_letter=$7, points=$8, question_type=$9, difficulty=$10, group_id=$11, group_context=$12, group_context_image=$13, sub_questions=$14 WHERE id=$15 RETURNING *',
-      [question_text || null, question_image_url || null, optA, optB, isImgMulti ? 'C' : (option_c || null), isImgMulti ? 'D' : (option_d || null), correctLetter.toUpperCase(), parsedPoints, qType, qDifficulty, group_id || null, group_context || null, group_context_image || null, isImgMulti ? JSON.stringify(cleanSubQuestions) : '[]', qid]
+      'UPDATE bank_questions SET question_text=$1, question_image_url=$2, option_a=$3, option_b=$4, option_c=$5, option_d=$6, correct_answer_letter=$7, points=$8, question_type=$9, difficulty=$10, sub_questions=$11 WHERE id=$12 RETURNING *',
+      [question_text || null, question_image_url || null, optA, optB, isImgMulti ? 'C' : (option_c || null), isImgMulti ? 'D' : (option_d || null), correctLetter.toUpperCase(), parsedPoints, qType, qDifficulty, isImgMulti ? JSON.stringify(cleanSubQuestions) : '[]', qid]
     );
     res.json(result.rows[0]);
   } catch (err) {

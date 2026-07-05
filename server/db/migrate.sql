@@ -390,11 +390,10 @@ DO $$ BEGIN
   ALTER TABLE device_alerts ADD CONSTRAINT chk_alert_status CHECK (status IN ('pending', 'resolved', 'reactivated', 'dismissed'));
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-ALTER TABLE questions      ADD COLUMN IF NOT EXISTS group_id             INTEGER DEFAULT NULL;
-
-ALTER TABLE questions      ADD COLUMN IF NOT EXISTS group_context        TEXT    DEFAULT NULL;
-
-ALTER TABLE questions      ADD COLUMN IF NOT EXISTS group_context_image  TEXT    DEFAULT NULL;
+-- ── Remove legacy grouped-questions columns (feature removed) ────────────────
+ALTER TABLE questions      DROP COLUMN IF EXISTS group_id;
+ALTER TABLE questions      DROP COLUMN IF EXISTS group_context;
+ALTER TABLE questions      DROP COLUMN IF EXISTS group_context_image;
 
 ALTER TABLE questions      ADD COLUMN IF NOT EXISTS sub_questions        JSONB   DEFAULT '[]';
 
@@ -402,11 +401,9 @@ ALTER TABLE questions DROP CONSTRAINT IF EXISTS chk_question_type;
 
 ALTER TABLE questions ADD CONSTRAINT chk_question_type CHECK (question_type IN ('mcq', 'true_false', 'image_multi'));
 
-ALTER TABLE bank_questions ADD COLUMN IF NOT EXISTS group_id             INTEGER DEFAULT NULL;
-
-ALTER TABLE bank_questions ADD COLUMN IF NOT EXISTS group_context        TEXT    DEFAULT NULL;
-
-ALTER TABLE bank_questions ADD COLUMN IF NOT EXISTS group_context_image  TEXT    DEFAULT NULL;
+ALTER TABLE bank_questions DROP COLUMN IF EXISTS group_id;
+ALTER TABLE bank_questions DROP COLUMN IF EXISTS group_context;
+ALTER TABLE bank_questions DROP COLUMN IF EXISTS group_context_image;
 
 CREATE INDEX IF NOT EXISTS idx_exam_results_answers_gin
   ON exam_results USING GIN (answers jsonb_path_ops);

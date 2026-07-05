@@ -705,18 +705,18 @@ DO $$ BEGIN
   ALTER TABLE device_alerts ADD CONSTRAINT chk_alert_status CHECK (status IN ('pending', 'resolved', 'reactivated', 'dismissed'));
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
--- ── Grouped (multi-part) questions ────────────────────────────────────────────
--- A group_id ties multiple sub-questions to one shared context (text + image).
--- group_context / group_context_image hold the shared passage/image shown above every sub-question in the group.
-ALTER TABLE questions      ADD COLUMN IF NOT EXISTS group_id             INTEGER DEFAULT NULL;
-ALTER TABLE questions      ADD COLUMN IF NOT EXISTS group_context        TEXT    DEFAULT NULL;
-ALTER TABLE questions      ADD COLUMN IF NOT EXISTS group_context_image  TEXT    DEFAULT NULL;
+-- ── Image-multi sub_questions column ──────────────────────────────────────────
 ALTER TABLE questions      ADD COLUMN IF NOT EXISTS sub_questions        JSONB   DEFAULT '[]';
 ALTER TABLE questions DROP CONSTRAINT IF EXISTS chk_question_type;
 ALTER TABLE questions ADD CONSTRAINT chk_question_type CHECK (question_type IN ('mcq', 'true_false', 'image_multi'));
-ALTER TABLE bank_questions ADD COLUMN IF NOT EXISTS group_id             INTEGER DEFAULT NULL;
-ALTER TABLE bank_questions ADD COLUMN IF NOT EXISTS group_context        TEXT    DEFAULT NULL;
-ALTER TABLE bank_questions ADD COLUMN IF NOT EXISTS group_context_image  TEXT    DEFAULT NULL;
+
+-- ── Remove legacy grouped-questions columns (feature removed) ────────────────
+ALTER TABLE questions      DROP COLUMN IF EXISTS group_id;
+ALTER TABLE questions      DROP COLUMN IF EXISTS group_context;
+ALTER TABLE questions      DROP COLUMN IF EXISTS group_context_image;
+ALTER TABLE bank_questions DROP COLUMN IF EXISTS group_id;
+ALTER TABLE bank_questions DROP COLUMN IF EXISTS group_context;
+ALTER TABLE bank_questions DROP COLUMN IF EXISTS group_context_image;
 
 -- GIN index to speed up JSONB lateral expansion on exam_results.answers
 -- (used by wrong-questions analytics and exam review queries)

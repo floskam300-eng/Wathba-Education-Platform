@@ -511,48 +511,16 @@ export default function StudentExams() {
           <div className="space-y-4">
             {questions.map((q, qi) => {
               const qType = q.question_type || 'mcq';
-              const isGrouped = !!q.group_id;
-              // show group context only on the first sub-question of a group
-              const showGroupContext = isGrouped && (qi === 0 || questions[qi - 1]?.group_id !== q.group_id);
 
               return (
                 <div key={q.id}>
-                  {/* ── Grouped context banner (shown once per group) ── */}
-                  {showGroupContext && (q.group_context || q.group_context_image) && (
-                    <div className="mb-2 rounded-2xl border-2 border-blue-300 bg-blue-50 overflow-hidden">
-                      <div className="px-4 py-2 bg-blue-100 border-b border-blue-200 flex items-center gap-2">
-                        <span className="text-xs font-black text-blue-800">📎 اقرأ الآتي ثم أجب على الأسئلة</span>
-                        <span className="text-[10px] text-blue-500 font-semibold mr-auto">مجموعة أسئلة مترابطة</span>
-                      </div>
-                      <div className="p-4 space-y-3">
-                        {q.group_context_image && (
-                          <div className="overflow-hidden rounded-xl">
-                            <img
-                              src={withToken(q.group_context_image)}
-                              alt="سياق المجموعة"
-                              className="w-full max-w-full max-h-64 object-contain border border-blue-200 rounded-xl cursor-zoom-in"
-                              onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                              onClick={() => setLightboxSrc(withToken(q.group_context_image))}
-                            />
-                          </div>
-                        )}
-                        {q.group_context && (
-                          <p className="text-sm text-navy-800 leading-relaxed whitespace-pre-wrap font-medium"><MathText text={q.group_context} /></p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className={`card !p-3 sm:!p-5 ${answers[q.id] ? 'border-2 border-orange-400' : isGrouped ? 'border-2 border-blue-200' : 'border border-gray-200'}`}>
+                  <div className={`card !p-3 sm:!p-5 ${answers[q.id] ? 'border-2 border-orange-400' : 'border border-gray-200'}`}>
                     {/* Question label row */}
                     <div className="flex items-center gap-2 mb-2">
-                      <span className={`w-6 h-6 rounded-full text-white text-xs font-black flex items-center justify-center flex-shrink-0 ${isGrouped ? 'bg-blue-600' : 'bg-navy-600'}`}>{qi + 1}</span>
+                      <span className="w-6 h-6 rounded-full bg-navy-600 text-white text-xs font-black flex items-center justify-center flex-shrink-0">{qi + 1}</span>
                       <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${qType === 'true_false' ? 'bg-purple-100 text-purple-700' : qType === 'image_multi' ? 'bg-indigo-100 text-indigo-700' : 'bg-orange-100 text-orange-700'}`}>
                         {qType === 'true_false' ? 'صح/خطأ' : qType === 'image_multi' ? 'صورة+أسئلة' : 'اختيار'}
                       </span>
-                      {isGrouped && (
-                        <span className="text-[10px] font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">جزء من مجموعة</span>
-                      )}
                       {answers[q.id] && <span className="text-xs text-green-600 font-bold mr-auto">✓ أُجيب</span>}
                     </div>
 

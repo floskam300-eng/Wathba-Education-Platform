@@ -921,44 +921,40 @@ async function seed() {
      e3MultiSubs]);
   e3QIds.push({ id: e3MultiQ.id, correct: 'A', pts: 9, question_type: 'image_multi', question_text: 'سؤال image_multi' });
 
-  // أسئلة مجمّعة (grouped) في e1 — سؤالان يشتركان في نص سياق واحد (group_id=1)
-  // يُظهر ميزة group_context / group_context_image
-  const GROUP_CTX = 'اقرأ النص التالي ثم أجب على السؤالين:\n\nأحمد حلّ معادلة x² - 5x + 6 = 0 ووجد أن الجذرين هما x=2 و x=3.\nاستخدم هذه النتيجة في الإجابة على الأسئلة التالية.';
+  // أسئلة إضافية في e1 — سؤالان عن المعادلة التربيعية
   const [eg1q1] = await q(`
     INSERT INTO questions
       (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,
-       correct_answer_letter,points,group_id,group_context)
+       correct_answer_letter,points)
     VALUES ($1,'mcq',
       'ما مجموع جذري المعادلة x² - 5x + 6 = 0؟',
-      '2','3','5','6','C',3,1,$2)
+      '2','3','5','6','C',3)
     RETURNING id
-  `, [e1.id, GROUP_CTX]);
+  `, [e1.id]);
   e1QIds.push({ id: eg1q1.id, correct: 'C', pts: 3 });
 
   const [eg1q2] = await q(`
     INSERT INTO questions
       (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,
-       correct_answer_letter,points,group_id,group_context)
+       correct_answer_letter,points)
     VALUES ($1,'mcq',
-      'ما حاصل ضرب جذري نفس المعادلة؟',
-      '5','6','8','10','B',3,1,$2)
+      'ما حاصل ضرب جذري المعادلة x² - 5x + 6 = 0؟',
+      '5','6','8','10','B',3)
     RETURNING id
-  `, [e1.id, GROUP_CTX]);
+  `, [e1.id]);
   e1QIds.push({ id: eg1q2.id, correct: 'B', pts: 3 });
 
-  // أسئلة مجمّعة في bank1 — سؤالان بنص + صورة مشتركة
-  const BANK_GROUP_CTX = 'انظر إلى الشكل الهندسي التالي وأجب على الأسئلة:';
-  const BANK_GROUP_IMG = 'https://images.unsplash.com/photo-1596495578065-6e0763fa1178?w=600&h=400&fit=crop';
+  // أسئلة إضافية في bank1 — أسئلة هندسية
   await q(`
     INSERT INTO bank_questions
       (bank_id,question_type,question_text,option_a,option_b,option_c,option_d,
-       correct_answer_letter,points,difficulty,group_id,group_context,group_context_image)
+       correct_answer_letter,points,difficulty)
     VALUES
       ($1,'mcq','ما نوع هذا الشكل الهندسي بناءً على خصائصه؟',
-       'مثلث','مربع','متوازي أضلاع','شبه منحرف','C',2,'medium',10,$2,$3),
+       'مثلث','مربع','متوازي أضلاع','شبه منحرف','C',2,'medium'),
       ($1,'true_false','مجموع زوايا أي شكل رباعي = 360 درجة',
-       'صح','خطأ',null,null,'T',1,'easy',10,$2,$3)
-  `, [bank1.id, BANK_GROUP_CTX, BANK_GROUP_IMG]);
+       'صح','خطأ',null,null,'T',1,'easy')
+  `, [bank1.id]);
 
   // أسئلة e5 (اختبار مشتقات — 30 درجة)
   const e5Questions = [
@@ -1313,23 +1309,21 @@ async function seed() {
     `, [et7.id, qt, txt, a, b, c, d, ans, pts]);
     et7QIds.push({ id: qr.id, correct: ans, pts });
   }
-  // أسئلة مجمّعة — et7 (سياق مشترك)
-  const ET7_GROUP_CTX = 'اقرأ النص التالي ثم أجب على الأسئلة الأربعة:\n\nمصنع ينتج 2400 قطعة يومياً. يعمل المصنع 6 أيام في الأسبوع. القطعة سعرها 15 جنيه للبيع و8 جنيه للتكلفة.';
-  const et7GroupQs = [
-    ['mcq','كم قطعة يُنتج المصنع أسبوعياً؟','12000','14400','16000','18000','B'],
-    ['mcq','ما الربح من كل قطعة؟','7 جنيه','8 جنيه','15 جنيه','23 جنيه','A'],
-    ['mcq','ما إجمالي الإيرادات اليومية؟','19200 جنيه','28000 جنيه','36000 جنيه','48000 جنيه','C'],
-    ['true_false','الربح الإجمالي الأسبوعي يتجاوز 100,000 جنيه','صح','خطأ',null,null,'T'],
+  // أسئلة إضافية — et7 (سياق: مسألة حسابية تطبيقية)
+  const et7ExtraQs = [
+    ['mcq','مصنع ينتج 2400 قطعة يومياً ويعمل 6 أيام أسبوعياً — كم قطعة أسبوعياً؟','12000','14400','16000','18000','B'],
+    ['mcq','إذا كان سعر بيع القطعة 15 جنيه وتكلفتها 8 جنيه — ما الربح من كل قطعة؟','7 جنيه','8 جنيه','15 جنيه','23 جنيه','A'],
+    ['mcq','ما إجمالي الإيرادات اليومية لمصنع ينتج 2400 قطعة بسعر 15 جنيه للقطعة؟','19200 جنيه','28000 جنيه','36000 جنيه','48000 جنيه','C'],
+    ['true_false','الربح الإجمالي الأسبوعي لمصنع ينتج 2400 قطعة/يوم بربح 7 جنيه/قطعة لـ6 أيام يتجاوز 100,000 جنيه','صح','خطأ',null,null,'T'],
   ];
-  for (const gq of et7GroupQs) {
+  for (const gq of et7ExtraQs) {
     const [qt, txt, a, b, c, d, ans] = gq;
-    const hasNull = gq.length === 6;
     const [qr] = await q(`
       INSERT INTO questions
         (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,
-         correct_answer_letter,points,group_id,group_context)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,5,2,$9) RETURNING id
-    `, [et7.id, qt, txt, a, b, c, d, ans, ET7_GROUP_CTX]);
+         correct_answer_letter,points)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,5) RETURNING id
+    `, [et7.id, qt, txt, a, b, c, d, ans]);
     et7QIds.push({ id: qr.id, correct: ans, pts: 5 });
   }
 
@@ -1457,19 +1451,18 @@ async function seed() {
      et10MultiSubs]);
   et10QIds.push({ id: et10multi.id, correct: 'B', pts: 8 });
 
-  // أسئلة مجمّعة — et10 (سياق: مسألة تطبيقية متكاملة)
-  const ET10_GROUP_CTX = 'شركة استثمارية ضخّت 50,000 جنيه في مشروع يعطي عائداً سنوياً بنسبة 8%.\nالمشروع يعمل وفق النمو المركّب: A(t) = 50000 × (1.08)^t';
-  const et10GroupQs = [
-    ['mcq','ما قيمة المشروع بعد سنة واحدة (t=1)؟','54000 ج','55000 ج','56000 ج','58000 ج','A',6,3],
-    ['mcq','بعد كم سنة تقريباً تتضاعف قيمة المشروع؟ (قاعدة 72: 72/r)','8 سنوات','9 سنوات','10 سنوات','12 سنوات','B',6,3],
+  // أسئلة إضافية — et10 (مسألة تطبيقية متكاملة)
+  const et10ExtraQs = [
+    ['mcq','شركة استثمرت 50,000 جنيه بعائد 8% مركّب — ما قيمة المشروع بعد سنة (t=1)؟','54000 ج','55000 ج','56000 ج','58000 ج','A',6],
+    ['mcq','بقاعدة 72: 72/r — بعد كم سنة تقريباً تتضاعف قيمة مشروع بعائد 8%؟','8 سنوات','9 سنوات','10 سنوات','12 سنوات','B',6],
   ];
-  for (const [qt, txt, a, b, c, d, ans, pts, gid] of et10GroupQs) {
+  for (const [qt, txt, a, b, c, d, ans, pts] of et10ExtraQs) {
     const [qr] = await q(`
       INSERT INTO questions
         (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,
-         correct_answer_letter,points,group_id,group_context)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id
-    `, [et10.id, qt, txt, a, b, c, d, ans, pts, gid, ET10_GROUP_CTX]);
+         correct_answer_letter,points)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id
+    `, [et10.id, qt, txt, a, b, c, d, ans, pts]);
     et10QIds.push({ id: qr.id, correct: ans, pts });
   }
 

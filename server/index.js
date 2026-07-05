@@ -217,7 +217,7 @@ const checkFileAccess = async (decoded, fileType, fullPath) => {
            FROM questions q
            JOIN exams e ON q.exam_id = e.id
            LEFT JOIN courses c ON e.course_id = c.id
-          WHERE q.question_image_url = $1 OR q.group_context_image = $1
+          WHERE q.question_image_url = $1
           LIMIT 1`,
         [fullPath]
       );
@@ -237,7 +237,7 @@ const checkFileAccess = async (decoded, fileType, fullPath) => {
           `SELECT qb.teacher_id, qb.id AS bank_id
              FROM bank_questions bq
              JOIN question_banks qb ON bq.bank_id = qb.id
-            WHERE bq.question_image_url = $1 OR bq.group_context_image = $1
+            WHERE bq.question_image_url = $1
             LIMIT 1`,
           [fullPath]
         );

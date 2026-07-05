@@ -89,20 +89,7 @@ function parseCsv(text, mode) {
     rows.push({ ...row, _line: i + 1 });
   }
 
-  // Propagate group_context to all rows in the same group (only first row needs it in CSV)
-  const groupCtxMap = {};
-  for (const row of rows) {
-    const gid = (row.group_id || '').trim();
-    if (gid && (row.group_context || '').trim()) {
-      groupCtxMap[gid] = row.group_context.trim();
-    }
-  }
-  for (const row of rows) {
-    const gid = (row.group_id || '').trim();
-    if (gid && !(row.group_context || '').trim() && groupCtxMap[gid]) {
-      row.group_context = groupCtxMap[gid];
-    }
-  }
+
 
   const parsed = rows.map(row => {
     const errors = validateRow(row, mode);
@@ -114,15 +101,14 @@ function parseCsv(text, mode) {
 
 // ── Template download ──
 function downloadTemplate(mode) {
-  const base = 'type,group_id,group_context,question_text,option_a,option_b,option_c,option_d,correct,points';
+  const base = 'type,question_text,option_a,option_b,option_c,option_d,correct,points';
   const header = mode === 'bank' ? base + ',difficulty' : base;
   const suffix = (d) => mode === 'bank' ? `,${d}` : '';
   const rows = [
     header,
-    `mcq,,,ما عاصمة مصر؟,القاهرة,الإسكندرية,أسوان,الأقصر,A,1${suffix('easy')}`,
-    `true_false,,,الشمس نجم؟,,,,,A,1${suffix('medium')}`,
-    `mcq,G1,اقرأ الفقرة التالية وأجب على الأسئلة,ما اسم البطل؟,علي,أحمد,محمد,سعيد,B,2${suffix('hard')}`,
-    `mcq,G1,,ما نهاية القصة؟,سعيدة,حزينة,مفتوحة,,A,1${suffix('medium')}`,
+    `mcq,ما عاصمة مصر؟,القاهرة,الإسكندرية,أسوان,الأقصر,A,1${suffix('easy')}`,
+    `true_false,الشمس نجم؟,,,,,A,1${suffix('medium')}`,
+    `mcq,ما اسم أكبر كوكب في المجموعة الشمسية؟,المشتري,زحل,أورانوس,نبتون,A,2${suffix('hard')}`,
   ];
   const bom = '\uFEFF'; // BOM for correct Arabic display in Excel
   const blob = new Blob([bom + rows.join('\n')], { type: 'text/csv;charset=utf-8' });
@@ -190,8 +176,6 @@ export default function CsvImportModal({ open, onClose, mode, targetId, onSucces
         correct_answer_letter: (r.correct || 'A').toUpperCase(),
         points: parseInt(r.points, 10) || 1,
         difficulty: (r.difficulty || 'medium').toLowerCase(),
-        group_id: r.group_id || null,
-        group_context: r.group_context || null,
       }));
 
       await api.post(endpoint, { questions });
@@ -216,9 +200,7 @@ export default function CsvImportModal({ open, onClose, mode, targetId, onSucces
               <li>الأعمدة المطلوبة: <code className="bg-blue-100 px-1 rounded font-mono">type, question_text, correct, points</code></li>
               <li><code className="bg-blue-100 px-1 rounded font-mono">type</code>: إما <strong>mcq</strong> (اختيار متعدد) أو <strong>true_false</strong> (صح/خطأ)</li>
               <li><code className="bg-blue-100 px-1 rounded font-mono">correct</code>: حرف A أو B أو C أو D</li>
-              <li>الأعمدة الاختيارية: <code className="bg-blue-100 px-1 rounded font-mono">option_c, option_d, group_id, group_context</code>{mode === 'bank' && <>, <code className="bg-blue-100 px-1 rounded font-mono">difficulty</code></>}</li>
-              {mode === 'bank' && <li><code className="bg-blue-100 px-1 rounded font-mono">difficulty</code>: <strong>easy</strong> أو <strong>medium</strong> أو <strong>hard</strong> (الافتراضي: medium)</li>}
-              <li>لتجميع أسئلة تحت نص مشترك: استخدم <code className="bg-blue-100 px-1 rounded font-mono">group_id</code> (أي نص) و <code className="bg-blue-100 px-1 rounded font-mono">group_context</code> في أول سطر</li>
+              <li>الأعمدة الاختيارية: <code className="bg-blue-100 px-1 rounded font-mono">option_c, option_d</code>{mode === 'bank' && <>, <code className="bg-blue-100 px-1 rounded font-mono">difficulty</code></>}</li>
             </ul>
           </div>
 
@@ -271,7 +253,6 @@ export default function CsvImportModal({ open, onClose, mode, targetId, onSucces
                   <th className="px-2 py-2 text-center font-bold text-gray-500 w-16">الإجابة</th>
                   <th className="px-2 py-2 text-center font-bold text-gray-500 w-14">النقاط</th>
                   {mode === 'bank' && <th className="px-2 py-2 text-center font-bold text-gray-500 w-16">الصعوبة</th>}
-                  <th className="px-2 py-2 text-right font-bold text-gray-500 w-20">مجموعة</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -303,9 +284,6 @@ export default function CsvImportModal({ open, onClose, mode, targetId, onSucces
                     </td>
                     <td className="px-2 py-2 text-gray-800 max-w-[240px]">
                       <span className="line-clamp-2" title={row.question_text}>{row.question_text || '—'}</span>
-                      {row.group_context && (
-                        <span className="block text-[10px] text-blue-500 mt-0.5 truncate">📎 {row.group_context}</span>
-                      )}
                     </td>
                     <td className="px-2 py-2 text-center font-bold text-gray-700">{(row.correct || '').toUpperCase() || '—'}</td>
                     <td className="px-2 py-2 text-center text-gray-600">{row.points || '—'}</td>
@@ -318,7 +296,6 @@ export default function CsvImportModal({ open, onClose, mode, targetId, onSucces
                         ) : <span className="text-gray-400">—</span>}
                       </td>
                     )}
-                    <td className="px-2 py-2 text-gray-400 font-mono text-[10px]">{row.group_id || '—'}</td>
                   </tr>
                 ))}
               </tbody>

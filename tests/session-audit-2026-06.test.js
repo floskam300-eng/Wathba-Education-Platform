@@ -115,49 +115,6 @@ async function teardown() {
 async function runTests() {
 
   // ══════════════════════════════════════════════════════════
-  // GROUP 1: EQ-1 – "مجموعة جديدة" crash fix (QuestionBanks)
-  // The fix removed setNextGroupId from the button callback.
-  // We verify that the button no longer triggers the dead call
-  // by checking sub_questions is cleared (group_id reset) via POST.
-  // ══════════════════════════════════════════════════════════
-  console.log('\n▶  GROUP 1: EQ-1 – New Group button in QuestionBanks (regression check)');
-
-  // group_id in bank_questions is INTEGER — use a numeric value
-  const GROUP_NUM = 999001;
-  await test('[EQ-1] Add first question with group_id to bank', async () => {
-    const r = await request('POST', `/api/question-banks/${T.bankId}/questions`, {
-      question_text: 'First grouped q',
-      option_a: 'A opt', option_b: 'B opt',
-      correct_answer_letter: 'A', points: 2, question_type: 'mcq',
-      group_id: GROUP_NUM,
-    }, T.teacherToken);
-    assertEqual(r.status, 201, `Expected 201, got ${r.status}: ${JSON.stringify(r.body)}`);
-    assert(r.body.group_id === GROUP_NUM, `group_id should be ${GROUP_NUM}, got ${r.body.group_id}`);
-    T.groupedQid = r.body.id;
-  });
-
-  await test('[EQ-1] Add second question to same group', async () => {
-    const r = await request('POST', `/api/question-banks/${T.bankId}/questions`, {
-      question_text: 'Second grouped q',
-      option_a: 'A opt', option_b: 'B opt',
-      correct_answer_letter: 'B', points: 2, question_type: 'mcq',
-      group_id: GROUP_NUM,
-    }, T.teacherToken);
-    assertEqual(r.status, 201, `Expected 201, got ${r.status}: ${JSON.stringify(r.body)}`);
-    assert(r.body.group_id === GROUP_NUM, `Second question should be in same group (${GROUP_NUM})`);
-  });
-
-  await test('[EQ-1] Add question with null group_id (new group) → group_id null', async () => {
-    const r = await request('POST', `/api/question-banks/${T.bankId}/questions`, {
-      question_text: 'Standalone q after new group click',
-      option_a: 'A opt', option_b: 'B opt',
-      correct_answer_letter: 'A', points: 1, question_type: 'mcq',
-    }, T.teacherToken);
-    assertEqual(r.status, 201, `Expected 201, got ${r.status}: ${JSON.stringify(r.body)}`);
-    assert(r.body.group_id === null, `group_id should be null, got ${r.body.group_id}`);
-  });
-
-  // ══════════════════════════════════════════════════════════
   // GROUP 2: EQ-2/EQ-3 – image_multi display in SingleQuestionCard / GroupQuestionCard
   // We verify the server returns sub_questions for bank and exam questions.
   // ══════════════════════════════════════════════════════════
