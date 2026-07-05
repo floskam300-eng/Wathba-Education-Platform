@@ -4,7 +4,7 @@ import {
   BarChart3, TrendingUp, Users, Award, Target, GraduationCap,
   CheckCircle2, XCircle, Clock, Star, ChevronUp, ChevronDown,
   Minus, Eye, Search, Filter, X as XIcon, Zap, Trophy, Activity,
-  BookOpen, Flame, PieChart, Layers
+  BookOpen, Flame, PieChart, Layers, ArrowLeft
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import ReactECharts from 'echarts-for-react';
@@ -825,6 +825,66 @@ export default function AssistantAnalytics() {
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Per-Exam Detailed Analytics ────────────────────────────────── */}
+      {!isLoading && (data?.examResults?.length > 0) && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-400 to-orange-600 flex items-center justify-center shadow-md flex-shrink-0">
+              <PieChart className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-lg font-black text-gray-800">إحصائيات تفصيلية حسب الاختبار</h2>
+              <p className="text-xs text-gray-400 font-medium">اختر اختبار لعرض تحليلات مفصلة عنه</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {(data?.examResults || []).map((e, i) => {
+              const avg = Math.round(parseFloat(e.avg_pct) || 0);
+              const attempts = parseInt(e.attempt_count) || 0;
+              const sc = avg >= 70 ? { text: '#10b981', bg: '#dcfce7', border: 'border-emerald-100' }
+                       : avg >= 50 ? { text: '#6366f1', bg: '#ede9fe', border: 'border-indigo-100' }
+                       : { text: '#f43f5e', bg: '#ffe4e6', border: 'border-rose-100' };
+              return (
+                <button
+                  key={e.id}
+                  onClick={() => navigate(`exam-analytics/${e.id}`)}
+                  className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 text-right group"
+                >
+                  <div className="flex items-start justify-between gap-2 mb-3">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <span className="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black text-white flex-shrink-0"
+                        style={{ background: CHART_COLORS[i % CHART_COLORS.length] }}>
+                        {i + 1}
+                      </span>
+                      <p className="text-sm font-bold text-gray-800 truncate group-hover:text-indigo-600 transition-colors">{e.title}</p>
+                    </div>
+                    <Eye className="w-4 h-4 text-gray-300 group-hover:text-indigo-500 flex-shrink-0 mt-0.5 transition-colors" />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="text-center">
+                        <p className="text-xs font-black text-gray-600">{attempts}</p>
+                        <p className="text-[9px] text-gray-400 font-medium">محاولة</p>
+                      </div>
+                      {e.max_pct && (
+                        <div className="text-center">
+                          <p className="text-xs font-black text-emerald-500">{Math.round(parseFloat(e.max_pct))}%</p>
+                          <p className="text-[9px] text-gray-400 font-medium">أعلى</p>
+                        </div>
+                      )}
+                    </div>
+                    <span className={`text-sm font-black px-2.5 py-1 rounded-xl border ${sc.border}`} style={{ color: sc.text, background: sc.bg }}>
+                      {avg}%
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 

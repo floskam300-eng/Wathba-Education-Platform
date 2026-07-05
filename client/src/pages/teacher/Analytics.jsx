@@ -1125,6 +1125,66 @@ export default function TeacherAnalytics() {
         </div>
       )}
 
+      {/* ── Per-Exam Detailed Analytics ────────────────────────────────── */}
+      {!isLoading && (data?.examResults?.length > 0) && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-400 to-orange-600 flex items-center justify-center shadow-md flex-shrink-0">
+              <PieChart className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-lg font-black text-gray-800 dark:text-gray-200">إحصائيات تفصيلية حسب الاختبار</h2>
+              <p className="text-xs text-gray-400 font-medium">اختر اختبار لعرض تحليلات مفصلة عنه</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {(data?.examResults || []).map((e, i) => {
+              const avg = Math.round(parseFloat(e.avg_pct) || 0);
+              const attempts = parseInt(e.attempt_count) || 0;
+              const sc = avg >= 70 ? { text: '#10b981', bg: dark ? 'rgba(16,185,129,0.15)' : '#dcfce7', border: dark ? 'border-emerald-800' : 'border-emerald-100' }
+                       : avg >= 50 ? { text: '#6366f1', bg: dark ? 'rgba(99,102,241,0.15)' : '#ede9fe', border: dark ? 'border-indigo-800' : 'border-indigo-100' }
+                       : { text: '#f43f5e', bg: dark ? 'rgba(244,63,94,0.15)' : '#ffe4e6', border: dark ? 'border-rose-800' : 'border-rose-100' };
+              return (
+                <button
+                  key={e.id}
+                  onClick={() => navigate(`exam-analytics/${e.id}`)}
+                  className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-4 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 text-right group"
+                >
+                  <div className="flex items-start justify-between gap-2 mb-3">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <span className="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black text-white flex-shrink-0"
+                        style={{ background: CHART_COLORS[i % CHART_COLORS.length] }}>
+                        {i + 1}
+                      </span>
+                      <p className="text-sm font-bold text-gray-800 dark:text-gray-200 truncate group-hover:text-indigo-600 transition-colors">{e.title}</p>
+                    </div>
+                    <Eye className="w-4 h-4 text-gray-300 group-hover:text-indigo-500 flex-shrink-0 mt-0.5 transition-colors" />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="text-center">
+                        <p className="text-xs font-black text-gray-600 dark:text-gray-300">{attempts}</p>
+                        <p className="text-[9px] text-gray-400 font-medium">محاولة</p>
+                      </div>
+                      {e.max_pct && (
+                        <div className="text-center">
+                          <p className="text-xs font-black text-emerald-500">{Math.round(parseFloat(e.max_pct))}%</p>
+                          <p className="text-[9px] text-gray-400 font-medium">أعلى</p>
+                        </div>
+                      )}
+                    </div>
+                    <span className={`text-sm font-black px-2.5 py-1 rounded-xl border ${sc.border}`} style={{ color: sc.text, background: sc.bg }}>
+                      {avg}%
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* ── Recitations Analytics Section ─────────────────────────────── */}
       {(recLoading || (recData?.summary?.total_recitations > 0)) && (
         <div className="space-y-3">
