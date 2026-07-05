@@ -218,8 +218,21 @@ export default function StudentExams() {
 
   useEffect(() => {
     if (result) {
-      const el = document.querySelector('main');
-      if (el) el.scrollTop = 0;
+      const scrollAllToTop = () => {
+        const el = document.querySelector('main');
+        if (el) el.scrollTop = 0;
+        if (document.documentElement) document.documentElement.scrollTop = 0;
+        if (document.body) document.body.scrollTop = 0;
+        window.scrollTo(0, 0);
+      };
+      // Reset immediately, then again on the next frame — some mobile browsers
+      // re-adjust scroll position (e.g. to keep the last focused element in
+      // view) right after the exam-taking view unmounts and the much shorter
+      // result card renders, which overrides an immediate-only reset and looks
+      // like an unwanted "auto scroll down".
+      scrollAllToTop();
+      const raf = requestAnimationFrame(scrollAllToTop);
+      return () => cancelAnimationFrame(raf);
     }
   }, [!!result]);
 
