@@ -397,8 +397,27 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExams
       }
     }
 
+    // [DUP-1 FIX] Atomically set start_notified in the same UPDATE that flips
+    // is_published. Previously start_notified was set in a second, separate
+    // UPDATE AFTER the SSE was already sent, leaving a race window where the
+    // scheduler could see (is_published=true, start_notified=false) and fire an
+    // exam_started SSE while the route was also about to fire a new_exam SSE —
+    // resulting in the student receiving two toast notifications for the same exam.
+    //
+    // Logic: when publishing (NOT is_published → true):
+    //   • start_date is null or already past  → start_notified=true  (route handles it, scheduler must not race)
+    //   • start_date is in the future         → start_notified=false (scheduler fires when date arrives)
+    // When unpublishing: leave start_notified unchanged.
     const result = await pool.query(
-      'UPDATE exams SET is_published = NOT is_published WHERE id=$1 AND teacher_id=$2 RETURNING id, is_published, title, course_id, start_date',
+      `UPDATE exams
+          SET is_published   = NOT is_published,
+              start_notified = CASE
+                WHEN NOT is_published
+                THEN (start_date IS NULL OR start_date <= NOW())
+                ELSE start_notified
+              END
+        WHERE id=$1 AND teacher_id=$2
+       RETURNING id, is_published, title, course_id, start_date`,
       [examId, teacherId]
     );
     const exam = result.rows[0];
@@ -442,10 +461,7 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExams
       }
       sendFCMToStudents(pool, studentIds, notifTitle, notifMsg, { examId: String(exam.id) }).catch(() => {});
 
-      await pool.query(
-        'UPDATE exams SET start_notified = $1 WHERE id = $2',
-        [!hasStartDate, exam.id]
-      );
+      // start_notified is now set atomically in the UPDATE above — no second query needed.
     } else {
       // Unpublishing — notify relevant students so their UI updates immediately
       let unpubStudentIds = [];
