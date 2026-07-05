@@ -205,7 +205,11 @@ export default function TeacherExams() {
   const handleSubmit = (e) => {
     e.preventDefault();
     const errs = validateExamForm(form);
-    if (hasErrors(errs)) { setFormErrors(errs); return; }
+    if (hasErrors(errs)) {
+      setFormErrors(errs);
+      toast.error(Object.values(errs)[0] || 'يوجد خطأ في بيانات الاختبار — راجع الحقول المظللة');
+      return;
+    }
     setFormErrors({});
     const payload = {
       ...form,
@@ -801,14 +805,15 @@ export default function TeacherExams() {
             <div>
               <label className="block text-sm font-bold text-navy-700 mb-1">تاريخ البداية</label>
               <input type="datetime-local" value={form.start_date}
-                onChange={e => setForm({ ...form, start_date: e.target.value })}
+                onChange={e => { setForm({ ...form, start_date: e.target.value }); clearError('end_date'); }}
                 className="input-field text-sm" />
             </div>
             <div>
               <label className="block text-sm font-bold text-navy-700 mb-1">تاريخ النهاية</label>
               <input type="datetime-local" value={form.end_date}
-                onChange={e => setForm({ ...form, end_date: e.target.value })}
+                onChange={e => { setForm({ ...form, end_date: e.target.value }); clearError('end_date'); }}
                 className="input-field text-sm" />
+              <FieldError error={formErrors.end_date} />
             </div>
           </div>
 
