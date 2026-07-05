@@ -39,6 +39,11 @@ async function markAbsentStudents(poolOrClient, examId, teacherId) {
     if (!examInfo.rows.length) return 0;
     const courseId = examInfo.rows[0].course_id;
 
+    // [ABS-1 FIX] Use is_latest=true in NOT EXISTS to avoid blocking absent-marking
+    // for students who have only archived (is_latest=false) results from a previous
+    // publish cycle. Without this, force_reset archives old results but they remain
+    // in the table, so NOT EXISTS found them and skipped those students — meaning no
+    // absent record was created for the new cycle even though the student never took it.
     let eligibleRows;
     if (courseId) {
       const r = await poolOrClient.query(
@@ -48,6 +53,7 @@ async function markAbsentStudents(poolOrClient, examId, teacherId) {
            AND NOT EXISTS (
              SELECT 1 FROM exam_results er
              WHERE er.student_id=sce.student_id AND er.exam_id=$2
+               AND er.is_latest=true
            )`,
         [courseId, examId]
       );
@@ -60,6 +66,7 @@ async function markAbsentStudents(poolOrClient, examId, teacherId) {
            AND NOT EXISTS (
              SELECT 1 FROM exam_results er
              WHERE er.student_id=s.id AND er.exam_id=$2
+               AND er.is_latest=true
            )`,
         [teacherId, examId]
       );
@@ -75,7 +82,8 @@ async function markAbsentStudents(poolOrClient, examId, teacherId) {
          SELECT s_id, $2, 0, 0, 0, 0, true, true, 1, 0
          FROM unnest($1::int[]) AS s_id
          WHERE NOT EXISTS (
-           SELECT 1 FROM exam_results er WHERE er.student_id=s_id AND er.exam_id=$2
+           SELECT 1 FROM exam_results er
+           WHERE er.student_id=s_id AND er.exam_id=$2 AND er.is_latest=true
          )`,
         [studentIds, examId]
       );

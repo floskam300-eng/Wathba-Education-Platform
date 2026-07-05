@@ -122,72 +122,89 @@ export default function StudentDashboard() {
               ))
             ) : data?.recentResults?.length > 0 ? (
               data.recentResults.map(r => {
-                const passed = r.score >= r.pass_score;
+                const isAbsent = r.is_absent === true || r.is_absent === 'true';
+                const passed = !isAbsent && r.score >= r.pass_score;
                 const pct = r.total_score > 0 ? Math.round((r.score / r.total_score) * 100) : 0;
                 return (
                   <div
                     key={r.id}
                     className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-colors ${
-                      passed
-                        ? dark ? 'border-green-700/60 bg-green-950/25 hover:bg-green-950/40' : 'border-green-200 bg-green-50/60 hover:bg-green-50'
-                        : dark ? 'border-red-700/60 bg-red-950/25 hover:bg-red-950/40'       : 'border-red-200 bg-red-50/60 hover:bg-red-50'
+                      isAbsent
+                        ? dark ? 'border-gray-700/60 bg-gray-900/20' : 'border-gray-200 bg-gray-50/60'
+                        : passed
+                          ? dark ? 'border-green-700/60 bg-green-950/25 hover:bg-green-950/40' : 'border-green-200 bg-green-50/60 hover:bg-green-50'
+                          : dark ? 'border-red-700/60 bg-red-950/25 hover:bg-red-950/40'       : 'border-red-200 bg-red-50/60 hover:bg-red-50'
                     }`}
                   >
-                    {/* Pass/Fail icon */}
+                    {/* Pass/Fail/Absent icon */}
                     <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                      passed ? 'bg-green-500/20' : 'bg-red-500/20'
+                      isAbsent ? (dark ? 'bg-gray-800' : 'bg-gray-200') : passed ? 'bg-green-500/20' : 'bg-red-500/20'
                     }`}>
-                      {passed
-                        ? <CheckCircle className="w-5 h-5 text-green-500" />
-                        : <XCircle className="w-5 h-5 text-red-500" />}
+                      {isAbsent
+                        ? <XCircle className="w-5 h-5 text-gray-400" />
+                        : passed
+                          ? <CheckCircle className="w-5 h-5 text-green-500" />
+                          : <XCircle className="w-5 h-5 text-red-500" />}
                     </div>
 
                     {/* Exam info */}
                     <div className="flex-1 min-w-0">
                       <p className={`font-bold text-sm truncate ${dark ? 'text-white' : 'text-navy-700'}`}>{r.exam_title}</p>
                       <div className="flex items-center gap-2 mt-1">
-                        {/* Progress bar */}
-                        <div className={`flex-1 h-1.5 rounded-full overflow-hidden max-w-[80px] ${dark ? 'bg-gray-700' : 'bg-gray-200'}`}>
-                          <div
-                            className={`h-1.5 rounded-full ${passed ? 'bg-green-500' : 'bg-red-400'}`}
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                        <span className={`text-[11px] font-bold ${passed ? (dark ? 'text-green-400' : 'text-green-700') : (dark ? 'text-red-400' : 'text-red-600')}`}>
-                          {pct}%
-                        </span>
+                        {!isAbsent && (
+                          <>
+                            {/* Progress bar */}
+                            <div className={`flex-1 h-1.5 rounded-full overflow-hidden max-w-[80px] ${dark ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                              <div
+                                className={`h-1.5 rounded-full ${passed ? 'bg-green-500' : 'bg-red-400'}`}
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                            <span className={`text-[11px] font-bold ${passed ? (dark ? 'text-green-400' : 'text-green-700') : (dark ? 'text-red-400' : 'text-red-600')}`}>
+                              {pct}%
+                            </span>
+                          </>
+                        )}
                         <span className={`text-[11px] ${dark ? 'text-gray-500' : 'text-gray-400'}`}>
                           {new Date(r.created_at).toLocaleDateString('ar-EG')}
                         </span>
                       </div>
                     </div>
 
-                    {/* Score + status + review */}
+                    {/* Score + status + review (absent students: label only, no review button) */}
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <div className="text-left">
-                        <p className={`text-base font-black ${passed ? (dark ? 'text-green-400' : 'text-green-700') : (dark ? 'text-red-400' : 'text-red-600')}`}>
-                          {r.score}<span className={`text-xs font-semibold ${dark ? 'text-gray-500' : 'text-gray-400'}`}>/{r.total_score}</span>
-                        </p>
-                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                          passed
-                            ? dark ? 'bg-green-900/60 text-green-300' : 'bg-green-100 text-green-700'
-                            : dark ? 'bg-red-900/60 text-red-300'    : 'bg-red-100 text-red-700'
-                        }`}>
-                          {passed ? '✓ ناجح' : '✗ راسب'}
-                        </span>
-                      </div>
-                      <button
-                        onClick={() => navigate(`/student/exam-review/${r.id}`)}
-                        className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                          dark
-                            ? 'bg-navy-700 hover:bg-navy-600 text-white border border-navy-600'
-                            : 'bg-navy-600 hover:bg-navy-700 text-white'
-                        }`}
-                        title="مراجعة الإجابات"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        مراجعة
-                      </button>
+                      {isAbsent ? (
+                        <span className={`text-xs font-black px-2 py-1 rounded-lg ${
+                          dark ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'
+                        }`}>غائب</span>
+                      ) : (
+                        <>
+                          <div className="text-left">
+                            <p className={`text-base font-black ${passed ? (dark ? 'text-green-400' : 'text-green-700') : (dark ? 'text-red-400' : 'text-red-600')}`}>
+                              {r.score}<span className={`text-xs font-semibold ${dark ? 'text-gray-500' : 'text-gray-400'}`}>/{r.total_score}</span>
+                            </p>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                              passed
+                                ? dark ? 'bg-green-900/60 text-green-300' : 'bg-green-100 text-green-700'
+                                : dark ? 'bg-red-900/60 text-red-300'    : 'bg-red-100 text-red-700'
+                            }`}>
+                              {passed ? '✓ ناجح' : '✗ راسب'}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => navigate(`/student/exam-review/${r.id}`)}
+                            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                              dark
+                                ? 'bg-navy-700 hover:bg-navy-600 text-white border border-navy-600'
+                                : 'bg-navy-600 hover:bg-navy-700 text-white'
+                            }`}
+                            title="مراجعة الإجابات"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            مراجعة
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 );

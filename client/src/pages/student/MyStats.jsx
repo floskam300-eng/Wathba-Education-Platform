@@ -20,7 +20,9 @@ function printStatsPDF({ student, summary, examResults, courses, badges, payment
   const fmtN = (n) => new Intl.NumberFormat('ar-EG').format(n ?? 0);
   const fmtD = (d) => d ? new Date(d).toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
   const fmtM = (m) => m >= 60 ? `${Math.floor(m / 60)}س ${m % 60}د` : `${m ?? 0} دقيقة`;
-  const passRate = summary.totalExams > 0 ? Math.round((summary.passCount / summary.totalExams) * 100) : 0;
+  // Use takenCount (excludes absents) so pass rate reflects actual exam attempts
+  const takenCount = summary.takenCount ?? summary.totalExams ?? 0;
+  const passRate = takenCount > 0 ? Math.round((summary.passCount / takenCount) * 100) : 0;
   const now = new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' });
 
   const ring = (pct, color, label, sub) => {
@@ -388,7 +390,9 @@ export default function StudentMyStats() {
 
   const { student, courses = [], examResults = [], payments = [], badges = [], videoProgress = [], summary = {} } = data || {};
 
-  const passRate = summary.totalExams > 0 ? Math.round((summary.passCount / summary.totalExams) * 100) : 0;
+  // Use takenCount (excludes absents) so pass rate reflects actual exam attempts
+  const takenCount = summary.takenCount ?? summary.totalExams ?? 0;
+  const passRate = takenCount > 0 ? Math.round((summary.passCount / takenCount) * 100) : 0;
 
   return (
     <div className="h-full overflow-y-auto p-4 lg:p-6">
@@ -436,7 +440,7 @@ export default function StudentMyStats() {
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           <SummaryCard icon={BookOpen}    label="الكورسات"         value={summary.totalCourses || 0}  iconBg="bg-blue-100"   iconColor="text-blue-700"   accent="border-blue-500" />
           <SummaryCard icon={FileText}    label="الامتحانات"        value={summary.totalExams || 0}    iconBg="bg-purple-100" iconColor="text-purple-700" accent="border-purple-500" />
-          <SummaryCard icon={CheckCircle} label="ناجح"             value={summary.passCount || 0}     sub={`من ${summary.totalExams || 0} امتحان`} iconBg="bg-green-100" iconColor="text-green-700" accent="border-green-500" />
+          <SummaryCard icon={CheckCircle} label="ناجح"             value={summary.passCount || 0}     sub={`من ${takenCount || 0} امتحان`} iconBg="bg-green-100" iconColor="text-green-700" accent="border-green-500" />
           <SummaryCard icon={Award}       label="الشارات"           value={summary.totalBadges || 0}   iconBg="bg-orange-100" iconColor="text-orange-700" accent="border-orange-500" />
           <SummaryCard icon={Video}       label="دقائق مشاهدة"     value={fmtMins(summary.totalWatchedMinutes || 0)} iconBg="bg-teal-100"   iconColor="text-teal-700"   accent="border-teal-500" />
           <SummaryCard icon={TrendingUp}  label="متوسط الدرجات"    value={`${summary.avgScore || 0}%`} iconBg="bg-indigo-100" iconColor="text-indigo-700" accent="border-indigo-500" />
@@ -455,7 +459,10 @@ export default function StudentMyStats() {
                 {passRate}%
               </span>
             </div>
-            <p className="text-xs text-gray-500 font-medium">{summary.passCount} نجاح / {summary.failCount} رسوب</p>
+            <p className="text-xs text-gray-500 font-medium">
+              {summary.passCount} نجاح / {summary.failCount} رسوب
+              {summary.absentCount > 0 && ` / ${summary.absentCount} غياب`}
+            </p>
           </div>
 
           {/* Avg Score Ring */}
@@ -511,53 +518,69 @@ export default function StudentMyStats() {
             <>
               <div className="space-y-3 pt-1">
                 {(showAllExams ? examResults : examResults.slice(0, EXAMS_PAGE)).map(r => {
-                  const passed = r.score >= r.pass_score;
+                  const isAbsent = r.is_absent === true || r.is_absent === 'true';
+                  const passed = !isAbsent && r.score >= r.pass_score;
                   return (
                     <div key={r.id} className={`rounded-xl border-2 p-4 ${
-                      passed
-                        ? dark ? 'border-green-700 bg-green-950/30' : 'border-green-200 bg-green-50/50'
-                        : dark ? 'border-red-700 bg-red-950/30'   : 'border-red-200 bg-red-50/50'
+                      isAbsent
+                        ? dark ? 'border-gray-700 bg-gray-900/20' : 'border-gray-200 bg-gray-50/50'
+                        : passed
+                          ? dark ? 'border-green-700 bg-green-950/30' : 'border-green-200 bg-green-50/50'
+                          : dark ? 'border-red-700 bg-red-950/30'   : 'border-red-200 bg-red-50/50'
                     }`}>
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
                           <p className={`font-bold text-sm leading-tight ${dark ? 'text-white' : 'text-navy-700'}`}>{r.exam_title}</p>
                           {r.course_name && <p className={`text-xs font-medium mt-0.5 ${dark ? 'text-gray-400' : 'text-gray-500'}`}>{r.course_name}</p>}
-                          <div className={`flex flex-wrap gap-3 mt-2 text-xs font-semibold ${dark ? 'text-gray-400' : 'text-gray-600'}`}>
-                            <span className="flex items-center gap-1"><CheckCircle className="w-3.5 h-3.5 text-green-500" /> {r.correct_count} صواب</span>
-                            <span className="flex items-center gap-1"><XCircle className="w-3.5 h-3.5 text-red-400" /> {r.wrong_count} خطأ</span>
-                            {r.unanswered_count > 0 && <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-gray-400" /> {r.unanswered_count} بدون إجابة</span>}
-                            {r.points_earned > 0 && <span className="text-orange-500">+{r.points_earned} نقطة ⭐</span>}
-                          </div>
+                          {!isAbsent && (
+                            <div className={`flex flex-wrap gap-3 mt-2 text-xs font-semibold ${dark ? 'text-gray-400' : 'text-gray-600'}`}>
+                              <span className="flex items-center gap-1"><CheckCircle className="w-3.5 h-3.5 text-green-500" /> {r.correct_count} صواب</span>
+                              <span className="flex items-center gap-1"><XCircle className="w-3.5 h-3.5 text-red-400" /> {r.wrong_count} خطأ</span>
+                              {r.unanswered_count > 0 && <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-gray-400" /> {r.unanswered_count} بدون إجابة</span>}
+                              {r.points_earned > 0 && <span className="text-orange-500">+{r.points_earned} نقطة ⭐</span>}
+                            </div>
+                          )}
                         </div>
                         <div className="text-center flex-shrink-0">
-                          <p className={`text-2xl font-black ${passed ? (dark ? 'text-green-400' : 'text-green-700') : (dark ? 'text-red-400' : 'text-red-600')}`}>
-                            {r.score}<span className={`text-sm font-semibold ${dark ? 'text-gray-500' : 'text-gray-400'}`}>/{r.total_score}</span>
-                          </p>
-                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                            passed
-                              ? dark ? 'bg-green-900/60 text-green-300' : 'bg-green-100 text-green-800'
-                              : dark ? 'bg-red-900/60 text-red-300'    : 'bg-red-100 text-red-700'
-                          }`}>
-                            {passed ? '✓ ناجح' : '✗ راسب'}
-                          </span>
+                          {isAbsent ? (
+                            <span className={`text-sm font-black px-3 py-1 rounded-full ${
+                              dark ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'
+                            }`}>غائب</span>
+                          ) : (
+                            <>
+                              <p className={`text-2xl font-black ${passed ? (dark ? 'text-green-400' : 'text-green-700') : (dark ? 'text-red-400' : 'text-red-600')}`}>
+                                {r.score}<span className={`text-sm font-semibold ${dark ? 'text-gray-500' : 'text-gray-400'}`}>/{r.total_score}</span>
+                              </p>
+                              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                                passed
+                                  ? dark ? 'bg-green-900/60 text-green-300' : 'bg-green-100 text-green-800'
+                                  : dark ? 'bg-red-900/60 text-red-300'    : 'bg-red-100 text-red-700'
+                              }`}>
+                                {passed ? '✓ ناجح' : '✗ راسب'}
+                              </span>
+                            </>
+                          )}
                         </div>
                       </div>
-                      <ScoreBar score={r.score} total={r.total_score} passScore={r.pass_score} dark={dark} />
+                      {!isAbsent && <ScoreBar score={r.score} total={r.total_score} passScore={r.pass_score} dark={dark} />}
                       <div className="flex items-center justify-between mt-3">
                         <p className={`text-xs ${dark ? 'text-gray-500' : 'text-gray-400'}`}>{fmtDate(r.created_at)}</p>
-                        <div className="flex items-center gap-2">
-                          {r.badge_name && (
-                            <span className="text-xs font-bold px-2 py-0.5 rounded-full text-white"
-                              style={{ backgroundColor: r.badge_color || '#f97316' }}>🏅 {r.badge_name}</span>
-                          )}
-                          <button
-                            onClick={() => navigate(`/student/exam-review/${r.id}`)}
-                            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-colors border ${
-                              dark ? 'bg-navy-800 hover:bg-navy-700 text-navy-200 border-navy-600' : 'bg-navy-50 hover:bg-navy-100 text-navy-700 border-navy-200'
-                            }`}>
-                            <Eye className="w-3.5 h-3.5" /> مراجعة
-                          </button>
-                        </div>
+                        {/* Review button hidden for absent results — student answered nothing */}
+                        {!isAbsent && (
+                          <div className="flex items-center gap-2">
+                            {r.badge_name && (
+                              <span className="text-xs font-bold px-2 py-0.5 rounded-full text-white"
+                                style={{ backgroundColor: r.badge_color || '#f97316' }}>🏅 {r.badge_name}</span>
+                            )}
+                            <button
+                              onClick={() => navigate(`/student/exam-review/${r.id}`)}
+                              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-colors border ${
+                                dark ? 'bg-navy-800 hover:bg-navy-700 text-navy-200 border-navy-600' : 'bg-navy-50 hover:bg-navy-100 text-navy-700 border-navy-200'
+                              }`}>
+                              <Eye className="w-3.5 h-3.5" /> مراجعة
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   );

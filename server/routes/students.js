@@ -552,6 +552,7 @@ router.get('/me/stats', requireRole('student'), async (req, res) => {
       pool.query(`
         SELECT er.id, er.score, er.correct_count, er.wrong_count,
                er.unanswered_count, er.points_earned, er.start_time, er.end_time, er.created_at,
+               er.is_absent,
                e.title AS exam_title, e.total_score, e.pass_score, e.badge_name, e.badge_color,
                c.name  AS course_name
         FROM exam_results er
@@ -596,11 +597,14 @@ router.get('/me/stats', requireRole('student'), async (req, res) => {
     const exams     = examsRes.rows;
     const payments  = paymentsRes.rows;
 
-    // Aggregate totals
+    // Aggregate totals — exclude absent records from pass/fail and avg calculations
+    // so that absent rows don't inflate the fail count or depress the average score.
     const totalPaid    = payments.filter(p => p.status === 'verified').reduce((s, p) => s + parseFloat(p.amount), 0);
     const totalPending = payments.filter(p => p.status === 'pending').reduce((s, p) => s + parseFloat(p.amount), 0);
-    const passCount    = exams.filter(e => parseInt(e.score) >= parseInt(e.pass_score)).length;
-    const avgScore     = exams.length ? Math.round(exams.reduce((s, e) => s + (e.score / e.total_score * 100), 0) / exams.length) : 0;
+    const absentCount  = exams.filter(e => e.is_absent === true || e.is_absent === 'true').length;
+    const takenExams   = exams.filter(e => e.is_absent !== true && e.is_absent !== 'true');
+    const passCount    = takenExams.filter(e => parseInt(e.score) >= parseInt(e.pass_score)).length;
+    const avgScore     = takenExams.length ? Math.round(takenExams.reduce((s, e) => s + (e.score / e.total_score * 100), 0) / takenExams.length) : 0;
     const totalWatchedMinutes = videoProgressRes.rows.reduce((s, v) => s + v.watched_minutes, 0);
 
     // Rank among teacher's students by points (#1 = most points)
@@ -617,9 +621,11 @@ router.get('/me/stats', requireRole('student'), async (req, res) => {
       summary: {
         totalPaid,
         totalPending,
-        totalExams: exams.length,
+        totalExams: exams.length,           // all results incl. absents
+        takenCount: takenExams.length,       // actually-attempted exams
         passCount,
-        failCount: exams.length - passCount,
+        failCount: takenExams.length - passCount,
+        absentCount,
         avgScore,
         totalWatchedMinutes,
         totalCourses: coursesRes.rows.length,
