@@ -97,6 +97,11 @@ export default function TeacherExams() {
     return map;
   }, [studentResults]);
 
+  const selectedBank = useMemo(
+    () => questionBanks.find(b => String(b.id) === String(form.bank_id)) || null,
+    [questionBanks, form.bank_id]
+  );
+
   const filteredStudents = useMemo(() =>
     students.filter(s => !studentSearch || s.name.includes(studentSearch) || s.username.includes(studentSearch)),
     [students, studentSearch]
@@ -652,30 +657,60 @@ export default function TeacherExams() {
                   )}
                 </div>
 
-                {/* Difficulty split toggle */}
+                {/* Difficulty split mode — segmented toggle */}
                 <div>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" checked={!!form.use_difficulty_split}
-                      onChange={e => setForm({ ...form, use_difficulty_split: e.target.checked, bank_easy_count: 0, bank_medium_count: 0, bank_hard_count: 0, bank_question_count: 10 })}
-                      className="w-4 h-4 accent-blue-600" />
-                    <span className="text-xs font-bold text-blue-800">توزيع حسب المستوى (سهل / متوسط / صعب)</span>
-                  </label>
+                  <label className="block text-xs font-bold text-blue-800 mb-1.5">طريقة اختيار الأسئلة</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button type="button"
+                      onClick={() => setForm({ ...form, use_difficulty_split: false })}
+                      className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-xs font-bold transition-all ${
+                        !form.use_difficulty_split
+                          ? 'border-blue-500 bg-blue-100 text-blue-800 shadow-sm'
+                          : 'border-gray-200 bg-white text-gray-500 hover:border-blue-300'
+                      }`}>
+                      <span className="text-base">🎲</span>
+                      <span className="text-right">
+                        <span className="block">عدد ثابت</span>
+                        <span className="block font-normal text-[10px] opacity-75">أي أسئلة عشوائية</span>
+                      </span>
+                    </button>
+                    <button type="button"
+                      onClick={() => setForm({ ...form, use_difficulty_split: true, bank_question_count: 10 })}
+                      className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-xs font-bold transition-all ${
+                        form.use_difficulty_split
+                          ? 'border-blue-500 bg-blue-100 text-blue-800 shadow-sm'
+                          : 'border-gray-200 bg-white text-gray-500 hover:border-blue-300'
+                      }`}>
+                      <span className="text-base">🎯</span>
+                      <span className="text-right">
+                        <span className="block">توزيع حسب المستوى</span>
+                        <span className="block font-normal text-[10px] opacity-75">سهل / متوسط / صعب</span>
+                      </span>
+                    </button>
+                  </div>
                 </div>
 
                 {form.use_difficulty_split ? (
                   <div className="grid grid-cols-3 gap-2">
                     {[
-                      { key: 'bank_easy_count', label: '🟢 سهل', color: 'text-green-700' },
-                      { key: 'bank_medium_count', label: '🟡 متوسط', color: 'text-yellow-700' },
-                      { key: 'bank_hard_count', label: '🔴 صعب', color: 'text-red-700' },
-                    ].map(({ key, label, color }) => (
-                      <div key={key}>
-                        <label className={`block text-xs font-bold mb-1 ${color}`}>{label}</label>
-                        <input type="number" min="0" value={form[key]}
-                          onChange={e => setForm({ ...form, [key]: parseInt(e.target.value) || 0 })}
-                          className="input-field text-sm" placeholder="0" />
-                      </div>
-                    ))}
+                      { key: 'bank_easy_count', avail: 'easy_count', label: '🟢 سهل', color: 'text-green-700', ring: 'focus:ring-green-300' },
+                      { key: 'bank_medium_count', avail: 'medium_count', label: '🟡 متوسط', color: 'text-yellow-700', ring: 'focus:ring-yellow-300' },
+                      { key: 'bank_hard_count', avail: 'hard_count', label: '🔴 صعب', color: 'text-red-700', ring: 'focus:ring-red-300' },
+                    ].map(({ key, avail, label, color }) => {
+                      const availCount = selectedBank ? parseInt(selectedBank[avail]) || 0 : null;
+                      const exceeds = availCount !== null && parseInt(form[key] || 0) > availCount;
+                      return (
+                        <div key={key}>
+                          <label className={`block text-xs font-bold mb-1 ${color}`}>{label}</label>
+                          <input type="number" min="0" max={availCount !== null ? availCount : undefined} value={form[key]}
+                            onChange={e => setForm({ ...form, [key]: parseInt(e.target.value) || 0 })}
+                            className={`input-field text-sm ${exceeds ? 'border-red-400 focus:ring-red-300' : ''}`} placeholder="0" />
+                          <p className={`text-[10px] font-semibold mt-1 ${exceeds ? 'text-red-600' : 'text-gray-400'}`}>
+                            {selectedBank ? `متاح: ${availCount}` : 'اختر بنكاً أولاً'}
+                          </p>
+                        </div>
+                      );
+                    })}
                     {(form.bank_easy_count + form.bank_medium_count + form.bank_hard_count) > 0 && (
                       <div className="col-span-3 text-xs text-blue-700 font-bold bg-blue-100 rounded-lg px-3 py-1.5">
                         إجمالي الأسئلة لكل طالب: {form.bank_easy_count + form.bank_medium_count + form.bank_hard_count}
@@ -688,6 +723,9 @@ export default function TeacherExams() {
                     <input type="number" min="1" value={form.bank_question_count}
                       onChange={e => setForm({ ...form, bank_question_count: parseInt(e.target.value) || 10 })}
                       className="input-field text-sm" />
+                    {selectedBank && (
+                      <p className="text-[10px] font-semibold text-gray-400 mt-1">إجمالي أسئلة البنك: {selectedBank.question_count}</p>
+                    )}
                   </div>
                 )}
               </div>

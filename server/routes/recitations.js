@@ -682,10 +682,18 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageRecit
     // Validate before publishing
     if (newPublished) {
       const { rows: qRows } = await pool.query(
-        'SELECT COUNT(*) AS cnt FROM recitation_questions WHERE recitation_id=$1', [id]
+        'SELECT COUNT(*) AS cnt, COALESCE(SUM(points),0) AS points_sum FROM recitation_questions WHERE recitation_id=$1', [id]
       );
       if (parseInt(qRows[0].cnt, 10) === 0)
         return res.status(400).json({ error: 'أضف أسئلة للتسميع قبل النشر' });
+      const pointsSum = parseInt(qRows[0].points_sum, 10) || 0;
+      const recTotal = parseInt(rec.total_score, 10) || 0;
+      if (pointsSum !== recTotal) {
+        return res.status(400).json({
+          error: `مجموع درجات الأسئلة (${pointsSum}) لا يساوي الدرجة الكلية للتسميع (${recTotal}) — عدّل درجات الأسئلة أو الدرجة الكلية قبل النشر`,
+          field: 'points_mismatch',
+        });
+      }
     }
 
     // [DUP-2 FIX] Atomically set start_notified based on whether the recitation

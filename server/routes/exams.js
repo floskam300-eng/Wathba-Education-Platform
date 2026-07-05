@@ -332,9 +332,17 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExams
       }
       // Validate exam has questions (only for manual source)
       if (currentExam.question_source !== 'bank') {
-        const qCount = await pool.query('SELECT COUNT(id) as cnt FROM questions WHERE exam_id=$1', [examId]);
+        const qCount = await pool.query('SELECT COUNT(id) as cnt, COALESCE(SUM(points),0) as points_sum FROM questions WHERE exam_id=$1', [examId]);
         if (parseInt(qCount.rows[0].cnt) === 0) {
           return res.status(400).json({ error: 'لا يمكن نشر اختبار بدون أسئلة — أضف أسئلة أولاً' });
+        }
+        const pointsSum = parseInt(qCount.rows[0].points_sum, 10) || 0;
+        const examTotal = parseInt(currentExam.total_score, 10) || 0;
+        if (pointsSum !== examTotal) {
+          return res.status(400).json({
+            error: `مجموع درجات الأسئلة (${pointsSum}) لا يساوي الدرجة الكلية للاختبار (${examTotal}) — عدّل درجات الأسئلة أو الدرجة الكلية قبل النشر`,
+            field: 'points_mismatch',
+          });
         }
       }
       // If republishing (exam was taken before), archive previous results so students
