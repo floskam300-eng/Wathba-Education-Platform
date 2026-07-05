@@ -1001,6 +1001,7 @@ CREATE TABLE IF NOT EXISTS recitation_results (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
+/*
 CREATE TABLE IF NOT EXISTS recitation_streaks (
   id SERIAL PRIMARY KEY,
   student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
@@ -1012,6 +1013,8 @@ CREATE TABLE IF NOT EXISTS recitation_streaks (
   updated_at TIMESTAMP DEFAULT NOW(),
   UNIQUE(student_id, teacher_id)
 );
+*/
+
 
 ALTER TABLE assistants ADD COLUMN IF NOT EXISTS can_manage_recitations BOOLEAN DEFAULT false;
 

@@ -123,13 +123,6 @@ const getRecitationForOwner = async (id, teacherId) => {
 };
 
 // ── [R6-FIX] Calendar-day streak diff — compares date parts, not 24h periods ─
-function calendarDayDiff(dateA, dateB) {
-  const a = new Date(dateA);
-  const b = new Date(dateB);
-  const utcA = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
-  const utcB = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate());
-  return Math.round((utcB - utcA) / 86400000);
-}
 
 // ════════════════════════════════════════════════════════════════════════════════
 // TEACHER/ASSISTANT ROUTES
@@ -313,14 +306,13 @@ router.get('/analytics', requireRole('teacher', 'assistant'), async (req, res) =
                 COALESCE(AVG(CASE WHEN rec.total_score > 0
                                   THEN rr.score::float / rec.total_score * 100
                                   ELSE 0 END), 0)::numeric(5,1) AS avg_score,
-                COALESCE(rs.current_streak,0) AS current_streak,
-                COALESCE(rs.max_streak,0) AS max_streak
+                0 AS current_streak,
+                0 AS max_streak
            FROM students s
            JOIN recitation_results rr ON s.id=rr.student_id
            JOIN recitations rec ON rr.recitation_id=rec.id
-           LEFT JOIN recitation_streaks rs ON s.id=rs.student_id AND rs.teacher_id=$1
           WHERE rec.teacher_id=$1 AND s.deleted_at IS NULL
-          GROUP BY s.id, rs.current_streak, rs.max_streak
+          GROUP BY s.id, s.name, s.academic_stage
           ORDER BY total_completed DESC, avg_score DESC
           LIMIT 20`,
         [teacherId]
@@ -502,27 +494,6 @@ router.get('/student/list', requireRole('student'), async (req, res) => {
   }
 });
 
-// GET /api/recitations/student/streak — student streak info
-router.get('/student/streak', requireRole('student'), async (req, res) => {
-  try {
-    const studentId = req.user.id;
-
-    const { rows: stRows } = await pool.query(
-      'SELECT teacher_id FROM students WHERE id=$1 AND deleted_at IS NULL',
-      [studentId]
-    );
-    if (!stRows.length) return res.status(404).json({ error: 'الطالب غير موجود' });
-    const teacherId = stRows[0].teacher_id;
-
-    const { rows } = await pool.query(
-      'SELECT * FROM recitation_streaks WHERE student_id=$1 AND teacher_id=$2',
-      [studentId, teacherId]
-    );
-    res.json(rows[0] || { current_streak: 0, max_streak: 0, total_completed: 0 });
-  } catch (err) {
-    res.status(500).json({ error: 'Server error' });
-  }
-});
 
 // GET /api/recitations/student/results — student's full result history
 // [R1-FIX] This route was previously shadowed by GET /:id/results — now placed first
@@ -1353,44 +1324,6 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
         );
       }
 
-      // [R6-FIX] Upsert streak — use calendar-day comparison, not 24h millis
-      const { rows: streakRows } = await client.query(
-        'SELECT * FROM recitation_streaks WHERE student_id=$1 AND teacher_id=$2',
-        [studentId, teacherId]
-      );
-
-      if (streakRows.length === 0) {
-        await client.query(
-          `INSERT INTO recitation_streaks (student_id, teacher_id, current_streak, max_streak, last_completed_at, total_completed)
-           VALUES ($1,$2,1,1,NOW(),1)`,
-          [studentId, teacherId]
-        );
-      } else {
-        const streak = streakRows[0];
-        const lastDate = streak.last_completed_at ? new Date(streak.last_completed_at) : null;
-        const todayDate = new Date();
-
-        // [R6-FIX] Compare calendar dates (date part only), not 24-hour periods
-        const diffDays = lastDate ? calendarDayDiff(lastDate, todayDate) : 999;
-
-        let newCurrent = streak.current_streak;
-        if (diffDays === 0) {
-          // Same calendar day — no streak change
-        } else if (diffDays === 1) {
-          newCurrent += 1;
-        } else {
-          newCurrent = 1; // streak broken
-        }
-        const newMax = Math.max(newCurrent, streak.max_streak);
-
-        await client.query(
-          `UPDATE recitation_streaks SET
-             current_streak=$1, max_streak=$2, last_completed_at=NOW(),
-             total_completed=total_completed+1, updated_at=NOW()
-           WHERE student_id=$3 AND teacher_id=$4`,
-          [newCurrent, newMax, studentId, teacherId]
-        );
-      }
 
       // Delete session
       await client.query(

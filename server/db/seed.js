@@ -53,7 +53,7 @@ async function seed() {
     'whatsapp_send_log', 'whatsapp_schedules',
     'activity_logs', 'game_session_tokens',
     'device_alerts', 'student_devices',
-    'recitation_streaks', 'recitation_results', 'recitation_sessions',
+    'recitation_results', 'recitation_sessions',
     'recitation_questions', 'recitations',
     'exam_sessions', 'event_plays', 'live_hand_raises',
     'live_chat_messages', 'live_stream_viewers', 'live_streams',
@@ -3039,32 +3039,7 @@ async function seed() {
 
   console.log('  ✓ نتائج التسميعات: std_ali (ناجح في r1+r7+r8، راسب في r2، لم يؤد r3+r4) + بيانات أرشيف شاملة');
 
-  // ── سلاسل التسميعات (streaks) ────────────────────────────
 
-  // std_ali: streak=5 (أكمل 5 تسميعات متتالية)
-  await q(`
-    INSERT INTO recitation_streaks
-      (student_id,teacher_id,current_streak,max_streak,last_completed_at,total_completed,updated_at)
-    VALUES ($1,$2,5,7,NOW()-INTERVAL '3 days',10,NOW()-INTERVAL '3 days')
-    ON CONFLICT (student_id,teacher_id) DO UPDATE SET
-      current_streak=$3,max_streak=$4,last_completed_at=$5,total_completed=$6,updated_at=NOW()
-  `, [STD_ALI, T1, 5, 7, past(3), 10]);
-
-  await q(`
-    INSERT INTO recitation_streaks
-      (student_id,teacher_id,current_streak,max_streak,last_completed_at,total_completed,updated_at)
-    VALUES ($1,$2,1,3,NOW()-INTERVAL '5 days',5,NOW()-INTERVAL '5 days')
-    ON CONFLICT (student_id,teacher_id) DO NOTHING
-  `, [sids['std_youssef'], T1]);
-
-  await q(`
-    INSERT INTO recitation_streaks
-      (student_id,teacher_id,current_streak,max_streak,last_completed_at,total_completed,updated_at)
-    VALUES ($1,$2,2,4,NOW()-INTERVAL '2 days',6,NOW()-INTERVAL '2 days')
-    ON CONFLICT (student_id,teacher_id) DO NOTHING
-  `, [sids['std_mostafa'], T1]);
-
-  console.log('  ✓ سلاسل التسميعات: std_ali (streak=5/max=7)');
 
   // ══════════════════════════════════════════════════════════
   // 24. واتساب

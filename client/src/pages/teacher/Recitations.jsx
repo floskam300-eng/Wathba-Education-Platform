@@ -1160,7 +1160,7 @@ function AnalyticsTab({ analytics, dark, cardCls }) {
 
         {/* Top students */}
         <div className={cardCls}>
-          <h3 className={`font-black mb-4 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>الطلاب الأكثر انتظاماً 🔥</h3>
+          <h3 className={`font-black mb-4 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>الطلاب الأكثر نشاطاً</h3>
           {top_students.length === 0 ? (
             <p className={`text-sm ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>لا بيانات بعد</p>
           ) : top_students.slice(0, 8).map((s, i) => (
@@ -1173,7 +1173,6 @@ function AnalyticsTab({ analytics, dark, cardCls }) {
                 </div>
               </div>
               <div className={`text-xs flex items-center gap-2 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-500'}`}>
-                <span className="flex items-center gap-0.5 text-orange-500 font-black"><Flame className="w-3 h-3" />{s.current_streak}</span>
                 <span>{s.total_completed} تسميع</span>
                 <span className="font-black text-purple-600">{s.avg_score}%</span>
               </div>

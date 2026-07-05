@@ -28,7 +28,7 @@ Students can request exam retries; teachers/assistants can approve or reject req
 Exam-based achievement badges (gold/silver/bronze with custom name/color), points awarded for exam attempts, passing exams, course completion, and game events. Badges and points are displayed on student profiles and dashboards.
 
 ## 9. Recitations System (Recurring Quizzes)
-Scheduled recurring quiz system supporting once, daily, and weekly cadences. Includes auto-advancing time windows, video-linked quizzes, server-side sessions with question snapshots, streak tracking (current streak, max streak, total completed), and automated absent marking.
+Scheduled recurring quiz system supporting once, daily, and weekly cadences. Includes auto-advancing time windows, video-linked quizzes, server-side sessions with question snapshots, and automated absent marking.
 
 ## 10. Live Streaming (LiveKit Integration)
 Self-hosted WebRTC live streaming via LiveKit (Docker Compose + Caddy reverse proxy). Features include teacher mic/camera toggle and screen sharing, student speak/screen permissions (teacher-granted), chat system, hand-raise queue, kick student moderation, stream locking to prevent late joins, access control by student group (all/stage/specific), scheduled streams with auto-notifications, and live viewer tracking.

@@ -1,7 +1,7 @@
 # WATHBA — Educational LMS Platform
 
 ## Overview
-WATHBA is a multi-tenant Arabic (RTL) educational LMS for teachers, assistants, and students. Features include courses/videos/PDFs, exams (with question banks, MCQ/true-false/image_multi types), recitations (تسميعات) with scheduling and streaks, live streaming (LiveKit), payments, WhatsApp notifications, leaderboards, and device management.
+WATHBA is a multi-tenant Arabic (RTL) educational LMS for teachers, assistants, and students. Features include courses/videos/PDFs, exams (with question banks, MCQ/true-false/image_multi types), recitations (تسميعات) with scheduling, live streaming (LiveKit), payments, WhatsApp notifications, leaderboards, and device management.
 
 ## Architecture
 - **Backend**: Node.js/Express (`server/`), listens on `localhost:3001` (port from `PORT` env var). Entry point `server/index.js`. PostgreSQL via `pg` (`server/db/connection.js`), JWT auth, SSE for real-time updates, `server/scheduler.js` for background jobs (exam/recitation start-end, absent marking, WhatsApp scheduling).

@@ -1196,17 +1196,17 @@ export default function TeacherAnalytics() {
                 ) : <div className="p-5 pt-0"><EmptyState icon={BookOpen} text="لا توجد مذاكرات بعد" /></div>}
               </div>
 
-              {/* Top students by streak */}
+              {/* Top students by activity */}
               <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
                 <div className="h-1 bg-gradient-to-r from-amber-400 via-orange-400 to-rose-400" />
                 <div className="p-5 pb-3">
                   <div className="flex items-center gap-2.5">
                     <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0">
-                      <Flame className="w-4 h-4 text-amber-500" />
+                      <BookOpen className="w-4 h-4 text-amber-500" />
                     </div>
                     <div>
-                      <h3 className="font-black text-gray-800 dark:text-gray-200 text-sm">أعلى الطلاب في الاستمرارية</h3>
-                      <p className="text-[11px] text-gray-400 font-medium mt-0.5">ترتيب حسب Streak المذاكرة</p>
+                      <h3 className="font-black text-gray-800 dark:text-gray-200 text-sm">الطلاب الأكثر نشاطاً في التسميع</h3>
+                      <p className="text-[11px] text-gray-400 font-medium mt-0.5">ترتيب حسب عدد جلسات التسميع المكتملة</p>
                     </div>
                   </div>
                 </div>
@@ -1225,18 +1225,13 @@ export default function TeacherAnalytics() {
                             </div>
                           </div>
                           <div className="flex items-center gap-2 flex-shrink-0">
-                            {parseInt(s.current_streak) > 0 && (
-                              <span className="flex items-center gap-0.5 text-[10px] font-bold text-amber-500 bg-amber-50 px-2 py-0.5 rounded-lg">
-                                🔥 {s.current_streak}
-                              </span>
-                            )}
                             <span className="text-[11px] font-black px-2 py-0.5 rounded-lg" style={{ color: sc.text, background: sc.bg }}>{avg}%</span>
                           </div>
                         </div>
                       );
                     })}
                   </div>
-                ) : <div className="p-5 pt-0"><EmptyState icon={Flame} text="لا توجد بيانات مذاكرة بعد" /></div>}
+                ) : <div className="p-5 pt-0"><EmptyState icon={BookOpen} text="لا توجد بيانات مذاكرة بعد" /></div>}
               </div>
             </div>
           )}

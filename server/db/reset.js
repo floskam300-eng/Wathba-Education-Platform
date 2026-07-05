@@ -19,7 +19,7 @@ async function reset() {
     'whatsapp_send_log', 'whatsapp_schedules',
     'activity_logs', 'game_session_tokens',
     'device_alerts', 'student_devices',
-    'recitation_streaks', 'recitation_results', 'recitation_sessions',
+    'recitation_results', 'recitation_sessions',
     'recitation_questions', 'recitations',
     'exam_sessions', 'event_plays', 'live_hand_raises',
     'live_chat_messages', 'live_stream_viewers', 'live_streams',
