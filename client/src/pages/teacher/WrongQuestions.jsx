@@ -208,6 +208,93 @@ export default function WrongQuestionsPage() {
 
   const hasActiveFilter = search || wrongPctFilter !== 'الكل' || sortExamsBy !== 'wrong_desc' || sortQuestionsBy !== 'wrong_desc' || examFilter !== 'الكل';
 
+  const handlePrint = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) { alert('يرجى السماح بالنوافذ المنبثقة لاستخدام ميزة الطباعة'); return; }
+
+    const now = new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' });
+    const esc = s => String(s ?? '—').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const activeFilter = WRONG_PCT_FILTERS.find(f => f.label === wrongPctFilter) || WRONG_PCT_FILTERS[0];
+
+    const sections = filtered.map((exam, ei) => {
+      const visibleQs = exam.questions
+        .filter(q => { const pct = parseFloat(q.wrong_pct)||0; return pct >= activeFilter.min && pct <= activeFilter.max; })
+        .sort((a,b) => sortQuestionsBy === 'wrong_desc'
+          ? (parseFloat(b.wrong_pct)||0) - (parseFloat(a.wrong_pct)||0)
+          : (parseFloat(a.wrong_pct)||0) - (parseFloat(b.wrong_pct)||0));
+      if (!visibleQs.length) return '';
+
+      const qRows = visibleQs.map((q, qi) => {
+        const pct = Math.round(parseFloat(q.wrong_pct) || 0);
+        const color = pct >= 70 ? '#ef4444' : pct >= 50 ? '#f97316' : '#f59e0b';
+        return `<tr>
+          <td style="color:#94a3b8;font-size:11px;text-align:center">${qi+1}</td>
+          <td>${esc(q.question_text)}</td>
+          <td style="text-align:center">${q.total_answered || 0}</td>
+          <td style="text-align:center"><span style="background:${color}22;color:${color};font-weight:900;padding:2px 10px;border-radius:8px">${pct}%</span></td>
+        </tr>`;
+      }).join('');
+
+      return `<div style="margin-bottom:24px;page-break-inside:avoid">
+        <div style="background:#1e3a5f;color:#fff;padding:10px 14px;border-radius:10px 10px 0 0;font-weight:900;font-size:13px">
+          ${ei+1}. ${esc(exam.exam_title)} <span style="opacity:.6;font-size:11px;font-weight:500;margin-right:8px">${visibleQs.length} سؤال</span>
+        </div>
+        <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 10px 10px;overflow:hidden">
+          <thead><tr style="background:#f8fafc">
+            <th style="padding:8px 12px;font-size:11px;color:#475569;text-align:center">#</th>
+            <th style="padding:8px 12px;font-size:11px;color:#475569;text-align:right">نص السؤال</th>
+            <th style="padding:8px 12px;font-size:11px;color:#475569;text-align:center">إجابات</th>
+            <th style="padding:8px 12px;font-size:11px;color:#475569;text-align:center">نسبة الخطأ</th>
+          </tr></thead>
+          <tbody>${qRows}</tbody>
+        </table>
+      </div>`;
+    }).join('');
+
+    const html = `<!DOCTYPE html><html dir="rtl" lang="ar"><head>
+      <meta charset="UTF-8"><title>تقرير أكثر الأسئلة خطأً</title>
+      <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+      <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Cairo',Arial,sans-serif;padding:24px;direction:rtl;color:#1e293b;background:#fff}
+        .header{display:flex;align-items:center;gap:16px;border-bottom:3px solid #1e3a5f;padding-bottom:16px;margin-bottom:20px}
+        .logo{width:44px;height:44px;background:linear-gradient(135deg,#1e3a5f,#2d5080);border-radius:10px;display:flex;align-items:center;justify-content:center;color:#f97316;font-size:20px;font-weight:900;flex-shrink:0}
+        .title{font-size:18px;font-weight:900;color:#1e3a5f}
+        .meta{margin-right:auto;text-align:left;font-size:11px;color:#94a3b8}
+        .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
+        .stat{background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:12px;text-align:center}
+        .stat-val{font-size:20px;font-weight:900;color:#dc2626}
+        .stat-lbl{font-size:11px;color:#94a3b8;margin-top:3px}
+        td{padding:9px 12px;border-bottom:1px solid #f1f5f9;font-size:12px;vertical-align:middle}
+        tr:nth-child(even) td{background:#fef2f2}
+        .footer{margin-top:20px;padding-top:12px;border-top:1px solid #e2e8f0;text-align:center;color:#94a3b8;font-size:11px}
+        .no-print{text-align:center;padding:16px 0 8px}
+        .btn{padding:10px 28px;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:700;font-family:'Cairo',sans-serif;margin:0 6px}
+        @media print{.no-print{display:none}body{padding:12px}}
+      </style></head><body>
+      <div class="header">
+        <div class="logo">و</div>
+        <div><div class="title">تقرير أكثر الأسئلة خطأً</div><div style="font-size:12px;color:#64748b;margin-top:3px">منصة وثبة التعليمية</div></div>
+        <div class="meta"><div style="font-weight:900;color:#f97316;font-size:13px">منصة وثبة</div><div>${now}</div></div>
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="stat-val">${filtered.length}</div><div class="stat-lbl">اختبار</div></div>
+        <div class="stat"><div class="stat-val">${totalQ}</div><div class="stat-lbl">سؤال في التقرير</div></div>
+        <div class="stat"><div class="stat-val" style="color:#dc2626">${criticalCount}</div><div class="stat-lbl">سؤال بنسبة خطأ ≥ 70%</div></div>
+      </div>
+      ${sections || '<p style="text-align:center;color:#94a3b8;padding:40px">لا توجد أسئلة تطابق الفلتر الحالي</p>'}
+      <div class="footer">تقرير صادر آلياً من منصة وثبة التعليمية — ${now}</div>
+      <div class="no-print">
+        <button class="btn" style="background:#dc2626;color:#fff" onclick="window.print()">🖨️ طباعة / حفظ PDF</button>
+        <button class="btn" style="background:#64748b;color:#fff" onclick="window.close()">إغلاق</button>
+      </div>
+    </body></html>`;
+
+    printWindow.document.write(html);
+    printWindow.document.close();
+    setTimeout(() => printWindow.focus(), 200);
+  };
+
   return (
     <div className="h-full overflow-y-auto p-4 lg:p-6 print:overflow-visible print:h-auto">
       <style>{`
@@ -237,7 +324,7 @@ export default function WrongQuestionsPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => window.print()}
+            <button onClick={handlePrint}
               className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-red-50 dark:bg-red-900/30 hover:bg-red-100 border border-red-100 dark:border-red-800 text-red-600 dark:text-red-400 text-sm font-bold transition-all">
               <Printer className="w-4 h-4" />
               طباعة التقرير

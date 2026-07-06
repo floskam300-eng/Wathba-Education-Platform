@@ -191,7 +191,86 @@ export default function ExamPerformancePage() {
   };
 
   const handlePrint = () => {
-    window.print();
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) { alert('يرجى السماح بالنوافذ المنبثقة لاستخدام ميزة الطباعة'); return; }
+
+    const now = new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' });
+    const totalAttemptsPrint = filtered.reduce((s,e)=> s + (parseInt(e.attempt_count)||0), 0);
+    const totalPassPrint     = filtered.reduce((s,e)=> s + (parseInt(e.pass_count)||0), 0);
+    const avgOfAvgsPrint     = filtered.length > 0
+      ? Math.round(filtered.reduce((s,e)=> s + (parseFloat(e.avg_pct)||0), 0) / filtered.length)
+      : 0;
+
+    const rows = filtered.map((e, i) => {
+      const avg  = Math.round(parseFloat(e.avg_pct) || 0);
+      const max  = Math.round(parseFloat(e.max_pct) || 0);
+      const min  = Math.round(parseFloat(e.min_pct) || 0);
+      const att  = parseInt(e.attempt_count) || 0;
+      const pass = parseInt(e.pass_count) || 0;
+      const fail = parseInt(e.fail_count) || 0;
+      const passR = att > 0 ? Math.round((pass/att)*100) : 0;
+      const esc = s => String(s ?? '—').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      const scoreColor = avg >= 70 ? '#10b981' : avg >= 50 ? '#6366f1' : '#f43f5e';
+      return `<tr>
+        <td style="color:#94a3b8;font-size:11px;font-weight:700;text-align:center">${i+1}</td>
+        <td><strong>${esc(e.title)}</strong><br><span style="color:#94a3b8;font-size:11px">${esc(e.course_name||'')} ${e.target_stage ? '· '+esc(e.target_stage) : ''}</span></td>
+        <td style="text-align:center;font-weight:900">${att}</td>
+        <td style="text-align:center;color:#10b981;font-weight:900">${pass} (${passR}%)</td>
+        <td style="text-align:center;color:#f43f5e;font-weight:900">${fail}</td>
+        <td style="text-align:center"><span style="background:${scoreColor}22;color:${scoreColor};font-weight:900;padding:3px 10px;border-radius:8px;font-size:13px">${avg}%</span></td>
+        <td style="text-align:center"><span style="color:#10b981;font-weight:700">▲${max}%</span> / <span style="color:#f43f5e;font-weight:700">▼${min}%</span></td>
+      </tr>`;
+    }).join('');
+
+    const html = `<!DOCTYPE html><html dir="rtl" lang="ar"><head>
+      <meta charset="UTF-8"><title>تقرير أداء الاختبارات</title>
+      <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+      <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Cairo',Arial,sans-serif;padding:24px;direction:rtl;color:#1e293b;background:#fff}
+        .header{display:flex;align-items:center;gap:16px;border-bottom:3px solid #1e3a5f;padding-bottom:16px;margin-bottom:20px}
+        .logo{width:44px;height:44px;background:linear-gradient(135deg,#1e3a5f,#2d5080);border-radius:10px;display:flex;align-items:center;justify-content:center;color:#f97316;font-size:20px;font-weight:900;flex-shrink:0}
+        .title{font-size:18px;font-weight:900;color:#1e3a5f}
+        .meta{margin-right:auto;text-align:left;font-size:11px;color:#94a3b8}
+        .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+        .stat{background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:12px;text-align:center}
+        .stat-val{font-size:20px;font-weight:900;color:#1e3a5f}
+        .stat-lbl{font-size:11px;color:#94a3b8;margin-top:3px}
+        table{width:100%;border-collapse:collapse;border-radius:12px;overflow:hidden}
+        thead tr{background:linear-gradient(135deg,#1e3a5f,#2d5080)}
+        th{color:#fff;padding:10px 12px;font-size:12px;font-weight:700;text-align:center;font-family:'Cairo',sans-serif}
+        td{padding:9px 12px;border-bottom:1px solid #f1f5f9;font-size:12px;vertical-align:middle}
+        tr:nth-child(even) td{background:#f8fafc}
+        .footer{margin-top:20px;padding-top:12px;border-top:1px solid #e2e8f0;text-align:center;color:#94a3b8;font-size:11px}
+        .no-print{text-align:center;padding:16px 0 8px}
+        .btn{padding:10px 28px;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:700;font-family:'Cairo',sans-serif;margin:0 6px}
+        @media print{.no-print{display:none}body{padding:12px}}
+      </style></head><body>
+      <div class="header">
+        <div class="logo">و</div>
+        <div><div class="title">تقرير أداء الاختبارات</div><div style="font-size:12px;color:#64748b;margin-top:3px">منصة وثبة التعليمية</div></div>
+        <div class="meta"><div style="font-weight:900;color:#f97316;font-size:13px">منصة وثبة</div><div>${now}</div></div>
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="stat-val">${filtered.length}</div><div class="stat-lbl">إجمالي الاختبارات</div></div>
+        <div class="stat"><div class="stat-val">${totalAttemptsPrint}</div><div class="stat-lbl">إجمالي المحاولات</div></div>
+        <div class="stat"><div class="stat-val">${avgOfAvgsPrint}%</div><div class="stat-lbl">متوسط الدرجات</div></div>
+        <div class="stat"><div class="stat-val" style="color:#10b981">${totalAttemptsPrint > 0 ? Math.round((totalPassPrint/totalAttemptsPrint)*100) : 0}%</div><div class="stat-lbl">معدل النجاح</div></div>
+      </div>
+      <table>
+        <thead><tr><th>#</th><th>الاختبار</th><th>محاولات</th><th>نجاح</th><th>رسوب</th><th>متوسط</th><th>أعلى / أدنى</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div class="footer">تقرير صادر آلياً من منصة وثبة التعليمية — ${now}</div>
+      <div class="no-print">
+        <button class="btn" style="background:#f97316;color:#fff" onclick="window.print()">🖨️ طباعة / حفظ PDF</button>
+        <button class="btn" style="background:#64748b;color:#fff" onclick="window.close()">إغلاق</button>
+      </div>
+    </body></html>`;
+
+    printWindow.document.write(html);
+    printWindow.document.close();
+    setTimeout(() => printWindow.focus(), 200);
   };
 
   const hasActiveFilter = search || stageFilter !== 'الكل' || avgFilter !== 'الكل' || sortBy !== 'newest';
