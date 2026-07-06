@@ -129,16 +129,31 @@ router.get('/analytics', requireRole('teacher', 'assistant'), checkAnalyticsPerm
 
     const [examResults, topStudents, recentResults, stageStats, totalStudentsRes] = await Promise.all([
       pool.query(`
-        SELECT e.id, e.title, e.total_score,
-               ROUND(AVG(er.score::numeric / NULLIF(e.total_score,0) * 100), 1) AS avg_pct,
-               ROUND(MAX(er.score::numeric / NULLIF(e.total_score,0) * 100), 1) AS max_pct,
-               ROUND(MIN(er.score::numeric / NULLIF(e.total_score,0) * 100), 1) AS min_pct,
-               COUNT(er.id) as attempt_count
-        FROM exam_results er
-        JOIN exams e ON er.exam_id = e.id
-        WHERE e.teacher_id = $1 AND er.is_latest = true
-        GROUP BY e.id, e.title, e.total_score
-        ORDER BY attempt_count DESC LIMIT 10
+        SELECT e.id, e.title, e.total_score, e.pass_score, e.created_at, e.course_id,
+               c.name AS course_name, c.target_stage,
+               COALESCE(sales.sales_count, 0)::int AS sales_count,
+               ROUND(AVG(er.score::numeric / NULLIF(e.total_score,0) * 100) FILTER (WHERE er.is_absent = false), 1) AS avg_pct,
+               ROUND(MAX(er.score::numeric / NULLIF(e.total_score,0) * 100) FILTER (WHERE er.is_absent = false), 1) AS max_pct,
+               ROUND(MIN(er.score::numeric / NULLIF(e.total_score,0) * 100) FILTER (WHERE er.is_absent = false), 1) AS min_pct,
+               AVG(er.score) FILTER (WHERE er.is_absent = false) as avg_score,
+               MAX(er.score) FILTER (WHERE er.is_absent = false) as max_score,
+               MIN(er.score) FILTER (WHERE er.is_absent = false) as min_score,
+               COUNT(er.id) FILTER (WHERE er.is_absent = false) as attempt_count,
+               COUNT(er.id) FILTER (WHERE er.is_absent = false AND er.score >= e.pass_score) AS pass_count,
+               COUNT(er.id) FILTER (WHERE er.is_absent = false AND er.score < e.pass_score) AS fail_count,
+               COUNT(er.id) FILTER (WHERE er.is_absent = true)  as absent_count
+        FROM exams e
+        LEFT JOIN courses c ON e.course_id = c.id
+        LEFT JOIN exam_results er ON er.exam_id = e.id AND er.is_latest = true
+        LEFT JOIN (
+          SELECT course_id, COUNT(*)::int AS sales_count
+          FROM payments
+          WHERE status = 'verified' AND course_id IS NOT NULL
+          GROUP BY course_id
+        ) sales ON e.course_id = sales.course_id
+        WHERE e.teacher_id = $1
+        GROUP BY e.id, e.title, e.total_score, e.pass_score, e.created_at, e.course_id, c.name, c.target_stage, sales.sales_count
+        ORDER BY e.created_at DESC
       `, [teacherId]),
       pool.query(`
         SELECT s.id, s.name, s.username, s.points, s.academic_stage, s.gender,

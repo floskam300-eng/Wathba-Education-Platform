@@ -68,6 +68,10 @@ export default function AssistantAnalytics() {
   const [resultsStatus, setResultsStatus]         = useState('الكل');
   const [resultsPage, setResultsPage]             = useState(10);
   const [studentsPage, setStudentsPage] = useState(10);
+  const [examSearch, setExamSearch] = useState('');
+  const [examStageFilter, setExamStageFilter] = useState('الكل');
+  const [examSort, setExamSort] = useState('newest');
+  const [showAllExams, setShowAllExams] = useState(false);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['assistant-analytics'],
@@ -95,6 +99,54 @@ export default function AssistantAnalytics() {
     min: Math.round(parseFloat(e.min_pct)  || 0),
     attempts: parseInt(e.attempt_count) || 0,
   })), [data]);
+
+  const filteredAndSortedExams = useMemo(() => {
+    if (!data?.examResults) return [];
+    let list = [...data.examResults];
+
+    // Filter by search
+    if (examSearch.trim()) {
+      const q = examSearch.trim().toLowerCase();
+      list = list.filter(e => 
+        e.title?.toLowerCase().includes(q) || 
+        (e.course_name && e.course_name.toLowerCase().includes(q))
+      );
+    }
+
+    // Filter by stage
+    if (examStageFilter !== 'الكل') {
+      list = list.filter(e => e.target_stage === examStageFilter);
+    }
+
+    // Sort
+    list.sort((a, b) => {
+      if (examSort === 'newest') {
+        return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+      }
+      if (examSort === 'attempts') {
+        return (parseInt(b.attempt_count) || 0) - (parseInt(a.attempt_count) || 0);
+      }
+      if (examSort === 'success') {
+        const rateA = a.attempt_count > 0 ? (parseInt(a.pass_count) || 0) / (parseInt(a.attempt_count) || 1) : 0;
+        const rateB = b.attempt_count > 0 ? (parseInt(b.pass_count) || 0) / (parseInt(b.attempt_count) || 1) : 0;
+        return rateB - rateA;
+      }
+      if (examSort === 'failure') {
+        const rateA = a.attempt_count > 0 ? (parseInt(a.fail_count) || 0) / (parseInt(a.attempt_count) || 1) : 0;
+        const rateB = b.attempt_count > 0 ? (parseInt(b.fail_count) || 0) / (parseInt(b.attempt_count) || 1) : 0;
+        return rateB - rateA;
+      }
+      if (examSort === 'sales') {
+        return (parseInt(b.sales_count) || 0) - (parseInt(a.sales_count) || 0);
+      }
+      if (examSort === 'avg_score') {
+        return (parseFloat(b.avg_pct) || 0) - (parseFloat(a.avg_pct) || 0);
+      }
+      return 0;
+    });
+
+    return list;
+  }, [data?.examResults, examSearch, examStageFilter, examSort]);
 
   // BUG-1 FIX: wrap in useMemo to prevent recomputing on every render
   // (every filter keystroke/sort change triggered these O(n) iterations)
@@ -830,7 +882,7 @@ export default function AssistantAnalytics() {
 
       {/* ── Per-Exam Detailed Analytics ────────────────────────────────── */}
       {!isLoading && (data?.examResults?.length > 0) && (
-        <div className="space-y-3">
+        <div className="space-y-4">
           <div className="flex items-center gap-2.5">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-400 to-orange-600 flex items-center justify-center shadow-md flex-shrink-0">
               <PieChart className="w-5 h-5 text-white" />
@@ -841,50 +893,121 @@ export default function AssistantAnalytics() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {(data?.examResults || []).map((e, i) => {
-              const avg = Math.round(parseFloat(e.avg_pct) || 0);
-              const attempts = parseInt(e.attempt_count) || 0;
-              const sc = avg >= 70 ? { text: '#10b981', bg: '#dcfce7', border: 'border-emerald-100' }
-                       : avg >= 50 ? { text: '#6366f1', bg: '#ede9fe', border: 'border-indigo-100' }
-                       : { text: '#f43f5e', bg: '#ffe4e6', border: 'border-rose-100' };
-              return (
-                <button
-                  key={e.id}
-                  onClick={() => navigate(`exam-analytics/${e.id}`)}
-                  className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 text-right group"
+          {/* Filters Bar */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm space-y-3">
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Search */}
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={examSearch}
+                  onChange={e => { setExamSearch(e.target.value); setShowAllExams(true); }}
+                  placeholder="ابحث باسم الاختبار أو الكورس..."
+                  className="w-full pr-9 pl-4 py-2 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-700 placeholder-gray-400 focus:outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition"
+                />
+              </div>
+
+              {/* Stage Filter */}
+              <div className="w-full sm:w-auto min-w-[150px]">
+                <select
+                  value={examStageFilter}
+                  onChange={e => { setExamStageFilter(e.target.value); setShowAllExams(true); }}
+                  className="w-full px-3 py-2 rounded-xl border border-gray-200 bg-white text-xs font-bold text-gray-700 focus:outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition cursor-pointer"
                 >
-                  <div className="flex items-start justify-between gap-2 mb-3">
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <span className="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black text-white flex-shrink-0"
-                        style={{ background: CHART_COLORS[i % CHART_COLORS.length] }}>
-                        {i + 1}
-                      </span>
-                      <p className="text-sm font-bold text-gray-800 truncate group-hover:text-indigo-600 transition-colors">{e.title}</p>
-                    </div>
-                    <Eye className="w-4 h-4 text-gray-300 group-hover:text-indigo-500 flex-shrink-0 mt-0.5 transition-colors" />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="text-center">
-                        <p className="text-xs font-black text-gray-600">{attempts}</p>
-                        <p className="text-[9px] text-gray-400 font-medium">محاولة</p>
-                      </div>
-                      {e.max_pct && (
-                        <div className="text-center">
-                          <p className="text-xs font-black text-emerald-500">{Math.round(parseFloat(e.max_pct))}%</p>
-                          <p className="text-[9px] text-gray-400 font-medium">أعلى</p>
-                        </div>
-                      )}
-                    </div>
-                    <span className={`text-sm font-black px-2.5 py-1 rounded-xl border ${sc.border}`} style={{ color: sc.text, background: sc.bg }}>
-                      {avg}%
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
+                  <option value="الكل">جميع المراحل الدراسية</option>
+                  {STAGES.filter(s => s !== 'الكل').map(stage => (
+                    <option key={stage} value={stage}>{stage}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Sort Filter */}
+              <div className="w-full sm:w-auto min-w-[150px]">
+                <select
+                  value={examSort}
+                  onChange={e => setExamSort(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-gray-200 bg-white text-xs font-bold text-gray-700 focus:outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition cursor-pointer"
+                >
+                  <option value="newest">الأحدث إنشائاً</option>
+                  <option value="attempts">الأكثر محاولة (نشاطاً)</option>
+                  <option value="success">الأعلى نسبة نجاح</option>
+                  <option value="failure">الأعلى نسبة رسوب</option>
+                  <option value="sales">الأكثر مبيعاً</option>
+                  <option value="avg_score">أعلى متوسط درجات</option>
+                </select>
+              </div>
+            </div>
           </div>
+
+          {filteredAndSortedExams.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-gray-100 text-center py-10 px-6">
+              <p className="text-gray-400 text-sm font-semibold">لا توجد اختبارات تطابق خيارات التصفية والبحث الحالية</p>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {filteredAndSortedExams.slice(0, showAllExams ? undefined : 6).map((e, i) => {
+                  const avg = Math.round(parseFloat(e.avg_pct) || 0);
+                  const attempts = parseInt(e.attempt_count) || 0;
+                  const sc = avg >= 70 ? { text: '#10b981', bg: '#dcfce7', border: 'border-emerald-100' }
+                           : avg >= 50 ? { text: '#6366f1', bg: '#ede9fe', border: 'border-indigo-100' }
+                           : { text: '#f43f5e', bg: '#ffe4e6', border: 'border-rose-100' };
+                  return (
+                    <button
+                      key={e.id}
+                      onClick={() => navigate(`/assistant/exam-analytics/${e.id}`)}
+                      className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 text-right group"
+                    >
+                      <div className="flex items-start justify-between gap-2 mb-3">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <span className="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black text-white flex-shrink-0"
+                            style={{ background: CHART_COLORS[i % CHART_COLORS.length] }}>
+                            {i + 1}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-bold text-gray-800 truncate group-hover:text-indigo-600 transition-colors">{e.title}</p>
+                            {e.course_name && (
+                              <p className="text-[10px] text-gray-400 font-medium truncate mt-0.5">{e.course_name}</p>
+                            )}
+                          </div>
+                        </div>
+                        <Eye className="w-4 h-4 text-gray-300 group-hover:text-indigo-500 flex-shrink-0 mt-0.5 transition-colors" />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="text-center">
+                            <p className="text-xs font-black text-gray-600">{attempts}</p>
+                            <p className="text-[9px] text-gray-400 font-medium">محاولة</p>
+                          </div>
+                          {e.max_pct && (
+                            <div className="text-center">
+                              <p className="text-xs font-black text-emerald-500">{Math.round(parseFloat(e.max_pct))}%</p>
+                              <p className="text-[9px] text-gray-400 font-medium">أعلى</p>
+                            </div>
+                          )}
+                        </div>
+                        <span className={`text-sm font-black px-2.5 py-1 rounded-xl border ${sc.border}`} style={{ color: sc.text, background: sc.bg }}>
+                          {avg}%
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {filteredAndSortedExams.length > 6 && (
+                <div className="flex justify-center mt-3">
+                  <button
+                    onClick={() => setShowAllExams(!showAllExams)}
+                    className="px-5 py-2 rounded-xl text-xs font-bold bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 transition-all shadow-sm"
+                  >
+                    {showAllExams ? 'عرض أقل' : 'عرض المزيد'}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
 

@@ -264,9 +264,9 @@ router.get('/analytics', requireRole('teacher'), async (req, res) => {
   if (cached) return res.json(cached);
   try {
     const examResults = await pool.query(`
-      SELECT e.id, e.title, e.total_score, e.pass_score,
-             -- BUG-8 FIX: (a) restrict to is_latest=true so retries don't skew AVG/MIN/MAX;
-             -- (b) remove dead OR er.is_absent IS NULL (column is NOT NULL DEFAULT false)
+      SELECT e.id, e.title, e.total_score, e.pass_score, e.created_at, e.course_id,
+             c.name AS course_name, c.target_stage,
+             COALESCE(sales.sales_count, 0)::int AS sales_count,
              ROUND(AVG(er.score::numeric / NULLIF(e.total_score,0) * 100) FILTER (WHERE er.is_absent = false), 1) AS avg_pct,
              ROUND(MAX(er.score::numeric / NULLIF(e.total_score,0) * 100) FILTER (WHERE er.is_absent = false), 1) AS max_pct,
              ROUND(MIN(er.score::numeric / NULLIF(e.total_score,0) * 100) FILTER (WHERE er.is_absent = false), 1) AS min_pct,
@@ -274,12 +274,21 @@ router.get('/analytics', requireRole('teacher'), async (req, res) => {
              MAX(er.score) FILTER (WHERE er.is_absent = false) as max_score,
              MIN(er.score) FILTER (WHERE er.is_absent = false) as min_score,
              COUNT(er.id) FILTER (WHERE er.is_absent = false) as attempt_count,
+             COUNT(er.id) FILTER (WHERE er.is_absent = false AND er.score >= e.pass_score) AS pass_count,
+             COUNT(er.id) FILTER (WHERE er.is_absent = false AND er.score < e.pass_score) AS fail_count,
              COUNT(er.id) FILTER (WHERE er.is_absent = true)  as absent_count
-      FROM exam_results er
-      JOIN exams e ON er.exam_id = e.id
-      WHERE e.teacher_id = $1 AND er.is_latest = true
-      GROUP BY e.id, e.title, e.total_score, e.pass_score
-      ORDER BY attempt_count DESC LIMIT 10
+      FROM exams e
+      LEFT JOIN courses c ON e.course_id = c.id
+      LEFT JOIN exam_results er ON er.exam_id = e.id AND er.is_latest = true
+      LEFT JOIN (
+        SELECT course_id, COUNT(*)::int AS sales_count
+        FROM payments
+        WHERE status = 'verified' AND course_id IS NOT NULL
+        GROUP BY course_id
+      ) sales ON e.course_id = sales.course_id
+      WHERE e.teacher_id = $1
+      GROUP BY e.id, e.title, e.total_score, e.pass_score, e.created_at, e.course_id, c.name, c.target_stage, sales.sales_count
+      ORDER BY e.created_at DESC
     `, [teacherId]);
 
     const [topStudents, recentResults, totalStudentsRes] = await Promise.all([
@@ -559,8 +568,8 @@ router.get('/analytics/exam/:examId', requireRole('teacher', 'assistant'), async
         COUNT(*) FILTER (WHERE UPPER(ans->>'student_answer') = 'F')::int AS ans_f
       FROM exam_results er
       JOIN LATERAL jsonb_array_elements(er.answers) AS ans ON true
-      LEFT JOIN questions q ON q.id = (ans->>'question_id')::integer AND $3 != 'bank'
-      LEFT JOIN bank_questions bq ON bq.id = (ans->>'question_id')::integer AND $3 = 'bank'
+      LEFT JOIN questions q ON q.id = (ans->>'question_id')::integer AND $2 != 'bank'
+      LEFT JOIN bank_questions bq ON bq.id = (ans->>'question_id')::integer AND $2 = 'bank'
       WHERE er.exam_id = $1
         AND er.is_latest = true
         AND er.is_absent = false
@@ -572,7 +581,7 @@ router.get('/analytics/exam/:examId', requireRole('teacher', 'assistant'), async
                q.option_c, bq.option_c, q.option_d, bq.option_d,
                q.correct_answer_letter, bq.correct_answer_letter
       ORDER BY wrong_count DESC, correct_count ASC
-    `, [examId, exam.total_score, exam.question_source || 'manual']);
+    `, [examId, exam.question_source || 'manual']);
 
     const question_stats = qStats.rows.map(q => ({
       question_id: q.question_id,
