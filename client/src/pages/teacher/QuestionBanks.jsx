@@ -7,6 +7,7 @@ import MathText from '../../components/MathText';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
 import CsvImportModal from '../../components/CsvImportModal';
+import { withToken } from '../../lib/mediaAccess';
 
 const emptyBank = { name: '', course_id: '' };
 const emptyQ = { question_text: '', question_image_url: '', option_a: '', option_b: '', option_c: '', option_d: '', correct_answer_letter: 'A', points: 1, question_type: 'mcq', difficulty: 'medium', sub_questions: [] };
@@ -266,7 +267,7 @@ export default function QuestionBanks() {
                                   <span className="text-xs text-gray-500 font-medium">{q.question_type === 'true_false' ? 'صح/خطأ' : q.question_type === 'image_multi' ? 'صورة+أسئلة' : 'MCQ'} · {q.points} نقطة</span>
                                   <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${d.cls}`}>{d.label}</span>
                                 </div>
-                                {q.question_image_url && <img src={q.question_image_url} alt="" className="max-h-32 rounded-lg mb-2 border border-gray-200" />}
+                                {q.question_image_url && <img src={withToken(q.question_image_url)} alt="" className="max-h-32 rounded-lg mb-2 border border-gray-200" />}
                                 {q.question_text && <p className="font-semibold text-navy-700 text-sm mb-2"><MathText text={q.question_text} /></p>}
                                 {q.question_type === 'image_multi' ? (
                                   <div className="inline-flex items-center gap-1 text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200 rounded-lg px-2 py-1">

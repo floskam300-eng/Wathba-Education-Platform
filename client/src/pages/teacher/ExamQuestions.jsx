@@ -12,6 +12,7 @@ import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import MathText from '../../components/MathText';
 import MathToolbar from '../../components/MathToolbar';
 import CsvImportModal from '../../components/CsvImportModal';
+import { withToken } from '../../lib/mediaAccess';
 
 const QUESTION_TYPES = [
   { value: 'mcq', label: '🔘 اختيار متعدد (MCQ)' },
@@ -323,7 +324,7 @@ export default function ExamQuestions() {
                     <input value={qForm.question_image_url || ''} onChange={e => setQForm({ ...qForm, question_image_url: e.target.value })}
                       className="input-field text-sm" placeholder="الصق رابط الصورة هنا..." dir="ltr" />
                     {qForm.question_image_url && (
-                      <img src={qForm.question_image_url} alt="preview" className="mt-2 h-24 rounded-lg object-contain border border-gray-200 w-full" onError={e => e.target.style.display = 'none'} />
+                      <img src={withToken(qForm.question_image_url)} alt="preview" className="mt-2 h-24 rounded-lg object-contain border border-gray-200 w-full" onError={e => e.target.style.display = 'none'} />
                     )}
                   </>
                 ) : (
@@ -511,7 +512,7 @@ function SingleQuestionCard({ q, qNum, editQ, onEdit, onDelete }) {
             <p className="font-semibold text-navy-600 text-sm mb-2 leading-relaxed"><MathText text={q.question_text} /></p>
           )}
           {q.question_image_url && (
-            <img src={q.question_image_url} alt="question" className="w-40 h-24 object-cover rounded-lg mb-2 border border-gray-100" />
+            <img src={withToken(q.question_image_url)} alt="question" className="w-40 h-24 object-cover rounded-lg mb-2 border border-gray-100" />
           )}
           {q.question_type === 'image_multi' ? (
             <div className="inline-flex items-center gap-1 text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200 rounded-lg px-2 py-1">
