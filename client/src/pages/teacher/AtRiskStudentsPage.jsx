@@ -124,6 +124,7 @@ export default function AtRiskStudentsPage() {
       return `<tr>
         <td style="color:#94a3b8;font-size:11px;font-weight:700;text-align:center">${i+1}</td>
         <td><strong>${esc(s.name)}</strong><br><span style="color:#94a3b8;font-size:11px">${esc(s.academic_stage||'')}</span></td>
+        <td style="text-align:center;font-family:monospace;font-size:12px">${esc(s.username)}</td>
         <td style="text-align:center">${s.enrolled_courses}</td>
         <td style="text-align:center">${s.exams_taken}</td>
         <td style="text-align:center;font-size:11px">${risks || '—'}</td>
@@ -167,7 +168,7 @@ export default function AtRiskStudentsPage() {
         <div class="stat"><div class="stat-val" style="color:#6b7280">${inactiveRiskCount}</div><div class="stat-lbl">غياب طويل</div></div>
       </div>
       <table>
-        <thead><tr><th>#</th><th>الطالب</th><th>كورسات</th><th>اختبارات</th><th>أسباب الخطر</th><th>آخر نشاط</th></tr></thead>
+        <thead><tr><th>#</th><th>الطالب</th><th>كود الطالب</th><th>كورسات</th><th>اختبارات</th><th>أسباب الخطر</th><th>آخر نشاط</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
       <div class="footer">تقرير صادر آلياً من منصة وثبة التعليمية — ${now}</div>
