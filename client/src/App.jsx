@@ -36,6 +36,8 @@ import TeacherRecitations from './pages/teacher/Recitations';
 import TeacherArchive from './pages/teacher/Archive';
 import TeacherRetryRequests from './pages/teacher/RetryRequests';
 import ExamAnalytics from './pages/teacher/ExamAnalytics';
+import ExamPerformancePage from './pages/teacher/ExamPerformancePage';
+import AtRiskStudentsPage from './pages/teacher/AtRiskStudentsPage';
 import StudentRecitations from './pages/student/Recitations';
 import StudentLiveStream from './pages/student/LiveStream';
 import AssistantDashboard from './pages/assistant/Dashboard';
@@ -186,6 +188,8 @@ const TenantRoutes = () => {
           <Route path="archive" element={<TeacherArchive />} />
           <Route path="retry-requests" element={<TeacherRetryRequests />} />
           <Route path="exam-analytics/:examId" element={<ExamAnalytics />} />
+          <Route path="analytics/exam-performance" element={<ExamPerformancePage />} />
+          <Route path="analytics/at-risk" element={<AtRiskStudentsPage />} />
         </Route>
 
         {/* ── Assistant dashboard ────────────────────────────────────────────── */}

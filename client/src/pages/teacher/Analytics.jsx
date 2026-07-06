@@ -789,7 +789,7 @@ export default function TeacherAnalytics() {
               </div>
 
               <div className="border-t border-gray-50 dark:border-gray-700 flex-1 overflow-y-auto">
-                {examChartData.map((e, i) => {
+                {examChartData.slice(0, 5).map((e, i) => {
                   const avg = e.avg;
                   const sc = avg >= 70 ? { text:'#10b981', bg: dark ? 'rgba(16,185,129,0.15)' : '#dcfce7' } : avg >= 50 ? { text:'#6366f1', bg: dark ? 'rgba(99,102,241,0.15)' : '#ede9fe' } : { text:'#f43f5e', bg: dark ? 'rgba(244,63,94,0.15)' : '#ffe4e6' };
                   return (
@@ -810,6 +810,15 @@ export default function TeacherAnalytics() {
                     </div>
                   );
                 })}
+              </div>
+              <div className="border-t border-gray-50 dark:border-gray-700 px-5 py-3 flex-shrink-0">
+                <button
+                  onClick={() => navigate('/teacher/analytics/exam-performance')}
+                  className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 border border-indigo-100 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 text-xs font-black transition-all group">
+                  <BarChart3 className="w-3.5 h-3.5" />
+                  عرض المزيد — تقرير تفصيلي مع فلاتر وطباعة
+                  <ChevronLeft className="w-3.5 h-3.5 group-hover:-translate-x-1 transition-transform" />
+                </button>
               </div>
             </div>
           ) : (
@@ -1478,11 +1487,16 @@ export default function TeacherAnalytics() {
               );
             })}
           </div>
-          {atRiskData.length > 10 && (
-            <div className="px-5 py-3 border-t border-gray-50 bg-gray-50/50 text-center">
-              <p className="text-xs text-gray-400 font-medium">يُعرض 10 من {atRiskData.length} طالب في خطر</p>
-            </div>
-          )}
+          <div className="px-5 py-3 border-t border-gray-50 dark:border-gray-700">
+            <button
+              onClick={() => navigate('/teacher/analytics/at-risk')}
+              className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-xl bg-rose-50 dark:bg-rose-900/30 hover:bg-rose-100 dark:hover:bg-rose-900/50 border border-rose-100 dark:border-rose-800 text-rose-600 dark:text-rose-400 text-xs font-black transition-all group">
+              <ShieldAlert className="w-3.5 h-3.5" />
+              عرض المزيد — تفاصيل كاملة مع فلاتر وطباعة
+              {atRiskData.length > 10 && <span className="text-[10px] opacity-70">({atRiskData.length} طالب)</span>}
+              <ChevronLeft className="w-3.5 h-3.5 group-hover:-translate-x-1 transition-transform" />
+            </button>
+          </div>
         </div>
       )}
 
