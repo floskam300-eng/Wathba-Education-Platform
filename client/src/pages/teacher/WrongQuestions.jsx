@@ -106,20 +106,23 @@ function ExamSection({ exam, wrongPctFilter, sortQuestionsBy }) {
     <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden print:break-inside-avoid">
       <button
         onClick={() => setCollapsed(c => !c)}
-        className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors text-right">
-        <div className="flex items-center gap-3">
+        className="w-full flex items-center justify-between px-4 sm:px-5 py-3.5 sm:py-4 hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors text-right">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
           <div className="w-8 h-8 rounded-xl bg-orange-50 dark:bg-orange-900/30 flex items-center justify-center flex-shrink-0">
             <AlertTriangle className="w-4 h-4 text-orange-500" />
           </div>
-          <div>
-            <p className="text-sm font-black text-gray-800 dark:text-gray-100">{exam.exam_title}</p>
-            <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">
-              {questions.length} سؤال
-            </p>
+          <div className="min-w-0">
+            <p className="text-sm font-black text-gray-800 dark:text-gray-100 truncate">{exam.exam_title}</p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <p className="text-[11px] text-gray-400 dark:text-gray-500">{questions.length} سؤال</p>
+              <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md sm:hidden ${labelColor}`}>
+                {pctAvg}% خطأ
+              </span>
+            </div>
           </div>
         </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <span className={`text-xs font-black px-2.5 py-1 rounded-lg ${labelColor}`}>
+        <div className="flex items-center gap-2 flex-shrink-0 mr-2">
+          <span className={`hidden sm:inline text-xs font-black px-2.5 py-1 rounded-lg ${labelColor}`}>
             متوسط خطأ {pctAvg}%
           </span>
           {collapsed
@@ -307,36 +310,36 @@ export default function WrongQuestionsPage() {
 
       <div className="space-y-5">
         {/* Header */}
-        <div className="flex items-center justify-between flex-wrap gap-3 no-print">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between flex-wrap gap-2 no-print">
+          <div className="flex items-center gap-2.5 min-w-0">
             <button onClick={() => navigate(-1)}
-              className="p-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-all">
+              className="p-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-all flex-shrink-0">
               <ArrowRight className="w-4 h-4" />
             </button>
-            <div>
-              <h1 className="text-xl font-black text-gray-800 dark:text-gray-100 flex items-center gap-2">
-                <AlertTriangle className="w-6 h-6 text-red-500" />
-                أكثر الأسئلة خطأً — تقرير كامل
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-xl font-black text-gray-800 dark:text-gray-100 flex items-center gap-2 truncate">
+                <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 text-red-500 flex-shrink-0" />
+                <span className="truncate">أكثر الأسئلة خطأً<span className="hidden sm:inline"> — تقرير كامل</span></span>
               </h1>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                 {filtered.length} امتحان · {totalQ} سؤال
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0">
             <button onClick={handlePrint}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-red-50 dark:bg-red-900/30 hover:bg-red-100 border border-red-100 dark:border-red-800 text-red-600 dark:text-red-400 text-sm font-bold transition-all">
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-900/30 hover:bg-red-100 border border-red-100 dark:border-red-800 text-red-600 dark:text-red-400 text-sm font-bold transition-all">
               <Printer className="w-4 h-4" />
-              طباعة التقرير
+              <span className="hidden sm:inline">طباعة</span>
             </button>
             <button onClick={() => setShowFilters(f => !f)}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border text-sm font-bold transition-all
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-bold transition-all
                 ${showFilters || hasActiveFilter
                   ? 'bg-orange-500 border-orange-500 text-white'
                   : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-orange-300'
                 }`}>
               <SlidersHorizontal className="w-4 h-4" />
-              فلاتر
+              <span className="hidden sm:inline">فلاتر</span>
               {hasActiveFilter && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
             </button>
           </div>

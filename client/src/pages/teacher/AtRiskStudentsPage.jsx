@@ -194,36 +194,36 @@ export default function AtRiskStudentsPage() {
       <div className="space-y-5 max-w-5xl mx-auto">
 
         {/* Header */}
-        <div className="flex items-center justify-between flex-wrap gap-3 no-print">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between flex-wrap gap-2 no-print">
+          <div className="flex items-center gap-2.5 min-w-0">
             <button onClick={() => navigate(backPath)}
-              className="p-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-all">
+              className="p-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-all flex-shrink-0">
               <ArrowRight className="w-4 h-4" />
             </button>
-            <div>
-              <h1 className="text-xl font-black text-gray-800 dark:text-gray-100 flex items-center gap-2">
-                <ShieldAlert className="w-6 h-6 text-rose-500" />
-                الطلاب في خطر — تقرير تفصيلي
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-xl font-black text-gray-800 dark:text-gray-100 flex items-center gap-2 truncate">
+                <ShieldAlert className="w-5 h-5 sm:w-6 sm:h-6 text-rose-500 flex-shrink-0" />
+                <span className="truncate">الطلاب في خطر<span className="hidden sm:inline"> — تقرير تفصيلي</span></span>
               </h1>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                {filtered.length} طالب من أصل {atRiskData.length} يحتاجون انتباهاً خاصاً
+                {filtered.length} طالب · {atRiskData.length} إجمالي
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0">
             <button onClick={handlePrint}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-rose-50 dark:bg-rose-900/30 hover:bg-rose-100 border border-rose-100 dark:border-rose-800 text-rose-600 dark:text-rose-400 text-sm font-bold transition-all">
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-50 dark:bg-rose-900/30 hover:bg-rose-100 border border-rose-100 dark:border-rose-800 text-rose-600 dark:text-rose-400 text-sm font-bold transition-all">
               <Printer className="w-4 h-4" />
-              طباعة التقرير
+              <span className="hidden sm:inline">طباعة</span>
             </button>
             <button onClick={() => setShowFilters(f => !f)}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border text-sm font-bold transition-all
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-bold transition-all
                 ${showFilters || hasActiveFilter
                   ? 'bg-rose-600 border-rose-600 text-white'
                   : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-rose-300'
                 }`}>
               <Filter className="w-4 h-4" />
-              فلاتر
+              <span className="hidden sm:inline">فلاتر</span>
               {hasActiveFilter && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
             </button>
           </div>
@@ -236,20 +236,20 @@ export default function AtRiskStudentsPage() {
         </div>
 
         {/* Summary */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
           {[
             { label: 'إجمالي في خطر',     value: atRiskData.length,   color: '#f43f5e', bg: 'bg-rose-50 dark:bg-rose-900/30',   icon: ShieldAlert },
             { label: 'ضعف اختبارات',       value: examRiskCount,       color: '#f43f5e', bg: 'bg-red-50 dark:bg-red-900/30',     icon: XCircle },
             { label: 'ضعف مشاهدة',         value: videoRiskCount,      color: '#f59e0b', bg: 'bg-amber-50 dark:bg-amber-900/30', icon: AlertTriangle },
             { label: 'غياب / خمول',        value: inactiveRiskCount,   color: '#94a3b8', bg: 'bg-gray-100 dark:bg-gray-700',    icon: Clock },
           ].map(({ label, value, color, bg, icon: Icon }) => (
-            <div key={label} className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-4 flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${bg}`}>
-                <Icon className="w-5 h-5" style={{ color }} />
+            <div key={label} className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
+              <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${bg}`}>
+                <Icon className="w-4 h-4 sm:w-5 sm:h-5" style={{ color }} />
               </div>
-              <div>
-                <p className="text-xl font-black" style={{ color }}>{value}</p>
-                <p className="text-[11px] text-gray-400 dark:text-gray-500 font-semibold">{label}</p>
+              <div className="min-w-0">
+                <p className="text-lg sm:text-xl font-black leading-none" style={{ color }}>{value}</p>
+                <p className="text-[10px] sm:text-[11px] text-gray-400 dark:text-gray-500 font-semibold mt-0.5 leading-tight">{label}</p>
               </div>
             </div>
           ))}
@@ -337,33 +337,41 @@ export default function AtRiskStudentsPage() {
                 return (
                   <div key={s.id}
                     onClick={() => setSelectedStudentId(s.id)}
-                    className="flex items-center gap-3 px-5 py-4 hover:bg-gray-50/70 dark:hover:bg-gray-700/40 transition-colors cursor-pointer">
+                    className="flex items-center gap-3 px-4 sm:px-5 py-3 sm:py-4 hover:bg-gray-50/70 dark:hover:bg-gray-700/40 transition-colors cursor-pointer">
                     {/* Rank */}
                     <span className="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black text-white flex-shrink-0 bg-rose-400">
                       {i+1}
                     </span>
                     {/* Info */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <p className="text-sm font-bold text-gray-800 dark:text-gray-200">{s.name}</p>
                         {s.academic_stage && (
-                          <span className="text-[10px] font-medium text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">
+                          <span className="text-[10px] font-medium text-gray-400 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded-full hidden sm:inline">
                             {s.academic_stage}
                           </span>
                         )}
                         {riskCount >= 2 && (
-                          <span className="text-[10px] font-black text-white bg-rose-500 px-2 py-0.5 rounded-full">
+                          <span className="text-[10px] font-black text-white bg-rose-500 px-1.5 py-0.5 rounded-full">
                             خطر مرتفع
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                         {s.exam_risk    && examPct !== null && <RiskBadge type="exam"     value={examPct} />}
                         {s.video_risk                       && <RiskBadge type="video"    value={videoPct} />}
                         {s.inactive_risk                    && <RiskBadge type="inactive" />}
                       </div>
+                      {/* Stats visible on mobile */}
+                      <div className="flex items-center gap-2 mt-1 sm:hidden flex-wrap">
+                        <span className="text-[10px] text-gray-400 font-medium">{s.exams_taken} اختبار</span>
+                        <span className="text-gray-200 dark:text-gray-600">·</span>
+                        <span className="text-[10px] text-gray-400 font-medium">{s.enrolled_courses} كورس</span>
+                        <span className="text-gray-200 dark:text-gray-600">·</span>
+                        <span className="text-[10px] text-gray-400 font-medium">{lastAct}</span>
+                      </div>
                     </div>
-                    {/* Stats */}
+                    {/* Stats — desktop only */}
                     <div className="flex-shrink-0 text-right hidden sm:block">
                       <p className="text-[11px] text-gray-500 dark:text-gray-400 font-bold">{s.exams_taken} اختبار</p>
                       <p className="text-[11px] text-gray-400 dark:text-gray-500 font-medium">{s.enrolled_courses} كورس</p>

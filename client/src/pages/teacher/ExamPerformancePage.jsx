@@ -288,36 +288,36 @@ export default function ExamPerformancePage() {
       <div className="space-y-5 max-w-6xl mx-auto">
 
         {/* Header */}
-        <div className="flex items-center justify-between flex-wrap gap-3 no-print">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between flex-wrap gap-2 no-print">
+          <div className="flex items-center gap-2.5 min-w-0">
             <button onClick={() => navigate(backPath)}
-              className="p-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-all">
+              className="p-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-all flex-shrink-0">
               <ArrowRight className="w-4 h-4" />
             </button>
-            <div>
-              <h1 className="text-xl font-black text-gray-800 dark:text-gray-100 flex items-center gap-2">
-                <BarChart3 className="w-6 h-6 text-indigo-500" />
-                أداء الاختبارات — تقرير تفصيلي
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-xl font-black text-gray-800 dark:text-gray-100 flex items-center gap-2 truncate">
+                <BarChart3 className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-500 flex-shrink-0" />
+                <span className="truncate">أداء الاختبارات<span className="hidden sm:inline"> — تقرير تفصيلي</span></span>
               </h1>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                {filtered.length} اختبار · {totalAttempts} محاولة إجمالية
+                {filtered.length} اختبار · {totalAttempts} محاولة
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0">
             <button onClick={handlePrint}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 border border-indigo-100 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 text-sm font-bold transition-all">
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 border border-indigo-100 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 text-sm font-bold transition-all">
               <Printer className="w-4 h-4" />
-              طباعة التقرير
+              <span className="hidden sm:inline">طباعة</span>
             </button>
             <button onClick={() => setShowFilters(f => !f)}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border text-sm font-bold transition-all
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-bold transition-all
                 ${showFilters || hasActiveFilter
                   ? 'bg-indigo-600 border-indigo-600 text-white'
                   : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-indigo-300'
                 }`}>
               <Filter className="w-4 h-4" />
-              فلاتر
+              <span className="hidden sm:inline">فلاتر</span>
               {hasActiveFilter && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
             </button>
           </div>
@@ -480,47 +480,74 @@ export default function ExamPerformancePage() {
                 const passR = att > 0 ? Math.round((pass/att)*100) : 0;
                 const failR = att > 0 ? Math.round((fail/att)*100) : 0;
                 return (
-                  <div key={e.id || i}
-                    className="grid grid-cols-1 sm:grid-cols-[auto_1fr_repeat(5,auto)] gap-x-4 px-5 py-3.5 hover:bg-gray-50/70 dark:hover:bg-gray-700/40 transition-colors items-center print:break-inside-avoid">
-                    {/* Rank */}
-                    <span className="w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-black text-white flex-shrink-0 hidden sm:flex"
-                      style={{ background: CHART_COLORS[i % CHART_COLORS.length] }}>
-                      {i+1}
-                    </span>
-                    {/* Name */}
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold text-gray-800 dark:text-gray-200 truncate">{e.title}</p>
-                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                        {e.course_name && <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">{e.course_name}</span>}
-                        {e.target_stage && (
-                          <span className="text-[10px] bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 px-1.5 py-0.5 rounded-full font-medium">{e.target_stage}</span>
-                        )}
+                  <div key={e.id || i} className="hover:bg-gray-50/70 dark:hover:bg-gray-700/40 transition-colors print:break-inside-avoid">
+
+                    {/* ── Mobile card layout ── */}
+                    <div className="sm:hidden px-4 py-3">
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="w-5 h-5 rounded flex items-center justify-center text-[9px] font-black text-white flex-shrink-0"
+                            style={{ background: CHART_COLORS[i % CHART_COLORS.length] }}>{i+1}</span>
+                          <p className="text-sm font-bold text-gray-800 dark:text-gray-200 truncate">{e.title}</p>
+                        </div>
+                        <ScoreBadge value={avg} />
+                      </div>
+                      {(e.course_name || e.target_stage) && (
+                        <div className="flex items-center gap-1.5 mb-2 mr-7">
+                          {e.course_name && <span className="text-[10px] text-gray-400 font-medium truncate">{e.course_name}</span>}
+                          {e.target_stage && <span className="text-[10px] bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 px-1.5 py-0.5 rounded-full font-medium flex-shrink-0">{e.target_stage}</span>}
+                        </div>
+                      )}
+                      <div className="grid grid-cols-4 gap-1 mr-7">
+                        <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-1.5 text-center">
+                          <p className="text-sm font-black text-gray-700 dark:text-gray-300">{att}</p>
+                          <p className="text-[9px] text-gray-400 font-medium">محاولة</p>
+                        </div>
+                        <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-1.5 text-center">
+                          <p className="text-sm font-black text-emerald-600">{pass}</p>
+                          <p className="text-[9px] text-emerald-500 font-medium">{passR}% نجاح</p>
+                        </div>
+                        <div className="bg-rose-50 dark:bg-rose-900/20 rounded-lg p-1.5 text-center">
+                          <p className="text-sm font-black text-rose-500">{fail}</p>
+                          <p className="text-[9px] text-rose-400 font-medium">{failR}% رسوب</p>
+                        </div>
+                        <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-1.5 text-center">
+                          <p className="text-[10px] font-bold text-emerald-500">▲{max}%</p>
+                          <p className="text-[10px] font-bold text-rose-500">▼{min}%</p>
+                        </div>
                       </div>
                     </div>
-                    {/* Attempts */}
-                    <div className="flex flex-col items-center">
-                      <p className="text-sm font-black text-gray-700 dark:text-gray-300">{att}</p>
-                      <p className="text-[10px] text-gray-400 font-medium">محاولة</p>
+
+                    {/* ── Desktop row layout ── */}
+                    <div className="hidden sm:grid grid-cols-[auto_1fr_repeat(5,auto)] gap-x-4 px-5 py-3.5 items-center">
+                      <span className="w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-black text-white flex-shrink-0"
+                        style={{ background: CHART_COLORS[i % CHART_COLORS.length] }}>{i+1}</span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-gray-800 dark:text-gray-200 truncate">{e.title}</p>
+                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                          {e.course_name && <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">{e.course_name}</span>}
+                          {e.target_stage && <span className="text-[10px] bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 px-1.5 py-0.5 rounded-full font-medium">{e.target_stage}</span>}
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-center">
+                        <p className="text-sm font-black text-gray-700 dark:text-gray-300">{att}</p>
+                        <p className="text-[10px] text-gray-400 font-medium">محاولة</p>
+                      </div>
+                      <div className="flex flex-col items-center">
+                        <p className="text-sm font-black text-emerald-600">{pass}</p>
+                        <p className="text-[10px] text-emerald-400 font-medium">{passR}%</p>
+                      </div>
+                      <div className="flex flex-col items-center">
+                        <p className="text-sm font-black text-rose-500">{fail}</p>
+                        <p className="text-[10px] text-rose-400 font-medium">{failR}%</p>
+                      </div>
+                      <div className="flex items-center justify-center"><ScoreBadge value={avg} /></div>
+                      <div className="flex items-center gap-2 justify-center">
+                        <span className="text-[11px] font-black text-emerald-500">▲{max}%</span>
+                        <span className="text-[11px] font-black text-rose-500">▼{min}%</span>
+                      </div>
                     </div>
-                    {/* Pass */}
-                    <div className="flex flex-col items-center">
-                      <p className="text-sm font-black text-emerald-600">{pass}</p>
-                      <p className="text-[10px] text-emerald-400 font-medium">{passR}%</p>
-                    </div>
-                    {/* Fail */}
-                    <div className="flex flex-col items-center">
-                      <p className="text-sm font-black text-rose-500">{fail}</p>
-                      <p className="text-[10px] text-rose-400 font-medium">{failR}%</p>
-                    </div>
-                    {/* Avg */}
-                    <div className="flex items-center justify-center">
-                      <ScoreBadge value={avg} />
-                    </div>
-                    {/* Max / Min */}
-                    <div className="flex items-center gap-2 justify-center">
-                      <span className="text-[11px] font-black text-emerald-500">▲{max}%</span>
-                      <span className="text-[11px] font-black text-rose-500">▼{min}%</span>
-                    </div>
+
                   </div>
                 );
               })}
