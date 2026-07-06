@@ -169,7 +169,7 @@ ALTER TABLE pdf_files ADD COLUMN IF NOT EXISTS section_id INTEGER REFERENCES sec
 ALTER TABLE exams ADD COLUMN IF NOT EXISTS start_date  TIMESTAMP;
 ALTER TABLE exams ADD COLUMN IF NOT EXISTS end_date    TIMESTAMP;
 ALTER TABLE exams ADD COLUMN IF NOT EXISTS is_published BOOLEAN DEFAULT false;
--- ALTER TABLE questions ALTER COLUMN question_text DROP NOT NULL;
+ALTER TABLE questions ALTER COLUMN question_text DROP NOT NULL;
 
 -- essay_graded and essay_score_adjustment removed — essay questions not supported
 
