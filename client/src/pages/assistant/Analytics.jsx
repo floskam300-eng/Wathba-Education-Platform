@@ -4,7 +4,7 @@ import {
   BarChart3, TrendingUp, Users, Award, Target, GraduationCap,
   CheckCircle2, XCircle, Clock, Star, ChevronUp, ChevronDown,
   Minus, Eye, Search, Filter, X as XIcon, Zap, Trophy, Activity,
-  BookOpen, Flame, PieChart, Layers, ArrowLeft
+  BookOpen, Flame, PieChart, Layers, ArrowLeft, ShieldAlert, ChevronLeft, AlertTriangle
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import ReactECharts from 'echarts-for-react';
@@ -88,6 +88,12 @@ export default function AssistantAnalytics() {
   const { data: courseStatsData = [], isLoading: courseStatsLoading } = useQuery({
     queryKey: ['assistant-course-stats'],
     queryFn: () => api.get('/assistants/course-stats').then(r => r.data),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: atRiskData = [], isLoading: atRiskLoading } = useQuery({
+    queryKey: ['teacher-at-risk'],
+    queryFn: () => api.get('/teachers/at-risk-students').then(r => r.data),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -610,6 +616,15 @@ export default function AssistantAnalytics() {
             ) : (
               <div className="p-5 pt-0"><EmptyState icon={BarChart3} text="لا توجد بيانات اختبارات بعد" /></div>
             )}
+            <div className="border-t border-gray-50 px-5 py-3">
+              <button
+                onClick={() => navigate('/assistant/analytics/exam-performance')}
+                className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 text-indigo-600 text-xs font-black transition-all group">
+                <BarChart3 className="w-3.5 h-3.5" />
+                عرض المزيد — تقرير تفصيلي مع فلاتر وطباعة
+                <ChevronLeft className="w-3.5 h-3.5 group-hover:-translate-x-1 transition-transform" />
+              </button>
+            </div>
           </div>
 
           {/* Attempts Donut */}
@@ -734,6 +749,77 @@ export default function AssistantAnalytics() {
             ) : (
               <div className="p-5 pt-0"><EmptyState icon={Zap} text="لا توجد بيانات كافية" /></div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── At-Risk Students Section ──────────────────────────────────── */}
+      {!atRiskLoading && atRiskData.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-rose-400 via-orange-400 to-amber-400" />
+          <div className="p-5 border-b border-gray-50">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-rose-50 flex items-center justify-center flex-shrink-0">
+                  <ShieldAlert className="w-4 h-4 text-rose-500" />
+                </div>
+                <div>
+                  <h2 className="font-black text-gray-800 text-sm">الطلاب في خطر</h2>
+                  <p className="text-[11px] text-gray-400 font-medium mt-0.5">طلاب يحتاجون انتباهاً خاصاً — ضعف أداء أو غياب</p>
+                </div>
+              </div>
+              <span className="text-xs font-black text-rose-500 bg-rose-50 px-3 py-1.5 rounded-full border border-rose-100">{atRiskData.length} طالب</span>
+            </div>
+          </div>
+          <div className="divide-y divide-gray-50">
+            {atRiskData.slice(0, 10).map(s => {
+              const examPct  = s.avg_exam_pct !== null ? Math.round(parseFloat(s.avg_exam_pct)) : null;
+              const videoPct = Math.round(parseFloat(s.avg_video_pct) || 0);
+              const lastAct  = s.last_activity ? new Date(s.last_activity).toLocaleDateString('ar-EG') : 'لا يوجد';
+              return (
+                <div key={s.id} onClick={() => setSelectedStudentId(s.id)}
+                  className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50/70 transition-colors cursor-pointer">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-bold text-gray-800">{s.name}</p>
+                      {s.academic_stage && <span className="text-[10px] font-medium text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{s.academic_stage}</span>}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      {s.exam_risk && examPct !== null && (
+                        <span className="flex items-center gap-1 text-[10px] font-bold text-rose-500 bg-rose-50 px-2 py-0.5 rounded-full">
+                          <XCircle className="w-3 h-3" />اختبارات: {examPct}%
+                        </span>
+                      )}
+                      {s.video_risk && (
+                        <span className="flex items-center gap-1 text-[10px] font-bold text-amber-500 bg-amber-50 px-2 py-0.5 rounded-full">
+                          <AlertTriangle className="w-3 h-3" />مشاهدة: {videoPct}%
+                        </span>
+                      )}
+                      {s.inactive_risk && (
+                        <span className="flex items-center gap-1 text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                          <Clock className="w-3 h-3" />آخر نشاط: {lastAct}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex-shrink-0 text-right">
+                    <p className="text-[10px] text-gray-400 font-medium">{s.exams_taken} اختبار</p>
+                    <p className="text-[10px] text-gray-400 font-medium">{s.enrolled_courses} كورس</p>
+                  </div>
+                  <Eye className="w-4 h-4 text-gray-300 flex-shrink-0" />
+                </div>
+              );
+            })}
+          </div>
+          <div className="px-5 py-3 border-t border-gray-50">
+            <button
+              onClick={() => navigate('/assistant/analytics/at-risk')}
+              className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-100 text-rose-600 text-xs font-black transition-all group">
+              <ShieldAlert className="w-3.5 h-3.5" />
+              عرض المزيد — تفاصيل كاملة مع فلاتر وطباعة
+              {atRiskData.length > 10 && <span className="text-[10px] opacity-70">({atRiskData.length} طالب)</span>}
+              <ChevronLeft className="w-3.5 h-3.5 group-hover:-translate-x-1 transition-transform" />
+            </button>
           </div>
         </div>
       )}

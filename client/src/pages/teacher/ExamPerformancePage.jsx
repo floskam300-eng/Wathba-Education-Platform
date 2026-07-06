@@ -9,6 +9,7 @@ import {
 import ReactECharts from 'echarts-for-react';
 import api from '../../lib/api';
 import { useTheme } from '../../context/ThemeContext';
+import { useAuth } from '../../context/AuthContext';
 
 const CHART_COLORS = ['#6366f1','#f97316','#10b981','#f59e0b','#8b5cf6','#06b6d4','#ec4899','#f43f5e'];
 
@@ -66,7 +67,13 @@ function MiniBar({ value, color }) {
 export default function ExamPerformancePage() {
   const navigate = useNavigate();
   const { dark } = useTheme();
+  const { user } = useAuth();
   const printRef = useRef(null);
+
+  const isAssistant = user?.role === 'assistant';
+  const apiPath   = isAssistant ? '/assistants/analytics' : '/teachers/analytics';
+  const backPath  = isAssistant ? '/assistant/analytics'  : '/teacher/analytics';
+  const queryKey  = isAssistant ? 'assistant-analytics'   : 'teacher-analytics';
 
   const [search, setSearch] = useState('');
   const [stageFilter, setStageFilter] = useState('الكل');
@@ -76,8 +83,8 @@ export default function ExamPerformancePage() {
   const [viewMode, setViewMode] = useState('table'); // 'table' | 'chart'
 
   const { data, isLoading } = useQuery({
-    queryKey: ['teacher-analytics'],
-    queryFn: () => api.get('/teachers/analytics').then(r => r.data),
+    queryKey: [queryKey],
+    queryFn: () => api.get(apiPath).then(r => r.data),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -204,7 +211,7 @@ export default function ExamPerformancePage() {
         {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-3 no-print">
           <div className="flex items-center gap-3">
-            <button onClick={() => navigate('/teacher/analytics')}
+            <button onClick={() => navigate(backPath)}
               className="p-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-all">
               <ArrowRight className="w-4 h-4" />
             </button>

@@ -243,6 +243,12 @@ const TenantRoutes = () => {
           <Route path="exam-analytics/:examId" element={
             <AssistantPermissionRoute permission="can_view_analytics"><ExamAnalytics /></AssistantPermissionRoute>
           } />
+          <Route path="analytics/exam-performance" element={
+            <AssistantPermissionRoute permission="can_view_analytics"><ExamPerformancePage /></AssistantPermissionRoute>
+          } />
+          <Route path="analytics/at-risk" element={
+            <AssistantPermissionRoute permission="can_view_analytics"><AtRiskStudentsPage /></AssistantPermissionRoute>
+          } />
         </Route>
 
         {/* ── Student dashboard ─────────────────────────────────────────────── */}

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import api from '../../lib/api';
 import StudentProfileModal from '../../components/ui/StudentProfileModal';
+import { useAuth } from '../../context/AuthContext';
 
 const STAGES = [
   'الكل',
@@ -54,6 +55,11 @@ function RiskBadge({ type, value }) {
 
 export default function AtRiskStudentsPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  const isAssistant = user?.role === 'assistant';
+  const backPath    = isAssistant ? '/assistant/analytics' : '/teacher/analytics';
+
   const [selectedStudentId, setSelectedStudentId] = useState(null);
   const [search, setSearch] = useState('');
   const [stageFilter, setStageFilter] = useState('الكل');
@@ -113,7 +119,7 @@ export default function AtRiskStudentsPage() {
         {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-3 no-print">
           <div className="flex items-center gap-3">
-            <button onClick={() => navigate('/teacher/analytics')}
+            <button onClick={() => navigate(backPath)}
               className="p-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-all">
               <ArrowRight className="w-4 h-4" />
             </button>
