@@ -38,7 +38,11 @@ const emptyExam = {
 
 const fmtDateLocal = (iso) => {
   if (!iso) return '';
-  return iso.slice(0, 16);
+  // Convert UTC ISO string → local datetime-local value (YYYY-MM-DDTHH:MM)
+  // 'sv' locale gives ISO-style "YYYY-MM-DD HH:MM:SS" in local time
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleString('sv').replace(' ', 'T').slice(0, 16);
 };
 
 export default function TeacherExams() {

@@ -804,7 +804,8 @@ function ScheduleForm({ onBack, onScheduled, dark }) {
   const [scheduledAt, setScheduledAt] = useState('');
   const [loading, setLoading]         = useState(false);
 
-  const minDT = new Date(Date.now() + 5 * 60000).toISOString().slice(0, 16);
+  // Use local time string for datetime-local min attribute (toISOString gives UTC which is wrong)
+  const minDT = new Date(Date.now() + 5 * 60000).toLocaleString('sv').replace(' ', 'T').slice(0, 16);
 
   const submit = async (e) => {
     e.preventDefault();
