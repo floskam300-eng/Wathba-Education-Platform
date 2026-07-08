@@ -1,61 +1,25 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { BookMarked, Plus, Pencil, Trash2, ChevronDown, ChevronUp, Upload, Link, BookOpen, Layers, X, FileDown } from 'lucide-react';
+import { BookMarked, Plus, Pencil, Trash2, BookOpen, FolderOpen } from 'lucide-react';
 import Modal from '../../components/ui/Modal';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
-import MathText from '../../components/MathText';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
-import CsvImportModal from '../../components/CsvImportModal';
-import { withToken } from '../../lib/mediaAccess';
+import { useAuth } from '../../context/AuthContext';
 
 const emptyBank = { name: '', course_id: '' };
-const emptyQ = { question_text: '', question_image_url: '', option_a: '', option_b: '', option_c: '', option_d: '', correct_answer_letter: 'A', points: 1, question_type: 'mcq', difficulty: 'medium', sub_questions: [] };
-
-const DIFFICULTIES = [
-  { value: 'easy',   label: 'سهل',   color: 'bg-green-100 text-green-700 border-green-300' },
-  { value: 'medium', label: 'متوسط', color: 'bg-yellow-100 text-yellow-700 border-yellow-300' },
-  { value: 'hard',   label: 'صعب',   color: 'bg-red-100 text-red-700 border-red-300' },
-];
-
-const difficultyBadge = (d) => {
-  const map = { easy: { label: 'سهل 🟢', cls: 'bg-green-100 text-green-700' }, medium: { label: 'متوسط 🟡', cls: 'bg-yellow-100 text-yellow-700' }, hard: { label: 'صعب 🔴', cls: 'bg-red-100 text-red-700' } };
-  return map[d] || map['medium'];
-};
-
-const Q_TYPES = [
-  { value: 'mcq', label: '🔘 اختيار متعدد (MCQ)' },
-  { value: 'true_false', label: '✅ صح / خطأ' },
-  { value: 'image_multi', label: '🖼 صورة مع أسئلة' },
-];
 
 export default function QuestionBanks() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const baseRole = user?.role === 'assistant' ? 'assistant' : 'teacher';
+
   const [bankModal, setBankModal] = useState(false);
   const [editBank, setEditBank] = useState(null);
   const [bankForm, setBankForm] = useState(emptyBank);
   const [deleteBankId, setDeleteBankId] = useState(null);
-  const [expandedBank, setExpandedBank] = useState(null);
-  const [qForm, setQForm] = useState(emptyQ);
-  const [editQ, setEditQ] = useState(null);
-  const [deleteQId, setDeleteQId] = useState(null);
-  const [imageInputMode, setImageInputMode] = useState('url');
-  const [imageFile, setImageFile] = useState(null);
-  const [imagePreview, setImagePreview] = useState('');
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const imageFileRef = useRef(null);
-
-  // image_multi sub-questions count
-  const [imgMultiCount, setImgMultiCount] = useState(5);
-
-  const updateSubQuestions = (newSubs) => {
-    const totalPts = newSubs.reduce((sum, s) => sum + (parseInt(s.points) || 1), 0);
-    setQForm(f => ({ ...f, sub_questions: newSubs, points: totalPts }));
-  };
-
-  // CSV import modal state
-  const [showImport, setShowImport] = useState(false);
-  const [importBankId, setImportBankId] = useState(null);
 
   const { data: banks = [], isLoading } = useQuery({
     queryKey: ['question-banks'],
@@ -65,12 +29,6 @@ export default function QuestionBanks() {
   const { data: courses = [] } = useQuery({
     queryKey: ['courses'],
     queryFn: () => api.get('/courses').then(r => r.data),
-  });
-
-  const { data: bankQuestions = [] } = useQuery({
-    queryKey: ['bank-questions', expandedBank],
-    queryFn: () => api.get(`/question-banks/${expandedBank}/questions`).then(r => r.data),
-    enabled: !!expandedBank,
   });
 
   const createBankMut = useMutation({
@@ -87,29 +45,7 @@ export default function QuestionBanks() {
 
   const deleteBankMut = useMutation({
     mutationFn: (id) => api.delete(`/question-banks/${id}`),
-    onSuccess: () => { qc.invalidateQueries(['question-banks']); toast.success('تم حذف البنك'); setDeleteBankId(null); if (expandedBank === deleteBankId) setExpandedBank(null); },
-  });
-
-  const addQMut = useMutation({
-    mutationFn: ({ bankId, data }) => api.post(`/question-banks/${bankId}/questions`, data),
-    onSuccess: () => {
-      qc.invalidateQueries(['bank-questions', expandedBank]);
-      qc.invalidateQueries(['question-banks']);
-      toast.success('تم إضافة السؤال');
-      resetQForm();
-    },
-    onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
-  });
-
-  const updateQMut = useMutation({
-    mutationFn: ({ qid, data }) => api.put(`/question-banks/questions/${qid}`, data),
-    onSuccess: () => { qc.invalidateQueries(['bank-questions', expandedBank]); toast.success('تم تحديث السؤال'); resetQForm(); },
-    onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
-  });
-
-  const deleteQMut = useMutation({
-    mutationFn: (qid) => api.delete(`/question-banks/questions/${qid}`),
-    onSuccess: () => { qc.invalidateQueries(['bank-questions', expandedBank]); qc.invalidateQueries(['question-banks']); toast.success('تم حذف السؤال'); setDeleteQId(null); },
+    onSuccess: () => { qc.invalidateQueries(['question-banks']); toast.success('تم حذف البنك'); setDeleteBankId(null); },
   });
 
   const openAddBank = () => { setEditBank(null); setBankForm(emptyBank); setBankModal(true); };
@@ -122,78 +58,6 @@ export default function QuestionBanks() {
     if (editBank) updateBankMut.mutate({ id: editBank.id, data: bankForm });
     else createBankMut.mutate(bankForm);
   };
-
-  const resetQForm = () => {
-    setQForm(emptyQ);
-    setEditQ(null);
-    setImageFile(null);
-    setImagePreview('');
-    setImageInputMode('url');
-    if (imageFileRef.current) imageFileRef.current.value = '';
-  };
-
-  const startEditQ = (q) => {
-    setEditQ(q);
-    setQForm({
-      question_text: q.question_text || '',
-      question_image_url: q.question_image_url || '',
-      option_a: q.option_a || '',
-      option_b: q.option_b || '',
-      option_c: q.option_c || '',
-      option_d: q.option_d || '',
-      correct_answer_letter: q.correct_answer_letter || 'A',
-      points: q.points || 1,
-      question_type: q.question_type || 'mcq',
-      difficulty: q.difficulty || 'medium',
-      sub_questions: Array.isArray(q.sub_questions) ? q.sub_questions : [],
-    });
-    setImagePreview(q.question_image_url || '');
-    setImageInputMode('url');
-    if (q.sub_questions?.length) setImgMultiCount(q.sub_questions.length);
-  };
-
-  const handleQSubmit = async (e) => {
-    e.preventDefault();
-    let finalImageUrl = qForm.question_image_url || '';
-
-    if (imageFile) {
-      const fd = new FormData();
-      fd.append('image', imageFile);
-      try {
-        setUploadProgress(1);
-        const res = await api.post('/question-banks/upload-image', fd, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-          onUploadProgress: (evt) => { if (evt.total) setUploadProgress(Math.round((evt.loaded / evt.total) * 100)); },
-        });
-        finalImageUrl = res.data.url;
-        setUploadProgress(100);
-        setTimeout(() => setUploadProgress(0), 800);
-      } catch {
-        setUploadProgress(0);
-        return toast.error('فشل رفع الصورة');
-      }
-    }
-
-    const finalForm = { ...qForm, question_image_url: finalImageUrl };
-    if (!finalForm.question_text && !finalImageUrl) return toast.error('أدخل نص السؤال أو صورة');
-    if (finalForm.question_type === 'image_multi') {
-      if (!Array.isArray(finalForm.sub_questions) || finalForm.sub_questions.length === 0)
-        return toast.error('يجب توليد الأسئلة الفرعية أولاً');
-      finalForm.option_a = 'A'; finalForm.option_b = 'B'; finalForm.option_c = 'C'; finalForm.option_d = 'D';
-      finalForm.correct_answer_letter = 'A';
-    } else if (finalForm.question_type === 'mcq' && (!finalForm.option_a || !finalForm.option_b)) {
-      return toast.error('الخيار الأول والثاني مطلوبان');
-    }
-    if (editQ) updateQMut.mutate({ qid: editQ.id, data: finalForm });
-    else addQMut.mutate({ bankId: expandedBank, data: finalForm });
-  };
-
-  const toggleBank = (id) => {
-    if (id !== expandedBank) resetQForm();
-    setExpandedBank(expandedBank === id ? null : id);
-  };
-
-  const isTF = qForm.question_type === 'true_false';
 
   return (
     <div className="space-y-5">
@@ -250,263 +114,14 @@ export default function QuestionBanks() {
                   <button onClick={() => setDeleteBankId(bank.id)} className="p-1.5 sm:p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
                     <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   </button>
-                  <button onClick={() => toggleBank(bank.id)} className="p-1.5 sm:p-2 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
-                    {expandedBank === bank.id ? <ChevronUp className="w-4 h-4 sm:w-5 sm:h-5" /> : <ChevronDown className="w-4 h-4 sm:w-5 sm:h-5" />}
+                  <button
+                    onClick={() => navigate(`/${baseRole}/question-banks/${bank.id}/questions`)}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-black transition-all bg-purple-50 hover:bg-purple-600 hover:text-white text-purple-700 flex-shrink-0">
+                    <FolderOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span className="hidden sm:inline">إدارة الأسئلة</span>
                   </button>
                 </div>
               </div>
-
-              {expandedBank === bank.id && (
-                <div className="border-t border-gray-100 p-4 space-y-4">
-                  {bankQuestions.length > 0 && (
-                    <div className="space-y-3">
-                      {bankQuestions.map((q, idx) => {
-                        const num = idx + 1;
-                        const d = difficultyBadge(q.difficulty);
-                        return (
-                          <div key={q.id} className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-2 flex-wrap">
-                                  <span className="text-xs font-black bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">{num}</span>
-                                  <span className="text-xs text-gray-500 font-medium">{q.question_type === 'true_false' ? 'صح/خطأ' : q.question_type === 'image_multi' ? 'صورة+أسئلة' : 'MCQ'} · {q.points} نقطة</span>
-                                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${d.cls}`}>{d.label}</span>
-                                </div>
-                                {q.question_image_url && <img src={withToken(q.question_image_url)} alt="" className="max-h-32 rounded-lg mb-2 border border-gray-200" />}
-                                {q.question_text && <p className="font-semibold text-navy-700 text-sm mb-2"><MathText text={q.question_text} /></p>}
-                                {q.question_type === 'image_multi' ? (
-                                  <div className="space-y-1.5 w-full">
-                                    <div className="inline-flex items-center gap-1 text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200 rounded-lg px-2 py-1">
-                                      🖼 {Array.isArray(q.sub_questions) ? q.sub_questions.length : 0} سؤال فرعي
-                                    </div>
-                                    <div className="flex flex-wrap gap-1">
-                                      {Array.isArray(q.sub_questions) && q.sub_questions.map((sub, sidx) => (
-                                        <span key={sidx} className="text-[10px] px-1.5 py-0.5 rounded-lg bg-gray-100 border border-gray-200 text-gray-600 font-medium">
-                                          {sub.label}: {sub.type === 'true_false' ? (sub.correct === 'A' ? 'صح' : 'خطأ') : sub.correct} ({sub.points || 1} د)
-                                        </span>
-                                      ))}
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div className="grid grid-cols-2 gap-1.5">
-                                    {['a','b','c','d'].map(opt => q[`option_${opt}`] && (
-                                      <div key={opt} className={`px-2 py-1 rounded-lg text-xs font-medium border ${q.correct_answer_letter?.toUpperCase() === opt.toUpperCase() ? 'border-green-400 bg-green-50 text-green-800 font-bold' : 'border-gray-200 text-gray-600'}`}>
-                                        <span className="font-black ml-1">{opt.toUpperCase()}.</span>{q[`option_${opt}`]}
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                              <div className="flex gap-1 flex-shrink-0">
-                                <button onClick={() => startEditQ(q)} className="p-1.5 text-gray-400 hover:text-navy-600 hover:bg-white rounded-lg transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
-                                <button onClick={() => setDeleteQId(q.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  <div className="bg-white border-2 border-dashed border-purple-300 rounded-2xl p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-black text-purple-700 text-sm flex items-center gap-1.5">
-                        <Plus className="w-4 h-4" /> {editQ ? 'تعديل السؤال' : 'إضافة سؤال جديد'}
-                      </h4>
-                      {!editQ && (
-                        <button
-                          type="button"
-                          onClick={() => { setImportBankId(expandedBank); setShowImport(true); }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border-2 border-purple-300 text-purple-700 bg-purple-50 hover:bg-purple-100 hover:border-purple-400 transition-all"
-                        >
-                          <FileDown className="w-3.5 h-3.5" />
-                          استيراد CSV
-                        </button>
-                      )}
-                    </div>
-                    <form onSubmit={handleQSubmit} className="space-y-3">
-
-                      <div>
-                        <label className="block text-xs font-bold text-gray-600 mb-1">نوع السؤال</label>
-                        <select value={qForm.question_type} onChange={e => { setQForm({ ...qForm, question_type: e.target.value, option_a: '', option_b: '', correct_answer_letter: 'A' }); }}
-                          className="input-field text-sm">
-                          {Q_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-gray-600 mb-1">نص السؤال</label>
-                        <textarea value={qForm.question_text} onChange={e => setQForm({ ...qForm, question_text: e.target.value })}
-                          className="input-field text-sm resize-none" rows={2} placeholder="اكتب نص السؤال هنا..." />
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-gray-600 mb-1">صورة السؤال (اختياري)</label>
-                        <div className="flex gap-2 mb-2">
-                          <button type="button" onClick={() => setImageInputMode('url')} className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all flex items-center gap-1 ${imageInputMode === 'url' ? 'bg-navy-600 text-white border-navy-600' : 'bg-white text-gray-600 border-gray-300 hover:border-navy-400'}`}>
-                            <Link className="w-3 h-3" /> رابط
-                          </button>
-                          <button type="button" onClick={() => setImageInputMode('file')} className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all flex items-center gap-1 ${imageInputMode === 'file' ? 'bg-navy-600 text-white border-navy-600' : 'bg-white text-gray-600 border-gray-300 hover:border-navy-400'}`}>
-                            <Upload className="w-3 h-3" /> رفع ملف
-                          </button>
-                        </div>
-                        {imageInputMode === 'url' ? (
-                          <input value={qForm.question_image_url} onChange={e => { setQForm({ ...qForm, question_image_url: e.target.value }); setImagePreview(e.target.value); }}
-                            className="input-field text-sm" placeholder="https://..." />
-                        ) : (
-                          <div className="space-y-2">
-                            <input type="file" accept="image/*" ref={imageFileRef}
-                              onChange={e => { const f = e.target.files[0]; if (f) { setImageFile(f); setImagePreview(URL.createObjectURL(f)); } }}
-                              className="input-field text-sm" />
-                            {uploadProgress > 0 && uploadProgress < 100 && (
-                              <div className="w-full bg-gray-200 rounded-full h-1.5">
-                                <div className="bg-purple-500 h-1.5 rounded-full transition-all" style={{ width: `${uploadProgress}%` }} />
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        {imagePreview && <img src={imagePreview} alt="" className="mt-2 max-h-32 rounded-lg border border-gray-200" />}
-                      </div>
-
-                      {isTF ? (
-                        <div>
-                          <label className="block text-xs font-bold text-gray-600 mb-1">الإجابة الصحيحة</label>
-                          <div className="flex gap-2">
-                            {[{ v: 'A', l: 'صح ✅' }, { v: 'B', l: 'خطأ ❌' }].map(({ v, l }) => (
-                              <button key={v} type="button" onClick={() => setQForm({ ...qForm, correct_answer_letter: v })}
-                                className={`flex-1 py-2 rounded-xl border-2 font-bold text-sm transition-all ${qForm.correct_answer_letter === v ? 'border-green-500 bg-green-50 text-green-800' : 'border-gray-200 hover:border-gray-300'}`}>{l}</button>
-                            ))}
-                          </div>
-                        </div>
-                      ) : qForm.question_type === 'image_multi' ? (
-                        <div>
-                          <label className="block text-xs font-bold text-navy-700 mb-2">الأسئلة الفرعية</label>
-                          <div className="flex items-center gap-2 mb-3">
-                            <input type="number" min={1} max={50} value={imgMultiCount}
-                              onChange={e => setImgMultiCount(Math.max(1, Math.min(50, parseInt(e.target.value) || 1)))}
-                              className="input-field w-20 text-sm" placeholder="العدد" />
-                            <button type="button"
-                              onClick={() => {
-                                const subs = Array.from({ length: imgMultiCount }, (_, i) => ({
-                                  label: String(i + 1), correct: 'A', type: 'mcq', points: 1
-                                }));
-                                updateSubQuestions(subs);
-                              }}
-                              className="btn-primary px-3 py-1.5 text-sm">توليد</button>
-                            {(qForm.sub_questions || []).length > 0 && (
-                              <span className="text-xs text-gray-500 font-semibold">{(qForm.sub_questions || []).length} سؤال</span>
-                            )}
-                          </div>
-                          {(qForm.sub_questions || []).length > 0 && (
-                            <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
-                              {(qForm.sub_questions || []).map((sub, idx) => (
-                                <div key={sub.label} className="flex flex-col gap-2 bg-gray-50 rounded-xl p-3 border border-gray-100">
-                                  <div className="flex items-center justify-between gap-2">
-                                    <span className="text-xs font-black text-navy-600">فرع {sub.label}</span>
-                                    <div className="flex items-center gap-2">
-                                      <select
-                                        value={sub.type || 'mcq'}
-                                        onChange={(e) => {
-                                          const val = e.target.value;
-                                          const updated = [...qForm.sub_questions];
-                                          let correct = sub.correct;
-                                          if (val === 'true_false' && !['A', 'B'].includes(correct)) {
-                                            correct = 'A';
-                                          }
-                                          updated[idx] = { ...updated[idx], type: val, correct };
-                                          updateSubQuestions(updated);
-                                        }}
-                                        className="text-[10px] rounded border border-gray-300 px-1 py-0.5 bg-white text-gray-700 focus:outline-none"
-                                      >
-                                        <option value="mcq">MCQ</option>
-                                        <option value="true_false">صح/خطأ</option>
-                                      </select>
-                                      <div className="flex items-center gap-1">
-                                        <span className="text-[10px] text-gray-500 font-semibold">الدرجة:</span>
-                                        <input
-                                          type="number"
-                                          min={1}
-                                          value={sub.points !== undefined ? sub.points : 1}
-                                          onChange={(e) => {
-                                            const val = Math.max(1, parseInt(e.target.value) || 1);
-                                            const updated = [...qForm.sub_questions];
-                                            updated[idx] = { ...updated[idx], points: val };
-                                            updateSubQuestions(updated);
-                                          }}
-                                          className="w-10 text-center text-xs rounded border border-gray-300 py-0.5 bg-white focus:outline-none"
-                                        />
-                                      </div>
-                                    </div>
-                                  </div>
-                                  <div className="flex gap-1">
-                                    {(sub.type === 'true_false' ? ['A', 'B'] : ['A', 'B', 'C', 'D']).map(letter => (
-                                      <button key={letter} type="button"
-                                        onClick={() => {
-                                          const updated = [...qForm.sub_questions];
-                                          updated[idx] = { ...updated[idx], correct: letter };
-                                          updateSubQuestions(updated);
-                                        }}
-                                        className={`flex-1 py-1 rounded text-xs font-bold border transition-all ${
-                                          sub.correct === letter
-                                            ? 'bg-green-600 text-white border-green-600'
-                                            : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
-                                        }`}>
-                                        {sub.type === 'true_false' ? (letter === 'A' ? 'صح' : 'خطأ') : letter}
-                                      </button>
-                                    ))}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          <label className="block text-xs font-bold text-gray-600">الخيارات (حدد الصحيح ✅)</label>
-                          {['A', 'B', 'C', 'D'].map(opt => (
-                            <div key={opt} className="flex items-center gap-2">
-                              <button type="button" onClick={() => setQForm({ ...qForm, correct_answer_letter: opt })}
-                                className={`w-7 h-7 rounded-full border-2 flex items-center justify-center text-xs font-black flex-shrink-0 transition-all ${qForm.correct_answer_letter === opt ? 'border-green-500 bg-green-500 text-white' : 'border-gray-300 hover:border-green-400'}`}>
-                                {opt}
-                              </button>
-                              <input value={opt === 'A' ? qForm.option_a : opt === 'B' ? qForm.option_b : opt === 'C' ? qForm.option_c : qForm.option_d}
-                                onChange={e => setQForm({ ...qForm, [`option_${opt.toLowerCase()}`]: e.target.value })}
-                                className="input-field text-sm flex-1" placeholder={`الخيار ${opt}${opt === 'A' || opt === 'B' ? ' *' : ' (اختياري)'}`} />
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      <div>
-                        <label className="block text-xs font-bold text-gray-600 mb-1">مستوى الصعوبة</label>
-                        <div className="flex gap-2">
-                          {DIFFICULTIES.map(d => (
-                            <button key={d.value} type="button"
-                              onClick={() => setQForm({ ...qForm, difficulty: d.value })}
-                              className={`flex-1 py-2 rounded-xl border-2 font-bold text-sm transition-all ${qForm.difficulty === d.value ? `${d.color} border-current` : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}>
-                              {d.value === 'easy' ? '🟢' : d.value === 'medium' ? '🟡' : '🔴'} {d.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-gray-600 mb-1">النقاط</label>
-                        <input type="number" min="1" value={qForm.points} onChange={e => setQForm({ ...qForm, points: parseInt(e.target.value) || 1 })} className="input-field text-sm w-24" disabled={qForm.question_type === 'image_multi'} />
-                      </div>
-
-                      <div className="flex gap-2">
-                        <button type="submit" disabled={addQMut.isPending || updateQMut.isPending} className="btn-primary text-sm">
-                          {editQ ? 'حفظ التعديل' : '+ إضافة سؤال'}
-                        </button>
-                        {editQ && (
-                          <button type="button" onClick={resetQForm} className="btn-secondary text-sm">إلغاء</button>
-                        )}
-                      </div>
-                    </form>
-                  </div>
-                </div>
-              )}
             </div>
           ))}
         </div>
@@ -545,20 +160,6 @@ export default function QuestionBanks() {
         title="حذف بنك الأسئلة"
         message="سيتم حذف البنك وجميع أسئلته نهائياً. هل أنت متأكد؟"
         confirmLabel="حذف" danger />
-
-      <ConfirmDialog open={!!deleteQId} onClose={() => setDeleteQId(null)}
-        onConfirm={() => deleteQMut.mutate(deleteQId)}
-        title="حذف السؤال"
-        message="سيتم حذف هذا السؤال من البنك نهائياً. هل أنت متأكد؟"
-        confirmLabel="حذف" danger />
-
-      <CsvImportModal
-        open={showImport}
-        onClose={() => { setShowImport(false); setImportBankId(null); }}
-        mode="bank"
-        targetId={importBankId}
-        onSuccess={() => qc.invalidateQueries({ queryKey: ['bank-questions', importBankId] })}
-      />
     </div>
   );
 }
