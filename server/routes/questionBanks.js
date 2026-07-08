@@ -208,29 +208,39 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageEx
       return res.status(400).json({ error: 'السؤال يحتاج نصاً أو صورة' });
 
     let cleanSubQuestions = [];
+    let finalPoints = parseInt(points, 10);
     if (isImgMulti) {
       if (!Array.isArray(sub_questions) || sub_questions.length === 0)
         return res.status(400).json({ error: 'image_multi يتطلب قائمة الأسئلة الفرعية' });
       if (sub_questions.length > 50)
         return res.status(400).json({ error: 'الحد الأقصى 50 سؤالاً فرعياً' });
-      const VALID_LETTERS = new Set(['A','B','C','D']);
+      
+      let calculatedPoints = 0;
       for (const sub of sub_questions) {
         const lbl = String(sub.label ?? '').trim();
         if (!lbl) return res.status(400).json({ error: 'كل بند يجب أن يحتوي على رقم/تسمية' });
-        // [S1] cap label length
         if (lbl.length > 200) return res.status(400).json({ error: 'تسمية السؤال الفرعي طويلة جداً' });
-        if (!VALID_LETTERS.has(String(sub.correct || '').toUpperCase()))
-          return res.status(400).json({ error: 'الإجابة الصحيحة لكل بند يجب أن تكون A أو B أو C أو D' });
+        
+        const subType = sub.type || 'mcq';
+        if (!['mcq', 'true_false'].includes(subType)) return res.status(400).json({ error: 'نوع البند غير صالح' });
+        const allowed = subType === 'true_false' ? ['A', 'B'] : ['A', 'B', 'C', 'D'];
+        if (!allowed.includes(String(sub.correct || '').toUpperCase()))
+          return res.status(400).json({ error: `الإجابة الصحيحة للبند ${lbl} غير صالحة` });
+          
+        const subPoints = parseInt(sub.points) >= 1 ? parseInt(sub.points) : 1;
+        calculatedPoints += subPoints;
+        cleanSubQuestions.push({
+          label: lbl,
+          correct: String(sub.correct).toUpperCase(),
+          type: subType,
+          points: subPoints
+        });
       }
-      const labels = sub_questions.map(s => String(s.label).trim());
+      const labels = cleanSubQuestions.map(s => s.label);
       if (new Set(labels).size !== labels.length)
         return res.status(400).json({ error: 'تسميات الأسئلة الفرعية يجب أن تكون فريدة' });
-      // [S2] strip extra fields — store only label + correct
-      cleanSubQuestions = sub_questions.map(s => ({
-        label: String(s.label).trim(),
-        correct: String(s.correct).toUpperCase(),
-      }));
       optA = 'A'; optB = 'B'; correctLetter = 'A';
+      finalPoints = calculatedPoints;
     } else if (qType === 'true_false') {
       optA = 'صح'; optB = 'خطأ'; correctLetter = correct_answer_letter || 'A';
     }
@@ -241,16 +251,16 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageEx
       return res.status(400).json({ error: 'الإجابة الصحيحة يجب أن تكون A أو B أو C أو D أو T أو F' });
     }
 
-    // [SV-3] points range guard — parseInt(0)||1 would silently promote 0→1; use raw parse + NaN check
-    const parsedPoints = parseInt(points, 10);
-    if (isNaN(parsedPoints) || parsedPoints < 1 || parsedPoints > 1000) return res.status(400).json({ error: 'النقاط يجب أن تكون بين 1 و 1000' });
+    if (!isImgMulti) {
+      if (isNaN(finalPoints) || finalPoints < 1 || finalPoints > 1000) return res.status(400).json({ error: 'النقاط يجب أن تكون بين 1 و 1000' });
+    }
 
     const validDifficulties = ['easy', 'medium', 'hard'];
     const qDifficulty = validDifficulties.includes(difficulty) ? difficulty : 'medium';
 
     const result = await pool.query(
       'INSERT INTO bank_questions (bank_id, question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, question_type, difficulty, sub_questions) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *',
-      [bankId, question_text || null, question_image_url || null, optA, optB, isImgMulti ? 'C' : (option_c || null), isImgMulti ? 'D' : (option_d || null), correctLetter.toUpperCase(), parsedPoints, qType, qDifficulty, isImgMulti ? JSON.stringify(cleanSubQuestions) : '[]']
+      [bankId, question_text || null, question_image_url || null, optA, optB, isImgMulti ? 'C' : (option_c || null), isImgMulti ? 'D' : (option_d || null), correctLetter.toUpperCase(), finalPoints, qType, qDifficulty, isImgMulti ? JSON.stringify(cleanSubQuestions) : '[]']
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -349,48 +359,57 @@ router.put('/questions/:qid', requireRole('teacher', 'assistant'), checkManageEx
       return res.status(400).json({ error: 'السؤال يحتاج نصاً أو صورة' });
 
     let cleanSubQuestions = [];
+    let finalPoints = parseInt(points, 10);
     if (isImgMulti) {
       if (!Array.isArray(sub_questions) || sub_questions.length === 0)
         return res.status(400).json({ error: 'image_multi يتطلب قائمة الأسئلة الفرعية' });
       if (sub_questions.length > 50)
         return res.status(400).json({ error: 'الحد الأقصى 50 سؤالاً فرعياً' });
-      const VALID_LETTERS = new Set(['A','B','C','D']);
+      
+      let calculatedPoints = 0;
       for (const sub of sub_questions) {
         const lbl = String(sub.label ?? '').trim();
         if (!lbl) return res.status(400).json({ error: 'كل بند يجب أن يحتوي على رقم/تسمية' });
-        // [S1] cap label length
         if (lbl.length > 200) return res.status(400).json({ error: 'تسمية السؤال الفرعي طويلة جداً' });
-        if (!VALID_LETTERS.has(String(sub.correct || '').toUpperCase()))
-          return res.status(400).json({ error: 'الإجابة الصحيحة لكل بند يجب أن تكون A أو B أو C أو D' });
+        
+        const subType = sub.type || 'mcq';
+        if (!['mcq', 'true_false'].includes(subType)) return res.status(400).json({ error: 'نوع البند غير صالح' });
+        const allowed = subType === 'true_false' ? ['A', 'B'] : ['A', 'B', 'C', 'D'];
+        if (!allowed.includes(String(sub.correct || '').toUpperCase()))
+          return res.status(400).json({ error: `الإجابة الصحيحة للبند ${lbl} غير صالحة` });
+          
+        const subPoints = parseInt(sub.points) >= 1 ? parseInt(sub.points) : 1;
+        calculatedPoints += subPoints;
+        cleanSubQuestions.push({
+          label: lbl,
+          correct: String(sub.correct).toUpperCase(),
+          type: subType,
+          points: subPoints
+        });
       }
-      const labels = sub_questions.map(s => String(s.label).trim());
+      const labels = cleanSubQuestions.map(s => s.label);
       if (new Set(labels).size !== labels.length)
         return res.status(400).json({ error: 'تسميات الأسئلة الفرعية يجب أن تكون فريدة' });
-      // [S2] strip extra fields — store only label + correct
-      cleanSubQuestions = sub_questions.map(s => ({
-        label: String(s.label).trim(),
-        correct: String(s.correct).toUpperCase(),
-      }));
       optA = 'A'; optB = 'B'; correctLetter = 'A';
+      finalPoints = calculatedPoints;
     } else if (qType === 'true_false') {
       optA = 'صح'; optB = 'خطأ';
     }
 
-    // [QB5-FIX] Guard against null/undefined correctLetter before .toUpperCase().
     if (!correctLetter || !VALID_ANSWER_LETTERS.has(String(correctLetter).toUpperCase())) {
       return res.status(400).json({ error: 'الإجابة الصحيحة يجب أن تكون A أو B أو C أو D أو T أو F' });
     }
 
-    // [SV-3] points range guard — parseInt(0)||1 would silently promote 0→1; use raw parse + NaN check
-    const parsedPoints = parseInt(points, 10);
-    if (isNaN(parsedPoints) || parsedPoints < 1 || parsedPoints > 1000) return res.status(400).json({ error: 'النقاط يجب أن تكون بين 1 و 1000' });
+    if (!isImgMulti) {
+      if (isNaN(finalPoints) || finalPoints < 1 || finalPoints > 1000) return res.status(400).json({ error: 'النقاط يجب أن تكون بين 1 و 1000' });
+    }
 
     const validDifficulties = ['easy', 'medium', 'hard'];
     const qDifficulty = validDifficulties.includes(difficulty) ? difficulty : 'medium';
 
     const result = await pool.query(
       'UPDATE bank_questions SET question_text=$1, question_image_url=$2, option_a=$3, option_b=$4, option_c=$5, option_d=$6, correct_answer_letter=$7, points=$8, question_type=$9, difficulty=$10, sub_questions=$11 WHERE id=$12 RETURNING *',
-      [question_text || null, question_image_url || null, optA, optB, isImgMulti ? 'C' : (option_c || null), isImgMulti ? 'D' : (option_d || null), correctLetter.toUpperCase(), parsedPoints, qType, qDifficulty, isImgMulti ? JSON.stringify(cleanSubQuestions) : '[]', qid]
+      [question_text || null, question_image_url || null, optA, optB, isImgMulti ? 'C' : (option_c || null), isImgMulti ? 'D' : (option_d || null), correctLetter.toUpperCase(), finalPoints, qType, qDifficulty, isImgMulti ? JSON.stringify(cleanSubQuestions) : '[]', qid]
     );
     res.json(result.rows[0]);
   } catch (err) {

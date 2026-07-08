@@ -673,6 +673,11 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
   const tf = qForm.question_type === 'true_false';
   const isImgMulti = qForm.question_type === 'image_multi';
 
+  const updateSubQuestions = (newSubs) => {
+    const totalPts = newSubs.reduce((sum, s) => sum + (parseInt(s.points) || 1), 0);
+    setQForm(f => ({ ...f, sub_questions: newSubs, points: totalPts }));
+  };
+
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -787,21 +792,20 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
 
                 {/* Count + Generate */}
                 <div className="flex items-center gap-2">
-                  <input type="number" min="1" max="50"
+                  <input type="number" min={1} max={50}
                     value={imgMultiCount}
                     onChange={e => setImgMultiCount(Math.max(1, Math.min(50, parseInt(e.target.value) || 1)))}
                     className={`w-20 rounded-xl px-3 py-2 border text-sm text-center ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-purple-200'}`} />
                   <button type="button"
                     onClick={() => {
                       const count = Math.max(1, Math.min(50, parseInt(imgMultiCount) || 1));
-                      setQForm(f => ({
-                        ...f,
-                        option_a: 'A', option_b: 'B', option_c: 'C', option_d: 'D',
-                        sub_questions: Array.from({ length: count }, (_, i) => ({
-                          label: String(i + 1),
-                          correct: (f.sub_questions?.[i]?.correct) || 'A',
-                        })),
+                      const subs = Array.from({ length: count }, (_, i) => ({
+                        label: String(i + 1),
+                        correct: 'A',
+                        type: 'mcq',
+                        points: 1
                       }));
+                      updateSubQuestions(subs);
                     }}
                     className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-xl text-sm font-bold flex items-center gap-1.5">
                     <RefreshCw className="w-3.5 h-3.5" /> توليد
@@ -815,19 +819,54 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
 
                 {/* Generated rows — click A/B/C/D to set correct answer */}
                 {(qForm.sub_questions || []).length > 0 && (
-                  <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                  <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
                     {(qForm.sub_questions || []).map((sub, i) => (
-                      <div key={i} className={`flex items-center gap-2 rounded-lg px-2 py-1.5 ${dark ? 'bg-[var(--dk-elevated)]' : 'bg-white border border-purple-100'}`}>
-                        <span className={`w-7 text-center text-xs font-black flex-shrink-0 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-500'}`}>{sub.label}</span>
-                        <div className="flex gap-1 flex-1">
-                          {['A','B','C','D'].map(letter => (
+                      <div key={i} className={`flex flex-col gap-2 rounded-xl p-3 ${dark ? 'bg-[var(--dk-elevated)]' : 'bg-white border border-purple-100'}`}>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className={`text-xs font-black flex-shrink-0 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-500'}`}>فرع {sub.label}</span>
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={sub.type || 'mcq'}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                const updated = [...qForm.sub_questions];
+                                let correct = sub.correct;
+                                if (val === 'true_false' && !['A', 'B'].includes(correct)) {
+                                  correct = 'A';
+                                }
+                                updated[i] = { ...updated[i], type: val, correct };
+                                updateSubQuestions(updated);
+                              }}
+                              className="text-[10px] rounded border border-gray-300 px-1 py-0.5 bg-white text-gray-700 dark:bg-[var(--dk-surface)] dark:text-[var(--dk-text-1)] dark:border-[var(--dk-border)] focus:outline-none"
+                            >
+                              <option value="mcq">MCQ</option>
+                              <option value="true_false">صح/خطأ</option>
+                            </select>
+                            <div className="flex items-center gap-1">
+                              <span className="text-[10px] text-gray-500 dark:text-[var(--dk-text-3)] font-semibold">الدرجة:</span>
+                              <input
+                                type="number"
+                                min={1}
+                                value={sub.points !== undefined ? sub.points : 1}
+                                onChange={(e) => {
+                                  const val = Math.max(1, parseInt(e.target.value) || 1);
+                                  const updated = [...qForm.sub_questions];
+                                  updated[i] = { ...updated[i], points: val };
+                                  updateSubQuestions(updated);
+                                }}
+                                className="w-10 text-center text-xs rounded border border-gray-300 py-0.5 bg-white dark:bg-[var(--dk-surface)] dark:text-[var(--dk-text-1)] dark:border-[var(--dk-border)] focus:outline-none"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex gap-1">
+                          {(sub.type === 'true_false' ? ['A', 'B'] : ['A', 'B', 'C', 'D']).map(letter => (
                             <button key={letter} type="button"
-                              onClick={() => setQForm(f => ({
-                                ...f,
-                                sub_questions: (f.sub_questions || []).map((s, j) =>
-                                  j === i ? { ...s, correct: letter } : s
-                                ),
-                              }))}
+                              onClick={() => {
+                                const updated = [...qForm.sub_questions];
+                                updated[i] = { ...updated[i], correct: letter };
+                                updateSubQuestions(updated);
+                              }}
                               className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all ${
                                 sub.correct === letter
                                   ? 'bg-purple-500 text-white border-purple-500 shadow-sm'
@@ -835,7 +874,7 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
                                     ? 'bg-[var(--dk-surface)] border-[var(--dk-border)] text-[var(--dk-text-2)] hover:border-purple-400'
                                     : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-purple-300 hover:bg-purple-50'
                               }`}>
-                              {letter}
+                              {sub.type === 'true_false' ? (letter === 'A' ? 'صح' : 'خطأ') : letter}
                             </button>
                           ))}
                         </div>
@@ -870,7 +909,8 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
                   {isImgMulti ? 'الدرجة الكلية (توزع على الفروع)' : 'الدرجة'}
                 </label>
                 <input type="number" min="1" value={qForm.points} onChange={e => setQForm(f => ({ ...f, points: parseInt(e.target.value) || 1 }))}
-                  className={`w-20 rounded-xl px-3 py-2 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`} />
+                  className={`w-20 rounded-xl px-3 py-2 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`}
+                  disabled={isImgMulti} />
               </div>
               <button onClick={() => { addQMut.mutate(qForm); if (imgPreviewBlob) { URL.revokeObjectURL(imgPreviewBlob); setImgPreviewBlob(null); } }} disabled={addQMut.isPending || !canSubmit()}
                 className="flex items-center gap-1.5 bg-purple-500 hover:bg-purple-600 disabled:opacity-50 text-white px-4 py-2 rounded-xl text-sm font-bold">
@@ -932,7 +972,7 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
                   <div className="flex flex-wrap gap-1.5">
                     {(q.sub_questions || []).map(sub => (
                       <span key={sub.label} className="text-xs px-2 py-1 rounded-lg bg-purple-100 text-purple-700 font-bold">
-                        {sub.label} → {sub.correct}
+                        {sub.label}: {sub.type === 'true_false' ? (sub.correct === 'A' ? 'صح' : 'خطأ') : sub.correct} ({sub.points || 1} د)
                       </span>
                     ))}
                   </div>

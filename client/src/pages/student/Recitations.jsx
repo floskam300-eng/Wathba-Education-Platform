@@ -706,23 +706,26 @@ function QuestionCard({ q, idx, answers, setAnswers, dark, onImagePress }) {
           {/* Sub-questions */}
           {(q.sub_questions || []).map(sub => {
             const subSel = subAnswers[sub.label];
+            const isTF = sub.type === 'true_false';
+            const subOptions = isTF ? [{ letter: 'A', label: 'صح' }, { letter: 'B', label: 'خطأ' }] : options;
             return (
               <div key={sub.label} className={`rounded-xl p-3 border ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)]' : 'bg-gray-50 border-gray-200'}`}>
-                <p className={`text-sm font-bold mb-2 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>
-                  البند {sub.label}
+                <p className={`text-sm font-bold mb-2 flex items-center justify-between ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>
+                  <span>البند {sub.label}</span>
+                  <span className={`text-xs font-normal ${dark ? 'text-[var(--dk-text-3)]' : 'text-gray-500'}`}>({sub.points || 1} درجة)</span>
                 </p>
                 <div className="flex gap-2 flex-wrap">
-                  {options.map(({ letter }) => {
-                    const isSel = subSel === letter;
+                  {subOptions.map((opt) => {
+                    const isSel = subSel === opt.letter;
                     return (
-                      <button key={letter}
-                        onClick={() => setAnswers(a => ({ ...a, [q.id]: { ...(a[q.id] || {}), [sub.label]: letter } }))}
+                      <button key={opt.letter}
+                        onClick={() => setAnswers(a => ({ ...a, [q.id]: { ...(a[q.id] || {}), [sub.label]: opt.letter } }))}
                         className={`px-4 py-2 rounded-xl text-sm font-bold border transition-all ${
                           isSel
                             ? 'bg-purple-500 text-white border-purple-500 shadow-sm'
                             : dark ? 'bg-[var(--dk-surface)] border-[var(--dk-border)] text-[var(--dk-text)] hover:border-purple-400' : 'bg-white border-gray-300 text-gray-700 hover:border-purple-300'
                         }`}>
-                        {letter}
+                        {isTF ? opt.label : opt.letter}
                       </button>
                     );
                   })}

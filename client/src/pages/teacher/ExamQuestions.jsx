@@ -55,6 +55,11 @@ export default function ExamQuestions() {
   // image_multi sub-questions count
   const [imgMultiCount, setImgMultiCount] = useState(5);
 
+  const updateSubQuestions = (newSubs) => {
+    const totalPts = newSubs.reduce((sum, s) => sum + (parseInt(s.points) || 1), 0);
+    setQForm(f => ({ ...f, sub_questions: newSubs, points: totalPts }));
+  };
+
   const { data: exam } = useQuery({
     queryKey: ['exam-single', examId],
     queryFn: () => api.get('/exams').then(r => (r.data || []).find(e => String(e.id) === String(examId))),
@@ -397,9 +402,9 @@ export default function ExamQuestions() {
                     <button type="button"
                       onClick={() => {
                         const subs = Array.from({ length: imgMultiCount }, (_, i) => ({
-                          label: String(i + 1), correct: 'A'
+                          label: String(i + 1), correct: 'A', type: 'mcq', points: 1
                         }));
-                        setQForm(f => ({ ...f, sub_questions: subs }));
+                        updateSubQuestions(subs);
                       }}
                       className="btn-primary px-3 py-1.5 text-sm">توليد</button>
                     {(qForm.sub_questions || []).length > 0 && (
@@ -407,24 +412,60 @@ export default function ExamQuestions() {
                     )}
                   </div>
                   {(qForm.sub_questions || []).length > 0 && (
-                    <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+                    <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
                       {(qForm.sub_questions || []).map((sub, idx) => (
-                        <div key={sub.label} className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-1.5">
-                          <span className="text-xs font-black text-navy-600 w-5 flex-shrink-0">{sub.label}</span>
-                          <div className="flex gap-1 flex-1">
-                            {['A', 'B', 'C', 'D'].map(letter => (
+                        <div key={sub.label} className="flex flex-col gap-2 bg-gray-50 rounded-xl p-3 border border-gray-100">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-black text-navy-600">فرع {sub.label}</span>
+                            <div className="flex items-center gap-2">
+                              <select
+                                value={sub.type || 'mcq'}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  const updated = [...qForm.sub_questions];
+                                  let correct = sub.correct;
+                                  if (val === 'true_false' && !['A', 'B'].includes(correct)) {
+                                    correct = 'A';
+                                  }
+                                  updated[idx] = { ...updated[idx], type: val, correct };
+                                  updateSubQuestions(updated);
+                                }}
+                                className="text-[10px] rounded border border-gray-300 px-1 py-0.5 bg-white text-gray-700 focus:outline-none"
+                              >
+                                <option value="mcq">MCQ</option>
+                                <option value="true_false">صح/خطأ</option>
+                              </select>
+                              <div className="flex items-center gap-1">
+                                <span className="text-[10px] text-gray-500 font-semibold">الدرجة:</span>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  value={sub.points !== undefined ? sub.points : 1}
+                                  onChange={(e) => {
+                                    const val = Math.max(1, parseInt(e.target.value) || 1);
+                                    const updated = [...qForm.sub_questions];
+                                    updated[idx] = { ...updated[idx], points: val };
+                                    updateSubQuestions(updated);
+                                  }}
+                                  className="w-10 text-center text-xs rounded border border-gray-300 py-0.5 bg-white focus:outline-none"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex gap-1">
+                            {(sub.type === 'true_false' ? ['A', 'B'] : ['A', 'B', 'C', 'D']).map(letter => (
                               <button key={letter} type="button"
                                 onClick={() => {
                                   const updated = [...qForm.sub_questions];
                                   updated[idx] = { ...updated[idx], correct: letter };
-                                  setQForm(f => ({ ...f, sub_questions: updated }));
+                                  updateSubQuestions(updated);
                                 }}
                                 className={`flex-1 py-1 rounded text-xs font-bold border transition-all ${
                                   sub.correct === letter
                                     ? 'bg-green-600 text-white border-green-600'
                                     : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
                                 }`}>
-                                {letter}
+                                {sub.type === 'true_false' ? (letter === 'A' ? 'صح' : 'خطأ') : letter}
                               </button>
                             ))}
                           </div>
@@ -451,7 +492,8 @@ export default function ExamQuestions() {
                   <label className="text-sm font-bold text-navy-700 whitespace-nowrap">الدرجة:</label>
                   <input type="number" value={qForm.points}
                     onChange={e => setQForm({ ...qForm, points: parseInt(e.target.value) || 1 })}
-                    className="input-field w-20" min={1} />
+                    className="input-field w-20" min={1}
+                    disabled={qForm.question_type === 'image_multi'} />
                 </div>
               </div>
 
@@ -515,8 +557,17 @@ function SingleQuestionCard({ q, qNum, editQ, onEdit, onDelete }) {
             <img src={withToken(q.question_image_url)} alt="question" className="w-40 h-24 object-cover rounded-lg mb-2 border border-gray-100" />
           )}
           {q.question_type === 'image_multi' ? (
-            <div className="inline-flex items-center gap-1 text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200 rounded-lg px-2 py-1">
-              🖼 {Array.isArray(q.sub_questions) ? q.sub_questions.length : 0} سؤال فرعي
+            <div className="space-y-1.5 w-full">
+              <div className="inline-flex items-center gap-1 text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200 rounded-lg px-2 py-1">
+                🖼 {Array.isArray(q.sub_questions) ? q.sub_questions.length : 0} سؤال فرعي
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {Array.isArray(q.sub_questions) && q.sub_questions.map((sub, sidx) => (
+                  <span key={sidx} className="text-[10px] px-1.5 py-0.5 rounded-lg bg-gray-100 border border-gray-200 text-gray-600 font-medium">
+                    {sub.label}: {sub.type === 'true_false' ? (sub.correct === 'A' ? 'صح' : 'خطأ') : sub.correct} ({sub.points || 1} د)
+                  </span>
+                ))}
+              </div>
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-1 text-xs">

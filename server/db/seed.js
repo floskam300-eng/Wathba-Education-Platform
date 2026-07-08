@@ -471,11 +471,11 @@ async function seed() {
     ['mcq','حل المتباينة 2x - 4 > 0','x > 0','x > 2','x < 2','x > 4','B',2,'medium'],
     ['mcq','قانون الجيب في المثلث يربط بين','الأضلاع والزوايا','الأضلاع فقط','الزوايا فقط','المساحة والمحيط','A',3,'hard'],
     ['mcq','ميل الخط العمودي على خط ميله 2 يساوي','-2','-1/2','1/2','2','B',2,'medium'],
-    ['true_false','tan(45°) = 1','صح','خطأ',null,null,'T',1,'easy'],
-    ['true_false','sin(90°) = 0','صح','خطأ',null,null,'F',1,'easy'],
-    ['true_false','cos(180°) = -1','صح','خطأ',null,null,'T',1,'easy'],
-    ['true_false','الميل الموجب يعني الخط صاعد من اليسار لليمين','صح','خطأ',null,null,'T',1,'easy'],
-    ['true_false','المعادلة x² + 1 = 0 لها حلول حقيقية','صح','خطأ',null,null,'F',2,'medium'],
+    ['true_false','tan(45°) = 1','صح','خطأ',null,null,'A',1,'easy'],
+    ['true_false','sin(90°) = 0','صح','خطأ',null,null,'B',1,'easy'],
+    ['true_false','cos(180°) = -1','صح','خطأ',null,null,'A',1,'easy'],
+    ['true_false','الميل الموجب يعني الخط صاعد من اليسار لليمين','صح','خطأ',null,null,'A',1,'easy'],
+    ['true_false','المعادلة x² + 1 = 0 لها حلول حقيقية','صح','خطأ',null,null,'B',2,'medium'],
   ];
 
   for (const [qt, txt, a, b, c, d, ans, pts, diff] of bankQ1) {
@@ -495,8 +495,8 @@ async function seed() {
     ['mcq','تكامل cos(x) dx يساوي','sin(x)+C','-sin(x)+C','cos(x)+C','tan(x)+C','A',2,'medium'],
     ['mcq','قاعدة الضرب في المشتقة: (uv)\' تساوي','u\'v\'','u\'v + uv\'','u\'v - uv\'','uv\'/u\'v','B',3,'hard'],
     ['mcq','تكامل x⁰ dx يساوي','0','x','x+C','1','C',1,'easy'],
-    ['true_false','مشتقة الثابت تساوي صفر','صح','خطأ',null,null,'T',1,'easy'],
-    ['true_false','تكامل دالة موجبة دائماً موجب','صح','خطأ',null,null,'F',2,'medium'],
+    ['true_false','مشتقة الثابت تساوي صفر','صح','خطأ',null,null,'A',1,'easy'],
+    ['true_false','تكامل دالة موجبة دائماً موجب','صح','خطأ',null,null,'B',2,'medium'],
     ['true_false','(eˣ)\' = eˣ','صح','خطأ',null,null,'T',2,'medium'],
   ];
 
@@ -826,10 +826,10 @@ async function seed() {
     ['mcq','إذا كان 2x < 10، فإن:','x < 5','x < 4','x ≤ 5','x > 5','A',3,null],
     ['mcq','ما الجذر الموجب للمعادلة: x² - 16 = 0','2','4','8','16','B',3,null],
     ['mcq','حل: 5x - 3 = 2x + 9','x = 3','x = 4','x = 2','x = 6','B',3,null],
-    ['true_false','المعادلة x² = -4 لها جذران حقيقيان','صح','خطأ',null,null,'F',3,null],
-    ['true_false','إذا كان x² = 25 فإن x = 5 فقط','صح','خطأ',null,null,'F',3,null],
-    ['true_false','المتباينة 3x > 9 تعني أن x > 3','صح','خطأ',null,null,'T',3,null],
-    ['true_false','x² - 4x + 4 = (x-2)²','صح','خطأ',null,null,'T',3,null],
+    ['true_false','المعادلة x² = -4 لها جذران حقيقيان','صح','خطأ',null,null,'B',3,null],
+    ['true_false','إذا كان x² = 25 فإن x = 5 فقط','صح','خطأ',null,null,'B',3,null],
+    ['true_false','المتباينة 3x > 9 تعني أن x > 3','صح','خطأ',null,null,'A',3,null],
+    ['true_false','x² - 4x + 4 = (x-2)²','صح','خطأ',null,null,'A',3,null],
   ];
   const e1QIds = [];
   for (const [qt, txt, a, b, c, d, ans, pts] of e1Questions) {
@@ -850,10 +850,10 @@ async function seed() {
     ['mcq','sin(60°) يساوي','1/2','√3/2','√2/2','1','B',5,null],
     ['mcq','cos(90°) يساوي','1','0','-1','1/2','B',5,null],
     ['mcq','sin²(x) + cos²(x) يساوي','0','1/2','1','2','C',5,null],
-    ['true_false','sin(0°) = 0','صح','خطأ',null,null,'T',5,null],
-    ['true_false','tan(90°) محدود','صح','خطأ',null,null,'F',5,null],
-    ['true_false','cos(180°) = -1','صح','خطأ',null,null,'T',5,null],
-    ['true_false','sin(-x) = sin(x)','صح','خطأ',null,null,'F',5,null],
+    ['true_false','sin(0°) = 0','صح','خطأ',null,null,'A',5,null],
+    ['true_false','tan(90°) محدود','صح','خطأ',null,null,'B',5,null],
+    ['true_false','cos(180°) = -1','صح','خطأ',null,null,'A',5,null],
+    ['true_false','sin(-x) = sin(x)','صح','خطأ',null,null,'B',5,null],
   ];
   const e2QIds = [];
   for (const [qt, txt, a, b, c, d, ans, pts] of e2Questions) {
@@ -872,7 +872,7 @@ async function seed() {
     ['mcq','قاطع الصادات للمستقيم y=2x+5 هو','2','5','7','0','B',8,null],
     ['mcq','الميل في المعادلة y=-3x+7 يساوي','-7','-3','3','7','B',8,null],
     ['mcq','إذا كان f(x)=x², فإن f(-3)=','-9','9','3','-3','B',8,null],
-    ['true_false','الدالة y=x² دالة تربيعية','صح','خطأ',null,null,'T',8,null],
+    ['true_false','الدالة y=x² دالة تربيعية','صح','خطأ',null,null,'A',8,null],
   ];
   const e3QIds = [];
   for (const [qt, txt, a, b, c, d, ans, pts] of e3Questions) {
@@ -904,9 +904,9 @@ async function seed() {
 
   // سؤال image_multi — e3 (صورة مع بنود متعددة — 9 درجات، 3 أسئلة فرعية)
   const e3MultiSubs = JSON.stringify([
-    { label: '1', correct: 'B' },
-    { label: '2', correct: 'A' },
-    { label: '3', correct: 'C' },
+    { label: '1', correct: 'B', type: 'mcq', points: 3 },
+    { label: '2', correct: 'A', type: 'true_false', points: 3 },
+    { label: '3', correct: 'C', type: 'mcq', points: 3 },
   ]);
   const [e3MultiQ] = await q(`
     INSERT INTO questions
@@ -953,7 +953,7 @@ async function seed() {
       ($1,'mcq','ما نوع هذا الشكل الهندسي بناءً على خصائصه؟',
        'مثلث','مربع','متوازي أضلاع','شبه منحرف','C',2,'medium'),
       ($1,'true_false','مجموع زوايا أي شكل رباعي = 360 درجة',
-       'صح','خطأ',null,null,'T',1,'easy')
+       'صح','خطأ',null,null,'A',1,'easy')
   `, [bank1.id]);
 
   // أسئلة e5 (اختبار مشتقات — 30 درجة)
@@ -962,7 +962,7 @@ async function seed() {
     ['mcq','مشتقة sin(x) تساوي','cos(x)','-cos(x)','sin(x)','-sin(x)','A',6,null],
     ['mcq','مشتقة الثابت 7 تساوي','7','0','1','-7','B',6,null],
     ['mcq','مشتقة x³ - 2x تساوي','3x² - 2','3x² - 2x','x² - 2','3x - 2','A',6,null],
-    ['true_false','مشتقة eˣ = eˣ','صح','خطأ',null,null,'T',6,null],
+    ['true_false','مشتقة eˣ = eˣ','صح','خطأ',null,null,'A',6,null],
   ];
   const e5QIds = [];
   for (const [qt, txt, a, b, c, d, ans, pts] of e5Questions) {
@@ -981,7 +981,7 @@ async function seed() {
     ['mcq','∫cos(x) dx = ','sin(x)+C','-sin(x)+C','cos(x)+C','tan(x)+C','A',6,null],
     ['mcq','∫(3x²) dx = ','3x + C','6x + C','x³ + C','3x³ + C','C',6,null],
     ['mcq','∫1 dx = ','0','C','x + C','x','C',6,null],
-    ['true_false','∫eˣ dx = eˣ + C','صح','خطأ',null,null,'T',6,null],
+    ['true_false','∫eˣ dx = eˣ + C','صح','خطأ',null,null,'A',6,null],
   ];
   for (const [qt, txt, a, b, c, d, ans, pts] of e6Questions) {
     await q(`
@@ -998,7 +998,7 @@ async function seed() {
     ['mcq','منتصف القطعة بين (2,4) و (6,8) هو','(3,5)','(4,6)','(8,12)','(2,4)','B',5,null],
     ['mcq','ميل المستقيم المار بـ (1,2) و (3,6) يساوي','1','2','3','4','B',5,null],
     ['mcq','معادلة المستقيم العمودي على محور x هي','y=c','x=c','y=x','y=-x','B',5,null],
-    ['true_false','المسافة بين نقطتين دائماً موجبة','صح','خطأ',null,null,'T',5,null],
+    ['true_false','المسافة بين نقطتين دائماً موجبة','صح','خطأ',null,null,'A',5,null],
   ];
   const e9QIds = [];
   for (const [qt, txt, a, b, c, d, ans, pts] of e9Questions) {
@@ -1016,8 +1016,8 @@ async function seed() {
     ['mcq','2 + 2 × 3 = ','8','10','12','7','A',2,null],
     ['mcq','√16 = ','2','4','8','16','B',2,null],
     ['mcq','5² = ','10','20','25','30','C',2,null],
-    ['true_false','7 عدد أولي','صح','خطأ',null,null,'T',2,null],
-    ['true_false','كل الأعداد الزوجية قابلة للقسمة على 2','صح','خطأ',null,null,'T',2,null],
+    ['true_false','7 عدد أولي','صح','خطأ',null,null,'A',2,null],
+    ['true_false','كل الأعداد الزوجية قابلة للقسمة على 2','صح','خطأ',null,null,'A',2,null],
   ];
   const e11QIds = [];
   for (const [qt, txt, a, b, c, d, ans, pts] of e11Questions) {
@@ -1035,8 +1035,8 @@ async function seed() {
     ['mcq','معادلة الدائرة مركزها الأصل ونصف قطرها 5','x²+y²=5','x²+y²=10','x²+y²=25','x+y=5','C',6,null],
     ['mcq','معادلة المستقيم أفقي يمر بـ (3,4)','x=3','y=4','y=3','x=4','B',6,null],
     ['mcq','ميل خط موازٍ لمحور x يساوي','لا نهاية','0','1','-1','B',6,null],
-    ['true_false','المستقيمان المتوازيان ميلاهما متساويان','صح','خطأ',null,null,'T',6,null],
-    ['true_false','حاصل ضرب ميلي المستقيمين المتعامدين = 1','صح','خطأ',null,null,'F',6,null],
+    ['true_false','المستقيمان المتوازيان ميلاهما متساويان','صح','خطأ',null,null,'A',6,null],
+    ['true_false','حاصل ضرب ميلي المستقيمين المتعامدين = 1','صح','خطأ',null,null,'B',6,null],
   ];
   const e10QIds = [];
   for (const [qt, txt, a, b, c, d, ans, pts] of e10Questions) {
@@ -1054,8 +1054,8 @@ async function seed() {
     ['mcq','إذا كانت القوة F تؤثر في نقطة A، فإن عزم القوة F بالنسبة للنقطة O يساوي:','F × OA','OA × F','F · OA','لا شيء مما سبق','B',6,null],
     ['mcq','يكون عزم القوة حول نقطة منعدماً إذا كانت:','القوة موازية للمستوي','خط عمل القوة يمر بتلك النقطة','النقطة تقع خارج المستوي','القوة عمودية على الذراع','B',6,null],
     ['mcq','الذراع الممتد من O عمودياً على خط عمل القوة F طوله L، فإن مقدار العزم يساوي:','F / L','F + L','F * L','F - L','C',6,null],
-    ['true_false','عزم القوة هو كمية متجهة.','صح','خطأ',null,null,'T',6,null],
-    ['true_false','يتغير عزم القوة بتغير نقطة التأثير حتى لو ظل خط العمل ثابتاً.','صح','خطأ',null,null,'F',6,null],
+    ['true_false','عزم القوة هو كمية متجهة.','صح','خطأ',null,null,'A',6,null],
+    ['true_false','يتغير عزم القوة بتغير نقطة التأثير حتى لو ظل خط العمل ثابتاً.','صح','خطأ',null,null,'B',6,null],
   ];
   const e12QIds = [];
   for (const [qt, txt, a, b, c, d, ans, pts] of e12Questions) {
@@ -1073,8 +1073,8 @@ async function seed() {
     ['mcq','المسافة بين النقطة (1, 2, 3) ونقطة الأصل (0, 0, 0) تساوي:','√6','√14','6','14','B',4,null],
     ['mcq','المتجه A = (2, 3, 6)، فإن معيار المتجه A يساوي:','7','49','11','√11','A',4,null],
     ['mcq','حاصل الضرب القياسي للمتجهين A=(1,0,0) و B=(0,1,0) يساوي:','1','-1','0','2','C',4,null],
-    ['true_false','المتجهان المتعامدان حاصل ضربهما القياسي يساوي صفراً.','صح','خطأ',null,null,'T',4,null],
-    ['true_false','المتجه الصفري ليس له اتجاه محدد.','صح','خطأ',null,null,'T',4,null],
+    ['true_false','المتجهان المتعامدان حاصل ضربهما القياسي يساوي صفراً.','صح','خطأ',null,null,'A',4,null],
+    ['true_false','المتجه الصفري ليس له اتجاه محدد.','صح','خطأ',null,null,'A',4,null],
   ];
   const e13QIds = [];
   for (const [qt, txt, a, b, c, d, ans, pts] of e13Questions) {
@@ -1092,8 +1092,8 @@ async function seed() {
     ['mcq','تكون مجموعة القوى المستوية في حالة اتزان تام إذا كان:','المجموع الجبري لمركبات القوى في اتجاهين متعامدين ينعدم ومجموع العزوم حول أي نقطة ينعدم','المجموع الجبري للعزوم ينعدم فقط','المحصلة تساوي صفراً فقط','زاوية الاحتكاك تساوي صفراً','A',5,null],
     ['mcq','إذا كان رد فعل وتد أملس يؤثر على قضيب، فإن اتجاه رد الفعل يكون:','موازياً للقضيب','عمودياً على القضيب','يميل بزاوية 45 درجة','غير معين الاتجاه','B',5,null],
     ['mcq','أقل قوة أفقية لازمة لحفظ اتزان جسم وزنه W على حائط رأسي خشن معامل احتكاكه M هي:','W / M','M * W','W','W + M','A',5,null],
-    ['true_false','قوة الاحتكاك السكوني تكون دائماً مساوية لقوة الاحتكاك الحركي.','صح','خطأ',null,null,'F',5,null],
-    ['true_false','يكون الجسم على وشك الحركة إذا بلغت قوة الاحتكاك قيمتها النهائية العظمى.','صح','خطأ',null,null,'T',5,null],
+    ['true_false','قوة الاحتكاك السكوني تكون دائماً مساوية لقوة الاحتكاك الحركي.','صح','خطأ',null,null,'B',5,null],
+    ['true_false','يكون الجسم على وشك الحركة إذا بلغت قوة الاحتكاك قيمتها النهائية العظمى.','صح','خطأ',null,null,'A',5,null],
   ];
   const e14QIds = [];
   for (const [qt, txt, a, b, c, d, ans, pts] of e14Questions) {
@@ -1134,10 +1134,10 @@ async function seed() {
     ['mcq','إذا كان p خاطئاً وq خاطئاً، فإن (p OR q) هو:','صحيح','خاطئ','صحيح دائماً','غير محدد','B',5,null],
     ['mcq','نفي العبارة "كل الأعداد موجبة" هو:','لا يوجد عدد موجب','توجد أعداد غير موجبة','كل الأعداد سالبة','لا شيء مما سبق','B',5,null],
     ['mcq','جملة: "إذا كانت n زوجية فإن n² زوجية" هي:','خاطئة دائماً','صحيحة دائماً','أحياناً صحيحة','لا يمكن تحديدها','B',5,null],
-    ['true_false','العبارة المنطقية (p → q) مكافئة لـ (¬q → ¬p)','صح','خطأ',null,null,'T',5,null],
-    ['true_false','إذا كانت p صحيحة فإن (NOT p) خاطئة','صح','خطأ',null,null,'T',5,null],
-    ['true_false','(p AND NOT p) تكون صحيحة أحياناً','صح','خطأ',null,null,'F',5,null],
-    ['true_false','(p OR NOT p) تكون دائماً صحيحة','صح','خطأ',null,null,'T',5,null],
+    ['true_false','العبارة المنطقية (p → q) مكافئة لـ (¬q → ¬p)','صح','خطأ',null,null,'A',5,null],
+    ['true_false','إذا كانت p صحيحة فإن (NOT p) خاطئة','صح','خطأ',null,null,'A',5,null],
+    ['true_false','(p AND NOT p) تكون صحيحة أحياناً','صح','خطأ',null,null,'B',5,null],
+    ['true_false','(p OR NOT p) تكون دائماً صحيحة','صح','خطأ',null,null,'A',5,null],
   ];
   const et2QIds = [];
   for (const [qt, txt, a, b, c, d, ans, pts] of et2Qs) {
@@ -1154,8 +1154,8 @@ async function seed() {
     ['mcq','مساحة المربع الذي طول ضلعه 7 سم:','14 سم²','28 سم²','49 سم²','56 سم²','C',5,null],
     ['mcq','محيط الدائرة التي نصف قطرها 5 سم (π≈3.14):','15.7 سم','31.4 سم','78.5 سم','157 سم','B',5,null],
     ['mcq','أي مثلث له زاوية قائمة تساوي 90°؟','المثلث المتساوي الأضلاع','المثلث القائم','المثلث المتساوي الساقين','المثلث المنفرج','B',5,null],
-    ['true_false','مساحة المثلث = (القاعدة × الارتفاع) ÷ 2','صح','خطأ',null,null,'T',5,null],
-    ['true_false','الزاوية المستقيمة تساوي 180 درجة','صح','خطأ',null,null,'T',5,null],
+    ['true_false','مساحة المثلث = (القاعدة × الارتفاع) ÷ 2','صح','خطأ',null,null,'A',5,null],
+    ['true_false','الزاوية المستقيمة تساوي 180 درجة','صح','خطأ',null,null,'A',5,null],
   ];
   const et3QIds = [];
   for (const [qt, txt, a, b, c, d, ans, pts] of et3TextQs) {
@@ -1194,7 +1194,7 @@ async function seed() {
     ['mcq','حل المعادلة: x² - 5x + 6 = 0','x=1 أو x=6','x=2 أو x=3','x=3 أو x=4','x=-2 أو x=-3','B',5,null],
     ['mcq','ما قيمة المميز (Δ) للمعادلة x² + 4x + 4 = 0؟','4','0','16','8','B',5,null],
     ['mcq','إذا كان المميز Δ < 0 فإن المعادلة التربيعية:','لها جذران حقيقيان مختلفان','لها جذران حقيقيان متساويان','لا تملك جذوراً حقيقية','لها ثلاثة جذور','C',5,null],
-    ['true_false','مجموع جذري المعادلة x² - 7x + 10 = 0 يساوي 7','صح','خطأ',null,null,'T',5,null],
+    ['true_false','مجموع جذري المعادلة x² - 7x + 10 = 0 يساوي 7','صح','خطأ',null,null,'A',5,null],
   ];
   const et4QIds = [];
   for (const [qt, txt, a, b, c, d, ans, pts] of et4TextQs) {
@@ -1206,9 +1206,9 @@ async function seed() {
   }
   // سؤال image_multi — et4 (3 بنود فرعية)
   const et4MultiSubs = JSON.stringify([
-    { label: '1', correct: 'A' },
-    { label: '2', correct: 'C' },
-    { label: '3', correct: 'B' },
+    { label: '1', correct: 'A', type: 'mcq', points: 4 },
+    { label: '2', correct: 'C', type: 'mcq', points: 3 },
+    { label: '3', correct: 'B', type: 'true_false', points: 3 },
   ]);
   const [et4multi] = await q(`
     INSERT INTO questions
@@ -1242,8 +1242,8 @@ async function seed() {
     ['mcq','مشتقة eˣ · sin(x) تساوي:','eˣ · cos(x)','eˣ(sin(x) + cos(x))','eˣ · sin(x)','eˣ(sin(x) - cos(x))','B',6,null],
     ['mcq','∫x⁴ dx = ','x⁵ + C','x⁵/5 + C','4x³ + C','x⁵/4 + C','B',6,null],
     ['mcq','∫₀¹ 2x dx = ','0','1','2','4','B',6,null],
-    ['true_false','مشتقة الدالة الثابتة تساوي صفراً','صح','خطأ',null,null,'T',6,null],
-    ['true_false','∫(f+g)dx = ∫f dx + ∫g dx','صح','خطأ',null,null,'T',6,null],
+    ['true_false','مشتقة الدالة الثابتة تساوي صفراً','صح','خطأ',null,null,'A',6,null],
+    ['true_false','∫(f+g)dx = ∫f dx + ∫g dx','صح','خطأ',null,null,'A',6,null],
   ];
   const et5QIds = [];
   for (const [qt, txt, a, b, c, d, ans, pts] of et5TextQs) {
@@ -1282,8 +1282,8 @@ async function seed() {
     ['mcq','الوسيط (Median) للأعداد: 3, 7, 5, 1, 9 يساوي:','3','5','7','9','B',5,null],
     ['mcq','احتمال ظهور رقم زوجي عند قذف حجر نرد يساوي:','1/6','1/3','1/2','2/3','C',5,null],
     ['mcq','إذا كانت مجموعة البيانات: 5,5,5,5 فإن الانحراف المعياري يساوي:','5','1','0','25','C',5,null],
-    ['true_false','مجموع جميع الاحتمالات في الفضاء العيّني يساوي 1','صح','خطأ',null,null,'T',5,null],
-    ['true_false','الوسيط يتأثر بالقيم الشاذة أكثر من المتوسط','صح','خطأ',null,null,'F',5,null],
+    ['true_false','مجموع جميع الاحتمالات في الفضاء العيّني يساوي 1','صح','خطأ',null,null,'A',5,null],
+    ['true_false','الوسيط يتأثر بالقيم الشاذة أكثر من المتوسط','صح','خطأ',null,null,'B',5,null],
   ];
   const et6QIds = [];
   for (const [qt, txt, a, b, c, d, ans, pts] of et6Qs) {
@@ -1299,7 +1299,7 @@ async function seed() {
     ['mcq','ما أكبر قاسم مشترك للعددين 24 و 36؟','6','12','18','24','B',5,null],
     ['mcq','ما أصغر مضاعف مشترك للعددين 4 و 6؟','12','18','24','36','A',5,null],
     ['mcq','ما قيمة 2⁻³؟','1/8','1/6','1/4','1/2','A',5,null],
-    ['true_false','العدد 91 عدد أولي','صح','خطأ',null,null,'F',5,null],
+    ['true_false','العدد 91 عدد أولي','صح','خطأ',null,null,'B',5,null],
   ];
   const et7QIds = [];
   for (const [qt, txt, a, b, c, d, ans, pts] of et7TextQs) {
@@ -1314,7 +1314,7 @@ async function seed() {
     ['mcq','مصنع ينتج 2400 قطعة يومياً ويعمل 6 أيام أسبوعياً — كم قطعة أسبوعياً؟','12000','14400','16000','18000','B'],
     ['mcq','إذا كان سعر بيع القطعة 15 جنيه وتكلفتها 8 جنيه — ما الربح من كل قطعة؟','7 جنيه','8 جنيه','15 جنيه','23 جنيه','A'],
     ['mcq','ما إجمالي الإيرادات اليومية لمصنع ينتج 2400 قطعة بسعر 15 جنيه للقطعة؟','19200 جنيه','28000 جنيه','36000 جنيه','48000 جنيه','C'],
-    ['true_false','الربح الإجمالي الأسبوعي لمصنع ينتج 2400 قطعة/يوم بربح 7 جنيه/قطعة لـ6 أيام يتجاوز 100,000 جنيه','صح','خطأ',null,null,'T'],
+    ['true_false','الربح الإجمالي الأسبوعي لمصنع ينتج 2400 قطعة/يوم بربح 7 جنيه/قطعة لـ6 أيام يتجاوز 100,000 جنيه','صح','خطأ',null,null,'A'],
   ];
   for (const gq of et7ExtraQs) {
     const [qt, txt, a, b, c, d, ans] = gq;
@@ -1332,8 +1332,8 @@ async function seed() {
     ['mcq','الحد العاشر في المتتالية: 3, 6, 9, 12, ... يساوي:','27','30','33','36','B',6,null],
     ['mcq','مجموع أول 10 حدود للمتتالية الحسابية: a=2، d=3 يساوي:','155','165','175','185','A',6,null],
     ['mcq','الحد العام للمتتالية الهندسية: 2, 6, 18, 54, ... هو:','2×3^(n-1)','3×2^(n-1)','2×n³','3^n','A',6,null],
-    ['true_false','مجموع المتتالية الهندسية اللانهائية يتقارب إذا كان |r| < 1','صح','خطأ',null,null,'T',6,null],
-    ['true_false','الحد الأول في المتتالية الحسابية هو المتوسط بين كل حدين متتاليين','صح','خطأ',null,null,'F',6,null],
+    ['true_false','مجموع المتتالية الهندسية اللانهائية يتقارب إذا كان |r| < 1','صح','خطأ',null,null,'A',6,null],
+    ['true_false','الحد الأول في المتتالية الحسابية هو المتوسط بين كل حدين متتاليين','صح','خطأ',null,null,'B',6,null],
   ];
   const et8QIds = [];
   for (const [qt, txt, a, b, c, d, ans, pts] of et8TextQs) {
@@ -1361,8 +1361,8 @@ async function seed() {
     ['mcq','ما محور التماثل للدالة f(x) = (x-3)² + 2 ؟','x = 2','x = 3','x = -3','y = 3','B',5,null],
     ['mcq','ما صورة النقطة (4,−2) بالانعكاس حول محور x؟','(−4,−2)','(4,2)','(−4,2)','(2,−4)','B',5,null],
     ['mcq','ما صورة النقطة (2,5) بالتدوير 90° حول نقطة الأصل؟','(−5,2)','(5,−2)','(−2,5)','(5,2)','A',5,null],
-    ['true_false','انعكاس نقطة على محور y يغيّر إشارة الإحداثي x فقط','صح','خطأ',null,null,'T',5,null],
-    ['true_false','التقاطع بين محوري الإحداثيات هو نقطة الأصل (0,0)','صح','خطأ',null,null,'T',5,null],
+    ['true_false','انعكاس نقطة على محور y يغيّر إشارة الإحداثي x فقط','صح','خطأ',null,null,'A',5,null],
+    ['true_false','التقاطع بين محوري الإحداثيات هو نقطة الأصل (0,0)','صح','خطأ',null,null,'A',5,null],
   ];
   const et9QIds = [];
   for (const [qt, txt, a, b, c, d, ans, pts] of et9TextQs) {
@@ -1374,8 +1374,8 @@ async function seed() {
   }
   // سؤال image_multi — et9 (بنود فرعية 2)
   const et9MultiSubs = JSON.stringify([
-    { label: '1', correct: 'C' },
-    { label: '2', correct: 'A' },
+    { label: '1', correct: 'C', type: 'mcq', points: 4 },
+    { label: '2', correct: 'A', type: 'true_false', points: 3 },
   ]);
   const [et9multi] = await q(`
     INSERT INTO questions
@@ -1408,9 +1408,9 @@ async function seed() {
     ['mcq','ما مجموع ∑ k من k=1 إلى 10 ؟','50','55','60','65','B',6,null],
     ['mcq','مشتقة f(x) = x·eˣ تساوي:','eˣ','(x+1)eˣ','x²eˣ','eˣ/x','B',6,null],
     ['mcq','ما حل المعادلة: |2x - 3| = 7 ؟','x=5 أو x=-2','x=5 أو x=2','x=-5 أو x=-2','x=4 أو x=-2','A',6,null],
-    ['true_false','log(a·b) = log(a) + log(b) لأي قيمة موجبة لـ a,b','صح','خطأ',null,null,'T',6,null],
-    ['true_false','الدالة الزوجية تحقق f(-x) = f(x) لكل x في المجال','صح','خطأ',null,null,'T',6,null],
-    ['true_false','المشتقة الثانية توضح تقعّر الدالة أو تحدبها','صح','خطأ',null,null,'T',6,null],
+    ['true_false','log(a·b) = log(a) + log(b) لأي قيمة موجبة لـ a,b','صح','خطأ',null,null,'A',6,null],
+    ['true_false','الدالة الزوجية تحقق f(-x) = f(x) لكل x في المجال','صح','خطأ',null,null,'A',6,null],
+    ['true_false','المشتقة الثانية توضح تقعّر الدالة أو تحدبها','صح','خطأ',null,null,'A',6,null],
   ];
   const et10QIds = [];
   for (const [qt, txt, a, b, c, d, ans, pts] of et10TextQs) {
@@ -1434,9 +1434,9 @@ async function seed() {
 
   // سؤال image_multi — et10
   const et10MultiSubs = JSON.stringify([
-    { label: '1', correct: 'B' },
-    { label: '2', correct: 'A' },
-    { label: '3', correct: 'C' },
+    { label: '1', correct: 'B', type: 'mcq', points: 3 },
+    { label: '2', correct: 'A', type: 'true_false', points: 3 },
+    { label: '3', correct: 'C', type: 'mcq', points: 2 },
   ]);
   const [et10multi] = await q(`
     INSERT INTO questions
@@ -2448,8 +2448,8 @@ async function seed() {
     ['mcq','مشتقة f(x) = 4x² تساوي','4x','8x','8x²','4','B',2,1],
     ['mcq','مشتقة الثابت 10 تساوي','10','0','1','-10','B',2,2],
     ['mcq','مشتقة sin(x) تساوي','cos(x)','-cos(x)','sin(x)','-sin(x)','A',2,3],
-    ['true_false','مشتقة eˣ = eˣ','صح','خطأ',null,null,'T',2,4],
-    ['true_false','مشتقة x⁴ = 4x³','صح','خطأ',null,null,'T',2,5],
+    ['true_false','مشتقة eˣ = eˣ','صح','خطأ',null,null,'A',2,4],
+    ['true_false','مشتقة x⁴ = 4x³','صح','خطأ',null,null,'A',2,5],
   ];
   const r1QIds = [];
   for (const [qt, txt, a, b, c, d, ans, pts, ord] of r1Questions) {
@@ -2467,8 +2467,8 @@ async function seed() {
     ['mcq','sin(45°) يساوي','1/2','√2/2','√3/2','1','B',4,1],
     ['mcq','cos(0°) يساوي','0','1/2','1','√3/2','C',4,2],
     ['mcq','tan(60°) يساوي','1','√3','√3/2','1/2','B',4,3],
-    ['true_false','sin(90°) = 1','صح','خطأ',null,null,'T',4,4],
-    ['true_false','cos(180°) = 1','صح','خطأ',null,null,'F',4,5],
+    ['true_false','sin(90°) = 1','صح','خطأ',null,null,'A',4,4],
+    ['true_false','cos(180°) = 1','صح','خطأ',null,null,'B',4,5],
   ];
   const r2QIds = [];
   for (const [qt, txt, a, b, c, d, ans, pts, ord] of r2Questions) {
@@ -2486,8 +2486,8 @@ async function seed() {
     ['mcq','∫3x² dx = ','x³+C','3x+C','x²+C','3x³+C','A',3,1],
     ['mcq','∫cos(x) dx = ','sin(x)+C','-sin(x)+C','cos(x)+C','-cos(x)+C','A',3,2],
     ['mcq','∫0 dx = ','0','x','x+C','C','D',3,3],
-    ['true_false','∫eˣ dx = eˣ + C','صح','خطأ',null,null,'T',3,4],
-    ['true_false','التكامل المحدود يعطي مساحة','صح','خطأ',null,null,'T',3,5],
+    ['true_false','∫eˣ dx = eˣ + C','صح','خطأ',null,null,'A',3,4],
+    ['true_false','التكامل المحدود يعطي مساحة','صح','خطأ',null,null,'A',3,5],
   ];
   for (const [qt, txt, a, b, c, d, ans, pts, ord] of r3Questions) {
     await q(`
@@ -2511,9 +2511,9 @@ async function seed() {
 
   // سؤال image_multi — r3 (صورة مع بنود متعددة — 6 درجات، 3 أسئلة فرعية)
   const r3MultiSubs = JSON.stringify([
-    { label: '1', correct: 'A' },
-    { label: '2', correct: 'C' },
-    { label: '3', correct: 'B' },
+    { label: '1', correct: 'A', type: 'mcq', points: 2 },
+    { label: '2', correct: 'C', type: 'mcq', points: 2 },
+    { label: '3', correct: 'B', type: 'true_false', points: 2 },
   ]);
   await q(`
     INSERT INTO recitation_questions
@@ -2534,10 +2534,10 @@ async function seed() {
     ['mcq','حل x²-25=0','x=5','x=±5','x=-5','x=25','B',3,4],
     ['mcq','cos(90°) يساوي','1','0','-1','1/2','B',3,5],
     ['mcq','مشتقة cos(x) تساوي','-sin(x)','sin(x)','-cos(x)','cos(x)','A',3,6],
-    ['true_false','tan(45°) = 1','صح','خطأ',null,null,'T',3,7],
-    ['true_false','∫sin(x) dx = cos(x)+C','صح','خطأ',null,null,'F',3,8],
-    ['true_false','مشتقة الثابت = 0','صح','خطأ',null,null,'T',3,9],
-    ['true_false','كل دالة مستمرة قابلة للاشتقاق','صح','خطأ',null,null,'F',3,10],
+    ['true_false','tan(45°) = 1','صح','خطأ',null,null,'A',3,7],
+    ['true_false','∫sin(x) dx = cos(x)+C','صح','خطأ',null,null,'B',3,8],
+    ['true_false','مشتقة الثابت = 0','صح','خطأ',null,null,'A',3,9],
+    ['true_false','كل دالة مستمرة قابلة للاشتقاق','صح','خطأ',null,null,'B',3,10],
   ];
   for (const [qt, txt, a, b, c, d, ans, pts, ord] of r4Questions) {
     await q(`
@@ -2552,8 +2552,8 @@ async function seed() {
   const r5Questions = [
     ['mcq','المسافة بين (0,0) و (3,4) = ','3','4','5','7','C',2,1],
     ['mcq','ميل المستقيم y=3x+1 يساوي','1','3','4','0','B',2,2],
-    ['true_false','ميل الخط الأفقي = صفر','صح','خطأ',null,null,'T',2,3],
-    ['true_false','منتصف (2,4) و (6,8) هو (4,6)','صح','خطأ',null,null,'T',2,4],
+    ['true_false','ميل الخط الأفقي = صفر','صح','خطأ',null,null,'A',2,3],
+    ['true_false','منتصف (2,4) و (6,8) هو (4,6)','صح','خطأ',null,null,'A',2,4],
     ['mcq','معادلة المحور الصادي هي','y=0','x=0','y=x','x=1','B',2,5],
   ];
   const r5QIds = [];
@@ -2571,8 +2571,8 @@ async function seed() {
   const r7Questions = [
     ['mcq','شرط اتزان مجموعة من القوى المستوية هو انعدام:','المحصلة فقط','العزوم حول أي نقطة فقط','المحصلة ومجموع العزوم حول أي نقطة','لا شيء مما سبق','C',2,1],
     ['mcq','إذا اتزن جسم تحت تأثير قوتين، فإن القوتين تكونان:','متساويتين في المقدار ومتضادتين في الاتجاه وخط عملهما واحد','متساويتين فقط','متضادتين فقط','متعامدتين','A',2,2],
-    ['true_false','رد فعل المفصل دائماً يكون معلوماً اتجاهه.','صح','خطأ',null,null,'F',2,3],
-    ['true_false','إذا كان مجموع العزوم حول نقطة لا يساوي صفراً فإن الجسم متزن.','صح','خطأ',null,null,'F',2,4],
+    ['true_false','رد فعل المفصل دائماً يكون معلوماً اتجاهه.','صح','خطأ',null,null,'B',2,3],
+    ['true_false','إذا كان مجموع العزوم حول نقطة لا يساوي صفراً فإن الجسم متزن.','صح','خطأ',null,null,'B',2,4],
     ['mcq','إذا كان خط عمل محصلة مجموعة قوى يمر بنقطة O، فإن مجموع عزوم هذه القوى حول O يساوي:','القوة F','الذراع L','صفر','معيار العزم','C',2,5],
   ];
   const r7QIds = [];
@@ -2590,8 +2590,8 @@ async function seed() {
   const r8Questions = [
     ['mcq','جيوب تمام الاتجاه للمتجه يصنع زوايا متساوية مع المحاور إذا كان المتجه:','(1, 1, 1)','(1, 0, 0)','(0, 1, 0)','(0, 0, 1)','A',2,1],
     ['mcq','إذا كان المتجه A=(2, -1, 3)، فإن مركبة المتجه في اتجاه محور x تساوي:','-1','2','3','0','B',2,2],
-    ['true_false','معيار المتجه الوحدة دائماً يساوي واحداً.','صح','خطأ',null,null,'T',2,3],
-    ['true_false','حاصل الضرب الاتجاهي لمتجهين هو كمية قياسية.','صح','خطأ',null,null,'F',2,4],
+    ['true_false','معيار المتجه الوحدة دائماً يساوي واحداً.','صح','خطأ',null,null,'A',2,3],
+    ['true_false','حاصل الضرب الاتجاهي لمتجهين هو كمية قياسية.','صح','خطأ',null,null,'B',2,4],
     ['mcq','حاصل الضرب القياسي للمتجه A=(2, 3, 4) في المتجه الصفري يساوي:','2','3','4','0','D',2,5],
   ];
   const r8QIds = [];
@@ -2609,8 +2609,8 @@ async function seed() {
   const r9Questions = [
     ['mcq','إذا كانت القوتان متوازيتين وفي نفس الاتجاه، فإن محصلتهما تكون مساوية لـ:','حاصل طرحهما وتعمل في عكس اتجاههما','مجموعهما وتعمل في نفس اتجاههما','حاصل ضربهما','صفر','B',2,1],
     ['mcq','إذا كانت القوتان متوازيتين وفي اتجاهين متضادين (F1 > F2)، فإن المحصلة تساوي:','F1 + F2 وتعمل في اتجاه F1','F1 - F2 وتعمل في اتجاه F1','F2 - F1 وتعمل في اتجاه F2','صفر','B',2,2],
-    ['true_false','محصلة قوتين متوازيتين تؤثر دائماً في نقطة تقع بين خطي عملهما إذا كانتا في اتجاهين متضادين.','صح','خطأ',null,null,'F',2,3],
-    ['true_false','خط عمل محصلة قوتين متوازيتين يكون موازياً لخط عمل كل منهما.','صح','خطأ',null,null,'T',2,4],
+    ['true_false','محصلة قوتين متوازيتين تؤثر دائماً في نقطة تقع بين خطي عملهما إذا كانتا في اتجاهين متضادين.','صح','خطأ',null,null,'B',2,3],
+    ['true_false','خط عمل محصلة قوتين متوازيتين يكون موازياً لخط عمل كل منهما.','صح','خطأ',null,null,'A',2,4],
     ['mcq','إذا اتزن قضيب خفيف تحت تأثير قوتين متوازيتين فقط، فإن القوتين تكونان:','متساويتين في المقدار ومتضادتين في الاتجاه وعلى خط عمل واحد','متوازيتين فقط','متعامدتين','لا شيء مما سبق','A',2,5],
   ];
   const r9QIds = [];
@@ -2653,10 +2653,10 @@ async function seed() {
     ['mcq','قانون الجيوب يُطبَّق عندما تعرف:','ضلعين وزاوية بينهما','ثلاثة أضلاع','ضلعاً وزاويتين','زاويتين فقط','C',3,2],
     ['mcq','في مثلث ABC: إذا a=5, b=7 وA=30° — ما sin(B)؟','0.35','0.7','0.5','1','B',3,3],
     ['mcq','قيمة cos(120°) تساوي:','1/2','-1/2','√3/2','-√3/2','B',3,4],
-    ['true_false','في أي مثلث: a/sin(A) = b/sin(B) = c/sin(C)','صح','خطأ',null,null,'T',3,5],
-    ['true_false','sin(180° - x) = sin(x)','صح','خطأ',null,null,'T',3,6],
-    ['true_false','cos(2x) = 1 - 2sin²(x)','صح','خطأ',null,null,'T',3,7],
-    ['true_false','tan(x) = sin(x) / cos(x) صحيحة لجميع قيم x','صح','خطأ',null,null,'F',3,8],
+    ['true_false','في أي مثلث: a/sin(A) = b/sin(B) = c/sin(C)','صح','خطأ',null,null,'A',3,5],
+    ['true_false','sin(180° - x) = sin(x)','صح','خطأ',null,null,'A',3,6],
+    ['true_false','cos(2x) = 1 - 2sin²(x)','صح','خطأ',null,null,'A',3,7],
+    ['true_false','tan(x) = sin(x) / cos(x) صحيحة لجميع قيم x','صح','خطأ',null,null,'B',3,8],
   ];
   for (const [qt, txt, a, b, c, d, ans, pts, ord] of rt2Questions) {
     await q(`
@@ -2714,7 +2714,7 @@ async function seed() {
   const rt4TextQs = [
     ['mcq','∫(4x³ - 6x + 1) dx = ','x⁴ - 3x² + x + C','4x⁴ - 6x² + x + C','x⁴ - 3x + C','4x² - 6 + C','A',5,1],
     ['mcq','∫₁² (2x) dx = ','2','3','4','6','B',5,2],
-    ['true_false','التكامل المحدود يساوي دائماً مساحة موجبة','صح','خطأ',null,null,'F',5,3],
+    ['true_false','التكامل المحدود يساوي دائماً مساحة موجبة','صح','خطأ',null,null,'B',5,3],
   ];
   for (const [qt, txt, a, b, c, d, ans, pts, ord] of rt4TextQs) {
     await q(`
@@ -2726,9 +2726,9 @@ async function seed() {
   }
   // سؤال image_multi 1 — rt4 (3 بنود)
   const rt4Multi1Subs = JSON.stringify([
-    { label: '1', correct: 'B' },
-    { label: '2', correct: 'A' },
-    { label: '3', correct: 'C' },
+    { label: '1', correct: 'B', type: 'mcq', points: 3 },
+    { label: '2', correct: 'A', type: 'true_false', points: 3 },
+    { label: '3', correct: 'C', type: 'mcq', points: 2 },
   ]);
   await q(`
     INSERT INTO recitation_questions
@@ -2742,8 +2742,8 @@ async function seed() {
      rt4Multi1Subs]);
   // سؤال image_multi 2 — rt4 (2 بنود)
   const rt4Multi2Subs = JSON.stringify([
-    { label: 'A', correct: 'A' },
-    { label: 'B', correct: 'C' },
+    { label: 'A', correct: 'A', type: 'true_false', points: 4 },
+    { label: 'B', correct: 'C', type: 'mcq', points: 3 },
   ]);
   await q(`
     INSERT INTO recitation_questions
@@ -2761,9 +2761,9 @@ async function seed() {
     ['mcq','شرط اتزان مجموعة قوى مستوية هو:','ΣFx=0 فقط','ΣFy=0 فقط','ΣFx=0 وΣFy=0 وΣM=0','ΣM=0 فقط','C',3,1],
     ['mcq','قوة تؤثر على جسم وخط عملها يمر بمركز الثقل — عزمها بالنسبة لأي نقطة على خط عملها:','يساوي صفر','يساوي Q×d','يعتمد على المسافة','لا يمكن تحديده','A',3,2],
     ['mcq','رد فعل الوتد الأملس:','موازٍ للسطح','عمودي على السطح','في أي اتجاه','عمودي على القضيب','B',3,3],
-    ['true_false','عزم القوة كمية اتجاهية تعتمد على نقطة المرجع','صح','خطأ',null,null,'T',3,4],
-    ['true_false','إذا كانت محصلة القوى صفراً فالجسم متزن بالضرورة','صح','خطأ',null,null,'F',3,5],
-    ['true_false','قوة الاحتكاك تعمل دائماً عكس اتجاه الحركة أو الحركة المحتملة','صح','خطأ',null,null,'T',3,6],
+    ['true_false','عزم القوة كمية اتجاهية تعتمد على نقطة المرجع','صح','خطأ',null,null,'A',3,4],
+    ['true_false','إذا كانت محصلة القوى صفراً فالجسم متزن بالضرورة','صح','خطأ',null,null,'B',3,5],
+    ['true_false','قوة الاحتكاك تعمل دائماً عكس اتجاه الحركة أو الحركة المحتملة','صح','خطأ',null,null,'A',3,6],
   ];
   for (const [qt, txt, a, b, c, d, ans, pts, ord] of rt5TextQs) {
     await q(`
@@ -2784,9 +2784,9 @@ async function seed() {
   `, [rt5.id, 'https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=600&h=400&fit=crop']);
   // سؤال image_multi — rt5 (3 بنود)
   const rt5MultiSubs = JSON.stringify([
-    { label: '1', correct: 'A' },
-    { label: '2', correct: 'C' },
-    { label: '3', correct: 'B' },
+    { label: '1', correct: 'A', type: 'mcq', points: 2 },
+    { label: '2', correct: 'C', type: 'mcq', points: 1 },
+    { label: '3', correct: 'B', type: 'true_false', points: 1 },
   ]);
   await q(`
     INSERT INTO recitation_questions

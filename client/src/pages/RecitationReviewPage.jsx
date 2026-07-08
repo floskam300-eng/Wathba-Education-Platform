@@ -178,10 +178,14 @@ export default function RecitationReviewPage() {
                       <div className="space-y-1.5 mt-2">
                         {(q.sub_results || q.sub_questions || []).map(sub => {
                           const subResult    = q.sub_results ? sub : null;
-                          const subSa        = subResult?.student_answer || null;
-                          const subCorrect   = subResult?.correct || sub.correct;
+                          const rawSubSa        = subResult?.student_answer || null;
+                          const rawSubCorrect   = subResult?.correct || sub.correct;
                           const subIsCorrect = subResult?.is_correct ?? false;
-                          const hasSubAns    = !!subSa;
+                          const hasSubAns    = !!rawSubSa;
+                          const isTF = sub.type === 'true_false';
+                          const subSa = isTF ? (rawSubSa === 'T' ? 'A' : rawSubSa === 'F' ? 'B' : rawSubSa) : rawSubSa;
+                          const subCorrect = isTF ? (rawSubCorrect === 'T' ? 'A' : rawSubCorrect === 'F' ? 'B' : rawSubCorrect) : rawSubCorrect;
+                          const listLetters = isTF ? ['A', 'B'] : ['A', 'B', 'C', 'D'];
                           return (
                             <div key={sub.label} className={`flex items-center gap-2 p-2.5 rounded-xl border-2 ${
                               !hasSubAns
@@ -190,9 +194,11 @@ export default function RecitationReviewPage() {
                                   ? 'border-green-300 dark:border-green-700/50 bg-green-50 dark:bg-green-900/20'
                                   : 'border-red-300 dark:border-red-700/50 bg-red-50 dark:bg-red-900/20'
                             }`}>
-                              <span className="text-xs font-black text-gray-600 dark:text-[var(--dk-text-2)] w-6 flex-shrink-0">{sub.label}</span>
+                              <span className="text-xs font-black text-gray-600 dark:text-[var(--dk-text-2)] w-24 flex-shrink-0">
+                                {sub.label} <span className="text-[10px] text-gray-400 font-normal">({sub.points || 1} د)</span>
+                              </span>
                               <div className="flex gap-1 flex-1">
-                                {['A','B','C','D'].map(letter => (
+                                {listLetters.map(letter => (
                                   <span key={letter} className={`flex-1 text-center py-0.5 rounded text-xs font-bold border ${
                                     letter === subCorrect && letter === subSa
                                       ? 'bg-green-600 text-white border-green-600'
@@ -201,7 +207,7 @@ export default function RecitationReviewPage() {
                                         : letter === subCorrect
                                           ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400 border-green-300 dark:border-green-700/50'
                                           : 'bg-white dark:bg-[var(--dk-elevated)] text-gray-400 dark:text-[var(--dk-text-3)] border-gray-200 dark:border-[var(--dk-border)]'
-                                  }`}>{letter}</span>
+                                  }`}>{isTF ? (letter === 'A' ? 'صح' : 'خطأ') : letter}</span>
                                 ))}
                               </div>
                               {!hasSubAns && <span className="text-[10px] text-gray-400 dark:text-[var(--dk-text-3)] flex-shrink-0">لم تُجَب</span>}
@@ -219,8 +225,13 @@ export default function RecitationReviewPage() {
                         {opts.map(opt => {
                           const text          = q[`option_${opt.toLowerCase()}`];
                           if (!text) return null;
-                          const isStudentChoice = q.student_answer === opt;
-                          const isCorrectOpt    = q.correct_answer === opt || q.correct_answer_letter === opt;
+                          const isTF = q.question_type === 'true_false';
+                          const studentAnsNormalized = isTF ? (q.student_answer === 'T' ? 'A' : q.student_answer === 'F' ? 'B' : q.student_answer) : q.student_answer;
+                          const correctLetterNormalized = isTF ? (q.correct_answer_letter === 'T' ? 'A' : q.correct_answer_letter === 'F' ? 'B' : q.correct_answer_letter) : q.correct_answer_letter;
+                          const correctAnswerNormalized = isTF ? (q.correct_answer === 'T' ? 'A' : q.correct_answer === 'F' ? 'B' : q.correct_answer) : q.correct_answer;
+
+                          const isStudentChoice = studentAnsNormalized === opt;
+                          const isCorrectOpt    = correctAnswerNormalized === opt || correctLetterNormalized === opt;
                           return (
                             <div key={opt} className={`flex items-center gap-3 p-3 rounded-xl border-2 ${
                               isCorrectOpt && isStudentChoice
@@ -252,21 +263,25 @@ export default function RecitationReviewPage() {
                       </div>
                     )}
 
-                    {/* True/False fallback */}
                     {!isImgMulti && opts.length === 0 && (q.correct_answer || q.student_answer) && (
                       <div className="flex gap-3 mt-3">
-                        {[
-                          { opt: q.correct_answer || q.correct_answer_letter, label: q.student_answer === (q.correct_answer || q.correct_answer_letter) ? '✅ صح — إجابتك' : '✅ الإجابة الصحيحة' },
-                          ...(q.student_answer && q.student_answer !== (q.correct_answer || q.correct_answer_letter)
-                            ? [{ opt: q.student_answer, label: '❌ إجابتك' }]
-                            : [])
-                        ].map(({ opt, label }) => (
-                          <div key={opt} className={`flex-1 py-2.5 rounded-xl text-sm font-bold text-center border-2 ${
-                            label.includes('صح')
-                              ? 'border-green-400 bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-400'
-                              : 'border-red-400 bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-400'
-                          }`}>{label}</div>
-                        ))}
+                        {(() => {
+                          const isTF = q.question_type === 'true_false';
+                          const studentAns = isTF ? (q.student_answer === 'T' ? 'A' : q.student_answer === 'F' ? 'B' : q.student_answer) : q.student_answer;
+                          const correctAns = isTF ? ((q.correct_answer || q.correct_answer_letter) === 'T' ? 'A' : (q.correct_answer || q.correct_answer_letter) === 'F' ? 'B' : (q.correct_answer || q.correct_answer_letter)) : (q.correct_answer || q.correct_answer_letter);
+                          return [
+                            { opt: correctAns, label: studentAns === correctAns ? '✅ صح — إجابتك' : '✅ الإجابة الصحيحة' },
+                            ...(studentAns && studentAns !== correctAns
+                              ? [{ opt: studentAns, label: '❌ إجابتك' }]
+                              : [])
+                          ].map(({ opt, label }) => (
+                            <div key={opt} className={`flex-1 py-2.5 rounded-xl text-sm font-bold text-center border-2 ${
+                              label.includes('صح')
+                                ? 'border-green-400 bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-400'
+                                : 'border-red-400 bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-400'
+                            }`}>{label}</div>
+                          ));
+                        })()}
                       </div>
                     )}
 

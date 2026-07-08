@@ -1492,19 +1492,24 @@ function SidebarQuestionCard({ q, idx, answers, setAnswers }) {
           )}
           {(q.sub_questions || []).map(sub => {
             const subSel = subAnswers[sub.label];
+            const isTF = sub.type === 'true_false';
+            const subOptions = isTF ? [{ letter: 'A', label: 'صح' }, { letter: 'B', label: 'خطأ' }] : options;
             return (
               <div key={sub.label} className="rounded-lg p-2 bg-white/5 border border-white/10">
-                <p className="text-[10px] font-bold text-gray-300 mb-1">البند {sub.label}</p>
+                <p className="text-[10px] font-bold text-gray-300 mb-1 flex items-center justify-between">
+                  <span>البند {sub.label}</span>
+                  <span className="text-[9px] text-gray-500 font-normal">({sub.points || 1} درجة)</span>
+                </p>
                 <div className="flex gap-1.5 flex-wrap">
-                  {options.map(({ letter }) => (
-                    <button key={letter}
-                      onClick={() => setAnswers(a => ({ ...a, [q.id]: { ...(a[q.id] || {}), [sub.label]: letter } }))}
+                  {subOptions.map((opt) => (
+                    <button key={opt.letter}
+                      onClick={() => setAnswers(a => ({ ...a, [q.id]: { ...(a[q.id] || {}), [sub.label]: opt.letter } }))}
                       className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all ${
-                        subSel === letter
+                        subSel === opt.letter
                           ? 'bg-purple-500 text-white border-purple-500'
                           : 'bg-white/5 border-white/20 text-gray-300 hover:border-purple-400'
                       }`}>
-                      {letter}
+                      {isTF ? opt.label : opt.letter}
                     </button>
                   ))}
                 </div>

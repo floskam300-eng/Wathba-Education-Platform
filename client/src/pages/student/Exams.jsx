@@ -564,7 +564,7 @@ export default function StudentExams() {
                       <div className="flex gap-3">
                         {[{ opt: 'A', label: '✅ صح' }, { opt: 'B', label: '❌ خطأ' }].map(({ opt, label }) => (
                           <button key={opt} onClick={() => setAnswers({ ...answers, [q.id]: opt })}
-                            className={`flex-1 py-2.5 rounded-xl text-sm font-bold border-2 transition-all ${answers[q.id] === opt ? 'border-orange-500 bg-orange-50 text-orange-800' : 'border-gray-200 hover:border-gray-400 text-gray-700'}`}>
+                            className={`flex-1 py-2.5 rounded-xl text-sm font-bold border-2 transition-all ${answers[q.id] === opt ? 'border-orange-500 bg-orange-50 text-orange-850' : 'border-gray-200 hover:border-gray-400 text-gray-700'}`}>
                             {label}
                           </button>
                         ))}
@@ -577,9 +577,11 @@ export default function StudentExams() {
                           const subSel = subAnswers[sub.label];
                           return (
                             <div key={sub.label} className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2">
-                              <span className="text-xs font-black text-navy-600 w-5 flex-shrink-0">{sub.label}</span>
+                              <span className="text-xs font-black text-navy-600 w-24 flex-shrink-0">
+                                {sub.label} <span className="text-[10px] text-gray-400 font-normal">({sub.points || 1} د)</span>
+                              </span>
                               <div className="flex gap-1 flex-1">
-                                {['A','B','C','D'].map(letter => (
+                                {(sub.type === 'true_false' ? ['A', 'B'] : ['A', 'B', 'C', 'D']).map(letter => (
                                   <button key={letter} type="button"
                                     onClick={() => {
                                       let current = {};
@@ -587,9 +589,9 @@ export default function StudentExams() {
                                       setAnswers({ ...answers, [q.id]: { ...current, [sub.label]: letter } });
                                     }}
                                     className={`flex-1 py-1.5 rounded-lg text-xs font-bold border-2 transition-all ${
-                                      subSel === letter ? 'border-orange-500 bg-orange-50 text-orange-800' : 'border-gray-200 hover:border-gray-400 text-gray-600'
+                                      subSel === letter ? 'border-orange-500 bg-orange-50 text-orange-850' : 'border-gray-200 hover:border-gray-400 text-gray-655'
                                     }`}>
-                                    {letter}
+                                    {sub.type === 'true_false' ? (letter === 'A' ? 'صح' : 'خطأ') : letter}
                                   </button>
                                 ))}
                               </div>

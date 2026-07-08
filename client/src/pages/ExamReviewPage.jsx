@@ -237,11 +237,17 @@ export default function ExamReviewPage() {
             {/* ── Questions ── */}
             <div className="space-y-5">
               {questions.map((q, qi) => {
-                const studentAns  = q.student_answer;
-                const correctAns  = q.correct_answer;
-                const answered    = !!studentAns;
+                const rawStudentAns = q.student_answer;
+                const rawCorrectAns = q.correct_answer;
                 const isTrueFalse = q.question_type === 'true_false';
                 const isImgMulti  = q.question_type === 'image_multi';
+                const studentAns = isTrueFalse
+                  ? (rawStudentAns === 'T' ? 'A' : rawStudentAns === 'F' ? 'B' : rawStudentAns)
+                  : rawStudentAns;
+                const correctAns = isTrueFalse
+                  ? (rawCorrectAns === 'T' ? 'A' : rawCorrectAns === 'F' ? 'B' : rawCorrectAns)
+                  : rawCorrectAns;
+                const answered    = !!studentAns;
 
                 const displayOpts = isImgMulti
                   ? []
@@ -317,10 +323,18 @@ export default function ExamReviewPage() {
                         <div className="space-y-1.5 mt-3">
                           {(q.sub_results || q.sub_questions || []).map(sub => {
                             const subResult = q.sub_results ? sub : null;
-                            const subSa = subResult?.student_answer || null;
-                            const subCorrect = subResult?.correct || sub.correct;
+                            const rawSubSa = subResult?.student_answer || null;
+                            const rawSubCorrect = subResult?.correct || sub.correct;
+                            const isTF = sub.type === 'true_false';
+                            const subSa = isTF
+                              ? (rawSubSa === 'T' ? 'A' : rawSubSa === 'F' ? 'B' : rawSubSa)
+                              : rawSubSa;
+                            const subCorrect = isTF
+                              ? (rawSubCorrect === 'T' ? 'A' : rawSubCorrect === 'F' ? 'B' : rawSubCorrect)
+                              : rawSubCorrect;
                             const subIsCorrect = subResult?.is_correct ?? false;
                             const hasSubAnswer = !!subSa;
+                            const listLetters = isTF ? ['A', 'B'] : ['A', 'B', 'C', 'D'];
                             return (
                               <div key={sub.label} className={`flex items-center gap-2 p-2.5 rounded-xl border-2 ${
                                 !hasSubAnswer
@@ -329,16 +343,18 @@ export default function ExamReviewPage() {
                                     ? dark ? 'border-green-700/50 bg-green-900/20' : 'border-green-300 bg-green-50'
                                     : dark ? 'border-red-700/50 bg-red-900/20' : 'border-red-300 bg-red-50'
                               }`}>
-                                <span className={`text-xs font-black w-6 flex-shrink-0 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-600'}`}>{sub.label}</span>
+                                <span className={`text-xs font-black w-24 flex-shrink-0 ${dark ? 'text-[var(--dk-text-2)]' : 'text-navy-600'}`}>
+                                  {sub.label} <span className="text-[10px] text-gray-400 font-normal">({sub.points || 1} د)</span>
+                                </span>
                                 <div className="flex gap-1 flex-1">
-                                  {['A','B','C','D'].map(letter => (
+                                  {listLetters.map(letter => (
                                     <span key={letter} className={`flex-1 text-center py-0.5 rounded text-xs font-bold border ${
                                       letter === subCorrect && letter === subSa ? 'bg-green-600 text-white border-green-600'
                                       : letter === subSa && !subIsCorrect ? 'bg-red-500 text-white border-red-500'
                                       : letter === subCorrect
                                         ? dark ? 'bg-green-900/30 text-green-300 border-green-700/50' : 'bg-green-100 text-green-800 border-green-300'
                                         : dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)] border-[var(--dk-border)]' : 'bg-white text-gray-400 border-gray-200'
-                                    }`}>{letter}</span>
+                                    }`}>{isTF ? (letter === 'A' ? 'صح' : 'خطأ') : letter}</span>
                                   ))}
                                 </div>
                                 {!hasSubAnswer && <span className={`text-[10px] flex-shrink-0 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>لم تُجَب</span>}
