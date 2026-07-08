@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useLiveStream } from '../../context/LiveStreamContext';
+import { toUTCDate } from '../../lib/dateUtils';
 import LiveKitRoom from '../../components/LiveKitRoom';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
@@ -645,7 +646,7 @@ function ScheduledStreamCard({ stream, dark, onStart, onCancel, starting }) {
   const [timeLabel, setTimeLabel] = useState('');
   useEffect(() => {
     const tick = () => {
-      const diff = new Date(stream.scheduled_at).getTime() - Date.now();
+      const diff = (toUTCDate(stream.scheduled_at)?.getTime() ?? Date.now()) - Date.now();
       if (diff <= 0) { setTimeLabel('جاهز للبدء الآن!'); return; }
       const h = Math.floor(diff / 3600000);
       const m = Math.floor((diff % 3600000) / 60000);
@@ -660,10 +661,10 @@ function ScheduledStreamCard({ stream, dark, onStart, onCancel, starting }) {
     return () => clearInterval(iv);
   }, [stream.scheduled_at]);
 
-  const dateStr = new Date(stream.scheduled_at).toLocaleString('ar-EG', {
+  const dateStr = toUTCDate(stream.scheduled_at)?.toLocaleString('ar-EG', {
     weekday: 'long', month: 'short', day: 'numeric',
     hour: '2-digit', minute: '2-digit',
-  });
+  }) ?? '';
 
   return (
     <div className={`rounded-2xl border p-4 ${dark ? 'bg-[#17151F] border-[rgba(230,175,80,0.12)]' : 'bg-white border-slate-200'}`}>

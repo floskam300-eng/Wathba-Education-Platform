@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { FileText, Clock, CheckCircle, Play, Eye, Calendar, Lock, RotateCcw, X, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import ImageLightbox from '../../components/ImageLightbox';
+import { toUTCDate } from '../../lib/dateUtils';
 import Modal from '../../components/ui/Modal';
 import MathText from '../../components/MathText';
 import Badge from '../../components/ui/Badge';
@@ -35,21 +36,22 @@ function getShuffledOpts(q, studentId, shuffleOptions) {
 
 const getExamScheduleStatus = (ex) => {
   const now = new Date();
-  if (ex.start_date && new Date(ex.start_date) > now) return 'upcoming';
-  if (ex.end_date && new Date(ex.end_date) < now) return 'expired';
+  if (ex.start_date && toUTCDate(ex.start_date) > now) return 'upcoming';
+  if (ex.end_date && toUTCDate(ex.end_date) < now) return 'expired';
   return 'open';
 };
 
 // Isolated countdown badge — manages its own 1s timer to avoid re-rendering the whole page
 const ExamCountdownBadge = React.memo(function ExamCountdownBadge({ targetDate }) {
-  const [display, setDisplay] = useState(() => formatCountdown(new Date(targetDate).getTime() - Date.now()));
+  const targetMs = toUTCDate(targetDate)?.getTime() ?? Infinity;
+  const [display, setDisplay] = useState(() => formatCountdown(targetMs - Date.now()));
   useEffect(() => {
     const id = setInterval(() => {
-      const msLeft = new Date(targetDate).getTime() - Date.now();
+      const msLeft = targetMs - Date.now();
       setDisplay(msLeft > 0 ? formatCountdown(msLeft) : null);
     }, 1000);
     return () => clearInterval(id);
-  }, [targetDate]);
+  }, [targetMs]);
   if (!display) return null;
   return (
     <span className="text-xs font-black text-orange-700 bg-orange-100 rounded-lg px-2 py-0.5 tabular-nums tracking-wider">
@@ -117,8 +119,8 @@ export default function StudentExams() {
   useEffect(() => {
     if (!exams.length) return;
     const upcomingDates = exams
-      .filter(ex => ex.start_date && new Date(ex.start_date) > new Date())
-      .map(ex => new Date(ex.start_date).getTime());
+      .filter(ex => ex.start_date && toUTCDate(ex.start_date) > new Date())
+      .map(ex => toUTCDate(ex.start_date)?.getTime() ?? 0).filter(Boolean);
     if (!upcomingDates.length) return;
 
     const timers = upcomingDates.map(ts => {
@@ -958,8 +960,8 @@ export default function StudentExams() {
                     <div className="flex items-start gap-1.5 mb-3 text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
                       <Calendar className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
                       <span className="leading-relaxed">
-                        {ex.start_date && `من ${new Date(ex.start_date).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}`}
-                        {ex.end_date && ` · حتى ${new Date(ex.end_date).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}`}
+                        {ex.start_date && `من ${toUTCDate(ex.start_date)?.toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' }) ?? ''}`}
+                        {ex.end_date && ` · حتى ${toUTCDate(ex.end_date)?.toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' }) ?? ''}`}
                       </span>
                     </div>
                   )}
@@ -968,7 +970,7 @@ export default function StudentExams() {
                     <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-3 py-2 mb-3">
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-xs text-yellow-800 font-bold">
-                          يبدأ في: {new Date(ex.start_date).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' })}
+                          يبدأ في: {toUTCDate(ex.start_date)?.toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }) ?? ''}
                         </span>
                         <ExamCountdownBadge targetDate={ex.start_date} />
                       </div>

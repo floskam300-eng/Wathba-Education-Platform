@@ -15,6 +15,7 @@ import api from '../../lib/api';
 import toast from 'react-hot-toast';
 import { generatePDFReport } from '../../lib/pdfReport';
 import { validateExamForm, hasErrors } from '../../lib/validation';
+import { toUTCDate, fmtDateLocal as _fmtDateLocal } from '../../lib/dateUtils';
 
 function FieldError({ error }) {
   if (!error) return null;
@@ -36,14 +37,8 @@ const emptyExam = {
   bank_easy_count: 0, bank_medium_count: 0, bank_hard_count: 0, use_difficulty_split: false,
 };
 
-const fmtDateLocal = (iso) => {
-  if (!iso) return '';
-  // Convert UTC ISO string → local datetime-local value (YYYY-MM-DDTHH:MM)
-  // 'sv' locale gives ISO-style "YYYY-MM-DD HH:MM:SS" in local time
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return '';
-  return d.toLocaleString('sv').replace(' ', 'T').slice(0, 16);
-};
+// fmtDateLocal: re-export from shared dateUtils (converts UTC API timestamp → local datetime-local value)
+const fmtDateLocal = _fmtDateLocal;
 
 export default function TeacherExams() {
   const qc = useQueryClient();
@@ -261,8 +256,8 @@ export default function TeacherExams() {
 
   const getScheduleStatus = (ex) => {
     const now = new Date();
-    if (ex.start_date && new Date(ex.start_date) > now) return { label: '⏳ لم يبدأ', cls: 'bg-yellow-100 text-yellow-800' };
-    if (ex.end_date && new Date(ex.end_date) < now) return { label: '🔒 انتهى', cls: 'bg-red-100 text-red-800' };
+    if (ex.start_date && toUTCDate(ex.start_date) > now) return { label: '⏳ لم يبدأ', cls: 'bg-yellow-100 text-yellow-800' };
+    if (ex.end_date && toUTCDate(ex.end_date) < now) return { label: '🔒 انتهى', cls: 'bg-red-100 text-red-800' };
     if (ex.start_date || ex.end_date) return { label: '🟢 مفتوح', cls: 'bg-green-100 text-green-800' };
     return null;
   };
@@ -435,8 +430,8 @@ export default function TeacherExams() {
                     {(ex.start_date || ex.end_date) && (
                       <div className="flex items-center gap-1 mt-1 text-xs text-gray-500">
                         <Calendar className="w-3 h-3 flex-shrink-0" />
-                        {ex.start_date && <span className="truncate">من: {new Date(ex.start_date).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}</span>}
-                        {ex.end_date && <span className="truncate">· حتى: {new Date(ex.end_date).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}</span>}
+                        {ex.start_date && <span className="truncate">من: {toUTCDate(ex.start_date)?.toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}</span>}
+                        {ex.end_date && <span className="truncate">· حتى: {toUTCDate(ex.end_date)?.toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}</span>}
                       </div>
                     )}
 
@@ -883,8 +878,8 @@ export default function TeacherExams() {
       {/* Publish Confirmation Dialog */}
       {publishConfirm && (() => {
         const now = new Date();
-        const endDate = publishConfirm.end_date ? new Date(publishConfirm.end_date) : null;
-        const startDate = publishConfirm.start_date ? new Date(publishConfirm.start_date) : null;
+        const endDate = publishConfirm.end_date ? toUTCDate(publishConfirm.end_date) : null;
+        const startDate = publishConfirm.start_date ? toUTCDate(publishConfirm.start_date) : null;
         const isExpired = endDate && endDate < now;
         const hasResults = publishConfirm.attempt_count > 0;
         return (

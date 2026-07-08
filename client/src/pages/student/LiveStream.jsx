@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useLiveStream } from '../../context/LiveStreamContext';
+import { toUTCDate } from '../../lib/dateUtils';
 import LiveKitRoom from '../../components/LiveKitRoom';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
@@ -442,8 +443,9 @@ function LiveView({ stream, user, dark, onLeave }) {
 function Countdown({ target }) {
   const [label, setLabel] = useState('');
   useEffect(() => {
+    const targetMs = toUTCDate(target)?.getTime() ?? Infinity;
     const tick = () => {
-      const diff = new Date(target).getTime() - Date.now();
+      const diff = targetMs - Date.now();
       if (diff <= 0) { setLabel('ابدأ البث الآن!'); return; }
       const h = Math.floor(diff / 3600000);
       const m = Math.floor((diff % 3600000) / 60000);
@@ -480,11 +482,11 @@ function useReactiveElapsed(startedAt) {
 
 /* ── Upcoming scheduled stream card ───────────────────────── */
 function ScheduledCard({ stream, dark }) {
-  const dateStr = new Date(stream.scheduled_at).toLocaleString('ar-EG', {
+  const dateStr = toUTCDate(stream.scheduled_at)?.toLocaleString('ar-EG', {
     weekday: 'long', month: 'short', day: 'numeric',
     hour: '2-digit', minute: '2-digit',
-  });
-  const isPast = new Date(stream.scheduled_at).getTime() <= Date.now();
+  }) ?? '';
+  const isPast = (toUTCDate(stream.scheduled_at)?.getTime() ?? Infinity) <= Date.now();
 
   return (
     <div className={`rounded-2xl border p-5 ${dark ? 'bg-[#17151F]/90 border-[rgba(230,175,80,0.12)]' : 'bg-white border-slate-200'}`}>
