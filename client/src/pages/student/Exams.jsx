@@ -445,7 +445,11 @@ export default function StudentExams() {
     // server-authoritative serverStartedAt timestamp.
     setAnswers({}); setResult(null);
     submittedRef.current = false;
-    setPendingExam(exam);
+    const examForTaking = { ...exam };
+    if (retryMap[exam.id]?.status === 'approved') {
+      delete examForTaking.already_taken;
+    }
+    setPendingExam(examForTaking);
     setCountdown(3);
   };
 
@@ -971,7 +975,7 @@ export default function StudentExams() {
                     </div>
                   )}
 
-                  {ex.already_taken ? (() => {
+                  {ex.already_taken && retryMap[ex.id]?.status !== 'approved' ? (() => {
                     const passed = ex.score >= ex.pass_score;
                     const myRetry = retryMap[ex.id];
                     return (

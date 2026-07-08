@@ -154,6 +154,11 @@ async function runTests() {
     const takeR = await request('GET', `/api/exams/${T.examId}/take`, null, T.studentToken);
     assertEqual(takeR.status, 200, 'take exam failed');
 
+    // Assert that sub_questions column is retrieved and returned for the image_multi question
+    const q2Client = takeR.body.questions.find(q => q.id === T.q2Id);
+    assert(q2Client, 'Q2 not found in client questions response');
+    assert(Array.isArray(q2Client.sub_questions) && q2Client.sub_questions.length > 0, 'Q2 sub_questions should be populated and returned');
+
     // 2. Submit answers
     // Q1 (TF, correct is 'T' -> maps to 'A'): student answers 'A' -> Should be CORRECT (10 points)
     // Q2 (image_multi, sub1: 'T' (15 pts), sub2: 'B' (5 pts), sub3: 'C' (20 pts))
@@ -178,6 +183,38 @@ async function runTests() {
     assertEqual(submitR.status, 200, 'submit exam failed');
     assertEqual(Math.round(submitR.body.result.score), 90, 'forged score mismatch');
     T.examResultId = submitR.body.result.id;
+  });
+
+  await test('Approved retry request permits second take and submission', async () => {
+    // 1. Student requests retry
+    const reqR = await request('POST', `/api/exams/${T.examId}/retry-request`, { message: 'إعادة' }, T.studentToken);
+    assertEqual(reqR.status, 201, 'retry request failed');
+    const reqId = reqR.body.id;
+
+    // 2. Teacher approves retry request
+    const appR = await request('PUT', `/api/exams/retry-requests/${reqId}/approve`, { teacher_note: 'تم القبول' }, T.teacherToken);
+    assertEqual(appR.status, 200, 'retry approve failed');
+
+    // 3. Student takes the exam again (should succeed 200 and return a new session)
+    const takeAgainR = await request('GET', `/api/exams/${T.examId}/take`, null, T.studentToken);
+    assertEqual(takeAgainR.status, 200, 'take exam second time failed');
+
+    // 4. Student submits again
+    const answersAgain = {
+      [T.q1Id]: 'A',
+      [T.q2Id]: {
+        sub1: 'A',
+        sub2: 'B', // Correct now! (+5 points)
+        sub3: 'C'
+      }
+    };
+    // Total raw earned points = 10 + 15 + 5 + 20 = 50 points
+    // Total possible exam points = 50 points
+    // Normalized score = 100%
+    const submitAgainR = await request('POST', `/api/exams/${T.examId}/submit`, { answers: answersAgain }, T.studentToken);
+    assertEqual(submitAgainR.status, 200, 'submit exam second time failed');
+    assertEqual(Math.round(submitAgainR.body.result.score), 100, 'retry attempt score mismatch');
+    T.examResultId = submitAgainR.body.result.id; // update for review
   });
 
   await test('Review Exam results contains correct points & types breakdown', async () => {
@@ -205,10 +242,10 @@ async function runTests() {
     assertEqual(s1.is_correct, true, 'sub1 should be correct');
 
     const s2 = subResults.find(s => s.label === 'sub2');
-    assertEqual(s2.student_answer, 'A', 'sub2 student answer mismatch');
+    assertEqual(s2.student_answer, 'B', 'sub2 student answer mismatch'); // Correct on the second attempt!
     assertEqual(s2.correct, 'B', 'sub2 correct answer mismatch');
     assertEqual(s2.points, 5, 'sub2 points mismatch');
-    assertEqual(s2.is_correct, false, 'sub2 should be incorrect');
+    assertEqual(s2.is_correct, true, 'sub2 should be correct');
 
     const s3 = subResults.find(s => s.label === 'sub3');
     assertEqual(s3.student_answer, 'C', 'sub3 student answer mismatch');

@@ -1187,7 +1187,7 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
       }
     } else {
       const questionsRes = await pool.query(
-        'SELECT id,question_text,question_image_url,option_a,option_b,option_c,option_d,points,question_type FROM questions WHERE exam_id=$1 ORDER BY id',
+        'SELECT id,question_text,question_image_url,option_a,option_b,option_c,option_d,points,question_type,sub_questions FROM questions WHERE exam_id=$1 ORDER BY id',
         [examId]
       );
       if (questionsRes.rows.length === 0) {
