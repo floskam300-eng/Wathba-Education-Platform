@@ -31,6 +31,7 @@ import TeacherActivityLog from './pages/teacher/ActivityLog';
 import CourseContent from './pages/teacher/CourseContent';
 import ExamQuestions from './pages/teacher/ExamQuestions';
 import RecitationQuestions from './pages/teacher/RecitationQuestions';
+import QuestionBankQuestions from './pages/teacher/QuestionBankQuestions';
 import TeacherSettings from './pages/teacher/Settings';
 import TeacherRecitations from './pages/teacher/Recitations';
 import TeacherArchive from './pages/teacher/Archive';
@@ -183,6 +184,7 @@ const TenantRoutes = () => {
           <Route path="courses/:courseId/content" element={<CourseContent />} />
           <Route path="exams/:examId/questions" element={<ExamQuestions />} />
           <Route path="recitations/:recitationId/questions" element={<RecitationQuestions />} />
+          <Route path="question-banks/:bankId/questions" element={<QuestionBankQuestions />} />
           <Route path="settings" element={<TeacherSettings />} />
           <Route path="recitations" element={<TeacherRecitations />} />
           <Route path="archive" element={<TeacherArchive />} />
@@ -231,6 +233,9 @@ const TenantRoutes = () => {
           } />
           <Route path="recitations/:recitationId/questions" element={
             <AssistantPermissionRoute permission="can_manage_recitations"><RecitationQuestions /></AssistantPermissionRoute>
+          } />
+          <Route path="question-banks/:bankId/questions" element={
+            <AssistantPermissionRoute permission="can_manage_exams"><QuestionBankQuestions /></AssistantPermissionRoute>
           } />
           <Route path="recitations" element={
             <AssistantPermissionRoute permission="can_manage_recitations"><TeacherRecitations /></AssistantPermissionRoute>
