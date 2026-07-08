@@ -69,7 +69,7 @@ export default function TeacherPayments() {
 
   const clearError = (field) => setFormErrors(prev => { const n = { ...prev }; delete n[field]; return n; });
 
-  const { data: payments = [], isLoading } = useQuery({
+  const { data: payments = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: ['payments'],
     queryFn: () => api.get('/payments').then(r => r.data),
     refetchInterval: 30000,
@@ -222,6 +222,21 @@ export default function TeacherPayments() {
           </button>
         </div>
       </div>
+
+      {isError && (
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-center gap-3">
+          <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-red-700 font-bold text-sm">تعذر تحميل المدفوعات</p>
+            <p className="text-red-500 text-xs mt-0.5">
+              {error?.response?.status === 403
+                ? 'ليس لديك صلاحية لعرض المدفوعات — تواصل مع المعلم لمنحك صلاحية "إدارة المدفوعات"'
+                : (error?.response?.data?.error || 'حدث خطأ أثناء جلب البيانات، حاول مرة أخرى')}
+            </p>
+          </div>
+          <button onClick={() => refetch()} className="btn-secondary text-xs px-3 py-1.5">إعادة المحاولة</button>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="card bg-green-50 border border-green-200">
