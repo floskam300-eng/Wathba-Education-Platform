@@ -41,6 +41,36 @@ const _vidUserId = () => { try { return JSON.parse(localStorage.getItem('wathba_
 const saveVidPos  = (id, pos) => { try { if (pos > 5) localStorage.setItem(`wathba_vid_pos_${_vidUserId()}_${id}`, String(Math.round(pos))); } catch {} };
 const loadVidPos  = (id) => { try { return parseInt(localStorage.getItem(`wathba_vid_pos_${_vidUserId()}_${id}`) || '0', 10); } catch { return 0; } };
 
+/* ─── Device-orientation aware "force landscape" helper ──────────
+   The rotate button fakes a landscape presentation (via CSS rotate) for
+   phones that are held in portrait. If the phone is *already* physically
+   in landscape, applying that same 90° rotate makes the video appear
+   sideways instead of fixing anything — so we track real device
+   orientation and only rotate when the device itself is still portrait. */
+const getDeviceIsLandscape = () => {
+  try { return window.matchMedia('(orientation: landscape)').matches; } catch { return false; }
+};
+
+function useDeviceOrientation() {
+  const [isLandscape, setIsLandscape] = useState(getDeviceIsLandscape);
+  useEffect(() => {
+    let mq;
+    const onChange = () => setIsLandscape(getDeviceIsLandscape());
+    try {
+      mq = window.matchMedia('(orientation: landscape)');
+      mq.addEventListener ? mq.addEventListener('change', onChange) : mq.addListener(onChange);
+    } catch (_) {}
+    window.addEventListener('resize', onChange);
+    window.addEventListener('orientationchange', onChange);
+    return () => {
+      try { mq && (mq.removeEventListener ? mq.removeEventListener('change', onChange) : mq.removeListener(onChange)); } catch (_) {}
+      window.removeEventListener('resize', onChange);
+      window.removeEventListener('orientationchange', onChange);
+    };
+  }, []);
+  return isLandscape;
+}
+
 /* ─── Floating Watermark ───────────────────────────────── */
 const WATERMARK_SLOTS = [
   { x: 5,  y: 8  },
@@ -417,13 +447,28 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
     try { playerRef.current?.setPlaybackRate(s); } catch (_) {}
   };
 
+  const deviceIsLandscape = useDeviceOrientation();
+
+  const toggleLandscape = () => {
+    if (cssLandscape) {
+      setCssLandscape(false);
+      setIsFullscreen(false);
+    } else {
+      setCssFullscreen(false);
+      setCssLandscape(true);
+      setIsFullscreen(true);
+    }
+  };
+
   const toggleFullscreen = () => {
     const inNativeFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
-    if (inNativeFs || cssFullscreen) {
+    if (inNativeFs || cssFullscreen || cssLandscape) {
       if (inNativeFs) {
         try { (document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen)?.call(document); } catch (_) {}
       }
+      try { screen.orientation?.unlock?.(); } catch (_) {}
       setCssFullscreen(false);
+      setCssLandscape(false);
       setIsFullscreen(false);
       return;
     }
@@ -431,7 +476,9 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
     if (!el) return;
     const fsReq = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen;
     if (fsReq) {
-      fsReq.call(el).then(() => setIsFullscreen(true)).catch(() => setCssFullscreen(true));
+      fsReq.call(el)
+        .then(() => { try { screen.orientation?.lock?.('landscape').catch(() => {}); } catch (_) {} setIsFullscreen(true); })
+        .catch(() => setCssFullscreen(true));
     } else {
       setCssFullscreen(true);
       setIsFullscreen(true);
@@ -464,7 +511,22 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
   const pctStr = `${progress}%`;
   const volStr = `${muted ? 0 : volume}%`;
 
-  const fsStyle = cssFullscreen ? { position: 'fixed', inset: 0, zIndex: 9998, width: '100vw', height: '100vh' } : {};
+  // Only fake-rotate with CSS when the device itself is still portrait —
+  // if it's already physically landscape, a plain fullscreen is correct
+  // and an extra 90° rotate would turn the video sideways.
+  const fsStyle = cssLandscape
+    ? (deviceIsLandscape
+        ? { position: 'fixed', inset: 0, zIndex: 9999, width: '100vw', height: '100vh' }
+        : {
+            position: 'fixed', top: 0, left: 0,
+            width: '100vh', height: '100vw',
+            transformOrigin: 'top left',
+            transform: 'rotate(-90deg) translateX(-100%)',
+            zIndex: 9999,
+          })
+    : cssFullscreen
+      ? { position: 'fixed', inset: 0, zIndex: 9998, width: '100vw', height: '100vh' }
+      : {};
 
   return (
     <div
@@ -558,6 +620,14 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
                 className="player-range player-range-volume" style={{ '--vol': volStr }}
                 onChange={onVolumeChange} />
             </div>
+            {/* زر تدوير الشاشة — يظهر على الموبايل فقط */}
+            <button
+              onClick={toggleLandscape}
+              className={`sm:hidden transition-colors flex-shrink-0 ${cssLandscape ? 'text-orange-400' : 'text-white hover:text-orange-400'}`}
+              title="تدوير الشاشة"
+            >
+              <RotateCw className="w-4 h-4" />
+            </button>
             <button onClick={toggleFullscreen} className="text-white hover:text-orange-400 transition-colors flex-shrink-0">
               {isFullscreen || cssFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </button>
@@ -718,6 +788,8 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
     if (videoRef.current) videoRef.current.playbackRate = s;
   };
 
+  const deviceIsLandscape = useDeviceOrientation();
+
   const toggleLandscape = () => {
     if (cssLandscape) {
       setCssLandscape(false);
@@ -785,16 +857,23 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
   const pct = `${progress}%`;
   const vol = `${(muted ? 0 : volume) * 100}%`;
 
-  const vFsStyle = cssLandscape ? {
-    position: 'fixed', top: 0, left: 0,
-    width: '100vh', height: '100vw',
-    transformOrigin: 'top left',
-    transform: 'rotate(-90deg) translateX(-100%)',
-    zIndex: 9999,
-  } : cssFullscreen ? {
-    position: 'fixed', inset: 0, zIndex: 9998,
-    width: '100vw', height: '100vh',
-  } : {};
+  // Only fake-rotate with CSS when the device itself is still portrait —
+  // if it's already physically landscape, a plain fullscreen is correct
+  // and an extra 90° rotate would turn the video sideways.
+  const vFsStyle = cssLandscape
+    ? (deviceIsLandscape
+        ? { position: 'fixed', inset: 0, zIndex: 9999, width: '100vw', height: '100vh' }
+        : {
+            position: 'fixed', top: 0, left: 0,
+            width: '100vh', height: '100vw',
+            transformOrigin: 'top left',
+            transform: 'rotate(-90deg) translateX(-100%)',
+            zIndex: 9999,
+          })
+    : cssFullscreen ? {
+        position: 'fixed', inset: 0, zIndex: 9998,
+        width: '100vw', height: '100vh',
+      } : {};
 
   return (
     <div

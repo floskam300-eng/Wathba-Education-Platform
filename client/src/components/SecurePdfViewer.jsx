@@ -130,8 +130,15 @@ export default function SecurePdfViewer({ pdf }) {
       const ctx = canvas.getContext('2d');
       canvas.width        = viewport.width;
       canvas.height       = viewport.height;
-      canvas.style.width  = `${viewport.width  / dpr}px`;
-      canvas.style.height = `${viewport.height / dpr}px`;
+      // Only cap the *intrinsic* (native pixel) display size here — leave
+      // actual width/height to the CSS (width:100%, height:auto) set via the
+      // React `style` prop below, which scales the page down proportionally
+      // to fit narrow mobile screens. Setting a fixed px width AND height
+      // imperatively (like before) fights that CSS: capping only the width
+      // via max-w-full while height stayed a fixed px value squashed the
+      // aspect ratio, so a wide/landscape PDF page looked stretched/tall.
+      canvas.style.maxWidth  = `${viewport.width  / dpr}px`;
+      canvas.style.maxHeight = `${viewport.height / dpr}px`;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       const task = page.render({ canvasContext: ctx, viewport });
@@ -443,7 +450,7 @@ export default function SecurePdfViewer({ pdf }) {
 
         {/* Canvas (always mounted once loaded, hidden during load/error) */}
         {!isLoading && !error && (
-          <div className="relative">
+          <div className="relative w-full max-w-full flex justify-center">
             {pageLoading && (
               <div className="absolute inset-0 flex items-center justify-center bg-white/50 z-10 rounded">
                 <Loader2 className="w-8 h-8 animate-spin text-orange-400" />
@@ -455,6 +462,8 @@ export default function SecurePdfViewer({ pdf }) {
               style={{
                 imageRendering: 'auto',   // [B-1 fix] 'high-quality' is not a valid CSS value
                 pointerEvents: 'none',
+                width: '100%',
+                height: 'auto',
               }}
               draggable={false}
               onDragStart={e => e.preventDefault()}
