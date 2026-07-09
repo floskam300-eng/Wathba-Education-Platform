@@ -41,6 +41,36 @@ const _vidUserId = () => { try { return JSON.parse(localStorage.getItem('wathba_
 const saveVidPos  = (id, pos) => { try { if (pos > 5) localStorage.setItem(`wathba_vid_pos_${_vidUserId()}_${id}`, String(Math.round(pos))); } catch {} };
 const loadVidPos  = (id) => { try { return parseInt(localStorage.getItem(`wathba_vid_pos_${_vidUserId()}_${id}`) || '0', 10); } catch { return 0; } };
 
+/* ─── Device-orientation aware "force landscape" helper ──────────
+   The rotate button fakes a landscape presentation (via CSS rotate) for
+   phones that are held in portrait. If the phone is *already* physically
+   in landscape, applying that same 90° rotate makes the video appear
+   sideways instead of fixing anything — so we track real device
+   orientation and only rotate when the device itself is still portrait. */
+const getDeviceIsLandscape = () => {
+  try { return window.matchMedia('(orientation: landscape)').matches; } catch { return false; }
+};
+
+function useDeviceOrientation() {
+  const [isLandscape, setIsLandscape] = useState(getDeviceIsLandscape);
+  useEffect(() => {
+    let mq;
+    const onChange = () => setIsLandscape(getDeviceIsLandscape());
+    try {
+      mq = window.matchMedia('(orientation: landscape)');
+      mq.addEventListener ? mq.addEventListener('change', onChange) : mq.addListener(onChange);
+    } catch (_) {}
+    window.addEventListener('resize', onChange);
+    window.addEventListener('orientationchange', onChange);
+    return () => {
+      try { mq && (mq.removeEventListener ? mq.removeEventListener('change', onChange) : mq.removeListener(onChange)); } catch (_) {}
+      window.removeEventListener('resize', onChange);
+      window.removeEventListener('orientationchange', onChange);
+    };
+  }, []);
+  return isLandscape;
+}
+
 /* ─── Floating Watermark ───────────────────────────────── */
 const WATERMARK_SLOTS = [
   { x: 5,  y: 8  },
@@ -417,13 +447,28 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
     try { playerRef.current?.setPlaybackRate(s); } catch (_) {}
   };
 
+  const deviceIsLandscape = useDeviceOrientation();
+
+  const toggleLandscape = () => {
+    if (cssLandscape) {
+      setCssLandscape(false);
+      setIsFullscreen(false);
+    } else {
+      setCssFullscreen(false);
+      setCssLandscape(true);
+      setIsFullscreen(true);
+    }
+  };
+
   const toggleFullscreen = () => {
     const inNativeFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
-    if (inNativeFs || cssFullscreen) {
+    if (inNativeFs || cssFullscreen || cssLandscape) {
       if (inNativeFs) {
         try { (document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen)?.call(document); } catch (_) {}
       }
+      try { screen.orientation?.unlock?.(); } catch (_) {}
       setCssFullscreen(false);
+      setCssLandscape(false);
       setIsFullscreen(false);
       return;
     }
@@ -431,7 +476,9 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
     if (!el) return;
     const fsReq = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen;
     if (fsReq) {
-      fsReq.call(el).then(() => setIsFullscreen(true)).catch(() => setCssFullscreen(true));
+      fsReq.call(el)
+        .then(() => { try { screen.orientation?.lock?.('landscape').catch(() => {}); } catch (_) {} setIsFullscreen(true); })
+        .catch(() => setCssFullscreen(true));
     } else {
       setCssFullscreen(true);
       setIsFullscreen(true);
@@ -464,7 +511,22 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
   const pctStr = `${progress}%`;
   const volStr = `${muted ? 0 : volume}%`;
 
-  const fsStyle = cssFullscreen ? { position: 'fixed', inset: 0, zIndex: 9998, width: '100vw', height: '100vh' } : {};
+  // Only fake-rotate with CSS when the device itself is still portrait —
+  // if it's already physically landscape, a plain fullscreen is correct
+  // and an extra 90° rotate would turn the video sideways.
+  const fsStyle = cssLandscape
+    ? (deviceIsLandscape
+        ? { position: 'fixed', inset: 0, zIndex: 9999, width: '100vw', height: '100vh' }
+        : {
+            position: 'fixed', top: 0, left: 0,
+            width: '100vh', height: '100vw',
+            transformOrigin: 'top left',
+            transform: 'rotate(-90deg) translateX(-100%)',
+            zIndex: 9999,
+          })
+    : cssFullscreen
+      ? { position: 'fixed', inset: 0, zIndex: 9998, width: '100vw', height: '100vh' }
+      : {};
 
   return (
     <div
@@ -558,6 +620,14 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
                 className="player-range player-range-volume" style={{ '--vol': volStr }}
                 onChange={onVolumeChange} />
             </div>
+            {/* زر تدوير الشاشة — يظهر على الموبايل فقط */}
+            <button
+              onClick={toggleLandscape}
+              className={`sm:hidden transition-colors flex-shrink-0 ${cssLandscape ? 'text-orange-400' : 'text-white hover:text-orange-400'}`}
+              title="تدوير الشاشة"
+            >
+              <RotateCw className="w-4 h-4" />
+            </button>
             <button onClick={toggleFullscreen} className="text-white hover:text-orange-400 transition-colors flex-shrink-0">
               {isFullscreen || cssFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </button>
@@ -718,6 +788,8 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
     if (videoRef.current) videoRef.current.playbackRate = s;
   };
 
+  const deviceIsLandscape = useDeviceOrientation();
+
   const toggleLandscape = () => {
     if (cssLandscape) {
       setCssLandscape(false);
@@ -785,16 +857,23 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
   const pct = `${progress}%`;
   const vol = `${(muted ? 0 : volume) * 100}%`;
 
-  const vFsStyle = cssLandscape ? {
-    position: 'fixed', top: 0, left: 0,
-    width: '100vh', height: '100vw',
-    transformOrigin: 'top left',
-    transform: 'rotate(-90deg) translateX(-100%)',
-    zIndex: 9999,
-  } : cssFullscreen ? {
-    position: 'fixed', inset: 0, zIndex: 9998,
-    width: '100vw', height: '100vh',
-  } : {};
+  // Only fake-rotate with CSS when the device itself is still portrait —
+  // if it's already physically landscape, a plain fullscreen is correct
+  // and an extra 90° rotate would turn the video sideways.
+  const vFsStyle = cssLandscape
+    ? (deviceIsLandscape
+        ? { position: 'fixed', inset: 0, zIndex: 9999, width: '100vw', height: '100vh' }
+        : {
+            position: 'fixed', top: 0, left: 0,
+            width: '100vh', height: '100vw',
+            transformOrigin: 'top left',
+            transform: 'rotate(-90deg) translateX(-100%)',
+            zIndex: 9999,
+          })
+    : cssFullscreen ? {
+        position: 'fixed', inset: 0, zIndex: 9998,
+        width: '100vw', height: '100vh',
+      } : {};
 
   return (
     <div
@@ -1677,6 +1756,13 @@ export default function CourseView() {
     { key: 'recitations', label: 'التسميع', icon: BookOpen, count: courseRecitations.length },
   ];
 
+  // [Mobile expand/collapse] On phones the tab-picker box (aside) eats a fixed
+  // 34vh even while the student is deep into a PDF or a recitation. Let them
+  // collapse it out of the way and bring it back whenever they want.
+  const [contentExpanded, setContentExpanded] = useState(false);
+  useEffect(() => { setContentExpanded(false); }, [activeTab]);
+  const canExpand = activeTab === 'pdfs' || activeTab === 'recitations';
+
   return (
     <div className="flex flex-col h-full bg-gray-950">
 
@@ -1705,7 +1791,7 @@ export default function CourseView() {
       <div className="flex-1 flex flex-col-reverse md:flex-row overflow-hidden">
 
         {/* ── Sidebar ── */}
-        <aside className="w-full h-[34vh] md:w-80 md:h-auto flex-shrink-0 bg-gray-900 border-t md:border-t-0 md:border-l border-white/10 flex flex-col overflow-hidden">
+        <aside className={`w-full h-[34vh] md:w-80 md:h-auto flex-shrink-0 bg-gray-900 border-t md:border-t-0 md:border-l border-white/10 flex-col overflow-hidden ${contentExpanded ? 'hidden md:flex' : 'flex'}`}>
 
           {/* Course info strip — desktop only */}
           <div className="hidden md:block flex-shrink-0 px-4 py-4 border-b border-white/10 bg-gradient-to-b from-orange-500/10 to-transparent">
@@ -1887,7 +1973,24 @@ export default function CourseView() {
         </aside>
 
         {/* ── Main content ── */}
-        <main className="flex-1 flex flex-col overflow-hidden">
+        <main className="flex-1 flex flex-col overflow-hidden relative">
+          {/* Mobile expand/collapse toggle — lets the student hide the tab
+              picker box (files/lectures/recitations) while viewing a PDF or
+              taking a recitation, to get more screen space, then bring it
+              back whenever they want. */}
+          {canExpand && (
+            <button
+              onClick={() => setContentExpanded(e => !e)}
+              // Bottom-right corner, not top — the top of the PDF viewer and the
+              // recitation timer/status bar are both load-bearing UI, so a
+              // top-anchored floating button risks covering them on mobile.
+              className="md:hidden absolute bottom-3 left-3 z-30 flex items-center gap-1.5 bg-gray-900/90 border border-white/10 text-gray-300 hover:text-orange-400 text-[11px] font-bold px-2.5 py-1.5 rounded-full shadow-lg backdrop-blur-sm active:scale-95 transition-all"
+              title={contentExpanded ? 'إظهار القائمة' : 'تكبير الشاشة'}
+            >
+              {contentExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+              {contentExpanded ? 'إظهار القائمة' : 'تكبير الشاشة'}
+            </button>
+          )}
           {activeTab === 'videos' ? (
             <>
               {/* Video area */}
