@@ -233,7 +233,8 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageEx
           label: lbl,
           correct: String(sub.correct).toUpperCase(),
           type: subType,
-          points: subPoints
+          points: subPoints,
+          option_labels: Array.isArray(sub.option_labels) ? sub.option_labels.map(l => String(l || '').trim()) : null
         });
       }
       const labels = cleanSubQuestions.map(s => s.label);
@@ -387,7 +388,8 @@ router.put('/questions/:qid', requireRole('teacher', 'assistant'), checkManageEx
           label: lbl,
           correct: String(sub.correct).toUpperCase(),
           type: subType,
-          points: subPoints
+          points: subPoints,
+          option_labels: Array.isArray(sub.option_labels) ? sub.option_labels.map(l => String(l || '').trim()) : null
         });
       }
       const labels = cleanSubQuestions.map(s => s.label);

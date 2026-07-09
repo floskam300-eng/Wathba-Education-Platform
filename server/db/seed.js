@@ -857,12 +857,13 @@ async function seed() {
   ];
   const e2QIds = [];
   for (const [qt, txt, a, b, c, d, ans, pts] of e2Questions) {
+    const labels = qt === 'mcq' ? JSON.stringify(['أ', 'ب', 'ج', 'د']) : null;
     const [qr] = await q(`
       INSERT INTO questions
         (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,
-         correct_answer_letter,points)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id
-    `, [e2.id, qt, txt, a, b, c, d, ans, pts]);
+         correct_answer_letter,points,option_labels)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id
+    `, [e2.id, qt, txt, a, b, c, d, ans, pts, labels]);
     e2QIds.push({ id: qr.id, correct: ans, pts });
   }
 
@@ -876,12 +877,13 @@ async function seed() {
   ];
   const e3QIds = [];
   for (const [qt, txt, a, b, c, d, ans, pts] of e3Questions) {
+    const labels = qt === 'mcq' ? JSON.stringify(['1', '2', '3', '4']) : null;
     const [qr] = await q(`
       INSERT INTO questions
         (exam_id,question_type,question_text,option_a,option_b,option_c,option_d,
-         correct_answer_letter,points)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id
-    `, [e3.id, qt, txt, a, b, c, d, ans, pts]);
+         correct_answer_letter,points,option_labels)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id
+    `, [e3.id, qt, txt, a, b, c, d, ans, pts, labels]);
     e3QIds.push({ id: qr.id, correct: ans, pts, question_text: txt, question_type: qt, option_a: a, option_b: b, option_c: c, option_d: d });
   }
 
@@ -904,9 +906,9 @@ async function seed() {
 
   // سؤال image_multi — e3 (صورة مع بنود متعددة — 9 درجات، 3 أسئلة فرعية)
   const e3MultiSubs = JSON.stringify([
-    { label: '1', correct: 'B', type: 'mcq', points: 3 },
+    { label: '1', correct: 'B', type: 'mcq', points: 3, option_labels: ['أ', 'ب', 'ج', 'د'] },
     { label: '2', correct: 'A', type: 'true_false', points: 3 },
-    { label: '3', correct: 'C', type: 'mcq', points: 3 },
+    { label: '3', correct: 'C', type: 'mcq', points: 3, option_labels: ['1', '2', '3', '4'] },
   ]);
   const [e3MultiQ] = await q(`
     INSERT INTO questions

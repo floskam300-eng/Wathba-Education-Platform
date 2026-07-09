@@ -630,7 +630,8 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageEx
           label: String(sub.label).trim(),
           correct: String(sub.correct || '').toUpperCase(),
           type: subType,
-          points: subPoints
+          points: subPoints,
+          option_labels: Array.isArray(sub.option_labels) ? sub.option_labels.map(l => String(l || '').trim()) : null
         });
       }
       const labels = sanitizedSubs.map(s => s.label);
@@ -767,7 +768,8 @@ router.put('/questions/:qid', requireRole('teacher', 'assistant'), checkManageEx
           label: String(sub.label).trim(),
           correct: String(sub.correct || '').toUpperCase(),
           type: subType,
-          points: subPoints
+          points: subPoints,
+          option_labels: Array.isArray(sub.option_labels) ? sub.option_labels.map(l => String(l || '').trim()) : null
         });
       }
       const labels = sanitizedSubs.map(s => s.label);
@@ -1191,7 +1193,7 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
       }
     } else {
       const questionsRes = await pool.query(
-        'SELECT id,question_text,question_image_url,option_a,option_b,option_c,option_d,points,question_type,sub_questions FROM questions WHERE exam_id=$1 ORDER BY id',
+        'SELECT id,question_text,question_image_url,option_a,option_b,option_c,option_d,points,question_type,sub_questions,option_labels FROM questions WHERE exam_id=$1 ORDER BY id',
         [examId]
       );
       if (questionsRes.rows.length === 0) {

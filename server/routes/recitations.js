@@ -116,7 +116,7 @@ function seededShuffle(arr, seed) {
 // ── Ownership helpers ─────────────────────────────────────────────────────────
 const getRecitationForOwner = async (id, teacherId) => {
   const r = await pool.query(
-    'SELECT id, is_published, title FROM recitations WHERE id=$1 AND teacher_id=$2',
+    'SELECT * FROM recitations WHERE id=$1 AND teacher_id=$2',
     [id, teacherId]
   );
   return r.rows[0] || null;
@@ -847,7 +847,8 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageRe
         label: String(sub.label).trim(),
         correct: String(sub.correct || '').toUpperCase(),
         type: subType,
-        points: subPoints
+        points: subPoints,
+        option_labels: Array.isArray(sub.option_labels) ? sub.option_labels.map(l => String(l || '').trim()) : null
       });
     }
     const labels = sanitizedSubs.map(s => s.label);
@@ -942,7 +943,8 @@ router.put('/:id/questions/:qid', requireRole('teacher', 'assistant'), checkMana
         label: String(sub.label).trim(),
         correct: String(sub.correct || '').toUpperCase(),
         type: subType,
-        points: subPoints
+        points: subPoints,
+        option_labels: Array.isArray(sub.option_labels) ? sub.option_labels.map(l => String(l || '').trim()) : null
       });
     }
     const labels = sanitizedSubs.map(s => s.label);
