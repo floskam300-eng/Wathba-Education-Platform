@@ -1756,6 +1756,13 @@ export default function CourseView() {
     { key: 'recitations', label: 'التسميع', icon: BookOpen, count: courseRecitations.length },
   ];
 
+  // [Mobile expand/collapse] On phones the tab-picker box (aside) eats a fixed
+  // 34vh even while the student is deep into a PDF or a recitation. Let them
+  // collapse it out of the way and bring it back whenever they want.
+  const [contentExpanded, setContentExpanded] = useState(false);
+  useEffect(() => { setContentExpanded(false); }, [activeTab]);
+  const canExpand = activeTab === 'pdfs' || activeTab === 'recitations';
+
   return (
     <div className="flex flex-col h-full bg-gray-950">
 
@@ -1784,7 +1791,7 @@ export default function CourseView() {
       <div className="flex-1 flex flex-col-reverse md:flex-row overflow-hidden">
 
         {/* ── Sidebar ── */}
-        <aside className="w-full h-[34vh] md:w-80 md:h-auto flex-shrink-0 bg-gray-900 border-t md:border-t-0 md:border-l border-white/10 flex flex-col overflow-hidden">
+        <aside className={`w-full h-[34vh] md:w-80 md:h-auto flex-shrink-0 bg-gray-900 border-t md:border-t-0 md:border-l border-white/10 flex-col overflow-hidden ${contentExpanded ? 'hidden md:flex' : 'flex'}`}>
 
           {/* Course info strip — desktop only */}
           <div className="hidden md:block flex-shrink-0 px-4 py-4 border-b border-white/10 bg-gradient-to-b from-orange-500/10 to-transparent">
@@ -1966,7 +1973,24 @@ export default function CourseView() {
         </aside>
 
         {/* ── Main content ── */}
-        <main className="flex-1 flex flex-col overflow-hidden">
+        <main className="flex-1 flex flex-col overflow-hidden relative">
+          {/* Mobile expand/collapse toggle — lets the student hide the tab
+              picker box (files/lectures/recitations) while viewing a PDF or
+              taking a recitation, to get more screen space, then bring it
+              back whenever they want. */}
+          {canExpand && (
+            <button
+              onClick={() => setContentExpanded(e => !e)}
+              // Bottom-right corner, not top — the top of the PDF viewer and the
+              // recitation timer/status bar are both load-bearing UI, so a
+              // top-anchored floating button risks covering them on mobile.
+              className="md:hidden absolute bottom-3 left-3 z-30 flex items-center gap-1.5 bg-gray-900/90 border border-white/10 text-gray-300 hover:text-orange-400 text-[11px] font-bold px-2.5 py-1.5 rounded-full shadow-lg backdrop-blur-sm active:scale-95 transition-all"
+              title={contentExpanded ? 'إظهار القائمة' : 'تكبير الشاشة'}
+            >
+              {contentExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+              {contentExpanded ? 'إظهار القائمة' : 'تكبير الشاشة'}
+            </button>
+          )}
           {activeTab === 'videos' ? (
             <>
               {/* Video area */}
