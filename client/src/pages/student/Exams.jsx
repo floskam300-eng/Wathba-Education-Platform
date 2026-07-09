@@ -597,7 +597,7 @@ export default function StudentExams() {
                                     className={`flex-1 py-1.5 rounded-lg text-xs font-bold border-2 transition-all ${
                                       subSel === letter ? 'border-orange-500 bg-orange-50 text-orange-850' : 'border-gray-200 hover:border-gray-400 text-gray-655'
                                     }`}>
-                                    {sub.type === 'true_false' ? (letter === 'A' ? 'صح' : 'خطأ') : letter}
+                                    {sub.type === 'true_false' ? (letter === 'A' ? 'صح' : 'خطأ') : (sub.option_labels?.[['A', 'B', 'C', 'D'].indexOf(letter)] || letter)}
                                   </button>
                                 ))}
                               </div>
@@ -608,9 +608,9 @@ export default function StudentExams() {
                     ) : (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                         {(() => {
-                          const shuffledOpts = shuffledQuestionsOpts[q.id] || getShuffledOpts(q, studentId, exam.shuffle_options);
-                          const displayLabels = ['أ', 'ب', 'ج', 'د'];
-                          return shuffledOpts.map((origOpt, idx) => (
+                           const shuffledOpts = shuffledQuestionsOpts[q.id] || getShuffledOpts(q, studentId, exam.shuffle_options);
+                           const displayLabels = q.option_labels && q.option_labels.length === 4 ? q.option_labels : ['أ', 'ب', 'ج', 'د'];
+                           return shuffledOpts.map((origOpt, idx) => (
                             <button key={origOpt} onClick={() => setAnswers({ ...answers, [q.id]: origOpt })}
                               className={`flex items-center gap-2 p-2.5 sm:p-3 rounded-xl text-sm font-semibold text-right transition-all border-2 ${answers[q.id] === origOpt ? 'border-orange-500 bg-orange-50 text-orange-800' : 'border-gray-200 hover:border-navy-300 hover:bg-navy-50 text-navy-700'}`}>
                               <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 ${answers[q.id] === origOpt ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600'}`}>{displayLabels[idx]}</span>

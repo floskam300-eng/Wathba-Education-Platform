@@ -21,7 +21,7 @@ const emptyQ = {
   question_text: '', question_image_url: '',
   option_a: '', option_b: '', option_c: '', option_d: '',
   correct_answer_letter: 'A', points: 1, question_type: 'mcq',
-  sub_questions: [],
+  sub_questions: [], option_labels: null,
 };
 
 const qTypeLabel = (t) => ({ mcq: 'MCQ', true_false: 'صح/خطأ', image_multi: 'صورة+أسئلة' })[t] || 'MCQ';
@@ -143,6 +143,7 @@ export default function RecitationQuestions() {
       correct_answer_letter: q.correct_answer_letter || 'A',
       points: q.points || 1,
       sub_questions: q.sub_questions || [],
+      option_labels: q.option_labels || null,
     });
     formTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
@@ -331,20 +332,71 @@ export default function RecitationQuestions() {
 
                   {/* MCQ options */}
                   {qForm.question_type === 'mcq' && (
-                    <div className="space-y-2">
-                      <label className="block text-xs font-bold text-navy-700 dark:text-[var(--dk-text-1)]">الخيارات</label>
-                      {['A', 'B', 'C', 'D'].map((opt, i) => (
-                        <div key={opt} className="flex items-center gap-2">
-                          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
-                            qForm.correct_answer_letter === opt ? 'bg-purple-600 text-white' : 'bg-gray-200 dark:bg-[var(--dk-elevated)] text-gray-700 dark:text-[var(--dk-text-2)]'
-                          }`}>{opt}</span>
-                          <input
-                            value={qForm[`option_${opt.toLowerCase()}`] || ''}
-                            onChange={e => setQForm(f => ({ ...f, [`option_${opt.toLowerCase()}`]: e.target.value }))}
-                            className="flex-1 rounded-xl px-3 py-2 border border-gray-200 dark:border-[var(--dk-border)] bg-white dark:bg-[var(--dk-elevated)] text-gray-900 dark:text-[var(--dk-text-1)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 dark:focus:ring-purple-600/50 placeholder:text-gray-400 dark:placeholder:text-[var(--dk-text-3)]"
-                            placeholder={`الخيار ${opt}${i < 2 ? ' *' : ''}`} />
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-bold text-navy-700 dark:text-[var(--dk-text-1)]">الخيارات</label>
+                        <select
+                          value={
+                            !qForm.option_labels ? 'default' :
+                            JSON.stringify(qForm.option_labels) === JSON.stringify(['أ', 'ب', 'ج', 'د']) ? 'arabic' :
+                            JSON.stringify(qForm.option_labels) === JSON.stringify(['1', '2', '3', '4']) ? 'numbers' : 'custom'
+                          }
+                          onChange={e => {
+                            const val = e.target.value;
+                            if (val === 'default') setQForm(f => ({ ...f, option_labels: null }));
+                            else if (val === 'arabic') setQForm(f => ({ ...f, option_labels: ['أ', 'ب', 'ج', 'د'] }));
+                            else if (val === 'numbers') setQForm(f => ({ ...f, option_labels: ['1', '2', '3', '4'] }));
+                            else setQForm(f => ({ ...f, option_labels: ['A', 'B', 'C', 'D'] }));
+                          }}
+                          className="text-[10px] rounded border border-gray-200 dark:border-[var(--dk-border)] px-1.5 py-0.5 bg-white dark:bg-[var(--dk-elevated)] text-gray-700 dark:text-[var(--dk-text-2)] focus:outline-none"
+                        >
+                          <option value="default">افتراضي (A, B, C, D)</option>
+                          <option value="arabic">عربي (أ، ب، ج، د)</option>
+                          <option value="numbers">أرقام (1، 2، 3، 4)</option>
+                          <option value="custom">تخصيص مخصص...</option>
+                        </select>
+                      </div>
+                      {['A', 'B', 'C', 'D'].map((opt, i) => {
+                        const displayLabel = qForm.option_labels?.[i] || opt;
+                        return (
+                          <div key={opt} className="flex items-center gap-2">
+                            <button type="button" onClick={() => setQForm(f => ({ ...f, correct_answer_letter: opt }))}
+                              className={`w-7 h-7 rounded-full border-2 flex items-center justify-center text-xs font-black flex-shrink-0 transition-all ${
+                                qForm.correct_answer_letter === opt
+                                  ? 'border-purple-500 bg-purple-500 text-white shadow-sm'
+                                  : 'border-gray-300 dark:border-[var(--dk-border)] hover:border-purple-400 dark:hover:border-purple-500/50 dark:bg-[var(--dk-elevated)] text-gray-600 dark:text-[var(--dk-text-2)]'
+                              }`}>
+                              {displayLabel}
+                            </button>
+                            <input
+                              value={qForm[`option_${opt.toLowerCase()}`] || ''}
+                              onChange={e => setQForm(f => ({ ...f, [`option_${opt.toLowerCase()}`]: e.target.value }))}
+                              className="flex-1 rounded-xl px-3 py-2 border border-gray-200 dark:border-[var(--dk-border)] bg-white dark:bg-[var(--dk-elevated)] text-gray-900 dark:text-[var(--dk-text-1)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 dark:focus:ring-purple-600/50 placeholder:text-gray-400 dark:placeholder:text-[var(--dk-text-3)]"
+                              placeholder={`الخيار ${displayLabel}${i < 2 ? ' *' : ''}`} />
+                          </div>
+                        );
+                      })}
+                      
+                      {qForm.option_labels && (
+                        <div className="grid grid-cols-4 gap-2 border-t border-gray-150 dark:border-[var(--dk-border)] pt-2 bg-gray-50/50 dark:bg-purple-950/10 p-2 rounded-xl border border-gray-100 dark:border-purple-900/20">
+                          {['A', 'B', 'C', 'D'].map((letter, idx) => (
+                            <div key={letter} className="flex flex-col gap-0.5">
+                              <span className="text-[9px] text-gray-400 dark:text-[var(--dk-text-3)] text-center font-bold">تسمية {letter}</span>
+                              <input
+                                type="text"
+                                value={qForm.option_labels[idx] || ''}
+                                onChange={e => {
+                                  const newLabels = [...(qForm.option_labels || ['A', 'B', 'C', 'D'])];
+                                  newLabels[idx] = e.target.value;
+                                  setQForm(f => ({ ...f, option_labels: newLabels }));
+                                }}
+                                className="w-full text-center text-xs rounded border border-gray-300 dark:border-[var(--dk-border)] py-1 bg-white dark:bg-[var(--dk-elevated)] dark:text-[var(--dk-text-1)] focus:outline-none focus:ring-1 focus:ring-purple-500"
+                                maxLength={20}
+                              />
+                            </div>
+                          ))}
                         </div>
-                      ))}
+                      )}
                     </div>
                   )}
 
@@ -399,7 +451,7 @@ export default function RecitationQuestions() {
                             <div key={i} className="flex flex-col gap-2 rounded-xl p-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800/40">
                               <div className="flex items-center justify-between gap-2">
                                 <span className="text-xs font-black text-gray-500 dark:text-[var(--dk-text-2)]">فرع {sub.label}</span>
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1.5 flex-wrap">
                                   <select
                                     value={sub.type || 'mcq'}
                                     onChange={(e) => {
@@ -417,6 +469,33 @@ export default function RecitationQuestions() {
                                     <option value="mcq">MCQ</option>
                                     <option value="true_false">صح/خطأ</option>
                                   </select>
+
+                                  {sub.type !== 'true_false' && (
+                                    <select
+                                      value={
+                                        !sub.option_labels ? 'default' :
+                                        JSON.stringify(sub.option_labels) === JSON.stringify(['أ', 'ب', 'ج', 'د']) ? 'arabic' :
+                                        JSON.stringify(sub.option_labels) === JSON.stringify(['1', '2', '3', '4']) ? 'numbers' : 'custom'
+                                      }
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        const updated = [...qForm.sub_questions];
+                                        let labels = null;
+                                        if (val === 'arabic') labels = ['أ', 'ب', 'ج', 'د'];
+                                        else if (val === 'numbers') labels = ['1', '2', '3', '4'];
+                                        else if (val === 'custom') labels = ['A', 'B', 'C', 'D'];
+                                        updated[i] = { ...updated[i], option_labels: labels };
+                                        updateSubQuestions(updated);
+                                      }}
+                                      className="text-[9px] rounded border border-gray-300 px-1 py-0.5 bg-white dark:bg-[var(--dk-elevated)] text-gray-700 dark:text-[var(--dk-text-2)] focus:outline-none"
+                                    >
+                                      <option value="default">الافتراضي (A-D)</option>
+                                      <option value="arabic">عربي (أ-د)</option>
+                                      <option value="numbers">أرقام (1-4)</option>
+                                      <option value="custom">مخصص...</option>
+                                    </select>
+                                  )}
+
                                   <div className="flex items-center gap-1">
                                     <span className="text-[10px] text-gray-500 dark:text-[var(--dk-text-3)] font-semibold">الدرجة:</span>
                                     <input
@@ -434,22 +513,51 @@ export default function RecitationQuestions() {
                                   </div>
                                 </div>
                               </div>
+
+                              {sub.option_labels && sub.type !== 'true_false' && (
+                                <div className="grid grid-cols-4 gap-1.5 pt-1">
+                                  {['A', 'B', 'C', 'D'].map((letter, lIdx) => (
+                                    <div key={letter} className="flex flex-col gap-0.5">
+                                      <input
+                                        type="text"
+                                        value={sub.option_labels[lIdx] || ''}
+                                        onChange={(e) => {
+                                          const updated = [...qForm.sub_questions];
+                                          const newLabels = [...(sub.option_labels || ['A', 'B', 'C', 'D'])];
+                                          newLabels[lIdx] = e.target.value;
+                                          updated[i] = { ...updated[i], option_labels: newLabels };
+                                          updateSubQuestions(updated);
+                                        }}
+                                        className="w-full text-center text-[10px] rounded border border-gray-300 dark:border-[var(--dk-border)] py-0.5 bg-white dark:bg-[var(--dk-elevated)] dark:text-[var(--dk-text-1)] focus:outline-none"
+                                        placeholder={letter}
+                                        maxLength={20}
+                                      />
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
                               <div className="flex gap-1">
-                                {(sub.type === 'true_false' ? ['A', 'B'] : ['A', 'B', 'C', 'D']).map(letter => (
-                                  <button key={letter} type="button"
-                                    onClick={() => {
-                                      const updated = [...qForm.sub_questions];
-                                      updated[i] = { ...updated[i], correct: letter };
-                                      updateSubQuestions(updated);
-                                    }}
-                                    className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all ${
-                                      sub.correct === letter
-                                        ? 'bg-purple-500 text-white border-purple-500 shadow-sm'
-                                        : 'bg-white dark:bg-[var(--dk-elevated)] text-gray-600 dark:text-[var(--dk-text-2)] border-gray-200 dark:border-[var(--dk-border)] hover:border-purple-300 dark:hover:border-purple-600/50 hover:bg-purple-50 dark:hover:bg-purple-900/20'
-                                    }`}>
-                                    {sub.type === 'true_false' ? (letter === 'A' ? 'صح' : 'خطأ') : letter}
-                                  </button>
-                                ))}
+                                {(sub.type === 'true_false' ? ['A', 'B'] : ['A', 'B', 'C', 'D']).map(letter => {
+                                  const displayLetter = sub.type === 'true_false'
+                                    ? (letter === 'A' ? 'صح' : 'خطأ')
+                                    : (sub.option_labels?.[['A', 'B', 'C', 'D'].indexOf(letter)] || letter);
+                                  return (
+                                    <button key={letter} type="button"
+                                      onClick={() => {
+                                        const updated = [...qForm.sub_questions];
+                                        updated[i] = { ...updated[i], correct: letter };
+                                        updateSubQuestions(updated);
+                                      }}
+                                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                                        sub.correct === letter
+                                          ? 'bg-purple-500 text-white border-purple-500 shadow-sm'
+                                          : 'bg-white dark:bg-[var(--dk-elevated)] text-gray-600 dark:text-[var(--dk-text-2)] border-gray-200 dark:border-[var(--dk-border)] hover:border-purple-300 dark:hover:border-purple-600/50 hover:bg-purple-50 dark:hover:bg-purple-900/20'
+                                      }`}>
+                                      {displayLetter}
+                                    </button>
+                                  );
+                                })}
                               </div>
                             </div>
                           ))}
@@ -460,16 +568,7 @@ export default function RecitationQuestions() {
 
                   {/* Correct answer + Points row */}
                   <div className="flex items-end gap-3 pt-1">
-                    {qForm.question_type === 'mcq' && (
-                      <div>
-                        <label className="block text-xs font-bold text-navy-700 dark:text-[var(--dk-text-1)] mb-1">الإجابة الصحيحة</label>
-                        <select value={qForm.correct_answer_letter}
-                          onChange={e => setQForm(f => ({ ...f, correct_answer_letter: e.target.value }))}
-                          className="rounded-xl px-3 py-2 border border-gray-200 dark:border-[var(--dk-border)] bg-white dark:bg-[var(--dk-elevated)] text-gray-900 dark:text-[var(--dk-text-1)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 dark:focus:ring-purple-600/50">
-                          {['A', 'B', 'C', 'D'].map(o => <option key={o} value={o}>{o}</option>)}
-                        </select>
-                      </div>
-                    )}
+
                     <div>
                       <label className="block text-xs font-bold text-navy-700 dark:text-[var(--dk-text-1)] mb-1">
                         {isImgMulti ? 'الدرجة الكلية (توزع على الفروع)' : 'الدرجة'}
@@ -567,7 +666,7 @@ function QuestionCard({ q, idx, isPublished, isEditing, onEdit, onDelete }) {
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-1 text-xs">
-              {(isTF ? ['A', 'B'] : ['A', 'B', 'C', 'D']).map(opt =>
+              {(isTF ? ['A', 'B'] : ['A', 'B', 'C', 'D']).map((opt, oidx) =>
                 q[`option_${opt.toLowerCase()}`] && q[`option_${opt.toLowerCase()}`] !== '-' && (
                   <div key={opt} className={`p-1.5 rounded-lg font-semibold flex items-center gap-1 ${
                     q.correct_answer_letter === opt
@@ -576,7 +675,7 @@ function QuestionCard({ q, idx, isPublished, isEditing, onEdit, onDelete }) {
                   }`}>
                     <span className={`w-4 h-4 rounded-full text-[10px] flex items-center justify-center font-black flex-shrink-0 ${
                       q.correct_answer_letter === opt ? 'bg-green-600 text-white' : 'bg-gray-300 dark:bg-[var(--dk-hover)] text-gray-600 dark:text-[var(--dk-text-2)]'
-                    }`}>{opt}</span>
+                    }`}>{q.option_labels?.[oidx] || opt}</span>
                     {q[`option_${opt.toLowerCase()}`]}
                   </div>
                 )

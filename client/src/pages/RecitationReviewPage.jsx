@@ -207,7 +207,7 @@ export default function RecitationReviewPage() {
                                         : letter === subCorrect
                                           ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400 border-green-300 dark:border-green-700/50'
                                           : 'bg-white dark:bg-[var(--dk-elevated)] text-gray-400 dark:text-[var(--dk-text-3)] border-gray-200 dark:border-[var(--dk-border)]'
-                                  }`}>{isTF ? (letter === 'A' ? 'صح' : 'خطأ') : letter}</span>
+                                  }`}>{isTF ? (letter === 'A' ? 'صح' : 'خطأ') : (sub.option_labels?.[['A', 'B', 'C', 'D'].indexOf(letter)] || letter)}</span>
                                 ))}
                               </div>
                               {!hasSubAns && <span className="text-[10px] text-gray-400 dark:text-[var(--dk-text-3)] flex-shrink-0">لم تُجَب</span>}
@@ -247,7 +247,7 @@ export default function RecitationReviewPage() {
                                 : isStudentChoice ? 'bg-red-500 text-white'
                                 : isCorrectOpt ? 'bg-green-200 dark:bg-green-800/50 text-green-800 dark:text-green-300'
                                 : 'bg-gray-200 dark:bg-[var(--dk-hover)] text-gray-600 dark:text-[var(--dk-text-2)]'
-                              }`}>{opt}</span>
+                              }`}>{q.option_labels?.[['A', 'B', 'C', 'D'].indexOf(opt)] || opt}</span>
                               <span className={`text-sm flex-1 ${
                                 isCorrectOpt
                                   ? 'text-green-800 dark:text-green-300 font-semibold'
@@ -292,7 +292,11 @@ export default function RecitationReviewPage() {
                         <span className="text-gray-500 dark:text-[var(--dk-text-2)]">لم تُجِب</span>
                         <span className="mx-1 text-gray-300 dark:text-[var(--dk-text-3)]">—</span>
                         <CheckCircle className="w-3.5 h-3.5 text-green-600" />
-                        <span className="text-green-800 dark:text-green-400">الصحيح: <strong>{q.correct_answer_letter || q.correct_answer}</strong></span>
+                        <span className="text-green-800 dark:text-green-400">الصحيح: <strong>{
+                          q.option_labels && ['A','B','C','D'].includes(q.correct_answer_letter || q.correct_answer)
+                            ? q.option_labels[['A','B','C','D'].indexOf(q.correct_answer_letter || q.correct_answer)]
+                            : (q.correct_answer_letter || q.correct_answer)
+                        }</strong></span>
                       </div>
                     )}
                   </div>

@@ -807,7 +807,7 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageRe
   const id = parseParamId(req.params.id);
   if (!id) return res.status(400).json({ error: 'Invalid ID' });
 
-  const { question_text, question_image_url, question_type, option_a, option_b, option_c, option_d, correct_answer_letter, points, sub_questions } = req.body;
+  const { question_text, question_image_url, question_type, option_a, option_b, option_c, option_d, correct_answer_letter, points, sub_questions, option_labels } = req.body;
 
   const qtype = question_type || 'mcq';
   const isImgMulti = qtype === 'image_multi';
@@ -867,11 +867,12 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageRe
       'SELECT COALESCE(MAX(sort_order),0) AS m FROM recitation_questions WHERE recitation_id=$1', [id]
     );
 
+    const finalOptionLabels = Array.isArray(option_labels) ? JSON.stringify(option_labels) : null;
     const { rows } = await pool.query(
       `INSERT INTO recitation_questions
          (recitation_id, question_text, question_image_url, question_type, option_a, option_b, option_c, option_d,
-          correct_answer_letter, points, sort_order, sub_questions)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+          correct_answer_letter, points, sort_order, sub_questions, option_labels)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
       [
         id,
         question_text || null,
@@ -885,6 +886,7 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageRe
         finalPoints,
         parseInt(maxRow[0].m, 10) + 1,
         subQs ? JSON.stringify(subQs) : '[]',
+        finalOptionLabels,
       ]
     );
     res.status(201).json(rows[0]);
@@ -900,7 +902,7 @@ router.put('/:id/questions/:qid', requireRole('teacher', 'assistant'), checkMana
   const qid = parseParamId(req.params.qid);
   if (!id || !qid) return res.status(400).json({ error: 'Invalid ID' });
 
-  const { question_text, question_image_url, question_type, option_a, option_b, option_c, option_d, correct_answer_letter, points, sub_questions } = req.body;
+  const { question_text, question_image_url, question_type, option_a, option_b, option_c, option_d, correct_answer_letter, points, sub_questions, option_labels } = req.body;
 
   const qtype = question_type || 'mcq';
   const isImgMulti = qtype === 'image_multi';
@@ -956,12 +958,14 @@ router.put('/:id/questions/:qid', requireRole('teacher', 'assistant'), checkMana
     if (!rec) return res.status(404).json({ error: 'التسميع غير موجود' });
     if (rec.is_published) return res.status(409).json({ error: 'لا يمكن تعديل أسئلة تسميع منشور' });
 
+    const finalOptionLabels = Array.isArray(option_labels) ? JSON.stringify(option_labels) : null;
     const { rows } = await pool.query(
       `UPDATE recitation_questions SET
          question_text=$1, question_image_url=$2, question_type=$3,
          option_a=$4, option_b=$5, option_c=$6, option_d=$7,
-         correct_answer_letter=$8, points=$9, sub_questions=$10
-       WHERE id=$11 AND recitation_id=$12 RETURNING *`,
+         correct_answer_letter=$8, points=$9, sub_questions=$10,
+         option_labels=$11
+       WHERE id=$12 AND recitation_id=$13 RETURNING *`,
       [
         question_text || null,
         question_image_url || null,
@@ -970,6 +974,7 @@ router.put('/:id/questions/:qid', requireRole('teacher', 'assistant'), checkMana
         isImgMulti ? 'A' : correct_answer_letter,
         finalPoints,
         subQs ? JSON.stringify(subQs) : '[]',
+        finalOptionLabels,
         qid, id,
       ]
     );

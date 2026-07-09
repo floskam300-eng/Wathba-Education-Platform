@@ -14,7 +14,7 @@ import { useAuth } from '../../context/AuthContext';
 import CsvImportModal from '../../components/CsvImportModal';
 import { withToken } from '../../lib/mediaAccess';
 
-const emptyQ = { question_text: '', question_image_url: '', option_a: '', option_b: '', option_c: '', option_d: '', correct_answer_letter: 'A', points: 1, question_type: 'mcq', difficulty: 'medium', sub_questions: [] };
+const emptyQ = { question_text: '', question_image_url: '', option_a: '', option_b: '', option_c: '', option_d: '', correct_answer_letter: 'A', points: 1, question_type: 'mcq', difficulty: 'medium', sub_questions: [], option_labels: null };
 
 const DIFFICULTIES = [
   { value: 'easy',   label: 'سهل',   color: 'bg-green-100 text-green-700 border-green-300' },
@@ -126,6 +126,7 @@ export default function QuestionBankQuestions() {
       question_type: q.question_type || 'mcq',
       difficulty: q.difficulty || 'medium',
       sub_questions: Array.isArray(q.sub_questions) ? q.sub_questions : [],
+      option_labels: q.option_labels || null,
     });
     setImagePreview(q.question_image_url || '');
     setImageInputMode('url');
@@ -250,9 +251,9 @@ export default function QuestionBankQuestions() {
                           </div>
                         ) : (
                           <div className="grid grid-cols-2 gap-1.5">
-                            {['a','b','c','d'].map(opt => q[`option_${opt}`] && (
+                            {['a','b','c','d'].map((opt, oidx) => q[`option_${opt}`] && (
                               <div key={opt} className={`px-2 py-1 rounded-lg text-xs font-medium border ${q.correct_answer_letter?.toUpperCase() === opt.toUpperCase() ? 'border-green-400 bg-green-50 text-green-800 font-bold' : 'border-gray-200 text-gray-600'}`}>
-                                <span className="font-black ml-1">{opt.toUpperCase()}.</span>{q[`option_${opt}`]}
+                                <span className="font-black ml-1">{q.option_labels?.[oidx] || opt.toUpperCase()}.</span>{q[`option_${opt}`]}
                               </div>
                             ))}
                           </div>
@@ -367,7 +368,7 @@ export default function QuestionBankQuestions() {
                           <div key={sub.label} className="flex flex-col gap-2 bg-gray-50 rounded-xl p-3 border border-gray-100">
                             <div className="flex items-center justify-between gap-2">
                               <span className="text-xs font-black text-navy-600">فرع {sub.label}</span>
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-1.5 flex-wrap">
                                 <select
                                   value={sub.type || 'mcq'}
                                   onChange={(e) => {
@@ -385,6 +386,33 @@ export default function QuestionBankQuestions() {
                                   <option value="mcq">MCQ</option>
                                   <option value="true_false">صح/خطأ</option>
                                 </select>
+
+                                {sub.type !== 'true_false' && (
+                                  <select
+                                    value={
+                                      !sub.option_labels ? 'default' :
+                                      JSON.stringify(sub.option_labels) === JSON.stringify(['أ', 'ب', 'ج', 'د']) ? 'arabic' :
+                                      JSON.stringify(sub.option_labels) === JSON.stringify(['1', '2', '3', '4']) ? 'numbers' : 'custom'
+                                    }
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      const updated = [...qForm.sub_questions];
+                                      let labels = null;
+                                      if (val === 'arabic') labels = ['أ', 'ب', 'ج', 'د'];
+                                      else if (val === 'numbers') labels = ['1', '2', '3', '4'];
+                                      else if (val === 'custom') labels = ['A', 'B', 'C', 'D'];
+                                      updated[idx] = { ...updated[idx], option_labels: labels };
+                                      updateSubQuestions(updated);
+                                    }}
+                                    className="text-[9px] rounded border border-gray-300 px-1 py-0.5 bg-white text-gray-700 focus:outline-none"
+                                  >
+                                    <option value="default">الافتراضي (A-D)</option>
+                                    <option value="arabic">عربي (أ-د)</option>
+                                    <option value="numbers">أرقام (1-4)</option>
+                                    <option value="custom">مخصص...</option>
+                                  </select>
+                                )}
+
                                 <div className="flex items-center gap-1">
                                   <span className="text-[10px] text-gray-500 font-semibold">الدرجة:</span>
                                   <input
@@ -402,22 +430,51 @@ export default function QuestionBankQuestions() {
                                 </div>
                               </div>
                             </div>
+
+                            {sub.option_labels && sub.type !== 'true_false' && (
+                              <div className="grid grid-cols-4 gap-1.5 pt-1">
+                                {['A', 'B', 'C', 'D'].map((letter, lIdx) => (
+                                  <div key={letter} className="flex flex-col gap-0.5">
+                                    <input
+                                      type="text"
+                                      value={sub.option_labels[lIdx] || ''}
+                                      onChange={(e) => {
+                                        const updated = [...qForm.sub_questions];
+                                        const newLabels = [...(sub.option_labels || ['A', 'B', 'C', 'D'])];
+                                        newLabels[lIdx] = e.target.value;
+                                        updated[idx] = { ...updated[idx], option_labels: newLabels };
+                                        updateSubQuestions(updated);
+                                      }}
+                                      className="w-full text-center text-[10px] rounded border border-gray-300 py-0.5 bg-white focus:outline-none"
+                                      placeholder={letter}
+                                      maxLength={20}
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
                             <div className="flex gap-1">
-                              {(sub.type === 'true_false' ? ['A', 'B'] : ['A', 'B', 'C', 'D']).map(letter => (
-                                <button key={letter} type="button"
-                                  onClick={() => {
-                                    const updated = [...qForm.sub_questions];
-                                    updated[idx] = { ...updated[idx], correct: letter };
-                                    updateSubQuestions(updated);
-                                  }}
-                                  className={`flex-1 py-1 rounded text-xs font-bold border transition-all ${
-                                    sub.correct === letter
-                                      ? 'bg-green-600 text-white border-green-600'
-                                      : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
-                                  }`}>
-                                  {sub.type === 'true_false' ? (letter === 'A' ? 'صح' : 'خطأ') : letter}
-                                </button>
-                              ))}
+                              {(sub.type === 'true_false' ? ['A', 'B'] : ['A', 'B', 'C', 'D']).map(letter => {
+                                const displayLetter = sub.type === 'true_false'
+                                  ? (letter === 'A' ? 'صح' : 'خطأ')
+                                  : (sub.option_labels?.[['A', 'B', 'C', 'D'].indexOf(letter)] || letter);
+                                return (
+                                  <button key={letter} type="button"
+                                    onClick={() => {
+                                      const updated = [...qForm.sub_questions];
+                                      updated[idx] = { ...updated[idx], correct: letter };
+                                      updateSubQuestions(updated);
+                                    }}
+                                    className={`flex-1 py-1 rounded text-xs font-bold border transition-all ${
+                                      sub.correct === letter
+                                        ? 'bg-green-600 text-white border-green-600'
+                                        : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
+                                    }`}>
+                                    {displayLetter}
+                                  </button>
+                                );
+                              })}
                             </div>
                           </div>
                         ))}
@@ -425,19 +482,65 @@ export default function QuestionBankQuestions() {
                     )}
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    <label className="block text-xs font-bold text-gray-600">الخيارات (حدد الصحيح ✅)</label>
-                    {['A', 'B', 'C', 'D'].map(opt => (
-                      <div key={opt} className="flex items-center gap-2">
-                        <button type="button" onClick={() => setQForm({ ...qForm, correct_answer_letter: opt })}
-                          className={`w-7 h-7 rounded-full border-2 flex items-center justify-center text-xs font-black flex-shrink-0 transition-all ${qForm.correct_answer_letter === opt ? 'border-green-500 bg-green-500 text-white' : 'border-gray-300 hover:border-green-400'}`}>
-                          {opt}
-                        </button>
-                        <input value={opt === 'A' ? qForm.option_a : opt === 'B' ? qForm.option_b : opt === 'C' ? qForm.option_c : qForm.option_d}
-                          onChange={e => setQForm({ ...qForm, [`option_${opt.toLowerCase()}`]: e.target.value })}
-                          className="input-field text-sm flex-1" placeholder={`الخيار ${opt}${opt === 'A' || opt === 'B' ? ' *' : ' (اختياري)'}`} />
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-bold text-gray-600">الخيارات (حدد الصحيح ✅)</label>
+                      <select
+                        value={
+                          !qForm.option_labels ? 'default' :
+                          JSON.stringify(qForm.option_labels) === JSON.stringify(['أ', 'ب', 'ج', 'د']) ? 'arabic' :
+                          JSON.stringify(qForm.option_labels) === JSON.stringify(['1', '2', '3', '4']) ? 'numbers' : 'custom'
+                        }
+                        onChange={e => {
+                          const val = e.target.value;
+                          if (val === 'default') setQForm(f => ({ ...f, option_labels: null }));
+                          else if (val === 'arabic') setQForm(f => ({ ...f, option_labels: ['أ', 'ب', 'ج', 'د'] }));
+                          else if (val === 'numbers') setQForm(f => ({ ...f, option_labels: ['1', '2', '3', '4'] }));
+                          else setQForm(f => ({ ...f, option_labels: ['A', 'B', 'C', 'D'] }));
+                        }}
+                        className="text-[10px] rounded border border-gray-300 px-1.5 py-0.5 bg-white text-gray-700 focus:outline-none"
+                      >
+                        <option value="default">افتراضي (A, B, C, D)</option>
+                        <option value="arabic">عربي (أ، ب، ج، د)</option>
+                        <option value="numbers">أرقام (1، 2، 3، 4)</option>
+                        <option value="custom">تخصيص مخصص...</option>
+                      </select>
+                    </div>
+                    {['A', 'B', 'C', 'D'].map((opt, idx) => {
+                      const displayLabel = qForm.option_labels?.[idx] || opt;
+                      return (
+                        <div key={opt} className="flex items-center gap-2">
+                          <button type="button" onClick={() => setQForm({ ...qForm, correct_answer_letter: opt })}
+                            className={`w-7 h-7 rounded-full border-2 flex items-center justify-center text-xs font-black flex-shrink-0 transition-all ${qForm.correct_answer_letter === opt ? 'border-green-500 bg-green-500 text-white' : 'border-gray-300 hover:border-green-400'}`}>
+                            {displayLabel}
+                          </button>
+                          <input value={opt === 'A' ? qForm.option_a : opt === 'B' ? qForm.option_b : opt === 'C' ? qForm.option_c : qForm.option_d}
+                            onChange={e => setQForm({ ...qForm, [`option_${opt.toLowerCase()}`]: e.target.value })}
+                            className="input-field text-sm flex-1" placeholder={`الخيار ${displayLabel}${opt === 'A' || opt === 'B' ? ' *' : ' (اختياري)'}`} />
+                        </div>
+                      );
+                    })}
+                    
+                    {qForm.option_labels && (
+                      <div className="grid grid-cols-4 gap-2 border-t border-gray-150 pt-2 bg-gray-50/50 p-2 rounded-xl border border-gray-100">
+                        {['A', 'B', 'C', 'D'].map((letter, idx) => (
+                          <div key={letter} className="flex flex-col gap-0.5">
+                            <span className="text-[9px] text-gray-400 text-center font-bold">تسمية {letter}</span>
+                            <input
+                              type="text"
+                              value={qForm.option_labels[idx] || ''}
+                              onChange={e => {
+                                const newLabels = [...(qForm.option_labels || ['A', 'B', 'C', 'D'])];
+                                newLabels[idx] = e.target.value;
+                                setQForm(f => ({ ...f, option_labels: newLabels }));
+                              }}
+                              className="w-full text-center text-xs rounded border border-gray-300 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                              maxLength={20}
+                            />
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
                   </div>
                 )}
 

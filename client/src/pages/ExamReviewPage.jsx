@@ -258,7 +258,7 @@ export default function ExamReviewPage() {
                 const displayLabels = isTrueFalse
                   ? { A: '✅ صح', B: '❌ خطأ' }
                   : (() => {
-                      const labels = ['أ', 'ب', 'ج', 'د'];
+                      const labels = q.option_labels && q.option_labels.length === 4 ? q.option_labels : ['أ', 'ب', 'ج', 'د'];
                       return Object.fromEntries(displayOpts.map((o, i) => [o, labels[i]]));
                     })();
 
@@ -354,7 +354,7 @@ export default function ExamReviewPage() {
                                       : letter === subCorrect
                                         ? dark ? 'bg-green-900/30 text-green-300 border-green-700/50' : 'bg-green-100 text-green-800 border-green-300'
                                         : dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)] border-[var(--dk-border)]' : 'bg-white text-gray-400 border-gray-200'
-                                    }`}>{isTF ? (letter === 'A' ? 'صح' : 'خطأ') : letter}</span>
+                                    }`}>{isTF ? (letter === 'A' ? 'صح' : 'خطأ') : (sub.option_labels?.[['A', 'B', 'C', 'D'].indexOf(letter)] || letter)}</span>
                                   ))}
                                 </div>
                                 {!hasSubAnswer && <span className={`text-[10px] flex-shrink-0 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>لم تُجَب</span>}

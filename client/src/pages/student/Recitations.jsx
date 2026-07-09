@@ -645,10 +645,10 @@ function Section({ title, items, dark, cardCls, onStart, navigate, startingId = 
 
 function QuestionCard({ q, idx, answers, setAnswers, dark, onImagePress }) {
   const options = [
-    q.option_a && { letter: 'A', text: q.option_a },
-    q.option_b && { letter: 'B', text: q.option_b },
-    q.option_c && { letter: 'C', text: q.option_c },
-    q.option_d && { letter: 'D', text: q.option_d },
+    q.option_a && { letter: 'A', text: q.option_a, displayLabel: q.option_labels?.[0] || 'A' },
+    q.option_b && { letter: 'B', text: q.option_b, displayLabel: q.option_labels?.[1] || 'B' },
+    q.option_c && { letter: 'C', text: q.option_c, displayLabel: q.option_labels?.[2] || 'C' },
+    q.option_d && { letter: 'D', text: q.option_d, displayLabel: q.option_labels?.[3] || 'D' },
   ].filter(Boolean);
 
   const isImgMulti = q.question_type === 'image_multi';
@@ -696,9 +696,9 @@ function QuestionCard({ q, idx, answers, setAnswers, dark, onImagePress }) {
           {/* Shared options — hide when options are just the letters themselves (auto-generated) */}
           {options.some(o => o.text !== o.letter) && (
             <div className="flex flex-wrap gap-1.5 mb-3">
-              {options.map(({ letter, text }) => (
+              {options.map(({ letter, text, displayLabel }) => (
                 <span key={letter} className={`text-xs px-2.5 py-1 rounded-lg font-semibold ${dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-600'}`}>
-                  {letter}: {text}
+                  {displayLabel}: {text}
                 </span>
               ))}
             </div>
@@ -725,7 +725,7 @@ function QuestionCard({ q, idx, answers, setAnswers, dark, onImagePress }) {
                             ? 'bg-purple-500 text-white border-purple-500 shadow-sm'
                             : dark ? 'bg-[var(--dk-surface)] border-[var(--dk-border)] text-[var(--dk-text)] hover:border-purple-400' : 'bg-white border-gray-300 text-gray-700 hover:border-purple-300'
                         }`}>
-                        {isTF ? opt.label : opt.letter}
+                        {isTF ? opt.label : (sub.option_labels?.[['A', 'B', 'C', 'D'].indexOf(opt.letter)] || opt.displayLabel)}
                       </button>
                     );
                   })}
@@ -736,7 +736,7 @@ function QuestionCard({ q, idx, answers, setAnswers, dark, onImagePress }) {
         </div>
       ) : (
         <div className="space-y-2 mr-10">
-          {options.map(({ letter, text }) => {
+          {options.map(({ letter, text, displayLabel }) => {
             const isSelected = selected === letter;
             return (
               <button key={letter} onClick={() => setAnswers(a => ({ ...a, [q.id]: letter }))}
@@ -745,7 +745,7 @@ function QuestionCard({ q, idx, answers, setAnswers, dark, onImagePress }) {
                     ? 'bg-purple-500 text-white border-purple-500 shadow-md'
                     : dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)] hover:border-purple-400' : 'bg-gray-50 border-gray-200 text-gray-700 hover:border-purple-300 hover:bg-purple-50'
                 }`}>
-                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 ${isSelected ? 'bg-white/20 text-white' : 'bg-white text-purple-600'}`}>{letter}</span>
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 ${isSelected ? 'bg-white/20 text-white' : 'bg-white text-purple-600'}`}>{displayLabel}</span>
                 {text}
               </button>
             );

@@ -601,3 +601,8 @@ ALTER TABLE exams ALTER COLUMN end_date TYPE TIMESTAMPTZ;
 ALTER TABLE recitations ALTER COLUMN start_date TYPE TIMESTAMPTZ;
 ALTER TABLE recitations ALTER COLUMN end_date TYPE TIMESTAMPTZ;
 ALTER TABLE live_streams ALTER COLUMN scheduled_at TYPE TIMESTAMPTZ;
+
+-- Add option_labels column to questions tables to allow custom MCQ labeling
+ALTER TABLE questions ADD COLUMN IF NOT EXISTS option_labels JSONB DEFAULT NULL;
+ALTER TABLE bank_questions ADD COLUMN IF NOT EXISTS option_labels JSONB DEFAULT NULL;
+ALTER TABLE recitation_questions ADD COLUMN IF NOT EXISTS option_labels JSONB DEFAULT NULL;

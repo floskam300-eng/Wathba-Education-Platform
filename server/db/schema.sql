@@ -100,7 +100,8 @@ CREATE TABLE IF NOT EXISTS questions (
   option_d TEXT,
   correct_answer_letter CHAR(1) NOT NULL,
   points INTEGER DEFAULT 1,
-  exam_id INTEGER REFERENCES exams(id) ON DELETE CASCADE
+  exam_id INTEGER REFERENCES exams(id) ON DELETE CASCADE,
+  option_labels JSONB DEFAULT NULL
 );
 
 CREATE TABLE IF NOT EXISTS exam_results (
@@ -274,7 +275,8 @@ CREATE TABLE IF NOT EXISTS bank_questions (
   correct_answer_letter CHAR(1) NOT NULL,
   points INTEGER DEFAULT 1,
   question_type VARCHAR(20) DEFAULT 'mcq',
-  created_at TIMESTAMP DEFAULT NOW()
+  created_at TIMESTAMP DEFAULT NOW(),
+  option_labels JSONB DEFAULT NULL
 );
 
 ALTER TABLE exams ADD COLUMN IF NOT EXISTS question_source VARCHAR(20) DEFAULT 'manual';
@@ -966,7 +968,8 @@ CREATE TABLE IF NOT EXISTS recitation_questions (
   correct_answer_letter CHAR(1) NOT NULL,
   points INTEGER DEFAULT 1,
   sort_order INTEGER DEFAULT 0,
-  CONSTRAINT rq_correct_letter CHECK (correct_answer_letter IN ('A','B','C','D','T','F'))
+  CONSTRAINT rq_correct_letter CHECK (correct_answer_letter IN ('A','B','C','D','T','F')),
+  option_labels JSONB DEFAULT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_recitation_questions_recitation ON recitation_questions(recitation_id);

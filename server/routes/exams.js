@@ -594,7 +594,7 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageEx
   const examId = parseParamId(req.params.id);
   if (!examId) return res.status(400).json({ error: 'معرّف الاختبار غير صالح' });
   const teacherId = getTeacherId(req);
-  const { question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, question_type } = req.body;
+  const { question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, question_type, option_labels } = req.body;
   try {
     const examRow = await getExamForOwner(examId, teacherId);
     if (!examRow) return res.status(403).json({ error: 'Access denied: exam not yours' });
@@ -652,9 +652,10 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageEx
       correctLetter = raw;
     }
 
+    const finalOptionLabels = Array.isArray(option_labels) ? JSON.stringify(option_labels) : null;
     const result = await pool.query(
-      'INSERT INTO questions (question_text,question_image_url,option_a,option_b,option_c,option_d,correct_answer_letter,points,exam_id,question_type,sub_questions) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *',
-      [question_text || null, question_image_url || null, optA, optB, isImgMulti ? 'C' : (option_c || null), isImgMulti ? 'D' : (option_d || null), correctLetter, finalPoints, examId, qType, subQs ? JSON.stringify(subQs) : '[]']
+      'INSERT INTO questions (question_text,question_image_url,option_a,option_b,option_c,option_d,correct_answer_letter,points,exam_id,question_type,sub_questions,option_labels) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *',
+      [question_text || null, question_image_url || null, optA, optB, isImgMulti ? 'C' : (option_c || null), isImgMulti ? 'D' : (option_d || null), correctLetter, finalPoints, examId, qType, subQs ? JSON.stringify(subQs) : '[]', finalOptionLabels]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -693,8 +694,9 @@ router.post('/:id/questions/import', requireRole('teacher', 'assistant'), checkM
         if (qType === 'mcq' && !['A', 'B', 'C', 'D'].includes(correctLetter)) correctLetter = 'A';
         const pts = parseInt(q.points, 10);
         const finalPoints = (!isNaN(pts) && pts >= 1 && pts <= 1000) ? pts : 1;
+        const finalOptionLabels = Array.isArray(q.option_labels) ? JSON.stringify(q.option_labels) : null;
         await client.query(
-          'INSERT INTO questions (question_text,option_a,option_b,option_c,option_d,correct_answer_letter,points,exam_id,question_type,sub_questions) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
+          'INSERT INTO questions (question_text,option_a,option_b,option_c,option_d,correct_answer_letter,points,exam_id,question_type,sub_questions,option_labels) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',
           [
             (q.question_text || '').trim() || null,
             optA,
@@ -706,6 +708,7 @@ router.post('/:id/questions/import', requireRole('teacher', 'assistant'), checkM
             examId,
             qType,
             '[]',
+            finalOptionLabels,
           ]
         );
       }
@@ -728,7 +731,7 @@ router.put('/questions/:qid', requireRole('teacher', 'assistant'), checkManageEx
   const qid = parseParamId(req.params.qid);
   if (!qid) return res.status(400).json({ error: 'معرّف السؤال غير صالح' });
   const teacherId = getTeacherId(req);
-  const { question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, question_type } = req.body;
+  const { question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, question_type, option_labels } = req.body;
   try {
     const examRow = await getExamForQuestion(qid, teacherId);
     if (!examRow) return res.status(403).json({ error: 'Access denied: question not yours' });
@@ -786,9 +789,10 @@ router.put('/questions/:qid', requireRole('teacher', 'assistant'), checkManageEx
       correctLetter = raw;
     }
 
+    const finalOptionLabels = Array.isArray(option_labels) ? JSON.stringify(option_labels) : null;
     const result = await pool.query(
-      'UPDATE questions SET question_text=$1,question_image_url=$2,option_a=$3,option_b=$4,option_c=$5,option_d=$6,correct_answer_letter=$7,points=$8,question_type=$9,sub_questions=$10 WHERE id=$11 RETURNING *',
-      [question_text || null, question_image_url || null, optA, optB, isImgMulti ? 'C' : (option_c || null), isImgMulti ? 'D' : (option_d || null), correctLetter, finalPoints, qType, subQs ? JSON.stringify(subQs) : '[]', qid]
+      'UPDATE questions SET question_text=$1,question_image_url=$2,option_a=$3,option_b=$4,option_c=$5,option_d=$6,correct_answer_letter=$7,points=$8,question_type=$9,sub_questions=$10,option_labels=$11 WHERE id=$12 RETURNING *',
+      [question_text || null, question_image_url || null, optA, optB, isImgMulti ? 'C' : (option_c || null), isImgMulti ? 'D' : (option_d || null), correctLetter, finalPoints, qType, subQs ? JSON.stringify(subQs) : '[]', finalOptionLabels, qid]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'السؤال غير موجود' });
     res.json(result.rows[0]);
@@ -1155,7 +1159,7 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
     let questions;
     if (exam.question_source === 'bank' && exam.bank_id) {
       const bankQRes = await pool.query(
-        'SELECT id,question_text,question_image_url,option_a,option_b,option_c,option_d,correct_answer_letter,points,question_type,difficulty,sub_questions FROM bank_questions WHERE bank_id=$1',
+        'SELECT id,question_text,question_image_url,option_a,option_b,option_c,option_d,correct_answer_letter,points,question_type,difficulty,sub_questions,option_labels FROM bank_questions WHERE bank_id=$1',
         [exam.bank_id]
       );
       if (bankQRes.rows.length === 0) {
