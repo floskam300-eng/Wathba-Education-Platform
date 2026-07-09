@@ -9,6 +9,7 @@ import {
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
+import { fmtDateLocal } from '../lib/dateUtils';
 
 const INTERVAL_PRESETS = [
   { label: 'كل أسبوع',     days: 7   },
@@ -231,9 +232,7 @@ function ScheduleModal({ schedule, stages, onSave, onClose, loading }) {
     target_type:   schedule?.target_type   || 'parents',
     stage_filter:  schedule?.stage_filter  || 'all',
     interval_days: schedule?.interval_days || 30,
-    next_run_at:   schedule?.next_run_at
-      ? new Date(schedule.next_run_at).toISOString().slice(0, 16)
-      : '',
+    next_run_at:   fmtDateLocal(schedule?.next_run_at),
     is_active:     schedule?.is_active ?? true,
     customDays:    false,
   });

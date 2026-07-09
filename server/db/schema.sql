@@ -166,8 +166,8 @@ CREATE TABLE IF NOT EXISTS sections (
 ALTER TABLE videos    ADD COLUMN IF NOT EXISTS section_id INTEGER REFERENCES sections(id) ON DELETE SET NULL;
 ALTER TABLE pdf_files ADD COLUMN IF NOT EXISTS section_id INTEGER REFERENCES sections(id) ON DELETE SET NULL;
 
-ALTER TABLE exams ADD COLUMN IF NOT EXISTS start_date  TIMESTAMP;
-ALTER TABLE exams ADD COLUMN IF NOT EXISTS end_date    TIMESTAMP;
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS start_date  TIMESTAMPTZ;
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS end_date    TIMESTAMPTZ;
 ALTER TABLE exams ADD COLUMN IF NOT EXISTS is_published BOOLEAN DEFAULT false;
 ALTER TABLE questions ALTER COLUMN question_text DROP NOT NULL;
 
@@ -324,9 +324,9 @@ CREATE TABLE IF NOT EXISTS live_streams (
   status VARCHAR(20) DEFAULT 'active',
   started_at TIMESTAMP DEFAULT NOW(),
   ended_at TIMESTAMP,
-  scheduled_at TIMESTAMP
+  scheduled_at TIMESTAMPTZ
 );
-ALTER TABLE live_streams ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMP;
+ALTER TABLE live_streams ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMPTZ;
 
 CREATE TABLE IF NOT EXISTS live_stream_viewers (
   id SERIAL PRIMARY KEY,
@@ -941,8 +941,8 @@ CREATE TABLE IF NOT EXISTS recitations (
   points_on_pass INTEGER DEFAULT 5,
   schedule_type VARCHAR(20) DEFAULT 'once',
   schedule_day INTEGER,
-  start_date TIMESTAMP,
-  end_date TIMESTAMP,
+  start_date TIMESTAMPTZ,
+  end_date TIMESTAMPTZ,
   is_published BOOLEAN DEFAULT false,
   start_notified BOOLEAN DEFAULT false,
   shuffle_questions BOOLEAN DEFAULT false,

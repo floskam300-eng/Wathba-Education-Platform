@@ -11,6 +11,7 @@ import toast from 'react-hot-toast';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { withToken } from '../../lib/mediaAccess';
+import { fmtDateLocal } from '../../lib/dateUtils';
 
 const PG_STAGES = ['الصف الأول الثانوي', 'الصف الثاني الثانوي', 'الصف الثالث الثانوي',
   'الصف الأول الإعدادي', 'الصف الثاني الإعدادي', 'الصف الثالث الإعدادي',
@@ -62,6 +63,12 @@ export default function Recitations() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const baseRole = user?.role === 'assistant' ? 'assistant' : 'teacher';
+
+  const toUTCIso = (localStr) => {
+    if (!localStr) return null;
+    const d = new Date(localStr);
+    return isNaN(d.getTime()) ? null : d.toISOString();
+  };
 
   const [tab, setTab] = useState('list');
   const [modal, setModal] = useState(false);
@@ -142,8 +149,8 @@ export default function Recitations() {
       points_on_pass: rec.points_on_pass,
       schedule_type: rec.schedule_type || 'once',
       schedule_day: rec.schedule_day ?? 0,
-      start_date: rec.start_date ? rec.start_date.slice(0, 16) : '',
-      end_date: rec.end_date ? rec.end_date.slice(0, 16) : '',
+      start_date: fmtDateLocal(rec.start_date),
+      end_date: fmtDateLocal(rec.end_date),
       shuffle_questions: rec.shuffle_questions,
       shuffle_options: rec.shuffle_options,
       course_id: rec.course_id ? String(rec.course_id) : '',
@@ -624,7 +631,14 @@ export default function Recitations() {
               </button>
 
               <div className="flex gap-3 pt-2">
-                <button onClick={() => createMut.mutate(form)} disabled={createMut.isPending || !form.title.trim()}
+                <button onClick={() => {
+                  const payload = {
+                    ...form,
+                    start_date: toUTCIso(form.start_date),
+                    end_date: toUTCIso(form.end_date),
+                  };
+                  createMut.mutate(payload);
+                }} disabled={createMut.isPending || !form.title.trim()}
                   className="flex-1 bg-purple-500 hover:bg-purple-600 disabled:opacity-50 text-white py-2.5 rounded-xl font-bold text-sm transition-colors">
                   {createMut.isPending ? 'جاري الحفظ...' : editRec ? 'حفظ التعديلات' : 'إنشاء التسميع'}
                 </button>
