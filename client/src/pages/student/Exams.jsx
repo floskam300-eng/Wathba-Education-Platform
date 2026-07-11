@@ -218,25 +218,40 @@ export default function StudentExams() {
 
   const [lightboxSrc, setLightboxSrc] = useState(null);
 
+  // Shared scroll-to-top helper used on both exam entry and result display.
+  // Mobile browsers can re-scroll after virtual-keyboard dismissal or focus
+  // events, so we fire at 0 ms, 50 ms, 150 ms, and 300 ms to reliably win
+  // against any post-layout scroll adjustment.
+  const scrollAllToTop = useCallback(() => {
+    const reset = () => {
+      // Blur any focused element so the browser doesn't re-scroll to keep it
+      // in view after we reset the position.
+      if (document.activeElement && document.activeElement !== document.body) {
+        document.activeElement.blur();
+      }
+      const el = document.querySelector('main');
+      if (el) el.scrollTop = 0;
+      if (document.documentElement) document.documentElement.scrollTop = 0;
+      if (document.body) document.body.scrollTop = 0;
+      window.scrollTo(0, 0);
+    };
+    reset();
+    const t1 = setTimeout(reset, 50);
+    const t2 = setTimeout(reset, 150);
+    const t3 = setTimeout(reset, 300);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, []);
+
+  // Scroll to top when result is shown (exam finished).
   useEffect(() => {
-    if (result) {
-      const scrollAllToTop = () => {
-        const el = document.querySelector('main');
-        if (el) el.scrollTop = 0;
-        if (document.documentElement) document.documentElement.scrollTop = 0;
-        if (document.body) document.body.scrollTop = 0;
-        window.scrollTo(0, 0);
-      };
-      // Reset immediately, then again on the next frame — some mobile browsers
-      // re-adjust scroll position (e.g. to keep the last focused element in
-      // view) right after the exam-taking view unmounts and the much shorter
-      // result card renders, which overrides an immediate-only reset and looks
-      // like an unwanted "auto scroll down".
-      scrollAllToTop();
-      const raf = requestAnimationFrame(scrollAllToTop);
-      return () => cancelAnimationFrame(raf);
-    }
-  }, [!!result]);
+    if (result) return scrollAllToTop();
+  }, [!!result]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Scroll to top when entering an exam (taking becomes non-null).
+  // Without this, <main> keeps the scroll position from the exam list page.
+  useEffect(() => {
+    if (taking) return scrollAllToTop();
+  }, [!!taking]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Must be declared here (before any early returns) to satisfy the Rules of Hooks.
   // When the exam-taking view is active, this will always return [] due to the
