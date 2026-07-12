@@ -1050,6 +1050,18 @@ ALTER TABLE recitations       ADD COLUMN IF NOT EXISTS absent_marked BOOLEAN DEF
 -- Allow retry: teacher controls whether students can retake after failing
 ALTER TABLE recitations ADD COLUMN IF NOT EXISTS allow_retry BOOLEAN NOT NULL DEFAULT true;
 
+-- Support contacts shown on the teacher's public landing page (independent of assistant accounts)
+CREATE TABLE IF NOT EXISTS teacher_support_contacts (
+  id         SERIAL PRIMARY KEY,
+  teacher_id INTEGER NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+  name       VARCHAR(100) NOT NULL,
+  phone      VARCHAR(30),
+  photo_url  VARCHAR(500),
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_support_contacts_teacher ON teacher_support_contacts(teacher_id);
+
 -- Import model: per-teacher column mapping for Excel imports
 CREATE TABLE IF NOT EXISTS teacher_import_models (
   id SERIAL PRIMARY KEY,

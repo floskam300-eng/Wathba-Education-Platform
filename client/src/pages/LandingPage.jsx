@@ -106,7 +106,7 @@ function StatCard({ icon: Icon, value, label, color, delay = 0 }) {
 
 /* ════════════════ MAIN PAGE ════════════════ */
 export default function LandingPage() {
-  const { teacher, stats, assistants, isLoading, platformName, logoUrl } = useTeacher();
+  const { teacher, stats, supportContacts, isLoading, platformName, logoUrl } = useTeacher();
   const [statsVisible, setStatsVisible] = useState(false);
   const statsRef = useRef(null);
 
@@ -170,11 +170,15 @@ export default function LandingPage() {
 
       {/* ─────────────── NAVBAR ─────────────── */}
       <nav className="fixed top-0 inset-x-0 z-50 nav-glass border-b border-white/[0.07] bg-[#05080f]/85">
-        <div className="max-w-7xl mx-auto px-5 h-16 flex items-center justify-between gap-4">
-          <img src={displayLogo} alt={platformName} className="h-11 w-auto rounded-xl" />
+        <div className="max-w-7xl mx-auto px-5 h-16 grid grid-cols-3 items-center">
+          {/* Right: logo */}
+          <div className="flex items-center justify-start">
+            <img src={displayLogo} alt={platformName} className="h-11 w-auto rounded-xl" />
+          </div>
 
-          <div className="hidden md:flex items-center gap-1">
-            {[['about','عن المعلم'],['assistants','فريق الدعم']].map(([id, label]) => (
+          {/* Center: nav links */}
+          <div className="hidden md:flex items-center justify-center gap-1">
+            {[['about','عن المعلم'],['support','فريق الدعم']].map(([id, label]) => (
               <button key={id} onClick={() => scrollTo(id)}
                 className="text-white/50 hover:text-white text-sm font-semibold px-3 py-2 rounded-lg hover:bg-white/[0.06] transition-all duration-200">
                 {label}
@@ -182,7 +186,8 @@ export default function LandingPage() {
             ))}
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          {/* Left: action buttons */}
+          <div className="flex items-center justify-end gap-2">
             <Link to="/parent-portal"
               className="hidden sm:flex items-center gap-1.5 text-white/60 hover:text-white text-sm font-semibold px-3 py-2 rounded-lg border border-white/[0.1] hover:border-white/25 hover:bg-white/[0.06] transition-all duration-200">
               <Phone className="w-3.5 h-3.5" />
@@ -364,9 +369,9 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─────────────── ASSISTANTS ─────────────── */}
-      {assistants.length > 0 && (
-        <section id="assistants" className="relative py-20 overflow-hidden bg-[#05080f]">
+      {/* ─────────────── SUPPORT CONTACTS ─────────────── */}
+      {supportContacts.length > 0 && (
+        <section id="support" className="relative py-20 overflow-hidden bg-[#05080f]">
           <Orb size="500px" top="0"   left="60%"    color="radial-gradient(circle,#f97316,transparent)" dur={11} />
           <Orb size="400px" top="40%" left="-100px" color="radial-gradient(circle,#7c3aed,transparent)" delay={2} dur={13} />
 
@@ -376,42 +381,58 @@ export default function LandingPage() {
               <h2 className="font-black text-white mb-2" style={{ fontSize: 'clamp(1.9rem,4vw,2.8rem)' }}>
                 تواصل مع <span className="grad-orange">فريق الدعم</span>
               </h2>
-              <p className="text-white/40 text-sm max-w-md mx-auto mt-3 mb-1">للاستفسار عن الكورسات أو التسجيل في المنصة، راسل أحد المساعدين مباشرةً</p>
+              <p className="text-white/40 text-sm max-w-md mx-auto mt-3 mb-1">للاستفسار عن الكورسات أو التسجيل في المنصة، تواصل مع فريق الدعم مباشرةً</p>
               <div className="w-16 h-0.5 bg-gradient-to-l from-orange-500 to-transparent rounded-full mx-auto mt-4 mb-12" />
             </Reveal>
 
             <div className={`grid gap-4 ${
-              assistants.length === 1 ? 'max-w-xs mx-auto' :
-              assistants.length === 2 ? 'sm:grid-cols-2 max-w-lg mx-auto' :
+              supportContacts.length === 1 ? 'max-w-xs mx-auto' :
+              supportContacts.length === 2 ? 'sm:grid-cols-2 max-w-lg mx-auto' :
               'sm:grid-cols-2 lg:grid-cols-3'
             }`}>
-              {assistants.map((a, i) => (
-                <Reveal key={a.id} delay={i * 0.08}
-                  className="group bg-white/[0.04] border border-white/[0.08] rounded-2xl p-6 text-center hover:border-orange-500/30 hover:-translate-y-1.5 transition-all duration-400 overflow-hidden relative">
-                  <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-orange-500/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-400" />
+              {supportContacts.map((c, i) => {
+                const photoSrc = c.photo_url
+                  ? (c.photo_url.startsWith('http') ? c.photo_url : `/uploads/${c.photo_url}`)
+                  : null;
+                return (
+                  <Reveal key={c.id} delay={i * 0.08}
+                    className="group bg-white/[0.04] border border-white/[0.08] rounded-2xl p-6 text-center hover:border-orange-500/30 hover:-translate-y-1.5 transition-all duration-400 overflow-hidden relative">
+                    <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-orange-500/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-400" />
 
-                  <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-orange-500/20 to-orange-700/10 border border-orange-500/20 flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
-                    <span className="text-xl font-black text-orange-300">{a.name?.charAt(0) || '؟'}</span>
-                  </div>
-
-                  <h3 className="font-black text-white text-base mb-0.5">{a.name}</h3>
-                  <p className="text-white/35 text-xs mb-5">مساعد تسجيل ودعم</p>
-
-                  {a.phone ? (
-                    <a href={`https://wa.me/${a.phone.replace(/\D/g, '')}`}
-                      target="_blank" rel="noopener noreferrer"
-                      className="flex items-center justify-center gap-2 w-full bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/25 hover:border-orange-500/50 text-orange-300 font-bold text-sm px-4 py-2.5 rounded-xl transition-all duration-200 active:scale-95">
-                      <MessageCircle className="w-4 h-4" />
-                      {a.phone}
-                    </a>
-                  ) : (
-                    <div className="flex items-center justify-center gap-2 w-full bg-white/[0.04] border border-white/[0.08] text-white/25 text-xs px-4 py-2.5 rounded-xl">
-                      <Phone className="w-3.5 h-3.5" />
-                      رقم غير متاح
+                    <div className="w-14 h-14 rounded-xl overflow-hidden mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
+                      {photoSrc ? (
+                        <img src={photoSrc} alt={c.name}
+                          className="w-full h-full object-cover"
+                          onError={e => {
+                            e.target.style.display = 'none';
+                            e.target.nextSibling.style.display = 'flex';
+                          }} />
+                      ) : null}
+                      <div className="w-full h-full bg-gradient-to-br from-orange-500/20 to-orange-700/10 border border-orange-500/20 items-center justify-center"
+                        style={{ display: photoSrc ? 'none' : 'flex' }}>
+                        <span className="text-xl font-black text-orange-300">{c.name?.charAt(0) || '؟'}</span>
+                      </div>
                     </div>
-                  )}
-                </Reveal>
-              ))}
+
+                    <h3 className="font-black text-white text-base mb-0.5">{c.name}</h3>
+                    <p className="text-white/35 text-xs mb-5">دعم فني واستفسارات</p>
+
+                    {c.phone ? (
+                      <a href={`https://wa.me/${c.phone.replace(/\D/g, '')}`}
+                        target="_blank" rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-2 w-full bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/25 hover:border-orange-500/50 text-orange-300 font-bold text-sm px-4 py-2.5 rounded-xl transition-all duration-200 active:scale-95">
+                        <MessageCircle className="w-4 h-4" />
+                        {c.phone}
+                      </a>
+                    ) : (
+                      <div className="flex items-center justify-center gap-2 w-full bg-white/[0.04] border border-white/[0.08] text-white/25 text-xs px-4 py-2.5 rounded-xl">
+                        <Phone className="w-3.5 h-3.5" />
+                        رقم غير متاح
+                      </div>
+                    )}
+                  </Reveal>
+                );
+              })}
             </div>
           </div>
         </section>
@@ -454,7 +475,7 @@ export default function LandingPage() {
             <span className="text-white/25 text-xs">المنصة التعليمية المتكاملة</span>
           </div>
           <div className="flex items-center gap-1">
-            {[['about','عن المعلم'],['assistants','فريق الدعم']].map(([id, label]) => (
+            {[['about','عن المعلم'],['support','فريق الدعم']].map(([id, label]) => (
               <button key={id} onClick={() => scrollTo(id)}
                 className="text-white/35 hover:text-orange-400 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
                 {label}

@@ -31,7 +31,7 @@ router.get('/info', async (req, res) => {
     const teacher = teacherRes.rows[0];
     const tid = teacher.id;
 
-    const [stats, courses, assistants] = await Promise.all([
+    const [stats, supportContacts] = await Promise.all([
       pool.query(`
         SELECT
           (SELECT COUNT(*) FROM students   WHERE teacher_id=$1 AND deleted_at IS NULL) AS total_students,
@@ -40,16 +40,12 @@ router.get('/info', async (req, res) => {
           (SELECT COUNT(*) FROM exam_results er JOIN exams e ON e.id = er.exam_id WHERE e.teacher_id=$1) AS total_results
       `, [tid]),
       pool.query(
-        'SELECT id, name, description, price, thumbnail_url, target_stage, created_at FROM courses WHERE teacher_id=$1 AND is_published = true AND price > 0 ORDER BY price DESC LIMIT 3',
-        [tid]
-      ),
-      pool.query(
-        'SELECT id, name FROM assistants WHERE teacher_id=$1 ORDER BY id LIMIT 10',
+        'SELECT id, name, phone, photo_url FROM teacher_support_contacts WHERE teacher_id=$1 ORDER BY sort_order, id LIMIT 10',
         [tid]
       ),
     ]);
 
-    res.json({ teacher, stats: stats.rows[0], courses: courses.rows, assistants: assistants.rows });
+    res.json({ teacher, stats: stats.rows[0], supportContacts: supportContacts.rows });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });

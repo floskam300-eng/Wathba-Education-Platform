@@ -1057,4 +1057,90 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
   }
 });
 
+/* ══════════════════════════════════════════════════════
+   SUPPORT CONTACTS — public landing page contacts
+   ══════════════════════════════════════════════════════ */
+
+// GET all support contacts for this teacher
+router.get('/support-contacts', requireRole('teacher'), async (req, res) => {
+  const tid = req.user.id;
+  try {
+    const { rows } = await pool.query(
+      'SELECT id, name, phone, photo_url, sort_order FROM teacher_support_contacts WHERE teacher_id=$1 ORDER BY sort_order, id',
+      [tid]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST create a new support contact
+router.post('/support-contacts', requireRole('teacher'), async (req, res) => {
+  const tid = req.user.id;
+  const { name, phone, photo_url, sort_order } = req.body;
+  if (!name || typeof name !== 'string' || name.trim().length === 0)
+    return res.status(400).json({ error: 'الاسم مطلوب' });
+  if (name.trim().length > 100)
+    return res.status(400).json({ error: 'الاسم طويل جداً (أقصى 100 حرف)' });
+  if (phone && typeof phone !== 'string')
+    return res.status(400).json({ error: 'رقم الهاتف غير صحيح' });
+  const order = Number.isInteger(parseInt(sort_order)) ? parseInt(sort_order) : 0;
+  try {
+    const { rows } = await pool.query(
+      'INSERT INTO teacher_support_contacts (teacher_id, name, phone, photo_url, sort_order) VALUES ($1,$2,$3,$4,$5) RETURNING id, name, phone, photo_url, sort_order',
+      [tid, name.trim(), phone?.trim() || null, photo_url?.trim() || null, order]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PUT update a support contact
+router.put('/support-contacts/:id', requireRole('teacher'), async (req, res) => {
+  const tid = req.user.id;
+  const id = parseInt(req.params.id);
+  if (!id || id < 1 || id > 2147483647)
+    return res.status(400).json({ error: 'معرّف غير صحيح' });
+  const { name, phone, photo_url, sort_order } = req.body;
+  if (!name || typeof name !== 'string' || name.trim().length === 0)
+    return res.status(400).json({ error: 'الاسم مطلوب' });
+  if (name.trim().length > 100)
+    return res.status(400).json({ error: 'الاسم طويل جداً (أقصى 100 حرف)' });
+  const order = Number.isInteger(parseInt(sort_order)) ? parseInt(sort_order) : 0;
+  try {
+    const { rows } = await pool.query(
+      'UPDATE teacher_support_contacts SET name=$1, phone=$2, photo_url=$3, sort_order=$4 WHERE id=$5 AND teacher_id=$6 RETURNING id, name, phone, photo_url, sort_order',
+      [name.trim(), phone?.trim() || null, photo_url?.trim() || null, order, id, tid]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'غير موجود' });
+    res.json(rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// DELETE a support contact
+router.delete('/support-contacts/:id', requireRole('teacher'), async (req, res) => {
+  const tid = req.user.id;
+  const id = parseInt(req.params.id);
+  if (!id || id < 1 || id > 2147483647)
+    return res.status(400).json({ error: 'معرّف غير صحيح' });
+  try {
+    const { rowCount } = await pool.query(
+      'DELETE FROM teacher_support_contacts WHERE id=$1 AND teacher_id=$2',
+      [id, tid]
+    );
+    if (rowCount === 0) return res.status(404).json({ error: 'غير موجود' });
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;

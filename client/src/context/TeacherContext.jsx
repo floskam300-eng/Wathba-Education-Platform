@@ -108,7 +108,7 @@ export function TeacherProvider({ children }) {
       teacher,
       stats: data?.stats || null,
       courses: data?.courses || [],
-      assistants: data?.assistants || [],
+      supportContacts: data?.supportContacts || [],
       isLoading,
       isError,
       teacherSlug,
