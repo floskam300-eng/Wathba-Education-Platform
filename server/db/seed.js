@@ -7,7 +7,7 @@
  *   🎒 الطالب   : std_ali / 123456        — يغطي كل سيناريوهات الطالب
  *
  * الجداول المغطّاة (كاملة):
- *   teachers, assistants, students
+ *   teachers, assistants, teacher_support_contacts, students
  *   courses, sections, videos, pdf_files
  *   question_banks, bank_questions
  *   exams, questions, exam_sessions, exam_results, exam_retry_requests
@@ -64,6 +64,7 @@ async function seed() {
     'bank_questions', 'question_banks', 'questions', 'exams',
     'pdf_files', 'videos', 'sections', 'courses',
     'students', 'assistants',
+    'teacher_support_contacts',
     'teacher_import_models',
   ];
   for (const t of tables) {
@@ -142,6 +143,20 @@ async function seed() {
   const [asstKarim] = await q(`SELECT id,name FROM assistants WHERE username='asst_karim'`);
   const [asstDina]  = await q(`SELECT id,name FROM assistants WHERE username='asst_dina'`);
   console.log('  ✓ 3 مساعدين: asst_nour (كاملة) | asst_karim (جزئية) | asst_dina (عرض فقط)');
+
+  // ══════════════════════════════════════════════════════════
+  // 2-B. جهات دعم الـ Landing Page (مستقلة عن المساعدين)
+  // ══════════════════════════════════════════════════════════
+  console.log('\n⟳  إضافة جهات الدعم الفني...');
+  await q(`
+    INSERT INTO teacher_support_contacts (teacher_id, name, phone, photo_url, sort_order)
+    VALUES
+      ($1, 'نور — دعم وتسجيل',     '201111111101',
+       'https://ui-avatars.com/api/?name=نور&background=f97316&color=fff&size=128&bold=true', 0),
+      ($1, 'كريم — استفسارات',     '201111111102',
+       'https://ui-avatars.com/api/?name=كريم&background=7c3aed&color=fff&size=128&bold=true', 1)
+  `, [T1]);
+  console.log('  ✓ 2 جهات دعم: نور (تسجيل) | كريم (استفسارات)');
 
   // ══════════════════════════════════════════════════════════
   // 3. الطلاب (11 طالب)
