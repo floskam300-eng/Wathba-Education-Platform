@@ -1,21 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  GraduationCap, BookOpen, BarChart3, Play, FileText,
+  GraduationCap, BookOpen, BarChart3,
   Users, CheckCircle, ArrowLeft, Sparkles, Trophy,
-  MessageCircle, ChevronDown, Target, CreditCard, Phone,
-  Video, Gamepad2, Database, HelpCircle, Shield, Star,
-  Zap, Clock, TrendingUp
+  MessageCircle, ChevronDown, Target, Phone,
+  Star, Zap, Clock,
 } from 'lucide-react';
 import wathbaLogo from '../assets/wathba_logo_transparent.png';
 import { useTeacher } from '../context/TeacherContext';
-
-/* ════════════════ DEMO COVERS ════════════════ */
-const DEMO_COVERS = [
-  'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=480&h=260&fit=crop&auto=format',
-  'https://images.unsplash.com/photo-1509228627152-72ae9ae6848d?w=480&h=260&fit=crop&auto=format',
-  'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=480&h=260&fit=crop&auto=format',
-];
 
 
 /* ════════════════ HOOKS ════════════════ */
@@ -96,62 +88,6 @@ function SectionHeading({ pre, main, sub, accent = 'orange' }) {
   );
 }
 
-/* ════════════════ FEATURE CARD ════════════════ */
-function FeatureCard({ icon: Icon, title, desc, variant = 'orange', delay = 0 }) {
-  const isPurple = variant === 'purple';
-  return (
-    <Reveal delay={delay}
-      className="group relative bg-white/[0.04] border border-white/[0.08] rounded-2xl p-5 hover:border-orange-500/30 hover:bg-white/[0.07] transition-all duration-400 hover:-translate-y-1.5 cursor-default overflow-hidden">
-      <div className={`absolute top-0 left-0 w-full h-0.5 ${isPurple ? 'bg-gradient-to-r from-transparent via-purple-500/60 to-transparent' : 'bg-gradient-to-r from-transparent via-orange-500/60 to-transparent'} opacity-0 group-hover:opacity-100 transition-opacity duration-400`} />
-      <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-4 ${isPurple ? 'bg-purple-500/15 border border-purple-500/25' : 'bg-orange-500/15 border border-orange-500/25'} group-hover:scale-110 transition-transform duration-300`}>
-        <Icon className={`w-5 h-5 ${isPurple ? 'text-purple-400' : 'text-orange-400'}`} />
-      </div>
-      <h3 className="font-black text-white text-sm mb-1.5 leading-snug">{title}</h3>
-      <p className="text-white/45 text-xs leading-relaxed">{desc}</p>
-    </Reveal>
-  );
-}
-
-/* ════════════════ COURSE CARD ════════════════ */
-function CourseCard({ course, index, delay = 0 }) {
-  const [imgErr, setImgErr] = useState(false);
-  const raw = course.thumbnail_url;
-  const src = raw ? (raw.startsWith('http') ? raw : `/uploads/${raw}`) : null;
-  const cover = (!imgErr && src) ? src : DEMO_COVERS[index % DEMO_COVERS.length];
-  return (
-    <Reveal delay={delay}
-      className="group bg-white/[0.04] border border-white/[0.08] rounded-2xl overflow-hidden hover:border-orange-500/35 hover:-translate-y-2 transition-all duration-500" style={{ boxShadow: 'none' }}
-      onMouseEnter={e => e.currentTarget.style.boxShadow = '0 8px 40px rgba(249,115,22,0.12)'}
-      onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}>
-      <div className="h-44 relative overflow-hidden bg-[#0c1325]">
-        <img src={cover} alt={course.name} onError={() => setImgErr(true)}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-600 opacity-80 group-hover:opacity-100" />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#05080f] via-[#05080f]/20 to-transparent" />
-        {course.price > 0 && (
-          <div className="absolute top-3 right-3 bg-orange-500 text-white text-xs font-black px-2.5 py-1 rounded-lg">
-            {parseFloat(course.price).toFixed(0)} جنيه
-          </div>
-        )}
-        {course.target_stage && (
-          <div className="absolute top-3 left-3 bg-black/50 backdrop-blur text-white/80 text-[10px] font-bold px-2 py-1 rounded-lg border border-white/15">
-            {course.target_stage}
-          </div>
-        )}
-        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-          <div className="w-12 h-12 rounded-full bg-orange-500/95 flex items-center justify-center shadow-xl shadow-orange-500/40">
-            <Play className="w-5 h-5 text-white ms-0.5" />
-          </div>
-        </div>
-      </div>
-      <div className="p-4">
-        <h3 className="font-black text-white text-sm leading-snug mb-1 group-hover:text-orange-300 transition-colors">{course.name}</h3>
-        {course.description && (
-          <p className="text-white/40 text-xs leading-relaxed line-clamp-2">{course.description}</p>
-        )}
-      </div>
-    </Reveal>
-  );
-}
 
 /* ════════════════ STAT CARD ════════════════ */
 function StatCard({ icon: Icon, value, label, color, delay = 0 }) {
@@ -170,11 +106,10 @@ function StatCard({ icon: Icon, value, label, color, delay = 0 }) {
 
 /* ════════════════ MAIN PAGE ════════════════ */
 export default function LandingPage() {
-  const { teacher, stats, courses: rawCourses, assistants, isLoading, platformName, logoUrl } = useTeacher();
+  const { teacher, stats, assistants, isLoading, platformName, logoUrl } = useTeacher();
   const [statsVisible, setStatsVisible] = useState(false);
   const statsRef = useRef(null);
 
-  const courses    = (rawCourses || []).slice(0, 3);
   const displayLogo = logoUrl || wathbaLogo;
 
   const sCount = useCounter(parseInt(stats?.total_students || 0), 2000, statsVisible);
@@ -192,21 +127,6 @@ export default function LandingPage() {
   }, []);
 
   const scrollTo = id => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
-
-  const features = [
-    { icon: Play,          title: 'فيديوهات تعليمية',   desc: 'محتوى فيديو منظم داخل كل كورس مع تتبع تقدم مشاهدة كل طالب بدقة.',              variant: 'orange' },
-    { icon: Target,        title: 'امتحانات تفاعلية',   desc: 'أسئلة MCQ وصح/خطأ — نتائج فورية مع تحليل تفصيلي لكل إجابة.',            variant: 'purple' },
-    { icon: Video,         title: 'بث مباشر',            desc: 'حصص أونلاين مع شات وعرض اليد وتتبع الحضور والغياب في الوقت الفعلي.',            variant: 'orange' },
-    { icon: BarChart3,     title: 'تحليلات متقدمة',     desc: 'رسوم بيانية تفاعلية لمتابعة أداء كل طالب وتحديد نقاط الضعف والقوة.',           variant: 'purple' },
-    { icon: Trophy,        title: 'نقاط ولوحة الشرف',   desc: 'نظام مكافآت يحفّز الطلاب مع لوحة متصدرين شهرية تُعاد تلقائياً.',               variant: 'orange' },
-    { icon: Gamepad2,      title: 'ألعاب تعليمية',       desc: 'لعبة Stickman Run أسبوعية بأسئلة علمية — تحفيز التعلم من خلال المتعة.',         variant: 'purple' },
-    { icon: Phone,         title: 'بوابة أولياء الأمور', desc: 'ولي الأمر يتابع نتائج ابنه فوراً — امتحانات وكورسات ونقاط — برقم هاتفه.',      variant: 'orange' },
-    { icon: HelpCircle,    title: 'بنك الأسئلة',         desc: 'مكتبة أسئلة منظمة يختار منها المعلم لبناء امتحاناته بسرعة واحترافية.',          variant: 'purple' },
-    { icon: FileText,      title: 'تقارير PDF',           desc: 'تقارير أداء مفصلة قابلة للطباعة لأولياء الأمور والمتابعة الأكاديمية.',          variant: 'orange' },
-    { icon: CreditCard,    title: 'دفع إلكتروني',        desc: 'نظام مدفوعات يدعم فودافون كاش وإنستاباي مع تحقق فوري وتتبع كامل.',              variant: 'purple' },
-    { icon: Shield,        title: 'مساعدون بصلاحيات',    desc: 'أضف مساعدين مع تحكم دقيق في 9 صلاحيات مختلفة لكل مساعد على حدة.',              variant: 'orange' },
-    { icon: Database,      title: 'نسخ احتياطية',        desc: 'تصدير واستيراد بيانات الطلاب بصيغة Excel مع سجل كامل لكل العمليات.',            variant: 'purple' },
-  ];
 
   return (
     <div className="min-h-screen bg-[#05080f] text-white overflow-x-hidden" dir="rtl">
@@ -254,7 +174,7 @@ export default function LandingPage() {
           <img src={displayLogo} alt={platformName} className="h-11 w-auto rounded-xl" />
 
           <div className="hidden md:flex items-center gap-1">
-            {[['about','عن المعلم'],['courses','الكورسات'],['features','المميزات'],['assistants','فريق الدعم']].map(([id, label]) => (
+            {[['about','عن المعلم'],['assistants','فريق الدعم']].map(([id, label]) => (
               <button key={id} onClick={() => scrollTo(id)}
                 className="text-white/50 hover:text-white text-sm font-semibold px-3 py-2 rounded-lg hover:bg-white/[0.06] transition-all duration-200">
                 {label}
@@ -319,11 +239,6 @@ export default function LandingPage() {
               ابدأ الآن
               <ArrowLeft className="w-4 h-4" />
             </Link>
-            <button onClick={() => scrollTo('courses')}
-              className="flex items-center gap-2 bg-white/[0.06] hover:bg-white/10 border border-white/[0.1] hover:border-white/25 text-white font-bold text-sm px-7 py-3.5 rounded-xl transition-all duration-200">
-              <BookOpen className="w-4 h-4 text-orange-400" />
-              الكورسات
-            </button>
           </div>
 
           <button onClick={() => scrollTo('stats')}
@@ -502,75 +417,6 @@ export default function LandingPage() {
         </section>
       )}
 
-      {/* ─────────────── COURSES ─────────────── */}
-      <section id="courses" className="relative py-24 overflow-hidden bg-[#070b15]">
-        <Orb size="600px" top="20%" left="50%" color="radial-gradient(circle,#f97316,transparent)" dur={12} />
-
-        <div className="relative z-10 max-w-5xl mx-auto px-5">
-          <Reveal className="text-center">
-            <SectionLabel text="تعلّم معنا" />
-            <h2 className="font-black text-white mb-2" style={{ fontSize: 'clamp(1.9rem,4vw,2.8rem)' }}>
-              أبرز <span className="grad-orange">الكورسات</span>
-            </h2>
-            <p className="text-white/40 text-sm mt-3 mb-1">أفضل ٣ كورسات مدفوعة — محتوى احترافي يأخذك خطوة للأمام</p>
-            <div className="w-16 h-0.5 bg-gradient-to-l from-orange-500 to-transparent rounded-full mx-auto mt-4 mb-14" />
-          </Reveal>
-
-          {isLoading ? (
-            <div className="grid sm:grid-cols-3 gap-5">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="h-56 rounded-2xl bg-white/[0.04] animate-pulse border border-white/[0.06]" />
-              ))}
-            </div>
-          ) : courses.length > 0 ? (
-            <div className="grid sm:grid-cols-3 gap-5">
-              {courses.map((c, i) => <CourseCard key={c.id} course={c} index={i} delay={i * 0.1} />)}
-            </div>
-          ) : (
-            <div className="text-center py-16 text-white/25">
-              <BookOpen className="w-12 h-12 mx-auto mb-3" />
-              <p className="text-sm font-semibold">لا توجد كورسات بعد</p>
-            </div>
-          )}
-
-          <Reveal delay={0.3} className="text-center mt-8">
-            <Link to="/login"
-              className="inline-flex items-center gap-2 text-white/50 hover:text-orange-400 text-sm font-bold border border-white/[0.1] hover:border-orange-500/40 px-6 py-2.5 rounded-xl transition-all duration-200">
-              عرض جميع الكورسات
-              <ArrowLeft className="w-3.5 h-3.5" />
-            </Link>
-          </Reveal>
-        </div>
-      </section>
-
-      {/* ─────────────── FEATURES ─────────────── */}
-      <section id="features" className="relative py-24 overflow-hidden bg-[#05080f]">
-        <Orb size="600px" top="-50px"  left="-150px" color="radial-gradient(circle,#7c3aed,transparent)" dur={13} />
-        <Orb size="500px" top="60%"    left="70%"    color="radial-gradient(circle,#f97316,transparent)" delay={2} dur={10} />
-
-        <div className="relative z-10 max-w-6xl mx-auto px-5">
-          <Reveal className="text-center">
-            <SectionLabel text="لماذا وثبة؟" />
-            <h2 className="font-black text-white mb-2" style={{ fontSize: 'clamp(1.9rem,4vw,2.8rem)' }}>
-              مميزات <span className="grad-purple">المنصة</span>
-            </h2>
-            <p className="text-white/40 text-sm mt-3 mb-1">كل الأدوات التي يحتاجها المعلم والطالب في مكان واحد</p>
-            <div className="w-16 h-0.5 bg-gradient-to-l from-purple-500 to-transparent rounded-full mx-auto mt-4 mb-14" />
-          </Reveal>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-            {features.map((f, i) => (
-              <FeatureCard key={f.title} {...f} delay={i * 0.04} />
-            ))}
-          </div>
-
-          <Reveal delay={0.5} className="text-center mt-8">
-            <p className="text-white/25 text-xs">
-              <span className="text-orange-400 font-bold">{features.length}</span> ميزة متكاملة في منصة واحدة
-            </p>
-          </Reveal>
-        </div>
-      </section>
 
       {/* ─────────────── CTA ─────────────── */}
       <section className="relative py-24 overflow-hidden bg-[#070b15]">
@@ -608,7 +454,7 @@ export default function LandingPage() {
             <span className="text-white/25 text-xs">المنصة التعليمية المتكاملة</span>
           </div>
           <div className="flex items-center gap-1">
-            {[['about','عن المعلم'],['courses','الكورسات'],['features','المميزات'],['assistants','فريق الدعم']].map(([id, label]) => (
+            {[['about','عن المعلم'],['assistants','فريق الدعم']].map(([id, label]) => (
               <button key={id} onClick={() => scrollTo(id)}
                 className="text-white/35 hover:text-orange-400 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
                 {label}
