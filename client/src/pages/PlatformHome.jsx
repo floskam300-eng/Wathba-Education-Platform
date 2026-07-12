@@ -403,7 +403,7 @@ export default function PlatformHome() {
           </Reveal>
           <div className="flex flex-col md:flex-row items-start gap-8">
             <Reveal className="flex-shrink-0">
-              <div className="w-28 h-28 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center p-3 select-none">
+              <div className="w-28 h-28 rounded-2xl bg-white flex items-center justify-center p-3 shadow-lg shadow-black/20 select-none">
                 <img src={wathbaLogo} alt="وثبة" className="w-full h-full object-contain" />
               </div>
             </Reveal>
