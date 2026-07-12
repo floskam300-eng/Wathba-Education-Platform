@@ -74,13 +74,13 @@ function FeatureCard({ icon: Icon, title, desc, color, delay }) {
       transform: visible ? 'translateY(0) scale(1)' : 'translateY(24px) scale(0.97)',
       transition: `opacity 0.5s ease ${delay}s, transform 0.5s ease ${delay}s`,
     }}
-      className="group relative bg-white/[0.04] hover:bg-white/[0.07] border border-white/10 hover:border-orange-500/30 rounded-2xl p-6 transition-all duration-300 hover:-translate-y-1 cursor-default"
+      className="group relative bg-white/[0.04] hover:bg-white/[0.07] border border-white/10 hover:border-orange-500/30 rounded-xl md:rounded-2xl p-3.5 md:p-6 transition-all duration-300 hover:-translate-y-1 cursor-default"
     >
-      <div className={`w-12 h-12 rounded-xl ${color} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
-        <Icon className="w-6 h-6 text-white" />
+      <div className={`w-9 h-9 md:w-12 md:h-12 rounded-lg md:rounded-xl ${color} flex items-center justify-center mb-2.5 md:mb-4 group-hover:scale-110 transition-transform`}>
+        <Icon className="w-5 h-5 md:w-6 md:h-6 text-white" />
       </div>
-      <h3 className="text-white font-bold text-base mb-2">{title}</h3>
-      <p className="text-white/50 text-sm leading-relaxed">{desc}</p>
+      <h3 className="text-white font-bold text-sm md:text-base mb-1.5 md:mb-2">{title}</h3>
+      <p className="text-white/50 text-xs md:text-sm leading-relaxed">{desc}</p>
     </div>
   );
 }
@@ -218,7 +218,10 @@ function DevAccessPanel() {
 /*                  MAIN COMPONENT                         */
 /* ════════════════════════════════════════════════════════ */
 export default function PlatformHome() {
-  const WHATSAPP = 'https://wa.me/201000000000?text=أريد الاستفسار عن منصة وثبة';
+  const PHONE = '01210737582';
+  const PHONE_INTL = '201210737582';
+  const EMAIL = 'wathbaeduplatform@gmail.com';
+  const WHATSAPP = `https://wa.me/${PHONE_INTL}?text=أريد الاستفسار عن منصة وثبة`;
 
   useEffect(() => {
     document.title = 'وثبة — منصة تعليمية متكاملة';
@@ -286,7 +289,7 @@ export default function PlatformHome() {
           <img src={wathbaLogo} alt="وثبة" className="h-9 object-contain rounded-xl" />
           <div className="hidden md:flex items-center gap-6 text-sm text-white/60">
             <a href="#features"  className="hover:text-white transition-colors">المميزات</a>
-            <a href="#about"     className="hover:text-white transition-colors">عن المطور</a>
+            <a href="#about"     className="hover:text-white transition-colors">عن المنصه</a>
             <a href="#faq"       className="hover:text-white transition-colors">الأسئلة الشائعة</a>
           </div>
           <a href={WHATSAPP} target="_blank" rel="noopener noreferrer"
@@ -356,7 +359,7 @@ export default function PlatformHome() {
           <h2 className="text-4xl font-black text-white mb-3">كل اللي محتاجه في مكان واحد</h2>
           <p className="text-white/40 max-w-lg mx-auto">منصة شاملة بتغطي كل جوانب العملية التعليمية من أول التسجيل لحد تتبع الأداء.</p>
         </Reveal>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
           {features.map((f, i) => <FeatureCard key={i} {...f} />)}
         </div>
       </section>
@@ -395,34 +398,33 @@ export default function PlatformHome() {
           <Reveal>
             <div className="inline-flex items-center gap-2 bg-violet-500/10 border border-violet-500/25 text-violet-400 text-xs font-bold px-4 py-1.5 rounded-full mb-6 tracking-widest uppercase">
               <GraduationCap className="w-3.5 h-3.5" />
-              عن المطور
+              عن المنصه
             </div>
           </Reveal>
           <div className="flex flex-col md:flex-row items-start gap-8">
             <Reveal className="flex-shrink-0">
-              <div className="w-28 h-28 rounded-2xl bg-gradient-to-br from-orange-500 to-violet-600 flex items-center justify-center text-4xl font-black text-white select-none">
-                م
+              <div className="w-28 h-28 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center p-3 select-none">
+                <img src={wathbaLogo} alt="وثبة" className="w-full h-full object-contain" />
               </div>
             </Reveal>
             <Reveal delay={0.1} className="flex-1">
-              <h3 className="text-white text-2xl font-black mb-1">محمد — مطور منصة وثبة</h3>
-              <p className="text-orange-400 font-semibold text-sm mb-4">Full-Stack Developer · مصر</p>
+              <h3 className="text-white text-2xl font-black mb-1">منصة وثبة التعليمية</h3>
+              <p className="text-orange-400 font-semibold text-sm mb-4">منصتك التعليمية بهويتك الخاصة · مصر</p>
               <p className="text-white/55 leading-relaxed mb-6">
-                مطور ويب متخصص في بناء منصات تعليمية متكاملة لمدرسي السناتر في مصر.
-                بنيت منصة وثبة من الصفر بكل التفاصيل اللي المدرس محتاجها — من إدارة الطلاب
-                وحتى الألعاب التعليمية. هدفي إن كل مدرس يلاقي منصة باسمه ولوجوه
-                بسعر معقول ودعم مستمر.
+                وثبة منصة تعليمية متكاملة مصممة خصيصاً لمدرسي السناتر في مصر — بتوفّر لكل
+                مدرس منصته الخاصة بيه، بإدارة كورسات وامتحانات وطلاب ومدفوعات في مكان واحد،
+                مع فريق دعم فني جاهز يساعدك في أي وقت.
               </p>
               <div className="flex flex-wrap gap-3">
                 <a href={WHATSAPP} target="_blank" rel="noopener noreferrer"
                   className="flex items-center gap-2 bg-green-500/15 hover:bg-green-500/25 border border-green-500/30 text-green-400 text-sm font-semibold px-4 py-2.5 rounded-xl transition-all">
                   <MessageCircle className="w-4 h-4" />
-                  واتساب: 01000000000
+                  واتساب: {PHONE}
                 </a>
-                <a href="mailto:dev@wathba.com"
+                <a href={`mailto:${EMAIL}`}
                   className="flex items-center gap-2 bg-violet-500/15 hover:bg-violet-500/25 border border-violet-500/30 text-violet-400 text-sm font-semibold px-4 py-2.5 rounded-xl transition-all">
                   <Mail className="w-4 h-4" />
-                  dev@wathba.com
+                  {EMAIL}
                 </a>
               </div>
             </Reveal>
@@ -459,7 +461,7 @@ export default function PlatformHome() {
               <a href={WHATSAPP} target="_blank" rel="noopener noreferrer"
                 className="inline-flex items-center gap-2.5 bg-orange-500 hover:bg-orange-600 text-white font-bold px-8 py-4 rounded-2xl text-base transition-all hover:scale-105 hover:shadow-xl hover:shadow-orange-500/25">
                 <MessageCircle className="w-5 h-5" />
-                ابدأ دلوقتي على واتساب
+                تواصل معنا عبر واتساب
               </a>
             </div>
           </div>
@@ -480,7 +482,7 @@ export default function PlatformHome() {
           </p>
           <div className="flex items-center gap-4 text-white/40 text-sm">
             <a href={WHATSAPP} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">واتساب</a>
-            <a href="mailto:dev@wathba.com" className="hover:text-white transition-colors">البريد الإلكتروني</a>
+            <a href={`mailto:${EMAIL}`} className="hover:text-white transition-colors">البريد الإلكتروني</a>
             <a href="/terms" className="hover:text-white transition-colors">الشروط والأحكام</a>
             <a href="/privacy" className="hover:text-white transition-colors">سياسة الخصوصية</a>
           </div>
