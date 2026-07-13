@@ -147,9 +147,8 @@ function StatCard({ icon: Icon, value, label, delay = 0, color }) {
 
 /* ════════════════ MAIN PAGE ════════════════ */
 export default function LandingPage() {
-  const { teacher, stats, courses: rawCourses, supportContacts, isLoading, platformName, logoUrl } = useTeacher();
+  const { teacher, stats, supportContacts, isLoading, platformName, logoUrl } = useTeacher();
   const displayLogo = logoUrl || wathbaLogo;
-  const courses = rawCourses ? rawCourses.slice(0, 3) : [];
 
   const [statsRef, statsVisible] = useReveal(0.3);
   const sCount = useCounter(stats?.total_students || 0, 1500, statsVisible);
@@ -165,20 +164,7 @@ export default function LandingPage() {
 
   const scrollTo = id => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
 
-  const features = [
-    { icon: Play,          title: 'فيديوهات تعليمية',   desc: 'محتوى فيديو منظم داخل كل كورس مع تتبع تقدم مشاهدة كل طالب بدقة.',              variant: 'orange' },
-    { icon: Target,        title: 'امتحانات تفاعلية',   desc: 'أسئلة MCQ وصح/خطأ — نتائج فورية مع تحليل تفصيلي لكل إجابة.',            variant: 'purple' },
-    { icon: Video,         title: 'بث مباشر',            desc: 'حصص أونلاين مع شات وعرض اليد وتتبع الحضور والغياب في الوقت الفعلي.',            variant: 'orange' },
-    { icon: BarChart3,     title: 'تحليلات متقدمة',     desc: 'رسوم بيانية تفاعلية لمتابعة أداء كل طالب وتحديد نقاط الضعف والقوة.',           variant: 'purple' },
-    { icon: Trophy,        title: 'نقاط ولوحة الشرف',   desc: 'نظام مكافآت يحفّز الطلاب مع لوحة متصدرين شهرية تُعاد تلقائياً.',               variant: 'orange' },
-    { icon: Gamepad2,      title: 'ألعاب تعليمية',       desc: 'لعبة Stickman Run أسبوعية بأسئلة علمية — تحفيز التعلم من خلال المتعة.',         variant: 'purple' },
-    { icon: Phone,         title: 'بوابة أولياء الأمور', desc: 'ولي الأمر يتابع نتائج ابنه فوراً — امتحانات وكورسات ونقاط — برقم هاتفه.',      variant: 'orange' },
-    { icon: HelpCircle,    title: 'بنك الأسئلة',         desc: 'مكتبة أسئلة منظمة يختار منها المعلم لبناء امتحاناته بسرعة واحترافية.',          variant: 'purple' },
-    { icon: FileText,      title: 'تقارير PDF',           desc: 'تقارير أداء مفصلة قابلة للطباعة لأولياء الأمور والمتابعة الأكاديمية.',          variant: 'orange' },
-    { icon: CreditCard,    title: 'دفع إلكتروني',        desc: 'نظام مدفوعات يدعم فودافون كاش وإنستاباي مع تحقق فوري وتتبع كامل.',              variant: 'purple' },
-    { icon: Shield,        title: 'مساعدون بصلاحيات',    desc: 'أضف مساعدين مع تحكم دقيق في 9 صلاحيات مختلفة لكل مساعد على حدة.',              variant: 'orange' },
-    { icon: Database,      title: 'نسخ احتياطية',        desc: 'تصدير واستيراد بيانات الطلاب بصيغة Excel مع سجل كامل لكل العمليات.',            variant: 'purple' },
-  ];
+
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-[#0B3C5D] overflow-x-hidden relative" dir="rtl">
@@ -518,71 +504,6 @@ export default function LandingPage() {
         </section>
       )}
 
-      {/* ─────────────── COURSES ─────────────── */}
-      <section id="courses" className="relative py-24 overflow-hidden bg-[#F1F5F9]/40 backdrop-blur-sm" style={{ zIndex: 1 }}>
-        <div className="relative z-10 max-w-5xl mx-auto px-5">
-          <Reveal className="text-center">
-            <SectionLabel text="تعلّم معنا" />
-            <h2 className="font-black text-[#0B3C5D] mb-2" style={{ fontSize: 'clamp(1.9rem,4vw,2.8rem)' }}>
-              أبرز <span className="grad-orange">الكورسات</span>
-            </h2>
-            <p className="text-[#0B3C5D]/50 text-sm mt-3 mb-1">أفضل ٣ كورسات مدفوعة — محتوى احترافي يأخذك خطوة للأمام</p>
-            <div className="w-16 h-0.5 bg-gradient-to-l from-orange-500 to-transparent rounded-full mx-auto mt-4 mb-14" />
-          </Reveal>
-
-          {isLoading ? (
-            <div className="grid sm:grid-cols-3 gap-5">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="h-56 rounded-2xl bg-white border border-slate-100 animate-pulse" />
-              ))}
-            </div>
-          ) : courses.length > 0 ? (
-            <div className="grid sm:grid-cols-3 gap-5">
-              {courses.map((c, i) => <CourseCard key={c.id} course={c} index={i} delay={i * 0.1} />)}
-            </div>
-          ) : (
-            <div className="text-center py-16 text-[#0B3C5D]/30">
-              <BookOpen className="w-12 h-12 mx-auto mb-3" />
-              <p className="text-sm font-semibold">لا توجد كورسات بعد</p>
-            </div>
-          )}
-
-          <Reveal delay={0.3} className="text-center mt-8">
-            <Link to="/login"
-              className="inline-flex items-center gap-2 text-[#0B3C5D]/60 hover:text-orange-500 bg-white border border-slate-200 hover:border-orange-500/40 px-6 py-2.5 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md">
-              عرض جميع الكورسات
-              <ArrowLeft className="w-3.5 h-3.5" />
-            </Link>
-          </Reveal>
-        </div>
-      </section>
-
-      {/* ─────────────── FEATURES ─────────────── */}
-      <section id="features" className="relative py-24 overflow-hidden" style={{ zIndex: 1 }}>
-        <div className="relative z-10 max-w-6xl mx-auto px-5">
-          <Reveal className="text-center">
-            <SectionLabel text="لماذا وثبة؟" />
-            <h2 className="font-black text-[#0B3C5D] mb-2" style={{ fontSize: 'clamp(1.9rem,4vw,2.8rem)' }}>
-              مميزات <span className="grad-purple">المنصة</span>
-            </h2>
-            <p className="text-[#0B3C5D]/50 text-sm mt-3 mb-1">كل الأدوات التي يحتاجها المعلم والطالب في مكان واحد</p>
-            <div className="w-16 h-0.5 bg-gradient-to-l from-purple-500 to-transparent rounded-full mx-auto mt-4 mb-14" />
-          </Reveal>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-            {features.map((f, i) => (
-              <FeatureCard key={f.title} {...f} delay={i * 0.04} />
-            ))}
-          </div>
-
-          <Reveal delay={0.5} className="text-center mt-8">
-            <p className="text-[#0B3C5D]/40 text-xs">
-              <span className="text-orange-500 font-bold">{features.length}</span> ميزة متكاملة في منصة واحدة
-            </p>
-          </Reveal>
-        </div>
-      </section>
-
       {/* ─────────────── CTA ─────────────── */}
       <section className="relative py-24 overflow-hidden bg-[#F1F5F9]/60 border-t border-b border-slate-200/60" style={{ zIndex: 1 }}>
         <div className="relative z-10 max-w-2xl mx-auto px-5 text-center">
@@ -610,25 +531,25 @@ export default function LandingPage() {
       </section>
 
       {/* ─────────────── FOOTER ─────────────── */}
-      <footer className="border-t border-slate-200/80 py-8 bg-white" style={{ zIndex: 1 }}>
+      <footer className="border-t border-slate-200/80 py-8 bg-white" style={{ position: 'relative', zIndex: 2 }}>
         <div className="max-w-7xl mx-auto px-5 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <img src={displayLogo} alt={platformName} className="h-9 w-auto opacity-95 rounded-xl shadow-sm" />
-            <span className="text-[#0B3C5D]/50 text-xs font-semibold">المنصة التعليمية المتكاملة</span>
+            <span className="text-[#0B3C5D]/70 text-xs font-semibold">المنصة التعليمية المتكاملة</span>
           </div>
           <div className="flex items-center gap-1">
-            {[['about','عن المعلم'],['courses','الكورسات'],['features','المميزات'],['support','فريق الدعم']].map(([id, label]) => (
+            {[['about','عن المعلم'],['support','فريق الدعم']].map(([id, label]) => (
               <button key={id} onClick={() => scrollTo(id)}
-                className="text-[#0B3C5D]/50 hover:text-orange-500 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
+                className="text-[#0B3C5D]/65 hover:text-orange-500 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
                 {label}
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-4 text-[#0B3C5D]/40 text-xs font-medium">
+          <div className="flex items-center gap-4 text-[#0B3C5D]/65 text-xs font-medium">
             <p>© {new Date().getFullYear()} {platformName || 'وثبة'}</p>
             <span className="text-slate-300">|</span>
-            <Link to="/terms" className="hover:text-orange-500 transition-colors">الشروط والأحكام</Link>
-            <Link to="/privacy" className="hover:text-orange-500 transition-colors">سياسة الخصوصية</Link>
+            <Link to="/terms" className="text-[#0B3C5D]/70 hover:text-orange-500 transition-colors">الشروط والأحكام</Link>
+            <Link to="/privacy" className="text-[#0B3C5D]/70 hover:text-orange-500 transition-colors">سياسة الخصوصية</Link>
           </div>
         </div>
       </footer>

@@ -333,7 +333,6 @@ export default function PlatformHome() {
         <div className="max-w-6xl mx-auto px-5 h-16 flex items-center justify-between">
           <img src={wathbaLogo} alt="وثبة" className="h-9 object-contain rounded-xl shadow-sm" />
           <div className="hidden md:flex items-center gap-6 text-sm text-[#0B3C5D]/75 font-semibold">
-            <a href="#features"  className="hover:text-[#0B3C5D] transition-colors">المميزات</a>
             <a href="#about"     className="hover:text-[#0B3C5D] transition-colors">عن المنصه</a>
             <a href="#faq"       className="hover:text-[#0B3C5D] transition-colors">الأسئلة الشائعة</a>
           </div>
@@ -393,20 +392,7 @@ export default function PlatformHome() {
         </div>
       </section>
 
-      {/* ── Features ── */}
-      <section id="features" className="max-w-6xl mx-auto px-5 py-20">
-        <Reveal className="text-center mb-12">
-          <div className="inline-flex items-center gap-2 bg-orange-500/10 border border-orange-500/20 text-orange-600 text-xs font-bold px-4 py-1.5 rounded-full mb-4 tracking-widest uppercase">
-            <Star className="w-3.5 h-3.5" />
-            المميزات
-          </div>
-          <h2 className="text-4xl font-black text-[#0B3C5D] mb-3">كل اللي محتاجه في مكان واحد</h2>
-          <p className="text-[#0B3C5D]/50 max-w-lg mx-auto">منصة شاملة بتغطي كل جوانب العملية التعليمية من أول التسجيل لحد تتبع الأداء.</p>
-        </Reveal>
-        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
-          {features.map((f, i) => <FeatureCard key={i} {...f} />)}
-        </div>
-      </section>
+
 
       {/* ── How it works ── */}
       <section className="max-w-4xl mx-auto px-5 py-16">
@@ -477,7 +463,7 @@ export default function PlatformHome() {
       </section>
 
       {/* ── FAQ ── */}
-      <section id="faq" className="max-w-3xl mx-auto px-5 py-16">
+      <section id="faq" className="max-w-3xl mx-auto px-5 py-16" style={{ position: 'relative', zIndex: 1 }}>
         <Reveal className="text-center mb-10">
           <div className="inline-flex items-center gap-2 bg-orange-500/10 border border-orange-500/20 text-orange-600 text-xs font-bold px-4 py-1.5 rounded-full mb-4 tracking-widest uppercase">
             الأسئلة الشائعة
@@ -517,20 +503,20 @@ export default function PlatformHome() {
       <DevAccessPanel />
 
       {/* ── Footer ── */}
-      <footer className="border-t border-slate-200 py-8 bg-white">
+      <footer className="border-t border-slate-200 py-8 bg-white" style={{ position: 'relative', zIndex: 2 }}>
         <div className="max-w-6xl mx-auto px-5 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <img src={wathbaLogo} alt="وثبة" className="h-8 object-contain rounded-xl shadow-sm" />
-            <span className="text-[#0B3C5D]/50 text-sm font-semibold">منصة تعليمية متكاملة</span>
+            <span className="text-[#0B3C5D]/70 text-sm font-semibold">منصة تعليمية متكاملة</span>
           </div>
-          <p className="text-[#0B3C5D]/40 text-sm font-medium">
+          <p className="text-[#0B3C5D]/60 text-sm font-medium">
             © {new Date().getFullYear()} وثبة — جميع الحقوق محفوظة
           </p>
-          <div className="flex items-center gap-4 text-[#0B3C5D]/50 text-sm font-semibold">
-            <a href={WHATSAPP} target="_blank" rel="noopener noreferrer" className="hover:text-orange-500 transition-colors">واتساب</a>
-            <a href={`mailto:${EMAIL}`} className="hover:text-orange-500 transition-colors">البريد الإلكتروني</a>
-            <a href="/terms" className="hover:text-orange-500 transition-colors">الشروط والأحكام</a>
-            <a href="/privacy" className="hover:text-orange-500 transition-colors">سياسة الخصوصية</a>
+          <div className="flex items-center gap-4 text-[#0B3C5D]/70 text-sm font-semibold">
+            <a href={WHATSAPP} target="_blank" rel="noopener noreferrer" className="text-[#0B3C5D]/70 hover:text-orange-500 transition-colors">واتساب</a>
+            <a href={`mailto:${EMAIL}`} className="text-[#0B3C5D]/70 hover:text-orange-500 transition-colors">البريد الإلكتروني</a>
+            <a href="/terms" className="text-[#0B3C5D]/70 hover:text-orange-500 transition-colors">الشروط والأحكام</a>
+            <a href="/privacy" className="text-[#0B3C5D]/70 hover:text-orange-500 transition-colors">سياسة الخصوصية</a>
           </div>
         </div>
       </footer>
