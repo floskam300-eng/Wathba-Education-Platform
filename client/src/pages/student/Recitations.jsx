@@ -477,9 +477,23 @@ export default function StudentRecitations() {
         </div>
 
         {/* Questions */}
-        <div className="max-w-2xl mx-auto p-4 space-y-4">
+        <div className="max-w-2xl mx-auto p-4 space-y-2">
           {questions.map((q, idx) => (
-            <QuestionCard key={q.id} q={q} idx={idx} answers={answers} setAnswers={setAnswers} dark={dark} onImagePress={setLightboxSrc} />
+            <div key={q.id}>
+              {/* ── Question separator ── */}
+              <div className="flex items-center gap-3 mb-2 mt-3">
+                <div className="flex-1 h-px bg-purple-100" />
+                <span className="flex items-center gap-1.5 text-xs font-black text-purple-500 bg-purple-50 border border-purple-200 px-3 py-1 rounded-full whitespace-nowrap select-none">
+                  السؤال {idx + 1}
+                  <span className="text-purple-300 font-normal">·</span>
+                  <span className="font-medium text-purple-400">
+                    {q.question_type === 'true_false' ? 'صح / خطأ' : q.question_type === 'image_multi' ? 'صورة + أسئلة' : 'اختيار من متعدد'}
+                  </span>
+                </span>
+                <div className="flex-1 h-px bg-purple-100" />
+              </div>
+              <QuestionCard q={q} idx={idx} answers={answers} setAnswers={setAnswers} dark={dark} onImagePress={setLightboxSrc} />
+            </div>
           ))}
 
           <button

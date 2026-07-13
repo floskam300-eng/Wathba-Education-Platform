@@ -542,12 +542,24 @@ export default function StudentExams() {
             </div>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-2">
             {questions.map((q, qi) => {
               const qType = q.question_type || 'mcq';
 
               return (
                 <div key={q.id}>
+                  {/* ── Question separator ── */}
+                  <div className="flex items-center gap-3 mb-2 mt-3">
+                    <div className="flex-1 h-px bg-orange-100" />
+                    <span className="flex items-center gap-1.5 text-xs font-black text-orange-500 bg-orange-50 border border-orange-200 px-3 py-1 rounded-full whitespace-nowrap select-none">
+                      السؤال {qi + 1}
+                      <span className="text-orange-300 font-normal">·</span>
+                      <span className="font-medium text-orange-400">
+                        {qType === 'true_false' ? 'صح / خطأ' : qType === 'image_multi' ? 'صورة + أسئلة' : 'اختيار من متعدد'}
+                      </span>
+                    </span>
+                    <div className="flex-1 h-px bg-orange-100" />
+                  </div>
                   <div className={`card !p-3 sm:!p-5 ${answers[q.id] ? 'border-2 border-orange-400' : 'border border-gray-200'}`}>
                     {/* Question label row */}
                     <div className="flex items-center gap-2 mb-2">
