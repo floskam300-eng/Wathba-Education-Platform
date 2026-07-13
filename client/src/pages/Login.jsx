@@ -115,6 +115,9 @@ export default function Login() {
   const [focused, setFocused]         = useState(null);
   const [pendingUser, setPendingUser] = useState(null);
   const [showWarning, setShowWarning] = useState(false);
+
+  const isPwa = window.matchMedia('(display-mode: standalone)').matches
+    || window.navigator.standalone === true;
   const { login } = useAuth();
   const navigate = useNavigate();
   const { platformName, logoUrl, isLoading: teacherLoading } = useTeacher();
@@ -294,24 +297,26 @@ export default function Login() {
         <div className="lg-orb" style={{ width:400, height:400, bottom:-100, right:-80, background: 'radial-gradient(circle,rgba(124,58,237,.04),transparent 70%)', pointerEvents:'none' }} />
 
         <div className="lg-fade-4" style={{ width:'100%', maxWidth:360, position:'relative', zIndex:1, margin: 'auto 0' }}>
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            style={{
-              display:'flex', alignItems:'center', gap:'.4rem',
-              background:'none', border:'1px solid rgba(11,60,93,.1)',
-              borderRadius:10, padding:'.45rem .85rem',
-              cursor:'pointer', marginBottom:'1.5rem',
-              color:'rgba(11,60,93,.6)', fontSize:'.8rem', fontWeight:600,
-              fontFamily:"'Cairo', sans-serif",
-              transition:'all .2s',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor='rgba(249,115,22,.35)'; e.currentTarget.style.color='#f97316'; e.currentTarget.style.background='rgba(249,115,22,.04)'; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor='rgba(11,60,93,.1)'; e.currentTarget.style.color='rgba(11,60,93,.6)'; e.currentTarget.style.background='none'; }}
-          >
-            <ArrowRight size={15} />
-            رجوع
-          </button>
+          {!isPwa && (
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              style={{
+                display:'flex', alignItems:'center', gap:'.4rem',
+                background:'none', border:'1px solid rgba(11,60,93,.1)',
+                borderRadius:10, padding:'.45rem .85rem',
+                cursor:'pointer', marginBottom:'1.5rem',
+                color:'rgba(11,60,93,.6)', fontSize:'.8rem', fontWeight:600,
+                fontFamily:"'Cairo', sans-serif",
+                transition:'all .2s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor='rgba(249,115,22,.35)'; e.currentTarget.style.color='#f97316'; e.currentTarget.style.background='rgba(249,115,22,.04)'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor='rgba(11,60,93,.1)'; e.currentTarget.style.color='rgba(11,60,93,.6)'; e.currentTarget.style.background='none'; }}
+            >
+              <ArrowRight size={15} />
+              رجوع
+            </button>
+          )}
 
           <div style={{ display:'none', textAlign:'center', marginBottom:'1.75rem' }} className="lg-mobile-logo">
             <div style={{ width:72, height:72, borderRadius:18, overflow:'hidden', margin:'0 auto 0.75rem', boxShadow: '0 8px 24px rgba(249,115,22,.15)' }}>
