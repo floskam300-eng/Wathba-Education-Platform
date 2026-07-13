@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 import {
   Eye, EyeOff, LogIn, Lock, User,
   BookOpen, BarChart2, Award, Video, Target, Users, Sparkles,
-  AlertTriangle, ShieldAlert, X, CheckCircle,
+  ShieldAlert, CheckCircle,
 } from 'lucide-react';
 import WathbaLogo from '../assets/wathba_logo_new.png';
 
@@ -36,38 +36,38 @@ function DeviceWarningModal({ onAccept }) {
     <div style={{
       position: 'fixed', inset: 0, zIndex: 9999,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'rgba(0,0,0,0.85)', padding: '1rem',
+      background: 'rgba(0,0,0,0.5)', padding: '1rem',
       animation: 'lg-fade-up .3s ease both',
     }}>
       <div style={{
-        background: 'linear-gradient(145deg,#0D0B1A,#13102A)',
-        border: '1px solid rgba(249,115,22,.3)',
+        background: '#FFFFFF',
+        border: '1px solid rgba(249,115,22,.25)',
         borderRadius: 20,
         width: '100%', maxWidth: 420,
         padding: '2rem',
-        boxShadow: '0 0 60px rgba(249,115,22,.15)',
+        boxShadow: '0 10px 40px rgba(0,0,0,0.08)',
       }}>
         <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
           <div style={{
             width: 64, height: 64, borderRadius: 18,
-            background: 'rgba(249,115,22,.12)',
-            border: '1px solid rgba(249,115,22,.3)',
+            background: 'rgba(249,115,22,.08)',
+            border: '1px solid rgba(249,115,22,.2)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             margin: '0 auto 1rem',
           }}>
             <ShieldAlert size={28} color="#f97316" />
           </div>
-          <h2 style={{ fontSize: '1.2rem', fontWeight: 900, color: '#fff', marginBottom: '.4rem' }}>
+          <h2 style={{ fontSize: '1.2rem', fontWeight: 900, color: '#0B3C5D', marginBottom: '.4rem' }}>
             تنبيه أمني هام
           </h2>
-          <p style={{ fontSize: '.8rem', color: 'rgba(255,255,255,.45)', lineHeight: 1.6 }}>
+          <p style={{ fontSize: '.8rem', color: 'rgba(11,60,93,0.5)', lineHeight: 1.6 }}>
             يرجى قراءة هذا التنبيه بعناية قبل الدخول
           </p>
         </div>
 
         <div style={{
-          background: 'rgba(249,115,22,.06)',
-          border: '1px solid rgba(249,115,22,.2)',
+          background: 'rgba(249,115,22,.04)',
+          border: '1px solid rgba(249,115,22,.15)',
           borderRadius: 14, padding: '1.2rem',
           marginBottom: '1.5rem',
         }}>
@@ -80,7 +80,7 @@ function DeviceWarningModal({ onAccept }) {
             ].map((item, i) => (
               <div key={i} style={{ display: 'flex', gap: '.75rem', alignItems: 'flex-start' }}>
                 <span style={{ fontSize: '1rem', flexShrink: 0, marginTop: 1 }}>{item.icon}</span>
-                <span style={{ fontSize: '.78rem', color: 'rgba(255,255,255,.65)', lineHeight: 1.6 }}>{item.text}</span>
+                <span style={{ fontSize: '.78rem', color: 'rgba(11,60,93,0.7)', lineHeight: 1.6 }}>{item.text}</span>
               </div>
             ))}
           </div>
@@ -113,7 +113,7 @@ export default function Login() {
   const [showPass, setShowPass]       = useState(false);
   const [loading, setLoading]         = useState(false);
   const [focused, setFocused]         = useState(null);
-  const [pendingUser, setPendingUser] = useState(null); // holds user after login while warning shown
+  const [pendingUser, setPendingUser] = useState(null);
   const [showWarning, setShowWarning] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -129,14 +129,11 @@ export default function Login() {
     try {
       const deviceId = getOrCreateDeviceId();
       const { user, force_password_change } = await login(username.trim(), password, undefined, undefined, deviceId);
-      // [M-16] If server signals that the default seed password must be changed,
-      // redirect the teacher directly to the password-change screen.
       if (force_password_change && user.role === 'teacher') {
         toast('يرجى تغيير كلمة المرور الافتراضية قبل المتابعة', { icon: '🔑', duration: 5000 });
         navigate('/teacher/settings?tab=password');
         return;
       }
-      // Show warning modal only for students
       if (user.role === 'student') {
         setPendingUser(user);
         setShowWarning(true);
@@ -164,7 +161,7 @@ export default function Login() {
       minHeight: '100vh',
       display: 'flex',
       fontFamily: "'Cairo', sans-serif",
-      background: '#080711',
+      background: '#F8FAFC',
       overflow: 'hidden',
     }}>
       <style>{`
@@ -184,7 +181,7 @@ export default function Login() {
         .lg-btn:hover:not(:disabled) { transform:translateY(-2px); }
         .lg-btn:active:not(:disabled) { transform:translateY(0); }
         .lg-feature { transition: all .2s; }
-        .lg-feature:hover { background:rgba(249,115,22,.08); border-color:rgba(249,115,22,.3); transform:translateY(-2px); }
+        .lg-feature:hover { background:rgba(249,115,22,.04); border-color:rgba(249,115,22,.2); transform:translateY(-2px); }
         @media (max-width: 860px) {
           .lg-left { display: none !important; }
           .lg-right { width: 100% !important; }
@@ -203,39 +200,58 @@ export default function Login() {
         justifyContent: 'center',
         padding: '3rem 3.5rem',
         overflow: 'hidden',
-        background: 'linear-gradient(145deg, #0D0B1A 0%, #13102A 40%, #0A0918 100%)',
+        background: 'linear-gradient(145deg, #EEF2F8 0%, #E4ECF5 40%, #D6E5F5 100%)',
       }}>
-        <div className="lg-orb" style={{ width:600, height:600, top:-200, right:-100, background:'radial-gradient(circle,rgba(249,115,22,.18),transparent 70%)' }} />
-        <div className="lg-orb" style={{ width:500, height:500, bottom:-150, left:-80, background:'radial-gradient(circle,rgba(124,58,237,.14),transparent 70%)' }} />
-        <div className="lg-orb" style={{ width:300, height:300, top:'40%', left:'30%', background:'radial-gradient(circle,rgba(249,115,22,.06),transparent 70%)', animation:'lg-pulse 5s ease-in-out infinite' }} />
-        <div className="lg-ring" style={{ width:500, height:500, top:'50%', left:'50%', transform:'translate(-50%,-50%)', borderColor:'rgba(249,115,22,.06)' }} />
-        <div className="lg-ring" style={{ width:700, height:700, top:'50%', left:'50%', transform:'translate(-50%,-50%)', borderColor:'rgba(255,255,255,.03)' }} />
+        {/* Dot grid overlay */}
+        <div style={{ position:'absolute', inset:0, backgroundImage:'radial-gradient(rgba(11,60,93,.07) 1px,transparent 1px)', backgroundSize:'28px 28px', pointerEvents:'none' }} />
+
+        {/* SVG wave shapes */}
+        <svg style={{ position:'absolute', left:0, top:0, bottom:0, height:'100%', width:'40%', opacity:0.5, pointerEvents:'none' }} viewBox="0 0 200 800" fill="none" preserveAspectRatio="none">
+          <path d="M-60,0 Q80,200 -20,400 T30,700 Q-60,800 -150,800 L-150,0 Z" fill="#0B3C5D" fillOpacity="0.06" />
+          <path d="M-40,0 Q100,220 0,420 T50,680 Q-40,780 -150,800 L-150,0 Z" fill="#f97316" fillOpacity="0.07" />
+          <path d="M10,0 Q130,220 20,440 T30,760 Q-50,840 -100,800" stroke="#0B3C5D" strokeWidth="2.5" strokeLinecap="round" opacity="0.4" />
+        </svg>
+        <svg style={{ position:'absolute', right:0, top:0, bottom:0, height:'100%', width:'35%', opacity:0.4, pointerEvents:'none' }} viewBox="0 0 180 800" fill="none" preserveAspectRatio="none">
+          <path d="M240,0 Q130,200 220,400 T180,700 Q260,800 350,800 L350,0 Z" fill="#0B3C5D" fillOpacity="0.05" />
+          <path d="M160,0 Q90,180 180,380 T160,680 Q240,780 350,800 L350,0 Z" fill="#f97316" fillOpacity="0.06" />
+        </svg>
+
+        {/* Decorative circles */}
+        <div className="lg-orb" style={{ width:400, height:400, top:-100, right:-60, background: 'radial-gradient(circle,rgba(249,115,22,.08),transparent 70%)' }} />
+        <div className="lg-orb" style={{ width:350, height:350, bottom:-80, left:-50, background: 'radial-gradient(circle,rgba(11,60,93,.06),transparent 70%)' }} />
+        <div className="lg-ring" style={{ width:500, height:500, top:'50%', left:'50%', transform:'translate(-50%,-50%)', borderColor: 'rgba(11,60,93,.04)' }} />
+        <div className="lg-ring" style={{ width:350, height:350, top:'50%', left:'50%', transform:'translate(-50%,-50%)', borderColor: 'rgba(249,115,22,.05)' }} />
+
+        {/* Floating lightbulbs */}
+        <div style={{ position:'absolute', top:'15%', left:'15%', fontSize:'2rem', animation:'lg-float 6s ease-in-out infinite alternate', pointerEvents:'none', filter:'drop-shadow(0 4px 8px rgba(249,115,22,0.15))' }}>💡</div>
+        <div style={{ position:'absolute', bottom:'22%', right:'20%', fontSize:'1.6rem', animation:'lg-float 7s ease-in-out 1s infinite alternate', pointerEvents:'none', filter:'drop-shadow(0 4px 8px rgba(249,115,22,0.15))' }}>💡</div>
+
 
         <div style={{ position:'relative', zIndex:1, maxWidth:520 }}>
           <div className="lg-fade-1" style={{ display:'flex', alignItems:'center', gap:'1rem', marginBottom:'2.5rem' }}>
-            <div style={{ width:60, height:60, borderRadius:16, overflow:'hidden', boxShadow:'0 0 28px rgba(249,115,22,.35)', border:'1px solid rgba(249,115,22,.25)', flexShrink:0 }}>
+            <div style={{ width:60, height:60, borderRadius:16, overflow:'hidden', boxShadow: '0 8px 24px rgba(249,115,22,.15)', border: '1px solid rgba(249,115,22,.15)', flexShrink:0 }}>
               <img src={displayLogo} alt={displayName} style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} />
             </div>
             <div>
-              <div style={{ fontSize:'1.75rem', fontWeight:900, lineHeight:1.1, background:'linear-gradient(135deg,#fff 0%,#f97316 55%,#fb923c 100%)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', backgroundClip:'text' }}>
+              <div style={{ fontSize:'1.75rem', fontWeight:900, lineHeight:1.1, background: 'linear-gradient(135deg,#0b3c5d 30%,#f97316 100%)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', backgroundClip:'text' }}>
                 {displayName}
               </div>
-              <div style={{ fontSize:'.8rem', color:'rgba(249,115,22,.7)', fontWeight:600, marginTop:2 }}>
+              <div style={{ fontSize:'.8rem', color: '#f97316', fontWeight:600, marginTop:2 }}>
                 المنصة التعليمية المتكاملة
               </div>
             </div>
           </div>
 
           <div className="lg-fade-2" style={{ marginBottom:'2rem' }}>
-            <div style={{ display:'inline-flex', alignItems:'center', gap:6, background:'rgba(249,115,22,.1)', border:'1px solid rgba(249,115,22,.2)', color:'#fb923c', fontSize:'.72rem', fontWeight:700, padding:'5px 14px', borderRadius:99, marginBottom:'1rem', letterSpacing:'.05em', textTransform:'uppercase' }}>
+            <div style={{ display:'inline-flex', alignItems:'center', gap:6, background: 'rgba(249,115,22,.06)', border: '1px solid rgba(249,115,22,.15)', color: '#ea580c', fontSize:'.72rem', fontWeight:700, padding:'5px 14px', borderRadius:99, marginBottom:'1rem', letterSpacing:'.05em', textTransform:'uppercase' }}>
               <Sparkles size={12} />
               تسجيل دخول آمن
             </div>
-            <h1 style={{ fontSize:'clamp(1.7rem,2.8vw,2.5rem)', fontWeight:900, color:'#fff', lineHeight:1.25, marginBottom:'.6rem' }}>
+            <h1 style={{ fontSize:'clamp(1.7rem,2.8vw,2.5rem)', fontWeight:900, color: '#0B3C5D', lineHeight:1.25, marginBottom:'.6rem' }}>
               مرحباً بك في<br />
               <span style={{ color:'#f97316' }}>{displayName}</span>
             </h1>
-            <p style={{ color:'rgba(255,255,255,.45)', fontSize:'.9rem', lineHeight:1.65 }}>
+            <p style={{ color: 'rgba(11,60,93,.65)', fontSize:'.9rem', lineHeight:1.65 }}>
               اكسب المعرفة، تتبع تقدمك، وحقق التفوق من خلال منصة تعليمية احترافية.
             </p>
           </div>
@@ -245,16 +261,17 @@ export default function Login() {
               <div key={title} className="lg-feature" style={{
                 display:'flex', alignItems:'center', gap:'.7rem',
                 padding:'.75rem .9rem',
-                background:'rgba(255,255,255,.03)',
-                border:'1px solid rgba(255,255,255,.07)',
+                background: '#FFFFFF',
+                border: '1px solid rgba(11,60,93,.06)',
                 borderRadius:14,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.02)',
               }}>
-                <div style={{ width:34, height:34, borderRadius:10, background:'rgba(249,115,22,.12)', border:'1px solid rgba(249,115,22,.2)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                  <Icon size={15} color="#f97316" />
+                <div style={{ width:34, height:34, borderRadius:10, background: 'rgba(249,115,22,.08)', border: '1px solid rgba(249,115,22,.15)', display:'flex', alignItems:'center', justifyContext:'center', flexShrink:0 }}>
+                  <Icon size={15} color="#f97316" style={{ margin: 'auto' }} />
                 </div>
                 <div>
-                  <div style={{ fontSize:'.78rem', fontWeight:700, color:'rgba(255,255,255,.85)', lineHeight:1.2 }}>{title}</div>
-                  <div style={{ fontSize:'.68rem', color:'rgba(255,255,255,.35)', marginTop:2 }}>{desc}</div>
+                  <div style={{ fontSize:'.78rem', fontWeight:700, color: '#0B3C5D', lineHeight:1.2 }}>{title}</div>
+                  <div style={{ fontSize:'.68rem', color: 'rgba(11,60,93,.5)', marginTop:2 }}>{desc}</div>
                 </div>
               </div>
             ))}
@@ -268,43 +285,43 @@ export default function Login() {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'center',
+        justifyContext: 'center',
         padding: '2.5rem 2rem',
-        background: '#0B0A15',
+        background: '#FFFFFF',
         position: 'relative',
-        borderRight: '1px solid rgba(249,115,22,.1)',
+        borderRight: '1px solid rgba(11,60,93,.08)',
       }}>
-        <div className="lg-orb" style={{ width:400, height:400, bottom:-100, right:-80, background:'radial-gradient(circle,rgba(124,58,237,.1),transparent 70%)', pointerEvents:'none' }} />
+        <div className="lg-orb" style={{ width:400, height:400, bottom:-100, right:-80, background: 'radial-gradient(circle,rgba(124,58,237,.04),transparent 70%)', pointerEvents:'none' }} />
 
-        <div className="lg-fade-4" style={{ width:'100%', maxWidth:360, position:'relative', zIndex:1 }}>
+        <div className="lg-fade-4" style={{ width:'100%', maxWidth:360, position:'relative', zIndex:1, margin: 'auto 0' }}>
           <div style={{ display:'none', textAlign:'center', marginBottom:'1.75rem' }} className="lg-mobile-logo">
-            <div style={{ width:72, height:72, borderRadius:18, overflow:'hidden', margin:'0 auto 0.75rem', boxShadow:'0 0 24px rgba(249,115,22,.3)' }}>
+            <div style={{ width:72, height:72, borderRadius:18, overflow:'hidden', margin:'0 auto 0.75rem', boxShadow: '0 8px 24px rgba(249,115,22,.15)' }}>
               <img src={displayLogo} alt={displayName} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
             </div>
-            <div style={{ fontSize:'1.5rem', fontWeight:900, color:'#fff' }}>{displayName}</div>
+            <div style={{ fontSize:'1.5rem', fontWeight:900, color: '#0B3C5D' }}>{displayName}</div>
           </div>
 
           <div style={{ textAlign:'center', marginBottom:'2rem' }}>
-            <div style={{ width:52, height:52, borderRadius:14, background:'linear-gradient(135deg,rgba(249,115,22,.2),rgba(249,115,22,.08))', border:'1px solid rgba(249,115,22,.25)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 1rem' }}>
-              <LogIn size={22} color="#f97316" />
+            <div style={{ width:52, height:52, borderRadius:14, background: 'linear-gradient(135deg,rgba(249,115,22,.1),rgba(249,115,22,.04))', border: '1px solid rgba(249,115,22,.2)', display:'flex', alignItems:'center', justifyContext:'center', margin:'0 auto 1rem' }}>
+              <LogIn size={22} color="#f97316" style={{ margin: 'auto' }} />
             </div>
-            <h2 style={{ fontSize:'1.45rem', fontWeight:900, color:'#fff', marginBottom:'.3rem' }}>تسجيل الدخول</h2>
-            <p style={{ fontSize:'.82rem', color:'rgba(255,255,255,.35)' }}>أدخل بياناتك للوصول إلى حسابك</p>
+            <h2 style={{ fontSize:'1.45rem', fontWeight:900, color: '#0B3C5D', marginBottom:'.3rem' }}>تسجيل الدخول</h2>
+            <p style={{ fontSize:'.82rem', color: 'rgba(11,60,93,.5)' }}>أدخل بياناتك للوصول إلى حسابك</p>
           </div>
 
           <form onSubmit={handleSubmit}>
             <div style={{ marginBottom:'1.1rem' }}>
-              <label style={{ display:'block', fontSize:'.8rem', fontWeight:600, color:'rgba(255,255,255,.55)', marginBottom:'.45rem' }}>
+              <label style={{ display:'block', fontSize:'.8rem', fontWeight:600, color: 'rgba(11,60,93,.65)', marginBottom:'.45rem' }}>
                 اسم المستخدم
               </label>
               <div style={{
                 position:'relative', borderRadius:12,
-                border: `1.5px solid ${focused==='user' ? 'rgba(249,115,22,.6)' : 'rgba(255,255,255,.1)'}`,
-                background: focused==='user' ? 'rgba(249,115,22,.06)' : 'rgba(255,255,255,.04)',
+                border: `1.5px solid ${focused==='user' ? 'rgba(249,115,22,.5)' : 'rgba(11,60,93,.1)'}`,
+                background: focused==='user' ? 'rgba(249,115,22,.04)' : 'rgba(11,60,93,.02)',
                 boxShadow: focused==='user' ? '0 0 0 3px rgba(249,115,22,.1)' : 'none',
                 transition:'all .2s',
               }}>
-                <User size={15} style={{ position:'absolute', right:13, top:'50%', transform:'translateY(-50%)', color: focused==='user' ? '#f97316' : 'rgba(255,255,255,.3)', pointerEvents:'none', transition:'color .2s' }} />
+                <User size={15} style={{ position:'absolute', right:13, top:'50%', transform:'translateY(-50%)', color: focused==='user' ? '#f97316' : 'rgba(11,60,93,.3)', pointerEvents:'none', transition:'color .2s' }} />
                 <input
                   type="text"
                   placeholder="أدخل اسم المستخدم"
@@ -314,23 +331,23 @@ export default function Login() {
                   onBlur={() => setFocused(null)}
                   autoComplete="username"
                   className="lg-input"
-                  style={{ width:'100%', background:'transparent', border:'none', padding:'.75rem 2.4rem .75rem .9rem', color:'#f2ede5', fontSize:'.9rem', fontFamily:"'Cairo', sans-serif", borderRadius:12, direction:'ltr', textAlign:'left' }}
+                  style={{ width:'100%', background:'transparent', border:'none', padding:'.75rem 2.4rem .75rem .9rem', color: '#0B3C5D', fontSize:'.9rem', fontFamily:"'Cairo', sans-serif", borderRadius:12, direction:'ltr', textAlign:'left' }}
                 />
               </div>
             </div>
 
             <div style={{ marginBottom:'1.5rem' }}>
-              <label style={{ display:'block', fontSize:'.8rem', fontWeight:600, color:'rgba(255,255,255,.55)', marginBottom:'.45rem' }}>
+              <label style={{ display:'block', fontSize:'.8rem', fontWeight:600, color: 'rgba(11,60,93,.65)', marginBottom:'.45rem' }}>
                 كلمة المرور
               </label>
               <div style={{
                 position:'relative', borderRadius:12,
-                border: `1.5px solid ${focused==='pass' ? 'rgba(249,115,22,.6)' : 'rgba(255,255,255,.1)'}`,
-                background: focused==='pass' ? 'rgba(249,115,22,.06)' : 'rgba(255,255,255,.04)',
+                border: `1.5px solid ${focused==='pass' ? 'rgba(249,115,22,.5)' : 'rgba(11,60,93,.1)'}`,
+                background: focused==='pass' ? 'rgba(249,115,22,.04)' : 'rgba(11,60,93,.02)',
                 boxShadow: focused==='pass' ? '0 0 0 3px rgba(249,115,22,.1)' : 'none',
                 transition:'all .2s',
               }}>
-                <Lock size={15} style={{ position:'absolute', right:13, top:'50%', transform:'translateY(-50%)', color: focused==='pass' ? '#f97316' : 'rgba(255,255,255,.3)', pointerEvents:'none', transition:'color .2s' }} />
+                <Lock size={15} style={{ position:'absolute', right:13, top:'50%', transform:'translateY(-50%)', color: focused==='pass' ? '#f97316' : 'rgba(11,60,93,.3)', pointerEvents:'none', transition:'color .2s' }} />
                 <input
                   type={showPass ? 'text' : 'password'}
                   placeholder="أدخل كلمة المرور"
@@ -340,9 +357,9 @@ export default function Login() {
                   onBlur={() => setFocused(null)}
                   autoComplete="current-password"
                   className="lg-input"
-                  style={{ width:'100%', background:'transparent', border:'none', padding:'.75rem 2.4rem .75rem 2.4rem', color:'#f2ede5', fontSize:'.9rem', fontFamily:"'Cairo', sans-serif", borderRadius:12, direction:'ltr', textAlign:'left' }}
+                  style={{ width:'100%', background:'transparent', border:'none', padding:'.75rem 2.4rem .75rem 2.4rem', color: '#0B3C5D', fontSize:'.9rem', fontFamily:"'Cairo', sans-serif", borderRadius:12, direction:'ltr', textAlign:'left' }}
                 />
-                <button type="button" onClick={() => setShowPass(!showPass)} tabIndex={-1} style={{ position:'absolute', left:11, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:'rgba(255,255,255,.3)', display:'flex', alignItems:'center', padding:3 }}>
+                <button type="button" onClick={() => setShowPass(!showPass)} tabIndex={-1} style={{ position:'absolute', left:11, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color: 'rgba(11,60,93,.4)', display:'flex', alignItems:'center', padding:3 }}>
                   {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
                 </button>
               </div>
@@ -370,10 +387,9 @@ export default function Login() {
               )}
             </button>
           </form>
-
         </div>
 
-        <div style={{ position:'absolute', bottom:'1.25rem', fontSize:'.68rem', color:'rgba(255,255,255,.2)', textAlign:'center', width:'100%' }}>
+        <div style={{ position:'absolute', bottom:'1.25rem', fontSize:'.68rem', color: 'rgba(11,60,93,.35)', textAlign:'center', width:'100%' }}>
           {displayName} © {new Date().getFullYear()} — منصة التعليم الإلكتروني
         </div>
       </div>

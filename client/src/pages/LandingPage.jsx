@@ -1,14 +1,21 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  GraduationCap, BookOpen, BarChart3,
+  GraduationCap, BookOpen, BarChart3, Play, FileText,
   Users, CheckCircle, ArrowLeft, Sparkles, Trophy,
-  MessageCircle, ChevronDown, Target, Phone,
-  Star, Zap, Clock,
+  MessageCircle, ChevronDown, Target, CreditCard, Phone,
+  Video, Gamepad2, Database, HelpCircle, Shield, Star,
+  Zap, Clock, TrendingUp
 } from 'lucide-react';
 import wathbaLogo from '../assets/wathba_logo_transparent.png';
 import { useTeacher } from '../context/TeacherContext';
 
+/* ════════════════ DEMO COVERS ════════════════ */
+const DEMO_COVERS = [
+  'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=480&h=260&fit=crop&auto=format',
+  'https://images.unsplash.com/photo-1509228627152-72ae9ae6848d?w=480&h=260&fit=crop&auto=format',
+  'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=480&h=260&fit=crop&auto=format',
+];
 
 /* ════════════════ HOOKS ════════════════ */
 function useCounter(target, duration = 1800, start = false) {
@@ -55,50 +62,84 @@ function Reveal({ children, className = '', delay = 0 }) {
   );
 }
 
-function Orb({ size, top, left, color, delay = 0, dur = 10 }) {
-  return (
-    <div style={{
-      position: 'absolute', width: size, height: size, top, left,
-      borderRadius: '50%', background: color, filter: 'blur(90px)',
-      opacity: 0.18, pointerEvents: 'none',
-      animation: `lp-float ${dur}s ease-in-out ${delay}s infinite alternate`,
-    }} />
-  );
-}
-
 function SectionLabel({ text }) {
   return (
-    <div className="inline-flex items-center gap-2 bg-orange-500/10 border border-orange-500/25 text-orange-400 text-xs font-bold px-4 py-1.5 rounded-full mb-5 tracking-widest uppercase">
-      <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />
+    <div className="inline-flex items-center gap-2 bg-orange-500/10 border border-orange-500/20 text-orange-600 text-xs font-bold px-4 py-1.5 rounded-full mb-5 tracking-widest uppercase">
+      <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
       {text}
     </div>
   );
 }
 
-function SectionHeading({ pre, main, sub, accent = 'orange' }) {
+/* ════════════════ FEATURE CARD ════════════════ */
+function FeatureCard({ icon: Icon, title, desc, variant = 'orange', delay = 0 }) {
+  const isPurple = variant === 'purple';
   return (
-    <div className="text-center mb-14">
-      <SectionLabel text={pre} />
-      <h2 className="font-black text-white mb-3" style={{ fontSize: 'clamp(1.9rem,4vw,2.8rem)' }}>
-        {main}{' '}
-        <span className={accent === 'purple' ? 'text-purple' : 'text-orange'}>{sub}</span>
-      </h2>
-      <div className="w-16 h-0.5 bg-gradient-to-l from-orange-500 to-transparent rounded-full mx-auto mt-4" />
-    </div>
+    <Reveal delay={delay}
+      className="group relative bg-white border border-slate-150 rounded-2xl p-5 hover:border-orange-500/30 hover:bg-slate-50/50 transition-all duration-400 hover:-translate-y-1.5 hover:shadow-md cursor-default overflow-hidden">
+      <div className={`absolute top-0 left-0 w-full h-0.5 ${isPurple ? 'bg-gradient-to-r from-transparent via-purple-500/60 to-transparent' : 'bg-gradient-to-r from-transparent via-orange-500/60 to-transparent'} opacity-0 group-hover:opacity-100 transition-opacity duration-400`} />
+      <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-4 ${isPurple ? 'bg-purple-500/10 border border-purple-500/20' : 'bg-orange-500/10 border border-orange-500/20'} group-hover:scale-110 transition-transform duration-300`}>
+        <Icon className={`w-5 h-5 ${isPurple ? 'text-purple-600' : 'text-orange-600'}`} />
+      </div>
+      <h3 className="font-black text-[#0B3C5D] text-sm mb-1.5 leading-snug">{title}</h3>
+      <p className="text-slate-500 text-xs leading-relaxed">{desc}</p>
+    </Reveal>
   );
 }
 
-
-/* ════════════════ STAT CARD ════════════════ */
-function StatCard({ icon: Icon, value, label, color, delay = 0 }) {
+/* ════════════════ COURSE CARD ════════════════ */
+function CourseCard({ course, index, delay = 0 }) {
+  const [imgErr, setImgErr] = useState(false);
+  const raw = course.thumbnail_url;
+  const src = raw ? (raw.startsWith('http') ? raw : `/uploads/${raw}`) : null;
+  const cover = (!imgErr && src) ? src : DEMO_COVERS[index % DEMO_COVERS.length];
   return (
     <Reveal delay={delay}
-      className={`relative bg-white/[0.04] border ${color.border} rounded-2xl p-6 text-center overflow-hidden group hover:-translate-y-1.5 transition-all duration-400`}>
-      <div className={`absolute inset-0 bg-gradient-to-br ${color.bg} opacity-0 group-hover:opacity-100 transition-opacity duration-400`} />
-      <div className="relative z-10">
-        <Icon className={`w-7 h-7 mx-auto mb-3 ${color.icon}`} />
-        <p className={`text-3xl font-black mb-1 ${color.icon}`}>{value.toLocaleString('ar-EG')}+</p>
-        <p className="text-white/45 text-xs font-semibold">{label}</p>
+      className="group bg-white border border-slate-150 rounded-2xl overflow-hidden hover:border-orange-500/35 hover:-translate-y-2 transition-all duration-500 shadow-sm hover:shadow-lg"
+      onMouseEnter={e => e.currentTarget.style.boxShadow = '0 12px 40px rgba(249,115,22,0.08)'}
+      onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}>
+      <div className="h-44 relative overflow-hidden bg-slate-100">
+        <img src={cover} alt={course.name} onError={() => setImgErr(true)}
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-600 opacity-90 group-hover:opacity-100" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+        {course.price > 0 && (
+          <div className="absolute top-3 right-3 bg-orange-500 text-white text-xs font-black px-2.5 py-1 rounded-lg">
+            {parseFloat(course.price).toFixed(0)} جنيه
+          </div>
+        )}
+        {course.target_stage && (
+          <div className="absolute top-3 left-3 bg-black/50 backdrop-blur text-white/80 text-[10px] font-bold px-2 py-1 rounded-lg border border-white/15">
+            {course.target_stage}
+          </div>
+        )}
+        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+          <div className="w-12 h-12 rounded-full bg-orange-500/95 flex items-center justify-center shadow-xl shadow-orange-500/40">
+            <Play className="w-5 h-5 text-white ms-0.5" />
+          </div>
+        </div>
+      </div>
+      <div className="p-4">
+        <h3 className="font-black text-[#0B3C5D] text-sm leading-snug mb-1 group-hover:text-orange-600 transition-colors">{course.name}</h3>
+        {course.description && (
+          <p className="text-slate-500 text-xs leading-relaxed line-clamp-2">{course.description}</p>
+        )}
+      </div>
+    </Reveal>
+  );
+}
+
+/* ════════════════ STAT CARD ════════════════ */
+function StatCard({ icon: Icon, value, label, delay = 0, color }) {
+  return (
+    <Reveal delay={delay}
+      className="bg-white border border-slate-150 rounded-2xl p-5 flex items-center gap-4 hover:border-orange-500/30 hover:shadow-md transition-all duration-300"
+      style={{ boxShadow: '0 2px 10px rgba(11,60,93,0.04)' }}>
+      <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-gradient-to-br ${color.bg} border ${color.border}`}>
+        <Icon className={`w-6 h-6 ${color.icon}`} />
+      </div>
+      <div>
+        <p className="text-[#0B3C5D] font-black text-xl leading-none mb-1">{value}</p>
+        <p className="text-[#0B3C5D]/50 text-xs font-bold">{label}</p>
       </div>
     </Reveal>
   );
@@ -106,30 +147,85 @@ function StatCard({ icon: Icon, value, label, color, delay = 0 }) {
 
 /* ════════════════ MAIN PAGE ════════════════ */
 export default function LandingPage() {
-  const { teacher, stats, supportContacts, isLoading, platformName, logoUrl } = useTeacher();
-  const [statsVisible, setStatsVisible] = useState(false);
-  const statsRef = useRef(null);
-
+  const { teacher, stats, courses: rawCourses, supportContacts, isLoading, platformName, logoUrl } = useTeacher();
   const displayLogo = logoUrl || wathbaLogo;
+  const courses = rawCourses ? rawCourses.slice(0, 3) : [];
 
-  const sCount = useCounter(parseInt(stats?.total_students || 0), 2000, statsVisible);
-  const cCount = useCounter(parseInt(stats?.total_courses  || 0), 1600, statsVisible);
-  const eCount = useCounter(parseInt(stats?.total_exams    || 0), 1800, statsVisible);
-  const rCount = useCounter(parseInt(stats?.total_results  || 0), 2200, statsVisible);
+  const [statsRef, statsVisible] = useReveal(0.3);
+  const sCount = useCounter(stats?.total_students || 0, 1500, statsVisible);
+  const cCount = useCounter(stats?.total_courses  || 0, 1500, statsVisible);
+  const eCount = useCounter(stats?.total_exams    || 0, 1500, statsVisible);
+  const rCount = useCounter(stats?.total_results  || 0, 1500, statsVisible);
 
   useEffect(() => {
-    const obs = new IntersectionObserver(
-      ([e]) => { if (e.isIntersecting) { setStatsVisible(true); obs.disconnect(); } },
-      { threshold: 0.3 }
-    );
-    if (statsRef.current) obs.observe(statsRef.current);
-    return () => obs.disconnect();
-  }, []);
+    document.title = teacher?.name ? `${teacher.name} — الرئيسية` : platformName || 'وثبة';
+    const favicon = document.querySelector("link[rel='icon']");
+    if (favicon && logoUrl) favicon.href = logoUrl;
+  }, [teacher, platformName, logoUrl]);
 
   const scrollTo = id => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
 
+  const features = [
+    { icon: Play,          title: 'فيديوهات تعليمية',   desc: 'محتوى فيديو منظم داخل كل كورس مع تتبع تقدم مشاهدة كل طالب بدقة.',              variant: 'orange' },
+    { icon: Target,        title: 'امتحانات تفاعلية',   desc: 'أسئلة MCQ وصح/خطأ — نتائج فورية مع تحليل تفصيلي لكل إجابة.',            variant: 'purple' },
+    { icon: Video,         title: 'بث مباشر',            desc: 'حصص أونلاين مع شات وعرض اليد وتتبع الحضور والغياب في الوقت الفعلي.',            variant: 'orange' },
+    { icon: BarChart3,     title: 'تحليلات متقدمة',     desc: 'رسوم بيانية تفاعلية لمتابعة أداء كل طالب وتحديد نقاط الضعف والقوة.',           variant: 'purple' },
+    { icon: Trophy,        title: 'نقاط ولوحة الشرف',   desc: 'نظام مكافآت يحفّز الطلاب مع لوحة متصدرين شهرية تُعاد تلقائياً.',               variant: 'orange' },
+    { icon: Gamepad2,      title: 'ألعاب تعليمية',       desc: 'لعبة Stickman Run أسبوعية بأسئلة علمية — تحفيز التعلم من خلال المتعة.',         variant: 'purple' },
+    { icon: Phone,         title: 'بوابة أولياء الأمور', desc: 'ولي الأمر يتابع نتائج ابنه فوراً — امتحانات وكورسات ونقاط — برقم هاتفه.',      variant: 'orange' },
+    { icon: HelpCircle,    title: 'بنك الأسئلة',         desc: 'مكتبة أسئلة منظمة يختار منها المعلم لبناء امتحاناته بسرعة واحترافية.',          variant: 'purple' },
+    { icon: FileText,      title: 'تقارير PDF',           desc: 'تقارير أداء مفصلة قابلة للطباعة لأولياء الأمور والمتابعة الأكاديمية.',          variant: 'orange' },
+    { icon: CreditCard,    title: 'دفع إلكتروني',        desc: 'نظام مدفوعات يدعم فودافون كاش وإنستاباي مع تحقق فوري وتتبع كامل.',              variant: 'purple' },
+    { icon: Shield,        title: 'مساعدون بصلاحيات',    desc: 'أضف مساعدين مع تحكم دقيق في 9 صلاحيات مختلفة لكل مساعد على حدة.',              variant: 'orange' },
+    { icon: Database,      title: 'نسخ احتياطية',        desc: 'تصدير واستيراد بيانات الطلاب بصيغة Excel مع سجل كامل لكل العمليات.',            variant: 'purple' },
+  ];
+
   return (
-    <div className="min-h-screen bg-[#05080f] text-white overflow-x-hidden" dir="rtl">
+    <div className="min-h-screen bg-[#F8FAFC] text-[#0B3C5D] overflow-x-hidden relative" dir="rtl">
+
+      {/* ── Fixed full page background with gradient, dot-grid, and soft ambient orbs ── */}
+      <div className="fixed inset-0 pointer-events-none select-none overflow-hidden bg-gradient-to-br from-white via-[#F4F6F9] to-[#E9EDF0]" style={{ zIndex: 0 }}>
+        <div className="absolute inset-0 opacity-60 dot-grid" />
+        <div style={{ position: 'absolute', width: '700px', height: '700px', top: '-200px', left: '-150px', borderRadius: '50%', background: 'radial-gradient(circle,rgba(124,58,237,0.05),transparent 70%)', filter: 'blur(95px)', animation: 'lp-float 15s ease-in-out infinite alternate' }} />
+        <div style={{ position: 'absolute', width: '600px', height: '600px', top: '40%', right: '-100px', borderRadius: '50%', background: 'radial-gradient(circle,rgba(249,115,22,0.05),transparent 70%)', filter: 'blur(90px)', animation: 'lp-float 12s ease-in-out 2s infinite alternate' }} />
+        <div style={{ position: 'absolute', width: '500px', height: '500px', top: '75%', left: '-120px', borderRadius: '50%', background: 'radial-gradient(circle,rgba(11,60,93,0.04),transparent 70%)', filter: 'blur(90px)', animation: 'lp-float 18s ease-in-out 4s infinite alternate' }} />
+      </div>
+
+      {/* ══ Fixed side decorations — visible on entire page ══ */}
+      <div className="fixed left-0 top-0 h-full w-[260px] overflow-hidden pointer-events-none hidden xl:block opacity-40" style={{ zIndex: 1 }}>
+        <svg className="w-full h-full" viewBox="0 0 260 900" preserveAspectRatio="none" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M-80,0 Q60,200 -30,400 T10,700 Q-80,820 -180,900 L-180,0 Z" fill="#0B3C5D" fillOpacity="0.05" />
+          <path d="M-60,0 Q90,220 0,420 T20,680 Q-90,800 -180,900 L-180,0 Z" fill="#f97316" fillOpacity="0.06" />
+          <path d="M-10,0 Q130,220 0,440 T20,760 Q-60,840 -110,900" stroke="#0B3C5D" strokeWidth="3" strokeLinecap="round" opacity="0.5" />
+          <path d="M-30,0 Q100,230 -10,430 T10,770 Q-80,850 -130,900" stroke="#f97316" strokeWidth="2" strokeLinecap="round" opacity="0.5" />
+          <circle cx="40" cy="160" r="90" stroke="#0B3C5D" strokeOpacity="0.04" strokeWidth="1.5" />
+          <circle cx="40" cy="160" r="60" stroke="#0B3C5D" strokeOpacity="0.04" strokeWidth="1.5" />
+          <circle cx="-10" cy="580" r="110" stroke="#f97316" strokeOpacity="0.04" strokeWidth="1.5" />
+          <circle cx="-10" cy="580" r="75" stroke="#f97316" strokeOpacity="0.04" strokeWidth="1.5" />
+        </svg>
+        <div className="absolute top-[22%] left-[90px] text-2xl animate-bounce" style={{ animationDuration: '4s' }}>💡</div>
+        <div className="absolute top-[60%] left-[70px] text-xl animate-pulse" style={{ animationDuration: '3s' }}>💡</div>
+      </div>
+
+      <div className="fixed right-0 top-0 h-full w-[260px] overflow-hidden pointer-events-none hidden xl:block opacity-40" style={{ zIndex: 1 }}>
+        <svg className="w-full h-full" viewBox="0 0 260 900" preserveAspectRatio="none" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M340,0 Q230,200 330,400 T280,700 Q380,820 460,900 L460,0 Z" fill="#0B3C5D" fillOpacity="0.05" />
+          <path d="M320,0 Q210,220 310,420 T270,680 Q390,800 460,900 L460,0 Z" fill="#f97316" fillOpacity="0.06" />
+          <path d="M270,0 Q170,220 280,440 T240,760 Q320,840 370,900" stroke="#0B3C5D" strokeWidth="3" strokeLinecap="round" opacity="0.5" />
+          <path d="M290,0 Q190,230 270,430 T250,770 Q340,850 390,900" stroke="#f97316" strokeWidth="2" strokeLinecap="round" opacity="0.5" />
+          <circle cx="220" cy="300" r="95" stroke="#0B3C5D" strokeOpacity="0.04" strokeWidth="1.5" />
+          <circle cx="220" cy="300" r="65" stroke="#0B3C5D" strokeOpacity="0.04" strokeWidth="1.5" />
+          <circle cx="250" cy="680" r="85" stroke="#f97316" strokeOpacity="0.04" strokeWidth="1.5" />
+          <circle cx="250" cy="680" r="55" stroke="#f97316" strokeOpacity="0.04" strokeWidth="1.5" />
+        </svg>
+        <div className="absolute top-[35%] right-[80px] text-2xl animate-bounce" style={{ animationDuration: '5s' }}>💡</div>
+        <div className="absolute top-[62%] right-[100px] animate-pulse" style={{ animationDuration: '2.5s' }}>
+          <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/15 flex items-center justify-center">
+            <Shield className="w-4 h-4 text-blue-500" />
+          </div>
+        </div>
+      </div>
+
       <style>{`
         @keyframes lp-float {
           from { transform:translate(0,0) scale(1); }
@@ -151,50 +247,45 @@ export default function LandingPage() {
         .lp-ring-spin  { animation:lp-spin 22s linear infinite; }
         .lp-ring-pulse { animation:lp-pulse 4s ease-in-out infinite; }
         .text-orange { color:#f97316; }
-        .text-purple { color:#a78bfa; }
+        .text-purple { color:#7c3aed; }
         .grad-orange {
-          background:linear-gradient(135deg,#fff 0%,#f97316 55%,#fb923c 100%);
+          background:linear-gradient(135deg,#0b3c5d 30%,#f97316 100%);
           -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
         }
         .grad-purple {
-          background:linear-gradient(135deg,#a78bfa 0%,#7c3aed 100%);
+          background:linear-gradient(135deg,#7c3aed 0%,#4f46e5 100%);
           -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
         }
         .nav-glass { backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px); }
         .dot-grid {
-          background-image:radial-gradient(rgba(255,255,255,.06) 1px,transparent 1px);
+          background-image:radial-gradient(rgba(11,60,93,.06) 1px,transparent 1px);
           background-size:32px 32px;
         }
         .line-clamp-2 { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
       `}</style>
 
-      {/* ─────────────── NAVBAR ─────────────── */}
-      <nav className="fixed top-0 inset-x-0 z-50 nav-glass border-b border-white/[0.07] bg-[#05080f]/85">
-        <div className="max-w-7xl mx-auto px-5 h-16 grid grid-cols-3 items-center">
-          {/* Right: logo */}
-          <div className="flex items-center justify-start">
-            <img src={displayLogo} alt={platformName} className="h-11 w-auto rounded-xl" />
-          </div>
+      {/* Navbar */}
+      <nav className="fixed top-0 inset-x-0 z-50 nav-glass border-b border-[#0B3C5D]/10 bg-white/80">
+        <div className="max-w-7xl mx-auto px-5 h-16 flex items-center justify-between gap-4">
+          <img src={displayLogo} alt={platformName} className="h-11 w-auto rounded-xl shadow-sm" />
 
-          {/* Center: nav links */}
-          <div className="hidden md:flex items-center justify-center gap-1">
-            {[['about','عن المعلم'],['support','فريق الدعم']].map(([id, label]) => (
+          <div className="hidden md:flex items-center gap-1">
+            {[['about','عن المعلم'],['courses','الكورسات'],['features','المميزات'],['support','فريق الدعم']].map(([id, label]) => (
               <button key={id} onClick={() => scrollTo(id)}
-                className="text-white/50 hover:text-white text-sm font-semibold px-3 py-2 rounded-lg hover:bg-white/[0.06] transition-all duration-200">
+                className="text-[#0B3C5D]/70 hover:text-[#0B3C5D] text-sm font-semibold px-3 py-2 rounded-lg hover:bg-[#0B3C5D]/5 transition-all duration-200">
                 {label}
               </button>
             ))}
           </div>
 
-          {/* Left: action buttons */}
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <Link to="/parent-portal"
-              className="hidden sm:flex items-center gap-1.5 text-white/60 hover:text-white text-sm font-semibold px-3 py-2 rounded-lg border border-white/[0.1] hover:border-white/25 hover:bg-white/[0.06] transition-all duration-200">
-              <Phone className="w-3.5 h-3.5" />
+              className="hidden sm:flex items-center gap-1.5 text-[#0B3C5D]/75 hover:text-[#0B3C5D] text-sm font-semibold px-3 py-2 rounded-lg border border-[#0B3C5D]/15 hover:border-[#0B3C5D]/30 hover:bg-[#0B3C5D]/5 transition-all duration-200">
+              <Phone className="w-3.5 h-3.5 text-orange-500" />
               بوابة الأهل
             </Link>
             <Link to="/login"
-              className="flex items-center gap-2 bg-orange-500 hover:bg-orange-400 text-white font-black text-sm px-5 py-2.5 rounded-xl transition-all duration-200 hover:shadow-lg hover:shadow-orange-500/25 active:scale-95">
+              className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-black text-sm px-5 py-2.5 rounded-xl transition-all duration-200 hover:shadow-lg hover:shadow-orange-500/25 active:scale-95">
               دخول
               <ArrowLeft className="w-4 h-4" />
             </Link>
@@ -203,36 +294,32 @@ export default function LandingPage() {
       </nav>
 
       {/* ─────────────── HERO ─────────────── */}
-      <section className="relative min-h-screen flex items-center justify-center overflow-hidden dot-grid pt-16">
-        <div className="absolute inset-0 bg-[#05080f]" />
-        <Orb size="700px" top="-200px" left="-150px" color="radial-gradient(circle,#7c3aed,transparent)" dur={12} />
-        <Orb size="600px" top="30%"   left="55%"    color="radial-gradient(circle,#f97316,transparent)" delay={2} dur={10} />
-
-        <div className="absolute w-[600px] h-[600px] rounded-full border border-white/[0.04] lp-ring-spin" />
-        <div className="absolute w-[420px] h-[420px] rounded-full border border-orange-500/[0.07] lp-ring-pulse" />
+      <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-16" style={{ zIndex: 1 }}>
+        <div className="absolute w-[600px] h-[600px] rounded-full border border-[#0B3C5D]/[0.03] lp-ring-spin" />
+        <div className="absolute w-[420px] h-[420px] rounded-full border border-orange-500/[0.05] lp-ring-pulse" />
 
         <div className="relative z-10 text-center max-w-4xl mx-auto px-5">
-          <div className="lp-fade-1 inline-flex items-center gap-2 bg-orange-500/10 border border-orange-500/20 text-orange-400 text-xs font-bold px-4 py-2 rounded-full mb-8 tracking-widest uppercase">
-            <Sparkles className="w-3.5 h-3.5" />
+          <div className="lp-fade-1 inline-flex items-center gap-2 bg-orange-500/10 border border-orange-500/20 text-orange-600 text-xs font-bold px-4 py-2 rounded-full mb-8 tracking-widest uppercase">
+            <Sparkles className="w-3.5 h-3.5 text-orange-500 animate-pulse" />
             منصة تعليمية متكاملة
           </div>
 
-          <h1 className="lp-fade-2 font-black leading-tight mb-5" style={{ fontSize: 'clamp(2.4rem,6vw,4.5rem)' }}>
+          <h1 className="lp-fade-2 font-black leading-tight mb-5 text-[#0B3C5D]" style={{ fontSize: 'clamp(2.4rem,6vw,4.5rem)' }}>
             {isLoading ? (
               <span className="grad-orange">{platformName || 'منصة وثبة'}</span>
             ) : (
               <>
-                <span className="text-white/80">تعلّم مع </span>
+                <span className="text-[#0B3C5D]/90">تعلّم مع </span>
                 <span className="grad-orange">{teacher?.name || platformName || 'منصة وثبة'}</span>
               </>
             )}
             <br />
-            <span className="text-white/40 font-bold" style={{ fontSize: '0.45em', letterSpacing: '0.02em' }}>
+            <span className="text-[#0B3C5D]/45 font-bold" style={{ fontSize: '0.45em', letterSpacing: '0.02em' }}>
               {teacher?.classification || 'المنصة التعليمية المتكاملة'}
             </span>
           </h1>
 
-          <p className="lp-fade-3 text-white/50 text-base max-w-xl mx-auto leading-relaxed mb-10">
+          <p className="lp-fade-3 text-slate-500 text-base max-w-xl mx-auto leading-relaxed mb-10">
             {teacher?.bio
               ? teacher.bio.slice(0, 120) + (teacher.bio.length > 120 ? '...' : '')
               : 'منصة تعليمية احترافية تجمع الكورسات والامتحانات والتحليلات في مكان واحد'}
@@ -240,14 +327,14 @@ export default function LandingPage() {
 
           <div className="lp-fade-3 flex items-center justify-center gap-3 flex-wrap">
             <Link to="/login"
-              className="flex items-center gap-2.5 bg-orange-500 hover:bg-orange-400 text-white font-black text-sm px-7 py-3.5 rounded-xl transition-all duration-200 hover:shadow-xl hover:shadow-orange-500/30 hover:-translate-y-0.5 active:scale-95">
+              className="flex items-center gap-2.5 bg-orange-500 hover:bg-orange-600 text-white font-black text-sm px-7 py-3.5 rounded-xl transition-all duration-200 hover:shadow-xl hover:shadow-orange-500/30 hover:-translate-y-0.5 active:scale-95">
               ابدأ الآن
               <ArrowLeft className="w-4 h-4" />
             </Link>
           </div>
 
           <button onClick={() => scrollTo('stats')}
-            className="lp-fade-4 mt-16 flex flex-col items-center gap-1.5 mx-auto text-white/25 hover:text-white/50 transition-colors">
+            className="lp-fade-4 mt-16 flex flex-col items-center gap-1.5 mx-auto text-[#0B3C5D]/30 hover:text-[#0B3C5D]/50 transition-colors">
             <span className="text-[11px] font-semibold tracking-widest uppercase">اكتشف</span>
             <ChevronDown className="w-4 h-4 animate-bounce" />
           </button>
@@ -255,27 +342,23 @@ export default function LandingPage() {
       </section>
 
       {/* ─────────────── STATS ─────────────── */}
-      <section id="stats" ref={statsRef} className="relative py-16 bg-[#05080f]">
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#0a0d18]/60 to-transparent pointer-events-none" />
+      <section id="stats" ref={statsRef} className="relative py-16" style={{ zIndex: 1 }}>
         <div className="relative z-10 max-w-5xl mx-auto px-5">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard icon={Users}    value={sCount} label="طالب مسجّل"  delay={0}    color={{ icon:'text-orange-400', bg:'from-orange-500/8 to-transparent', border:'border-orange-500/15' }} />
-            <StatCard icon={BookOpen} value={cCount} label="كورس تعليمي" delay={0.08} color={{ icon:'text-purple-400', bg:'from-purple-500/8 to-transparent', border:'border-purple-500/15' }} />
-            <StatCard icon={Target}   value={eCount} label="امتحان متاح"  delay={0.16} color={{ icon:'text-orange-400', bg:'from-orange-500/8 to-transparent', border:'border-orange-500/15' }} />
-            <StatCard icon={BarChart3} value={rCount} label="نتيجة محللة" delay={0.24} color={{ icon:'text-purple-400', bg:'from-purple-500/8 to-transparent', border:'border-purple-500/15' }} />
+            <StatCard icon={Users}    value={sCount} label="طالب مسجّل"  delay={0}    color={{ icon:'text-orange-600', bg:'from-orange-500/8 to-transparent', border:'border-orange-500/15' }} />
+            <StatCard icon={BookOpen} value={cCount} label="كورس تعليمي" delay={0.08} color={{ icon:'text-purple-600', bg:'from-purple-500/8 to-transparent', border:'border-purple-500/15' }} />
+            <StatCard icon={Target}   value={eCount} label="امتحان متاح"  delay={0.16} color={{ icon:'text-orange-600', bg:'from-orange-500/8 to-transparent', border:'border-orange-500/15' }} />
+            <StatCard icon={BarChart3} value={rCount} label="نتيجة محللة" delay={0.24} color={{ icon:'text-purple-600', bg:'from-purple-500/8 to-transparent', border:'border-purple-500/15' }} />
           </div>
         </div>
       </section>
 
       {/* ─────────────── ABOUT ─────────────── */}
-      <section id="about" className="relative py-24 overflow-hidden bg-[#070b15]">
-        <Orb size="500px" top="-100px" left="-200px" color="radial-gradient(circle,#7c3aed,transparent)" dur={14} />
-        <Orb size="400px" top="50%"   left="70%"    color="radial-gradient(circle,#f97316,transparent)" delay={3} dur={11} />
-
+      <section id="about" className="relative py-24 overflow-hidden" style={{ zIndex: 1 }}>
         <div className="relative z-10 max-w-6xl mx-auto px-5">
           <Reveal className="text-center">
             <SectionLabel text="من نحن" />
-            <h2 className="font-black text-white mb-3" style={{ fontSize: 'clamp(1.9rem,4vw,2.8rem)' }}>
+            <h2 className="font-black text-[#0B3C5D] mb-3" style={{ fontSize: 'clamp(1.9rem,4vw,2.8rem)' }}>
               عن <span className="grad-orange">المعلم</span>
             </h2>
             <div className="w-16 h-0.5 bg-gradient-to-l from-orange-500 to-transparent rounded-full mx-auto mt-4 mb-14" />
@@ -284,7 +367,7 @@ export default function LandingPage() {
           <div className="grid lg:grid-cols-5 gap-10 items-start">
             {/* ── Left panel: teacher card ── */}
             <Reveal delay={0.1} className="lg:col-span-2">
-              <div className="bg-white/[0.04] border border-white/[0.08] rounded-2xl p-7 text-center">
+              <div className="bg-white border border-slate-200/80 rounded-2xl p-7 text-center shadow-sm">
                 <div className="relative inline-block mb-5">
                   {teacher?.photo_url ? (
                     <img
@@ -301,13 +384,13 @@ export default function LandingPage() {
                     style={{ display: teacher?.photo_url ? 'none' : 'flex' }}>
                     {teacher?.name?.charAt(0) || 'م'}
                   </div>
-                  <div className="absolute -bottom-2 -left-2 w-8 h-8 rounded-xl bg-emerald-500 flex items-center justify-center shadow-lg border-2 border-[#070b15]">
+                  <div className="absolute -bottom-2 -left-2 w-8 h-8 rounded-xl bg-emerald-500 flex items-center justify-center shadow-lg border-2 border-white">
                     <CheckCircle className="w-4 h-4 text-white" />
                   </div>
                 </div>
 
-                <h3 className="font-black text-white text-xl mb-1">{teacher?.name || '—'}</h3>
-                <p className="text-orange-400 text-sm font-semibold mb-6">{teacher?.classification || '—'}</p>
+                <h3 className="font-black text-[#0B3C5D] text-xl mb-1">{teacher?.name || '—'}</h3>
+                <p className="text-orange-500 text-sm font-semibold mb-6">{teacher?.classification || '—'}</p>
 
                 <div className="grid grid-cols-2 gap-2.5">
                   {[
@@ -316,16 +399,16 @@ export default function LandingPage() {
                     { label: 'الامتحانات',value: stats?.total_exams    || '—', icon: Target },
                     { label: 'النتائج',   value: stats?.total_results  || '—', icon: BarChart3 },
                   ].map(({ label, value, icon: Icon }) => (
-                    <div key={label} className="bg-white/[0.04] border border-white/[0.07] rounded-xl p-3 text-center">
-                      <Icon className="w-3.5 h-3.5 mx-auto text-orange-400/70 mb-1" />
-                      <p className="font-black text-white text-base">{value}</p>
-                      <p className="text-white/35 text-[10px] font-semibold">{label}</p>
+                    <div key={label} className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-center">
+                      <Icon className="w-3.5 h-3.5 mx-auto text-orange-500/70 mb-1" />
+                      <p className="font-black text-[#0B3C5D] text-base">{value}</p>
+                      <p className="text-[#0B3C5D]/40 text-[10px] font-semibold">{label}</p>
                     </div>
                   ))}
                 </div>
 
-                <div className="mt-5 border-t border-white/[0.07] pt-4">
-                  <p className="text-white/30 text-xs">للانضمام تواصل مع فريق الدعم أسفل الصفحة</p>
+                <div className="mt-5 border-t border-slate-150 pt-4">
+                  <p className="text-[#0B3C5D]/40 text-xs">للانضمام تواصل مع فريق الدعم أسفل الصفحة</p>
                 </div>
               </div>
             </Reveal>
@@ -333,14 +416,14 @@ export default function LandingPage() {
             {/* ── Right panel: bio + timeline ── */}
             <div className="lg:col-span-3 space-y-4">
               <Reveal delay={0.15}>
-                <div className="bg-white/[0.04] border border-white/[0.08] rounded-2xl p-6">
+                <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm">
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="w-8 h-8 rounded-lg bg-orange-500/15 border border-orange-500/20 flex items-center justify-center">
-                      <Star className="w-4 h-4 text-orange-400" />
+                    <div className="w-8 h-8 rounded-lg bg-orange-500/10 border border-orange-500/20 flex items-center justify-center">
+                      <Star className="w-4 h-4 text-orange-500" />
                     </div>
-                    <p className="font-black text-white text-base">من أنا؟</p>
+                    <p className="font-black text-[#0B3C5D] text-base">من أنا؟</p>
                   </div>
-                  <p className="text-white/55 text-sm leading-relaxed">
+                  <p className="text-slate-500 text-sm leading-relaxed">
                     {teacher?.bio || 'معلم متخصص بخبرة واسعة في التدريس، يهتم بتقديم المحتوى التعليمي بأسلوب مبسط ومشوق لمساعدة الطلاب على التفوق وتحقيق أعلى الدرجات.'}
                   </p>
                 </div>
@@ -353,13 +436,13 @@ export default function LandingPage() {
                 { icon: Clock,         title: 'متابعة مستمرة',         desc: 'متابعة دورية لأداء كل طالب مع إرسال تقارير منتظمة لأولياء الأمور.',    delay: 0.35 },
               ].map(({ icon: Icon, title, desc, delay }) => (
                 <Reveal key={title} delay={delay}>
-                  <div className="flex items-start gap-3.5 bg-white/[0.03] border border-white/[0.07] rounded-xl p-4 hover:bg-white/[0.055] transition-colors duration-200">
-                    <div className="w-9 h-9 rounded-xl bg-purple-500/12 border border-purple-500/20 flex items-center justify-center shrink-0 mt-0.5">
-                      <Icon className="w-4 h-4 text-purple-400" />
+                  <div className="flex items-start gap-3.5 bg-white border border-slate-150 rounded-xl p-4 hover:bg-slate-50/50 transition-colors duration-200 shadow-sm">
+                    <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                      <Icon className="w-4 h-4 text-purple-600" />
                     </div>
                     <div>
-                      <p className="font-black text-white text-sm mb-0.5">{title}</p>
-                      <p className="text-white/45 text-xs leading-relaxed">{desc}</p>
+                      <p className="font-black text-[#0B3C5D] text-sm mb-0.5">{title}</p>
+                      <p className="text-slate-500 text-xs leading-relaxed">{desc}</p>
                     </div>
                   </div>
                 </Reveal>
@@ -370,18 +453,15 @@ export default function LandingPage() {
       </section>
 
       {/* ─────────────── SUPPORT CONTACTS ─────────────── */}
-      {supportContacts.length > 0 && (
-        <section id="support" className="relative py-20 overflow-hidden bg-[#05080f]">
-          <Orb size="500px" top="0"   left="60%"    color="radial-gradient(circle,#f97316,transparent)" dur={11} />
-          <Orb size="400px" top="40%" left="-100px" color="radial-gradient(circle,#7c3aed,transparent)" delay={2} dur={13} />
-
+      {supportContacts && supportContacts.length > 0 && (
+        <section id="support" className="relative py-20 overflow-hidden" style={{ zIndex: 1 }}>
           <div className="relative z-10 max-w-4xl mx-auto px-5">
             <Reveal className="text-center">
               <SectionLabel text="انضم إلينا" />
-              <h2 className="font-black text-white mb-2" style={{ fontSize: 'clamp(1.9rem,4vw,2.8rem)' }}>
+              <h2 className="font-black text-[#0B3C5D] mb-2" style={{ fontSize: 'clamp(1.9rem,4vw,2.8rem)' }}>
                 تواصل مع <span className="grad-orange">فريق الدعم</span>
               </h2>
-              <p className="text-white/40 text-sm max-w-md mx-auto mt-3 mb-1">للاستفسار عن الكورسات أو التسجيل في المنصة، تواصل مع فريق الدعم مباشرةً</p>
+              <p className="text-[#0B3C5D]/50 text-sm max-w-md mx-auto mt-3 mb-1">للاستفسار عن الكورسات أو التسجيل في المنصة، تواصل مع فريق الدعم مباشرةً</p>
               <div className="w-16 h-0.5 bg-gradient-to-l from-orange-500 to-transparent rounded-full mx-auto mt-4 mb-12" />
             </Reveal>
 
@@ -396,7 +476,7 @@ export default function LandingPage() {
                   : null;
                 return (
                   <Reveal key={c.id} delay={i * 0.08}
-                    className="group bg-white/[0.04] border border-white/[0.08] rounded-2xl p-6 text-center hover:border-orange-500/30 hover:-translate-y-1.5 transition-all duration-400 overflow-hidden relative">
+                    className="group bg-white border border-slate-150 rounded-2xl p-6 text-center hover:border-orange-500/30 hover:-translate-y-1.5 transition-all duration-400 overflow-hidden relative shadow-sm">
                     <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-orange-500/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-400" />
 
                     <div className="w-14 h-14 rounded-xl overflow-hidden mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
@@ -410,22 +490,22 @@ export default function LandingPage() {
                       ) : null}
                       <div className="w-full h-full bg-gradient-to-br from-orange-500/20 to-orange-700/10 border border-orange-500/20 items-center justify-center"
                         style={{ display: photoSrc ? 'none' : 'flex' }}>
-                        <span className="text-xl font-black text-orange-300">{c.name?.charAt(0) || '؟'}</span>
+                        <span className="text-xl font-black text-orange-500">{c.name?.charAt(0) || '؟'}</span>
                       </div>
                     </div>
 
-                    <h3 className="font-black text-white text-base mb-0.5">{c.name}</h3>
-                    <p className="text-white/35 text-xs mb-5">دعم فني واستفسارات</p>
+                    <h3 className="font-black text-[#0B3C5D] text-base mb-0.5">{c.name}</h3>
+                    <p className="text-[#0B3C5D]/40 text-xs mb-5">دعم فني واستفسارات</p>
 
                     {c.phone ? (
                       <a href={`https://wa.me/${c.phone.replace(/\D/g, '')}`}
                         target="_blank" rel="noopener noreferrer"
-                        className="flex items-center justify-center gap-2 w-full bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/25 hover:border-orange-500/50 text-orange-300 font-bold text-sm px-4 py-2.5 rounded-xl transition-all duration-200 active:scale-95">
+                        className="flex items-center justify-center gap-2 w-full bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/25 hover:border-orange-500/50 text-orange-600 font-bold text-sm px-4 py-2.5 rounded-xl transition-all duration-200 active:scale-95">
                         <MessageCircle className="w-4 h-4" />
                         {c.phone}
                       </a>
                     ) : (
-                      <div className="flex items-center justify-center gap-2 w-full bg-white/[0.04] border border-white/[0.08] text-white/25 text-xs px-4 py-2.5 rounded-xl">
+                      <div className="flex items-center justify-center gap-2 w-full bg-slate-50 border border-slate-100 text-[#0B3C5D]/30 text-xs px-4 py-2.5 rounded-xl">
                         <Phone className="w-3.5 h-3.5" />
                         رقم غير متاح
                       </div>
@@ -438,27 +518,89 @@ export default function LandingPage() {
         </section>
       )}
 
+      {/* ─────────────── COURSES ─────────────── */}
+      <section id="courses" className="relative py-24 overflow-hidden bg-[#F1F5F9]/40 backdrop-blur-sm" style={{ zIndex: 1 }}>
+        <div className="relative z-10 max-w-5xl mx-auto px-5">
+          <Reveal className="text-center">
+            <SectionLabel text="تعلّم معنا" />
+            <h2 className="font-black text-[#0B3C5D] mb-2" style={{ fontSize: 'clamp(1.9rem,4vw,2.8rem)' }}>
+              أبرز <span className="grad-orange">الكورسات</span>
+            </h2>
+            <p className="text-[#0B3C5D]/50 text-sm mt-3 mb-1">أفضل ٣ كورسات مدفوعة — محتوى احترافي يأخذك خطوة للأمام</p>
+            <div className="w-16 h-0.5 bg-gradient-to-l from-orange-500 to-transparent rounded-full mx-auto mt-4 mb-14" />
+          </Reveal>
+
+          {isLoading ? (
+            <div className="grid sm:grid-cols-3 gap-5">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="h-56 rounded-2xl bg-white border border-slate-100 animate-pulse" />
+              ))}
+            </div>
+          ) : courses.length > 0 ? (
+            <div className="grid sm:grid-cols-3 gap-5">
+              {courses.map((c, i) => <CourseCard key={c.id} course={c} index={i} delay={i * 0.1} />)}
+            </div>
+          ) : (
+            <div className="text-center py-16 text-[#0B3C5D]/30">
+              <BookOpen className="w-12 h-12 mx-auto mb-3" />
+              <p className="text-sm font-semibold">لا توجد كورسات بعد</p>
+            </div>
+          )}
+
+          <Reveal delay={0.3} className="text-center mt-8">
+            <Link to="/login"
+              className="inline-flex items-center gap-2 text-[#0B3C5D]/60 hover:text-orange-500 bg-white border border-slate-200 hover:border-orange-500/40 px-6 py-2.5 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md">
+              عرض جميع الكورسات
+              <ArrowLeft className="w-3.5 h-3.5" />
+            </Link>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* ─────────────── FEATURES ─────────────── */}
+      <section id="features" className="relative py-24 overflow-hidden" style={{ zIndex: 1 }}>
+        <div className="relative z-10 max-w-6xl mx-auto px-5">
+          <Reveal className="text-center">
+            <SectionLabel text="لماذا وثبة؟" />
+            <h2 className="font-black text-[#0B3C5D] mb-2" style={{ fontSize: 'clamp(1.9rem,4vw,2.8rem)' }}>
+              مميزات <span className="grad-purple">المنصة</span>
+            </h2>
+            <p className="text-[#0B3C5D]/50 text-sm mt-3 mb-1">كل الأدوات التي يحتاجها المعلم والطالب في مكان واحد</p>
+            <div className="w-16 h-0.5 bg-gradient-to-l from-purple-500 to-transparent rounded-full mx-auto mt-4 mb-14" />
+          </Reveal>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+            {features.map((f, i) => (
+              <FeatureCard key={f.title} {...f} delay={i * 0.04} />
+            ))}
+          </div>
+
+          <Reveal delay={0.5} className="text-center mt-8">
+            <p className="text-[#0B3C5D]/40 text-xs">
+              <span className="text-orange-500 font-bold">{features.length}</span> ميزة متكاملة في منصة واحدة
+            </p>
+          </Reveal>
+        </div>
+      </section>
 
       {/* ─────────────── CTA ─────────────── */}
-      <section className="relative py-24 overflow-hidden bg-[#070b15]">
-        <Orb size="700px" top="50%" left="50%" color="radial-gradient(circle,#f97316,transparent)" dur={9} />
-
+      <section className="relative py-24 overflow-hidden bg-[#F1F5F9]/60 border-t border-b border-slate-200/60" style={{ zIndex: 1 }}>
         <div className="relative z-10 max-w-2xl mx-auto px-5 text-center">
           <Reveal>
-            <div className="inline-flex items-center gap-2 bg-orange-500/10 border border-orange-500/20 text-orange-400 text-xs font-bold px-4 py-2 rounded-full mb-8 tracking-widest uppercase">
-              <Sparkles className="w-3.5 h-3.5" />
+            <div className="inline-flex items-center gap-2 bg-orange-500/10 border border-orange-500/20 text-orange-600 text-xs font-bold px-4 py-2 rounded-full mb-8 tracking-widest uppercase">
+              <Sparkles className="w-3.5 h-3.5 text-orange-500 animate-pulse" />
               ابدأ رحلتك الآن
             </div>
-            <h2 className="font-black text-white mb-5 leading-tight" style={{ fontSize: 'clamp(2rem,5vw,3.2rem)' }}>
+            <h2 className="font-black text-[#0B3C5D] mb-5 leading-tight" style={{ fontSize: 'clamp(2rem,5vw,3.2rem)' }}>
               جاهز تبدأ؟
               <br />
-              <span className="grad-orange">سجّل دخولك الآن</span>
+              <span className="text-orange-500">سجّل دخولك الآن</span>
             </h2>
-            <p className="text-white/40 text-sm mb-10 leading-relaxed max-w-md mx-auto">
+            <p className="text-[#0B3C5D]/65 text-sm mb-10 leading-relaxed max-w-md mx-auto">
               انضم لمنصة وثبة وابدأ رحلتك مع أفضل المحتوى التعليمي والامتحانات التفاعلية
             </p>
             <Link to="/login"
-              className="inline-flex items-center gap-3 bg-orange-500 hover:bg-orange-400 text-white font-black text-base px-10 py-4 rounded-2xl transition-all duration-200 hover:shadow-2xl hover:shadow-orange-500/30 hover:-translate-y-1 active:scale-95">
+              className="inline-flex items-center gap-3 bg-orange-500 hover:bg-orange-600 text-white font-black text-base px-10 py-4 rounded-2xl transition-all duration-200 hover:shadow-lg hover:shadow-orange-500/25 active:scale-95">
               <GraduationCap className="w-5 h-5" />
               تسجيل الدخول
               <ArrowLeft className="w-4 h-4" />
@@ -468,25 +610,25 @@ export default function LandingPage() {
       </section>
 
       {/* ─────────────── FOOTER ─────────────── */}
-      <footer className="border-t border-white/[0.07] py-8 bg-[#05080f]">
+      <footer className="border-t border-slate-200/80 py-8 bg-white" style={{ zIndex: 1 }}>
         <div className="max-w-7xl mx-auto px-5 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <img src={displayLogo} alt={platformName} className="h-9 w-auto opacity-80 rounded-xl" />
-            <span className="text-white/25 text-xs">المنصة التعليمية المتكاملة</span>
+            <img src={displayLogo} alt={platformName} className="h-9 w-auto opacity-95 rounded-xl shadow-sm" />
+            <span className="text-[#0B3C5D]/50 text-xs font-semibold">المنصة التعليمية المتكاملة</span>
           </div>
           <div className="flex items-center gap-1">
-            {[['about','عن المعلم'],['support','فريق الدعم']].map(([id, label]) => (
+            {[['about','عن المعلم'],['courses','الكورسات'],['features','المميزات'],['support','فريق الدعم']].map(([id, label]) => (
               <button key={id} onClick={() => scrollTo(id)}
-                className="text-white/35 hover:text-orange-400 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
+                className="text-[#0B3C5D]/50 hover:text-orange-500 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
                 {label}
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-4 text-white/30 text-xs">
+          <div className="flex items-center gap-4 text-[#0B3C5D]/40 text-xs font-medium">
             <p>© {new Date().getFullYear()} {platformName || 'وثبة'}</p>
-            <span className="text-white/15">|</span>
-            <Link to="/terms" className="hover:text-orange-400 transition-colors">الشروط والأحكام</Link>
-            <Link to="/privacy" className="hover:text-orange-400 transition-colors">سياسة الخصوصية</Link>
+            <span className="text-slate-300">|</span>
+            <Link to="/terms" className="hover:text-orange-500 transition-colors">الشروط والأحكام</Link>
+            <Link to="/privacy" className="hover:text-orange-500 transition-colors">سياسة الخصوصية</Link>
           </div>
         </div>
       </footer>

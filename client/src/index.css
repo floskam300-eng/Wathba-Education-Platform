@@ -63,6 +63,50 @@
     color: #1A2E4A;
     min-height: 100vh;
     font-family: 'Cairo', sans-serif;
+    position: relative;
+  }
+
+  /* ── Light mode animated background orbs ── */
+  body::before,
+  body::after {
+    content: '';
+    position: fixed;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 0;
+    filter: blur(120px);
+  }
+
+  body::before {
+    width: 700px;
+    height: 700px;
+    top: -200px;
+    left: -200px;
+    background: radial-gradient(circle, rgba(11,60,93,0.07) 0%, transparent 70%);
+    animation: wathba-orb-light 18s ease-in-out infinite alternate;
+  }
+
+  body::after {
+    width: 600px;
+    height: 600px;
+    bottom: -150px;
+    right: -150px;
+    background: radial-gradient(circle, rgba(249,115,22,0.06) 0%, transparent 70%);
+    animation: wathba-orb-light 22s ease-in-out 3s infinite alternate-reverse;
+  }
+
+  @keyframes wathba-orb-light {
+    0%   { transform: translate(0, 0) scale(1); }
+    33%  { transform: translate(40px, -30px) scale(1.06); }
+    66%  { transform: translate(-20px, 40px) scale(0.96); }
+    100% { transform: translate(30px, 20px) scale(1.04); }
+  }
+
+  @keyframes wathba-orb-dark {
+    0%   { transform: translate(0, 0) scale(1); }
+    33%  { transform: translate(50px, -40px) scale(1.08); }
+    66%  { transform: translate(-30px, 50px) scale(0.94); }
+    100% { transform: translate(40px, 25px) scale(1.05); }
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -80,6 +124,17 @@
   html.dark body {
     background-color: var(--dk-bg);
     color: var(--dk-text-1);
+  }
+
+  /* ── Dark mode animated background orbs ── */
+  html.dark body::before {
+    background: radial-gradient(circle, rgba(245,166,35,0.08) 0%, transparent 70%);
+    animation: wathba-orb-dark 18s ease-in-out infinite alternate;
+  }
+
+  html.dark body::after {
+    background: radial-gradient(circle, rgba(124,58,237,0.09) 0%, transparent 70%);
+    animation: wathba-orb-dark 24s ease-in-out 4s infinite alternate-reverse;
   }
 
   html.dark h1, html.dark h2, html.dark h3,

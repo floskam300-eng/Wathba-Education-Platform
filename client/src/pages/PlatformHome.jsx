@@ -57,10 +57,10 @@ function StatCard({ value, suffix = '', label, duration = 2000 }) {
   const count = useCounter(value, duration, visible);
   return (
     <div ref={ref} className="text-center">
-      <div className="text-4xl md:text-5xl font-black text-orange-400 mb-1">
+      <div className="text-4xl md:text-5xl font-black text-orange-500 mb-1">
         {count.toLocaleString('ar-EG')}{suffix}
       </div>
-      <div className="text-white/50 text-sm font-medium">{label}</div>
+      <div className="text-[#0B3C5D]/60 text-sm font-semibold">{label}</div>
     </div>
   );
 }
@@ -74,13 +74,13 @@ function FeatureCard({ icon: Icon, title, desc, color, delay }) {
       transform: visible ? 'translateY(0) scale(1)' : 'translateY(24px) scale(0.97)',
       transition: `opacity 0.5s ease ${delay}s, transform 0.5s ease ${delay}s`,
     }}
-      className="group relative bg-white/[0.04] hover:bg-white/[0.07] border border-white/10 hover:border-orange-500/30 rounded-xl md:rounded-2xl p-3.5 md:p-6 transition-all duration-300 hover:-translate-y-1 cursor-default"
+      className="group relative bg-white hover:bg-slate-50/50 border border-slate-100 hover:border-orange-500/30 rounded-xl md:rounded-2xl p-3.5 md:p-6 transition-all duration-300 hover:-translate-y-1 hover:shadow-md shadow-sm cursor-default"
     >
       <div className={`w-9 h-9 md:w-12 md:h-12 rounded-lg md:rounded-xl ${color} flex items-center justify-center mb-2.5 md:mb-4 group-hover:scale-110 transition-transform`}>
         <Icon className="w-5 h-5 md:w-6 md:h-6 text-white" />
       </div>
-      <h3 className="text-white font-bold text-sm md:text-base mb-1.5 md:mb-2">{title}</h3>
-      <p className="text-white/50 text-xs md:text-sm leading-relaxed">{desc}</p>
+      <h3 className="text-[#0B3C5D] font-bold text-sm md:text-base mb-1.5 md:mb-2">{title}</h3>
+      <p className="text-slate-500 text-xs md:text-sm leading-relaxed">{desc}</p>
     </div>
   );
 }
@@ -89,16 +89,16 @@ function FeatureCard({ icon: Icon, title, desc, color, delay }) {
 function FAQItem({ q, a }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="border border-white/10 rounded-xl overflow-hidden">
+    <div className="border border-slate-200 bg-white rounded-xl overflow-hidden shadow-sm hover:shadow transition-shadow">
       <button
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between p-5 text-right text-white font-semibold text-sm hover:bg-white/5 transition-colors"
+        className="w-full flex items-center justify-between p-5 text-right text-[#0B3C5D] font-bold text-sm hover:bg-slate-50 transition-colors"
       >
         {q}
-        <ChevronDown className={`w-4 h-4 text-white/40 transition-transform shrink-0 ms-3 ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-4 h-4 text-[#0B3C5D]/40 transition-transform shrink-0 ms-3 ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
-        <div className="px-5 pb-5 text-white/50 text-sm leading-relaxed border-t border-white/10 pt-4">
+        <div className="px-5 pb-5 text-[#0B3C5D]/75 text-sm leading-relaxed border-t border-slate-100 bg-slate-50/30 pt-4">
           {a}
         </div>
       )}
@@ -111,10 +111,6 @@ function DevAccessPanel() {
   const [slug, setSlug] = useState('admin');
   const [open, setOpen] = useState(false);
 
-  // [L-6] FIX: Only show the dev panel on true localhost.
-  // Replit preview domains (.replit.dev / .replit.app) are publicly reachable —
-  // exposing a slug-switcher there lets anyone navigate to any teacher's dashboard
-  // by setting wathba_teacher_slug in localStorage and bypassing the auth redirect.
   const isDevHost = (() => {
     const h = window.location.hostname;
     return h === 'localhost' || h === '127.0.0.1';
@@ -239,17 +235,21 @@ export default function PlatformHome() {
       }
       .ph-orb {
         position:absolute;border-radius:50%;filter:blur(100px);
-        opacity:0.15;pointer-events:none;
+        opacity:0.06;pointer-events:none;
       }
       .ph-float { animation: ph-float 6s ease-in-out infinite alternate; }
       .ph-gradient-text {
-        background: linear-gradient(135deg, #f97316 0%, #fb923c 50%, #fbbf24 100%);
+        background: linear-gradient(135deg, #0b3c5d 30%, #f97316 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
       }
+      .ph-dot-grid {
+        background-image:radial-gradient(rgba(11,60,93,.06) 1px,transparent 1px);
+        background-size:32px 32px;
+      }
       .ph-card-glow:hover {
-        box-shadow: 0 0 40px rgba(249,115,22,0.12);
+        box-shadow: 0 12px 40px rgba(249,115,22,0.08);
       }
     `;
     document.head.appendChild(style);
@@ -281,16 +281,61 @@ export default function PlatformHome() {
   ];
 
   return (
-    <div dir="rtl" style={{ fontFamily: "'Cairo', sans-serif", background: '#07080F', minHeight: '100vh', color: '#fff', overflowX: 'hidden' }}>
+    <div dir="rtl" style={{ fontFamily: "'Cairo', sans-serif", minHeight: '100vh', color: '#0B3C5D', overflowX: 'hidden', position: 'relative' }}>
+
+      {/* ── Fixed full page background with gradient, dot-grid, and soft ambient orbs ── */}
+      <div className="fixed inset-0 pointer-events-none select-none overflow-hidden bg-gradient-to-br from-white via-[#F4F6F9] to-[#E9EDF0]" style={{ zIndex: 0 }}>
+        <div className="absolute inset-0 opacity-60" style={{ backgroundImage: 'radial-gradient(rgba(11,60,93,.06) 1px, transparent 1px)', backgroundSize: '32px 32px' }} />
+        <div style={{ position: 'absolute', width: '700px', height: '700px', top: '-200px', left: '-150px', borderRadius: '50%', background: 'radial-gradient(circle,rgba(124,58,237,0.05),transparent 70%)', filter: 'blur(95px)', animation: 'ph-float 15s ease-in-out infinite alternate' }} />
+        <div style={{ position: 'absolute', width: '600px', height: '600px', top: '40%', right: '-100px', borderRadius: '50%', background: 'radial-gradient(circle,rgba(249,115,22,0.05),transparent 70%)', filter: 'blur(90px)', animation: 'ph-float 12s ease-in-out 2s infinite alternate' }} />
+        <div style={{ position: 'absolute', width: '500px', height: '500px', top: '75%', left: '-120px', borderRadius: '50%', background: 'radial-gradient(circle,rgba(11,60,93,0.04),transparent 70%)', filter: 'blur(90px)', animation: 'ph-float 18s ease-in-out 4s infinite alternate' }} />
+      </div>
+
+      {/* ══ Fixed side decorations — visible on entire page ══ */}
+      <div style={{ position:'fixed', left:0, top:0, height:'100%', width:260, overflow:'hidden', pointerEvents:'none', zIndex:1, opacity:0.4 }} className="hidden xl:block">
+        <svg width="260" height="100%" viewBox="0 0 260 900" preserveAspectRatio="none" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ height:'100%', width:'100%' }}>
+          <path d="M-80,0 Q60,200 -30,400 T10,700 Q-80,820 -180,900 L-180,0 Z" fill="#0B3C5D" fillOpacity="0.05" />
+          <path d="M-60,0 Q90,220 0,420 T20,680 Q-90,800 -180,900 L-180,0 Z" fill="#f97316" fillOpacity="0.06" />
+          <path d="M-10,0 Q130,220 0,440 T20,760 Q-60,840 -110,900" stroke="#0B3C5D" strokeWidth="3" strokeLinecap="round" opacity="0.5" />
+          <path d="M-30,0 Q100,230 -10,430 T10,770 Q-80,850 -130,900" stroke="#f97316" strokeWidth="2" strokeLinecap="round" opacity="0.5" />
+          <circle cx="40" cy="160" r="90" stroke="#0B3C5D" strokeOpacity="0.04" strokeWidth="1.5" />
+          <circle cx="40" cy="160" r="60" stroke="#0B3C5D" strokeOpacity="0.04" strokeWidth="1.5" />
+          <circle cx="-10" cy="580" r="110" stroke="#f97316" strokeOpacity="0.04" strokeWidth="1.5" />
+          <circle cx="-10" cy="580" r="75" stroke="#f97316" strokeOpacity="0.04" strokeWidth="1.5" />
+        </svg>
+        <div style={{ position:'absolute', top:'22%', left:80, fontSize:'1.5rem', animation:'ph-float 4s ease-in-out infinite alternate' }}>💡</div>
+        <div style={{ position:'absolute', top:'60%', left:60, fontSize:'1.2rem', animation:'ph-float 3s ease-in-out 1s infinite alternate' }}>💡</div>
+      </div>
+
+      <div style={{ position:'fixed', right:0, top:0, height:'100%', width:260, overflow:'hidden', pointerEvents:'none', zIndex:0, opacity:0.4 }} className="hidden xl:block">
+        <svg width="260" height="100%" viewBox="0 0 260 900" preserveAspectRatio="none" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ height:'100%', width:'100%' }}>
+          <path d="M340,0 Q230,200 330,400 T280,700 Q380,820 460,900 L460,0 Z" fill="#0B3C5D" fillOpacity="0.05" />
+          <path d="M320,0 Q210,220 310,420 T270,680 Q390,800 460,900 L460,0 Z" fill="#f97316" fillOpacity="0.06" />
+          <path d="M270,0 Q170,220 280,440 T240,760 Q320,840 370,900" stroke="#0B3C5D" strokeWidth="3" strokeLinecap="round" opacity="0.5" />
+          <path d="M290,0 Q190,230 270,430 T250,770 Q340,850 390,900" stroke="#f97316" strokeWidth="2" strokeLinecap="round" opacity="0.5" />
+          <circle cx="220" cy="300" r="95" stroke="#0B3C5D" strokeOpacity="0.04" strokeWidth="1.5" />
+          <circle cx="220" cy="300" r="65" stroke="#0B3C5D" strokeOpacity="0.04" strokeWidth="1.5" />
+          <circle cx="250" cy="680" r="85" stroke="#f97316" strokeOpacity="0.04" strokeWidth="1.5" />
+          <circle cx="250" cy="680" r="55" stroke="#f97316" strokeOpacity="0.04" strokeWidth="1.5" />
+          <circle cx="250" cy="300" r="110" stroke="#0B3C5D" strokeOpacity="0.06" strokeWidth="2" />
+          <circle cx="250" cy="300" r="80" stroke="#0B3C5D" strokeOpacity="0.06" strokeWidth="2" />
+          <circle cx="280" cy="650" r="90" stroke="#f97316" strokeOpacity="0.05" strokeWidth="2" />
+          <circle cx="280" cy="650" r="60" stroke="#f97316" strokeOpacity="0.05" strokeWidth="2" />
+        </svg>
+        <div style={{ position:'absolute', top:'35%', right:60, fontSize:'1.5rem', animation:'ph-float 5s ease-in-out infinite alternate' }}>💡</div>
+        <div style={{ position:'absolute', top:'65%', right:80, animation:'ph-float 2.5s ease-in-out 0.5s infinite alternate' }}>
+          <Shield style={{ width:20, height:20, color:'#3b82f6', opacity:0.6 }} />
+        </div>
+      </div>
 
       {/* ── Navbar ── */}
-      <nav style={{ position: 'fixed', top: 0, insetInline: 0, zIndex: 100, background: 'rgba(7,8,15,0.85)', backdropFilter: 'blur(16px)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+      <nav style={{ position: 'fixed', top: 0, insetInline: 0, zIndex: 100, background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(16px)', borderBottom: '1px solid rgba(11,60,93,0.1)' }}>
         <div className="max-w-6xl mx-auto px-5 h-16 flex items-center justify-between">
-          <img src={wathbaLogo} alt="وثبة" className="h-9 object-contain rounded-xl" />
-          <div className="hidden md:flex items-center gap-6 text-sm text-white/60">
-            <a href="#features"  className="hover:text-white transition-colors">المميزات</a>
-            <a href="#about"     className="hover:text-white transition-colors">عن المنصه</a>
-            <a href="#faq"       className="hover:text-white transition-colors">الأسئلة الشائعة</a>
+          <img src={wathbaLogo} alt="وثبة" className="h-9 object-contain rounded-xl shadow-sm" />
+          <div className="hidden md:flex items-center gap-6 text-sm text-[#0B3C5D]/75 font-semibold">
+            <a href="#features"  className="hover:text-[#0B3C5D] transition-colors">المميزات</a>
+            <a href="#about"     className="hover:text-[#0B3C5D] transition-colors">عن المنصه</a>
+            <a href="#faq"       className="hover:text-[#0B3C5D] transition-colors">الأسئلة الشائعة</a>
           </div>
           <a href={WHATSAPP} target="_blank" rel="noopener noreferrer"
             className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold px-4 py-2 rounded-xl transition-colors">
@@ -301,13 +346,12 @@ export default function PlatformHome() {
       </nav>
 
       {/* ── Hero ── */}
-      <section style={{ position: 'relative', paddingTop: '130px', paddingBottom: '100px', overflow: 'hidden' }}>
-        <div className="ph-orb" style={{ width: 600, height: 600, top: -150, right: -100, background: 'radial-gradient(circle, #f97316, transparent 70%)' }} />
-        <div className="ph-orb" style={{ width: 500, height: 500, bottom: -100, left: -80, background: 'radial-gradient(circle, #7c3aed, transparent 70%)' }} />
+      <section style={{ position: 'relative', paddingTop: '130px', paddingBottom: '100px' }}>
+
 
         <div className="max-w-4xl mx-auto px-5 text-center relative z-10">
           <Reveal delay={0.1}>
-            <h1 className="text-5xl md:text-7xl font-black leading-tight mb-6 text-white">
+            <h1 className="text-5xl md:text-7xl font-black leading-tight mb-6 text-[#0B3C5D]">
               منصتك التعليمية
               <br />
               <span className="ph-gradient-text">بهويتك الخاصة</span>
@@ -315,7 +359,7 @@ export default function PlatformHome() {
           </Reveal>
 
           <Reveal delay={0.2}>
-            <p className="text-white/50 text-lg md:text-xl leading-relaxed max-w-2xl mx-auto mb-10">
+            <p className="text-[#0B3C5D]/65 text-lg md:text-xl leading-relaxed max-w-2xl mx-auto mb-10">
               احصل على منصتك التعليمية الخاصة برابط فريد ولوجو خاص بيك —
               إدارة كورسات، امتحانات، طلاب، ومدفوعات في مكان واحد.
               مصممة خصيصاً لمدرسي السناتر في مصر.
@@ -330,7 +374,7 @@ export default function PlatformHome() {
                 احجز منصتك الآن
               </a>
               <a href="#features"
-                className="flex items-center gap-2 bg-white/8 hover:bg-white/12 text-white font-semibold px-7 py-3.5 rounded-2xl text-base border border-white/10 transition-all">
+                className="flex items-center gap-2 bg-[#0B3C5D]/5 hover:bg-[#0B3C5D]/10 text-[#0B3C5D] font-semibold px-7 py-3.5 rounded-2xl text-base border border-[#0B3C5D]/15 transition-all">
                 اعرف أكثر
                 <ArrowLeft className="w-4 h-4" />
               </a>
@@ -339,7 +383,7 @@ export default function PlatformHome() {
 
           {/* Stats bar */}
           <Reveal delay={0.5}>
-            <div className="mt-16 pt-10 border-t border-white/10 grid grid-cols-2 md:grid-cols-4 gap-8">
+            <div className="mt-16 pt-10 border-t border-[#0B3C5D]/10 grid grid-cols-2 md:grid-cols-4 gap-8">
               <StatCard value={500}  suffix="+"  label="طالب على المنصة"    />
               <StatCard value={12}   suffix="+"  label="مدرس يستخدم المنصة" />
               <StatCard value={98}   suffix="٪"  label="رضا العملاء"        />
@@ -352,12 +396,12 @@ export default function PlatformHome() {
       {/* ── Features ── */}
       <section id="features" className="max-w-6xl mx-auto px-5 py-20">
         <Reveal className="text-center mb-12">
-          <div className="inline-flex items-center gap-2 bg-orange-500/10 border border-orange-500/25 text-orange-400 text-xs font-bold px-4 py-1.5 rounded-full mb-4 tracking-widest uppercase">
+          <div className="inline-flex items-center gap-2 bg-orange-500/10 border border-orange-500/20 text-orange-600 text-xs font-bold px-4 py-1.5 rounded-full mb-4 tracking-widest uppercase">
             <Star className="w-3.5 h-3.5" />
             المميزات
           </div>
-          <h2 className="text-4xl font-black text-white mb-3">كل اللي محتاجه في مكان واحد</h2>
-          <p className="text-white/40 max-w-lg mx-auto">منصة شاملة بتغطي كل جوانب العملية التعليمية من أول التسجيل لحد تتبع الأداء.</p>
+          <h2 className="text-4xl font-black text-[#0B3C5D] mb-3">كل اللي محتاجه في مكان واحد</h2>
+          <p className="text-[#0B3C5D]/50 max-w-lg mx-auto">منصة شاملة بتغطي كل جوانب العملية التعليمية من أول التسجيل لحد تتبع الأداء.</p>
         </Reveal>
         <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
           {features.map((f, i) => <FeatureCard key={i} {...f} />)}
@@ -367,11 +411,11 @@ export default function PlatformHome() {
       {/* ── How it works ── */}
       <section className="max-w-4xl mx-auto px-5 py-16">
         <Reveal className="text-center mb-12">
-          <div className="inline-flex items-center gap-2 bg-violet-500/10 border border-violet-500/25 text-violet-400 text-xs font-bold px-4 py-1.5 rounded-full mb-4 tracking-widest uppercase">
+          <div className="inline-flex items-center gap-2 bg-violet-500/10 border border-violet-500/20 text-violet-600 text-xs font-bold px-4 py-1.5 rounded-full mb-4 tracking-widest uppercase">
             <Zap className="w-3.5 h-3.5" />
             كيف يشتغل؟
           </div>
-          <h2 className="text-4xl font-black text-white mb-3">٣ خطوات وانت شغّال</h2>
+          <h2 className="text-4xl font-black text-[#0B3C5D] mb-3">٣ خطوات وانت شغّال</h2>
         </Reveal>
         <div className="grid md:grid-cols-3 gap-6">
           {[
@@ -380,12 +424,12 @@ export default function PlatformHome() {
             { num: '٣', title: 'ابدأ التدريس', desc: 'ارفع كورساتك وأضف طلابك وابدأ تحصل على نتائج فعلية.' },
           ].map((step, i) => (
             <Reveal key={i} delay={i * 0.1}>
-              <div className="relative bg-white/[0.04] border border-white/10 rounded-2xl p-6 text-center ph-card-glow">
+              <div className="relative bg-white border border-slate-100 rounded-2xl p-6 text-center ph-card-glow shadow-sm">
                 <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-2xl font-black text-white mx-auto mb-4">
                   {step.num}
                 </div>
-                <h3 className="text-white font-bold text-lg mb-2">{step.title}</h3>
-                <p className="text-white/50 text-sm leading-relaxed">{step.desc}</p>
+                <h3 className="text-[#0B3C5D] font-bold text-lg mb-2">{step.title}</h3>
+                <p className="text-slate-500 text-sm leading-relaxed">{step.desc}</p>
               </div>
             </Reveal>
           ))}
@@ -394,35 +438,35 @@ export default function PlatformHome() {
 
       {/* ── About Developer ── */}
       <section id="about" className="max-w-4xl mx-auto px-5 py-16">
-        <div className="bg-gradient-to-br from-white/[0.05] to-white/[0.02] border border-white/10 rounded-3xl p-8 md:p-12">
+        <div className="bg-white border border-slate-200/60 rounded-3xl p-8 md:p-12 shadow-md">
           <Reveal>
-            <div className="inline-flex items-center gap-2 bg-violet-500/10 border border-violet-500/25 text-violet-400 text-xs font-bold px-4 py-1.5 rounded-full mb-6 tracking-widest uppercase">
+            <div className="inline-flex items-center gap-2 bg-violet-500/10 border border-violet-500/20 text-violet-600 text-xs font-bold px-4 py-1.5 rounded-full mb-6 tracking-widest uppercase">
               <GraduationCap className="w-3.5 h-3.5" />
               عن المنصه
             </div>
           </Reveal>
           <div className="flex flex-col md:flex-row items-start gap-8">
             <Reveal className="flex-shrink-0">
-              <div className="w-28 h-28 rounded-2xl bg-white flex items-center justify-center p-3 shadow-lg shadow-black/20 select-none">
+              <div className="w-28 h-28 rounded-2xl bg-white flex items-center justify-center p-3 shadow-md border border-slate-100 select-none">
                 <img src={wathbaLogo} alt="وثبة" className="w-full h-full object-contain" />
               </div>
             </Reveal>
             <Reveal delay={0.1} className="flex-1">
-              <h3 className="text-white text-2xl font-black mb-1">منصة وثبة التعليمية</h3>
-              <p className="text-orange-400 font-semibold text-sm mb-4">منصتك التعليمية بهويتك الخاصة · مصر</p>
-              <p className="text-white/55 leading-relaxed mb-6">
+              <h3 className="text-[#0B3C5D] text-2xl font-black mb-1">منصة وثبة التعليمية</h3>
+              <p className="text-orange-500 font-semibold text-sm mb-4">منصتك التعليمية بهويتك الخاصة · مصر</p>
+              <p className="text-slate-500 leading-relaxed mb-6">
                 وثبة منصة تعليمية متكاملة مصممة خصيصاً لمدرسي السناتر في مصر — بتوفّر لكل
                 مدرس منصته الخاصة بيه، بإدارة كورسات وامتحانات وطلاب ومدفوعات في مكان واحد،
                 مع فريق دعم فني جاهز يساعدك في أي وقت.
               </p>
               <div className="flex flex-wrap gap-3">
                 <a href={WHATSAPP} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-2 bg-green-500/15 hover:bg-green-500/25 border border-green-500/30 text-green-400 text-sm font-semibold px-4 py-2.5 rounded-xl transition-all">
+                  className="flex items-center gap-2 bg-green-500/10 hover:bg-green-500/20 border border-green-500/25 text-green-600 text-sm font-semibold px-4 py-2.5 rounded-xl transition-all">
                   <MessageCircle className="w-4 h-4" />
                   واتساب: {PHONE}
                 </a>
                 <a href={`mailto:${EMAIL}`}
-                  className="flex items-center gap-2 bg-violet-500/15 hover:bg-violet-500/25 border border-violet-500/30 text-violet-400 text-sm font-semibold px-4 py-2.5 rounded-xl transition-all">
+                  className="flex items-center gap-2 bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/25 text-violet-600 text-sm font-semibold px-4 py-2.5 rounded-xl transition-all">
                   <Mail className="w-4 h-4" />
                   {EMAIL}
                 </a>
@@ -435,27 +479,29 @@ export default function PlatformHome() {
       {/* ── FAQ ── */}
       <section id="faq" className="max-w-3xl mx-auto px-5 py-16">
         <Reveal className="text-center mb-10">
-          <div className="inline-flex items-center gap-2 bg-orange-500/10 border border-orange-500/25 text-orange-400 text-xs font-bold px-4 py-1.5 rounded-full mb-4 tracking-widest uppercase">
+          <div className="inline-flex items-center gap-2 bg-orange-500/10 border border-orange-500/20 text-orange-600 text-xs font-bold px-4 py-1.5 rounded-full mb-4 tracking-widest uppercase">
             الأسئلة الشائعة
           </div>
-          <h2 className="text-4xl font-black text-white">عندك سؤال؟</h2>
+          <h2 className="text-4xl font-black text-[#0B3C5D]">عندك سؤال؟</h2>
         </Reveal>
         <div className="space-y-3">
           {faqs.map((f, i) => <FAQItem key={i} {...f} />)}
         </div>
       </section>
 
-      {/* ── CTA Banner ── */}
+
+      {/* ── FAQ Section ── */}
       <section className="max-w-4xl mx-auto px-5 py-10 mb-10">
         <Reveal>
-          <div className="relative overflow-hidden bg-gradient-to-r from-orange-500/20 via-orange-500/10 to-violet-600/15 border border-orange-500/25 rounded-3xl p-10 text-center">
-            <div className="ph-orb" style={{ width: 300, height: 300, top: -100, right: -50, background: 'radial-gradient(circle, #f97316, transparent 70%)', opacity: 0.2 }} />
-            <div className="ph-orb" style={{ width: 250, height: 250, bottom: -80, left: -30, background: 'radial-gradient(circle, #7c3aed, transparent 70%)', opacity: 0.2 }} />
+          <div className="relative overflow-hidden bg-white border border-slate-200/85 rounded-3xl p-10 text-center shadow-md">
+            <div className="absolute inset-0 bg-gradient-to-br from-white via-[#F4F6F9] to-[#E9EDF0]" />
+            <div className="ph-orb" style={{ width: 300, height: 300, top: -100, right: -50, background: 'radial-gradient(circle, rgba(249,115,22,0.06), transparent 70%)', opacity: 0.8 }} />
+            <div className="ph-orb" style={{ width: 250, height: 250, bottom: -80, left: -30, background: 'radial-gradient(circle, rgba(124,58,237,0.05), transparent 70%)', opacity: 0.8 }} />
             <div className="relative z-10">
-              <h2 className="text-3xl md:text-4xl font-black text-white mb-3">
+              <h2 className="text-3xl md:text-4xl font-black text-[#0B3C5D] mb-3">
                 جاهز تبدأ منصتك؟
               </h2>
-              <p className="text-white/50 mb-8 text-lg">
+              <p className="text-[#0B3C5D]/65 mb-8 text-lg">
                 كلمنا دلوقتي وهنجهّزلك كل حاجة خلال 24 ساعة.
               </p>
               <a href={WHATSAPP} target="_blank" rel="noopener noreferrer"
@@ -471,20 +517,20 @@ export default function PlatformHome() {
       <DevAccessPanel />
 
       {/* ── Footer ── */}
-      <footer className="border-t border-white/10 py-8">
+      <footer className="border-t border-slate-200 py-8 bg-white">
         <div className="max-w-6xl mx-auto px-5 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <img src={wathbaLogo} alt="وثبة" className="h-8 object-contain rounded-xl" />
-            <span className="text-white/30 text-sm">منصة تعليمية متكاملة</span>
+            <img src={wathbaLogo} alt="وثبة" className="h-8 object-contain rounded-xl shadow-sm" />
+            <span className="text-[#0B3C5D]/50 text-sm font-semibold">منصة تعليمية متكاملة</span>
           </div>
-          <p className="text-white/25 text-sm">
+          <p className="text-[#0B3C5D]/40 text-sm font-medium">
             © {new Date().getFullYear()} وثبة — جميع الحقوق محفوظة
           </p>
-          <div className="flex items-center gap-4 text-white/40 text-sm">
-            <a href={WHATSAPP} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">واتساب</a>
-            <a href={`mailto:${EMAIL}`} className="hover:text-white transition-colors">البريد الإلكتروني</a>
-            <a href="/terms" className="hover:text-white transition-colors">الشروط والأحكام</a>
-            <a href="/privacy" className="hover:text-white transition-colors">سياسة الخصوصية</a>
+          <div className="flex items-center gap-4 text-[#0B3C5D]/50 text-sm font-semibold">
+            <a href={WHATSAPP} target="_blank" rel="noopener noreferrer" className="hover:text-orange-500 transition-colors">واتساب</a>
+            <a href={`mailto:${EMAIL}`} className="hover:text-orange-500 transition-colors">البريد الإلكتروني</a>
+            <a href="/terms" className="hover:text-orange-500 transition-colors">الشروط والأحكام</a>
+            <a href="/privacy" className="hover:text-orange-500 transition-colors">سياسة الخصوصية</a>
           </div>
         </div>
       </footer>
