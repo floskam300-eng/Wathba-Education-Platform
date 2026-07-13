@@ -1,340 +1,205 @@
 <div align="center">
-  <img src="client/src/assets/wathba_logo_transparent.png" alt="وثبة" width="120" />
+  <img src="client/public/wathba-logo.png" alt="Wathba Logo" width="110" />
 
-  # وثبة — Wathba Educational Platform
+  <h1>Wathba — وثبة</h1>
+  <p><strong>Multi-tenant LMS for private tutoring centers in Egypt</strong></p>
 
-  **منصة تعليمية متكاملة لمراكز الدروس الخصوصية في مصر**
-
-  ![Node.js](https://img.shields.io/badge/Node.js-20-green?logo=node.js)
-  ![React](https://img.shields.io/badge/React-18-blue?logo=react)
-  ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue?logo=postgresql)
-  ![Tailwind CSS](https://img.shields.io/badge/Tailwind-3-cyan?logo=tailwindcss)
+  ![Node.js](https://img.shields.io/badge/Node.js-20-339933?logo=node.js&logoColor=white)
+  ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
+  ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)
+  ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3-06B6D4?logo=tailwindcss&logoColor=white)
   ![License](https://img.shields.io/badge/License-Private-red)
 </div>
 
 ---
 
-## نظرة عامة
+## Overview
 
-**وثبة** هي منصة تعليمية شاملة مصممة خصيصاً لمراكز الدروس الخصوصية في مصر. تتيح للمعلمين إدارة الكورسات، الامتحانات، وتتبع أداء الطلاب بشكل احترافي — مع نظام نقاط وشارات، بث مباشر، وفعاليات تفاعلية.
+**Wathba** is a full-stack Software-as-a-Service (SaaS) Learning Management System built for private tutoring centers in Egypt. Each teacher gets an isolated, branded subdomain (`teacher-name.wathba.site`) with their own students, courses, exams, and analytics — completely separated from other tenants.
 
-### المستخدمون الرئيسيون
-| الدور | الوصف |
-|-------|-------|
-| 👨‍🏫 **معلم** | لوحة تحكم كاملة — إنشاء كورسات وامتحانات، إدارة طلاب ومساعدين، تحليلات، بث مباشر |
-| 🧑‍💼 **مساعد** | صلاحيات قابلة للتخصيص من المعلم (9 نوع من الصلاحيات) |
-| 🎓 **طالب** | مشاهدة فيديوهات، تأدية امتحانات، متصدرين، فعاليات أسبوعية |
+The platform supports **three user roles** (Teacher · Assistant · Student) with a rich feature set covering the entire lifecycle of online tutoring: content delivery, examination, payments, live streaming, gamification, and parent communication.
 
 ---
 
-## التقنيات المستخدمة
+## Key Features
 
-| الطبقة | التقنية |
-|--------|---------|
-| Frontend | React 18 + Vite 5 + Tailwind CSS 3 + React Router 6 |
-| Backend | Node.js 20 + Express 4 |
-| Database | PostgreSQL (Replit managed) via `pg` pool |
-| Auth | JWT (jsonwebtoken) + bcryptjs |
-| Real-time | SSE (Server-Sent Events) + Firebase Cloud Messaging |
-| Charts | ECharts |
-| Live Stream | LiveKit |
-| PDF | jsPDF + jspdf-autotable |
-| File Uploads | Multer → `/uploads/` |
+| Area | Highlights |
+|------|-----------|
+| **Multi-Tenant SaaS** | Subdomain-based tenant isolation, custom branding per teacher, installable PWA per tenant |
+| **Course Management** | Sections → Videos → PDFs, multi-quality video (480p/720p/1080p), resume playback, progress tracking |
+| **Exam Engine** | MCQ, True/False, Essay, Image-Multi question types · Question banks with random selection · Server-side timer & anti-cheat sessions · Full attempt history |
+| **Recitations** | Scheduled recurring quizzes (once / daily / weekly) · Server-side sessions · Automated absent marking |
+| **Live Streaming** | LiveKit WebRTC integration · Chat, hand-raise queue, speaker permissions, screen sharing, kick moderation |
+| **Payments** | InstaPay / Vodafone Cash / Fawry · Receipt upload → manual verification → auto enrollment |
+| **Gamification** | Leaderboard with monthly reset · Badges (gold/silver/bronze) · Stickman Run educational canvas game |
+| **Notifications** | Real-time SSE · Firebase Cloud Messaging push · WhatsApp (Baileys) with broadcast scheduling |
+| **Analytics** | Per-student performance charts (ECharts) · Wrong-question analysis · PDF report export (jsPDF) |
+| **Assistant RBAC** | 9 granular permission flags per assistant account, cached for performance |
+| **Security** | JWT auth + token blacklisting · Rate limiting · Helmet security headers · Magic-byte file validation · Protected media endpoints |
+| **Audit & Archive** | Full activity log · Soft-delete for students & exams · Archive system |
 
 ---
 
-## هيكل المشروع
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| **Frontend** | React 18 · Vite 5 · Tailwind CSS 3 · React Router 6 · TanStack Query 5 |
+| **Backend** | Node.js 20 · Express 4 |
+| **Database** | PostgreSQL 16 via `pg` pool |
+| **Auth** | JWT (`jsonwebtoken`) · `bcryptjs` |
+| **Real-time** | Server-Sent Events (SSE) · Firebase Cloud Messaging |
+| **Live Stream** | LiveKit (self-hosted via Docker + Caddy) |
+| **WhatsApp** | Baileys (WhatsApp Web API) |
+| **Charts** | ECharts · `echarts-for-react` |
+| **PDF** | `jsPDF` · `jspdf-autotable` · `pdfjs-dist` |
+| **Math rendering** | KaTeX |
+| **File Uploads** | Multer → `/uploads/` with JWT-protected access |
+| **Spreadsheets** | SheetJS (xlsx) for bulk import/export |
+
+---
+
+## Architecture
+
+```
+Browser
+  │
+  ├── Subdomain (mr-ahmed.wathba.site)
+  │     └── Tenant resolved server-side via Host header
+  │
+  ├── React SPA  (Vite dev: port 5000 → proxies /api to 3001)
+  │     ├── AuthContext  — JWT state, proactive token refresh
+  │     ├── TanStack Query — server-state, caching, background refetch
+  │     └── Axios instance — injects Authorization + X-Tenant-Slug headers
+  │
+  └── Express API  (port 3001)
+        ├── subdomainTenant middleware  — resolves teacher from Host header
+        ├── auth middleware             — JWT verification & role guard
+        ├── SSE /api/sse               — real-time push (exam publish, retry, etc.)
+        ├── Multer /uploads/           — file upload with magic-byte validation
+        ├── FCM lib                    — mobile push via Firebase
+        ├── Baileys                    — WhatsApp message delivery
+        └── pg Pool → PostgreSQL       — multi-tenant data, all scoped by teacher_id
+```
+
+---
+
+## Project Structure
 
 ```
 wathba/
-├── client/                          # React frontend (Vite)
-│   ├── index.html                   # HTML entry — title, favicon, Google Fonts
-│   ├── vite.config.js               # proxy /api → port 3001, host: true
-│   ├── tailwind.config.js           # RTL, custom colors
-│   ├── public/
-│   │   ├── favicon.png              # لوجو وثبة (transparent) — browser tab icon
-│   │   ├── wathba-logo.png
-│   │   ├── default-course.svg       # صورة افتراضية للكورس
-│   │   ├── teacher-{normal,sad,fury}.png  # صور المعلم للـ Boss game
-│   │   └── firebase-messaging-sw.js # Service worker للـ FCM
+├── client/                  # React + Vite frontend
+│   ├── public/              # PWA assets, service worker, favicon
 │   └── src/
-│       ├── main.jsx                 # React entry — QueryClient, AuthProvider
-│       ├── App.jsx                  # React Router — كل الـ routes
-│       ├── assets/                  # الـ logos بصيغ مختلفة
-│       ├── context/
-│       │   ├── AuthContext.jsx      # JWT auth state — login / logout / user
-│       │   ├── ThemeContext.jsx     # Dark/Light mode
-│       │   └── LiveStreamContext.jsx
-│       ├── lib/
-│       │   ├── api.js               # Axios instance + JWT Authorization header
-│       │   └── queryClient.js       # React Query config
-│       ├── layouts/
-│       │   ├── TeacherLayout.jsx    # Sidebar + navbar للمعلم
-│       │   ├── AssistantLayout.jsx  # Sidebar + navbar للمساعد
-│       │   └── StudentLayout.jsx    # Sidebar + navbar للطالب
-│       ├── components/
-│       │   ├── ProtectedRoute.jsx   # Route guard by role
-│       │   ├── VideoPlayer.jsx      # مشغل الفيديو مع تتبع التقدم
-│       │   ├── PdfViewer.jsx        # عارض ملفات PDF
-│       │   ├── ExamTimer.jsx        # مؤقت الامتحان
-│       │   ├── NotificationBell.jsx # جرس الإشعارات
-│       │   └── ...
-│       └── pages/
-│           ├── Login.jsx            # تسجيل دخول موحّد (3 أدوار)
-│           ├── Landing.jsx          # الصفحة الرئيسية (public)
-│           ├── teacher/             # صفحات المعلم
-│           │   ├── Dashboard.jsx        # إحصائيات + ملخص سريع
-│           │   ├── Students.jsx         # إدارة الطلاب (بحث، فلترة، تصدير)
-│           │   ├── StudentProfile.jsx   # بروفايل الطالب التفصيلي
-│           │   ├── Courses.jsx          # إدارة الكورسات
-│           │   ├── CourseDetail.jsx     # رفع فيديوهات + PDF + أقسام
-│           │   ├── Exams.jsx            # قائمة الامتحانات
-│           │   ├── ExamCreate.jsx       # إنشاء امتحان + أسئلة
-│           │   ├── ExamResults.jsx      # نتائج + تحليل
-│           │   ├── Payments.jsx         # طلبات الدفع والتحقق
-│           │   ├── Requests.jsx         # طلبات تسجيل الطلاب في الكورسات
-│           │   ├── Analytics.jsx        # تحليلات أداء الطلاب (رسوم بيانية)
-│           │   ├── LiveStream.jsx       # إدارة البث المباشر (LiveKit)
-│           │   ├── Notifications.jsx    # إرسال إشعارات
-│           │   ├── Assistants.jsx       # إدارة المساعدين + صلاحياتهم
-│           │   ├── Leaderboard.jsx      # متصدرو الطلاب
-│           │   ├── Backup.jsx           # تصدير/استيراد بيانات
-│           │   └── Settings.jsx         # إعدادات المنصة
-│           ├── assistant/           # صفحات المساعد (مشروطة بالصلاحيات)
-│           │   ├── Dashboard.jsx
-│           │   ├── Students.jsx
-│           │   ├── Exams.jsx
-│           │   └── Payments.jsx
-│           └── student/             # صفحات الطالب
-│               ├── Dashboard.jsx        # نقاط، كورسات، آخر نشاط
-│               ├── Courses.jsx          # الكورسات المتاحة والمسجّلة
-│               ├── CourseView.jsx       # مشاهدة الكورس — فيديو + PDF + امتحانات
-│               ├── Exams.jsx            # الامتحانات المتاحة
-│               ├── ExamTake.jsx         # تأدية الامتحان
-│               ├── ExamReview.jsx       # مراجعة الإجابات
-│               ├── Leaderboard.jsx      # ترتيب الطلاب
-│               ├── MyStats.jsx          # إحصائيات الطالب الشخصية
-│               ├── LiveStream.jsx       # مشاهدة البث المباشر
-│               ├── Events.jsx           # الفعاليات الأسبوعية
-│               └── games/
-│                   ├── StickmanRunPage.jsx   # صفحة اللعبة
-│                   ├── StickmanRun.jsx       # لعبة canvas — هروب + Boss fights
-│                   └── gameConfig.js         # أسئلة الـ Boss حسب المرحلة الدراسية
+│       ├── context/         # Auth, Theme, LiveStream contexts
+│       ├── layouts/         # Teacher / Assistant / Student shells
+│       ├── pages/
+│       │   ├── teacher/     # 25+ management pages
+│       │   ├── assistant/   # Permission-gated pages
+│       │   └── student/     # Course viewer, exams, games, stats
+│       └── components/      # Shared UI (VideoPlayer, PdfViewer, ExamTimer, …)
 │
-├── server/                          # Node.js / Express backend
-│   ├── index.js                     # Entry — Express، initDB، routes، static files
-│   ├── sse.js                       # Server-Sent Events — real-time push للـ client
+├── server/
+│   ├── index.js             # Entry point — Express, DB init, route mounting
 │   ├── db/
-│   │   ├── connection.js            # pg Pool — DATABASE_URL
-│   │   ├── schema.sql               # كل الجداول (CREATE TABLE IF NOT EXISTS)
-│   │   └── seed.js                  # بيانات تجريبية شاملة
-│   ├── middleware/
-│   │   ├── auth.js                  # JWT verification — requireAuth, requireRole
-│   │   └── validate.js              # Input validation helpers
-│   ├── lib/
-│   │   ├── fcm.js                   # Firebase Cloud Messaging
-│   │   ├── permissionsCache.js      # Cache صلاحيات المساعدين
-│   │   └── cache.js                 # General caching
-│   └── routes/
-│       ├── auth.js                  # /api/auth — login, /me
-│       ├── teachers.js              # /api/teachers — profile, settings
-│       ├── students.js              # /api/students — CRUD، analytics، video progress
-│       ├── assistants.js            # /api/assistants — CRUD، permissions
-│       ├── courses.js               # /api/courses — CRUD، sections، videos، PDFs
-│       ├── exams.js                 # /api/exams — CRUD، questions، submit، results
-│       ├── payments.js              # /api/payments — enrollment، verification
-│       ├── notifications.js         # /api/notifications — send، log
-│       ├── live.js                  # /api/live — LiveKit tokens، chat، hand-raise
-│       ├── events.js                # /api/events — Stickman game scores
-│       └── leaderboard.js           # /api/leaderboard — rankings، history
+│   │   ├── schema.sql       # All tables (CREATE TABLE IF NOT EXISTS)
+│   │   └── seed.js          # Demo dataset with 3 teachers, students, content
+│   ├── middleware/          # auth.js · subdomainTenant.js · validate.js
+│   ├── lib/                 # fcm.js · whatsapp.js · analyticsCache.js · …
+│   └── routes/              # auth · teachers · students · courses · exams
+│                            # recitations · payments · live · notifications
+│                            # questionBanks · archive · activityLogs · events
 │
-├── reports/                         # تقارير التدقيق والإصلاح
-│   ├── AUDIT_REPORT.md              # تقرير التدقيق الشامل
-│   ├── FIX_REPORT.md                # تقرير إصلاح الثغرات
-│   ├── LIVESTREAM_TESTS.md          # اختبارات البث المباشر
-│   ├── SECURITY_AUDIT.md            # تقرير أمني
-│   ├── TESTS_FIX_REPORT.md          # تقرير نتائج الاختبارات
-│   └── EXAMS_AUDIT.md               # تدقيق نظام الامتحانات
-├── docs/                            # وثائق المنصة
-│   ├── wathba-platform-overview.md  # نظرة عامة على المنصة
-│   └── replit.md                    # دليل نشر Replit
-├── scripts/                         # سكربتات التشغيل
-│   ├── start_platform.bat           # تشغيل المنصة (Windows)
-│   └── start.sh                     # تشغيل المنصة (Linux/Mac)
-├── uploads/                         # ملفات المرفوعة (صور، PDFs، فيديوهات)
-├── package.json                     # Root scripts: dev، build، server
-└── .env                             # DATABASE_URL، JWT_SECRET، PORT
+├── live-service/            # LiveKit self-host config (Docker Compose + Caddy)
+├── docs/                    # Platform overview & deployment guide
+├── scripts/                 # start.sh / start-dev.bat / reset-db helpers
+├── .env.example             # All required environment variables documented
+└── package.json             # Root scripts: dev · build · start · seed · reset
 ```
 
 ---
 
-## قاعدة البيانات
+## Getting Started
 
-<details>
-<summary>عرض كل الجداول (22 جدول)</summary>
+### Prerequisites
+- Node.js ≥ 20
+- PostgreSQL 16
 
-| الجدول | الأعمدة الرئيسية | الوصف |
-|--------|-----------------|-------|
-| `teachers` | id, username, password, name, bio, classification, logo_url, photo_url, whatsapp_phone | المعلمون |
-| `assistants` | id, username, password, name, teacher_id, 9×can_* | المساعدون + صلاحياتهم |
-| `students` | id, username, password, name, phone, parent_phone, academic_stage, points, deleted_at | الطلاب |
-| `courses` | id, name, description, price, is_free, target_stage, thumbnail_url, teacher_id | الكورسات |
-| `sections` | id, course_id, title, sort_order | أقسام الكورس |
-| `videos` | id, course_id, section_id, title, file_path_or_url, duration_minutes, sort_order | الفيديوهات |
-| `pdf_files` | id, course_id, section_id, title, file_url, sort_order | ملفات PDF |
-| `exams` | id, course_id, title, duration_minutes, total_score, pass_score, status, start_date, end_date | الامتحانات |
-| `questions` | id, exam_id, text, type (mcq/true_false/essay), choices, correct_index | الأسئلة |
-| `exam_results` | id, exam_id, student_id, score, correct_count, wrong_count, unanswered_count, essay_pending | النتائج |
-| `exam_retry_requests` | id, exam_id, student_id, status (pending/accepted/rejected) | طلبات الإعادة |
-| `student_course_enrollment` | student_id, course_id, enrolled_at, status | التسجيل في الكورسات |
-| `course_enrollment_requests` | id, student_id, course_id, receipt_image_url, status, payment_method | طلبات التسجيل |
-| `payments` | id, student_id, course_id, amount, method, status, receipt_url, verified_at | المدفوعات |
-| `video_progress` | student_id, video_id, watched_minutes, progress_percentage, last_position, watch_count | تقدم الفيديو |
-| `badges` | id, student_id, exam_id, badge_type (gold/silver/bronze) | الشارات |
-| `live_streams` | id, teacher_id, title, room_id, status, started_at, ended_at | البث المباشر |
-| `live_chat_messages` | id, stream_id, sender_id, sender_role, message, sent_at | رسائل الشات |
-| `notification_log` | id, student_id, type, message, sent_at, read_at | سجل الإشعارات |
-| `leaderboard_history` | id, student_id, points, rank, month_year | سجل المتصدرين |
-| `leaderboard_reset_tracker` | id, next_reset_at | موعد إعادة الضبط |
-| `event_plays` | id, student_id, week_key, score, bosses_defeated, played_at | نتائج الألعاب |
-
-</details>
-
----
-
-## API الرئيسية
-
-<details>
-<summary>عرض كل الـ Endpoints</summary>
-
-### Auth
-| Method | Endpoint | الوصف |
-|--------|----------|-------|
-| POST | `/api/auth/login` | تسجيل دخول — يُعيد JWT + بيانات المستخدم |
-| GET | `/api/auth/me` | بيانات المستخدم الحالي من الـ token |
-
-### Students
-| Method | Endpoint | الوصف |
-|--------|----------|-------|
-| GET | `/api/students` | قائمة الطلاب |
-| POST | `/api/students` | إضافة طالب |
-| PUT | `/api/students/:id` | تعديل طالب |
-| DELETE | `/api/students/:id` | حذف (soft delete) |
-| GET | `/api/students/:id/analytics` | تحليلات أداء الطالب |
-| POST | `/api/students/me/video-progress` | تحديث تقدم الفيديو |
-
-### Courses
-| Method | Endpoint | الوصف |
-|--------|----------|-------|
-| GET | `/api/courses` | قائمة الكورسات |
-| POST | `/api/courses` | إنشاء كورس |
-| GET | `/api/courses/:id/content` | محتوى الكورس (فيديوهات + PDF + امتحانات) |
-| GET | `/api/courses/student/my-courses` | كورسات الطالب المسجّلة |
-
-### Exams
-| Method | Endpoint | الوصف |
-|--------|----------|-------|
-| GET | `/api/exams` | قائمة الامتحانات |
-| POST | `/api/exams` | إنشاء امتحان |
-| POST | `/api/exams/:id/submit` | تسليم الامتحان |
-| GET | `/api/exams/student/results` | نتائج الطالب |
-| POST | `/api/exams/:id/retry-request` | طلب إعادة الامتحان |
-
-### Payments & Enrollment
-| Method | Endpoint | الوصف |
-|--------|----------|-------|
-| POST | `/api/payments/request` | طلب تسجيل في كورس |
-| PUT | `/api/payments/:id/verify` | تأكيد الدفع |
-| GET | `/api/payments` | قائمة المدفوعات |
-
-### Live Stream
-| Method | Endpoint | الوصف |
-|--------|----------|-------|
-| GET | `/api/live/current` | الجلسة المباشرة الحالية |
-| POST | `/api/live/start` | بدء بث جديد |
-| POST | `/api/live/end` | إنهاء البث |
-
-### Events (Game)
-| Method | Endpoint | الوصف |
-|--------|----------|-------|
-| GET | `/api/events/weekly-run/status` | هل لعب الطالب هذا الأسبوع؟ |
-| POST | `/api/events/weekly-run/score` | تسجيل نتيجة اللعبة |
-
-</details>
-
----
-
-## كيف تتصل الأجزاء
-
-```
-المتصفح
-  │
-  ├── HTTPS/443 ──► Replit Proxy
-  │                     ├── port 5000 ──► Vite Dev Server ──► React App
-  │                     └── port 3001 ──► Express API
-  │
-  └── /api/* (proxied by Vite) ──► Express
-          ├── JWT Middleware ──────────────────► AuthContext (client)
-          ├── SSE /api/sse ────────────────────► real-time updates (exam published, retry)
-          ├── FCM lib ──► Firebase ────────────► Mobile push notifications
-          ├── Multer ──► /uploads/ ────────────► Static file serving
-          └── pg Pool ──► DATABASE_URL ────────► PostgreSQL
-```
-
----
-
-## التثبيت والتشغيل
+### Installation
 
 ```bash
-# 1. تثبيت الـ dependencies
+# 1. Clone and install dependencies
+git clone https://github.com/YOUR_USERNAME/wathba.git
+cd wathba
 npm install
 cd client && npm install && cd ..
 
-# 2. متغيرات البيئة (Replit env vars)
-DATABASE_URL=...
-JWT_SECRET=...
-PORT=3001
+# 2. Configure environment
+cp .env.example .env
+# Edit .env — fill in DATABASE_URL and JWT_SECRET
 
-# 3. تشغيل في وضع التطوير
-npm run dev
+# 3. Start development (backend on :3001, frontend on :5000)
+npm run dev          # backend
+npm run client       # frontend (separate terminal)
 
-# 4. ملء قاعدة البيانات ببيانات تجريبية (اختياري)
-node server/db/seed.js
+# 4. (Optional) Seed demo data
+npm run seed
 ```
 
+### Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | ✅ | PostgreSQL connection string |
+| `JWT_SECRET` | ✅ | Long random string for signing tokens |
+| `NODE_ENV` | ✅ | `development` or `production` |
+| `PORT` | — | Server port (default `3001`) |
+| `WILDCARD_DOMAIN` | — | Base domain for subdomain resolution (e.g. `wathba.site`) |
+| `LIVEKIT_API_KEY` | — | LiveKit server credentials (for live streaming) |
+| `LIVEKIT_API_SECRET` | — | LiveKit server credentials |
+| `LIVEKIT_URL` | — | LiveKit WebSocket URL |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | — | Firebase Admin SDK JSON (for FCM push) |
+
 ---
 
-## بيانات الدخول التجريبية (بعد seed.js)
+## Demo Credentials (after `npm run seed`)
 
-| الدور | اليوزرنيم | كلمة السر |
-|-------|-----------|-----------|
-| معلم | `admin` | `admin123` |
-| مساعد (صلاحيات كاملة) | `asst_nour` | `123456` |
-| مساعد (بدون كورسات) | `asst_karim` | `123456` |
-| مساعد (عرض فقط) | `asst_heba` | `123456` |
-| طالب ثالثة (متفوق) | `std_ali` | `123456` |
-| طالب ثالثة (ضعيف) | `std_mona` | `123456` |
-| طالب ثانية | `std_mostafa` | `123456` |
-| طالب أولى | `std_nour2` | `123456` |
+| Role | Username | Password | Notes |
+|------|----------|----------|-------|
+| Teacher | `admin` | `admin123` | Full platform access |
+| Assistant (full perms) | `asst_nour` | `123456` | All 9 permissions enabled |
+| Assistant (partial) | `asst_karim` | `123456` | Limited permissions |
+| Assistant (view only) | `asst_dina` | `123456` | Read-only access |
+| Student — Grade 3 | `std_ali` | `123456` | High performer |
+| Student — Grade 3 | `std_mona` | `123456` | Average performer |
+| Student — Grade 2 | `std_mostafa` | `123456` | — |
+| Student — Grade 1 | `std_nour2` | `123456` | — |
+
+> **Note:** The teacher account is created with a random password on first startup. Running `seed.js` resets it to `admin123`.
 
 ---
 
-## مميزات المنصة
+## Scripts
 
-- 📹 **رفع فيديوهات** مع تتبع تقدم الطالب (نسبة مشاهدة + آخر موضع)
-- 📄 **ملفات PDF** مع عارض مدمج وإمكانية التحميل
-- 📝 **امتحانات** MCQ + صح/خطأ + مقالي — مع تصحيح تلقائي
-- 🏆 **نظام نقاط وشارات** (ذهب/فضة/برونز) على الامتحانات
-- 📊 **تحليلات مفصلة** لأداء كل طالب وكل كورس
-- 📡 **بث مباشر** بتقنية LiveKit مع شات ورفع يد وإدارة صلاحيات المتحدثين
-- 🎮 **فعاليات أسبوعية** — لعبة Stickman Run مع أسئلة رياضيات
-- 💰 **نظام مدفوعات** Vodafone Cash / Instapay مع تحقق يدوي
-- 🔔 **إشعارات** للطلاب وأولياء الأمور (داخل التطبيق + FCM)
-- 🔐 **نظام صلاحيات** متدرج: معلم ← مساعد ← طالب
-- 📱 **تصميم متجاوب** يعمل على الموبايل والتابلت والديسكتوب
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start Express backend (development) |
+| `npm run client` | Start Vite frontend dev server |
+| `npm run build` | Build React frontend for production |
+| `npm start` | Start backend in production mode |
+| `npm run seed` | Populate database with demo data |
+| `npm run reset` | Wipe and re-initialize the database |
+
+---
+
+## Deployment
+
+The platform is designed to run behind a reverse proxy (Nginx or Cloudflare Tunnel) with wildcard DNS pointing all subdomains to a single server process. See [`docs/DEPLOYMENT_GUIDE.md`](docs/DEPLOYMENT_GUIDE.md) for a full step-by-step guide covering local hosting with Cloudflare Tunnel and production VPS setup.
+
+For live streaming, a separate LiveKit server is required. Configuration files are in [`live-service/`](live-service/).
 
 ---
 
 <div align="center">
-  <sub>صُنع بـ ❤️ لمراكز الدروس الخصوصية في مصر</sub>
+  <sub>Built for private tutoring centers in Egypt &nbsp;·&nbsp; وثبة — منصتك التعليمية الخاصة</sub>
 </div>
