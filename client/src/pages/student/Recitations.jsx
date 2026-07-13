@@ -482,15 +482,15 @@ export default function StudentRecitations() {
             <div key={q.id}>
               {/* ── Question separator ── */}
               <div className="flex items-center gap-3 mb-2 mt-3">
-                <div className="flex-1 h-px bg-purple-100" />
-                <span className="flex items-center gap-1.5 text-xs font-black text-purple-500 bg-purple-50 border border-purple-200 px-3 py-1 rounded-full whitespace-nowrap select-none">
+                <div className={`flex-1 h-px ${dark ? 'bg-purple-900/30' : 'bg-purple-100'}`} />
+                <span className={`flex items-center gap-1.5 text-xs font-black px-3 py-1 rounded-full whitespace-nowrap select-none border ${dark ? 'text-purple-400 bg-purple-900/20 border-purple-700/40' : 'text-purple-500 bg-purple-50 border-purple-200'}`}>
                   السؤال {idx + 1}
-                  <span className="text-purple-300 font-normal">·</span>
-                  <span className="font-medium text-purple-400">
+                  <span className={`font-normal ${dark ? 'text-purple-600' : 'text-purple-300'}`}>·</span>
+                  <span className={`font-medium ${dark ? 'text-purple-500' : 'text-purple-400'}`}>
                     {q.question_type === 'true_false' ? 'صح / خطأ' : q.question_type === 'image_multi' ? 'صورة + أسئلة' : 'اختيار من متعدد'}
                   </span>
                 </span>
-                <div className="flex-1 h-px bg-purple-100" />
+                <div className={`flex-1 h-px ${dark ? 'bg-purple-900/30' : 'bg-purple-100'}`} />
               </div>
               <QuestionCard q={q} idx={idx} answers={answers} setAnswers={setAnswers} dark={dark} onImagePress={setLightboxSrc} />
             </div>
