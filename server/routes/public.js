@@ -37,7 +37,8 @@ router.get('/info', async (req, res) => {
           (SELECT COUNT(*) FROM students   WHERE teacher_id=$1 AND deleted_at IS NULL) AS total_students,
           (SELECT COUNT(*) FROM courses    WHERE teacher_id=$1 AND is_published = true) AS total_courses,
           (SELECT COUNT(*) FROM exams      WHERE teacher_id=$1 AND is_published = true) AS total_exams,
-          (SELECT COUNT(*) FROM exam_results er JOIN exams e ON e.id = er.exam_id WHERE e.teacher_id=$1) AS total_results
+          (SELECT COUNT(*) FROM exam_results er JOIN exams e ON e.id = er.exam_id WHERE e.teacher_id=$1) AS total_results,
+          (SELECT COUNT(*) FROM videos v JOIN courses c ON c.id = v.course_id WHERE c.teacher_id=$1 AND c.is_published = true) AS total_videos
       `, [tid]),
       pool.query(
         'SELECT id, name, phone, photo_url FROM teacher_support_contacts WHERE teacher_id=$1 ORDER BY sort_order, id LIMIT 10',

@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   GraduationCap, BookOpen, BarChart3,
-  Users, CheckCircle, ArrowLeft, Sparkles, Trophy,
+  Video, CheckCircle, ArrowLeft, Sparkles, Trophy,
   MessageCircle, ChevronDown, Target, Phone,
   Shield, Star, Zap, Clock, Flame, Tag
 } from 'lucide-react';
@@ -311,7 +311,7 @@ export default function LandingPage() {
 
                 <div className="grid grid-cols-2 gap-2.5">
                   {[
-                    { label: 'الطلاب',    value: stats?.total_students || '—', icon: Users },
+                    { label: 'الفيديوهات', value: stats?.total_videos   || '—', icon: Video },
                     { label: 'الكورسات',  value: stats?.total_courses  || '—', icon: BookOpen },
                     { label: 'الامتحانات',value: stats?.total_exams    || '—', icon: Target },
                     { label: 'النتائج',   value: stats?.total_results  || '—', icon: BarChart3 },
