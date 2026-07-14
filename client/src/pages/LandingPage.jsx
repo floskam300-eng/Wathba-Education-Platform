@@ -85,6 +85,12 @@ export default function LandingPage() {
     ['support', 'فريق الدعم'],
   ];
 
+  const navIcons = {
+    about: GraduationCap,
+    'top-courses': Trophy,
+    support: MessageCircle,
+  };
+
 
 
   return (
@@ -207,19 +213,32 @@ export default function LandingPage() {
         </div>
 
         {/* Mobile dropdown menu */}
-        <div className={`md:hidden overflow-hidden transition-all duration-300 ${mobileMenuOpen ? 'max-h-96 border-t border-[#0B3C5D]/10' : 'max-h-0'}`}>
-          <div className="px-5 py-3 flex flex-col gap-1 bg-white/95">
-            {navLinks.map(([id, label]) => (
-              <button key={id} onClick={() => scrollTo(id)}
-                className="text-right text-[#0B3C5D]/70 hover:text-[#0B3C5D] text-sm font-semibold px-3 py-2.5 rounded-lg hover:bg-[#0B3C5D]/5 transition-all duration-200">
-                {label}
-              </button>
-            ))}
-            <Link to="/parent-portal" onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center gap-1.5 text-[#0B3C5D]/75 hover:text-[#0B3C5D] text-sm font-semibold px-3 py-2.5 rounded-lg hover:bg-[#0B3C5D]/5 transition-all duration-200">
-              <Phone className="w-3.5 h-3.5 text-orange-500 shrink-0" />
-              بوابة الأهل
-            </Link>
+        <div className={`md:hidden overflow-hidden transition-all duration-300 ease-out ${mobileMenuOpen ? 'max-h-[28rem] opacity-100' : 'max-h-0 opacity-0'}`}>
+          <div className="border-t border-[#0B3C5D]/10 bg-white/95 backdrop-blur-md shadow-lg shadow-[#0B3C5D]/5">
+            <div className="px-4 py-3 flex flex-col gap-1">
+              {navLinks.map(([id, label]) => {
+                const Icon = navIcons[id] || Star;
+                return (
+                  <button key={id} onClick={() => scrollTo(id)}
+                    className="flex items-center gap-3 text-right text-[#0B3C5D]/75 hover:text-[#0B3C5D] text-sm font-semibold px-3 py-2.5 rounded-xl hover:bg-orange-50 active:scale-[0.98] transition-all duration-200">
+                    <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-orange-500/10 shrink-0">
+                      <Icon className="w-4 h-4 text-orange-500" />
+                    </span>
+                    {label}
+                  </button>
+                );
+              })}
+
+              <div className="my-1.5 border-t border-[#0B3C5D]/10" />
+
+              <Link to="/parent-portal" onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-3 text-[#0B3C5D]/75 hover:text-[#0B3C5D] text-sm font-semibold px-3 py-2.5 rounded-xl hover:bg-orange-50 active:scale-[0.98] transition-all duration-200">
+                <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-orange-500/10 shrink-0">
+                  <Phone className="w-4 h-4 text-orange-500" />
+                </span>
+                بوابة الأهل
+              </Link>
+            </div>
           </div>
         </div>
       </nav>
