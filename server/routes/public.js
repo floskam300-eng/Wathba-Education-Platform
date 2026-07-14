@@ -43,15 +43,18 @@ router.get('/info', async (req, res) => {
         'SELECT id, name, phone, photo_url FROM teacher_support_contacts WHERE teacher_id=$1 ORDER BY sort_order, id LIMIT 10',
         [tid]
       ),
-      // Top 3 best-selling courses — ranked by verified purchases, scoped to this teacher
+      // Top 3 most-watched courses — ranked by distinct student viewers, scoped to this
+      // teacher. Uses viewing activity (not purchases) so it works for teachers who only
+      // offer free courses or haven't sold anything yet.
       pool.query(`
         SELECT c.id, c.name, c.description, c.price, c.is_free, c.thumbnail_url, c.target_stage,
-               COUNT(p.id) AS purchases_count
+               COUNT(DISTINCT vp.student_id) AS views_count
         FROM courses c
-        LEFT JOIN payments p ON p.course_id = c.id AND p.status = 'verified'
+        LEFT JOIN videos v ON v.course_id = c.id
+        LEFT JOIN video_progress vp ON vp.video_id = v.id
         WHERE c.teacher_id = $1 AND c.is_published = true
         GROUP BY c.id
-        ORDER BY purchases_count DESC, c.created_at DESC
+        ORDER BY views_count DESC, c.created_at DESC
         LIMIT 3
       `, [tid]),
     ]);

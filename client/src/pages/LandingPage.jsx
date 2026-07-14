@@ -370,7 +370,7 @@ export default function LandingPage() {
               <h2 className="font-black text-[#0B3C5D] mb-3" style={{ fontSize: 'clamp(1.9rem,4vw,2.8rem)' }}>
                 أبرز <span className="grad-orange">الكورسات</span>
               </h2>
-              <p className="text-[#0B3C5D]/50 text-sm max-w-md mx-auto mt-3 mb-1">أكثر الكورسات التي اختارها الطلاب وحققت أعلى نسب اشتراك على المنصة</p>
+              <p className="text-[#0B3C5D]/50 text-sm max-w-md mx-auto mt-3 mb-1">أكثر الكورسات التي شاهدها الطلاب وتابعوا محتواها على المنصة</p>
               <div className="w-16 h-0.5 bg-gradient-to-l from-orange-500 to-transparent rounded-full mx-auto mt-4 mb-14" />
             </Reveal>
 
@@ -389,7 +389,7 @@ export default function LandingPage() {
                     {i === 0 && (
                       <div className="absolute top-3 right-3 flex items-center gap-1 bg-orange-500 text-white text-[11px] font-black px-3 py-1 rounded-full shadow-lg">
                         <Flame className="w-3.5 h-3.5" />
-                        الأكثر شراءً
+                        الأكثر مشاهدة
                       </div>
                     )}
                     <div className="absolute top-3 left-3">
