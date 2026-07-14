@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Shield, ArrowRight, Mail, MessageCircle, Eye, Database, Lock, Users, Bell, Trash2, RefreshCw, HelpCircle } from 'lucide-react';
 import wathbaLogo from '../assets/wathba_logo_transparent.png';
+import { useForceLightMode } from '../hooks/useForceLightMode';
 
 const Section = ({ icon: Icon, title, children, accent = 'orange' }) => (
   <div className="mb-10">
@@ -29,6 +30,7 @@ const BulletList = ({ items }) => (
 );
 
 export default function PrivacyPolicy() {
+  useForceLightMode();
   useEffect(() => {
     document.title = 'سياسة الخصوصية — وثبة';
     window.scrollTo(0, 0);
@@ -213,16 +215,16 @@ export default function PrivacyPolicy() {
             <h3 className="text-[#0B3C5D] font-black text-base mb-3">للتواصل والاستفسار</h3>
             <p className="text-[#0B3C5D]/55 text-sm mb-4">إذا كان لديك أي سؤال حول سياسة الخصوصية أو تريد ممارسة أي من حقوقك، تواصل معنا:</p>
             <div className="flex flex-wrap gap-3">
-              <a href="https://wa.me/201000000000?text=استفسار عن سياسة الخصوصية"
+              <a href="https://wa.me/201210737582?text=استفسار عن سياسة الخصوصية"
                 target="_blank" rel="noopener noreferrer"
                 className="flex items-center gap-2 bg-green-50 hover:bg-green-100 border border-green-200 text-green-700 text-sm font-semibold px-4 py-2.5 rounded-xl transition-all">
                 <MessageCircle className="w-4 h-4" />
-                واتساب: 01000000000
+                واتساب: 01210737582
               </a>
-              <a href="mailto:dev@wathba.com"
+              <a href="mailto:wathbaeduplatform@gmail.com"
                 className="flex items-center gap-2 bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 text-sm font-semibold px-4 py-2.5 rounded-xl transition-all">
                 <Mail className="w-4 h-4" />
-                dev@wathba.com
+                wathbaeduplatform@gmail.com
               </a>
             </div>
           </div>

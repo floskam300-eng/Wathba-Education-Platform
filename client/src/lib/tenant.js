@@ -23,11 +23,17 @@ export function getTenantSlug() {
 
   // Dev convenience: ?tenant=slug in the URL persists to localStorage so the
   // Replit preview (which has no real subdomain) can be pointed at a tenant.
+  // ?tenant= (empty) clears it, to get back to the main-domain SaaS pages.
   if (isDevHost) {
-    const urlTenant = new URLSearchParams(window.location.search).get('tenant');
-    if (urlTenant) {
-      localStorage.setItem('wathba_teacher_slug', urlTenant);
-      return urlTenant;
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('tenant')) {
+      const urlTenant = params.get('tenant');
+      if (urlTenant) {
+        localStorage.setItem('wathba_teacher_slug', urlTenant);
+        return urlTenant;
+      }
+      localStorage.removeItem('wathba_teacher_slug');
+      return null;
     }
   }
 

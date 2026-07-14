@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import wathbaLogo from '../assets/wathba_logo_transparent.png';
 import { useTeacher } from '../context/TeacherContext';
+import { useForceLightMode } from '../hooks/useForceLightMode';
 
 /* ─── Scroll Reveal ─── */
 function useReveal(threshold = 0.12) {
@@ -131,6 +132,7 @@ function CourseRow({ course, index }) {
    MAIN PAGE
 ════════════════════════════════════════ */
 export default function ParentPortal() {
+  useForceLightMode();
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);

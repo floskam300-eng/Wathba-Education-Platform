@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import wathbaLogo from '../assets/wathba_logo_transparent.png';
 import { useTeacher } from '../context/TeacherContext';
+import { useForceLightMode } from '../hooks/useForceLightMode';
 
 
 
@@ -58,6 +59,7 @@ function SectionLabel({ text }) {
 const DEFAULT_TEACHER_BG = 'https://images.unsplash.com/photo-1509062522246-3755977927d7?w=1600&q=80';
 
 export default function LandingPage() {
+  useForceLightMode();
   const { teacher, stats, supportContacts, topCourses, isLoading, platformName, logoUrl } = useTeacher();
   const displayLogo = logoUrl || wathbaLogo;
   const heroBg = teacher?.background_image_url || DEFAULT_TEACHER_BG;

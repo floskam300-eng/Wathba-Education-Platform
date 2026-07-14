@@ -9,6 +9,7 @@ import {
   ShieldAlert, CheckCircle, ArrowRight,
 } from 'lucide-react';
 import WathbaLogo from '../assets/wathba_logo_new.png';
+import { useForceLightMode } from '../hooks/useForceLightMode';
 
 const FEATURES = [
   { icon: BookOpen,  title: 'كورسات تفاعلية',  desc: 'فيديوهات وملفات PDF منظّمة' },
@@ -108,6 +109,7 @@ function DeviceWarningModal({ onAccept }) {
 }
 
 export default function Login() {
+  useForceLightMode();
   const [username, setUsername]       = useState('');
   const [password, setPassword]       = useState('');
   const [showPass, setShowPass]       = useState(false);

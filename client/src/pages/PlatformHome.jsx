@@ -6,6 +6,7 @@ import {
   ChevronDown, ArrowLeft, Play, FileText, Bell, Award, Phone
 } from 'lucide-react';
 import wathbaLogo from '../assets/wathba_logo_transparent.png';
+import { useForceLightMode } from '../hooks/useForceLightMode';
 
 /* ── Hooks ── */
 function useReveal(threshold = 0.1) {
@@ -214,6 +215,7 @@ function DevAccessPanel() {
 /*                  MAIN COMPONENT                         */
 /* ════════════════════════════════════════════════════════ */
 export default function PlatformHome() {
+  useForceLightMode();
   const PHONE = '01210737582';
   const PHONE_INTL = '201210737582';
   const EMAIL = 'wathbaeduplatform@gmail.com';
