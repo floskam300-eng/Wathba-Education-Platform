@@ -215,6 +215,26 @@
 }
 
 /* ═══════════════════════════════════════════════════════
+   LIGHT MODE — CONTRAST FIXES
+   Tailwind's gray-50/gray-100/slate-50/slate-100 are nearly
+   the same luminance as a white card background (contrast
+   ratio ~1.0–1.1:1), so borders/dividers built from them
+   become invisible on light backgrounds (e.g. Analytics
+   card separators, table row lines). Raise them to tones
+   that stay subtle but are actually perceivable, without
+   touching dark mode (which already overrides these classes
+   with higher-specificity `html.dark` selectors below).
+═══════════════════════════════════════════════════════ */
+.border-gray-50,
+.border-slate-50   { border-color: #E2E8F0; }
+.border-gray-100,
+.border-slate-100  { border-color: #D3DAE3; }
+.divide-gray-50  > :not([hidden]) ~ :not([hidden]),
+.divide-slate-50 > :not([hidden]) ~ :not([hidden])  { border-color: #E2E8F0; }
+.divide-gray-100  > :not([hidden]) ~ :not([hidden]),
+.divide-slate-100 > :not([hidden]) ~ :not([hidden]) { border-color: #D3DAE3; }
+
+/* ═══════════════════════════════════════════════════════
    DARK MODE — COMPONENT OVERRIDES
 ═══════════════════════════════════════════════════════ */
 
