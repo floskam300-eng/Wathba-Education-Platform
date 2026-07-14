@@ -182,12 +182,12 @@ export default function LandingPage() {
 
           <div className="flex items-center gap-2 shrink-0">
             <Link to="/parent-portal"
-              className="hidden sm:flex items-center gap-1.5 text-[#0B3C5D]/75 hover:text-[#0B3C5D] text-sm font-semibold px-3 py-2 rounded-lg border border-[#0B3C5D]/15 hover:border-[#0B3C5D]/30 hover:bg-[#0B3C5D]/5 transition-all duration-200">
-              <Phone className="w-3.5 h-3.5 text-orange-500" />
+              className="flex items-center gap-1 sm:gap-1.5 text-[#0B3C5D]/75 hover:text-[#0B3C5D] text-xs sm:text-sm font-semibold px-2 sm:px-3 py-2 rounded-lg border border-[#0B3C5D]/15 hover:border-[#0B3C5D]/30 hover:bg-[#0B3C5D]/5 transition-all duration-200 whitespace-nowrap">
+              <Phone className="w-3.5 h-3.5 text-orange-500 shrink-0" />
               بوابة الأهل
             </Link>
             <Link to="/login"
-              className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-black text-sm px-5 py-2.5 rounded-xl transition-all duration-200 hover:shadow-lg hover:shadow-orange-500/25 active:scale-95">
+              className="flex items-center gap-1.5 sm:gap-2 bg-orange-500 hover:bg-orange-600 text-white font-black text-xs sm:text-sm px-3 sm:px-5 py-2.5 rounded-xl transition-all duration-200 hover:shadow-lg hover:shadow-orange-500/25 active:scale-95 whitespace-nowrap">
               دخول
               <ArrowLeft className="w-4 h-4" />
             </Link>

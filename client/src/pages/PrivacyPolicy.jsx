@@ -222,9 +222,9 @@ export default function PrivacyPolicy() {
                 واتساب: 01210737582
               </a>
               <a href="mailto:wathbaeduplatform@gmail.com"
-                className="flex items-center gap-2 bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 text-sm font-semibold px-4 py-2.5 rounded-xl transition-all">
-                <Mail className="w-4 h-4" />
-                wathbaeduplatform@gmail.com
+                className="flex items-center gap-2 bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 text-sm font-semibold px-4 py-2.5 rounded-xl transition-all max-w-full min-w-0">
+                <Mail className="w-4 h-4 shrink-0" />
+                <span className="break-all">wathbaeduplatform@gmail.com</span>
               </a>
             </div>
           </div>
