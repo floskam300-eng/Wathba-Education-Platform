@@ -196,7 +196,7 @@
     @apply border-b border-gray-200 hover:bg-orange-50 transition-colors duration-150;
   }
 
-  .table-cell {
+  .td-cell {
     @apply px-4 py-3 text-sm text-gray-800;
   }
 
@@ -333,7 +333,7 @@ html.dark .table-row {
 html.dark .table-row:hover {
   background-color: var(--dk-hover);
 }
-html.dark .table-cell {
+html.dark .td-cell {
   color: var(--dk-text-2);
 }
 

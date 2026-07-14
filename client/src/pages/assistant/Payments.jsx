@@ -209,7 +209,7 @@ export default function AssistantPayments() {
                 ))
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="table-cell text-center py-16">
+                  <td colSpan={8} className="td-cell text-center py-16">
                     <CreditCard className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                     <p className="font-semibold text-gray-500">لا توجد دفعات</p>
                     <p className="text-xs text-gray-400 mt-1">
@@ -220,20 +220,20 @@ export default function AssistantPayments() {
               ) : (
                 filtered.map(p => (
                   <tr key={p.id} className="table-row">
-                    <td className="table-cell font-bold text-navy-700">{p.student_name}</td>
-                    <td className="table-cell font-mono font-bold text-xs text-orange-700">{p.student_username || '—'}</td>
-                    <td className="table-cell text-gray-700 font-medium">{p.course_name || '—'}</td>
-                    <td className="table-cell text-gray-700">{METHOD_LABELS[p.method] || p.method}</td>
-                    <td className="table-cell font-mono text-xs text-gray-600">{p.reference_number || '—'}</td>
-                    <td className="table-cell text-gray-600 text-xs font-medium">
+                    <td className="td-cell font-bold text-navy-700">{p.student_name}</td>
+                    <td className="td-cell font-mono font-bold text-xs text-orange-700">{p.student_username || '—'}</td>
+                    <td className="td-cell text-gray-700 font-medium">{p.course_name || '—'}</td>
+                    <td className="td-cell text-gray-700">{METHOD_LABELS[p.method] || p.method}</td>
+                    <td className="td-cell font-mono text-xs text-gray-600">{p.reference_number || '—'}</td>
+                    <td className="td-cell text-gray-600 text-xs font-medium">
                       {new Date(p.payment_date).toLocaleDateString('ar-EG')}
                     </td>
-                    <td className="table-cell">
+                    <td className="td-cell">
                       <Badge variant={STATUS_MAP[p.status]?.variant || 'gray'}>
                         {STATUS_MAP[p.status]?.label || p.status}
                       </Badge>
                     </td>
-                    <td className="table-cell">
+                    <td className="td-cell">
                       {p.status === 'pending' ? (
                         <div className="flex gap-1">
                           <button

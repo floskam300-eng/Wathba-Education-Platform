@@ -390,13 +390,13 @@ export default function TeacherPayments() {
               {isLoading ? (
                 [...Array(5)].map((_, i) => <tr key={i}><td colSpan={8}><div className="h-10 bg-gray-100 animate-pulse m-2 rounded" /></td></tr>)
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={8} className="table-cell text-center text-gray-600 py-12 col-span-all">
+                <tr><td colSpan={8} className="td-cell text-center text-gray-600 py-12 col-span-all">
                   <CreditCard className="w-12 h-12 mx-auto mb-2 text-gray-400" />
                   <p className="font-medium">لا توجد دفعات تطابق الفلاتر المحددة</p>
                 </td></tr>
               ) : filtered.map(p => (
                 <tr key={p.id} className="table-row">
-                  <td data-label="الطالب" className="table-cell">
+                  <td data-label="الطالب" className="td-cell">
                     <div>
                       <p className="font-bold text-navy-700">{p.student_name}</p>
                       {studentMap[p.student_id]?.academic_stage && (
@@ -404,13 +404,13 @@ export default function TeacherPayments() {
                       )}
                     </div>
                   </td>
-                  <td data-label="كود الطالب" className="table-cell font-mono font-bold text-xs text-orange-700 hidden sm:table-cell">{p.student_username || '—'}</td>
-                  <td data-label="الكورس" className="table-cell text-gray-700 font-medium hidden sm:table-cell">{p.course_name || '—'}</td>
-                  <td data-label="المبلغ" className="table-cell font-bold text-navy-700">{parseFloat(p.amount).toLocaleString()} ج</td>
-                  <td data-label="طريقة الدفع" className="table-cell text-gray-700 hidden md:table-cell">{p.method ? (METHOD_LABELS[p.method] || p.method) : <span className="text-gray-400 text-xs">—</span>}</td>
-                  <td data-label="رقم الوصل" className="table-cell font-mono text-xs text-gray-700 hidden lg:table-cell">{p.reference_number || '—'}</td>
-                  <td data-label="الحالة" className="table-cell"><Badge variant={STATUS_MAP[p.status]?.variant || 'gray'}>{STATUS_MAP[p.status]?.label}</Badge></td>
-                  <td data-label="إجراءات" className="table-cell">
+                  <td data-label="كود الطالب" className="td-cell font-mono font-bold text-xs text-orange-700 hidden sm:table-cell">{p.student_username || '—'}</td>
+                  <td data-label="الكورس" className="td-cell text-gray-700 font-medium hidden sm:table-cell">{p.course_name || '—'}</td>
+                  <td data-label="المبلغ" className="td-cell font-bold text-navy-700">{parseFloat(p.amount).toLocaleString()} ج</td>
+                  <td data-label="طريقة الدفع" className="td-cell text-gray-700 hidden md:table-cell">{p.method ? (METHOD_LABELS[p.method] || p.method) : <span className="text-gray-400 text-xs">—</span>}</td>
+                  <td data-label="رقم الوصل" className="td-cell font-mono text-xs text-gray-700 hidden lg:table-cell">{p.reference_number || '—'}</td>
+                  <td data-label="الحالة" className="td-cell"><Badge variant={STATUS_MAP[p.status]?.variant || 'gray'}>{STATUS_MAP[p.status]?.label}</Badge></td>
+                  <td data-label="إجراءات" className="td-cell">
                     {p.status === 'pending' && (
                       <div className="flex gap-1">
                         <button onClick={() => openVerify(p)}

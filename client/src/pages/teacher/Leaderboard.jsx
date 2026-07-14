@@ -271,18 +271,18 @@ export default function TeacherLeaderboard() {
                   {isLoading ? (
                     [...Array(8)].map((_, i) => <tr key={i}><td colSpan={6}><div className="h-10 bg-gray-100 animate-pulse m-2 rounded" /></td></tr>)
                   ) : top10.length === 0 ? (
-                    <tr><td colSpan={6} className="table-cell text-center py-12">
+                    <tr><td colSpan={6} className="td-cell text-center py-12">
                       <Trophy className="w-12 h-12 mx-auto mb-2 text-gray-400" />
                       <p className="font-medium text-gray-500">لا توجد بيانات لهذه المرحلة</p>
                     </td></tr>
                   ) : top10.map((s, i) => (
                     <tr key={s.id} className={`table-row ${i < 3 ? 'bg-orange-50/50' : ''}`}>
-                      <td data-label="#" className="table-cell">
+                      <td data-label="#" className="td-cell">
                         {i < 3
                           ? <span className="text-xl">{MEDAL[i]}</span>
                           : <span className="text-gray-700 font-bold">{i + 1}</span>}
                       </td>
-                      <td data-label="الطالب" className="table-cell">
+                      <td data-label="الطالب" className="td-cell">
                         <div className="flex items-center gap-2">
                           <div className="w-8 h-8 bg-navy-600 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
                             {s.name?.charAt(0)}
@@ -293,9 +293,9 @@ export default function TeacherLeaderboard() {
                           </div>
                         </div>
                       </td>
-                      <td data-label="النقاط" className="table-cell"><span className="text-orange-700 font-black">⭐ {s.points}</span></td>
-                      <td data-label="الاختبارات" className="table-cell text-center text-gray-700 font-semibold hidden sm:table-cell">{s.exams_taken}</td>
-                      <td data-label="متوسط الدرجات" className="table-cell hidden md:table-cell">
+                      <td data-label="النقاط" className="td-cell"><span className="text-orange-700 font-black">⭐ {s.points}</span></td>
+                      <td data-label="الاختبارات" className="td-cell text-center text-gray-700 font-semibold hidden sm:table-cell">{s.exams_taken}</td>
+                      <td data-label="متوسط الدرجات" className="td-cell hidden md:table-cell">
                         <div className="flex items-center gap-2">
                           <div className="flex-1 bg-gray-200 rounded-full h-1.5 max-w-[80px]">
                             <div className="bg-orange-500 h-1.5 rounded-full" style={{ width: `${Math.min(s.avg_score, 100)}%` }} />
@@ -303,7 +303,7 @@ export default function TeacherLeaderboard() {
                           <span className="text-sm font-bold text-navy-600">{Math.round(s.avg_score)}%</span>
                         </div>
                       </td>
-                      <td data-label="الشارات" className="table-cell text-center hidden sm:table-cell">
+                      <td data-label="الشارات" className="td-cell text-center hidden sm:table-cell">
                         <span className="text-base font-semibold text-gray-700">{s.badge_count > 0 ? `🏅 ${s.badge_count}` : '—'}</span>
                       </td>
                     </tr>
