@@ -20,7 +20,7 @@ router.get('/info', async (req, res) => {
 
   try {
     const teacherRes = await pool.query(
-      'SELECT id, name, bio, classification, logo_url, photo_url, whatsapp_phone, platform_name, slug, created_at FROM teachers WHERE slug = $1',
+      'SELECT id, name, bio, classification, logo_url, photo_url, background_image_url, whatsapp_phone, platform_name, slug, created_at FROM teachers WHERE slug = $1',
       [slug]
     );
 
@@ -31,7 +31,7 @@ router.get('/info', async (req, res) => {
     const teacher = teacherRes.rows[0];
     const tid = teacher.id;
 
-    const [stats, supportContacts] = await Promise.all([
+    const [stats, supportContacts, topCourses] = await Promise.all([
       pool.query(`
         SELECT
           (SELECT COUNT(*) FROM students   WHERE teacher_id=$1 AND deleted_at IS NULL) AS total_students,
@@ -43,9 +43,25 @@ router.get('/info', async (req, res) => {
         'SELECT id, name, phone, photo_url FROM teacher_support_contacts WHERE teacher_id=$1 ORDER BY sort_order, id LIMIT 10',
         [tid]
       ),
+      // Top 3 best-selling courses — ranked by verified purchases, scoped to this teacher
+      pool.query(`
+        SELECT c.id, c.name, c.description, c.price, c.is_free, c.thumbnail_url, c.target_stage,
+               COUNT(p.id) AS purchases_count
+        FROM courses c
+        LEFT JOIN payments p ON p.course_id = c.id AND p.status = 'verified'
+        WHERE c.teacher_id = $1 AND c.is_published = true
+        GROUP BY c.id
+        ORDER BY purchases_count DESC, c.created_at DESC
+        LIMIT 3
+      `, [tid]),
     ]);
 
-    res.json({ teacher, stats: stats.rows[0], supportContacts: supportContacts.rows });
+    res.json({
+      teacher,
+      stats: stats.rows[0],
+      supportContacts: supportContacts.rows,
+      topCourses: topCourses.rows,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });

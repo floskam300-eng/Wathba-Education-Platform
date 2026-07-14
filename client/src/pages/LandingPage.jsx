@@ -4,7 +4,7 @@ import {
   GraduationCap, BookOpen, BarChart3,
   Users, CheckCircle, ArrowLeft, Sparkles, Trophy,
   MessageCircle, ChevronDown, Target, Phone,
-  Shield, Star, Zap, Clock
+  Shield, Star, Zap, Clock, Flame, Tag
 } from 'lucide-react';
 import wathbaLogo from '../assets/wathba_logo_transparent.png';
 import { useTeacher } from '../context/TeacherContext';
@@ -55,9 +55,12 @@ function SectionLabel({ text }) {
 
 
 /* ════════════════ MAIN PAGE ════════════════ */
+const DEFAULT_TEACHER_BG = 'https://images.unsplash.com/photo-1509062522246-3755977927d7?w=1600&q=80';
+
 export default function LandingPage() {
-  const { teacher, stats, supportContacts, isLoading, platformName, logoUrl } = useTeacher();
+  const { teacher, stats, supportContacts, topCourses, isLoading, platformName, logoUrl } = useTeacher();
   const displayLogo = logoUrl || wathbaLogo;
+  const heroBg = teacher?.background_image_url || DEFAULT_TEACHER_BG;
 
 
 
@@ -186,50 +189,77 @@ export default function LandingPage() {
 
       {/* ─────────────── HERO ─────────────── */}
       <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-16" style={{ zIndex: 1 }}>
+        {/* Teacher background image with dark gradient overlay for text legibility */}
+        <div className="absolute inset-0 overflow-hidden">
+          <img src={heroBg} alt="" className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-b from-white/95 via-white/90 to-[#F8FAFC]" />
+        </div>
+
         <div className="absolute w-[600px] h-[600px] rounded-full border border-[#0B3C5D]/[0.03] lp-ring-spin" />
         <div className="absolute w-[420px] h-[420px] rounded-full border border-orange-500/[0.05] lp-ring-pulse" />
 
-        <div className="relative z-10 text-center max-w-4xl mx-auto px-5">
-          <div className="lp-fade-1 inline-flex items-center gap-2 bg-orange-500/10 border border-orange-500/20 text-orange-600 text-xs font-bold px-4 py-2 rounded-full mb-8 tracking-widest uppercase">
-            <Sparkles className="w-3.5 h-3.5 text-orange-500 animate-pulse" />
-            منصة تعليمية متكاملة
+        <div className="relative z-10 max-w-6xl mx-auto px-5 grid lg:grid-cols-5 gap-10 items-center">
+          {/* Large teacher photo */}
+          <Reveal delay={0.05} className="order-1 lg:order-2 lg:col-span-2 flex justify-center">
+            <div className="relative">
+              <div className="absolute -inset-3 rounded-[2rem] bg-gradient-to-br from-orange-500/25 to-[#0B3C5D]/15 blur-xl" />
+              {teacher?.photo_url ? (
+                <img
+                  src={teacher.photo_url.startsWith('http') ? teacher.photo_url : `/uploads/${teacher.photo_url}`}
+                  alt={teacher?.name}
+                  className="relative w-56 h-56 sm:w-64 sm:h-64 lg:w-72 lg:h-72 rounded-[2rem] object-cover shadow-2xl shadow-orange-500/20 border-4 border-white"
+                  onError={e => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
+                />
+              ) : null}
+              <div className="relative w-56 h-56 sm:w-64 sm:h-64 lg:w-72 lg:h-72 rounded-[2rem] bg-gradient-to-br from-orange-500 to-orange-700 items-center justify-center text-6xl font-black text-white shadow-2xl shadow-orange-500/20 border-4 border-white"
+                style={{ display: teacher?.photo_url ? 'none' : 'flex' }}>
+                {teacher?.name?.charAt(0) || 'م'}
+              </div>
+            </div>
+          </Reveal>
+
+          <div className="order-2 lg:order-1 lg:col-span-3 text-center lg:text-right">
+            <div className="lp-fade-1 inline-flex items-center gap-2 bg-orange-500/10 border border-orange-500/20 text-orange-600 text-xs font-bold px-4 py-2 rounded-full mb-8 tracking-widest uppercase">
+              <Sparkles className="w-3.5 h-3.5 text-orange-500 animate-pulse" />
+              منصة تعليمية متكاملة
+            </div>
+
+            <h1 className="lp-fade-2 font-black leading-tight mb-5 text-[#0B3C5D]" style={{ fontSize: 'clamp(2.4rem,6vw,4.5rem)' }}>
+              {isLoading ? (
+                <span className="grad-orange">{platformName || 'منصة وثبة'}</span>
+              ) : (
+                <>
+                  <span className="text-[#0B3C5D]/90">تعلّم مع </span>
+                  <span className="grad-orange">{teacher?.name || platformName || 'منصة وثبة'}</span>
+                </>
+              )}
+              <br />
+              <span className="text-[#0B3C5D]/45 font-bold" style={{ fontSize: '0.45em', letterSpacing: '0.02em' }}>
+                {teacher?.classification || 'المنصة التعليمية المتكاملة'}
+              </span>
+            </h1>
+
+            <p className="lp-fade-3 text-slate-500 text-base max-w-xl mx-auto lg:mx-0 leading-relaxed mb-10">
+              {teacher?.bio
+                ? teacher.bio.slice(0, 120) + (teacher.bio.length > 120 ? '...' : '')
+                : 'منصة تعليمية احترافية تجمع الكورسات والامتحانات والتحليلات في مكان واحد'}
+            </p>
+
+            <div className="lp-fade-3 flex items-center justify-center lg:justify-start gap-3 flex-wrap">
+              <Link to="/login"
+                className="flex items-center gap-2.5 bg-orange-500 hover:bg-orange-600 text-white font-black text-sm px-7 py-3.5 rounded-xl transition-all duration-200 hover:shadow-xl hover:shadow-orange-500/30 hover:-translate-y-0.5 active:scale-95">
+                ابدأ الآن
+                <ArrowLeft className="w-4 h-4" />
+              </Link>
+            </div>
           </div>
-
-          <h1 className="lp-fade-2 font-black leading-tight mb-5 text-[#0B3C5D]" style={{ fontSize: 'clamp(2.4rem,6vw,4.5rem)' }}>
-            {isLoading ? (
-              <span className="grad-orange">{platformName || 'منصة وثبة'}</span>
-            ) : (
-              <>
-                <span className="text-[#0B3C5D]/90">تعلّم مع </span>
-                <span className="grad-orange">{teacher?.name || platformName || 'منصة وثبة'}</span>
-              </>
-            )}
-            <br />
-            <span className="text-[#0B3C5D]/45 font-bold" style={{ fontSize: '0.45em', letterSpacing: '0.02em' }}>
-              {teacher?.classification || 'المنصة التعليمية المتكاملة'}
-            </span>
-          </h1>
-
-          <p className="lp-fade-3 text-slate-500 text-base max-w-xl mx-auto leading-relaxed mb-10">
-            {teacher?.bio
-              ? teacher.bio.slice(0, 120) + (teacher.bio.length > 120 ? '...' : '')
-              : 'منصة تعليمية احترافية تجمع الكورسات والامتحانات والتحليلات في مكان واحد'}
-          </p>
-
-          <div className="lp-fade-3 flex items-center justify-center gap-3 flex-wrap">
-            <Link to="/login"
-              className="flex items-center gap-2.5 bg-orange-500 hover:bg-orange-600 text-white font-black text-sm px-7 py-3.5 rounded-xl transition-all duration-200 hover:shadow-xl hover:shadow-orange-500/30 hover:-translate-y-0.5 active:scale-95">
-              ابدأ الآن
-              <ArrowLeft className="w-4 h-4" />
-            </Link>
-          </div>
-
-          <button onClick={() => scrollTo('about')}
-            className="lp-fade-4 mt-16 flex flex-col items-center gap-1.5 mx-auto text-[#0B3C5D]/30 hover:text-[#0B3C5D]/50 transition-colors">
-            <span className="text-[11px] font-semibold tracking-widest uppercase">اكتشف</span>
-            <ChevronDown className="w-4 h-4 animate-bounce" />
-          </button>
         </div>
+
+        <button onClick={() => scrollTo('about')}
+          className="lp-fade-4 absolute bottom-8 inset-x-0 flex flex-col items-center gap-1.5 mx-auto text-[#0B3C5D]/30 hover:text-[#0B3C5D]/50 transition-colors z-10">
+          <span className="text-[11px] font-semibold tracking-widest uppercase">اكتشف</span>
+          <ChevronDown className="w-4 h-4 animate-bounce" />
+        </button>
       </section>
 
       {/* ─────────────── ABOUT ─────────────── */}
@@ -330,6 +360,76 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* ─────────────── TOP COURSES ─────────────── */}
+      {topCourses && topCourses.length > 0 && (
+        <section id="top-courses" className="relative py-24 overflow-hidden" style={{ zIndex: 1 }}>
+          <div className="relative z-10 max-w-6xl mx-auto px-5">
+            <Reveal className="text-center">
+              <SectionLabel text="الأكثر طلباً" />
+              <h2 className="font-black text-[#0B3C5D] mb-3" style={{ fontSize: 'clamp(1.9rem,4vw,2.8rem)' }}>
+                أبرز <span className="grad-orange">الكورسات</span>
+              </h2>
+              <p className="text-[#0B3C5D]/50 text-sm max-w-md mx-auto mt-3 mb-1">أكثر الكورسات التي اختارها الطلاب وحققت أعلى نسب اشتراك على المنصة</p>
+              <div className="w-16 h-0.5 bg-gradient-to-l from-orange-500 to-transparent rounded-full mx-auto mt-4 mb-14" />
+            </Reveal>
+
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {topCourses.map((course, i) => (
+                <Reveal key={course.id} delay={i * 0.1}
+                  className="group bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-sm hover:shadow-2xl hover:border-orange-300 hover:-translate-y-1.5 transition-all duration-300">
+                  <div className="relative w-full overflow-hidden" style={{ paddingTop: '56.25%' }}>
+                    <img
+                      src={course.thumbnail_url || '/default-course.svg'}
+                      alt={course.name}
+                      className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                      onError={e => { e.target.src = '/default-course.svg'; }}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+                    {i === 0 && (
+                      <div className="absolute top-3 right-3 flex items-center gap-1 bg-orange-500 text-white text-[11px] font-black px-3 py-1 rounded-full shadow-lg">
+                        <Flame className="w-3.5 h-3.5" />
+                        الأكثر شراءً
+                      </div>
+                    )}
+                    <div className="absolute top-3 left-3">
+                      {course.is_free ? (
+                        <span className="text-[11px] font-black bg-emerald-500 text-white px-2.5 py-1 rounded-full shadow">مجاني</span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-black bg-white/95 text-[#0B3C5D] px-2.5 py-1 rounded-full shadow">
+                          <Tag className="w-3 h-3 text-orange-500" />
+                          {parseFloat(course.price).toLocaleString()} ج.م
+                        </span>
+                      )}
+                    </div>
+                    {course.target_stage && (
+                      <div className="absolute bottom-3 right-3">
+                        <span className="text-[10px] font-bold bg-black/50 text-white px-2 py-1 rounded-full backdrop-blur-sm">
+                          {course.target_stage}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="p-5">
+                    <h3 className="font-black text-[#0B3C5D] text-base leading-snug line-clamp-2 mb-2 group-hover:text-orange-600 transition-colors">
+                      {course.name}
+                    </h3>
+                    {course.description && (
+                      <p className="text-slate-500 text-xs leading-relaxed line-clamp-2 mb-4">{course.description}</p>
+                    )}
+                    <Link to="/login"
+                      className="flex items-center justify-center gap-2 w-full bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/25 hover:border-orange-500/50 text-orange-600 font-bold text-sm px-4 py-2.5 rounded-xl transition-all duration-200 active:scale-95">
+                      عرض الكورس
+                      <ArrowLeft className="w-3.5 h-3.5" />
+                    </Link>
+                  </div>
+                </Reveal>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ─────────────── SUPPORT CONTACTS ─────────────── */}
       {supportContacts && supportContacts.length > 0 && (

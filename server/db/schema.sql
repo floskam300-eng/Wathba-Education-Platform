@@ -584,6 +584,8 @@ ALTER TABLE exams ADD COLUMN IF NOT EXISTS bank_hard_count   INTEGER DEFAULT 0;
 -- ── SaaS multi-tenant: teacher slug + platform branding ───────────────────────
 ALTER TABLE teachers ADD COLUMN IF NOT EXISTS slug VARCHAR(100) UNIQUE;
 ALTER TABLE teachers ADD COLUMN IF NOT EXISTS platform_name VARCHAR(200);
+-- Hero/background image shown behind the teacher's name on the public landing page
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS background_image_url VARCHAR(500);
 -- Auto-generate slug from username for teachers that don't have one yet
 UPDATE teachers
    SET slug = regexp_replace(lower(trim(username)), '[^a-z0-9]+', '-', 'g')

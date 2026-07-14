@@ -34,3 +34,4 @@
 - [Publish points-sum enforcement](publish-points-sum-enforcement.md) — publish endpoints now hard-block (400) when question points sum != total_score, not just a UI warning
 - [Teacher-side withToken gap](teacher-image-withtoken-gap.md) — check every role-specific page copy for raw img src on /uploads/*; ExamQuestions.jsx + QuestionBanks.jsx (teacher) missed withToken() while student pages had it
 - [Service worker caching stale app shell](service-worker-stale-shell.md) — PWA sw.js cached index.html cache-first forever, so deployed code fixes never reached users; check this before re-diagnosing a "fix didn't work" report
+- [Dev tenant preview testing](dev-tenant-preview-testing.md) — visit `/?tenant=<slug>` in the Replit preview to view a teacher's tenant-scoped pages; plain `/` always shows PlatformHome there

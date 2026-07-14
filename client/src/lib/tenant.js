@@ -21,6 +21,16 @@ export function getTenantSlug() {
     return parts[0];
   }
 
+  // Dev convenience: ?tenant=slug in the URL persists to localStorage so the
+  // Replit preview (which has no real subdomain) can be pointed at a tenant.
+  if (isDevHost) {
+    const urlTenant = new URLSearchParams(window.location.search).get('tenant');
+    if (urlTenant) {
+      localStorage.setItem('wathba_teacher_slug', urlTenant);
+      return urlTenant;
+    }
+  }
+
   // Order of priority: localStorage (user-set) → build-time default → null
   return (
     localStorage.getItem('wathba_teacher_slug') ||

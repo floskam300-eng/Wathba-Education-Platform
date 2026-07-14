@@ -108,6 +108,7 @@ export function TeacherProvider({ children }) {
       teacher,
       stats: data?.stats || null,
       courses: data?.courses || [],
+      topCourses: data?.topCourses || [],
       supportContacts: data?.supportContacts || [],
       isLoading,
       isError,

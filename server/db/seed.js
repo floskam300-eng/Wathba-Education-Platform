@@ -91,14 +91,15 @@ async function seed() {
     [adminRow] = await q(`
       INSERT INTO teachers
         (username,password,name,bio,classification,whatsapp_phone,
-         slug,platform_name,logo_url,photo_url)
+         slug,platform_name,logo_url,photo_url,background_image_url)
       VALUES ('admin',$1,
         'أ/ محمد عبد الرحمن',
         'معلم رياضيات بخبرة 20 عاماً متخصص في الثانوية العامة. نجح على يديه أكثر من 4000 طالب وحقق طلابه نسب نجاح تتجاوز 95٪.',
         'مدرس رياضيات — ثانوية عامة',
         '+201000000000','admin','أكاديمية محمد للرياضيات',
         'https://ui-avatars.com/api/?name=MA&background=f97316&color=fff&size=256&bold=true',
-        'https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=300&h=300&fit=crop')
+        'https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=300&h=300&fit=crop',
+        'https://images.unsplash.com/photo-1509062522246-3755977927d7?w=1600&q=80')
       RETURNING id
     `, [passAd]);
   } else {
@@ -111,6 +112,7 @@ async function seed() {
         platform_name='أكاديمية محمد للرياضيات',
         logo_url='https://ui-avatars.com/api/?name=MA&background=f97316&color=fff&size=256&bold=true',
         photo_url='https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=300&h=300&fit=crop',
+        background_image_url='https://images.unsplash.com/photo-1509062522246-3755977927d7?w=1600&q=80',
         force_password_change=false
       WHERE id=$1
     `, [adminRow.id, passAd]);
