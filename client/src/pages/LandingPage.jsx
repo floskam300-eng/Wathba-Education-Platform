@@ -4,7 +4,7 @@ import {
   GraduationCap, BookOpen, BarChart3,
   Video, CheckCircle, ArrowLeft, Sparkles, Trophy,
   MessageCircle, ChevronDown, Target, Phone,
-  Shield, Star, Zap, Clock, Flame, Tag
+  Shield, Star, Zap, Clock, Flame, Tag, Menu, X
 } from 'lucide-react';
 import wathbaLogo from '../assets/wathba_logo_transparent.png';
 import { useTeacher } from '../context/TeacherContext';
@@ -72,7 +72,12 @@ export default function LandingPage() {
     if (favicon && logoUrl) favicon.href = logoUrl;
   }, [teacher, platformName, logoUrl]);
 
-  const scrollTo = id => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const scrollTo = id => {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+    setMobileMenuOpen(false);
+  };
 
   const navLinks = [
     ['about', 'عن المعلم'],
@@ -182,7 +187,7 @@ export default function LandingPage() {
 
           <div className="flex items-center gap-2 shrink-0">
             <Link to="/parent-portal"
-              className="flex items-center gap-1 sm:gap-1.5 text-[#0B3C5D]/75 hover:text-[#0B3C5D] text-xs sm:text-sm font-semibold px-2 sm:px-3 py-2 rounded-lg border border-[#0B3C5D]/15 hover:border-[#0B3C5D]/30 hover:bg-[#0B3C5D]/5 transition-all duration-200 whitespace-nowrap">
+              className="hidden md:flex items-center gap-1.5 text-[#0B3C5D]/75 hover:text-[#0B3C5D] text-sm font-semibold px-3 py-2 rounded-lg border border-[#0B3C5D]/15 hover:border-[#0B3C5D]/30 hover:bg-[#0B3C5D]/5 transition-all duration-200 whitespace-nowrap">
               <Phone className="w-3.5 h-3.5 text-orange-500 shrink-0" />
               بوابة الأهل
             </Link>
@@ -190,6 +195,30 @@ export default function LandingPage() {
               className="flex items-center gap-1.5 sm:gap-2 bg-orange-500 hover:bg-orange-600 text-white font-black text-xs sm:text-sm px-3 sm:px-5 py-2.5 rounded-xl transition-all duration-200 hover:shadow-lg hover:shadow-orange-500/25 active:scale-95 whitespace-nowrap">
               دخول
               <ArrowLeft className="w-4 h-4" />
+            </Link>
+            <button
+              onClick={() => setMobileMenuOpen(v => !v)}
+              aria-label="فتح القائمة"
+              aria-expanded={mobileMenuOpen}
+              className="md:hidden flex items-center justify-center w-9 h-9 rounded-lg border border-[#0B3C5D]/15 text-[#0B3C5D]/75 hover:text-[#0B3C5D] hover:bg-[#0B3C5D]/5 transition-all duration-200 shrink-0">
+              {mobileMenuOpen ? <X className="w-4.5 h-4.5" /> : <Menu className="w-4.5 h-4.5" />}
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile dropdown menu */}
+        <div className={`md:hidden overflow-hidden transition-all duration-300 ${mobileMenuOpen ? 'max-h-96 border-t border-[#0B3C5D]/10' : 'max-h-0'}`}>
+          <div className="px-5 py-3 flex flex-col gap-1 bg-white/95">
+            {navLinks.map(([id, label]) => (
+              <button key={id} onClick={() => scrollTo(id)}
+                className="text-right text-[#0B3C5D]/70 hover:text-[#0B3C5D] text-sm font-semibold px-3 py-2.5 rounded-lg hover:bg-[#0B3C5D]/5 transition-all duration-200">
+                {label}
+              </button>
+            ))}
+            <Link to="/parent-portal" onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center gap-1.5 text-[#0B3C5D]/75 hover:text-[#0B3C5D] text-sm font-semibold px-3 py-2.5 rounded-lg hover:bg-[#0B3C5D]/5 transition-all duration-200">
+              <Phone className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+              بوابة الأهل
             </Link>
           </div>
         </div>
