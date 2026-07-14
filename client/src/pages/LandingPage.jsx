@@ -198,7 +198,7 @@ export default function LandingPage() {
         {/* Teacher background image with dark gradient overlay for text legibility */}
         <div className="absolute inset-0 overflow-hidden">
           <img src={heroBg} alt="" className="w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-b from-white/95 via-white/90 to-[#F8FAFC]" />
+          <div className="absolute inset-0 bg-gradient-to-b from-white/55 via-white/60 to-[#F8FAFC]" />
         </div>
 
         <div className="absolute w-[600px] h-[600px] rounded-full border border-[#0B3C5D]/[0.03] lp-ring-spin" />
