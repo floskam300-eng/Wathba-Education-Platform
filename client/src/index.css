@@ -1001,6 +1001,28 @@ html:not(.dark) .bg-navy-50 {
   background-color: #E4E8EC !important;
 }
 
+/* ── App shell background — subtle depth instead of a flat fill ──
+   Soft brand-tinted glow + a faint dot-grid, kept low-contrast so it
+   never competes with the cards/content sitting on top. ── */
+html:not(.dark) .app-root-layout.bg-navy-50 {
+  background-color: #EEF1F4 !important;
+  background-image:
+    radial-gradient(circle at 10% 6%,  rgba(255, 140, 0, 0.06) 0%, transparent 40%),
+    radial-gradient(circle at 90% 94%, rgba(26, 46, 74, 0.05) 0%, transparent 40%),
+    radial-gradient(rgba(26, 46, 74, 0.06) 1px, transparent 1px) !important;
+  background-size: auto, auto, 24px 24px !important;
+  background-repeat: no-repeat, no-repeat, repeat !important;
+}
+html.dark .app-root-layout {
+  background-color: var(--dk-bg);
+  background-image:
+    radial-gradient(circle at 10% 6%,  rgba(245, 166, 35, 0.08) 0%, transparent 40%),
+    radial-gradient(circle at 90% 94%, rgba(45, 212, 191, 0.05) 0%, transparent 40%),
+    radial-gradient(rgba(245, 166, 35, 0.05) 1px, transparent 1px);
+  background-size: auto, auto, 24px 24px;
+  background-repeat: no-repeat, no-repeat, repeat;
+}
+
 /* ── Shadow أقوى على كل العناصر البيضاء المتوسطة والكبيرة ── */
 html:not(.dark) .shadow-sm {
   box-shadow: 0 2px 6px rgba(26, 46, 74, 0.18),
