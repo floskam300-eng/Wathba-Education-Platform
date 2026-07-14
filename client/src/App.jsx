@@ -157,6 +157,9 @@ const TenantRoutes = () => {
 
         <Route path="parent-portal" element={<ParentPortal />} />
 
+        <Route path="privacy" element={<PrivacyPolicy />} />
+        <Route path="terms" element={<TermsAndConditions />} />
+
         {/* ── Teacher dashboard ─────────────────────────────────────────────── */}
         <Route path="teacher" element={
           <ProtectedRoute allowedRoles={['teacher']}>
