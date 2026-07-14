@@ -35,3 +35,6 @@
 - [Teacher-side withToken gap](teacher-image-withtoken-gap.md) — check every role-specific page copy for raw img src on /uploads/*; ExamQuestions.jsx + QuestionBanks.jsx (teacher) missed withToken() while student pages had it
 - [Service worker caching stale app shell](service-worker-stale-shell.md) — PWA sw.js cached index.html cache-first forever, so deployed code fixes never reached users; check this before re-diagnosing a "fix didn't work" report
 - [Dev tenant preview testing](dev-tenant-preview-testing.md) — visit `/?tenant=<slug>` in the Replit preview to view a teacher's tenant-scoped pages; plain `/` always shows PlatformHome there
+- [Subdomain/IP testing artifact](subdomain-ip-testing-artifact.md) — curling 127.0.0.1 makes tenant middleware treat the IP as a subdomain slug, breaking login; use Host: localhost instead
+- [Light theme low-contrast utility classes](light-theme-contrast-fix.md) — border-gray-50/100, divide-gray-50/100, and dark:text-gray-500 were near-invisible; fixed via global CSS overrides in index.css, not per-page edits
+- [wathba.site is a separate external deployment](wathba-external-deployment.md) — admin.wathba.site is NOT served by this repl (no [deployment] in .replit); user deploys the code themselves elsewhere, so fixes here need their manual redeploy to appear live

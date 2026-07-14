@@ -235,6 +235,16 @@
 .divide-slate-100 > :not([hidden]) ~ :not([hidden]) { border-color: #D3DAE3; }
 
 /* ═══════════════════════════════════════════════════════
+   DARK MODE — muted label/header text contrast fix
+   `dark:text-gray-500` (used for table headers, subtitles,
+   captions) renders at ~2.3:1 contrast on dark card
+   backgrounds — too dim to read, especially at 10–11px.
+   Lighten it without touching text-gray-500 usage in light
+   mode or other dark: text shades.
+═══════════════════════════════════════════════════════ */
+html.dark .dark\:text-gray-500 { color: #9CA6B5 !important; }
+
+/* ═══════════════════════════════════════════════════════
    DARK MODE — COMPONENT OVERRIDES
 ═══════════════════════════════════════════════════════ */
 
