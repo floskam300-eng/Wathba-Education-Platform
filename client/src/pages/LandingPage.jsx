@@ -72,6 +72,12 @@ export default function LandingPage() {
 
   const scrollTo = id => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
 
+  const navLinks = [
+    ['about', 'عن المعلم'],
+    ...(topCourses && topCourses.length > 0 ? [['top-courses', 'أبرز الكورسات']] : []),
+    ['support', 'فريق الدعم'],
+  ];
+
 
 
   return (
@@ -164,7 +170,7 @@ export default function LandingPage() {
           <img src={displayLogo} alt={platformName} className="h-11 w-auto rounded-xl shadow-sm" />
 
           <div className="hidden md:flex items-center gap-1">
-            {[['about','عن المعلم'],['support','فريق الدعم']].map(([id, label]) => (
+            {navLinks.map(([id, label]) => (
               <button key={id} onClick={() => scrollTo(id)}
                 className="text-[#0B3C5D]/70 hover:text-[#0B3C5D] text-sm font-semibold px-3 py-2 rounded-lg hover:bg-[#0B3C5D]/5 transition-all duration-200">
                 {label}
@@ -531,7 +537,7 @@ export default function LandingPage() {
             <span className="text-[#0B3C5D]/70 text-xs font-semibold">المنصة التعليمية المتكاملة</span>
           </div>
           <div className="flex items-center gap-1">
-            {[['about','عن المعلم'],['support','فريق الدعم']].map(([id, label]) => (
+            {navLinks.map(([id, label]) => (
               <button key={id} onClick={() => scrollTo(id)}
                 className="text-[#0B3C5D]/65 hover:text-orange-500 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
                 {label}
