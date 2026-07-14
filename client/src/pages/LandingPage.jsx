@@ -1,38 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  GraduationCap, BookOpen, BarChart3, Play, FileText,
+  GraduationCap, BookOpen, BarChart3,
   Users, CheckCircle, ArrowLeft, Sparkles, Trophy,
-  MessageCircle, ChevronDown, Target, CreditCard, Phone,
-  Video, Gamepad2, Database, HelpCircle, Shield, Star,
-  Zap, Clock, TrendingUp
+  MessageCircle, ChevronDown, Target, Phone,
+  Shield, Star, Zap, Clock
 } from 'lucide-react';
 import wathbaLogo from '../assets/wathba_logo_transparent.png';
 import { useTeacher } from '../context/TeacherContext';
 
-/* ════════════════ DEMO COVERS ════════════════ */
-const DEMO_COVERS = [
-  'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=480&h=260&fit=crop&auto=format',
-  'https://images.unsplash.com/photo-1509228627152-72ae9ae6848d?w=480&h=260&fit=crop&auto=format',
-  'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=480&h=260&fit=crop&auto=format',
-];
 
-/* ════════════════ HOOKS ════════════════ */
-function useCounter(target, duration = 1800, start = false) {
-  const [count, setCount] = useState(0);
-  useEffect(() => {
-    if (!start || !target) return;
-    let t0 = null;
-    const tick = (ts) => {
-      if (!t0) t0 = ts;
-      const p = Math.min((ts - t0) / duration, 1);
-      setCount(Math.floor((1 - Math.pow(1 - p, 3)) * target));
-      if (p < 1) requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-  }, [target, duration, start]);
-  return count;
-}
+
+
 
 function useReveal(threshold = 0.12) {
   const ref = useRef(null);
@@ -71,90 +50,16 @@ function SectionLabel({ text }) {
   );
 }
 
-/* ════════════════ FEATURE CARD ════════════════ */
-function FeatureCard({ icon: Icon, title, desc, variant = 'orange', delay = 0 }) {
-  const isPurple = variant === 'purple';
-  return (
-    <Reveal delay={delay}
-      className="group relative bg-white border border-slate-150 rounded-2xl p-5 hover:border-orange-500/30 hover:bg-slate-50/50 transition-all duration-400 hover:-translate-y-1.5 hover:shadow-md cursor-default overflow-hidden">
-      <div className={`absolute top-0 left-0 w-full h-0.5 ${isPurple ? 'bg-gradient-to-r from-transparent via-purple-500/60 to-transparent' : 'bg-gradient-to-r from-transparent via-orange-500/60 to-transparent'} opacity-0 group-hover:opacity-100 transition-opacity duration-400`} />
-      <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-4 ${isPurple ? 'bg-purple-500/10 border border-purple-500/20' : 'bg-orange-500/10 border border-orange-500/20'} group-hover:scale-110 transition-transform duration-300`}>
-        <Icon className={`w-5 h-5 ${isPurple ? 'text-purple-600' : 'text-orange-600'}`} />
-      </div>
-      <h3 className="font-black text-[#0B3C5D] text-sm mb-1.5 leading-snug">{title}</h3>
-      <p className="text-slate-500 text-xs leading-relaxed">{desc}</p>
-    </Reveal>
-  );
-}
 
-/* ════════════════ COURSE CARD ════════════════ */
-function CourseCard({ course, index, delay = 0 }) {
-  const [imgErr, setImgErr] = useState(false);
-  const raw = course.thumbnail_url;
-  const src = raw ? (raw.startsWith('http') ? raw : `/uploads/${raw}`) : null;
-  const cover = (!imgErr && src) ? src : DEMO_COVERS[index % DEMO_COVERS.length];
-  return (
-    <Reveal delay={delay}
-      className="group bg-white border border-slate-150 rounded-2xl overflow-hidden hover:border-orange-500/35 hover:-translate-y-2 transition-all duration-500 shadow-sm hover:shadow-lg"
-      onMouseEnter={e => e.currentTarget.style.boxShadow = '0 12px 40px rgba(249,115,22,0.08)'}
-      onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}>
-      <div className="h-44 relative overflow-hidden bg-slate-100">
-        <img src={cover} alt={course.name} onError={() => setImgErr(true)}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-600 opacity-90 group-hover:opacity-100" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
-        {course.price > 0 && (
-          <div className="absolute top-3 right-3 bg-orange-500 text-white text-xs font-black px-2.5 py-1 rounded-lg">
-            {parseFloat(course.price).toFixed(0)} جنيه
-          </div>
-        )}
-        {course.target_stage && (
-          <div className="absolute top-3 left-3 bg-black/50 backdrop-blur text-white/80 text-[10px] font-bold px-2 py-1 rounded-lg border border-white/15">
-            {course.target_stage}
-          </div>
-        )}
-        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-          <div className="w-12 h-12 rounded-full bg-orange-500/95 flex items-center justify-center shadow-xl shadow-orange-500/40">
-            <Play className="w-5 h-5 text-white ms-0.5" />
-          </div>
-        </div>
-      </div>
-      <div className="p-4">
-        <h3 className="font-black text-[#0B3C5D] text-sm leading-snug mb-1 group-hover:text-orange-600 transition-colors">{course.name}</h3>
-        {course.description && (
-          <p className="text-slate-500 text-xs leading-relaxed line-clamp-2">{course.description}</p>
-        )}
-      </div>
-    </Reveal>
-  );
-}
 
-/* ════════════════ STAT CARD ════════════════ */
-function StatCard({ icon: Icon, value, label, delay = 0, color }) {
-  return (
-    <Reveal delay={delay}
-      className="bg-white border border-slate-150 rounded-2xl p-5 flex items-center gap-4 hover:border-orange-500/30 hover:shadow-md transition-all duration-300"
-      style={{ boxShadow: '0 2px 10px rgba(11,60,93,0.04)' }}>
-      <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-gradient-to-br ${color.bg} border ${color.border}`}>
-        <Icon className={`w-6 h-6 ${color.icon}`} />
-      </div>
-      <div>
-        <p className="text-[#0B3C5D] font-black text-xl leading-none mb-1">{value}</p>
-        <p className="text-[#0B3C5D]/50 text-xs font-bold">{label}</p>
-      </div>
-    </Reveal>
-  );
-}
+
 
 /* ════════════════ MAIN PAGE ════════════════ */
 export default function LandingPage() {
   const { teacher, stats, supportContacts, isLoading, platformName, logoUrl } = useTeacher();
   const displayLogo = logoUrl || wathbaLogo;
 
-  const [statsRef, statsVisible] = useReveal(0.3);
-  const sCount = useCounter(stats?.total_students || 0, 1500, statsVisible);
-  const cCount = useCounter(stats?.total_courses  || 0, 1500, statsVisible);
-  const eCount = useCounter(stats?.total_exams    || 0, 1500, statsVisible);
-  const rCount = useCounter(stats?.total_results  || 0, 1500, statsVisible);
+
 
   useEffect(() => {
     document.title = teacher?.name ? `${teacher.name} — الرئيسية` : platformName || 'وثبة';
@@ -256,7 +161,7 @@ export default function LandingPage() {
           <img src={displayLogo} alt={platformName} className="h-11 w-auto rounded-xl shadow-sm" />
 
           <div className="hidden md:flex items-center gap-1">
-            {[['about','عن المعلم'],['courses','الكورسات'],['features','المميزات'],['support','فريق الدعم']].map(([id, label]) => (
+            {[['about','عن المعلم'],['support','فريق الدعم']].map(([id, label]) => (
               <button key={id} onClick={() => scrollTo(id)}
                 className="text-[#0B3C5D]/70 hover:text-[#0B3C5D] text-sm font-semibold px-3 py-2 rounded-lg hover:bg-[#0B3C5D]/5 transition-all duration-200">
                 {label}
@@ -319,23 +224,11 @@ export default function LandingPage() {
             </Link>
           </div>
 
-          <button onClick={() => scrollTo('stats')}
+          <button onClick={() => scrollTo('about')}
             className="lp-fade-4 mt-16 flex flex-col items-center gap-1.5 mx-auto text-[#0B3C5D]/30 hover:text-[#0B3C5D]/50 transition-colors">
             <span className="text-[11px] font-semibold tracking-widest uppercase">اكتشف</span>
             <ChevronDown className="w-4 h-4 animate-bounce" />
           </button>
-        </div>
-      </section>
-
-      {/* ─────────────── STATS ─────────────── */}
-      <section id="stats" ref={statsRef} className="relative py-16" style={{ zIndex: 1 }}>
-        <div className="relative z-10 max-w-5xl mx-auto px-5">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard icon={Users}    value={sCount} label="طالب مسجّل"  delay={0}    color={{ icon:'text-orange-600', bg:'from-orange-500/8 to-transparent', border:'border-orange-500/15' }} />
-            <StatCard icon={BookOpen} value={cCount} label="كورس تعليمي" delay={0.08} color={{ icon:'text-purple-600', bg:'from-purple-500/8 to-transparent', border:'border-purple-500/15' }} />
-            <StatCard icon={Target}   value={eCount} label="امتحان متاح"  delay={0.16} color={{ icon:'text-orange-600', bg:'from-orange-500/8 to-transparent', border:'border-orange-500/15' }} />
-            <StatCard icon={BarChart3} value={rCount} label="نتيجة محللة" delay={0.24} color={{ icon:'text-purple-600', bg:'from-purple-500/8 to-transparent', border:'border-purple-500/15' }} />
-          </div>
         </div>
       </section>
 
