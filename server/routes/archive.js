@@ -449,10 +449,12 @@ router.get('/filters', requireRole('teacher', 'assistant'), checkAnyPerm, async 
         `SELECT id, name FROM courses WHERE teacher_id=$1 ORDER BY name`,
         [teacherId]
       ),
+      // FIX-FILTERS-1: Use LEFT JOIN so standalone exams (course_id = NULL) appear
+      // in the dropdown. INNER JOIN silently dropped them.
       pool.query(
         `SELECT e.id, e.title, e.course_id, c.name AS course_name
-         FROM exams e JOIN courses c ON e.course_id=c.id
-         WHERE e.teacher_id=$1 ORDER BY c.name, e.title`,
+         FROM exams e LEFT JOIN courses c ON e.course_id=c.id
+         WHERE e.teacher_id=$1 ORDER BY c.name NULLS LAST, e.title`,
         [teacherId]
       ),
       pool.query(

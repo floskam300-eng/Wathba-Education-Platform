@@ -271,20 +271,21 @@ export default function AssistantAnalytics() {
   const activeFiltersCount = [genderFilter !== 'الكل', perfFilter !== 'الكل', stageFilter !== 'الكل'].filter(Boolean).length;
   const clearAllFilters = () => { setSearchQuery(''); setStageFilter('الكل'); setGenderFilter('الكل'); setPerfFilter('الكل'); };
 
+  // FIX-DIST: Previously derived from topStudents (capped at 50 by points),
+  // misrepresenting the full student population.  Now uses dedicated server-side
+  // aggregates (stageDistribution / genderDistribution) over all students.
   const stageDistData = useMemo(() => {
-    const counts = {};
-    (data?.topStudents || []).forEach(s => {
-      const stage = (s.academic_stage || 'غير محدد')
-        .replace('الصف ', '').replace(' الثانوي', ' ث').replace(' الإعدادي', ' إع');
-      counts[stage] = (counts[stage] || 0) + 1;
-    });
-    return Object.entries(counts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+    return (data?.stageDistribution || []).map(row => ({
+      name: (row.stage || 'غير محدد')
+        .replace('الصف ', '').replace(' الثانوي', ' ث').replace(' الإعدادي', ' إع'),
+      value: row.count,
+    }));
   }, [data]);
 
   const genderDistData = useMemo(() => {
-    const counts = {};
-    (data?.topStudents || []).forEach(s => { const g = s.gender || 'غير محدد'; counts[g] = (counts[g] || 0) + 1; });
-    return Object.entries(counts).filter(([, v]) => v > 0).map(([name, value]) => ({ name, value }));
+    return (data?.genderDistribution || [])
+      .filter(row => row.count > 0)
+      .map(row => ({ name: row.gender || 'غير محدد', value: row.count }));
   }, [data]);
 
   const recRecentChartData = useMemo(() => (recData?.recent_recitations || []).map(r => ({

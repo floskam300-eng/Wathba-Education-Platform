@@ -127,7 +127,7 @@ router.get('/analytics', requireRole('teacher', 'assistant'), checkAnalyticsPerm
     const cached = getCached(cacheKey);
     if (cached) return res.json(cached);
 
-    const [examResults, topStudents, recentResults, stageStats, totalStudentsRes] = await Promise.all([
+    const [examResults, topStudents, recentResults, stageStats, totalStudentsRes, stageDistribution, genderDistribution] = await Promise.all([
       pool.query(`
         SELECT e.id, e.title, e.total_score, e.pass_score, e.created_at, e.course_id,
                c.name AS course_name, c.target_stage,
@@ -191,6 +191,24 @@ router.get('/analytics', requireRole('teacher', 'assistant'), checkAnalyticsPerm
         `SELECT COUNT(*)::int AS count FROM students WHERE teacher_id = $1 AND deleted_at IS NULL`,
         [teacherId]
       ),
+      // FIX-DIST-1: Stage distribution over ALL students (not top-50 by points).
+      pool.query(`
+        SELECT COALESCE(academic_stage, 'غير محدد') AS stage,
+               COUNT(*)::int AS count
+        FROM students
+        WHERE teacher_id = $1 AND deleted_at IS NULL
+        GROUP BY academic_stage
+        ORDER BY count DESC
+      `, [teacherId]),
+      // FIX-DIST-2: Gender distribution over ALL students.
+      pool.query(`
+        SELECT COALESCE(gender, 'غير محدد') AS gender,
+               COUNT(*)::int AS count
+        FROM students
+        WHERE teacher_id = $1 AND deleted_at IS NULL
+        GROUP BY gender
+        ORDER BY count DESC
+      `, [teacherId]),
     ]);
 
     const result = {
@@ -199,6 +217,8 @@ router.get('/analytics', requireRole('teacher', 'assistant'), checkAnalyticsPerm
       recentResults: recentResults.rows,
       stageStats: stageStats.rows,
       totalStudents: totalStudentsRes.rows[0].count,
+      stageDistribution: stageDistribution.rows,
+      genderDistribution: genderDistribution.rows,
     };
     setCache(cacheKey, result);
     res.json(result);

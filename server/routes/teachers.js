@@ -319,7 +319,7 @@ router.get('/analytics', requireRole('teacher'), async (req, res) => {
       ORDER BY e.created_at DESC
     `, [teacherId]);
 
-    const [topStudents, recentResults, totalStudentsRes] = await Promise.all([
+    const [topStudents, recentResults, totalStudentsRes, stageDistribution, genderDistribution] = await Promise.all([
       pool.query(`
         SELECT s.id, s.name, s.username, s.points, s.academic_stage, s.gender,
                COUNT(er.id) as exams_taken,
@@ -346,6 +346,26 @@ router.get('/analytics', requireRole('teacher'), async (req, res) => {
         `SELECT COUNT(*)::int AS count FROM students WHERE teacher_id = $1 AND deleted_at IS NULL`,
         [teacherId]
       ),
+      // FIX-DIST-1: Compute stage distribution over ALL students (not just top-50).
+      // Previously stageDistData was derived from topStudents (LIMIT 50 by points),
+      // causing the "distribution by stage" chart to misrepresent actual counts.
+      pool.query(`
+        SELECT COALESCE(academic_stage, 'غير محدد') AS stage,
+               COUNT(*)::int AS count
+        FROM students
+        WHERE teacher_id = $1 AND deleted_at IS NULL
+        GROUP BY academic_stage
+        ORDER BY count DESC
+      `, [teacherId]),
+      // FIX-DIST-2: Same fix for gender distribution chart.
+      pool.query(`
+        SELECT COALESCE(gender, 'غير محدد') AS gender,
+               COUNT(*)::int AS count
+        FROM students
+        WHERE teacher_id = $1 AND deleted_at IS NULL
+        GROUP BY gender
+        ORDER BY count DESC
+      `, [teacherId]),
     ]);
 
     const result = {
@@ -353,6 +373,8 @@ router.get('/analytics', requireRole('teacher'), async (req, res) => {
       topStudents: topStudents.rows,
       recentResults: recentResults.rows,
       totalStudents: totalStudentsRes.rows[0].count,
+      stageDistribution: stageDistribution.rows,
+      genderDistribution: genderDistribution.rows,
     };
     setCache(cacheKey, result);
     res.json(result);

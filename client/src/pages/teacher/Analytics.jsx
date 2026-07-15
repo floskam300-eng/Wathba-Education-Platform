@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { useTheme } from '../../context/ThemeContext';
 import MathText from '../../components/MathText';
 import {
@@ -110,10 +110,14 @@ export default function TeacherAnalytics() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // FIX-KPD: keepPreviousData is a React Query v4 option; in v5 it must be
+  // placeholderData: keepPreviousData (imported from the package).  Using the
+  // old key in v5 was silently ignored, causing the trend chart to blank out
+  // every time the period filter changed instead of keeping the previous data.
   const { data: trendData = [], isFetching: trendLoading } = useQuery({
     queryKey: ['teacher-analytics-trend', trendMonths],
     queryFn: () => api.get(`/teachers/analytics/trend?months=${trendMonths}`).then(r => r.data),
-    keepPreviousData: true,
+    placeholderData: keepPreviousData,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -123,6 +127,11 @@ export default function TeacherAnalytics() {
     staleTime: 5 * 60 * 1000,
   });
   const [wrongQExamIdx, setWrongQExamIdx] = useState(0);
+  // FIX-WRONGQ-BOUNDS: When wrongQData loads (or reloads with fewer exams),
+  // the stale index can exceed the new array length, causing wrongQData[idx]
+  // to be undefined and crashing on currentExam.questions.  Reset to 0
+  // whenever the number of available exams changes.
+  useEffect(() => { setWrongQExamIdx(0); }, [wrongQData.length]);
 
   const filteredAndSortedExams = useMemo(() => {
     if (!data?.examResults) return [];
@@ -199,20 +208,22 @@ export default function TeacherAnalytics() {
     attempts: parseInt(e.attempt_count) || 0,
   })), [data]);
 
+  // FIX-DIST: Previously derived from topStudents (capped at 50 by points),
+  // which misrepresented the full student population.  Now uses dedicated
+  // server-side aggregates over all students (stageDistribution /
+  // genderDistribution returned by /teachers/analytics since this fix).
   const stageDistData = useMemo(() => {
-    const counts = {};
-    (data?.topStudents || []).forEach(s => {
-      const stage = (s.academic_stage || 'غير محدد')
-        .replace('الصف ', '').replace(' الثانوي', ' ث').replace(' الإعدادي', ' إع');
-      counts[stage] = (counts[stage] || 0) + 1;
-    });
-    return Object.entries(counts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+    return (data?.stageDistribution || []).map(row => ({
+      name: (row.stage || 'غير محدد')
+        .replace('الصف ', '').replace(' الثانوي', ' ث').replace(' الإعدادي', ' إع'),
+      value: row.count,
+    }));
   }, [data]);
 
   const genderDistData = useMemo(() => {
-    const counts = {};
-    (data?.topStudents || []).forEach(s => { const g = s.gender || 'غير محدد'; counts[g] = (counts[g] || 0) + 1; });
-    return Object.entries(counts).filter(([, v]) => v > 0).map(([name, value]) => ({ name, value }));
+    return (data?.genderDistribution || [])
+      .filter(row => row.count > 0)
+      .map(row => ({ name: row.gender || 'غير محدد', value: row.count }));
   }, [data]);
 
   const recRecentChartData = useMemo(() => (recData?.recent_recitations || []).map(r => ({
