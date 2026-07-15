@@ -8,7 +8,9 @@ FROM node:20-alpine AS client-builder
 
 WORKDIR /build/client
 COPY client/package*.json ./
-RUN npm ci
+# npm install instead of npm ci — the lockfile contains Replit-internal registry URLs
+# that are unreachable outside Replit. npm install resolves from the real npm registry.
+RUN npm install --prefer-offline || npm install
 COPY client/ ./
 RUN npm run build
 
