@@ -1075,3 +1075,110 @@ CREATE TABLE IF NOT EXISTS teacher_import_models (
   updated_at TIMESTAMP DEFAULT NOW(),
   UNIQUE(teacher_id)
 );
+
+-- ==========================================
+-- Platform Admin & Tenant Subscriptions Schema
+-- ==========================================
+
+-- ── 1. Platform Admins ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS platform_admins (
+  id              SERIAL PRIMARY KEY,
+  username        VARCHAR(100) UNIQUE NOT NULL,
+  password_hash   TEXT NOT NULL,
+  name            VARCHAR(200),
+  role            VARCHAR(50) DEFAULT 'admin',  -- 'admin' | 'super_admin'
+  is_active       BOOLEAN DEFAULT true,
+  created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ── 2. Subscription Plans ────────────────────
+CREATE TABLE IF NOT EXISTS subscription_plans (
+  id              SERIAL PRIMARY KEY,
+  name            VARCHAR(200) NOT NULL,
+  description     TEXT,
+  category        VARCHAR(50) NOT NULL,            -- 'platform' | 'service' | 'social_media'
+  max_students    INTEGER,                         -- NULL = unlimited
+  price           NUMERIC(10,2) NOT NULL,
+  first_month_price NUMERIC(10,2),
+  billing_type    VARCHAR(20) NOT NULL,            -- 'monthly' | 'annual' | 'one_time'
+  is_active       BOOLEAN DEFAULT true,
+  sort_order      INTEGER DEFAULT 0,
+  created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ── 3. Teacher Subscriptions ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS teacher_subscriptions (
+  id              SERIAL PRIMARY KEY,
+  teacher_id      INTEGER NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+  plan_id         INTEGER NOT NULL REFERENCES subscription_plans(id),
+  billing_type    VARCHAR(20) NOT NULL,
+  price_override  NUMERIC(10,2),
+  start_date      DATE NOT NULL,
+  end_date        DATE,
+  status          VARCHAR(20) DEFAULT 'active',   -- 'active' | 'expired' | 'cancelled'
+  notes           TEXT,
+  created_by      INTEGER REFERENCES platform_admins(id),
+  created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ── 4. Subscription Payments ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS subscription_payments (
+  id              SERIAL PRIMARY KEY,
+  subscription_id INTEGER NOT NULL REFERENCES teacher_subscriptions(id) ON DELETE CASCADE,
+  teacher_id      INTEGER NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+  amount          NUMERIC(10,2) NOT NULL,
+  currency        VARCHAR(10) DEFAULT 'EGP',
+  paid_at         TIMESTAMPTZ NOT NULL,
+  period_start    DATE,
+  period_end      DATE,
+  payment_method  VARCHAR(100),
+  notes           TEXT,
+  recorded_by     INTEGER REFERENCES platform_admins(id),
+  created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ── 5. Teacher Support Team Members ───────────────────────────
+CREATE TABLE IF NOT EXISTS teacher_team_members (
+  id              SERIAL PRIMARY KEY,
+  teacher_id      INTEGER NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+  name            VARCHAR(200) NOT NULL,
+  role_title      VARCHAR(200),
+  photo_url       TEXT,
+  whatsapp_phone  VARCHAR(30),
+  display_order   INTEGER DEFAULT 0,
+  created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ── Indexes ──────────────────────────────────────────────────────
+CREATE INDEX IF NOT EXISTS idx_teacher_subscriptions_teacher ON teacher_subscriptions(teacher_id, status);
+CREATE INDEX IF NOT EXISTS idx_subscription_payments_teacher ON subscription_payments(teacher_id, paid_at DESC);
+CREATE INDEX IF NOT EXISTS idx_teacher_team_teacher ON teacher_team_members(teacher_id, display_order);
+
+-- ── 6. Migrate Teachers columns ──────────────────────────────────
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS is_platform_suspended BOOLEAN DEFAULT false;
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS platform_suspended_at TIMESTAMPTZ;
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS platform_suspended_reason TEXT;
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS features_enabled JSONB DEFAULT '{"live_streaming": true, "stickman_run": true}'::jsonb;
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS hero_image_url TEXT;
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS background_color VARCHAR(20);
+
+-- ── 7. Insert Default Subscription Plans ────────────────────────
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM subscription_plans) THEN
+    INSERT INTO subscription_plans (name, description, category, max_students, price, first_month_price, billing_type, sort_order) VALUES
+    ('Wathba Start', 'باقة البداية من منصة وثبة للمجموعات الصغيرة', 'platform', 100, 699.00, 1500.00, 'monthly', 1),
+    ('Wathba Plus', 'الباقة المتقدمة للمجموعات المتوسطة', 'platform', 300, 1300.00, 2000.00, 'monthly', 2),
+    ('Wathba Pro', 'الباقة الاحترافية لمراكز الدروس الكبرى', 'platform', 750, 2999.00, 4000.00, 'monthly', 3),
+    ('Wathba Business', 'باقة الشركات والأعمال والمنصات الكبيرة جداً', 'platform', 2000, 5500.00, 7000.00, 'monthly', 4),
+    ('Wathba Start (سنوي)', 'باقة البداية السنوية بتخفيض كبير', 'platform', 100, 5500.00, NULL, 'annual', 5),
+    ('Wathba Plus (سنوي)', 'الباقة المتقدمة السنوية بتخفيض كبير', 'platform', 300, 11500.00, NULL, 'annual', 6),
+    ('Wathba Pro (سنوي)', 'الباقة الاحترافية السنوية بتخفيض كبير', 'platform', 750, 25999.00, NULL, 'annual', 7),
+    ('Wathba Business (سنوي)', 'الباقة السنوية الكبرى بتخفيض كبير', 'platform', 2000, 49000.00, NULL, 'annual', 8),
+    ('إدارة السوشيال ميديا', 'إدارة كاملة لحسابات المدرس على منصات التواصل الاجتماعي', 'social_media', NULL, 5000.00, NULL, 'monthly', 9),
+    ('تصميم (بوست)', 'تصميم بوست دعائي أو تعليمي احترافي فردي', 'service', NULL, 150.00, NULL, 'one_time', 10),
+    ('فيديو', 'مونتاج فيديو قصير أو درس تعليمي', 'service', NULL, 170.00, NULL, 'one_time', 11),
+    ('ريل (Reel)', 'تصميم ومونتاج فيديو قصير تفاعلي (Reel/Short)', 'service', NULL, 300.00, NULL, 'one_time', 12);
+  END IF;
+END $$;
+

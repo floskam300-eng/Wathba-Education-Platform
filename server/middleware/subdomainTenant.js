@@ -34,7 +34,8 @@ function extractSubdomainSlug(host) {
     hostname.includes('replit.app') ||
     hostname.includes('repl.co')
   ) return null;
-  if (parts[0] === 'www') return null;
+  const RESERVED_SUBDOMAINS = ['dashboard', 'admin', 'api', 'www', 'mail'];
+  if (RESERVED_SUBDOMAINS.includes(parts[0])) return null;
   return parts[0];
 }
 

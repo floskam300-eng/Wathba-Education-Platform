@@ -500,6 +500,7 @@ app.get('/api/sse', sseLimiter, async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 
 app.use('/api', subdomainTenant);
+app.use('/api/admin', require('./routes/admin'));
 app.use('/api/public', require('./routes/public'));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/teachers', require('./routes/teachers'));

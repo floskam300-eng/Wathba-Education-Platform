@@ -18,6 +18,25 @@ const leaveTicketMap = new Map();
 const router = express.Router();
 router.use(authenticate);
 
+// Feature flag check for live streaming
+router.use(async (req, res, next) => {
+  const teacherId = req.tenantTeacherId || (req.user?.role === 'teacher' ? req.user.id : req.user?.teacher_id);
+  if (!teacherId) return next();
+  try {
+    const { rows } = await pool.query(
+      "SELECT features_enabled FROM teachers WHERE id = $1", [teacherId]
+    );
+    const features = rows[0]?.features_enabled || {};
+    if (!features.live_streaming) {
+      return res.status(403).json({ error: 'خاصية البث المباشر غير مفعلة لهذه المنصة' });
+    }
+    next();
+  } catch (err) {
+    console.error('[live route feature check error]:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 /* ══════════════════════════════════════════════════════════════════
    INPUT VALIDATION HELPERS
    FIX: validate URL params as positive integers before hitting DB.

@@ -31,7 +31,7 @@ router.get('/info', async (req, res) => {
     const teacher = teacherRes.rows[0];
     const tid = teacher.id;
 
-    const [stats, supportContacts, topCourses] = await Promise.all([
+    const [stats, supportContacts, topCourses, teamResult] = await Promise.all([
       pool.query(`
         SELECT
           (SELECT COUNT(*) FROM students   WHERE teacher_id=$1 AND deleted_at IS NULL) AS total_students,
@@ -58,6 +58,10 @@ router.get('/info', async (req, res) => {
         ORDER BY views_count DESC, c.created_at DESC
         LIMIT 3
       `, [tid]),
+      pool.query(
+        'SELECT name, role_title, photo_url, whatsapp_phone FROM teacher_team_members WHERE teacher_id = $1 ORDER BY display_order',
+        [tid]
+      ),
     ]);
 
     res.json({
@@ -65,6 +69,7 @@ router.get('/info', async (req, res) => {
       stats: stats.rows[0],
       supportContacts: supportContacts.rows,
       topCourses: topCourses.rows,
+      team: teamResult.rows,
     });
   } catch (err) {
     console.error(err);

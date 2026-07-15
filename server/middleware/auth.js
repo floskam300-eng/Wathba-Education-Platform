@@ -8,6 +8,7 @@ if (!process.env.JWT_SECRET) {
 }
 
 const JWT_SECRET   = process.env.JWT_SECRET;
+const ADMIN_JWT_SECRET = process.env.ADMIN_JWT_SECRET || (process.env.JWT_SECRET + '_admin');
 const CACHE_TTL_MS = 30_000;
 const MAX_CACHE_SIZE = 5_000;
 
@@ -145,6 +146,16 @@ const authenticate = async (req, res, next) => {
       return res.status(401).json({ error: 'Unknown or unsupported role' });
     }
 
+    // If the tenant is platform-suspended, block access
+    if (req.tenantTeacherId) {
+      const { rows } = await pool.query(
+        'SELECT is_platform_suspended FROM teachers WHERE id = $1', [req.tenantTeacherId]
+      );
+      if (rows[0]?.is_platform_suspended) {
+        return res.status(403).json({ error: 'هذه المنصة موقوفة مؤقتاً' });
+      }
+    }
+
     req.user = decoded;
     next();
   } catch (err) {
@@ -162,11 +173,11 @@ const invalidateStudentAuthCache = (studentId) => {
 };
 
 const invalidateAssistantAuthCache = (assistantId) => {
-  _assistantCache.set(assistantId, { valid: false, at: Date.now() });
+  _assistantCache.delete(assistantId);
 };
 
 const invalidateTeacherAuthCache = (teacherId) => {
-  _teacherCache.set(teacherId, { valid: false, at: Date.now() });
+  _teacherCache.delete(teacherId);
 };
 
 const requireRole = (...roles) => (req, res, next) => {
@@ -287,7 +298,42 @@ const verifyFullToken = async (token) => {
     );
   }
 
+  const teacherId = decoded.role === 'teacher' ? decoded.id : decoded.teacher_id;
+  if (teacherId) {
+    const rSusp = await pool.query('SELECT is_platform_suspended FROM teachers WHERE id = $1', [teacherId]);
+    if (rSusp.rows[0]?.is_platform_suspended) {
+      throw Object.assign(new Error('هذه المنصة موقوفة مؤقتاً'), { statusCode: 403 });
+    }
+  }
+
   return decoded;
+};
+
+const requireAdminAuth = async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  let token = null;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.split(' ')[1];
+  }
+  if (!token) {
+    return res.status(401).json({ error: 'No token provided' });
+  }
+  try {
+    const decoded = jwt.verify(token, ADMIN_JWT_SECRET);
+    if (decoded.role !== 'admin' && decoded.role !== 'super_admin') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    // Verify against DB that admin is active
+    const check = await pool.query('SELECT id, is_active FROM platform_admins WHERE id = $1', [decoded.id]);
+    if (check.rows.length === 0 || !check.rows[0].is_active) {
+      return res.status(401).json({ error: 'الحساب غير نشط أو تم حذفه' });
+    }
+    req.admin = decoded;
+    req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
 };
 
 module.exports = {
@@ -299,4 +345,6 @@ module.exports = {
   invalidateStudentAuthCache,
   invalidateAssistantAuthCache,
   invalidateTeacherAuthCache,
+  requireAdminAuth,
+  ADMIN_JWT_SECRET,
 };

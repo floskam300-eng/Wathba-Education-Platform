@@ -6,6 +6,25 @@ const { authenticate, requireRole } = require('../middleware/auth');
 const router = express.Router();
 router.use(authenticate);
 
+// Feature flag check for events/weekly run
+router.use(async (req, res, next) => {
+  const teacherId = req.tenantTeacherId || (req.user?.role === 'teacher' ? req.user.id : req.user?.teacher_id);
+  if (!teacherId) return next();
+  try {
+    const { rows } = await pool.query(
+      "SELECT features_enabled FROM teachers WHERE id = $1", [teacherId]
+    );
+    const features = rows[0]?.features_enabled || {};
+    if (!features.stickman_run) {
+      return res.status(403).json({ error: 'خاصية الفعاليات غير مفعلة لهذه المنصة' });
+    }
+    next();
+  } catch (err) {
+    console.error('[events route feature check error]:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Returns Monday 00:00:00 Cairo time expressed as a UTC Date
 // Egypt = Africa/Cairo (UTC+2 winter / UTC+3 summer — Intl handles DST correctly)
 const getWeekStart = () => {
