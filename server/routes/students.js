@@ -111,8 +111,12 @@ router.get('/next-username', requireRole('teacher', 'assistant'), async (req, re
   }
 });
 
-// M-1 fix: assistants must have can_view_analytics to list students (PII guard)
-router.get('/', requireRole('teacher', 'assistant'), (req, res, next) => checkPermission(req, res, next, 'can_view_analytics'), async (req, res) => {
+// M-1 fix: assistants must have can_view_analytics to list students (PII guard).
+// [AUDIT-FIX] Broadened to any-of can_view_analytics/can_add_students/can_edit_students/
+// can_delete_students — an assistant granted ONLY e.g. can_add_students still needs to
+// see the roster to operate on it; the list itself isn't the sensitive part, viewing
+// PII without any student-management permission at all is.
+router.get('/', requireRole('teacher', 'assistant'), (req, res, next) => checkAnyPermission(req, res, next, ['can_view_analytics', 'can_add_students', 'can_edit_students', 'can_delete_students']), async (req, res) => {
   const teacherId = getTeacherId(req);
   const { search } = req.query;
   try {
@@ -173,6 +177,21 @@ const checkPermission = async (req, res, next, perm) => {
     const perms = await getPermissions(req.user.id, pool);
     if (!perms) return res.status(403).json({ error: 'Access denied' });
     if (!perms[perm]) return res.status(403).json({ error: 'Access denied: missing permission' });
+    next();
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+// [AUDIT-FIX] Any-of variant: passes if the assistant has AT LEAST ONE of the listed
+// permissions. Teachers always pass.
+const checkAnyPermission = async (req, res, next, permsList) => {
+  if (req.user.role === 'teacher') return next();
+  try {
+    const perms = await getPermissions(req.user.id, pool);
+    if (!perms || !permsList.some(p => perms[p])) {
+      return res.status(403).json({ error: 'Access denied: missing permission' });
+    }
     next();
   } catch (err) {
     res.status(500).json({ error: 'Server error' });

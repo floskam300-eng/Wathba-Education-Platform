@@ -163,7 +163,23 @@ router.put('/profile/password', requireRole('teacher'), async (req, res) => {
   }
 });
 
-router.get('/at-risk-students', requireRole('teacher', 'assistant'), async (req, res) => {
+// [AUDIT-FIX] Was missing a permission check entirely for assistants — any assistant
+// (regardless of granted permissions) could pull at-risk-student analytics, unlike the
+// equivalent wrong-questions / analytics/exam/:examId endpoints which correctly require
+// can_view_analytics.
+router.get('/at-risk-students', requireRole('teacher', 'assistant'), async (req, res, next) => {
+  if (req.user.role === 'assistant') {
+    try {
+      const perms = await getPermissions(req.user.id, pool);
+      if (!perms?.can_view_analytics) {
+        return res.status(403).json({ error: 'Access denied: missing permission (can_view_analytics)' });
+      }
+    } catch {
+      return res.status(500).json({ error: 'Server error' });
+    }
+  }
+  next();
+}, async (req, res) => {
   const teacherId = req.user.role === 'teacher' ? req.user.id : req.user.teacher_id;
   const cacheKey = `t${teacherId}_at_risk`;
   const cached = getCached(cacheKey);

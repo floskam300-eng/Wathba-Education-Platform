@@ -41,3 +41,4 @@
 - [Add-teacher flow audit 2026-07](add-teacher-audit-2026-07.md) — 7 bugs fixed: cache-before-commit, 23505→409, slug preview normalization, pw min-len, slug max-len, force_password_change wiring, admin reset-pw endpoint; 40/40 tests pass
 - [Activity log coverage audit](activity-log-coverage-audit.md) — dead ACTION_LABELS entries revealed unlogged actions; question banks/teacher profile/live-streaming had zero logging; frontend keeps a duplicate label map, ignores backend's action_labels
 - [KVM4 optimization plan](kvm4-optimization-plan.md) — full perf plan at docs/OPTIMIZATION_PLAN.md; in-memory Maps (SSE, WhatsApp/Baileys, caches) block naive horizontal scaling, must move to Redis first
+- [Unguarded read endpoints](permission-audit-2026-07-read-endpoints.md) — write routes get perm checks, list/GET siblings for the same feature are recurrently missed; always audit reads too, and check frontend-only gates aren't the sole boundary
