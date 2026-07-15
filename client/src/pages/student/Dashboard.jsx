@@ -61,7 +61,6 @@ export default function StudentDashboard() {
           padding: '1.25rem 1.4rem',
           position: 'relative',
           overflow: 'hidden',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
         }}>
           {/* decorative orbs */}
           <div style={{ position:'absolute', top:-40, left:-40, width:160, height:160, borderRadius:'50%', background:'radial-gradient(circle,rgba(249,115,22,.18),transparent 70%)', pointerEvents:'none' }} />
@@ -73,7 +72,6 @@ export default function StudentDashboard() {
               background: 'linear-gradient(135deg,#f97316,#ea580c)',
               display:'flex', alignItems:'center', justifyContent:'center',
               fontSize:24, fontWeight:900, color:'#fff',
-              boxShadow:'0 6px 20px rgba(249,115,22,.45)',
               flexShrink:0,
             }}>
               {user?.name?.charAt(0)}
@@ -126,7 +124,6 @@ export default function StudentDashboard() {
               border: `1.5px solid ${s.border}`,
               padding: '1rem .75rem',
               textAlign: 'center',
-              boxShadow: `0 4px 20px ${glow}`,
               cursor: 'default',
             }}>
               <div style={{
@@ -135,7 +132,6 @@ export default function StudentDashboard() {
                 background: iconBg,
                 display:'flex', alignItems:'center', justifyContent:'center',
                 margin:'0 auto .65rem',
-                boxShadow: `0 4px 14px ${glow}`,
               }}>
                 <Icon style={{ width:20, height:20, color:'#fff' }} />
               </div>
@@ -158,7 +154,6 @@ export default function StudentDashboard() {
             padding: '1.25rem',
             textAlign: 'right',
             cursor: 'pointer',
-            boxShadow: dark ? '0 4px 24px rgba(59,130,246,.15)' : '0 4px 20px rgba(59,130,246,.1)',
             position: 'relative',
             overflow: 'hidden',
           }}>
@@ -169,7 +164,6 @@ export default function StudentDashboard() {
               width:48, height:48, borderRadius:15,
               background:'linear-gradient(135deg,#3b82f6,#2563eb)',
               display:'flex', alignItems:'center', justifyContent:'center',
-              boxShadow:'0 5px 18px rgba(59,130,246,.4)',
               marginBottom:'.85rem',
             }}>
               <BookOpen style={{ width:22, height:22, color:'#fff' }} />
@@ -196,7 +190,6 @@ export default function StudentDashboard() {
                 padding:'1.25rem',
                 textAlign:'right',
                 cursor:'pointer',
-                boxShadow: dark ? '0 4px 24px rgba(168,85,247,.18)' : '0 4px 20px rgba(168,85,247,.1)',
                 position:'relative',
                 overflow:'hidden',
               }}>
@@ -240,7 +233,6 @@ export default function StudentDashboard() {
           padding: '1.1rem 1.3rem',
           display:'flex', alignItems:'center', justifyContent:'space-between', gap:'1rem',
           cursor:'pointer',
-          boxShadow: dark ? '0 4px 24px rgba(249,115,22,.15)' : '0 4px 20px rgba(249,115,22,.1)',
           position:'relative',
           overflow:'hidden',
           textAlign:'right',
@@ -251,7 +243,7 @@ export default function StudentDashboard() {
             <p style={{ fontWeight:900, fontSize:'1rem', color: dark ? '#fb923c' : '#9a3412', margin:0 }}>
               تصفح الكورسات المتاحة
             </p>
-            <p style={{ fontSize:'.75rem', color: dark ? '#78350f' : '#ea580c', marginTop:4, fontWeight:600 }}>
+            <p style={{ fontSize:'.75rem', color: dark ? '#fdba74' : '#ea580c', marginTop:4, fontWeight:600 }}>
               اكتشف الكورسات وانضم قبل الشراء
             </p>
           </div>
@@ -260,7 +252,6 @@ export default function StudentDashboard() {
             width:48, height:48, borderRadius:15, flexShrink:0,
             background:'linear-gradient(135deg,#f97316,#ea580c)',
             display:'flex', alignItems:'center', justifyContent:'center',
-            boxShadow:'0 5px 18px rgba(249,115,22,.4)',
             animation: 'db-float 3s ease-in-out infinite',
           }}>
             <Compass style={{ width:22, height:22, color:'#fff' }} />
@@ -274,7 +265,6 @@ export default function StudentDashboard() {
             background: s.card,
             border:`1.5px solid ${s.border}`,
             padding:'1.1rem 1.2rem',
-            boxShadow:`0 2px 12px rgba(0,0,0,${dark?.15:.05})`,
           }}>
             <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:'1rem' }}>
               <Award style={{ width:18, height:18, color:'#f97316' }} />
@@ -288,7 +278,6 @@ export default function StudentDashboard() {
                   borderRadius:99,
                   fontSize:'.75rem', fontWeight:800, color:'#fff',
                   backgroundColor: b.badge_color || '#f97316',
-                  boxShadow:`0 3px 10px ${b.badge_color || '#f97316'}55`,
                 }}>
                   🏅 {b.badge_name}
                 </span>
@@ -303,7 +292,6 @@ export default function StudentDashboard() {
           background: s.card,
           border:`1.5px solid ${s.border}`,
           padding:'1.1rem 1.2rem',
-          boxShadow:`0 2px 12px rgba(0,0,0,${dark ? .15 : .05})`,
         }}>
           <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:'1rem' }}>
             <FileText style={{ width:18, height:18, color:'#f97316' }} />
