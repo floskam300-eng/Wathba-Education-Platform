@@ -2,7 +2,7 @@
  * WATHBA — Seed File (نسخة شاملة محدّثة)
  * ─────────────────────────────────────────────────────────────────
  * الحسابات المحورية:
- *   🎓 المعلم    : admin / admin123       — أكاديمية محمد للرياضيات
+ *   🎓 المعلم    : admin / admin123       — أكاديمية محمد للرياضيات  (slug: demo)
  *   🧑‍💼 المساعد  : asst_nour / 123456     — صلاحيات كاملة
  *   🎒 الطالب   : std_ali / 123456        — يغطي كل سيناريوهات الطالب
  *
@@ -96,7 +96,7 @@ async function seed() {
         'أ/ محمد عبد الرحمن',
         'معلم رياضيات بخبرة 20 عاماً متخصص في الثانوية العامة. نجح على يديه أكثر من 4000 طالب وحقق طلابه نسب نجاح تتجاوز 95٪.',
         'مدرس رياضيات — ثانوية عامة',
-        '+201000000000','admin','أكاديمية محمد للرياضيات',
+        '+201000000000','demo','أكاديمية محمد للرياضيات',
         'https://ui-avatars.com/api/?name=MA&background=f97316&color=fff&size=256&bold=true',
         'https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=300&h=300&fit=crop',
         'https://images.unsplash.com/photo-1509062522246-3755977927d7?w=1600&q=80')
@@ -108,7 +108,7 @@ async function seed() {
         password=$2, name='أ/ محمد عبد الرحمن',
         bio='معلم رياضيات بخبرة 20 عاماً متخصص في الثانوية العامة. نجح على يديه أكثر من 4000 طالب وحقق طلابه نسب نجاح تتجاوز 95٪.',
         classification='مدرس رياضيات — ثانوية عامة',
-        whatsapp_phone='+201000000000', slug='admin',
+        whatsapp_phone='+201000000000', slug='demo',
         platform_name='أكاديمية محمد للرياضيات',
         logo_url='https://ui-avatars.com/api/?name=MA&background=f97316&color=fff&size=256&bold=true',
         photo_url='https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=300&h=300&fit=crop',
@@ -118,7 +118,7 @@ async function seed() {
     `, [adminRow.id, passAd]);
   }
   const T1 = adminRow.id;
-  console.log(`  ✓ admin (id=${T1}) — slug=admin — أكاديمية محمد للرياضيات`);
+  console.log(`  ✓ admin (id=${T1}) — slug=demo — أكاديمية محمد للرياضيات`);
 
   // ══════════════════════════════════════════════════════════
   // 2. المساعدون (3 مساعدين بصلاحيات مختلفة)
@@ -3270,7 +3270,7 @@ async function seed() {
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('\n  📋 ملخص البيانات:');
   console.log('  ┌──────────────────────────────────────────────────────────────┐');
-  console.log('  │  👨‍🏫 معلم: 1           admin / admin123                      │');
+  console.log('  │  👨‍🏫 معلم: 1           admin / admin123  (slug: demo)         │');
   console.log('  │  🧑‍💼 مساعدون: 3        asst_nour (كاملة) | asst_karim | asst_dina │');
   console.log('  │  🎒 طلاب: 11           std_ali / 123456  (الحساب المحوري)   │');
   console.log('  │  📚 كورسات: 8          منشور×6، مجاني×3، مسودة×1            │');
@@ -3292,7 +3292,7 @@ async function seed() {
   console.log('  │  📊 سجل نشاط: 70+ حدث (يشمل أحداث التسميعات)              │');
   console.log('  └──────────────────────────────────────────────────────────────┘');
   console.log('\n  🔑 بيانات تسجيل الدخول:');
-  console.log('     معلم    → admin / admin123');
+  console.log('     معلم    → admin / admin123  (demo.wathba.site)');
   console.log('     مساعد   → asst_nour / 123456  (صلاحيات كاملة)');
   console.log('     طالب    → std_ali / 123456    (الحساب المحوري)');
   console.log('\n  📊 سيناريوهات std_ali:');

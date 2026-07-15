@@ -109,7 +109,7 @@ function FAQItem({ q, a }) {
 
 /* ── Dev Access Panel (dev only) ── */
 function DevAccessPanel() {
-  const [slug, setSlug] = useState('admin');
+  const [slug, setSlug] = useState('demo');
   const [open, setOpen] = useState(false);
 
   const isDevHost = (() => {
@@ -163,7 +163,7 @@ function DevAccessPanel() {
             <input
               value={slug}
               onChange={e => setSlug(e.target.value)}
-              placeholder="مثال: admin"
+              placeholder="مثال: demo"
               style={{
                 width: '100%', boxSizing: 'border-box',
                 background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
