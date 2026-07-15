@@ -5,8 +5,8 @@
 
 cd "$(dirname "$0")/../.."
 
-echo "🛑 Stopping Wathba..."
+echo "Stopping Wathba..."
 sudo docker compose down
 
 echo ""
-echo "✅ All containers stopped."
+echo "All containers stopped."

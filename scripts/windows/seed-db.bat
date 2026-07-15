@@ -2,13 +2,13 @@
 title Wathba Seed Database
 cd /d "%~dp0..\.."
 echo ==========================================
-echo    Wathba Seed Database Deployment
+echo    Wathba - Seed Database
 echo ==========================================
 echo.
-echo This will clear all existing data and
-echo re-populate the database with seed data.
+echo WARNING: This will clear ALL existing data
+echo and re-populate the database with test data.
 echo.
-echo  Accounts created:
+echo  Accounts that will be created:
 echo     Teacher  : admin / admin123
 echo     Assistant: asst_nour / 123456
 echo     Student  : std_ali / 123456
@@ -31,7 +31,7 @@ if %errorlevel% equ 0 (
     echo ==========================================
 ) else (
     echo ==========================================
-    echo    Seed failed with error code %errorlevel%
+    echo    Seed failed! Error code: %errorlevel%
     echo ==========================================
 )
 echo.

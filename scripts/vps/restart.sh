@@ -5,13 +5,13 @@
 
 cd "$(dirname "$0")/../.."
 
-echo "🔄 Restarting Wathba..."
+echo "Restarting Wathba..."
 sudo docker compose restart
 
 echo ""
-echo "📋 Status:"
+echo "Container status:"
 sudo docker compose ps
 
 echo ""
-echo "📝 App logs (last 20 lines):"
+echo "App logs (last 20 lines):"
 sudo docker compose logs app --tail=20

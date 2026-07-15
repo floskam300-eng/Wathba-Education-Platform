@@ -1,25 +1,23 @@
 #!/bin/bash
 # ─────────────────────────────────────────
 #  WATHBA — Seed database inside Docker (VPS)
-#  ⚠️  يمسح كل البيانات ويعيد زرع بيانات تجريبية
+#  WARNING: This will clear all data!
 # ─────────────────────────────────────────
 
 cd "$(dirname "$0")/../.."
 
-echo "⚠️  هذا سيمسح كل البيانات ويزرع بيانات تجريبية!"
-echo "   admin / admin123"
-echo "   asst_nour / 123456"
-echo "   std_ali / 123456"
+echo "WARNING: This will clear ALL data and seed test data!"
+echo "  Accounts: admin/admin123 | asst_nour/123456 | std_ali/123456"
 echo ""
-read -p "متأكد؟ (y/N): " confirm
+read -p "Are you sure? (y/N): " confirm
 if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
-    echo "تم الإلغاء."
+    echo "Cancelled."
     exit 0
 fi
 
 echo ""
-echo "🌱 Running seed script inside app container..."
+echo "Running seed script inside app container..."
 sudo docker compose exec app node server/db/seed.js
 
 echo ""
-echo "✅ Seed complete!"
+echo "Seed complete!"
