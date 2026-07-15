@@ -8,14 +8,22 @@ async function resolveTenant(slug) {
   const cached = cache.get(slug);
   if (cached && Date.now() - cached.ts < CACHE_TTL) return cached.data;
   try {
-    const res = await pool.query('SELECT id, slug FROM teachers WHERE slug = $1', [slug]);
+    const res = await pool.query(
+      'SELECT id, slug, is_platform_suspended, platform_suspended_reason FROM teachers WHERE slug = $1',
+      [slug]
+    );
     if (res.rows.length === 0) {
       // [BUG-FIX] Cache null results for only 30 seconds instead of 5 minutes,
       // so a newly created slug is discoverable quickly without a server restart.
       cache.set(slug, { data: null, ts: Date.now() - CACHE_TTL + 30_000 });
       return null;
     }
-    const data = { id: res.rows[0].id, slug: res.rows[0].slug };
+    const data = {
+      id: res.rows[0].id,
+      slug: res.rows[0].slug,
+      is_platform_suspended: !!res.rows[0].is_platform_suspended,
+      platform_suspended_reason: res.rows[0].platform_suspended_reason
+    };
     cache.set(slug, { data, ts: Date.now() });
     return data;
   } catch (_) {
@@ -64,6 +72,14 @@ module.exports = async function subdomainTenant(req, res, next) {
     if (tenant) {
       req.tenantSlug = tenant.slug;
       req.tenantTeacherId = tenant.id;
+
+      // Centralized Platform Suspension Check (except for admin routes)
+      if (tenant.is_platform_suspended && !req.originalUrl.startsWith('/api/admin')) {
+        return res.status(403).json({
+          error: 'هذه المنصة موقوفة مؤقتاً',
+          reason: tenant.platform_suspended_reason || 'تم تعليق المنصة بقرار إداري'
+        });
+      }
     }
   }
   next();

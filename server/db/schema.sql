@@ -1153,6 +1153,8 @@ CREATE TABLE IF NOT EXISTS teacher_team_members (
 CREATE INDEX IF NOT EXISTS idx_teacher_subscriptions_teacher ON teacher_subscriptions(teacher_id, status);
 CREATE INDEX IF NOT EXISTS idx_subscription_payments_teacher ON subscription_payments(teacher_id, paid_at DESC);
 CREATE INDEX IF NOT EXISTS idx_teacher_team_teacher ON teacher_team_members(teacher_id, display_order);
+CREATE INDEX IF NOT EXISTS idx_teacher_subscriptions_plan ON teacher_subscriptions(plan_id);
+CREATE INDEX IF NOT EXISTS idx_subscription_payments_sub ON subscription_payments(subscription_id);
 
 -- ── 6. Migrate Teachers columns ──────────────────────────────────
 ALTER TABLE teachers ADD COLUMN IF NOT EXISTS is_platform_suspended BOOLEAN DEFAULT false;

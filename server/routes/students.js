@@ -26,6 +26,34 @@ const getTeacherId = (req) => {
   return req.user.teacher_id;
 };
 
+// Helper: Check student count against active subscription plan max_students limit
+const checkStudentLimit = async (teacherId, toAddCount = 1, dbPool = pool) => {
+  const subRes = await dbPool.query(
+    `SELECT sp.max_students
+       FROM teacher_subscriptions ts
+       JOIN subscription_plans sp ON ts.plan_id = sp.id
+      WHERE ts.teacher_id = $1 AND ts.status = 'active'
+      LIMIT 1`,
+    [teacherId]
+  );
+  if (subRes.rows.length === 0) {
+    // If no active subscription exists, we allow it (for dev/test resilience)
+    return { allowed: true };
+  }
+  const maxStudents = subRes.rows[0].max_students;
+  if (maxStudents === null) return { allowed: true }; // Unlimited
+
+  const countRes = await dbPool.query(
+    'SELECT COUNT(*)::int AS count FROM students WHERE teacher_id = $1 AND deleted_at IS NULL',
+    [teacherId]
+  );
+  const currentCount = countRes.rows[0].count;
+  if (currentCount + toAddCount > maxStudents) {
+    return { allowed: false, maxStudents, currentCount };
+  }
+  return { allowed: true };
+};
+
 // ── Stage → username prefix map ──
 const STAGE_PREFIXES = {
   'الصف الأول الثانوي':   'H',
@@ -153,6 +181,20 @@ const checkPermission = async (req, res, next, perm) => {
 
 router.post('/', addStudentLimiter, requireRole('teacher', 'assistant'), (req, res, next) => checkPermission(req, res, next, 'can_add_students'), validateStudent, async (req, res) => {
   const teacherId = getTeacherId(req);
+
+  // Enforce student limit check (package constraints)
+  try {
+    const limitCheck = await checkStudentLimit(teacherId, 1, pool);
+    if (!limitCheck.allowed) {
+      return res.status(403).json({
+        error: `لقد تجاوزت الحد الأقصى لعدد الطلاب المسموح به في باقة اشتراكك الحالية (الحد الأقصى: ${limitCheck.maxStudents} طالب، الحالي: ${limitCheck.currentCount} طالب). يرجى ترقية الباقة لزيادة هذا الحد.`
+      });
+    }
+  } catch (limitErr) {
+    console.error('[checkStudentLimit] error:', limitErr.message);
+    return res.status(500).json({ error: 'Server error' });
+  }
+
   const { name, phone, parent_phone, academic_stage, gender, credMode, manualUsername, manualPassword } = req.body;
 
   // Resolve credential mode: default to 'auto' for backward-compat
@@ -652,6 +694,19 @@ router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => ch
   const MAX_BULK = 200;
   if (students.length > MAX_BULK) {
     return res.status(400).json({ error: `الحد الأقصى للاستيراد الجماعي هو ${MAX_BULK} طالب في المرة الواحدة` });
+  }
+
+  // Enforce student limit check (package constraints)
+  try {
+    const limitCheck = await checkStudentLimit(teacherId, students.length, pool);
+    if (!limitCheck.allowed) {
+      return res.status(403).json({
+        error: `الاستيراد سيتجاوز الحد الأقصى لعدد الطلاب المسموح به في باقة اشتراكك الحالية (الحد الأقصى: ${limitCheck.maxStudents} طالب، الحالي: ${limitCheck.currentCount} طالب، المطلوب إضافته: ${students.length} طالب). يرجى ترقية الباقة لزيادة هذا الحد.`
+      });
+    }
+  } catch (limitErr) {
+    console.error('[checkStudentLimit bulk] error:', limitErr.message);
+    return res.status(500).json({ error: 'Server error' });
   }
 
   const EGYPTIAN_PHONE_RE = /^01[0125][0-9]{8}$/;

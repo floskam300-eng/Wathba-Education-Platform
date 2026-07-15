@@ -5,7 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const pool = require('../db/connection');
-const { requireAdminAuth, ADMIN_JWT_SECRET } = require('../middleware/auth');
+const { requireAdminAuth, ADMIN_JWT_SECRET, invalidateTeacherAuthCache } = require('../middleware/auth');
 const { getTotalConnections } = require('../sse');
 
 const router = express.Router();
@@ -38,54 +38,63 @@ const uploadAdminImage = multer({
 });
 
 // Helper: Calculate Teacher Stats (students count, courses count, exams count, storage usage)
-async function getTeacherStats(teacherId) {
+async function getTeacherStats(teacherId, includeStorage = false) {
   const studentRes = await pool.query('SELECT COUNT(*) FROM students WHERE teacher_id = $1 AND deleted_at IS NULL', [teacherId]);
   const courseRes = await pool.query('SELECT COUNT(*) FROM courses WHERE teacher_id = $1', [teacherId]);
   const examRes = await pool.query('SELECT COUNT(*) FROM exams WHERE teacher_id = $1', [teacherId]);
 
-  // Query files to compute storage
-  const videosRes = await pool.query(
-    'SELECT file_path_or_url FROM videos v JOIN courses c ON v.course_id = c.id WHERE c.teacher_id = $1',
-    [teacherId]
-  );
-  const pdfsRes = await pool.query(
-    'SELECT file_url FROM pdf_files p JOIN courses c ON p.course_id = c.id WHERE c.teacher_id = $1',
-    [teacherId]
-  );
-  const teacherRes = await pool.query(
-    'SELECT logo_url, photo_url, hero_image_url FROM teachers WHERE id = $1',
-    [teacherId]
-  );
-  const teamRes = await pool.query(
-    'SELECT photo_url FROM teacher_team_members WHERE teacher_id = $1',
-    [teacherId]
-  );
-
   let totalBytes = 0;
-  const filePaths = [];
 
-  // Collect all potential local file paths
-  for (const row of videosRes.rows) if (row.file_path_or_url) filePaths.push(row.file_path_or_url);
-  for (const row of pdfsRes.rows) if (row.file_url) filePaths.push(row.file_url);
-  if (teacherRes.rows.length) {
-    const t = teacherRes.rows[0];
-    if (t.logo_url) filePaths.push(t.logo_url);
-    if (t.photo_url) filePaths.push(t.photo_url);
-    if (t.hero_image_url) filePaths.push(t.hero_image_url);
-  }
-  for (const row of teamRes.rows) if (row.photo_url) filePaths.push(row.photo_url);
+  if (includeStorage) {
+    // Query files to compute storage
+    const videosRes = await pool.query(
+      'SELECT file_path_or_url FROM videos v JOIN courses c ON v.course_id = c.id WHERE c.teacher_id = $1',
+      [teacherId]
+    );
+    const pdfsRes = await pool.query(
+      'SELECT file_url FROM pdf_files p JOIN courses c ON p.course_id = c.id WHERE c.teacher_id = $1',
+      [teacherId]
+    );
+    const teacherRes = await pool.query(
+      'SELECT logo_url, photo_url, hero_image_url FROM teachers WHERE id = $1',
+      [teacherId]
+    );
+    const teamRes = await pool.query(
+      'SELECT photo_url FROM teacher_team_members WHERE teacher_id = $1',
+      [teacherId]
+    );
 
-  for (const fp of filePaths) {
-    if (fp.startsWith('/uploads/') || fp.startsWith('uploads/')) {
-      const cleanPath = fp.startsWith('/') ? fp.slice(1) : fp;
-      const absPath = path.join(__dirname, '../..', cleanPath);
-      try {
-        if (fs.existsSync(absPath)) {
-          const stat = fs.statSync(absPath);
-          totalBytes += stat.size;
-        }
-      } catch (_) {}
+    const filePaths = [];
+
+    // Collect all potential local file paths
+    for (const row of videosRes.rows) if (row.file_path_or_url) filePaths.push(row.file_path_or_url);
+    for (const row of pdfsRes.rows) if (row.file_url) filePaths.push(row.file_url);
+    if (teacherRes.rows.length) {
+      const t = teacherRes.rows[0];
+      if (t.logo_url) filePaths.push(t.logo_url);
+      if (t.photo_url) filePaths.push(t.photo_url);
+      if (t.hero_image_url) filePaths.push(t.hero_image_url);
     }
+    for (const row of teamRes.rows) if (row.photo_url) filePaths.push(row.photo_url);
+
+    // Concurrently compute storage size asynchronously to avoid event loop block
+    const fsPromises = fs.promises;
+    const statPromises = filePaths.map(async (fp) => {
+      if (fp.startsWith('/uploads/') || fp.startsWith('uploads/')) {
+        const cleanPath = fp.startsWith('/') ? fp.slice(1) : fp;
+        const absPath = path.join(__dirname, '../..', cleanPath);
+        try {
+          const stat = await fsPromises.stat(absPath);
+          return stat.size;
+        } catch (_) {
+          return 0;
+        }
+      }
+      return 0;
+    });
+
+    const sizes = await Promise.all(statPromises);
+    totalBytes = sizes.reduce((sum, size) => sum + size, 0);
   }
 
   return {
@@ -153,37 +162,66 @@ router.post('/auth/logout', (req, res) => {
    2. Teachers Management
    ══════════════════════════════════════════════════════════════════ */
 
-// List Teachers with their current package, active students and storage usage
+// List Teachers with their current package, active students and basic stats (no storage check on list)
 router.get('/teachers', requireAdminAuth, async (req, res) => {
   try {
     const { rows: teachers } = await pool.query(
-      `SELECT id, username, name, classification, whatsapp_phone, logo_url, photo_url, slug,
-              is_platform_suspended, platform_suspended_at, platform_suspended_reason,
-              features_enabled, hero_image_url, background_color, created_at
-         FROM teachers
-        ORDER BY created_at DESC`
+      `SELECT 
+          t.id, t.username, t.name, t.classification, t.whatsapp_phone, t.logo_url, t.photo_url, t.slug,
+          t.is_platform_suspended, t.platform_suspended_at, t.platform_suspended_reason,
+          t.features_enabled, t.hero_image_url, t.background_color, t.created_at,
+          (SELECT COUNT(*)::int FROM students WHERE teacher_id = t.id AND deleted_at IS NULL) AS total_students,
+          (SELECT COUNT(*)::int FROM courses WHERE teacher_id = t.id) AS total_courses,
+          (SELECT COUNT(*)::int FROM exams WHERE teacher_id = t.id) AS total_exams,
+          ts.id AS sub_id,
+          ts.start_date AS sub_start_date,
+          ts.end_date AS sub_end_date,
+          ts.price_override AS sub_price_override,
+          sp.name AS plan_name,
+          sp.max_students AS plan_max_students
+       FROM teachers t
+       LEFT JOIN LATERAL (
+          SELECT id, plan_id, start_date, end_date, price_override
+            FROM teacher_subscriptions
+           WHERE teacher_id = t.id AND status = 'active'
+           ORDER BY start_date DESC
+           LIMIT 1
+       ) ts ON true
+       LEFT JOIN subscription_plans sp ON ts.plan_id = sp.id
+       ORDER BY t.created_at DESC`
     );
 
-    const result = [];
-    for (const t of teachers) {
-      const stats = await getTeacherStats(t.id);
-
-      // Get current active subscription
-      const subRes = await pool.query(
-        `SELECT ts.id, ts.start_date, ts.end_date, ts.price_override, sp.name AS plan_name, sp.max_students
-           FROM teacher_subscriptions ts
-           JOIN subscription_plans sp ON ts.plan_id = sp.id
-          WHERE ts.teacher_id = $1 AND ts.status = 'active'
-          LIMIT 1`,
-        [t.id]
-      );
-
-      result.push({
-        ...t,
-        stats,
-        active_subscription: subRes.rows[0] || null,
-      });
-    }
+    const result = teachers.map((t) => ({
+      id: t.id,
+      username: t.username,
+      name: t.name,
+      classification: t.classification,
+      whatsapp_phone: t.whatsapp_phone,
+      logo_url: t.logo_url,
+      photo_url: t.photo_url,
+      slug: t.slug,
+      is_platform_suspended: t.is_platform_suspended,
+      platform_suspended_at: t.platform_suspended_at,
+      platform_suspended_reason: t.platform_suspended_reason,
+      features_enabled: t.features_enabled,
+      hero_image_url: t.hero_image_url,
+      background_color: t.background_color,
+      created_at: t.created_at,
+      stats: {
+        total_students: t.total_students,
+        total_courses: t.total_courses,
+        total_exams: t.total_exams,
+        storage_bytes: 0, // avoided on list view for event-loop health
+      },
+      active_subscription: t.sub_id ? {
+        id: t.sub_id,
+        start_date: t.sub_start_date,
+        end_date: t.sub_end_date,
+        price_override: t.sub_price_override,
+        plan_name: t.plan_name,
+        max_students: t.plan_max_students,
+      } : null,
+    }));
 
     res.json({ teachers: result });
   } catch (err) {
@@ -208,7 +246,7 @@ router.get('/teachers/:id', requireAdminAuth, async (req, res) => {
     if (rows.length === 0) return res.status(404).json({ error: 'المدرس غير موجود' });
     const teacher = rows[0];
 
-    const stats = await getTeacherStats(teacherId);
+    const stats = await getTeacherStats(teacherId, true);
 
     // Get subscription history
     const subsRes = await pool.query(
@@ -300,25 +338,19 @@ router.post('/teachers', requireAdminAuth, async (req, res) => {
     );
     const newTeacherId = teacherRes.rows[0].id;
 
-    // Create teacher subscription
+    // Create teacher subscription using DB-level CURRENT_DATE (eliminates local timezone drift)
     const plan = checkPlan.rows[0];
-    const startDate = new Date();
-    const endDate = new Date();
-    if (plan.billing_type === 'monthly') endDate.setMonth(endDate.getMonth() + 1);
-    else if (plan.billing_type === 'annual') endDate.setFullYear(endDate.getFullYear() + 1);
-    else endDate.setFullYear(endDate.getFullYear() + 100); // basically lifetime for one_time
-
     await client.query(
       `INSERT INTO teacher_subscriptions (teacher_id, plan_id, billing_type, price_override, start_date, end_date, status, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+       VALUES ($1, $2, $3::varchar, $4, CURRENT_DATE,
+               CASE WHEN $3::varchar = 'monthly' THEN CURRENT_DATE + INTERVAL '1 month'
+                    WHEN $3::varchar = 'annual' THEN CURRENT_DATE + INTERVAL '1 year'
+                    ELSE NULL END, 'active', $5)`,
       [
         newTeacherId,
         plan.id,
         plan.billing_type,
         plan.price,
-        startDate.toISOString().split('T')[0],
-        plan.billing_type === 'one_time' ? null : endDate.toISOString().split('T')[0],
-        'active',
         req.admin.id,
       ]
     );
@@ -554,20 +586,17 @@ router.delete('/teachers/:id/team/:memberId', requireAdminAuth, async (req, res)
 router.get('/plans', requireAdminAuth, async (req, res) => {
   try {
     const { rows } = await pool.query(
-      'SELECT id, name, description, category, max_students, price, first_month_price, billing_type, is_active, sort_order, created_at FROM subscription_plans ORDER BY sort_order, id'
+      `SELECT 
+          sp.id, sp.name, sp.description, sp.category, sp.max_students, sp.price, 
+          sp.first_month_price, sp.billing_type, sp.is_active, sp.sort_order, sp.created_at,
+          COUNT(ts.id)::int AS subscribers_count
+       FROM subscription_plans sp
+       LEFT JOIN teacher_subscriptions ts ON ts.plan_id = sp.id AND ts.status = 'active'
+       GROUP BY sp.id
+       ORDER BY sp.sort_order, sp.id`
     );
 
-    // Compute subscriber counts for each plan
-    const result = [];
-    for (const plan of rows) {
-      const subCount = await pool.query('SELECT COUNT(*) FROM teacher_subscriptions WHERE plan_id = $1 AND status = \'active\'', [plan.id]);
-      result.push({
-        ...plan,
-        subscribers_count: parseInt(subCount.rows[0].count, 10),
-      });
-    }
-
-    res.json({ plans: result });
+    res.json({ plans: rows });
   } catch (err) {
     console.error('Get plans error:', err.message);
     res.status(500).json({ error: 'Server error' });
@@ -747,6 +776,7 @@ router.post('/subscriptions', requireAdminAuth, async (req, res) => {
       ]
     );
 
+    invalidateTeacherAuthCache(parseInt(teacher_id));
     res.status(201).json({ success: true, subscriptionId: rows[0].id });
   } catch (err) {
     console.error('Create subscription error:', err.message);
@@ -761,6 +791,10 @@ router.put('/subscriptions/:id', requireAdminAuth, async (req, res) => {
 
   const { status, price_override, start_date, end_date, notes } = req.body;
   try {
+    const subInfo = await pool.query('SELECT teacher_id FROM teacher_subscriptions WHERE id = $1', [subId]);
+    if (subInfo.rows.length === 0) return res.status(404).json({ error: 'الاشتراك غير موجود' });
+    const teacherId = subInfo.rows[0].teacher_id;
+
     const { rowCount } = await pool.query(
       `UPDATE teacher_subscriptions
           SET status = $1, price_override = $2, start_date = $3, end_date = $4, notes = $5
@@ -768,6 +802,7 @@ router.put('/subscriptions/:id', requireAdminAuth, async (req, res) => {
       [status, price_override ? parseFloat(price_override) : null, start_date, end_date || null, notes || '', subId]
     );
     if (rowCount === 0) return res.status(404).json({ error: 'الاشتراك غير موجود' });
+    invalidateTeacherAuthCache(teacherId);
     res.json({ success: true });
   } catch (err) {
     console.error('Update subscription error:', err.message);
@@ -781,8 +816,13 @@ router.delete('/subscriptions/:id', requireAdminAuth, async (req, res) => {
   if (isNaN(subId)) return res.status(400).json({ error: 'معرّف غير صحيح' });
 
   try {
+    const subInfo = await pool.query('SELECT teacher_id FROM teacher_subscriptions WHERE id = $1', [subId]);
+    if (subInfo.rows.length === 0) return res.status(404).json({ error: 'الاشتراك غير موجود' });
+    const teacherId = subInfo.rows[0].teacher_id;
+
     const { rowCount } = await pool.query('DELETE FROM teacher_subscriptions WHERE id = $1', [subId]);
     if (rowCount === 0) return res.status(404).json({ error: 'الاشتراك غير موجود' });
+    invalidateTeacherAuthCache(teacherId);
     res.json({ success: true });
   } catch (err) {
     console.error('Delete subscription error:', err.message);
@@ -882,70 +922,70 @@ router.delete('/payments/:id', requireAdminAuth, async (req, res) => {
 
 router.get('/stats', requireAdminAuth, async (req, res) => {
   try {
-    // Teachers count stats
-    const totalTeachers = await pool.query('SELECT COUNT(*) FROM teachers');
-    const suspendedTeachers = await pool.query('SELECT COUNT(*) FROM teachers WHERE is_platform_suspended = true');
-    const activeTeachers = parseInt(totalTeachers.rows[0].count, 10) - parseInt(suspendedTeachers.rows[0].count, 10);
+    // 1. Teachers count stats
+    const teachersRes = await pool.query(
+      `SELECT 
+          COUNT(*)::int AS total,
+          COUNT(CASE WHEN is_platform_suspended = true THEN 1 END)::int AS suspended
+       FROM teachers`
+    );
+    const totalTeachers = teachersRes.rows[0].total;
+    const suspendedTeachers = teachersRes.rows[0].suspended;
+    const activeTeachers = totalTeachers - suspendedTeachers;
 
-    // Students count stats
-    const totalStudents = await pool.query('SELECT COUNT(*) FROM students WHERE deleted_at IS NULL');
+    // 2. Students count and active today stats
+    const studentsRes = await pool.query(
+      `SELECT 
+          (SELECT COUNT(*)::int FROM students WHERE deleted_at IS NULL) AS total,
+          (SELECT COUNT(DISTINCT student_id)::int FROM (
+              SELECT student_id FROM video_progress WHERE last_watched_at >= CURRENT_DATE
+              UNION
+              SELECT student_id FROM exam_results WHERE created_at >= CURRENT_DATE
+              UNION
+              SELECT student_id FROM recitation_results WHERE created_at >= CURRENT_DATE
+          ) AS active_today) AS active_today`
+    );
 
-    // Students active today (educational actions today)
-    const activeStudentsRes = await pool.query(`
-      SELECT COUNT(DISTINCT student_id) FROM (
-        SELECT student_id FROM video_progress WHERE last_watched_at >= CURRENT_DATE
-        UNION
-        SELECT student_id FROM exam_results WHERE created_at >= CURRENT_DATE
-        UNION
-        SELECT student_id FROM recitation_results WHERE created_at >= CURRENT_DATE
-      ) AS active_today
-    `);
+    // 3. Subscriptions count stats
+    const subsRes = await pool.query(
+      `SELECT 
+          COUNT(CASE WHEN status = 'active' THEN 1 END)::int AS active,
+          COUNT(CASE WHEN status = 'expired' THEN 1 END)::int AS expired,
+          COUNT(CASE WHEN status = 'active' AND end_date <= CURRENT_DATE + INTERVAL '7 days' THEN 1 END)::int AS expiring_soon,
+          COUNT(CASE WHEN status = 'active' AND end_date <= CURRENT_DATE + INTERVAL '30 days' THEN 1 END)::int AS pending_renewals
+       FROM teacher_subscriptions`
+    );
+
+    // 4. Payments collected this month (current calendar month)
+    const paymentsRes = await pool.query(
+      `SELECT COALESCE(SUM(amount), 0)::float AS total 
+       FROM subscription_payments 
+       WHERE paid_at >= DATE_TRUNC('month', CURRENT_DATE)`
+    );
 
     // Active SSE connections count
     const sseConnections = getTotalConnections();
 
-    // Subscriptions stats
-    const activeSubscriptions = await pool.query('SELECT COUNT(*) FROM teacher_subscriptions WHERE status = \'active\'');
-    const expiredSubscriptions = await pool.query('SELECT COUNT(*) FROM teacher_subscriptions WHERE status = \'expired\'');
-    const expiringSoon = await pool.query(
-      `SELECT COUNT(*) FROM teacher_subscriptions WHERE status = 'active' AND end_date <= CURRENT_DATE + INTERVAL '7 days'`
-    );
-
-    // Payments collected this month (current calendar month)
-    const startOfMonth = new Date();
-    startOfMonth.setDate(1);
-    startOfMonth.setHours(0, 0, 0, 0);
-
-    const collectedThisMonth = await pool.query(
-      `SELECT COALESCE(SUM(amount), 0) AS total FROM subscription_payments WHERE paid_at >= $1`,
-      [startOfMonth.toISOString()]
-    );
-
-    // Subscriptions pending renewal soon (active but expiring in next 30 days)
-    const pendingRenewals = await pool.query(
-      `SELECT COUNT(*) FROM teacher_subscriptions WHERE status = 'active' AND end_date <= CURRENT_DATE + INTERVAL '30 days'`
-    );
-
     res.json({
       stats: {
         teachers: {
-          total: parseInt(totalTeachers.rows[0].count, 10),
+          total: totalTeachers,
           active: activeTeachers,
-          suspended: parseInt(suspendedTeachers.rows[0].count, 10),
+          suspended: suspendedTeachers,
         },
         students: {
-          total: parseInt(totalStudents.rows[0].count, 10),
-          active_today: parseInt(activeStudentsRes.rows[0].count, 10),
+          total: studentsRes.rows[0].total,
+          active_today: studentsRes.rows[0].active_today,
         },
         sse_connections: sseConnections,
         subscriptions: {
-          active: parseInt(activeSubscriptions.rows[0].count, 10),
-          expired: parseInt(expiredSubscriptions.rows[0].count, 10),
-          expiring_soon: parseInt(expiringSoon.rows[0].count, 10),
+          active: subsRes.rows[0].active,
+          expired: subsRes.rows[0].expired,
+          expiring_soon: subsRes.rows[0].expiring_soon,
         },
         payments: {
-          collected_this_month: parseFloat(collectedThisMonth.rows[0].total),
-          pending_renewals: parseInt(pendingRenewals.rows[0].count, 10),
+          collected_this_month: paymentsRes.rows[0].total,
+          pending_renewals: subsRes.rows[0].pending_renewals,
         },
       },
     });
@@ -960,10 +1000,18 @@ router.get('/stats', requireAdminAuth, async (req, res) => {
    ══════════════════════════════════════════════════════════════════ */
 
 // Upload Image (For teacher logo, background/hero, or team photos)
-router.post('/upload/image', requireAdminAuth, uploadAdminImage.single('image'), (req, res) => {
+router.post('/upload/image', requireAdminAuth, uploadAdminImage.single('image'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'الرجاء اختيار ملف صورة صالح لرفعه' });
   }
+
+  // Magic-byte check to prevent faked mime-type (M-11)
+  const { isValidImage, deleteFile } = require('../lib/validateFileMagic');
+  if (!(await isValidImage(req.file.path))) {
+    deleteFile(req.file.path);
+    return res.status(400).json({ error: 'ملف الصورة المرفوع غير صالح أو تالف' });
+  }
+
   // Return URL relative to base server structure
   const fileUrl = `/uploads/admin/${req.file.filename}`;
   res.json({ success: true, url: fileUrl });

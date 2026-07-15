@@ -773,6 +773,38 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
     }
   }
 
+  // Enforce student limit check (package constraints)
+  if (Array.isArray(data.students) && data.students.length > 0) {
+    try {
+      const subRes = await pool.query(
+        `SELECT sp.max_students
+           FROM teacher_subscriptions ts
+           JOIN subscription_plans sp ON ts.plan_id = sp.id
+          WHERE ts.teacher_id = $1 AND ts.status = 'active'
+          LIMIT 1`,
+        [teacherId]
+      );
+      if (subRes.rows.length > 0) {
+        const maxStudents = subRes.rows[0].max_students;
+        if (maxStudents !== null) {
+          const countRes = await pool.query(
+            'SELECT COUNT(*)::int AS count FROM students WHERE teacher_id = $1 AND deleted_at IS NULL',
+            [teacherId]
+          );
+          const currentCount = countRes.rows[0].count;
+          if (currentCount + data.students.length > maxStudents) {
+            return res.status(403).json({
+              error: `الاستيراد سيتجاوز الحد الأقصى لعدد الطلاب المسموح به في باقة اشتراكك الحالية (الحد الأقصى: ${maxStudents} طالب، الحالي: ${currentCount} طالب، المطلوب استيراده: ${data.students.length} طالب). يرجى ترقية الباقة لزيادة هذا الحد.`
+            });
+          }
+        }
+      }
+    } catch (limitErr) {
+      console.error('[import student limit check] error:', limitErr.message);
+      return res.status(500).json({ error: 'Server error' });
+    }
+  }
+
   const stats = {
     courses: 0, sections: 0, videos: 0, pdfs: 0,
     exams: 0, questions: 0, students: 0,
