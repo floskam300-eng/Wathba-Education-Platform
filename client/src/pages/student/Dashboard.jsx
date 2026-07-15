@@ -2,12 +2,26 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
-  BookOpen, FileText, Award, Star, Eye, Search,
-  ChevronLeft, CheckCircle, XCircle, Play, Clock,
+  BookOpen, FileText, Award, Star, Eye,
+  CheckCircle, XCircle, Play, Compass,
 } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+
+/* ─── tiny circular progress ring ─────────────────────────────────────────── */
+function ProgressRing({ pct = 0, size = 44, stroke = 4, color = '#a855f7' }) {
+  const r = (size - stroke) / 2;
+  const circ = 2 * Math.PI * r;
+  const dash = circ * Math.min(pct, 100) / 100;
+  return (
+    <svg width={size} height={size} style={{ transform: 'rotate(-90deg)', flexShrink: 0 }}>
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(168,85,247,0.2)" strokeWidth={stroke} />
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke}
+        strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" />
+    </svg>
+  );
+}
 
 export default function StudentDashboard() {
   const { user } = useAuth();
@@ -20,243 +34,386 @@ export default function StudentDashboard() {
     staleTime: 60_000,
   });
 
-  // Last watched video (most recent from videoProgress)
   const lastVideo = data?.videoProgress?.[0] || null;
+  const videoPct  = Math.round(lastVideo?.progress_percentage || 0);
+
+  /* palette shortcut */
+  const s = dark
+    ? { card: '#1c1a2e', border: 'rgba(255,255,255,0.07)', text: '#e2e8f0', sub: '#94a3b8' }
+    : { card: '#ffffff',  border: 'rgba(0,0,0,0.07)',       text: '#1e293b', sub: '#64748b' };
 
   return (
-    <div className="h-full overflow-y-auto p-4 lg:p-6">
-      <div className="space-y-5">
+    <div style={{ direction: 'rtl', padding: '1rem', overflowY: 'auto', height: '100%' }}>
+      <style>{`
+        @keyframes db-float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+        .db-tile { transition: transform .2s, box-shadow .2s; }
+        .db-tile:hover { transform: translateY(-3px); }
+        .db-stat { transition: transform .18s; }
+        .db-stat:hover { transform: translateY(-2px); }
+      `}</style>
 
-        {/* ── Hero Card ── */}
-        <div className="card bg-gradient-to-l from-navy-700 to-navy-500 text-white !p-5">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-orange-500 rounded-2xl flex items-center justify-center text-2xl font-black shadow-lg flex-shrink-0">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem', maxWidth: 700, margin: '0 auto' }}>
+
+        {/* ══ HERO ══════════════════════════════════════════════════════════ */}
+        <div style={{
+          borderRadius: 22,
+          background: 'linear-gradient(135deg, #1e3a5f 0%, #0f2744 60%, #1a1035 100%)',
+          padding: '1.25rem 1.4rem',
+          position: 'relative',
+          overflow: 'hidden',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
+        }}>
+          {/* decorative orbs */}
+          <div style={{ position:'absolute', top:-40, left:-40, width:160, height:160, borderRadius:'50%', background:'radial-gradient(circle,rgba(249,115,22,.18),transparent 70%)', pointerEvents:'none' }} />
+          <div style={{ position:'absolute', bottom:-30, right:60, width:120, height:120, borderRadius:'50%', background:'radial-gradient(circle,rgba(99,102,241,.15),transparent 70%)', pointerEvents:'none' }} />
+
+          <div style={{ display:'flex', alignItems:'center', gap:'1rem', position:'relative' }}>
+            <div style={{
+              width:58, height:58, borderRadius:18,
+              background: 'linear-gradient(135deg,#f97316,#ea580c)',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              fontSize:24, fontWeight:900, color:'#fff',
+              boxShadow:'0 6px 20px rgba(249,115,22,.45)',
+              flexShrink:0,
+            }}>
               {user?.name?.charAt(0)}
             </div>
-            <div className="flex-1 min-w-0">
-              <h1 className="text-lg font-black text-white leading-tight">مرحباً، {user?.name}!</h1>
-              <p className="text-white/80 text-xs font-medium mt-0.5">{data?.student?.academic_stage || 'طالب'}</p>
-              <div className="flex items-center gap-1 mt-2">
-                <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-                <span className="text-yellow-300 font-bold text-sm">{data?.student?.points || 0} نقطة</span>
+            <div style={{ flex:1, minWidth:0 }}>
+              <p style={{ color:'rgba(255,255,255,.65)', fontSize:'.78rem', marginBottom:2 }}>
+                {data?.student?.academic_stage || 'طالب'}
+              </p>
+              <h1 style={{ color:'#fff', fontWeight:900, fontSize:'1.15rem', lineHeight:1.25, margin:0 }}>
+                مرحباً، {user?.name}!
+              </h1>
+              <div style={{ display:'flex', alignItems:'center', gap:5, marginTop:6 }}>
+                <Star style={{ width:15, height:15, color:'#fbbf24', fill:'#fbbf24', flexShrink:0 }} />
+                <span style={{ color:'#fde68a', fontWeight:800, fontSize:'.88rem' }}>
+                  {data?.student?.points || 0} نقطة
+                </span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* ── Stats Grid ── */}
-        <div className="grid grid-cols-3 gap-3">
+        {/* ══ STATS ROW ═════════════════════════════════════════════════════ */}
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'.75rem' }}>
           {[
             {
               icon: BookOpen, label: 'كورساتي',
               value: data?.enrollments?.length || 0,
-              gradient: 'from-blue-500 to-blue-600',
-              bg: dark ? 'bg-blue-900/30 border-blue-700/50' : 'bg-blue-100 border-blue-300',
-              val: dark ? 'text-blue-300' : 'text-blue-800',
+              iconBg: 'linear-gradient(135deg,#3b82f6,#2563eb)',
+              glow: dark ? 'rgba(59,130,246,.25)' : 'rgba(59,130,246,.12)',
+              numColor: dark ? '#93c5fd' : '#1d4ed8',
             },
             {
               icon: FileText, label: 'اختباراتي',
               value: data?.totalExams ?? data?.recentResults?.length ?? 0,
-              gradient: 'from-emerald-500 to-green-600',
-              bg: dark ? 'bg-green-900/30 border-green-700/50' : 'bg-green-100 border-green-300',
-              val: dark ? 'text-green-300' : 'text-green-800',
+              iconBg: 'linear-gradient(135deg,#10b981,#059669)',
+              glow: dark ? 'rgba(16,185,129,.25)' : 'rgba(16,185,129,.12)',
+              numColor: dark ? '#6ee7b7' : '#065f46',
             },
             {
               icon: Award, label: 'شاراتي',
               value: data?.badges?.length || 0,
-              gradient: 'from-orange-500 to-amber-500',
-              bg: dark ? 'bg-orange-900/30 border-orange-700/50' : 'bg-orange-100 border-orange-300',
-              val: dark ? 'text-orange-300' : 'text-orange-800',
+              iconBg: 'linear-gradient(135deg,#f97316,#ea580c)',
+              glow: dark ? 'rgba(249,115,22,.25)' : 'rgba(249,115,22,.12)',
+              numColor: dark ? '#fdba74' : '#9a3412',
             },
-          ].map(({ icon: Icon, label, value, gradient, bg, val }) => (
-            <div key={label} className={`rounded-2xl border-2 p-3 sm:p-4 text-center ${bg}`}>
-              <div className={`w-9 h-9 sm:w-11 sm:h-11 bg-gradient-to-br ${gradient} rounded-xl flex items-center justify-center mx-auto mb-2 shadow-sm`}>
-                <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+          ].map(({ icon: Icon, label, value, iconBg, glow, numColor }) => (
+            <div key={label} className="db-stat" style={{
+              borderRadius:18,
+              background: s.card,
+              border: `1.5px solid ${s.border}`,
+              padding: '1rem .75rem',
+              textAlign: 'center',
+              boxShadow: `0 4px 20px ${glow}`,
+              cursor: 'default',
+            }}>
+              <div style={{
+                width:42, height:42,
+                borderRadius:13,
+                background: iconBg,
+                display:'flex', alignItems:'center', justifyContent:'center',
+                margin:'0 auto .65rem',
+                boxShadow: `0 4px 14px ${glow}`,
+              }}>
+                <Icon style={{ width:20, height:20, color:'#fff' }} />
               </div>
-              <p className={`text-xl sm:text-2xl font-black ${val}`}>{value}</p>
-              <p className={`text-[11px] sm:text-xs font-semibold mt-0.5 leading-tight ${dark ? 'text-gray-400' : 'text-gray-600'}`}>{label}</p>
+              <p style={{ fontSize:'1.6rem', fontWeight:900, color: numColor, lineHeight:1, margin:0 }}>{value}</p>
+              <p style={{ fontSize:'.7rem', fontWeight:700, color: s.sub, marginTop:4 }}>{label}</p>
             </div>
           ))}
         </div>
 
-        {/* ── Quick Access ── */}
-        <div className="grid grid-cols-1 gap-3">
-          {/* My Courses shortcut */}
-          <button
-            onClick={() => navigate('/student/courses')}
-            className={`w-full flex items-center gap-3 p-4 rounded-2xl border-2 transition-all duration-200 group text-right ${
-              dark
-                ? 'bg-blue-900/20 border-blue-700/40 hover:border-blue-500/60 hover:bg-blue-900/30'
-                : 'bg-blue-50 border-blue-200 hover:border-blue-400 hover:bg-blue-100'
-            }`}
-          >
-            <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 bg-blue-500/20 group-hover:bg-blue-500/30 transition-colors`}>
-              <BookOpen className="w-5 h-5 text-blue-500" />
+        {/* ══ QUICK ACCESS TILES ════════════════════════════════════════════ */}
+        <div style={{ display:'grid', gridTemplateColumns: lastVideo ? '1fr 1fr' : '1fr', gap:'.85rem' }}>
+
+          {/* My Courses tile */}
+          <button className="db-tile" onClick={() => navigate('/student/courses')} style={{
+            borderRadius:20,
+            background: dark
+              ? 'linear-gradient(145deg,#1e3a5f,#162c4a)'
+              : 'linear-gradient(145deg,#eff6ff,#dbeafe)',
+            border: `1.5px solid ${dark ? 'rgba(59,130,246,.25)' : 'rgba(59,130,246,.3)'}`,
+            padding: '1.25rem',
+            textAlign: 'right',
+            cursor: 'pointer',
+            boxShadow: dark ? '0 4px 24px rgba(59,130,246,.15)' : '0 4px 20px rgba(59,130,246,.1)',
+            position: 'relative',
+            overflow: 'hidden',
+          }}>
+            {/* bg decoration */}
+            <div style={{ position:'absolute', bottom:-20, left:-20, width:90, height:90, borderRadius:'50%', background:'rgba(59,130,246,.08)', pointerEvents:'none' }} />
+
+            <div style={{
+              width:48, height:48, borderRadius:15,
+              background:'linear-gradient(135deg,#3b82f6,#2563eb)',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              boxShadow:'0 5px 18px rgba(59,130,246,.4)',
+              marginBottom:'.85rem',
+            }}>
+              <BookOpen style={{ width:22, height:22, color:'#fff' }} />
             </div>
-            <div className="flex-1 min-w-0">
-              <p className={`font-black text-sm ${dark ? 'text-blue-300' : 'text-blue-800'}`}>كورساتي</p>
-              <p className={`text-xs mt-0.5 ${dark ? 'text-gray-400' : 'text-gray-500'}`}>
-                {data?.enrollments?.length
-                  ? `${data.enrollments.length} كورس مسجّل`
-                  : 'لا توجد كورسات مسجّلة بعد'}
-              </p>
-            </div>
-            <ChevronLeft className="w-5 h-5 text-blue-400 group-hover:-translate-x-1 transition-transform flex-shrink-0" />
+
+            <p style={{ fontWeight:900, fontSize:'.95rem', color: dark ? '#93c5fd' : '#1e40af', margin:0, lineHeight:1.3 }}>كورساتي</p>
+            <p style={{ fontSize:'.72rem', color: dark ? '#64748b' : '#3b82f6', marginTop:5, fontWeight:600 }}>
+              {data?.enrollments?.length
+                ? `${data.enrollments.length} كورس مسجّل`
+                : 'استعرض كورساتك'}
+            </p>
           </button>
 
-          {/* Last watched video */}
+          {/* Last video tile */}
           {lastVideo && (
-            <button
+            <button className="db-tile"
               onClick={() => navigate(`/student/courses/${lastVideo.course_id}`, { state: { videoId: lastVideo.video_id } })}
-              className={`w-full flex items-center gap-3 p-4 rounded-2xl border-2 transition-all duration-200 group text-right ${
-                dark
-                  ? 'bg-purple-900/20 border-purple-700/40 hover:border-purple-500/60 hover:bg-purple-900/30'
-                  : 'bg-purple-50 border-purple-200 hover:border-purple-400 hover:bg-purple-100'
-              }`}
-            >
-              <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 bg-purple-500/20 group-hover:bg-purple-500/30 transition-colors relative">
-                <Play className="w-5 h-5 text-purple-500" />
-                {lastVideo.progress_percentage > 0 && (
-                  <div className="absolute bottom-0 left-0 right-0 h-1 rounded-full overflow-hidden bg-purple-200/40">
-                    <div className="h-full bg-purple-500 rounded-full" style={{ width: `${Math.min(lastVideo.progress_percentage, 100)}%` }} />
-                  </div>
-                )}
+              style={{
+                borderRadius:20,
+                background: dark
+                  ? 'linear-gradient(145deg,#2d1b69,#1e1040)'
+                  : 'linear-gradient(145deg,#faf5ff,#ede9fe)',
+                border: `1.5px solid ${dark ? 'rgba(168,85,247,.3)' : 'rgba(168,85,247,.3)'}`,
+                padding:'1.25rem',
+                textAlign:'right',
+                cursor:'pointer',
+                boxShadow: dark ? '0 4px 24px rgba(168,85,247,.18)' : '0 4px 20px rgba(168,85,247,.1)',
+                position:'relative',
+                overflow:'hidden',
+              }}>
+              <div style={{ position:'absolute', bottom:-20, left:-20, width:90, height:90, borderRadius:'50%', background:'rgba(168,85,247,.08)', pointerEvents:'none' }} />
+
+              {/* icon + ring */}
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'.85rem' }}>
+                <div style={{ position:'relative', display:'inline-flex', alignItems:'center', justifyContent:'center' }}>
+                  <ProgressRing pct={videoPct} size={44} stroke={3.5} color={dark ? '#c084fc' : '#9333ea'} />
+                  <Play style={{ position:'absolute', width:16, height:16, color: dark ? '#c084fc' : '#9333ea' }} />
+                </div>
+                <span style={{
+                  fontSize:'.65rem', fontWeight:800,
+                  background: dark ? 'rgba(168,85,247,.25)' : 'rgba(168,85,247,.15)',
+                  color: dark ? '#c084fc' : '#7e22ce',
+                  padding:'2px 8px', borderRadius:99,
+                }}>
+                  {videoPct}%
+                </span>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className={`font-black text-sm truncate ${dark ? 'text-purple-300' : 'text-purple-800'}`}>{lastVideo.title}</p>
-                <p className={`text-xs mt-0.5 flex items-center gap-1 ${dark ? 'text-gray-400' : 'text-gray-500'}`}>
-                  <Clock className="w-3 h-3" />
-                  تابع من حيث توقفت · {Math.round(lastVideo.progress_percentage || 0)}%
-                </p>
-              </div>
-              <ChevronLeft className="w-5 h-5 text-purple-400 group-hover:-translate-x-1 transition-transform flex-shrink-0" />
+
+              <p style={{ fontWeight:900, fontSize:'.88rem', color: dark ? '#c084fc' : '#6b21a8', margin:0, lineHeight:1.3,
+                overflow:'hidden', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical' }}>
+                {lastVideo.title}
+              </p>
+              <p style={{ fontSize:'.68rem', color: dark ? '#64748b' : '#9333ea', marginTop:5, fontWeight:600 }}>
+                تابع من حيث توقفت ←
+              </p>
             </button>
           )}
         </div>
 
-        {/* ── Browse CTA ── */}
-        <button
-          onClick={() => navigate('/student/courses', { state: { tab: 'browse' } })}
-          className={`w-full flex items-center gap-3 p-4 rounded-2xl border-2 transition-all duration-200 group ${
-            dark
-              ? 'bg-orange-500/10 border-orange-600/30 hover:border-orange-500/60 hover:bg-orange-500/15'
-              : 'bg-orange-50 border-orange-300 hover:border-orange-400 hover:bg-orange-100'
-          }`}
-        >
-          <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 bg-orange-500/20 group-hover:bg-orange-500/30 transition-colors">
-            <Search className="w-5 h-5 text-orange-500" />
+        {/* ══ BROWSE CTA ════════════════════════════════════════════════════ */}
+        <button className="db-tile" onClick={() => navigate('/student/courses', { state: { tab: 'browse' } })} style={{
+          width:'100%',
+          borderRadius:20,
+          background: dark
+            ? 'linear-gradient(135deg,#431407,#7c2d12)'
+            : 'linear-gradient(135deg,#fff7ed,#ffedd5)',
+          border: `1.5px solid ${dark ? 'rgba(249,115,22,.3)' : 'rgba(249,115,22,.35)'}`,
+          padding: '1.1rem 1.3rem',
+          display:'flex', alignItems:'center', justifyContent:'space-between', gap:'1rem',
+          cursor:'pointer',
+          boxShadow: dark ? '0 4px 24px rgba(249,115,22,.15)' : '0 4px 20px rgba(249,115,22,.1)',
+          position:'relative',
+          overflow:'hidden',
+          textAlign:'right',
+        }}>
+          <div style={{ position:'absolute', top:-30, left:-30, width:120, height:120, borderRadius:'50%', background:'rgba(249,115,22,.06)', pointerEvents:'none' }} />
+
+          <div style={{ flex:1, minWidth:0, position:'relative' }}>
+            <p style={{ fontWeight:900, fontSize:'1rem', color: dark ? '#fb923c' : '#9a3412', margin:0 }}>
+              تصفح الكورسات المتاحة
+            </p>
+            <p style={{ fontSize:'.75rem', color: dark ? '#78350f' : '#ea580c', marginTop:4, fontWeight:600 }}>
+              اكتشف الكورسات وانضم قبل الشراء
+            </p>
           </div>
-          <div className="flex-1 text-right">
-            <p className={`font-black text-sm ${dark ? 'text-orange-300' : 'text-orange-800'}`}>تصفح الكورسات المتاحة</p>
-            <p className={`text-xs mt-0.5 ${dark ? 'text-gray-400' : 'text-gray-500'}`}>اكتشف الكورسات وانضم قبل الشراء</p>
+
+          <div style={{
+            width:48, height:48, borderRadius:15, flexShrink:0,
+            background:'linear-gradient(135deg,#f97316,#ea580c)',
+            display:'flex', alignItems:'center', justifyContent:'center',
+            boxShadow:'0 5px 18px rgba(249,115,22,.4)',
+            animation: 'db-float 3s ease-in-out infinite',
+          }}>
+            <Compass style={{ width:22, height:22, color:'#fff' }} />
           </div>
-          <ChevronLeft className="w-5 h-5 text-orange-400 group-hover:-translate-x-1 transition-transform" />
         </button>
 
-        {/* ── Badges ── */}
+        {/* ══ BADGES ════════════════════════════════════════════════════════ */}
         {data?.badges?.length > 0 && (
-          <div className="card">
-            <h2 className="section-title mb-4"><Award className="w-5 h-5 text-orange-500" /> شاراتي</h2>
-            <div className="flex flex-wrap gap-2">
+          <div style={{
+            borderRadius:18,
+            background: s.card,
+            border:`1.5px solid ${s.border}`,
+            padding:'1.1rem 1.2rem',
+            boxShadow:`0 2px 12px rgba(0,0,0,${dark?.15:.05})`,
+          }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:'1rem' }}>
+              <Award style={{ width:18, height:18, color:'#f97316' }} />
+              <span style={{ fontWeight:900, fontSize:'.95rem', color: s.text }}>شاراتي</span>
+            </div>
+            <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
               {data.badges.map(b => (
-                <div
-                  key={b.id}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-full text-white text-xs font-bold shadow-md"
-                  style={{ backgroundColor: b.badge_color || '#f97316' }}
-                >
+                <span key={b.id} style={{
+                  display:'flex', alignItems:'center', gap:6,
+                  padding:'5px 14px',
+                  borderRadius:99,
+                  fontSize:'.75rem', fontWeight:800, color:'#fff',
+                  backgroundColor: b.badge_color || '#f97316',
+                  boxShadow:`0 3px 10px ${b.badge_color || '#f97316'}55`,
+                }}>
                   🏅 {b.badge_name}
-                </div>
+                </span>
               ))}
             </div>
           </div>
         )}
 
-        {/* ── Recent Results ── */}
-        <div className="card">
-          <h2 className="section-title mb-4"><FileText className="w-5 h-5 text-orange-500" /> آخر النتائج</h2>
-          <div className="space-y-2.5">
+        {/* ══ RECENT RESULTS ════════════════════════════════════════════════ */}
+        <div style={{
+          borderRadius:18,
+          background: s.card,
+          border:`1.5px solid ${s.border}`,
+          padding:'1.1rem 1.2rem',
+          boxShadow:`0 2px 12px rgba(0,0,0,${dark ? .15 : .05})`,
+        }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:'1rem' }}>
+            <FileText style={{ width:18, height:18, color:'#f97316' }} />
+            <span style={{ fontWeight:900, fontSize:'.95rem', color: s.text }}>آخر النتائج</span>
+          </div>
+
+          <div style={{ display:'flex', flexDirection:'column', gap:'.6rem' }}>
             {isLoading ? (
               [...Array(3)].map((_, i) => (
-                <div key={i} className={`h-16 animate-pulse rounded-xl ${dark ? 'bg-gray-700' : 'bg-gray-100'}`} />
+                <div key={i} style={{ height:64, borderRadius:14, background: dark ? '#2d2b3d' : '#f1f5f9', animation:'pulse 1.5s ease-in-out infinite' }} />
               ))
             ) : data?.recentResults?.length > 0 ? (
               data.recentResults.map(r => {
                 const isAbsent = r.is_absent === true || r.is_absent === 'true';
-                const passed = !isAbsent && r.score >= r.pass_score;
-                const pct = r.total_score > 0 ? Math.round((r.score / r.total_score) * 100) : 0;
+                const passed   = !isAbsent && r.score >= r.pass_score;
+                const pct      = r.total_score > 0 ? Math.round((r.score / r.total_score) * 100) : 0;
+
+                const rowBg = isAbsent
+                  ? (dark ? 'rgba(100,116,139,.12)' : '#f8fafc')
+                  : passed
+                    ? (dark ? 'rgba(16,185,129,.09)' : '#f0fdf4')
+                    : (dark ? 'rgba(239,68,68,.09)'  : '#fff1f2');
+
+                const rowBorder = isAbsent
+                  ? (dark ? 'rgba(100,116,139,.25)' : '#e2e8f0')
+                  : passed
+                    ? (dark ? 'rgba(16,185,129,.3)'  : '#bbf7d0')
+                    : (dark ? 'rgba(239,68,68,.3)'   : '#fecdd3');
+
                 return (
-                  <div
-                    key={r.id}
-                    className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-colors ${
-                      isAbsent
-                        ? dark ? 'border-gray-700/60 bg-gray-900/20' : 'border-gray-200 bg-gray-50/60'
-                        : passed
-                          ? dark ? 'border-green-700/60 bg-green-950/25 hover:bg-green-950/40' : 'border-green-200 bg-green-50/60 hover:bg-green-50'
-                          : dark ? 'border-red-700/60 bg-red-950/25 hover:bg-red-950/40'       : 'border-red-200 bg-red-50/60 hover:bg-red-50'
-                    }`}
-                  >
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                      isAbsent ? (dark ? 'bg-gray-800' : 'bg-gray-200') : passed ? 'bg-green-500/20' : 'bg-red-500/20'
-                    }`}>
+                  <div key={r.id} style={{
+                    display:'flex', alignItems:'center', gap:12,
+                    padding:'10px 12px',
+                    borderRadius:14,
+                    border:`1.5px solid ${rowBorder}`,
+                    background: rowBg,
+                    transition:'background .15s',
+                  }}>
+                    {/* icon */}
+                    <div style={{
+                      width:38, height:38, borderRadius:12, flexShrink:0,
+                      display:'flex', alignItems:'center', justifyContent:'center',
+                      background: isAbsent ? (dark?'rgba(100,116,139,.2)':'#e2e8f0')
+                        : passed ? 'rgba(16,185,129,.15)' : 'rgba(239,68,68,.15)',
+                    }}>
                       {isAbsent
-                        ? <XCircle className="w-5 h-5 text-gray-400" />
+                        ? <XCircle style={{ width:18, height:18, color:'#94a3b8' }} />
                         : passed
-                          ? <CheckCircle className="w-5 h-5 text-green-500" />
-                          : <XCircle className="w-5 h-5 text-red-500" />}
+                          ? <CheckCircle style={{ width:18, height:18, color:'#10b981' }} />
+                          : <XCircle style={{ width:18, height:18, color:'#ef4444' }} />
+                      }
                     </div>
 
-                    <div className="flex-1 min-w-0">
-                      <p className={`font-bold text-sm truncate ${dark ? 'text-white' : 'text-navy-700'}`}>{r.exam_title}</p>
-                      <div className="flex items-center gap-2 mt-1">
+                    {/* info */}
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <p style={{ fontWeight:700, fontSize:'.85rem', color: s.text, margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                        {r.exam_title}
+                      </p>
+                      <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:5 }}>
                         {!isAbsent && (
                           <>
-                            <div className={`flex-1 h-1.5 rounded-full overflow-hidden max-w-[80px] ${dark ? 'bg-gray-700' : 'bg-gray-200'}`}>
-                              <div
-                                className={`h-1.5 rounded-full ${passed ? 'bg-green-500' : 'bg-red-400'}`}
-                                style={{ width: `${pct}%` }}
-                              />
+                            <div style={{ flex:1, maxWidth:70, height:4, borderRadius:99, background: dark?'rgba(255,255,255,.1)':'#e2e8f0', overflow:'hidden' }}>
+                              <div style={{ width:`${pct}%`, height:'100%', borderRadius:99, background: passed?'#10b981':'#ef4444', transition:'width .4s' }} />
                             </div>
-                            <span className={`text-[11px] font-bold ${passed ? (dark ? 'text-green-400' : 'text-green-700') : (dark ? 'text-red-400' : 'text-red-600')}`}>
+                            <span style={{ fontSize:'.7rem', fontWeight:800,
+                              color: passed ? (dark?'#6ee7b7':'#065f46') : (dark?'#fca5a5':'#9f1239') }}>
                               {pct}%
                             </span>
                           </>
                         )}
-                        <span className={`text-[11px] ${dark ? 'text-gray-500' : 'text-gray-400'}`}>
+                        <span style={{ fontSize:'.68rem', color: s.sub }}>
                           {new Date(r.created_at).toLocaleDateString('ar-EG')}
                         </span>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 flex-shrink-0">
+                    {/* score / review */}
+                    <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
                       {isAbsent ? (
-                        <span className={`text-xs font-black px-2 py-1 rounded-lg ${
-                          dark ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'
-                        }`}>غائب</span>
+                        <span style={{ fontSize:'.72rem', fontWeight:800,
+                          background: dark?'rgba(100,116,139,.2)':'#e2e8f0',
+                          color: dark?'#94a3b8':'#475569',
+                          padding:'3px 10px', borderRadius:8 }}>غائب</span>
                       ) : (
                         <>
-                          <div className="text-left">
-                            <p className={`text-base font-black ${passed ? (dark ? 'text-green-400' : 'text-green-700') : (dark ? 'text-red-400' : 'text-red-600')}`}>
-                              {r.score}<span className={`text-xs font-semibold ${dark ? 'text-gray-500' : 'text-gray-400'}`}>/{r.total_score}</span>
+                          <div style={{ textAlign:'center' }}>
+                            <p style={{ fontWeight:900, fontSize:'1rem', margin:0,
+                              color: passed ? (dark?'#6ee7b7':'#065f46') : (dark?'#fca5a5':'#9f1239') }}>
+                              {r.score}
+                              <span style={{ fontSize:'.7rem', fontWeight:600, color: s.sub }}>/{r.total_score}</span>
                             </p>
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                              passed
-                                ? dark ? 'bg-green-900/60 text-green-300' : 'bg-green-100 text-green-700'
-                                : dark ? 'bg-red-900/60 text-red-300'    : 'bg-red-100 text-red-700'
-                            }`}>
+                            <span style={{ fontSize:'.62rem', fontWeight:800, padding:'2px 7px', borderRadius:99,
+                              background: passed ? (dark?'rgba(16,185,129,.2)':'#d1fae5') : (dark?'rgba(239,68,68,.2)':'#fee2e2'),
+                              color: passed ? (dark?'#6ee7b7':'#065f46') : (dark?'#fca5a5':'#9f1239') }}>
                               {passed ? '✓ ناجح' : '✗ راسب'}
                             </span>
                           </div>
                           <button
                             onClick={() => navigate(`/student/exam-review/${r.id}`)}
-                            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                              dark
-                                ? 'bg-navy-700 hover:bg-navy-600 text-white border border-navy-600'
-                                : 'bg-navy-600 hover:bg-navy-700 text-white'
-                            }`}
-                            title="مراجعة الإجابات"
+                            style={{
+                              display:'flex', alignItems:'center', gap:4,
+                              padding:'6px 12px', borderRadius:10,
+                              fontSize:'.72rem', fontWeight:800,
+                              border:'none', cursor:'pointer',
+                              background: dark?'rgba(255,255,255,.08)':'#0f172a',
+                              color:'#fff',
+                              transition:'background .15s',
+                            }}
                           >
-                            <Eye className="w-3.5 h-3.5" />
-                            مراجعة
+                            <Eye style={{ width:13, height:13 }} /> مراجعة
                           </button>
                         </>
                       )}
@@ -265,9 +422,9 @@ export default function StudentDashboard() {
                 );
               })
             ) : (
-              <div className={`text-center py-10 rounded-xl ${dark ? 'bg-[var(--dk-elevated)]' : 'bg-gray-50'}`}>
-                <FileText className={`w-10 h-10 mx-auto mb-2 ${dark ? 'text-gray-600' : 'text-gray-300'}`} />
-                <p className={`font-medium text-sm ${dark ? 'text-gray-400' : 'text-gray-500'}`}>لم تؤدِ أي اختبارات بعد</p>
+              <div style={{ textAlign:'center', padding:'2.5rem 0' }}>
+                <FileText style={{ width:40, height:40, margin:'0 auto 10px', color: dark?'#334155':'#cbd5e1' }} />
+                <p style={{ fontSize:'.85rem', color: s.sub, fontWeight:600 }}>لم تؤدِ أي اختبارات بعد</p>
               </div>
             )}
           </div>
