@@ -17,13 +17,6 @@ export default function Modal({ open, onClose, title, children, size = 'md' }) {
     return () => { document.body.style.overflow = ''; };
   }, [open]);
 
-  useEffect(() => {
-    if (!open) return;
-    const handleKey = (e) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', handleKey);
-    return () => document.removeEventListener('keydown', handleKey);
-  }, [open, onClose]);
-
   if (!open) return null;
 
   const sizes = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-4xl' };
@@ -34,7 +27,6 @@ export default function Modal({ open, onClose, title, children, size = 'md' }) {
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div className={`modal-box w-full ${sizes[size]} flex flex-col max-h-[90vh] sm:max-h-[90vh] mx-2 sm:mx-auto`}>
         <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-100 flex-shrink-0">
