@@ -1,12 +1,12 @@
 #!/bin/bash
 # ─────────────────────────────────────────
-#  WATHBA — Start all containers
+#  WATHBA — Restart all containers
 # ─────────────────────────────────────────
 
 cd "$(dirname "$0")/.."
 
-echo "🚀 Starting Wathba..."
-sudo docker compose up -d
+echo "🔄 Restarting Wathba..."
+sudo docker compose restart
 
 echo ""
 echo "📋 Status:"
