@@ -205,6 +205,7 @@ function SupportContactsTab() {
                 {c.photo_url ? (
                   <img src={c.photo_url.startsWith('http') ? c.photo_url : `/uploads/${c.photo_url}`}
                     alt={c.name} className="w-10 h-10 rounded-lg object-cover shrink-0 border border-gray-200 dark:border-gray-600"
+                    loading="lazy" decoding="async"
                     onError={e => { e.target.style.display='none'; e.target.nextSibling.style.display='flex'; }} />
                 ) : null}
                 <div className="w-10 h-10 rounded-lg bg-orange-100 dark:bg-orange-900/30 items-center justify-center shrink-0"

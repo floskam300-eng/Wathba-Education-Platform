@@ -750,6 +750,9 @@ CREATE INDEX IF NOT EXISTS idx_live_chat_stream_sent
   ON live_chat_messages (stream_id, sent_at DESC);
 
 -- LiveStream performance indexes
+CREATE INDEX IF NOT EXISTS idx_live_streams_status
+  ON live_streams (status);
+
 CREATE INDEX IF NOT EXISTS idx_live_streams_teacher_status
   ON live_streams (teacher_id, status);
 

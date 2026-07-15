@@ -234,7 +234,7 @@ export default function QuestionBankQuestions() {
                           <span className="text-xs text-gray-500 font-medium">{qTypeLabel(q.question_type)} · {q.points} نقطة</span>
                           <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${d.cls}`}>{d.label}</span>
                         </div>
-                        {q.question_image_url && <img src={withToken(q.question_image_url)} alt="" className="max-h-32 rounded-lg mb-2 border border-gray-200" />}
+                        {q.question_image_url && <img src={withToken(q.question_image_url)} alt="" className="max-h-32 rounded-lg mb-2 border border-gray-200" loading="lazy" decoding="async" />}
                         {q.question_text && <p className="font-semibold text-navy-700 text-sm mb-2"><MathText text={q.question_text} /></p>}
                         {q.question_type === 'image_multi' ? (
                           <div className="space-y-1.5 w-full">

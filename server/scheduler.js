@@ -432,14 +432,22 @@ async function runEndedExamCheck() {
 async function runDataRetentionCleanup() {
   if (!_pool) return;
   try {
-    const notifRes = await _pool.query(
-      `DELETE FROM notification_log WHERE sent_at < NOW() - INTERVAL '180 days'`
-    );
-    const waLogRes = await _pool.query(
-      `DELETE FROM whatsapp_send_log WHERE created_at < NOW() - INTERVAL '180 days'`
-    );
-    if ((notifRes.rowCount || 0) > 0 || (waLogRes.rowCount || 0) > 0) {
-      console.log(`[Scheduler] Data retention cleanup: deleted ${notifRes.rowCount || 0} notification logs and ${waLogRes.rowCount || 0} WhatsApp logs`);
+    const [notifRes, waLogRes, examRes, recRes] = await Promise.all([
+      _pool.query(`DELETE FROM notification_log WHERE sent_at < NOW() - INTERVAL '180 days'`),
+      _pool.query(`DELETE FROM whatsapp_send_log WHERE created_at < NOW() - INTERVAL '180 days'`),
+      // Keep only the latest attempt per student+exam beyond 1 year (preserve is_latest=true rows always)
+      _pool.query(`DELETE FROM exam_results WHERE created_at < NOW() - INTERVAL '365 days' AND is_latest = false`),
+      // Recitation results older than 1 year (non-latest sessions only)
+      _pool.query(`DELETE FROM recitation_results WHERE submitted_at < NOW() - INTERVAL '365 days'`),
+    ]);
+    const deleted = [
+      notifRes.rowCount || 0,
+      waLogRes.rowCount || 0,
+      examRes.rowCount || 0,
+      recRes.rowCount || 0,
+    ];
+    if (deleted.some(n => n > 0)) {
+      console.log(`[Scheduler] Data retention cleanup: notif=${deleted[0]}, wa_log=${deleted[1]}, exam_results=${deleted[2]}, recitation_results=${deleted[3]}`);
     }
   } catch (err) {
     console.error('[Scheduler] Data retention cleanup error:', err.message);

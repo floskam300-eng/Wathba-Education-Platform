@@ -518,6 +518,7 @@ export default function LandingPage() {
                       {photoSrc ? (
                         <img src={photoSrc} alt={c.name}
                           className="w-full h-full object-cover"
+                          loading="lazy" decoding="async"
                           onError={e => {
                             e.target.style.display = 'none';
                             e.target.nextSibling.style.display = 'flex';

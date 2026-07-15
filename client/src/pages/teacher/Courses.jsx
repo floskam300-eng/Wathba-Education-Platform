@@ -358,6 +358,7 @@ export default function TeacherCourses() {
             {form.thumbnail_url && (
               <div className="mt-2">
                 <img src={form.thumbnail_url} alt="معاينة" className="h-20 rounded-xl object-cover border border-gray-200"
+                  loading="lazy" decoding="async"
                   onError={e => { e.target.style.display = 'none'; }} />
               </div>
             )}

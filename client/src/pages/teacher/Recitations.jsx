@@ -763,7 +763,7 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
               <input ref={imgInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
               {qForm.question_image_url ? (
                 <div className="relative rounded-xl overflow-hidden border">
-                  <img src={imgPreviewBlob || withToken(qForm.question_image_url)} alt="question" className="w-full max-h-48 object-contain" />
+                  <img src={imgPreviewBlob || withToken(qForm.question_image_url)} alt="question" className="w-full max-h-48 object-contain" loading="lazy" decoding="async" />
                   <div className="absolute top-2 left-2 flex gap-1.5">
                     <button onClick={() => imgInputRef.current?.click()}
                       className="px-2.5 py-1.5 bg-white/95 text-gray-700 text-xs rounded-lg font-bold shadow-sm hover:bg-white flex items-center gap-1">
@@ -966,7 +966,7 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
 
               {q.question_image_url && (
                 <div className="relative mb-2">
-                  <img src={withToken(q.question_image_url)} alt="question" className="w-full max-h-32 object-contain rounded-xl border cursor-zoom-in" onClick={() => window.open(withToken(q.question_image_url), '_blank')} />
+                  <img src={withToken(q.question_image_url)} alt="question" className="w-full max-h-32 object-contain rounded-xl border cursor-zoom-in" loading="lazy" decoding="async" onClick={() => window.open(withToken(q.question_image_url), '_blank')} />
                   <button onClick={() => window.open(withToken(q.question_image_url), '_blank')} className="absolute top-1 left-1 bg-black/50 hover:bg-black/70 text-white rounded p-1 transition-colors" title="تكبير">
                     <ZoomIn className="w-3.5 h-3.5" />
                   </button>

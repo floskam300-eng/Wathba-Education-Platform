@@ -1000,40 +1000,116 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
       }
     }
 
-    // 7. Import students — collect generated passwords so they can be returned to the teacher
+    // 7. Import students — batched: one existence check + parallel hashing + single unnest INSERT
     const generatedPasswords = []; // {username, password}
-    for (const s of (data.students || [])) {
-      await client.query('SAVEPOINT sp');
-      try {
-        const existing = await client.query(
-          'SELECT id FROM students WHERE username=$1 AND teacher_id=$2 AND deleted_at IS NULL',
-          [s.username, teacherId]
-        );
-        if (existing.rows.length > 0) {
-          studentMap[s.id] = existing.rows[0].id;
+    const studentsToImport = data.students || [];
+    if (studentsToImport.length > 0) {
+      // 7a. Fetch all existing usernames for this teacher in one query
+      const usernames = studentsToImport.map(s => s.username);
+      const existingRes = await client.query(
+        'SELECT id, username FROM students WHERE username = ANY($1) AND teacher_id=$2 AND deleted_at IS NULL',
+        [usernames, teacherId]
+      );
+      const existingByUsername = new Map(existingRes.rows.map(r => [r.username, r.id]));
+
+      // Mark existing students in the map
+      for (const s of studentsToImport) {
+        if (existingByUsername.has(s.username)) {
+          studentMap[s.id] = existingByUsername.get(s.username);
           stats.skipped_students++;
-          await client.query('RELEASE SAVEPOINT sp');
-          continue;
         }
-        const plainPwd = s.plain_password || crypto.randomInt(100000, 1000000).toString();
-        const hashed = await bcrypt.hash(plainPwd, 10);
-        const r = await client.query(
-          `INSERT INTO students (username,password,name,phone,parent_phone,academic_stage,gender,
-             teacher_id,points,created_at)
-           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
-          [s.username, hashed, s.name, s.phone || null, s.parent_phone || null,
-           s.academic_stage || null, s.gender || null, teacherId,
-           s.points || 0, s.created_at || new Date()]
-        );
-        studentMap[s.id] = r.rows[0].id;
-        stats.students++;
-        if (!s.plain_password) {
-          generatedPasswords.push({ username: s.username, name: s.name, generated_password: plainPwd });
+      }
+
+      // 7b. Determine which students are genuinely new
+      const newStudents = studentsToImport.filter(s => !existingByUsername.has(s.username));
+
+      if (newStudents.length > 0) {
+        // 7c. Hash passwords in parallel (batches of 10 to avoid CPU overload)
+        const HASH_BATCH = 10;
+        const prepared = [];
+        for (let i = 0; i < newStudents.length; i += HASH_BATCH) {
+          const batch = newStudents.slice(i, i + HASH_BATCH);
+          const hashed = await Promise.all(batch.map(s => {
+            const plain = s.plain_password || crypto.randomInt(100000, 1000000).toString();
+            return bcrypt.hash(plain, 10).then(h => ({ s, plain, hash: h }));
+          }));
+          prepared.push(...hashed);
         }
-        await client.query('RELEASE SAVEPOINT sp');
-      } catch (e) {
-        await client.query('ROLLBACK TO SAVEPOINT sp');
-        stats.errors.push(`طالب "${s.name}": ${e.message}`);
+
+        // 7d. Batch INSERT with unnest() — one round-trip for all new students
+        await client.query('SAVEPOINT sp_students');
+        try {
+          const unames = [], pwds = [], names = [], phones = [], parentPhones = [],
+                stages = [], genders = [], points = [], createdAts = [];
+          for (const { s, hash } of prepared) {
+            unames.push(s.username);
+            pwds.push(hash);
+            names.push(s.name);
+            phones.push(s.phone || null);
+            parentPhones.push(s.parent_phone || null);
+            stages.push(s.academic_stage || null);
+            genders.push(s.gender || null);
+            points.push(s.points || 0);
+            createdAts.push(s.created_at ? new Date(s.created_at) : new Date());
+          }
+          const insertRes = await client.query(
+            `INSERT INTO students
+               (username, password, name, phone, parent_phone, academic_stage, gender,
+                teacher_id, points, created_at)
+             SELECT * FROM unnest(
+               $1::text[], $2::text[], $3::text[], $4::text[], $5::text[],
+               $6::text[], $7::text[], $8::int[], $9::int[], $10::timestamptz[]
+             ) AS t(username,password,name,phone,parent_phone,academic_stage,gender,
+                    teacher_id,points,created_at)
+             ON CONFLICT DO NOTHING
+             RETURNING id, username`,
+            [unames, pwds, names, phones, parentPhones, stages, genders,
+             Array(prepared.length).fill(teacherId), points, createdAts]
+          );
+          await client.query('RELEASE SAVEPOINT sp_students');
+
+          // Map inserted IDs back and collect generated passwords
+          const insertedByUsername = new Map(insertRes.rows.map(r => [r.username, r.id]));
+          for (const { s, plain } of prepared) {
+            const newId = insertedByUsername.get(s.username);
+            if (newId) {
+              studentMap[s.id] = newId;
+              stats.students++;
+              if (!s.plain_password) {
+                generatedPasswords.push({ username: s.username, name: s.name, generated_password: plain });
+              }
+            } else {
+              // ON CONFLICT: student was inserted by a concurrent request, skip
+              stats.skipped_students++;
+            }
+          }
+        } catch (batchErr) {
+          // Batch insert failed — fall back to row-by-row with savepoints
+          await client.query('ROLLBACK TO SAVEPOINT sp_students');
+          await client.query('RELEASE SAVEPOINT sp_students');
+          for (const { s, plain, hash } of prepared) {
+            await client.query('SAVEPOINT sp');
+            try {
+              const r = await client.query(
+                `INSERT INTO students (username,password,name,phone,parent_phone,academic_stage,gender,
+                   teacher_id,points,created_at)
+                 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+                [s.username, hash, s.name, s.phone || null, s.parent_phone || null,
+                 s.academic_stage || null, s.gender || null, teacherId,
+                 s.points || 0, s.created_at || new Date()]
+              );
+              studentMap[s.id] = r.rows[0].id;
+              stats.students++;
+              if (!s.plain_password) {
+                generatedPasswords.push({ username: s.username, name: s.name, generated_password: plain });
+              }
+              await client.query('RELEASE SAVEPOINT sp');
+            } catch (e) {
+              await client.query('ROLLBACK TO SAVEPOINT sp');
+              stats.errors.push(`طالب "${s.name}": ${e.message}`);
+            }
+          }
+        }
       }
     }
 

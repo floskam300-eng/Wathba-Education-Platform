@@ -410,7 +410,7 @@ export default function WhatsAppTab() {
     queryKey: ['wa-logs'],
     queryFn: () => api.get('/whatsapp/logs').then(r => r.data),
     enabled: subTab === 'history',
-    refetchInterval: subTab === 'history' ? 5000 : false,
+    refetchInterval: subTab === 'history' ? 30000 : false,
   });
 
   const { status, qrBase64 } = statusData;

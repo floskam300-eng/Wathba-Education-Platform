@@ -650,7 +650,7 @@ function QuestionCard({ q, idx, isPublished, isEditing, onEdit, onDelete }) {
           </div>
 
           {q.question_image_url && (
-            <img src={withToken(q.question_image_url)} alt="question" className="w-full max-h-40 object-contain rounded-xl border border-gray-100 dark:border-[var(--dk-border)] mb-2 bg-gray-50 dark:bg-[var(--dk-elevated)]" />
+            <img src={withToken(q.question_image_url)} alt="question" className="w-full max-h-40 object-contain rounded-xl border border-gray-100 dark:border-[var(--dk-border)] mb-2 bg-gray-50 dark:bg-[var(--dk-elevated)]" loading="lazy" decoding="async" />
           )}
           {q.question_text && (
             <p className="font-semibold text-navy-600 dark:text-[var(--dk-text-1)] text-sm mb-2 leading-relaxed">{q.question_text}</p>

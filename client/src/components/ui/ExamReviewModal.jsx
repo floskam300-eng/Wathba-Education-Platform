@@ -188,7 +188,7 @@ export default function ExamReviewModal({ resultId, onClose }) {
                   <div className="flex-1">
                     <p className="font-bold text-navy-700 text-sm leading-relaxed">{q.question_text}</p>
                     {q.question_image_url && (
-                      <img src={withToken(q.question_image_url)} alt="" className="mt-2 max-w-xs rounded-xl border" />
+                      <img src={withToken(q.question_image_url)} alt="" className="mt-2 max-w-xs rounded-xl border" loading="lazy" decoding="async" />
                     )}
                     <div className="flex items-center gap-2 mt-1.5">
                       <span className="text-xs text-gray-400 font-medium">{q.points} نقطة</span>
