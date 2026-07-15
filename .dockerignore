@@ -1,0 +1,49 @@
+# Dependencies — reinstalled inside Docker
+node_modules/
+client/node_modules/
+admin-client/node_modules/
+
+# Local dev builds — rebuilt inside Docker
+client/dist/
+admin-client/dist/
+
+# Git & editor
+.git/
+.gitignore
+.vscode/
+.idea/
+
+# Local env files — secrets passed via docker-compose env
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+logs/
+
+# Uploaded files — mounted as volume in production
+uploads/
+
+# WhatsApp sessions — mounted as volume in production
+whatsapp-sessions/
+
+# Tests & dev tools
+tests/
+scratch/
+reports/
+screenshots/
+
+# Docs
+docs/
+*.md
+
+# Replit-specific
+.replit
+.cache/
+.agents/
+.local/
+
+# OS
+.DS_Store
+Thumbs.db

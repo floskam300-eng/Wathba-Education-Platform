@@ -14,5 +14,14 @@ WATHBA is a multi-tenant Arabic (RTL) educational LMS for teachers, assistants, 
 - Env vars (set via Replit secrets, not `.env`): `DATABASE_URL`, `PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE` (managed by Replit), `JWT_SECRET`, `NODE_ENV=development`, `PORT=3001`.
 - Seeded login credentials: teacher `admin` / `admin123`, assistant `asst_nour` / `123456`, student `std_ali` / `123456`.
 
+## Docker Deployment (VPS)
+- Docker files: `Dockerfile` (main app), `Dockerfile.admin` (admin client), `docker-compose.yml`, `nginx-admin.conf`
+- Main app container (port 3001): Express backend + `client/dist` (teacher/student React)
+- Admin container (port 3002): Nginx serving `admin-client/dist` — proxies `/api` and `/uploads` to `app:3001`
+- Volumes: `uploads_data` → `/app/uploads`, `wa_sessions` → `/app/whatsapp-sessions`, `pg_data` → PostgreSQL
+- Env template: `.env.production.example` — copy to `.env` on VPS
+- Full VPS setup guide: `docs/DEPLOYMENT_GUIDE_VPS.md`
+- Cloudflare Tunnel stays as-is; add `admin.wathba.site` CNAME in Cloudflare DNS pointing to existing tunnel ID
+
 ## User Preferences
 None recorded yet.
