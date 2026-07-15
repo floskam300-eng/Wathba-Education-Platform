@@ -1,7 +1,10 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, FileText, Award, Star, Eye, Search, ChevronLeft, CheckCircle, XCircle } from 'lucide-react';
+import {
+  BookOpen, FileText, Award, Star, Eye, Search,
+  ChevronLeft, CheckCircle, XCircle, Play, Clock,
+} from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -16,6 +19,9 @@ export default function StudentDashboard() {
     queryFn: () => api.get('/students/me/dashboard').then(r => r.data),
     staleTime: 60_000,
   });
+
+  // Last watched video (most recent from videoProgress)
+  const lastVideo = data?.videoProgress?.[0] || null;
 
   return (
     <div className="h-full overflow-y-auto p-4 lg:p-6">
@@ -45,25 +51,25 @@ export default function StudentDashboard() {
               icon: BookOpen, label: 'كورساتي',
               value: data?.enrollments?.length || 0,
               gradient: 'from-blue-500 to-blue-600',
-              bg: dark ? 'bg-blue-900/30 border-blue-700/50' : 'bg-blue-50 border-blue-200',
-              val: dark ? 'text-blue-300' : 'text-blue-700',
+              bg: dark ? 'bg-blue-900/30 border-blue-700/50' : 'bg-blue-100 border-blue-300',
+              val: dark ? 'text-blue-300' : 'text-blue-800',
             },
             {
               icon: FileText, label: 'اختباراتي',
               value: data?.totalExams ?? data?.recentResults?.length ?? 0,
               gradient: 'from-emerald-500 to-green-600',
-              bg: dark ? 'bg-green-900/30 border-green-700/50' : 'bg-green-50 border-green-200',
-              val: dark ? 'text-green-300' : 'text-green-700',
+              bg: dark ? 'bg-green-900/30 border-green-700/50' : 'bg-green-100 border-green-300',
+              val: dark ? 'text-green-300' : 'text-green-800',
             },
             {
               icon: Award, label: 'شاراتي',
               value: data?.badges?.length || 0,
               gradient: 'from-orange-500 to-amber-500',
-              bg: dark ? 'bg-orange-900/30 border-orange-700/50' : 'bg-orange-50 border-orange-200',
-              val: dark ? 'text-orange-300' : 'text-orange-700',
+              bg: dark ? 'bg-orange-900/30 border-orange-700/50' : 'bg-orange-100 border-orange-300',
+              val: dark ? 'text-orange-300' : 'text-orange-800',
             },
           ].map(({ icon: Icon, label, value, gradient, bg, val }) => (
-            <div key={label} className={`rounded-2xl border p-3 sm:p-4 text-center ${bg}`}>
+            <div key={label} className={`rounded-2xl border-2 p-3 sm:p-4 text-center ${bg}`}>
               <div className={`w-9 h-9 sm:w-11 sm:h-11 bg-gradient-to-br ${gradient} rounded-xl flex items-center justify-center mx-auto mb-2 shadow-sm`}>
                 <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
               </div>
@@ -73,22 +79,75 @@ export default function StudentDashboard() {
           ))}
         </div>
 
+        {/* ── Quick Access ── */}
+        <div className="grid grid-cols-1 gap-3">
+          {/* My Courses shortcut */}
+          <button
+            onClick={() => navigate('/student/courses')}
+            className={`w-full flex items-center gap-3 p-4 rounded-2xl border-2 transition-all duration-200 group text-right ${
+              dark
+                ? 'bg-blue-900/20 border-blue-700/40 hover:border-blue-500/60 hover:bg-blue-900/30'
+                : 'bg-blue-50 border-blue-200 hover:border-blue-400 hover:bg-blue-100'
+            }`}
+          >
+            <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 bg-blue-500/20 group-hover:bg-blue-500/30 transition-colors`}>
+              <BookOpen className="w-5 h-5 text-blue-500" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className={`font-black text-sm ${dark ? 'text-blue-300' : 'text-blue-800'}`}>كورساتي</p>
+              <p className={`text-xs mt-0.5 ${dark ? 'text-gray-400' : 'text-gray-500'}`}>
+                {data?.enrollments?.length
+                  ? `${data.enrollments.length} كورس مسجّل`
+                  : 'لا توجد كورسات مسجّلة بعد'}
+              </p>
+            </div>
+            <ChevronLeft className="w-5 h-5 text-blue-400 group-hover:-translate-x-1 transition-transform flex-shrink-0" />
+          </button>
+
+          {/* Last watched video */}
+          {lastVideo && (
+            <button
+              onClick={() => navigate(`/student/courses/${lastVideo.course_id}`, { state: { videoId: lastVideo.video_id } })}
+              className={`w-full flex items-center gap-3 p-4 rounded-2xl border-2 transition-all duration-200 group text-right ${
+                dark
+                  ? 'bg-purple-900/20 border-purple-700/40 hover:border-purple-500/60 hover:bg-purple-900/30'
+                  : 'bg-purple-50 border-purple-200 hover:border-purple-400 hover:bg-purple-100'
+              }`}
+            >
+              <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 bg-purple-500/20 group-hover:bg-purple-500/30 transition-colors relative">
+                <Play className="w-5 h-5 text-purple-500" />
+                {lastVideo.progress_percentage > 0 && (
+                  <div className="absolute bottom-0 left-0 right-0 h-1 rounded-full overflow-hidden bg-purple-200/40">
+                    <div className="h-full bg-purple-500 rounded-full" style={{ width: `${Math.min(lastVideo.progress_percentage, 100)}%` }} />
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className={`font-black text-sm truncate ${dark ? 'text-purple-300' : 'text-purple-800'}`}>{lastVideo.title}</p>
+                <p className={`text-xs mt-0.5 flex items-center gap-1 ${dark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  <Clock className="w-3 h-3" />
+                  تابع من حيث توقفت · {Math.round(lastVideo.progress_percentage || 0)}%
+                </p>
+              </div>
+              <ChevronLeft className="w-5 h-5 text-purple-400 group-hover:-translate-x-1 transition-transform flex-shrink-0" />
+            </button>
+          )}
+        </div>
+
         {/* ── Browse CTA ── */}
         <button
           onClick={() => navigate('/student/courses', { state: { tab: 'browse' } })}
-          className={`w-full flex items-center gap-3 p-4 rounded-2xl border transition-all duration-200 group ${
+          className={`w-full flex items-center gap-3 p-4 rounded-2xl border-2 transition-all duration-200 group ${
             dark
               ? 'bg-orange-500/10 border-orange-600/30 hover:border-orange-500/60 hover:bg-orange-500/15'
-              : 'bg-gradient-to-l from-orange-500/10 to-orange-400/5 border-orange-300/40 hover:border-orange-400/70 hover:from-orange-500/15'
+              : 'bg-orange-50 border-orange-300 hover:border-orange-400 hover:bg-orange-100'
           }`}
         >
-          <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors ${
-            dark ? 'bg-orange-500/20 group-hover:bg-orange-500/30' : 'bg-orange-500/20 group-hover:bg-orange-500/30'
-          }`}>
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 bg-orange-500/20 group-hover:bg-orange-500/30 transition-colors">
             <Search className="w-5 h-5 text-orange-500" />
           </div>
           <div className="flex-1 text-right">
-            <p className={`font-black text-sm ${dark ? 'text-orange-300' : 'text-navy-600'}`}>تصفح الكورسات المتاحة</p>
+            <p className={`font-black text-sm ${dark ? 'text-orange-300' : 'text-orange-800'}`}>تصفح الكورسات المتاحة</p>
             <p className={`text-xs mt-0.5 ${dark ? 'text-gray-400' : 'text-gray-500'}`}>اكتشف الكورسات وانضم قبل الشراء</p>
           </div>
           <ChevronLeft className="w-5 h-5 text-orange-400 group-hover:-translate-x-1 transition-transform" />
@@ -136,7 +195,6 @@ export default function StudentDashboard() {
                           : dark ? 'border-red-700/60 bg-red-950/25 hover:bg-red-950/40'       : 'border-red-200 bg-red-50/60 hover:bg-red-50'
                     }`}
                   >
-                    {/* Pass/Fail/Absent icon */}
                     <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
                       isAbsent ? (dark ? 'bg-gray-800' : 'bg-gray-200') : passed ? 'bg-green-500/20' : 'bg-red-500/20'
                     }`}>
@@ -147,13 +205,11 @@ export default function StudentDashboard() {
                           : <XCircle className="w-5 h-5 text-red-500" />}
                     </div>
 
-                    {/* Exam info */}
                     <div className="flex-1 min-w-0">
                       <p className={`font-bold text-sm truncate ${dark ? 'text-white' : 'text-navy-700'}`}>{r.exam_title}</p>
                       <div className="flex items-center gap-2 mt-1">
                         {!isAbsent && (
                           <>
-                            {/* Progress bar */}
                             <div className={`flex-1 h-1.5 rounded-full overflow-hidden max-w-[80px] ${dark ? 'bg-gray-700' : 'bg-gray-200'}`}>
                               <div
                                 className={`h-1.5 rounded-full ${passed ? 'bg-green-500' : 'bg-red-400'}`}
@@ -171,7 +227,6 @@ export default function StudentDashboard() {
                       </div>
                     </div>
 
-                    {/* Score + status + review (absent students: label only, no review button) */}
                     <div className="flex items-center gap-2 flex-shrink-0">
                       {isAbsent ? (
                         <span className={`text-xs font-black px-2 py-1 rounded-lg ${

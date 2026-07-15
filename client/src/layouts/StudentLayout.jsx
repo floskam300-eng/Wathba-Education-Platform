@@ -308,7 +308,7 @@ export default function StudentLayout() {
         </div>
       </div>
 
-      <nav className="flex-1 p-3 space-y-1">
+      <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
         <style>{EVENTS_NAV_CSS}</style>
         {navItems.map(({ to, icon: Icon, label, end }) => (
           <NavLink key={to} to={to} end={end}
@@ -392,7 +392,7 @@ export default function StudentLayout() {
                   onClick={() => setSidebarOpen(true)}>
             <Menu className="w-5 h-5" />
           </button>
-          <span className={`text-sm font-semibold min-w-0 truncate ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-700'}`}>
+          <span className={`text-sm font-semibold min-w-0 truncate px-2 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-700'}`}>
             مرحباً {user?.name} 👋
           </span>
           <div className="flex items-center gap-1 flex-shrink-0">
@@ -406,17 +406,21 @@ export default function StudentLayout() {
         </header>
 
         {studentStream && !onLivePage && (
-          <div className="flex items-center justify-between gap-3 px-4 py-2.5 flex-shrink-0 border-b"
-            style={{ backgroundColor: '#7f1d1d', borderColor: 'rgba(239,68,68,0.4)' }}>
+          <div
+            className="flex items-center justify-between gap-3 px-4 py-2.5 flex-shrink-0 border-b"
+            style={dark
+              ? { backgroundColor: '#7f1d1d', borderColor: 'rgba(239,68,68,0.4)' }
+              : { backgroundColor: '#fee2e2', borderColor: '#fca5a5' }}
+          >
             <div className="flex items-center gap-2.5 min-w-0">
               <span className="flex items-center gap-1.5 bg-red-500 text-white text-xs font-black px-2.5 py-1 rounded-full animate-pulse flex-shrink-0">
                 <Radio className="w-3 h-3" /> متصل
               </span>
-              <p className="text-white text-sm font-bold truncate">{studentStream.title}</p>
+              <p className={`text-sm font-bold truncate ${dark ? 'text-white' : 'text-red-800'}`}>{studentStream.title}</p>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               <button onClick={() => navigate('/student/live')}
-                className="flex items-center gap-1.5 text-xs font-black px-3 py-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-white transition-colors">
+                className={`flex items-center gap-1.5 text-xs font-black px-3 py-1.5 rounded-lg transition-colors ${dark ? 'bg-white/20 hover:bg-white/30 text-white' : 'bg-red-100 hover:bg-red-200 text-red-800'}`}>
                 <ExternalLink className="w-3.5 h-3.5" /> العودة للبث
               </button>
               <button onClick={() => leaveStudentStream(studentStream.id)}
@@ -428,12 +432,17 @@ export default function StudentLayout() {
         )}
 
         {availableLive && !studentStream && !onLivePage && (
-          <div className="flex items-center justify-between gap-3 px-4 py-2 flex-shrink-0 border-b bg-[#0d2318] dark:bg-[#0a1a10] border-green-900/60 dark:border-green-900/40">
+          <div
+            className="flex items-center justify-between gap-3 px-4 py-2 flex-shrink-0 border-b"
+            style={dark
+              ? { backgroundColor: '#0d2318', borderColor: 'rgba(22,101,52,0.6)' }
+              : { backgroundColor: '#dcfce7', borderColor: '#86efac' }}
+          >
             <div className="flex items-center gap-2.5 min-w-0">
               <span className="flex items-center gap-1.5 bg-green-600 text-white text-xs font-black px-2.5 py-1 rounded-full animate-pulse flex-shrink-0">
                 <Radio className="w-3 h-3" /> بث جديد
               </span>
-              <p className="text-green-100 text-sm font-bold truncate">{availableLive.title || 'بث مباشر متاح'}</p>
+              <p className={`text-sm font-bold truncate ${dark ? 'text-green-100' : 'text-green-800'}`}>{availableLive.title || 'بث مباشر متاح'}</p>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               <button onClick={() => { clearAvailableLive(); navigate('/student/live'); }}
@@ -441,7 +450,7 @@ export default function StudentLayout() {
                 <ExternalLink className="w-3.5 h-3.5" /> انضم الآن
               </button>
               <button onClick={clearAvailableLive}
-                className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors">
+                className={`p-1.5 rounded-lg transition-colors ${dark ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-green-100 hover:bg-green-200 text-green-700'}`}>
                 <StopCircle className="w-3.5 h-3.5" />
               </button>
             </div>
