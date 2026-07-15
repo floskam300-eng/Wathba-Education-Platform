@@ -1218,3 +1218,27 @@ BEGIN
   END IF;
 END $;
 
+-- ═══════════════════════════════════════════════════════════════════════════
+-- OPTIMIZATION PLAN — Phase 3 Indexes (2026-07-15)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- H-1: exam_results — partial covering index for the most common triple filter:
+--      WHERE exam_id=$1 AND is_latest=true AND is_absent=false
+--      Existing idx_exam_results_exam_latest covers (exam_id, is_latest) only;
+--      this partial index eliminates the extra is_absent heap filter entirely.
+CREATE INDEX IF NOT EXISTS idx_exam_results_active
+  ON exam_results (exam_id, student_id)
+  WHERE is_latest = true AND is_absent = false;
+
+-- H-2: students — composite for leaderboard ORDER BY points DESC per teacher
+--      Existing idx_students_teacher_id enables the filter but not the sort;
+--      PG was forced to Bitmap Heap Scan + Sort on every leaderboard query.
+CREATE INDEX IF NOT EXISTS idx_students_teacher_points
+  ON students (teacher_id, points DESC)
+  WHERE deleted_at IS NULL;
+
+-- H-3: video_progress — composite for ORDER BY last_watched_at DESC per student
+--      Used in notifications.js and recent-activity queries; no index existed.
+CREATE INDEX IF NOT EXISTS idx_video_progress_student_watched
+  ON video_progress (student_id, last_watched_at DESC);
+

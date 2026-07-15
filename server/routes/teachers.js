@@ -36,7 +36,14 @@ router.get('/dashboard', requireRole('teacher'), async (req, res) => {
       pool.query('SELECT COUNT(*) FROM courses WHERE teacher_id = $1', [teacherId]),
       pool.query('SELECT COUNT(*) FROM exams WHERE teacher_id = $1', [teacherId]),
       pool.query('SELECT COUNT(*) FROM assistants WHERE teacher_id = $1', [teacherId]),
-      pool.query("SELECT COALESCE(SUM(amount),0) as total FROM payments WHERE status='verified' AND student_id IN (SELECT id FROM students WHERE teacher_id=$1 AND deleted_at IS NULL)", [teacherId]),
+      // M-3 OPT: JOIN instead of IN (subquery) — lets PG use the composite index directly
+      pool.query(
+        `SELECT COALESCE(SUM(p.amount),0) AS total
+         FROM payments p
+         JOIN students s ON s.id = p.student_id AND s.teacher_id = $1 AND s.deleted_at IS NULL
+         WHERE p.status = 'verified'`,
+        [teacherId]
+      ),
       pool.query(
         `SELECT COUNT(*) FROM course_enrollment_requests cer
          JOIN courses c ON c.id = cer.course_id

@@ -16,6 +16,19 @@ try {
 /* ── Leave tickets (one-time, 30 s TTL) ────────────────────────── */
 const leaveTicketMap = new Map();
 
+// C-1 OPT: cache live-streaming feature flag per teacher (TTL 60 s).
+// Without this cache, every request to any /live route — SSE tickets,
+// chat messages, heartbeats, etc. — fired a SELECT against the teachers
+// table. In an active stream with 50 students this was tens of DB hits
+// per second for a value that almost never changes.
+const _liveFeatureCache = new Map(); // teacherId → { enabled: boolean, ts: number }
+const LIVE_FEATURE_TTL  = 60_000;   // 60 seconds
+
+// Exported so admin "toggle feature" endpoint can bust the cache immediately.
+function invalidateLiveFeatureCache(teacherId) {
+  _liveFeatureCache.delete(teacherId);
+}
+
 const router = express.Router();
 router.use(authenticate);
 
@@ -23,12 +36,24 @@ router.use(authenticate);
 router.use(async (req, res, next) => {
   const teacherId = req.tenantTeacherId || (req.user?.role === 'teacher' ? req.user.id : req.user?.teacher_id);
   if (!teacherId) return next();
+
+  // Serve from cache when fresh
+  const entry = _liveFeatureCache.get(teacherId);
+  if (entry && Date.now() - entry.ts < LIVE_FEATURE_TTL) {
+    if (!entry.enabled) {
+      return res.status(403).json({ error: 'خاصية البث المباشر غير مفعلة لهذه المنصة' });
+    }
+    return next();
+  }
+
   try {
     const { rows } = await pool.query(
       "SELECT features_enabled FROM teachers WHERE id = $1", [teacherId]
     );
     const features = rows[0]?.features_enabled || {};
-    if (!features.live_streaming) {
+    const enabled  = !!features.live_streaming;
+    _liveFeatureCache.set(teacherId, { enabled, ts: Date.now() });
+    if (!enabled) {
       return res.status(403).json({ error: 'خاصية البث المباشر غير مفعلة لهذه المنصة' });
     }
     next();
@@ -1434,3 +1459,4 @@ router.post('/:streamId/chat-toggle', requireRole('teacher'), async (req, res) =
 });
 
 module.exports = router;
+module.exports.invalidateLiveFeatureCache = invalidateLiveFeatureCache;

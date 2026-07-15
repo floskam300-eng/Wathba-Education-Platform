@@ -122,14 +122,14 @@ export default function StudentCourses() {
   const { data: courses = [], isLoading } = useQuery({
     queryKey: ['student-courses'],
     queryFn: () => api.get('/courses/student/my-courses').then(r => r.data),
-    staleTime: 15000,
+    staleTime: 60000, // M-2 OPT: course lists change rarely; 60 s avoids pointless refetches
     refetchOnWindowFocus: true,
   });
 
   const { data: allCourses = [], isLoading: loadingAll } = useQuery({
     queryKey: ['student-courses-all'],
     queryFn: () => api.get('/courses/student/available-all').then(r => r.data),
-    staleTime: 15000,
+    staleTime: 60000,
     refetchOnWindowFocus: true,
   });
 

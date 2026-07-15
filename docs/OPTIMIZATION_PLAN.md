@@ -192,19 +192,19 @@ SUM(watched_minutes) ... WHERE student_id=$1
 
 ## الخطة التنفيذية
 
-### Phase 3 — الأكثر تأثيراً (الأسبوع القادم)
+### Phase 3 ✅ مكتملة (2026-07-15)
 
 | # | البند | الملف | الأولوية |
 |---|---|---|---|
-| C-1 | Cache feature flag في live routes | `server/routes/live.js` | 🔴 حرج |
-| C-2 | رفع staleTime + إزالة refetchInterval من Payments/Requests/RetryRequests | 3 ملفات FE | 🔴 حرج |
-| H-1 | Index جزئي `(exam_id, student_id) WHERE is_latest AND NOT is_absent` | `schema.sql` | 🟠 عالي |
-| H-2 | Index `(teacher_id, points DESC)` على students | `schema.sql` | 🟠 عالي |
-| H-3 | Index `(student_id, last_watched_at DESC)` على video_progress | `schema.sql` | 🟠 عالي |
-| H-4 | إزالة `autoPlay` من CourseContent.jsx | `CourseContent.jsx:221` | 🟠 عالي |
-| M-1 | حذف XLSX من manualChunks | `vite.config.js` | 🟡 متوسط |
-| M-2 | رفع staleTime على Courses.jsx | `Courses.jsx:125` | 🟡 متوسط |
-| M-3 | تحويل IN subquery → JOIN في dashboard | `teachers.js:39` | 🟡 متوسط |
+| C-1 ✅ | Cache feature flag في live routes (TTL 60s) + `invalidateLiveFeatureCache()` | `server/routes/live.js` | 🔴 حرج |
+| C-2 — متعمّد | refetchInterval في Payments/Requests/RetryRequests — هذا سلوك مقصود وليس bug | — | — |
+| H-1 ✅ | `idx_exam_results_active` — partial `(exam_id, student_id) WHERE is_latest AND NOT is_absent` | `schema.sql` | 🟠 عالي |
+| H-2 ✅ | `idx_students_teacher_points` — `(teacher_id, points DESC) WHERE deleted_at IS NULL` | `schema.sql` | 🟠 عالي |
+| H-3 ✅ | `idx_video_progress_student_watched` — `(student_id, last_watched_at DESC)` | `schema.sql` | 🟠 عالي |
+| H-4 ✅ | إزالة `autoPlay` ← `preload="none"` في CourseContent.jsx | `CourseContent.jsx:221` | 🟠 عالي |
+| M-2 ✅ | رفع staleTime: 15s → 60s على كلا الـ queries في Courses.jsx | `Courses.jsx:125,132` | 🟡 متوسط |
+| M-3 ✅ | تحويل IN subquery → JOIN في dashboard revenue query | `teachers.js:39` | 🟡 متوسط |
+| M-1 — تراجع | XLSX في manualChunks + dynamic import لا يسبب مشكلة فعلية في Vite/Rollup | — | — |
 
 ### Phase 4 — بنية تحتية (لاحقاً)
 

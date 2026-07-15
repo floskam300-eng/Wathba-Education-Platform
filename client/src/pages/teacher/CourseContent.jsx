@@ -218,7 +218,7 @@ function VideoPreviewModal({ video, onClose }) {
             <iframe src={embedUrl} className="absolute inset-0 w-full h-full" allowFullScreen
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" title={video.title} />
           ) : isLocal ? (
-            <video src={withToken(url)} className="absolute inset-0 w-full h-full object-contain bg-black" controls autoPlay />
+            <video src={withToken(url)} className="absolute inset-0 w-full h-full object-contain bg-black" controls preload="none" />
           ) : (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 gap-4">
               <p className="text-gray-400 text-sm text-center px-6">لا يمكن تشغيل هذا الرابط مباشرة — افتحه في نافذة جديدة</p>
