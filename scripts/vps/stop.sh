@@ -3,10 +3,19 @@
 #  WATHBA — Stop all containers (VPS)
 # ─────────────────────────────────────────
 
+set -e
+
 cd "$(dirname "$0")/../.."
 
-echo "Stopping Wathba..."
+echo "================================================"
+echo "  WATHBA Stop"
+echo "================================================"
+
+echo ""
+echo "Stopping all containers..."
 sudo docker compose down
 
 echo ""
-echo "All containers stopped."
+echo "================================================"
+echo "  All containers stopped."
+echo "================================================"
