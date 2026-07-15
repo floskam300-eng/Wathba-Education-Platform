@@ -152,7 +152,16 @@ router.post('/login', loginLimiter, async (req, res) => {
       } else if (r === 'student') {
         // Students MUST belong to a specific tenant — no cross-tenant or main-domain login
         if (!slugTeacherId) continue;
-        result = await pool.query('SELECT * FROM students WHERE username = $1 AND deleted_at IS NULL AND teacher_id = $2', [username, slugTeacherId]);
+        // R-4 OPT: explicit columns instead of SELECT * — avoids pulling large JSONB/array
+        // fields on every login. Includes all fields the auth flow + safeUser response needs.
+        result = await pool.query(
+          `SELECT id, username, password, name, phone, parent_phone, academic_stage,
+                  gender, points, teacher_id, is_suspended, force_password_change,
+                  created_at, fcm_token, background_color, profile_image_url
+           FROM students
+           WHERE username = $1 AND deleted_at IS NULL AND teacher_id = $2`,
+          [username, slugTeacherId]
+        );
       } else continue;
 
       if (result.rows.length === 0) continue;

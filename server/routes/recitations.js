@@ -509,7 +509,9 @@ router.get('/student/list', requireRole('student'), async (req, res) => {
               rs2.id AS session_id
          FROM recitations r
          LEFT JOIN LATERAL (
-           SELECT * FROM recitation_results rr2
+           -- R-9 OPT: explicit columns instead of SELECT * in LATERAL subquery
+           SELECT id, score, passed, correct_count, wrong_count, created_at
+             FROM recitation_results rr2
             WHERE rr2.student_id=$1
               AND rr2.recitation_id=r.id
               AND (r.start_date IS NULL OR rr2.created_at >= r.start_date)

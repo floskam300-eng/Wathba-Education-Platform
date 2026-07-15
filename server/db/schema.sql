@@ -1185,5 +1185,36 @@ BEGIN
     ('فيديو', 'مونتاج فيديو قصير أو درس تعليمي', 'service', NULL, 170.00, NULL, 'one_time', 11),
     ('ريل (Reel)', 'تصميم ومونتاج فيديو قصير تفاعلي (Reel/Short)', 'service', NULL, 300.00, NULL, 'one_time', 12);
   END IF;
-END $$;
+END $;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- OPTIMIZATION PLAN — Phase 1 & 2 Indexes (2026-07-15)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- DB-1: pg_trgm — fast ILIKE '%...%' on student names (Critical)
+-- Without this, every name search is a full-table sequential scan.
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE INDEX IF NOT EXISTS idx_students_name_trgm
+  ON students USING GIN (name gin_trgm_ops);
+
+-- DB-2: activity_logs — frequent filter by actor_id + actor_type (High)
+CREATE INDEX IF NOT EXISTS idx_activity_logs_actor
+  ON activity_logs(actor_id, actor_type);
+
+-- DB-3: videos — JOIN on section_id used in export and content queries (Medium)
+CREATE INDEX IF NOT EXISTS idx_videos_section_id
+  ON videos(section_id);
+
+-- DB-4: recitation_sessions — named unique index replacing the anonymous UNIQUE constraint (Low)
+CREATE UNIQUE INDEX IF NOT EXISTS uq_recitation_sessions_student_rec
+  ON recitation_sessions(student_id, recitation_id);
+
+-- DB-5: drop redundant idx_students_username — fully superseded by
+--       uq_students_username_teacher_active which already covers username lookups (Low)
+DO $
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_students_username') THEN
+    DROP INDEX idx_students_username;
+  END IF;
+END $;
 

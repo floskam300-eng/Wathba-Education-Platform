@@ -11,6 +11,19 @@ const parentLookupLimiter = rateLimit({
   message: { error: 'طلبات كثيرة جداً — انتظر دقيقة ثم حاول مجدداً' },
 });
 
+// R-8 / R-6 OPT: lightweight TTL cache for public endpoints.
+// /info (teacher profile stats) → 5 min  |  parent-lookup rank → 2 min
+const _pubCache = new Map();
+function _pubGet(key, ttl) {
+  const e = _pubCache.get(key);
+  if (!e) return null;
+  if (Date.now() - e.ts > ttl) { _pubCache.delete(key); return null; }
+  return e.data;
+}
+function _pubSet(key, data) { _pubCache.set(key, { data, ts: Date.now() }); }
+const PUB_TTL_5MIN = 5 * 60 * 1000;
+const PUB_TTL_2MIN = 2 * 60 * 1000;
+
 // Public landing page info — scoped by tenant (subdomain or X-Tenant-Slug header)
 router.get('/info', async (req, res) => {
   // Tenant must be resolved by subdomainTenant middleware — never fall back to
@@ -19,6 +32,11 @@ router.get('/info', async (req, res) => {
   if (!slug) return res.status(400).json({ error: 'معرّف المنصة مطلوب' });
 
   try {
+    // R-8 OPT: cache full /info response per slug — teacher profile + stats rarely change
+    const infoCacheKey = `pub_info_${slug}`;
+    const cachedInfo = _pubGet(infoCacheKey, PUB_TTL_5MIN);
+    if (cachedInfo) return res.json(cachedInfo);
+
     const teacherRes = await pool.query(
       'SELECT id, name, bio, classification, logo_url, photo_url, background_image_url, whatsapp_phone, platform_name, slug, created_at FROM teachers WHERE slug = $1',
       [slug]
@@ -44,9 +62,6 @@ router.get('/info', async (req, res) => {
         'SELECT id, name, phone, photo_url FROM teacher_support_contacts WHERE teacher_id=$1 ORDER BY sort_order, id LIMIT 10',
         [tid]
       ),
-      // Top 3 most-watched courses — ranked by distinct student viewers, scoped to this
-      // teacher. Uses viewing activity (not purchases) so it works for teachers who only
-      // offer free courses or haven't sold anything yet.
       pool.query(`
         SELECT c.id, c.name, c.description, c.price, c.is_free, c.thumbnail_url, c.target_stage,
                COUNT(DISTINCT vp.student_id) AS views_count
@@ -64,13 +79,15 @@ router.get('/info', async (req, res) => {
       ),
     ]);
 
-    res.json({
+    const infoResponse = {
       teacher,
       stats: stats.rows[0],
       supportContacts: supportContacts.rows,
       topCourses: topCourses.rows,
       team: teamResult.rows,
-    });
+    };
+    _pubSet(infoCacheKey, infoResponse);
+    res.json(infoResponse);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
@@ -106,7 +123,11 @@ router.get('/parent-lookup', parentLookupLimiter, async (req, res) => {
     const student = studentRes.rows[0];
     const sid = student.id;
 
-    const [coursesRes, examsRes, videoProgressRes, rankRes] = await Promise.all([
+    // R-6 OPT: cache rank per student (2 min TTL) — skips COUNT(*) query when fresh
+    const rankCacheKey = `pub_rank_${teacherId}_${sid}`;
+    const cachedRank   = _pubGet(rankCacheKey, PUB_TTL_2MIN);
+
+    const queries = [
       pool.query(
         `SELECT c.id, c.name, c.description, c.thumbnail_url, c.target_stage, sce.enrollment_date, sce.status
          FROM student_course_enrollment sce
@@ -134,12 +155,24 @@ router.get('/parent-lookup', parentLookupLimiter, async (req, res) => {
          WHERE vp.student_id = $1`,
         [sid]
       ),
-      // Rank within this teacher's students only
-      pool.query(
-        'SELECT COUNT(*) + 1 AS rank FROM students WHERE points > $1 AND teacher_id = $2 AND deleted_at IS NULL',
-        [student.points, teacherId]
-      ),
-    ]);
+    ];
+    // Only run the COUNT rank query when not cached
+    if (!cachedRank) {
+      queries.push(
+        pool.query(
+          'SELECT COUNT(*) + 1 AS rank FROM students WHERE points > $1 AND teacher_id = $2 AND deleted_at IS NULL',
+          [student.points, teacherId]
+        )
+      );
+    }
+
+    const [coursesRes, examsRes, videoProgressRes, rankRes] = await Promise.all(queries);
+
+    const rank = cachedRank ?? (() => {
+      const r = parseInt(rankRes.rows[0].rank);
+      _pubSet(rankCacheKey, r);
+      return r;
+    })();
 
     res.json({
       student: {
@@ -148,7 +181,7 @@ router.get('/parent-lookup', parentLookupLimiter, async (req, res) => {
         gender: student.gender,
         points: student.points,
         created_at: student.created_at,
-        rank: parseInt(rankRes.rows[0].rank),
+        rank,
       },
       courses: coursesRes.rows,
       exam_results: examsRes.rows,

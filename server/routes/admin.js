@@ -8,6 +8,11 @@ const pool = require('../db/connection');
 const { requireAdminAuth, ADMIN_JWT_SECRET, invalidateTeacherAuthCache } = require('../middleware/auth');
 const { getTotalConnections } = require('../sse');
 
+// R-2 OPT: simple TTL cache for platform stats — these are global aggregates
+// that change slowly; 5-minute staleness is acceptable for the admin dashboard.
+const _statsCache = { data: null, ts: 0 };
+const _STATS_TTL  = 5 * 60 * 1000; // 5 minutes
+
 const router = express.Router();
 
 // Ensure uploads/admin directory exists
@@ -968,6 +973,11 @@ router.delete('/payments/:id', requireAdminAuth, async (req, res) => {
 
 router.get('/stats', requireAdminAuth, async (req, res) => {
   try {
+    // R-2 OPT: serve from cache if fresh
+    if (_statsCache.data && Date.now() - _statsCache.ts < _STATS_TTL) {
+      return res.json(_statsCache.data);
+    }
+
     // 1. Teachers count stats
     const teachersRes = await pool.query(
       `SELECT 
@@ -1009,10 +1019,10 @@ router.get('/stats', requireAdminAuth, async (req, res) => {
        WHERE paid_at >= DATE_TRUNC('month', CURRENT_DATE)`
     );
 
-    // Active SSE connections count
+    // Active SSE connections count (live — not cached)
     const sseConnections = getTotalConnections();
 
-    res.json({
+    const response = {
       stats: {
         teachers: {
           total: totalTeachers,
@@ -1034,7 +1044,10 @@ router.get('/stats', requireAdminAuth, async (req, res) => {
           pending_renewals: subsRes.rows[0].pending_renewals,
         },
       },
-    });
+    };
+    _statsCache.data = response;
+    _statsCache.ts   = Date.now();
+    res.json(response);
   } catch (err) {
     console.error('Get platform stats error:', err.message);
     res.status(500).json({ error: 'Server error' });

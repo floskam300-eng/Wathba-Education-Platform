@@ -309,26 +309,26 @@ SELECT ... FROM students WHERE teacher_id=$1
 
 ## 7) خارطة التنفيذ بالأولوية
 
-### المرحلة 1 — أداء فوري، خطر منخفض (أسبوع 1)
+### المرحلة 1 — أداء فوري، خطر منخفض ✅ مكتملة
 
-- [ ] **DB-1:** `pg_trgm` extension + GIN index على `students.name` — أعلى أثر واحد ممكن
-- [ ] **DB-2:** `idx_activity_logs_actor`
-- [ ] **DB-3:** `idx_videos_section_id`
-- [ ] **R-1:** Cache لوحة المعلم (TTL 60s) — يُنهي 16 query لكل فتح صفحة
-- [ ] **R-2:** Cache إحصائيات الأدمن (TTL 5min)
-- [ ] **R-6:** Cache public rank (TTL 2min)
-- [ ] **R-8:** Cache public profile stats (TTL 5min)
+- [x] **DB-1:** `pg_trgm` extension + GIN index على `students.name`
+- [x] **DB-2:** `idx_activity_logs_actor`
+- [x] **DB-3:** `idx_videos_section_id`
+- [x] **R-1:** Cache لوحة المعلم (TTL 5min) — `t{id}_dashboard_counts_v1`
+- [x] **R-2:** Cache إحصائيات الأدمن (TTL 5min) — `_statsCache` في admin.js
+- [x] **R-6:** Cache public rank (TTL 2min) — `_pubCache` في public.js
+- [x] **R-8:** Cache public profile stats (TTL 5min) — `_pubCache` في public.js
 
-### المرحلة 2 — تنظيف الـ queries (أسبوع 2)
+### المرحلة 2 — تنظيف الـ queries ✅ مكتملة
 
-- [ ] **R-3:** إزالة N+1 في badge check → `ANY($2::int[])`
-- [ ] **R-4:** `SELECT *` في auth login → أعمدة محددة
-- [ ] **R-5:** `SELECT *` على badges → أعمدة محددة + `LIMIT 50`
-- [ ] **R-7:** Queries متتالية → `Promise.all` في exams.js + courses.js
-- [ ] **R-9:** `SELECT *` في recitations LATERAL → أعمدة محددة
-- [ ] **R-10:** Export → `LIMIT 10000` safety net
-- [ ] **DB-4:** تسمية `recitation_sessions` UNIQUE index صراحةً
-- [ ] **DB-5:** حذف `idx_students_username` الزائد
+- [x] **R-4:** `SELECT *` في auth student login → أعمدة محددة (auth.js)
+- [x] **R-5:** `SELECT *` على badges → أعمدة محددة + `LIMIT 50` (students.js)
+- [x] **R-9:** `SELECT *` في recitations LATERAL → أعمدة محددة (recitations.js)
+- [x] **R-10:** Export students → `LIMIT 10000` safety net (teachers.js)
+- [x] **DB-4:** تسمية `recitation_sessions` UNIQUE index صراحةً (schema.sql)
+- [x] **DB-5:** حذف `idx_students_username` الزائد — DO block في schema.sql
+- [ ] **R-3:** إزالة N+1 في badge check → `ANY($2::int[])` — تحقق من الكود أثبت أن المشكلة غير موجودة بالشكل المتوقع (الكود الحالي لا يحتوي loop مع badge queries)
+- [ ] **R-7:** Queries متتالية في exams.js + courses.js — تحقق من الكود أثبت أن كل query تعتمد على نتيجة السابقة (dependent chain) فلا يمكن Promise.all
 
 ### المرحلة 3 — بنية تحتية وعمليات (أسبوع 3)
 

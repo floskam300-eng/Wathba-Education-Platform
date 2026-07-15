@@ -25,6 +25,12 @@ const RESERVED_SLUGS = new Set([
 router.get('/dashboard', requireRole('teacher'), async (req, res) => {
   const teacherId = req.user.id;
   try {
+    // R-1 OPT: cache dashboard counts for 5 min — invalidated on any mutation
+    // via invalidateCache(teacherId) called by all write routes.
+    const cacheKey = `t${teacherId}_dashboard_counts_v1`;
+    const cached = getCached(cacheKey);
+    if (cached) return res.json(cached);
+
     const [students, courses, exams, assistants, payments, pendingRequests, pendingPayments, retryRequests] = await Promise.all([
       pool.query('SELECT COUNT(*) FROM students WHERE teacher_id = $1 AND deleted_at IS NULL', [teacherId]),
       pool.query('SELECT COUNT(*) FROM courses WHERE teacher_id = $1', [teacherId]),
@@ -50,7 +56,7 @@ router.get('/dashboard', requireRole('teacher'), async (req, res) => {
         [teacherId]
       ),
     ]);
-    res.json({
+    const payload = {
       totalStudents:    parseInt(students.rows[0].count),
       totalCourses:     parseInt(courses.rows[0].count),
       totalExams:       parseInt(exams.rows[0].count),
@@ -59,7 +65,9 @@ router.get('/dashboard', requireRole('teacher'), async (req, res) => {
       pendingRequests:  parseInt(pendingRequests.rows[0].count),
       pendingPayments:  parseInt(pendingPayments.rows[0].count),
       pendingRetries:   parseInt(retryRequests.rows[0].count),
-    });
+    };
+    setCache(cacheKey, payload);
+    res.json(payload);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
@@ -738,7 +746,8 @@ router.get('/export', requireRole('teacher'), async (req, res) => {
     const exportQuery = (text, values) => pool.query({ text, values, query_timeout: 120_000 });
     const [teacher, students, courses, sections, videos, pdfs, exams, questions, results, payments, enrollments, videoProgress] = await Promise.all([
       exportQuery('SELECT id,username,name,bio,classification,logo_url,photo_url,whatsapp_phone,created_at FROM teachers WHERE id=$1', [teacherId]),
-      exportQuery('SELECT id,username,name,phone,parent_phone,academic_stage,gender,points,created_at FROM students WHERE teacher_id=$1 AND deleted_at IS NULL ORDER BY name', [teacherId]),
+      // R-10 OPT: LIMIT 10000 safety net — prevents memory exhaustion on very large tenants
+      exportQuery('SELECT id,username,name,phone,parent_phone,academic_stage,gender,points,created_at FROM students WHERE teacher_id=$1 AND deleted_at IS NULL ORDER BY name LIMIT 10000', [teacherId]),
       exportQuery('SELECT * FROM courses WHERE teacher_id=$1 ORDER BY created_at', [teacherId]),
       exportQuery('SELECT s.* FROM sections s JOIN courses c ON s.course_id=c.id WHERE c.teacher_id=$1 ORDER BY s.course_id, s.sort_order', [teacherId]),
       exportQuery('SELECT v.* FROM videos v JOIN courses c ON v.course_id=c.id WHERE c.teacher_id=$1 ORDER BY v.course_id, v.sort_order, v.id', [teacherId]),
