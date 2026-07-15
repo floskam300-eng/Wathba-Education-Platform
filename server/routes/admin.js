@@ -285,7 +285,7 @@ router.get('/teachers/:id', requireAdminAuth, async (req, res) => {
 
 // Create New Teacher (Platform Setup / Subdomain automatic creation via slug)
 router.post('/teachers', requireAdminAuth, async (req, res) => {
-  const { username, password, name, classification, whatsapp_phone, logo_url, hero_image_url, background_color, bio, plan_id } = req.body;
+  const { username, password, name, classification, whatsapp_phone, logo_url, hero_image_url, background_color, bio, plan_id, force_password_change } = req.body;
   if (!username || !password || !name || !plan_id) {
     return res.status(400).json({ error: 'الاسم واسم المستخدم وكلمة المرور واشتراك الباقة مطلوبين' });
   }
@@ -293,8 +293,14 @@ router.post('/teachers', requireAdminAuth, async (req, res) => {
   const slug = username.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
   if (!slug) return res.status(400).json({ error: 'اسم المستخدم يجب أن يحتوي على حروف أو أرقام إنجليزية ليكون رابطاً صالحاً' });
 
+  // BUG-5 FIX: DNS label max length is 63 characters
+  if (slug.length > 63) return res.status(400).json({ error: 'اسم المستخدم طويل جداً (الحد الأقصى 63 حرفاً)' });
+
+  // BUG-4 FIX: Minimum password length
+  if (password.length < 8) return res.status(400).json({ error: 'كلمة المرور يجب أن تكون 8 أحرف على الأقل' });
+
   // Check if reserved subdomain
-  const RESERVED_SUBDOMAINS = ['dashboard', 'admin', 'api', 'www', 'mail'];
+  const RESERVED_SUBDOMAINS = ['dashboard', 'admin', 'api', 'www', 'mail', 'app', 'static', 'cdn', 'assets'];
   if (RESERVED_SUBDOMAINS.includes(slug)) {
     return res.status(400).json({ error: 'اسم المستخدم محجوز لنظام المنصة ولا يمكن استخدامه' });
   }
@@ -318,10 +324,11 @@ router.post('/teachers', requireAdminAuth, async (req, res) => {
 
     const hashed = await bcrypt.hash(password, 10);
 
-    // Insert Teacher
+    // Insert Teacher — BUG-6 FIX: honour force_password_change flag from admin
+    const shouldForceChange = force_password_change === true || force_password_change === 'true';
     const teacherRes = await client.query(
-      `INSERT INTO teachers (username, password, name, classification, whatsapp_phone, logo_url, hero_image_url, background_color, bio, slug, features_enabled)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
+      `INSERT INTO teachers (username, password, name, classification, whatsapp_phone, logo_url, hero_image_url, background_color, bio, slug, features_enabled, force_password_change)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
       [
         username.trim().toLowerCase(),
         hashed,
@@ -334,6 +341,7 @@ router.post('/teachers', requireAdminAuth, async (req, res) => {
         bio || '',
         slug,
         JSON.stringify({ live_streaming: true, stickman_run: true }),
+        shouldForceChange,
       ]
     );
     const newTeacherId = teacherRes.rows[0].id;
@@ -355,16 +363,23 @@ router.post('/teachers', requireAdminAuth, async (req, res) => {
       ]
     );
 
-    // Clean resolved tenant cache just in case
+    // BUG-1 FIX: COMMIT first, THEN invalidate cache.
+    // Invalidating before COMMIT means a concurrent request could query DB
+    // before the row lands, cache null for 30 s, and appear as "not found".
+    await client.query('COMMIT');
+
     const subdomainTenant = require('../middleware/subdomainTenant');
     if (subdomainTenant && typeof subdomainTenant.invalidateCache === 'function') {
       subdomainTenant.invalidateCache(slug);
     }
 
-    await client.query('COMMIT');
     res.status(201).json({ success: true, teacherId: newTeacherId, slug });
   } catch (err) {
     await client.query('ROLLBACK');
+    // BUG-2 FIX: 23505 = unique_violation — return 409 instead of generic 500
+    if (err.code === '23505') {
+      return res.status(409).json({ error: 'اسم المستخدم أو الرابط الفرعي مستخدم بالفعل' });
+    }
     console.error('Create teacher error:', err.message);
     res.status(500).json({ error: 'Server error' });
   } finally {
@@ -465,6 +480,37 @@ router.post('/teachers/:id/suspend', requireAdminAuth, async (req, res) => {
     res.json({ success: true, is_platform_suspended: isSuspended });
   } catch (err) {
     console.error('Suspend teacher error:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// BUG-7 FIX: Reset Teacher Password (admin-side, no old-password required)
+router.post('/teachers/:id/reset-password', requireAdminAuth, async (req, res) => {
+  const teacherId = parseInt(req.params.id, 10);
+  if (isNaN(teacherId)) return res.status(400).json({ error: 'معرّف غير صحيح' });
+
+  const { new_password, force_password_change } = req.body;
+  if (!new_password) return res.status(400).json({ error: 'كلمة المرور الجديدة مطلوبة' });
+  if (new_password.length < 8) return res.status(400).json({ error: 'كلمة المرور يجب أن تكون 8 أحرف على الأقل' });
+
+  try {
+    const hashed = await bcrypt.hash(new_password, 10);
+    const shouldForce = force_password_change !== false; // default true (admin reset = force change)
+    const { rowCount } = await pool.query(
+      'UPDATE teachers SET password = $1, force_password_change = $2 WHERE id = $3',
+      [hashed, shouldForce, teacherId]
+    );
+    if (rowCount === 0) return res.status(404).json({ error: 'المدرس غير موجود' });
+
+    // Invalidate cached JWT tokens for this teacher
+    const { invalidateTeacherAuthCache } = require('../middleware/auth');
+    if (typeof invalidateTeacherAuthCache === 'function') {
+      invalidateTeacherAuthCache(teacherId);
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Reset teacher password error:', err.message);
     res.status(500).json({ error: 'Server error' });
   }
 });

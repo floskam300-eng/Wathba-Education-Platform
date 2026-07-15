@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import api from '../../api/axios';
 import ImageCropper from '../../components/ImageCropper';
-import { ArrowRight, Save, UserPlus, Phone, User, Sparkles, Plus, Trash2, ArrowUpDown } from 'lucide-react';
+import { ArrowRight, Save, UserPlus, Phone, User, Sparkles, Plus, Trash2, ArrowUpDown, KeyRound } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function TeacherForm() {
@@ -14,12 +14,16 @@ export default function TeacherForm() {
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [forcePasswordChange, setForcePasswordChange] = useState(false);
   const [classification, setClassification] = useState('');
   const [whatsappPhone, setWhatsappPhone] = useState('');
   const [bio, setBio] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
   const [heroImageUrl, setHeroImageUrl] = useState('');
   const [backgroundColor, setBackgroundColor] = useState('#0B0F19');
+
+  // BUG-3 FIX: compute the normalized slug exactly as the server does
+  const previewSlug = username.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'username';
 
   // Subscriptions setup (only when creating)
   const [plans, setPlans] = useState([]);
@@ -93,6 +97,7 @@ export default function TeacherForm() {
           hero_image_url: heroImageUrl,
           background_color: backgroundColor,
           plan_id: selectedPlanId,
+          force_password_change: forcePasswordChange,
         });
         toast.success('تم إنشاء حساب المدرس والمنصة بنجاح!');
       } else {
@@ -229,25 +234,38 @@ export default function TeacherForm() {
               />
               {!isEdit && (
                 <p className="mt-1 text-xs text-slate-500 font-cairo">
-                  سيتم توليد النطاق الفرعي تلقائياً: <span className="font-mono text-amber-500">{username || 'username'}.wathba.site</span>
+                  سيتم توليد النطاق الفرعي تلقائياً: <span className="font-mono text-amber-500">{previewSlug}.wathba.site</span>
                 </p>
               )}
             </div>
 
             {!isEdit && (
-              <div>
+              <div className="space-y-3">
                 <label className="block text-sm font-semibold text-slate-300 font-cairo" htmlFor="teacherPassword">
-                  كلمة المرور *
+                  كلمة المرور * (8 أحرف على الأقل)
                 </label>
                 <input
                   id="teacherPassword"
                   type="password"
                   required
+                  minLength={8}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="mt-2 block w-full rounded-xl border border-slate-800 bg-slate-950 py-3 px-4 text-white placeholder-slate-600 focus:border-amber-500 focus:outline-none"
+                  className="block w-full rounded-xl border border-slate-800 bg-slate-950 py-3 px-4 text-white placeholder-slate-600 focus:border-amber-500 focus:outline-none"
                 />
+                {/* BUG-6 FIX: force_password_change option */}
+                <label className="flex items-center gap-3 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={forcePasswordChange}
+                    onChange={(e) => setForcePasswordChange(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-700 bg-slate-950 text-amber-500 focus:ring-amber-500"
+                  />
+                  <span className="text-sm text-slate-400 font-cairo">
+                    إجبار المدرس على تغيير كلمة المرور عند أول تسجيل دخول
+                  </span>
+                </label>
               </div>
             )}
 
@@ -484,6 +502,11 @@ export default function TeacherForm() {
           </div>
         )}
 
+        {/* Section: Reset Password (Edit only) */}
+        {isEdit && (
+          <ResetPasswordSection teacherId={id} />
+        )}
+
         {/* Submit Actions */}
         <div className="flex justify-end gap-4">
           <Link
@@ -502,6 +525,80 @@ export default function TeacherForm() {
           </button>
         </div>
       </form>
+    </div>
+  );
+}
+
+/* ── Reset Password Section (edit mode only) ─────────────────────── */
+function ResetPasswordSection({ teacherId }) {
+  const [newPassword, setNewPassword] = useState('');
+  const [forceChange, setForceChange] = useState(true);
+  const [resetting, setResetting] = useState(false);
+
+  const handleReset = async () => {
+    if (!newPassword || newPassword.length < 8) {
+      return toast.error('كلمة المرور يجب أن تكون 8 أحرف على الأقل');
+    }
+    if (!window.confirm('هل أنت متأكد من تغيير كلمة مرور المدرس؟')) return;
+    setResetting(true);
+    try {
+      await api.post(`/teachers/${teacherId}/reset-password`, {
+        new_password: newPassword,
+        force_password_change: forceChange,
+      });
+      toast.success('تم تغيير كلمة المرور بنجاح');
+      setNewPassword('');
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'فشل تغيير كلمة المرور');
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  return (
+    <div className="rounded-2xl border border-red-900/40 bg-red-950/10 p-6 space-y-4">
+      <h3 className="text-lg font-bold text-white font-cairo border-b border-red-900/30 pb-3 flex items-center gap-2">
+        <KeyRound className="text-red-400" size={20} />
+        <span>إعادة تعيين كلمة المرور</span>
+      </h3>
+      <p className="text-sm text-slate-400 font-cairo">
+        تغيير كلمة مرور المدرس مباشرة من لوحة الإدارة دون الحاجة لكلمة المرور القديمة.
+      </p>
+      <div className="flex items-end gap-4">
+        <div className="flex-1">
+          <label className="block text-sm font-semibold text-slate-300 font-cairo mb-2">
+            كلمة المرور الجديدة (8 أحرف على الأقل)
+          </label>
+          <input
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            placeholder="••••••••"
+            minLength={8}
+            className="block w-full rounded-xl border border-slate-800 bg-slate-950 py-3 px-4 text-white placeholder-slate-600 focus:border-red-500 focus:outline-none"
+          />
+        </div>
+        <button
+          type="button"
+          disabled={resetting}
+          onClick={handleReset}
+          className="flex items-center gap-2 rounded-xl bg-red-700 px-5 py-3 text-sm font-semibold text-white hover:bg-red-600 transition disabled:opacity-50 font-cairo flex-shrink-0"
+        >
+          <KeyRound size={15} />
+          <span>{resetting ? 'جاري التغيير...' : 'تغيير الباسورد'}</span>
+        </button>
+      </div>
+      <label className="flex items-center gap-3 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={forceChange}
+          onChange={(e) => setForceChange(e.target.checked)}
+          className="h-4 w-4 rounded border-slate-700 bg-slate-950 text-red-500 focus:ring-red-500"
+        />
+        <span className="text-sm text-slate-400 font-cairo">
+          إجبار المدرس على تغيير كلمة المرور عند أول تسجيل دخول
+        </span>
+      </label>
     </div>
   );
 }

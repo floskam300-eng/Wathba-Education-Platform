@@ -42,7 +42,8 @@ function extractSubdomainSlug(host) {
     hostname.includes('replit.app') ||
     hostname.includes('repl.co')
   ) return null;
-  const RESERVED_SUBDOMAINS = ['dashboard', 'api', 'www', 'mail'];
+  // Keep in sync with RESERVED_SUBDOMAINS in server/routes/admin.js
+  const RESERVED_SUBDOMAINS = ['dashboard', 'admin', 'api', 'www', 'mail', 'app', 'static', 'cdn', 'assets'];
   if (RESERVED_SUBDOMAINS.includes(parts[0])) return null;
   return parts[0];
 }
