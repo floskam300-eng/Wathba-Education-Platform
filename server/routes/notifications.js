@@ -52,7 +52,11 @@ const TYPE_TITLES = {
 };
 
 // ── List students (for notifications) ──────────────────────────────
-router.get('/students', requireRole('teacher', 'assistant'), async (req, res) => {
+// [AUDIT-FIX] Was reachable by ANY assistant with no permission check at all —
+// exposed phone/parent_phone PII plus exam stats. Now requires can_send_notifications
+// (the permission that actually gates this page/feature), mirroring the M-1 pattern
+// used for students.js GET /.
+router.get('/students', requireRole('teacher', 'assistant'), checkNotifPermission, async (req, res) => {
   const teacherId = getTeacherId(req);
   try {
     const result = await pool.query(
@@ -155,7 +159,10 @@ router.post('/platform', requireRole('teacher', 'assistant'), checkNotifPermissi
 });
 
 // ── Get notification history (teacher/assistant) ────────────────────
-router.get('/log', requireRole('teacher', 'assistant'), async (req, res) => {
+// [AUDIT-FIX] Was reachable by ANY assistant with no permission check — exposed
+// full notification content/history to assistants who were never granted
+// can_send_notifications.
+router.get('/log', requireRole('teacher', 'assistant'), checkNotifPermission, async (req, res) => {
   const teacherId = getTeacherId(req);
   try {
     const result = await pool.query(

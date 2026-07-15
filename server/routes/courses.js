@@ -420,7 +420,24 @@ router.delete('/:id', requireRole('teacher', 'assistant'), checkManageCoursesPer
   }
 });
 
-router.get('/:id/content', async (req, res) => {
+// [AUDIT-FIX] Had NO requireRole/permission gate at all — any assistant (even one
+// granted zero permissions) could fetch full course content (videos, pdfs, sections,
+// and unpublished-exam metadata) by calling the API directly, bypassing the frontend's
+// can_manage_courses gate on the /courses/:id/content page. Ownership was checked but
+// that's not the same as being granted can_manage_courses.
+router.get('/:id/content', requireRole('teacher', 'assistant', 'student'), async (req, res, next) => {
+  if (req.user.role === 'assistant') {
+    try {
+      const perms = await getPermissions(req.user.id, pool);
+      if (!perms?.can_manage_courses) {
+        return res.status(403).json({ error: 'Access denied: missing permission (can_manage_courses)' });
+      }
+    } catch {
+      return res.status(500).json({ error: 'Server error' });
+    }
+  }
+  next();
+}, async (req, res) => {
   const courseId = parseParamId(req.params.id);
   if (!courseId) return res.status(400).json({ error: 'Invalid course ID' });
   try {

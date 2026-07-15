@@ -10,6 +10,7 @@ const { getPermissions } = require('../lib/permissionsCache');
 const { sendEvent } = require('../sse');
 const { sendFCMToStudents } = require('../lib/fcm');
 const { logActivity, getActor, getIp } = require('../lib/activityLog');
+const { getCached, setCache, invalidateCache } = require('../lib/analyticsCache');
 
 const REC_Q_IMG_DIR = path.join(__dirname, '../../uploads/question-images');
 fs.mkdirSync(REC_Q_IMG_DIR, { recursive: true });
@@ -288,8 +289,16 @@ router.get('/analytics', requireRole('teacher', 'assistant'), async (req, res) =
     }
   }
 
+  // FIX-REC-CACHE: This endpoint previously had no caching, unlike all other
+  // analytics endpoints.  Add a 5-minute cache keyed per teacher so repeated
+  // requests from the Analytics page do not re-run the six parallel DB queries.
+  const teacherIdForCache = getTeacherId(req);
+  const cacheKey = `t${teacherIdForCache}_rec_analytics`;
+  const cached = getCached(cacheKey);
+  if (cached) return res.json(cached);
+
   try {
-    const teacherId = getTeacherId(req);
+    const teacherId = teacherIdForCache;
 
     const [totalRec, totalResults, avgScore, byStage, topStudents, recentActivity] = await Promise.all([
       pool.query('SELECT COUNT(*) AS cnt FROM recitations WHERE teacher_id=$1', [teacherId]),
@@ -363,7 +372,7 @@ router.get('/analytics', requireRole('teacher', 'assistant'), async (req, res) =
       ),
     ]);
 
-    res.json({
+    const payload = {
       summary: {
         total_recitations: parseInt(totalRec.rows[0].cnt, 10),
         total_results: parseInt(totalResults.rows[0].cnt, 10),
@@ -372,7 +381,9 @@ router.get('/analytics', requireRole('teacher', 'assistant'), async (req, res) =
       by_stage: byStage.rows,
       top_students: topStudents.rows,
       recent_recitations: recentActivity.rows,
-    });
+    };
+    setCache(cacheKey, payload);
+    res.json(payload);
   } catch (err) {
     console.error('[recitations GET /analytics]', err.message);
     res.status(500).json({ error: 'Server error' });
