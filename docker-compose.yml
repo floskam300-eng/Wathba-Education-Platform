@@ -1,0 +1,64 @@
+services:
+
+  # ── PostgreSQL Database ────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       ${POSTGRES_DB:-wathba}
+      POSTGRES_USER:     ${POSTGRES_USER:-wathba}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-wathba} -d ${POSTGRES_DB:-wathba}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # DB port NOT exposed externally — only accessible inside Docker network
+
+  # ── Main App (Express backend + Student/Teacher frontend) ──────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV:          production
+      PORT:              3001
+      DATABASE_URL:      postgresql://${POSTGRES_USER:-wathba}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-wathba}
+      DATABASE_SSL:      "false"
+      JWT_SECRET:        ${JWT_SECRET}
+      WILDCARD_DOMAIN:   ${WILDCARD_DOMAIN:-wathba.site}
+      ALLOWED_ORIGINS:   ${ALLOWED_ORIGINS:-https://wathba.site}
+      # Optional — leave empty to disable
+      FIREBASE_SERVICE_ACCOUNT_JSON: ${FIREBASE_SERVICE_ACCOUNT_JSON:-}
+      LIVEKIT_API_KEY:    ${LIVEKIT_API_KEY:-}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
+      LIVEKIT_URL:        ${LIVEKIT_URL:-}
+    volumes:
+      # Uploaded PDFs, images, thumbnails — MUST persist across deploys
+      - uploads_data:/app/uploads
+      # WhatsApp (Baileys) session files — one folder per teacher
+      - wa_sessions:/app/whatsapp-sessions
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # ── Admin Client (Platform-owner dashboard, nginx static) ──────
+  admin:
+    build:
+      context: .
+      dockerfile: Dockerfile.admin
+    restart: unless-stopped
+    ports:
+      - "3002:80"
+    depends_on:
+      - app
+
+volumes:
+  pg_data:
+  uploads_data:
+  wa_sessions:

@@ -5,14 +5,12 @@ echo    Wathba Educational Platform Launcher
 echo ==========================================
 echo.
 
-:: مسارات الملفات
 set PROJECT_DIR=E:\Projects\Wathba-Platform-Education\Wathba-Education-Platform
 set CLOUDFLARED_EXE=E:\Cloudflared\cloudflared.exe
 set TUNNEL_CONFIG=E:\Cloudflared\config.yml
 
-:: السؤال عن بناء الواجهة الأمامية أولاً
 set BUILD_FRONT=n
-set /p BUILD_FRONT="Do you want to build the frontend first? (y/n) [هل تريد بناء الواجهة الأمامية أولاً؟]: "
+set /p BUILD_FRONT="Build the frontend first? (y/n): "
 
 if /i "%BUILD_FRONT%"=="y" (
     echo.
@@ -25,7 +23,7 @@ if /i "%BUILD_FRONT%"=="y" (
         echo [ERROR] Frontend build failed!
         echo.
         set CONTINUE_START=y
-        set /p CONTINUE_START="Do you want to start servers anyway? (y/n) [هل تريد تشغيل السيرفرات على أي حال؟]: "
+        set /p CONTINUE_START="Start servers anyway? (y/n): "
         if /i "%CONTINUE_START%"=="n" exit /b
     )
 )

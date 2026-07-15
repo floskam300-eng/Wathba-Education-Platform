@@ -1,0 +1,28 @@
+# ─────────────────────────────────────────────────────────
+#  WATHBA — Admin Client (Platform Owner Dashboard)
+#  Builds admin-client React app → served via Nginx
+# ─────────────────────────────────────────────────────────
+
+# ── Stage 1: Build ───────────────────────────────────────
+FROM node:20-alpine AS builder
+
+WORKDIR /build
+COPY admin-client/package*.json ./
+RUN npm ci
+COPY admin-client/ ./
+RUN npm run build
+
+# ── Stage 2: Nginx static server ─────────────────────────
+FROM nginx:1.27-alpine
+
+# Remove default config
+RUN rm /etc/nginx/conf.d/default.conf
+
+# Our custom config (proxies /api + /uploads to the app container)
+COPY nginx-admin.conf /etc/nginx/conf.d/default.conf
+
+# Copy built React app
+COPY --from=builder /build/dist /usr/share/nginx/html
+
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
