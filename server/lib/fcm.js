@@ -21,15 +21,19 @@ function initFCM() {
 }
 
 async function sendFCMToTokens(tokens, title, body, data = {}) {
-  if (!messaging) return;
+  if (!messaging) {
+    console.warn('[FCM] sendFCMToTokens called but messaging not initialized');
+    return;
+  }
   const validTokens = (tokens || []).filter(Boolean);
-  if (!validTokens.length) return;
+  if (!validTokens.length) {
+    console.warn('[FCM] sendFCMToTokens called with no valid tokens');
+    return;
+  }
   try {
     const stringData = {};
     for (const [k, v] of Object.entries(data)) {
       if (v != null) {
-        // FCM data values must be strings; use JSON.stringify for objects to
-        // avoid the useless "[object Object]" produced by plain String()
         stringData[k] = typeof v === 'object' ? JSON.stringify(v) : String(v);
       }
     }
@@ -50,9 +54,13 @@ async function sendFCMToTokens(tokens, title, body, data = {}) {
       },
       tokens: validTokens,
     });
-    const failed = response.responses.filter(r => !r.success);
-    if (failed.length) {
-      console.log(`[FCM] ${response.successCount} sent, ${response.failureCount} failed`);
+    console.log(`[FCM] sendEachForMulticast — success:${response.successCount} failed:${response.failureCount} of ${validTokens.length} token(s)`);
+    if (response.failureCount > 0) {
+      response.responses.forEach((r, i) => {
+        if (!r.success) {
+          console.error(`[FCM] Token[${i}] failed: ${r.error?.code} — ${r.error?.message}`);
+        }
+      });
     }
   } catch (err) {
     console.error('[FCM] sendEachForMulticast error:', err.message);
@@ -60,13 +68,18 @@ async function sendFCMToTokens(tokens, title, body, data = {}) {
 }
 
 async function sendFCMToStudents(pool, studentIds, title, body, data = {}) {
-  if (!messaging || !studentIds || !studentIds.length) return;
+  if (!messaging) {
+    console.warn('[FCM] sendFCMToStudents called but messaging not initialized');
+    return;
+  }
+  if (!studentIds || !studentIds.length) return;
   try {
     const result = await pool.query(
-      'SELECT fcm_token FROM students WHERE id = ANY($1) AND fcm_token IS NOT NULL',
+      'SELECT id, fcm_token FROM students WHERE id = ANY($1) AND fcm_token IS NOT NULL',
       [studentIds]
     );
     const tokens = result.rows.map(r => r.fcm_token).filter(Boolean);
+    console.log(`[FCM] sendFCMToStudents — ${studentIds.length} student(s) targeted, ${tokens.length} token(s) found`);
     if (tokens.length) await sendFCMToTokens(tokens, title, body, data);
   } catch (err) {
     console.error('[FCM] sendFCMToStudents error:', err.message);

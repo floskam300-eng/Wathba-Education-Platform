@@ -4,6 +4,7 @@ import { Bell, CheckCheck, ArrowRight, BellOff, BellRing, Smartphone } from 'luc
 import { useNavigate } from 'react-router-dom';
 import api from '../../lib/api';
 import { setupFCM } from '../../hooks/useFCM';
+import toast from 'react-hot-toast';
 
 const TYPE_ICON = {
   general:             '📢',
@@ -49,10 +50,27 @@ function PushBanner() {
     if (result === 'granted') {
       setPermission('granted');
       setDone(true);
+      toast.success('✅ تم تفعيل إشعارات التليفون بنجاح!', {
+        duration: 5000,
+        style: { fontFamily: 'inherit', direction: 'rtl' },
+      });
     } else if (result === 'denied') {
       setPermission('denied');
+      toast.error('⛔ تم رفض الإذن — فعّل الإشعارات من إعدادات المتصفح', {
+        duration: 6000,
+        style: { fontFamily: 'inherit', direction: 'rtl' },
+      });
     } else if (result === 'unsupported') {
       setPermission('unsupported');
+      toast('⚠️ المتصفح لا يدعم الإشعارات', {
+        duration: 5000,
+        style: { fontFamily: 'inherit', direction: 'rtl' },
+      });
+    } else {
+      toast.error('حدث خطأ أثناء تفعيل الإشعارات — تحقق من الكونسول', {
+        duration: 6000,
+        style: { fontFamily: 'inherit', direction: 'rtl' },
+      });
     }
   }, []);
 

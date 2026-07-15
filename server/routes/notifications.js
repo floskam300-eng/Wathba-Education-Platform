@@ -82,8 +82,10 @@ router.post('/fcm-token', requireRole('student'), async (req, res) => {
   if (!token) return res.status(400).json({ error: 'token required' });
   try {
     await pool.query('UPDATE students SET fcm_token = $1 WHERE id = $2', [token, req.user.id]);
+    console.log(`[FCM] Token saved for student id=${req.user.id}`);
     res.json({ ok: true });
   } catch (err) {
+    console.error('[FCM] Token save error:', err.message);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -144,7 +146,9 @@ router.post('/platform', requireRole('teacher', 'assistant'), checkNotifPermissi
     }
 
     const fcmBody = message.replace(/\{name\}/g, '').replace(/\s+/g, ' ').trim();
-    sendFCMToStudents(pool, validIds, resolvedTitle, fcmBody, { type }).catch(() => {});
+    sendFCMToStudents(pool, validIds, resolvedTitle, fcmBody, { type }).catch(err =>
+      console.error('[FCM] platform notification send error:', err.message)
+    );
     logActivity({
       teacherId, actor: getActor(req), ip: getIp(req),
       action: 'send_notification',
