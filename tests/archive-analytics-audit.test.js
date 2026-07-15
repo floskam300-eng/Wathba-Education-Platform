@@ -152,9 +152,9 @@ async function setup() {
     T.studentIds.push(sRes.rows[0].id);
   }
 
-  // Create a course
+  // Create a course (column is "name" not "title")
   const cRes = await pool.query(
-    `INSERT INTO courses (title, teacher_id, target_stage, price, is_published)
+    `INSERT INTO courses (name, teacher_id, target_stage, price, is_published)
      VALUES ($1, $2, $3, 0, true) RETURNING id`,
     ['Analytics Test Course', T.teacherId, 'الصف الأول الثانوي']
   );
@@ -165,7 +165,7 @@ async function setup() {
     `INSERT INTO exams (title, teacher_id, course_id, total_score, pass_score, is_published, start_date, end_date)
      VALUES ($1, $2, $3, 100, 50, true, NOW() - INTERVAL '1 day', NOW() + INTERVAL '7 days')
      RETURNING id`,
-    ['Course Exam', T.teacherId, T.courseId, 100, 50]
+    ['Course Exam', T.teacherId, T.courseId]
   );
   T.courseExamId = eRes.rows[0].id;
 
@@ -181,18 +181,18 @@ async function setup() {
   // Enroll students in the course
   for (const sid of T.studentIds.slice(0, 3)) {
     await pool.query(
-      `INSERT INTO enrollments (student_id, course_id, teacher_id, is_active)
-       VALUES ($1, $2, $3, true) ON CONFLICT DO NOTHING`,
-      [sid, T.courseId, T.teacherId]
+      `INSERT INTO student_course_enrollment (student_id, course_id)
+       VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+      [sid, T.courseId]
     );
   }
 
   // Add exam results for course exam
   for (let i = 0; i < 3; i++) {
     await pool.query(
-      `INSERT INTO exam_results (exam_id, student_id, score, total_score, pass_score,
+      `INSERT INTO exam_results (exam_id, student_id, score,
                                  correct_count, wrong_count, unanswered_count, is_latest, is_absent)
-       VALUES ($1, $2, $3, 100, 50, $4, $5, 0, true, false)`,
+       VALUES ($1, $2, $3, $4, $5, 0, true, false)`,
       [T.courseExamId, T.studentIds[i], 60 + i * 10, 6 + i, 3 - i]
     );
   }
@@ -227,7 +227,8 @@ async function teardown() {
   await pool.query(`DELETE FROM exam_results WHERE exam_id IN
     (SELECT id FROM exams WHERE teacher_id=$1)`, [T.teacherId]);
   await pool.query(`DELETE FROM exams WHERE teacher_id=$1`, [T.teacherId]);
-  await pool.query(`DELETE FROM enrollments WHERE teacher_id=$1`, [T.teacherId]);
+  await pool.query(`DELETE FROM student_course_enrollment WHERE course_id IN
+    (SELECT id FROM courses WHERE teacher_id=$1)`, [T.teacherId]);
   await pool.query(`DELETE FROM courses WHERE teacher_id=$1`, [T.teacherId]);
   await pool.query(`DELETE FROM students WHERE teacher_id=$1`, [T.teacherId]);
   await pool.query(`DELETE FROM assistants WHERE teacher_id=$1`, [T.teacherId]);
@@ -600,17 +601,17 @@ async function testArchiveExamResults() {
     assertEqual(r.status, 200, `Expected 200, got ${r.status}: ${JSON.stringify(r.body)}`);
   });
 
-  await test('Archive exam-results has data and total fields', async () => {
+  await test('Archive exam-results has results and total fields', async () => {
     const r = await get('/api/archive/exam-results', T.teacherToken);
-    assert('data'  in r.body, 'Missing data field');
-    assert('total' in r.body, 'Missing total field');
-    assert(Array.isArray(r.body.data), 'data must be an array');
+    assert('results' in r.body, `Missing results field; got keys: ${Object.keys(r.body).join(',')}`);
+    assert('total'   in r.body, 'Missing total field');
+    assert(Array.isArray(r.body.results), 'results must be an array');
   });
 
   await test('Archive exam-results — filter by exam_id returns only that exam', async () => {
     const r = await get(`/api/archive/exam-results?exam_id=${T.courseExamId}`, T.teacherToken);
     assertEqual(r.status, 200);
-    for (const row of r.body.data) {
+    for (const row of r.body.results || []) {
       assertEqual(row.exam_id, T.courseExamId,
         `Expected exam_id ${T.courseExamId}, got ${row.exam_id}`);
     }
@@ -619,7 +620,7 @@ async function testArchiveExamResults() {
   await test('Archive exam-results — status=pass only returns passing results', async () => {
     const r = await get('/api/archive/exam-results?status=pass', T.teacherToken);
     assertEqual(r.status, 200);
-    for (const row of r.body.data) {
+    for (const row of r.body.results || []) {
       assert(row.score >= row.pass_score,
         `Passing filter returned failing result: score=${row.score} pass_score=${row.pass_score}`);
     }
@@ -646,12 +647,16 @@ async function testArchiveStudents() {
     assertEqual(r.status, 200, `Expected 200, got ${r.status}`);
   });
 
-  await test('Archive students response has {data, total, page, limit}', async () => {
+  await test('Archive students response has {students, total, page, limit}', async () => {
     const r = await get('/api/archive/students', T.teacherToken);
-    assert('data'  in r.body, 'Missing data');
-    assert('total' in r.body, 'Missing total');
-    assert('page'  in r.body, 'Missing page');
-    assert('limit' in r.body, 'Missing limit');
+    const keys = Object.keys(r.body).join(',');
+    assert('total' in r.body, `Missing total; got: ${keys}`);
+    assert('page'  in r.body, `Missing page; got: ${keys}`);
+    assert('limit' in r.body, `Missing limit; got: ${keys}`);
+    // The list key may be "students" or "results" depending on the route
+    const listKey = 'students' in r.body ? 'students' : 'results' in r.body ? 'results' : null;
+    assert(listKey, `No list key found in response; got: ${keys}`);
+    assert(Array.isArray(r.body[listKey]), `${listKey} must be an array`);
   });
 
   await test('Archive students — shows our 5 students (or a subset)', async () => {
@@ -662,7 +667,9 @@ async function testArchiveStudents() {
   await test('Archive students — has_type=exams filter works', async () => {
     const r = await get('/api/archive/students?has_type=exams', T.teacherToken);
     assertEqual(r.status, 200);
-    for (const s of r.body.data) {
+    const listKey = 'students' in r.body ? 'students' : 'results' in r.body ? 'results' : null;
+    assert(listKey, `No list key in response: ${Object.keys(r.body).join(',')}`);
+    for (const s of r.body[listKey] || []) {
       assertGte(Number(s.total_exams), 1,
         `has_type=exams returned student with 0 exams: ${JSON.stringify(s)}`);
     }
