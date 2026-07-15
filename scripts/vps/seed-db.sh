@@ -1,7 +1,7 @@
 #!/bin/bash
 # ─────────────────────────────────────────
 #  WATHBA — Seed database inside Docker (VPS)
-#  WARNING: This will clear all data!
+#  WARNING: This will clear ALL data!
 # ─────────────────────────────────────────
 
 cd "$(dirname "$0")/../.."
@@ -17,7 +17,7 @@ fi
 
 echo ""
 echo "Running seed script inside app container..."
-sudo docker compose exec app node server/db/seed.js
+sudo docker compose exec app node server/db/seed.js --force
 
 echo ""
 echo "Seed complete!"

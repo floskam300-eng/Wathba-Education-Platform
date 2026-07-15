@@ -32,8 +32,8 @@ require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 const pool = require('./connection');
 const bcrypt = require('bcryptjs');
 
-if (process.env.NODE_ENV === 'production') {
-  console.error('❌ seed.js مرفوض في بيئة الإنتاج');
+if (process.env.NODE_ENV === 'production' && !process.argv.includes('--force')) {
+  console.error('seed.js is blocked in production. Use --force to override.');
   process.exit(1);
 }
 
