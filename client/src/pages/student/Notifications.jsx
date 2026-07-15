@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Bell, CheckCheck, ArrowRight } from 'lucide-react';
+import { Bell, CheckCheck, ArrowRight, BellOff, BellRing, Smartphone } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../lib/api';
+import { setupFCM } from '../../hooks/useFCM';
 
 const TYPE_ICON = {
   general:             '📢',
@@ -29,6 +30,88 @@ const fmtDate = (d) => {
   return new Date(d).toLocaleDateString('ar-EG', { day: 'numeric', month: 'short', year: 'numeric' });
 };
 
+// ── Push permission banner ────────────────────────────────────────────────────
+function PushBanner() {
+  const [permission, setPermission] = useState(null);
+  const [loading, setLoading]       = useState(false);
+  const [done, setDone]             = useState(false);
+
+  // Read current permission on mount
+  useEffect(() => {
+    if (!('Notification' in window)) { setPermission('unsupported'); return; }
+    setPermission(Notification.permission);
+  }, []);
+
+  const handleEnable = useCallback(async () => {
+    setLoading(true);
+    const result = await setupFCM();
+    setLoading(false);
+    if (result === 'granted') {
+      setPermission('granted');
+      setDone(true);
+    } else if (result === 'denied') {
+      setPermission('denied');
+    } else if (result === 'unsupported') {
+      setPermission('unsupported');
+    }
+  }, []);
+
+  // Nothing to show if already granted or not supported
+  if (permission === null || permission === 'unsupported') return null;
+
+  // ── Already granted ────────────────────────────────────────────────────────
+  if (permission === 'granted') {
+    return (
+      <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-green-50 border border-green-200 text-green-800">
+        <BellRing className="w-5 h-5 text-green-600 flex-shrink-0" />
+        <p className="text-sm font-bold flex-1">
+          {done ? '✅ تم تفعيل الإشعارات! ستصلك كل إشعارات المعلم على تليفونك.' : 'إشعارات التليفون مفعّلة ✓'}
+        </p>
+      </div>
+    );
+  }
+
+  // ── Permission denied ──────────────────────────────────────────────────────
+  if (permission === 'denied') {
+    return (
+      <div className="flex items-start gap-3 px-4 py-3 rounded-2xl bg-red-50 border border-red-200 text-red-800">
+        <BellOff className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+        <div>
+          <p className="text-sm font-black">الإشعارات محظورة في المتصفح</p>
+          <p className="text-xs mt-1 font-medium text-red-600">
+            افتح إعدادات المتصفح ← الإشعارات ← اسمح للموقع، ثم أعد تحميل الصفحة.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Default: not asked yet ─────────────────────────────────────────────────
+  return (
+    <button
+      onClick={handleEnable}
+      disabled={loading}
+      className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-right transition-all
+        bg-indigo-600 hover:bg-indigo-700 active:scale-[.98] disabled:opacity-70"
+    >
+      <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
+        {loading
+          ? <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          : <Smartphone className="w-5 h-5 text-white" />
+        }
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-black text-white">فعّل إشعارات التليفون</p>
+        <p className="text-xs text-indigo-200 mt-0.5 font-medium">
+          استلم كل إشعار من معلمك فوراً حتى لو التطبيق مغلق
+        </p>
+      </div>
+      <Bell className="w-5 h-5 text-white/70 flex-shrink-0" />
+    </button>
+  );
+}
+
+// ── Main page ────────────────────────────────────────────────────────────────
 export default function StudentNotifications() {
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -55,6 +138,7 @@ export default function StudentNotifications() {
     <div className="min-h-full p-4 lg:p-6">
       <div className="max-w-2xl mx-auto space-y-4">
 
+        {/* Header */}
         <div className="flex items-start gap-2">
           <button
             onClick={() => navigate(-1)}
@@ -88,6 +172,10 @@ export default function StudentNotifications() {
           </div>
         </div>
 
+        {/* Push permission banner */}
+        <PushBanner />
+
+        {/* Notifications list */}
         {isLoading ? (
           [...Array(5)].map((_, i) => (
             <div key={i} className="card h-20 animate-pulse bg-gray-100" />
