@@ -1,9 +1,9 @@
 #!/bin/bash
 # ─────────────────────────────────────────
-#  WATHBA — Restart all containers
+#  WATHBA — Restart all containers (VPS)
 # ─────────────────────────────────────────
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 
 echo "🔄 Restarting Wathba..."
 sudo docker compose restart

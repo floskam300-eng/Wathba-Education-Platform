@@ -1,6 +1,6 @@
 @echo off
 title Wathba Reset Database
-cd /d "%~dp0.."
+cd /d "%~dp0..\.."
 echo ==========================================
 echo    Wathba Reset Database
 echo ==========================================

@@ -1,13 +1,12 @@
 #!/bin/bash
 # ─────────────────────────────────────────
-#  WATHBA — Show status and logs
+#  WATHBA — Stop all containers (VPS)
 # ─────────────────────────────────────────
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 
-echo "📋 Container status:"
-sudo docker compose ps
+echo "🛑 Stopping Wathba..."
+sudo docker compose down
 
 echo ""
-echo "📝 App logs (last 30 lines):"
-sudo docker compose logs app --tail=30
+echo "✅ All containers stopped."

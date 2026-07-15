@@ -1,6 +1,6 @@
 @echo off
 title Wathba Seed Database
-cd /d "%~dp0.."
+cd /d "%~dp0..\.."
 echo ==========================================
 echo    Wathba Seed Database Deployment
 echo ==========================================

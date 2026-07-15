@@ -25,7 +25,7 @@ echo.
 echo    Backend API:  http://localhost:3001
 echo    Frontend:     http://localhost:5000
 echo.
-echo    Note: Changes to Frontend code will 
+echo    Note: Changes to Frontend code will
 echo    reflect immediately in the browser.
 echo ==========================================
 echo.
