@@ -12,28 +12,38 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
+// Data-only messages always route here regardless of foreground/background.
+// We read from payload.data (server sends { title, body, type }).
 messaging.onBackgroundMessage((payload) => {
-  const title = payload.notification?.title || 'وثبة التعليمية';
-  const body  = payload.notification?.body  || '';
+  const data  = payload.data || {};
+  const title = data.title || payload.notification?.title || 'وثبة التعليمية';
+  const body  = data.body  || payload.notification?.body  || '';
+
+  // Unique tag per notification so they stack instead of replacing each other
+  const tag = 'wathba-' + Date.now();
+
   self.registration.showNotification(title, {
     body,
     icon:  '/wathba-logo.png',
     badge: '/wathba-logo.png',
     dir:   'rtl',
     lang:  'ar',
-    tag:   'wathba-notification',
-    data:  payload.data || {},
+    tag,
+    data:  data,
+    requireInteraction: false,
+    silent: false,
   });
 });
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  const link = event.notification.data?.link || '/student';
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
         if ('focus' in client) return client.focus();
       }
-      if (clients.openWindow) return clients.openWindow('/student');
+      if (clients.openWindow) return clients.openWindow(link);
     })
   );
 });

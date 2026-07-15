@@ -38,19 +38,10 @@ async function sendFCMToTokens(tokens, title, body, data = {}) {
       }
     }
     const response = await messaging.sendEachForMulticast({
-      notification: { title, body },
-      data: stringData,
+      data: { title, body, ...stringData },   // data-only → onBackgroundMessage always fires
       webpush: {
-        notification: {
-          title,
-          body,
-          icon: '/wathba-logo.png',
-          badge: '/wathba-logo.png',
-          dir: 'rtl',
-          lang: 'ar',
-          tag: 'wathba-notification',
-        },
-        fcmOptions: { link: '/' },
+        headers: { Urgency: 'high' },
+        data: { title, body, ...stringData },
       },
       tokens: validTokens,
     });
