@@ -74,7 +74,7 @@ export default function AssistantLayout() {
         </div>
       </div>
 
-      <nav className="flex-1 p-3 space-y-1">
+      <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
         {navItems.map(({ to, icon: Icon, label, end }) => (
           <NavLink key={to} to={to} end={end}
             className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}

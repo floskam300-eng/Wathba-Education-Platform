@@ -157,7 +157,7 @@ router.post('/login', loginLimiter, async (req, res) => {
         result = await pool.query(
           `SELECT id, username, password, name, phone, parent_phone, academic_stage,
                   gender, points, teacher_id, is_suspended, force_password_change,
-                  created_at, fcm_token, background_color, profile_image_url
+                  created_at, fcm_token
            FROM students
            WHERE username = $1 AND deleted_at IS NULL AND teacher_id = $2`,
           [username, slugTeacherId]
