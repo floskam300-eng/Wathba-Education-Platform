@@ -209,4 +209,14 @@ router.post('/capture-attempt', requireRole('student'), async (req, res) => {
   }
 });
 
+// Clean up stale _captureLog entries every hour to prevent memory leaks
+setInterval(() => {
+  const cutoff = Date.now() - 2 * 60 * 60 * 1000;
+  for (const [studentId, ts] of _captureLog.entries()) {
+    if (ts < cutoff) {
+      _captureLog.delete(studentId);
+    }
+  }
+}, 60 * 60 * 1000).unref();
+
 module.exports = router;

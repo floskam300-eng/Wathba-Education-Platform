@@ -1,4 +1,5 @@
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const pool    = require('../db/connection');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { getPermissions }            = require('../lib/permissionsCache');
@@ -122,9 +123,16 @@ router.get('/students', requireRole('teacher', 'assistant'), async (req, res) =>
   }
 });
 
+const waSendLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 500,
+  keyGenerator: (req) => `wa_${getTeacherId(req)}`,
+  message: { error: 'تم تجاوز الحد الأقصى لإرسال الرسائل (500 رسالة في الساعة)' }
+});
+
 // ── POST /api/whatsapp/send ───────────────────────────────────────────────────
 // SECURITY: phones are always fetched from the DB — never trusted from client.
-router.post('/send', requireRole('teacher', 'assistant'), checkSendPerm, async (req, res) => {
+router.post('/send', waSendLimiter, requireRole('teacher', 'assistant'), checkSendPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
   const { student_ids, message, target_type = 'parents' } = req.body;
 
@@ -227,6 +235,15 @@ router.post('/send', requireRole('teacher', 'assistant'), checkSendPerm, async (
           await wa.sendMessage(teacherId, rec.phone, msg);
           success++;
         } catch (_) { failed++; }
+
+        // Save progress incrementally so restarts don't lose progress state
+        pool.query(
+          `UPDATE whatsapp_send_log
+           SET success_count=$1, fail_count=$2
+           WHERE id=$3`,
+          [success, failed, logId]
+        ).catch(() => {});
+
         // Random delay 8–16s between messages to avoid WhatsApp ban — skip after last message
         if (i < recipients.length - 1) await waSendDelay();
       }
@@ -235,7 +252,7 @@ router.post('/send', requireRole('teacher', 'assistant'), checkSendPerm, async (
       activeSends.delete(teacherId);
       pool.query(
         `UPDATE whatsapp_send_log
-         SET status='done', success_count=$1, fail_count=$2, finished_at=NOW()
+         SET status='completed', success_count=$1, fail_count=$2, finished_at=NOW()
          WHERE id=$3`,
         [success, failed, logId]
       ).catch(() => {});

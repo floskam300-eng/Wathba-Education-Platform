@@ -21,6 +21,7 @@ let _waIntervalId = null;
 let _recIntervalId = null;
 let _examEndIntervalId = null;
 let _recEndIntervalId = null;
+let _cleanupIntervalId = null;
 let _isRunning = false;
 let _isWaRunning = false;
 let _isRecRunning = false;
@@ -178,7 +179,7 @@ async function runWhatsAppSchedules() {
           }
 
           await _pool.query(
-            `UPDATE whatsapp_send_log SET status='done', success_count=$1, fail_count=$2, finished_at=NOW() WHERE id=$3`,
+            `UPDATE whatsapp_send_log SET status='completed', success_count=$1, fail_count=$2, finished_at=NOW() WHERE id=$3`,
             [success, failed, log.id]
           );
           console.log(`[WA Scheduler] Schedule "${sched.name}": sent ${success}/${recipients.length}`);
@@ -428,6 +429,23 @@ async function runEndedExamCheck() {
   }
 }
 
+async function runDataRetentionCleanup() {
+  if (!_pool) return;
+  try {
+    const notifRes = await _pool.query(
+      `DELETE FROM notification_log WHERE sent_at < NOW() - INTERVAL '180 days'`
+    );
+    const waLogRes = await _pool.query(
+      `DELETE FROM whatsapp_send_log WHERE created_at < NOW() - INTERVAL '180 days'`
+    );
+    if ((notifRes.rowCount || 0) > 0 || (waLogRes.rowCount || 0) > 0) {
+      console.log(`[Scheduler] Data retention cleanup: deleted ${notifRes.rowCount || 0} notification logs and ${waLogRes.rowCount || 0} WhatsApp logs`);
+    }
+  } catch (err) {
+    console.error('[Scheduler] Data retention cleanup error:', err.message);
+  }
+}
+
 function startScheduler(pool) {
   _pool = pool;
   runCheck();
@@ -443,11 +461,16 @@ function startScheduler(pool) {
   // Check for ended 'once' recitations and mark absent students every 5 minutes
   runEndedRecitationCheck();
   _recEndIntervalId = setInterval(runEndedRecitationCheck, 5 * 60 * 1000);
+  // Run database log retention cleanup daily
+  runDataRetentionCleanup();
+  _cleanupIntervalId = setInterval(runDataRetentionCleanup, 24 * 60 * 60 * 1000);
+
   console.log('[Scheduler] Exam start scheduler running (30s interval)');
   console.log('[Scheduler] WhatsApp schedule checker running (5min interval)');
   console.log('[Scheduler] Recitation window scheduler running (5min interval)');
   console.log('[Scheduler] Ended-exam absent marker running (5min interval)');
   console.log('[Scheduler] Ended-recitation absent marker running (5min interval)');
+  console.log('[Scheduler] Data retention logs cleanup running (24h interval)');
 }
 
 function stopScheduler() {
@@ -456,6 +479,7 @@ function stopScheduler() {
   if (_recIntervalId)     { clearInterval(_recIntervalId);     _recIntervalId     = null; }
   if (_examEndIntervalId) { clearInterval(_examEndIntervalId); _examEndIntervalId = null; }
   if (_recEndIntervalId)  { clearInterval(_recEndIntervalId);  _recEndIntervalId  = null; }
+  if (_cleanupIntervalId) { clearInterval(_cleanupIntervalId); _cleanupIntervalId = null; }
 }
 
 module.exports = { startScheduler, stopScheduler };

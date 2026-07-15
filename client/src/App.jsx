@@ -6,62 +6,62 @@ import { ThemeProvider } from './context/ThemeContext';
 import { LiveStreamProvider } from './context/LiveStreamContext';
 import { TeacherWrapper, TeacherNotFound } from './context/TeacherContext';
 import { getTenantSlug } from './lib/tenant';
-import Login from './pages/Login';
-import PlatformHome from './pages/PlatformHome';
-import LandingPage from './pages/LandingPage';
-import TeacherLayout from './layouts/TeacherLayout';
-import AssistantLayout from './layouts/AssistantLayout';
-import StudentLayout from './layouts/StudentLayout';
-import TeacherDashboard from './pages/teacher/Dashboard';
-import TeacherStudents from './pages/teacher/Students';
-import TeacherCourses from './pages/teacher/Courses';
-import TeacherExams from './pages/teacher/Exams';
-import TeacherAssistants from './pages/teacher/Assistants';
-import TeacherAnalytics from './pages/teacher/Analytics';
-import TeacherPayments from './pages/teacher/Payments';
-import TeacherLeaderboard from './pages/teacher/Leaderboard';
-import TeacherNotifications from './pages/teacher/Notifications';
-import TeacherBackup from './pages/teacher/Backup';
-import TeacherAttendance from './pages/teacher/Attendance';
-import TeacherRequests from './pages/teacher/Requests';
-import WrongQuestionsPage from './pages/teacher/WrongQuestions';
-import QuestionBanks from './pages/teacher/QuestionBanks';
-import TeacherLiveStream from './pages/teacher/LiveStream';
-import TeacherActivityLog from './pages/teacher/ActivityLog';
-import CourseContent from './pages/teacher/CourseContent';
-import ExamQuestions from './pages/teacher/ExamQuestions';
-import RecitationQuestions from './pages/teacher/RecitationQuestions';
-import QuestionBankQuestions from './pages/teacher/QuestionBankQuestions';
-import TeacherSettings from './pages/teacher/Settings';
-import TeacherRecitations from './pages/teacher/Recitations';
-import TeacherArchive from './pages/teacher/Archive';
-import TeacherRetryRequests from './pages/teacher/RetryRequests';
-import ExamAnalytics from './pages/teacher/ExamAnalytics';
-import ExamPerformancePage from './pages/teacher/ExamPerformancePage';
-import AtRiskStudentsPage from './pages/teacher/AtRiskStudentsPage';
-import StudentRecitations from './pages/student/Recitations';
-import StudentLiveStream from './pages/student/LiveStream';
-import AssistantDashboard from './pages/assistant/Dashboard';
-import AssistantStudents from './pages/assistant/Students';
-import AssistantExams from './pages/teacher/Exams';
-import AssistantAnalytics from './pages/assistant/Analytics';
-import AssistantCourses from './pages/assistant/Courses';
-import AssistantPayments from './pages/assistant/Payments';
-import StudentDashboard from './pages/student/Dashboard';
-import StudentCourses from './pages/student/Courses';
-import StudentCourseView from './pages/student/CourseView';
-import StudentExams from './pages/student/Exams';
-import StudentLeaderboard from './pages/student/Leaderboard';
-import StudentMyStats from './pages/student/MyStats';
-import StudentNotifications from './pages/student/Notifications';
-import StudentEvents from './pages/student/Events';
-import StickmanRunPage from './pages/student/games/StickmanRunPage';
-import ExamReviewPage from './pages/ExamReviewPage';
-import RecitationReviewPage from './pages/RecitationReviewPage';
-import ParentPortal from './pages/ParentPortal';
-import PrivacyPolicy from './pages/PrivacyPolicy';
-import TermsAndConditions from './pages/TermsAndConditions';
-import NotFoundPage from './pages/NotFoundPage';
+const Login = React.lazy(() => import('./pages/Login'));
+const PlatformHome = React.lazy(() => import('./pages/PlatformHome'));
+const LandingPage = React.lazy(() => import('./pages/LandingPage'));
+const TeacherLayout = React.lazy(() => import('./layouts/TeacherLayout'));
+const AssistantLayout = React.lazy(() => import('./layouts/AssistantLayout'));
+const StudentLayout = React.lazy(() => import('./layouts/StudentLayout'));
+const TeacherDashboard = React.lazy(() => import('./pages/teacher/Dashboard'));
+const TeacherStudents = React.lazy(() => import('./pages/teacher/Students'));
+const TeacherCourses = React.lazy(() => import('./pages/teacher/Courses'));
+const TeacherExams = React.lazy(() => import('./pages/teacher/Exams'));
+const TeacherAssistants = React.lazy(() => import('./pages/teacher/Assistants'));
+const TeacherAnalytics = React.lazy(() => import('./pages/teacher/Analytics'));
+const TeacherPayments = React.lazy(() => import('./pages/teacher/Payments'));
+const TeacherLeaderboard = React.lazy(() => import('./pages/teacher/Leaderboard'));
+const TeacherNotifications = React.lazy(() => import('./pages/teacher/Notifications'));
+const TeacherBackup = React.lazy(() => import('./pages/teacher/Backup'));
+const TeacherAttendance = React.lazy(() => import('./pages/teacher/Attendance'));
+const TeacherRequests = React.lazy(() => import('./pages/teacher/Requests'));
+const WrongQuestionsPage = React.lazy(() => import('./pages/teacher/WrongQuestions'));
+const QuestionBanks = React.lazy(() => import('./pages/teacher/QuestionBanks'));
+const TeacherLiveStream = React.lazy(() => import('./pages/teacher/LiveStream'));
+const TeacherActivityLog = React.lazy(() => import('./pages/teacher/ActivityLog'));
+const CourseContent = React.lazy(() => import('./pages/teacher/CourseContent'));
+const ExamQuestions = React.lazy(() => import('./pages/teacher/ExamQuestions'));
+const RecitationQuestions = React.lazy(() => import('./pages/teacher/RecitationQuestions'));
+const QuestionBankQuestions = React.lazy(() => import('./pages/teacher/QuestionBankQuestions'));
+const TeacherSettings = React.lazy(() => import('./pages/teacher/Settings'));
+const TeacherRecitations = React.lazy(() => import('./pages/teacher/Recitations'));
+const TeacherArchive = React.lazy(() => import('./pages/teacher/Archive'));
+const TeacherRetryRequests = React.lazy(() => import('./pages/teacher/RetryRequests'));
+const ExamAnalytics = React.lazy(() => import('./pages/teacher/ExamAnalytics'));
+const ExamPerformancePage = React.lazy(() => import('./pages/teacher/ExamPerformancePage'));
+const AtRiskStudentsPage = React.lazy(() => import('./pages/teacher/AtRiskStudentsPage'));
+const StudentRecitations = React.lazy(() => import('./pages/student/Recitations'));
+const StudentLiveStream = React.lazy(() => import('./pages/student/LiveStream'));
+const AssistantDashboard = React.lazy(() => import('./pages/assistant/Dashboard'));
+const AssistantStudents = React.lazy(() => import('./pages/assistant/Students'));
+const AssistantExams = React.lazy(() => import('./pages/teacher/Exams'));
+const AssistantAnalytics = React.lazy(() => import('./pages/assistant/Analytics'));
+const AssistantCourses = React.lazy(() => import('./pages/assistant/Courses'));
+const AssistantPayments = React.lazy(() => import('./pages/assistant/Payments'));
+const StudentDashboard = React.lazy(() => import('./pages/student/Dashboard'));
+const StudentCourses = React.lazy(() => import('./pages/student/Courses'));
+const StudentCourseView = React.lazy(() => import('./pages/student/CourseView'));
+const StudentExams = React.lazy(() => import('./pages/student/Exams'));
+const StudentLeaderboard = React.lazy(() => import('./pages/student/Leaderboard'));
+const StudentMyStats = React.lazy(() => import('./pages/student/MyStats'));
+const StudentNotifications = React.lazy(() => import('./pages/student/Notifications'));
+const StudentEvents = React.lazy(() => import('./pages/student/Events'));
+const StickmanRunPage = React.lazy(() => import('./pages/student/games/StickmanRunPage'));
+const ExamReviewPage = React.lazy(() => import('./pages/ExamReviewPage'));
+const RecitationReviewPage = React.lazy(() => import('./pages/RecitationReviewPage'));
+const ParentPortal = React.lazy(() => import('./pages/ParentPortal'));
+const PrivacyPolicy = React.lazy(() => import('./pages/PrivacyPolicy'));
+const TermsAndConditions = React.lazy(() => import('./pages/TermsAndConditions'));
+const NotFoundPage = React.lazy(() => import('./pages/NotFoundPage'));
 import OfflineIndicator from './components/ui/OfflineIndicator';
 
 // ─── Error Boundary ────────────────────────────────────────────────────────────
@@ -316,7 +316,13 @@ export default function App() {
       <ThemeProvider>
         <AuthProvider>
           <LiveStreamProvider>
-            <AppRoutes />
+            <React.Suspense fallback={
+              <div className="flex items-center justify-center h-screen bg-gray-50 dark:bg-[var(--dk-elevated)]">
+                <div className="animate-spin w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full" />
+              </div>
+            }>
+              <AppRoutes />
+            </React.Suspense>
             <OfflineIndicator />
           </LiveStreamProvider>
         </AuthProvider>

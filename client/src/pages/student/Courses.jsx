@@ -55,6 +55,8 @@ function CourseCard({ course, onClick, children }) {
           key={course.thumbnail_url || 'default'}
           src={(!imgError && course.thumbnail_url) ? course.thumbnail_url : '/default-course.svg'}
           alt={course.name}
+          loading="lazy"
+          decoding="async"
           onError={() => setImgError(true)}
           className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 ease-out"
         />
@@ -120,16 +122,14 @@ export default function StudentCourses() {
   const { data: courses = [], isLoading } = useQuery({
     queryKey: ['student-courses'],
     queryFn: () => api.get('/courses/student/my-courses').then(r => r.data),
-    staleTime: 0,
-    refetchInterval: 20000,
+    staleTime: 15000,
     refetchOnWindowFocus: true,
   });
 
   const { data: allCourses = [], isLoading: loadingAll } = useQuery({
     queryKey: ['student-courses-all'],
     queryFn: () => api.get('/courses/student/available-all').then(r => r.data),
-    staleTime: 0,
-    refetchInterval: 30000,
+    staleTime: 15000,
     refetchOnWindowFocus: true,
   });
 

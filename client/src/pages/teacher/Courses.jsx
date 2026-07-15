@@ -42,6 +42,8 @@ function ThumbnailImg({ url, name }) {
       key={url || 'default'}
       src={src}
       alt={name}
+      loading="lazy"
+      decoding="async"
       onError={() => setErr(true)}
       className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 ease-out"
     />

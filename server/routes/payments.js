@@ -1,9 +1,11 @@
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const pool = require('../db/connection');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { getPermissions } = require('../lib/permissionsCache');
 const { validatePayment } = require('../middleware/validate');
 const { logActivity, getActor, getIp } = require('../lib/activityLog');
+const { getCached, setCache } = require('../lib/analyticsCache');
 
 const router = express.Router();
 router.use(authenticate);
@@ -147,6 +149,14 @@ async function doLeaderboardReset(teacherId, monthLabel, skipTrackerUpdate = fal
   }
 }
 
+const paymentRequestLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 3,
+  keyGenerator: (req) => `pay_${req.user?.id}`,
+  skip: (req) => req.user?.role !== 'student',
+  message: { error: 'كتير أوي، استنى شوية' }
+});
+
 // ════════════════════════════════════════════════════════════════
 //  Payments routes
 // ════════════════════════════════════════════════════════════════
@@ -167,7 +177,7 @@ router.get('/', requireRole('teacher', 'assistant'), (req, res, next) => checkPe
   }
 });
 
-router.post('/', requireRole('teacher', 'assistant'), (req, res, next) => checkPermission(req, res, next, 'can_manage_payments'), validatePayment, async (req, res) => {
+router.post('/', paymentRequestLimiter, requireRole('teacher', 'assistant'), (req, res, next) => checkPermission(req, res, next, 'can_manage_payments'), validatePayment, async (req, res) => {
   const teacherId = getTeacherId(req);
   const { student_id, course_id, reference_number, notes } = req.body;
   const method = req.body.method || '';
@@ -372,6 +382,10 @@ router.get('/leaderboard', requireRole('teacher', 'assistant', 'student'), async
       teacherId = getTeacherId(req);
     }
 
+    const cacheKey = `t${teacherId}_leaderboard`;
+    const cached = getCached(cacheKey);
+    if (cached) return res.json(cached);
+
     // auto-reset check
     await checkAndResetLeaderboard(teacherId);
 
@@ -395,10 +409,12 @@ router.get('/leaderboard', requireRole('teacher', 'assistant', 'student'), async
       [teacherId]
     );
 
-    res.json({
+    const responseData = {
       students: result.rows,
       tracker: trackerRes.rows[0] || null,
-    });
+    };
+    setCache(cacheKey, responseData);
+    res.json(responseData);
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }

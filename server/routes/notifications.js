@@ -159,7 +159,7 @@ router.get('/log', requireRole('teacher', 'assistant'), async (req, res) => {
   const teacherId = getTeacherId(req);
   try {
     const result = await pool.query(
-      `SELECT nl.*, s.name as student_name
+      `SELECT nl.id, nl.recipient_phone, nl.recipient_type, nl.message, nl.sent_at, nl.type, nl.is_read, nl.source, nl.title, s.name as student_name
        FROM notification_log nl
        LEFT JOIN students s ON nl.student_id = s.id
        WHERE nl.teacher_id = $1
@@ -176,7 +176,7 @@ router.get('/log', requireRole('teacher', 'assistant'), async (req, res) => {
 router.get('/my', requireRole('student'), async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT * FROM notification_log
+      `SELECT id, title, message, type, is_read, sent_at FROM notification_log
        WHERE student_id = $1 AND source = 'platform'
        ORDER BY sent_at DESC LIMIT 50`,
       [req.user.id]

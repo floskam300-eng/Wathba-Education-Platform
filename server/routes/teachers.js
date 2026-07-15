@@ -697,31 +697,32 @@ router.get('/course-stats', requireRole('teacher'), async (req, res) => {
 router.get('/export', requireRole('teacher'), async (req, res) => {
   const teacherId = req.user.id;
   try {
+    const exportQuery = (text, values) => pool.query({ text, values, query_timeout: 120_000 });
     const [teacher, students, courses, sections, videos, pdfs, exams, questions, results, payments, enrollments, videoProgress] = await Promise.all([
-      pool.query('SELECT id,username,name,bio,classification,logo_url,photo_url,whatsapp_phone,created_at FROM teachers WHERE id=$1', [teacherId]),
-      pool.query('SELECT id,username,name,phone,parent_phone,academic_stage,gender,points,created_at FROM students WHERE teacher_id=$1 AND deleted_at IS NULL ORDER BY name', [teacherId]),
-      pool.query('SELECT * FROM courses WHERE teacher_id=$1 ORDER BY created_at', [teacherId]),
-      pool.query('SELECT s.* FROM sections s JOIN courses c ON s.course_id=c.id WHERE c.teacher_id=$1 ORDER BY s.course_id, s.sort_order', [teacherId]),
-      pool.query('SELECT v.* FROM videos v JOIN courses c ON v.course_id=c.id WHERE c.teacher_id=$1 ORDER BY v.course_id, v.sort_order, v.id', [teacherId]),
-      pool.query('SELECT p.* FROM pdf_files p JOIN courses c ON p.course_id=c.id WHERE c.teacher_id=$1 ORDER BY p.course_id, p.id', [teacherId]),
-      pool.query('SELECT * FROM exams WHERE teacher_id=$1 ORDER BY created_at', [teacherId]),
-      pool.query('SELECT q.* FROM questions q JOIN exams e ON q.exam_id=e.id WHERE e.teacher_id=$1 ORDER BY q.exam_id, q.id', [teacherId]),
-      pool.query(`SELECT er.id, er.student_id, er.exam_id, er.score, er.correct_count, er.wrong_count,
+      exportQuery('SELECT id,username,name,bio,classification,logo_url,photo_url,whatsapp_phone,created_at FROM teachers WHERE id=$1', [teacherId]),
+      exportQuery('SELECT id,username,name,phone,parent_phone,academic_stage,gender,points,created_at FROM students WHERE teacher_id=$1 AND deleted_at IS NULL ORDER BY name', [teacherId]),
+      exportQuery('SELECT * FROM courses WHERE teacher_id=$1 ORDER BY created_at', [teacherId]),
+      exportQuery('SELECT s.* FROM sections s JOIN courses c ON s.course_id=c.id WHERE c.teacher_id=$1 ORDER BY s.course_id, s.sort_order', [teacherId]),
+      exportQuery('SELECT v.* FROM videos v JOIN courses c ON v.course_id=c.id WHERE c.teacher_id=$1 ORDER BY v.course_id, v.sort_order, v.id', [teacherId]),
+      exportQuery('SELECT p.* FROM pdf_files p JOIN courses c ON p.course_id=c.id WHERE c.teacher_id=$1 ORDER BY p.course_id, p.id', [teacherId]),
+      exportQuery('SELECT * FROM exams WHERE teacher_id=$1 ORDER BY created_at', [teacherId]),
+      exportQuery('SELECT q.* FROM questions q JOIN exams e ON q.exam_id=e.id WHERE e.teacher_id=$1 ORDER BY q.exam_id, q.id', [teacherId]),
+      exportQuery(`SELECT er.id, er.student_id, er.exam_id, er.score, er.correct_count, er.wrong_count,
                          er.unanswered_count, er.points_earned, er.start_time, er.end_time, er.answers, er.created_at,
                          e.total_score
                   FROM exam_results er
                   JOIN students s ON er.student_id=s.id
                   JOIN exams e ON er.exam_id=e.id
                   WHERE e.teacher_id=$1 AND s.deleted_at IS NULL ORDER BY er.created_at DESC`, [teacherId]),
-      pool.query(`SELECT p.id, p.student_id, p.course_id, p.amount, p.method, p.payment_date, p.status, p.reference_number, p.notes
+      exportQuery(`SELECT p.id, p.student_id, p.course_id, p.amount, p.method, p.payment_date, p.status, p.reference_number, p.notes
                   FROM payments p
                   JOIN students s ON p.student_id=s.id
                   WHERE s.teacher_id=$1 AND s.deleted_at IS NULL ORDER BY p.payment_date DESC`, [teacherId]),
-      pool.query(`SELECT sce.student_id, sce.course_id, sce.enrollment_date, sce.status
+      exportQuery(`SELECT sce.student_id, sce.course_id, sce.enrollment_date, sce.status
                   FROM student_course_enrollment sce
                   JOIN students s ON sce.student_id=s.id
                   WHERE s.teacher_id=$1 AND s.deleted_at IS NULL`, [teacherId]),
-      pool.query(`SELECT vp.student_id, vp.video_id, vp.watch_count, vp.watched_minutes, vp.progress_percentage, vp.last_watched_at
+      exportQuery(`SELECT vp.student_id, vp.video_id, vp.watch_count, vp.watched_minutes, vp.progress_percentage, vp.last_watched_at
                   FROM video_progress vp
                   JOIN students s ON vp.student_id=s.id
                   WHERE s.teacher_id=$1 AND s.deleted_at IS NULL`, [teacherId]),

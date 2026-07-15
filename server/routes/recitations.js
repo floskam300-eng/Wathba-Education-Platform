@@ -1,4 +1,5 @@
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -23,16 +24,19 @@ const ALLOWED_MAGIC = [
 ];
 const ALLOWED_IMG_EXTS = new Set(ALLOWED_MAGIC.map(m => m.ext));
 
-function verifyMagicBytes(filePath, ext) {
+async function verifyMagicBytes(filePath, ext) {
+  let fh;
   try {
     const buf = Buffer.alloc(4);
-    const fd = fs.openSync(filePath, 'r');
-    fs.readSync(fd, buf, 0, 4, 0);
-    fs.closeSync(fd);
+    fh = await fs.promises.open(filePath, 'r');
+    await fh.read(buf, 0, 4, 0);
     const rule = ALLOWED_MAGIC.find(m => m.ext === ext);
     if (!rule) return false;
     return rule.magic.every((byte, i) => buf[i] === byte);
   } catch { return false; }
+  finally {
+    if (fh) await fh.close();
+  }
 }
 
 const recQImgStorage = multer.diskStorage({
@@ -46,7 +50,7 @@ const recQImgStorage = multer.diskStorage({
 });
 const uploadRecQImg = multer({
   storage: recQImgStorage,
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
   fileFilter: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
     if (!ALLOWED_IMG_EXTS.has(ext)) return cb(new Error('امتداد الملف غير مدعوم'));
@@ -87,6 +91,27 @@ const parseParamId = (raw) => {
 
 const getTeacherId = (req) =>
   req.user.role === 'teacher' ? req.user.id : req.user.teacher_id;
+
+const checkImageQuota = async (req, res, next) => {
+  const teacherId = getTeacherId(req);
+  try {
+    const { rows } = await pool.query(
+      `SELECT
+        (SELECT COUNT(*)::int FROM questions q JOIN exams e ON q.exam_id = e.id WHERE e.teacher_id = $1 AND q.question_image_url IS NOT NULL) +
+        (SELECT COUNT(*)::int FROM recitation_questions rq JOIN recitations r ON rq.recitation_id = r.id WHERE r.teacher_id = $1 AND rq.question_image_url IS NOT NULL) +
+        (SELECT COUNT(*)::int FROM bank_questions bq JOIN question_banks qb ON bq.bank_id = qb.id WHERE qb.teacher_id = $1 AND bq.question_image_url IS NOT NULL)
+        AS count`,
+      [teacherId]
+    );
+    if (parseInt(rows[0].count, 10) >= 500) {
+      return res.status(429).json({ error: 'لقد وصلت للحد الأقصى المسموح به لصور الأسئلة (500 صورة)' });
+    }
+    next();
+  } catch (err) {
+    console.error('[checkImageQuota] error:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
 
 // ── Permission guard for assistants ──────────────────────────────────────────
 const checkManageRecitationsPerm = async (req, res, next) => {
@@ -523,14 +548,14 @@ router.get('/student/results', requireRole('student'), async (req, res) => {
 });
 
 // POST /api/recitations/upload-image — upload a question image
-router.post('/upload-image', requireRole('teacher', 'assistant'), checkManageRecitationsPerm, (req, res) => {
-  uploadRecQImg.single('image')(req, res, (err) => {
+router.post('/upload-image', requireRole('teacher', 'assistant'), checkManageRecitationsPerm, checkImageQuota, (req, res) => {
+  uploadRecQImg.single('image')(req, res, async (err) => {
     if (err) return res.status(400).json({ error: err.message || 'فشل رفع الصورة' });
     if (!req.file) return res.status(400).json({ error: 'لم يتم اختيار صورة' });
 
     // [C4] Verify magic bytes — reject if file content doesn't match extension
     const ext = path.extname(req.file.filename).toLowerCase();
-    if (!verifyMagicBytes(req.file.path, ext)) {
+    if (!(await verifyMagicBytes(req.file.path, ext))) {
       fs.unlink(req.file.path, () => {});
       return res.status(400).json({ error: 'الملف تالف أو غير صالح' });
     }
@@ -1091,7 +1116,7 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
 
     // Check for existing session first (resume in-progress attempt, even when retrying)
     const { rows: sessRows } = await pool.query(
-      'SELECT * FROM recitation_sessions WHERE student_id=$1 AND recitation_id=$2',
+      'SELECT student_id, recitation_id, started_at, questions_snapshot FROM recitation_sessions WHERE student_id=$1 AND recitation_id=$2',
       [studentId, id]
     );
 
@@ -1187,8 +1212,15 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
   }
 });
 
+const recitationSubmitLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  keyGenerator: (req) => `rec_submit_${req.user?.id}`,
+  message: { error: 'لقد قمت بتسليم التسميع عدة مرات، يرجى المحاولة بعد دقيقة' }
+});
+
 // POST /api/recitations/:id/submit — submit answers
-router.post('/:id/submit', requireRole('student'), async (req, res) => {
+router.post('/:id/submit', recitationSubmitLimiter, requireRole('student'), async (req, res) => {
   const id = parseParamId(req.params.id);
   if (!id) return res.status(400).json({ error: 'Invalid ID' });
 
@@ -1236,7 +1268,7 @@ router.post('/:id/submit', requireRole('student'), async (req, res) => {
 
     // Load session (with server-side snapshot)
     const { rows: sessRows } = await pool.query(
-      'SELECT * FROM recitation_sessions WHERE student_id=$1 AND recitation_id=$2',
+      'SELECT student_id, recitation_id, started_at, questions_snapshot FROM recitation_sessions WHERE student_id=$1 AND recitation_id=$2',
       [studentId, id]
     );
     if (!sessRows.length) return res.status(400).json({ error: 'لا توجد جلسة نشطة. ابدأ التسميع أولاً' });

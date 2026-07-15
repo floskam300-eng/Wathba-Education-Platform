@@ -939,7 +939,7 @@ router.get('/me/dashboard', requireRole('student'), async (req, res) => {
     const [enrollments, results, progress, badges, student, totalExamsRes] = await Promise.all([
       pool.query('SELECT sce.*, c.name, c.description, c.thumbnail_url FROM student_course_enrollment sce JOIN courses c ON sce.course_id=c.id WHERE sce.student_id=$1 AND c.is_published=true', [studentId]),
       pool.query('SELECT er.*, e.title as exam_title, e.total_score, e.pass_score FROM exam_results er JOIN exams e ON er.exam_id=e.id WHERE er.student_id=$1 AND er.is_latest=true ORDER BY er.created_at DESC LIMIT 5', [studentId]),
-      pool.query('SELECT vp.*, v.title FROM video_progress vp JOIN videos v ON vp.video_id=v.id WHERE vp.student_id=$1', [studentId]),
+      pool.query('SELECT vp.student_id, vp.video_id, vp.watch_count, vp.watched_minutes, vp.progress_percentage, vp.last_watched_at, v.title FROM video_progress vp JOIN videos v ON vp.video_id=v.id WHERE vp.student_id=$1 ORDER BY vp.last_watched_at DESC LIMIT 15', [studentId]),
       pool.query('SELECT * FROM badges WHERE student_id=$1 ORDER BY earned_at DESC', [studentId]),
       pool.query('SELECT id,name,points,academic_stage,gender FROM students WHERE id=$1', [studentId]),
       pool.query('SELECT COUNT(*)::int AS count FROM exam_results WHERE student_id=$1 AND is_latest=true', [studentId]),

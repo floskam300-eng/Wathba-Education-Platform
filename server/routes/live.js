@@ -135,34 +135,44 @@ setInterval(() => {
    both query DB and both overwrite each other's result).
 ══════════════════════════════════════════════════════════════════ */
 const viewerCache = new Map();
+const viewerCacheAccess = new Map();
 const _warming    = new Set();   // streams currently being warmed from DB
 
 function vcAdd(streamId, studentId) {
   const key = String(streamId);
   if (!viewerCache.has(key)) viewerCache.set(key, new Set());
   viewerCache.get(key).add(Number(studentId));
+  viewerCacheAccess.set(key, Date.now());
 }
 
 function vcRemove(streamId, studentId) {
-  viewerCache.get(String(streamId))?.delete(Number(studentId));
+  const key = String(streamId);
+  viewerCache.get(key)?.delete(Number(studentId));
+  viewerCacheAccess.set(key, Date.now());
 }
 
 function vcClear(streamId) {
-  viewerCache.delete(String(streamId));
-  _warming.delete(String(streamId));
+  const key = String(streamId);
+  viewerCache.delete(key);
+  viewerCacheAccess.delete(key);
+  _warming.delete(key);
 }
 
 /** Returns active viewer IDs — cache-first, DB fallback on cold start */
 async function getActiveViewerIds(streamId) {
   const key = String(streamId);
   if (viewerCache.has(key)) {
+    viewerCacheAccess.set(key, Date.now());
     return [...viewerCache.get(key)];
   }
   // FIX: if another request is already warming this stream, wait briefly
   // instead of firing another DB query
   if (_warming.has(key)) {
     await new Promise(r => setTimeout(r, 80));
-    if (viewerCache.has(key)) return [...viewerCache.get(key)];
+    if (viewerCache.has(key)) {
+      viewerCacheAccess.set(key, Date.now());
+      return [...viewerCache.get(key)];
+    }
   }
   _warming.add(key);
   try {
@@ -172,11 +182,23 @@ async function getActiveViewerIds(streamId) {
     );
     const ids = rows.map(r => Number(r.student_id));
     viewerCache.set(key, new Set(ids));
+    viewerCacheAccess.set(key, Date.now());
     return ids;
   } finally {
     _warming.delete(key);
   }
 }
+
+// Clean up stale entries every hour — removes sets that haven't been accessed for 2 hours
+setInterval(() => {
+  const cutoff = Date.now() - 2 * 60 * 60 * 1000;
+  for (const [key, ts] of viewerCacheAccess.entries()) {
+    if (ts < cutoff) {
+      viewerCache.delete(key);
+      viewerCacheAccess.delete(key);
+    }
+  }
+}, 60 * 60 * 1000).unref();
 
 /* ══════════════════════════════════════════════════════════════════
    SSE FAN-OUT HELPER

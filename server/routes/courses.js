@@ -2,6 +2,7 @@ const { sendEvent } = require('../sse');
 const { sendFCMToStudents } = require('../lib/fcm');
 const { isValidImage, isValidPdf, isValidVideo, deleteFile } = require('../lib/validateFileMagic');
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -841,7 +842,14 @@ router.get('/student/available-all', requireRole('student'), async (req, res) =>
   }
 });
 
-router.post('/student/request/:courseId', requireRole('student'), async (req, res) => {
+const courseRequestLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 3,
+  keyGenerator: (req) => `course_req_${req.user?.id}`,
+  message: { error: 'لقد قمت بتقديم العديد من طلبات الالتحاق، يرجى الانتظار قليلاً' }
+});
+
+router.post('/student/request/:courseId', courseRequestLimiter, requireRole('student'), async (req, res) => {
   const courseId = parseParamId(req.params.courseId);
   if (!courseId) return res.status(400).json({ error: 'Invalid course ID' });
   const { message } = req.body;

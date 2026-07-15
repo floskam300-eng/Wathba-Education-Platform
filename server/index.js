@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const compression = require('compression');
 const cors = require('cors');
 const helmet = require('helmet');
 const path = require('path');
@@ -24,6 +25,7 @@ process.on('uncaughtException', (err) => {
 
 const app = express();
 app.set('trust proxy', 1);
+app.use(compression({ threshold: 1024 }));
 
 // [M-13] FIX: Enable a real CSP in production. In development (Vite HMR, eval)
 // we still disable it — but in production the built bundle uses no unsafe constructs.
@@ -531,6 +533,15 @@ app.use('/api/whatsapp',     require('./routes/whatsapp'));
 app.use('/api/recitations', require('./routes/recitations'));
 app.use('/api/archive',    require('./routes/archive'));
 
+app.get('/health', async (req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({ status: 'ok', uptime: process.uptime() });
+  } catch (e) {
+    res.status(503).json({ status: 'db_error' });
+  }
+});
+
 // ── Dynamic PWA manifest — must come BEFORE express.static so it takes
 //    precedence over the static client/dist/manifest.json.
 //    Each teacher subdomain gets its own `id`, `name`, and `short_name` so
@@ -611,6 +622,10 @@ const initDB = async () => {
     await pool.query('ALTER TABLE students ADD COLUMN IF NOT EXISTS plain_password VARCHAR(255)');
     await pool.query('ALTER TABLE students ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP');
 
+    // Add indexes for optimization if not exists
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_live_streams_status ON live_streams(status)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_live_chat_stream_sent ON live_chat_messages(stream_id, sent_at)');
+
     const existing = await pool.query("SELECT id FROM teachers WHERE username='admin' LIMIT 1");
     if (existing.rows.length === 0) {
       const bcrypt = require('bcryptjs');
@@ -632,25 +647,30 @@ const initDB = async () => {
     }
 
     // ── Migration: set plain_password for students that have NULL (imported before feature was added) ──
-    try {
+    // Offload to background with yield delay so it doesn't block startup or choke event loop
+    const runStudentPasswordMigration = async () => {
       const { rows: nullPwStudents } = await pool.query(
         "SELECT id FROM students WHERE (plain_password IS NULL OR plain_password = '') AND deleted_at IS NULL"
       );
       if (nullPwStudents.length > 0) {
         const bcryptjs = require('bcryptjs');
         const cryptoLib = require('crypto');
+        console.log(`[Migration] Starting plain_password migration for ${nullPwStudents.length} student(s) in background...`);
         let fixedCount = 0;
         for (const s of nullPwStudents) {
           const pw = String(100000 + cryptoLib.randomInt(0, 900000));
           const hashed = await bcryptjs.hash(pw, 10);
           await pool.query('UPDATE students SET plain_password=$1, password=$2 WHERE id=$3', [pw, hashed, s.id]);
           fixedCount++;
+          // Yield to event loop to process other HTTP/SSE requests
+          await new Promise(resolve => setTimeout(resolve, 50));
         }
-        console.log(`[Migration] Set plain_password for ${fixedCount} student(s) that had NULL passwords`);
+        console.log(`[Migration] Finished setting plain_password for ${fixedCount} student(s)`);
       }
-    } catch (migErr) {
+    };
+    runStudentPasswordMigration().catch(migErr => {
       console.error('[Migration] plain_password fix error:', migErr.message);
-    }
+    });
   } catch (err) {
     console.error('DB init error:', err.message);
   }

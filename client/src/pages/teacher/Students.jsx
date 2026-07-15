@@ -8,7 +8,7 @@ import {
   Smartphone, Monitor, RefreshCw, AlertTriangle, ChevronRight,
   Layers, Trash, ArrowLeft,
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
+// Removed static XLSX import to decrease initial chunk size
 import Modal from '../../components/ui/Modal';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import Badge from '../../components/ui/Badge';
@@ -73,7 +73,7 @@ function DeviceAlertsPanel({ canEdit }) {
   const { data: alerts = [], isLoading } = useQuery({
     queryKey: ['device-alerts'],
     queryFn: () => api.get('/students/device-alerts').then(r => r.data),
-    refetchInterval: 30000,
+    refetchInterval: 60000,
   });
 
   const { data: devices = [] } = useQuery({
@@ -612,9 +612,10 @@ export default function TeacherStudents() {
       return clean;
     });
 
-  const handleExcelFile = (e) => {
+  const handleExcelFile = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    const XLSX = await import('xlsx');
     const reader = new FileReader();
     reader.onload = (evt) => {
       try {
@@ -697,6 +698,7 @@ export default function TeacherStudents() {
       if (failed > 0 && success === 0) toast.error(`فشل استيراد جميع الصفوف (${failed})`);
       if (errors?.length) errors.slice(0, 3).forEach(e => toast.error(e, { duration: 4000 }));
       if (created?.length) {
+        const XLSX = await import('xlsx');
         const exportData = created.map(s => ({ 'الاسم': s.name, 'اسم المستخدم': s.username, 'كلمة المرور': s.generated_password }));
         const ws = XLSX.utils.json_to_sheet(exportData);
         const wb = XLSX.utils.book_new();
@@ -718,7 +720,8 @@ export default function TeacherStudents() {
     return val;
   };
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
+    const XLSX = await import('xlsx');
     const exportData = filtered.map(s => ({
       'الاسم': sanitizeCell(s.name),
       'الهاتف': sanitizeCell(s.phone || ''),

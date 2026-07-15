@@ -110,7 +110,7 @@ const questionImageStorage = multer.diskStorage({
 });
 const uploadQuestionImage = multer({
   storage: questionImageStorage,
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith('image/')) cb(null, true);
     else cb(new Error('يُسمح بالصور فقط'));
@@ -118,6 +118,27 @@ const uploadQuestionImage = multer({
 });
 
 const getTeacherId = (req) => req.user.role === 'teacher' ? req.user.id : req.user.teacher_id;
+
+const checkImageQuota = async (req, res, next) => {
+  const teacherId = getTeacherId(req);
+  try {
+    const { rows } = await pool.query(
+      `SELECT
+        (SELECT COUNT(*)::int FROM questions q JOIN exams e ON q.exam_id = e.id WHERE e.teacher_id = $1 AND q.question_image_url IS NOT NULL) +
+        (SELECT COUNT(*)::int FROM recitation_questions rq JOIN recitations r ON rq.recitation_id = r.id WHERE r.teacher_id = $1 AND rq.question_image_url IS NOT NULL) +
+        (SELECT COUNT(*)::int FROM bank_questions bq JOIN question_banks qb ON bq.bank_id = qb.id WHERE qb.teacher_id = $1 AND bq.question_image_url IS NOT NULL)
+        AS count`,
+      [teacherId]
+    );
+    if (parseInt(rows[0].count, 10) >= 500) {
+      return res.status(429).json({ error: 'لقد وصلت للحد الأقصى المسموح به لصور الأسئلة (500 صورة)' });
+    }
+    next();
+  } catch (err) {
+    console.error('[checkImageQuota] error:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
 
 // ── Middleware: assistants must have can_manage_exams ──
 const checkManageExamsPerm = async (req, res, next) => {
@@ -527,7 +548,7 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExams
 });
 
 // ── Upload question image ──
-router.post('/upload-question-image', requireRole('teacher', 'assistant'), checkManageExamsPerm,
+router.post('/upload-question-image', requireRole('teacher', 'assistant'), checkManageExamsPerm, checkImageQuota,
   (req, res, next) => {
     uploadQuestionImage.single('image')(req, res, (err) => {
       if (err) {
@@ -582,7 +603,7 @@ router.get('/:id/questions', requireRole('teacher', 'assistant'), checkManageExa
     if (!(await verifyExamOwnership(examId, teacherId))) {
       return res.status(403).json({ error: 'Access denied: exam not yours' });
     }
-    const result = await pool.query('SELECT * FROM questions WHERE exam_id=$1 ORDER BY id', [examId]);
+    const result = await pool.query('SELECT id, question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, option_labels, question_type, sub_questions FROM questions WHERE exam_id=$1 ORDER BY id', [examId]);
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
@@ -842,9 +863,14 @@ router.get('/student/retry-requests', requireRole('student'), async (req, res) =
   }
 });
 
-// ── Student: submit retry request ──
-const MAX_RETRIES_PER_EXAM = 3;
-router.post('/:id/retry-request', requireRole('student'), async (req, res) => {
+const retryRequestLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 1,
+  keyGenerator: (req) => `retry_${req.user?.id}_${req.params.id}`,
+  message: { error: 'لقد قمت بطلب إعادة هذا الاختبار مؤخراً، يرجى الانتظار قليلاً' }
+});
+
+router.post('/:id/retry-request', retryRequestLimiter, requireRole('student'), async (req, res) => {
   const studentId = req.user.id;
   const examId = parseParamId(req.params.id);
   if (!examId) return res.status(400).json({ error: 'معرّف الاختبار غير صالح' });
@@ -1374,7 +1400,7 @@ router.post('/:id/submit', submitLimiter, requireRole('student'), async (req, re
       if (serverSession?.questions_snapshot?.length > 0) {
         // Snapshot stores questions as-shown; re-attach correct_answer_letter from DB for scoring
         const snapshotIds = serverSession.questions_snapshot.map(q => q.id);
-        const qr = await pool.query('SELECT * FROM questions WHERE exam_id=$1 AND id = ANY($2)', [examId, snapshotIds]);
+        const qr = await pool.query('SELECT id, question_type, correct_answer_letter, points, sub_questions FROM questions WHERE exam_id=$1 AND id = ANY($2)', [examId, snapshotIds]);
         questionsData = qr.rows;
       } else {
         return res.status(409).json({
@@ -1713,14 +1739,14 @@ router.get('/results/:resultId/review', requireRole('teacher', 'assistant', 'stu
         }
       } catch (_) {}
       if (answeredIds.length > 0) {
-        questionsRes = await pool.query('SELECT * FROM bank_questions WHERE id = ANY($1) ORDER BY id', [answeredIds]);
+        questionsRes = await pool.query('SELECT id, question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, option_labels, question_type, sub_questions FROM bank_questions WHERE id = ANY($1) ORDER BY id', [answeredIds]);
       } else if (isOldBankFormat) {
-        questionsRes = await pool.query('SELECT * FROM bank_questions WHERE bank_id = $1 ORDER BY id', [row.bank_id]);
+        questionsRes = await pool.query('SELECT id, question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, option_labels, question_type, sub_questions FROM bank_questions WHERE bank_id = $1 ORDER BY id', [row.bank_id]);
       } else {
         questionsRes = { rows: [] };
       }
     } else {
-      questionsRes = await pool.query('SELECT * FROM questions WHERE exam_id=$1 ORDER BY id', [row.exam_id]);
+      questionsRes = await pool.query('SELECT id, question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, option_labels, question_type, sub_questions FROM questions WHERE exam_id=$1 ORDER BY id', [row.exam_id]);
     }
 
     // ── Parse stored answers — handles two formats: ──────────────────────────
