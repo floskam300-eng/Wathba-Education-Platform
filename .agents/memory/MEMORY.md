@@ -40,3 +40,4 @@
 - [wathba.site is a separate external deployment](wathba-external-deployment.md) — admin.wathba.site is NOT served by this repl (no [deployment] in .replit); user deploys the code themselves elsewhere, so fixes here need their manual redeploy to appear live
 - [Add-teacher flow audit 2026-07](add-teacher-audit-2026-07.md) — 7 bugs fixed: cache-before-commit, 23505→409, slug preview normalization, pw min-len, slug max-len, force_password_change wiring, admin reset-pw endpoint; 40/40 tests pass
 - [Activity log coverage audit](activity-log-coverage-audit.md) — dead ACTION_LABELS entries revealed unlogged actions; question banks/teacher profile/live-streaming had zero logging; frontend keeps a duplicate label map, ignores backend's action_labels
+- [KVM4 optimization plan](kvm4-optimization-plan.md) — full perf plan at docs/OPTIMIZATION_PLAN.md; in-memory Maps (SSE, WhatsApp/Baileys, caches) block naive horizontal scaling, must move to Redis first
