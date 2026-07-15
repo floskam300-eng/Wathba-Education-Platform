@@ -38,3 +38,4 @@
 - [Subdomain/IP testing artifact](subdomain-ip-testing-artifact.md) — curling 127.0.0.1 makes tenant middleware treat the IP as a subdomain slug, breaking login; use Host: localhost instead
 - [Light theme low-contrast utility classes](light-theme-contrast-fix.md) — border-gray-50/100, divide-gray-50/100, and dark:text-gray-500 were near-invisible; fixed via global CSS overrides in index.css, not per-page edits
 - [wathba.site is a separate external deployment](wathba-external-deployment.md) — admin.wathba.site is NOT served by this repl (no [deployment] in .replit); user deploys the code themselves elsewhere, so fixes here need their manual redeploy to appear live
+- [Add-teacher flow audit 2026-07](add-teacher-audit-2026-07.md) — 7 bugs fixed: cache-before-commit, 23505→409, slug preview normalization, pw min-len, slug max-len, force_password_change wiring, admin reset-pw endpoint; 40/40 tests pass
