@@ -770,6 +770,14 @@ router.post('/:id/enroll/:studentId', requireRole('teacher', 'assistant'), check
       'INSERT INTO student_course_enrollment (student_id,course_id) VALUES($1,$2) ON CONFLICT DO NOTHING',
       [req.params.studentId, req.params.id]
     );
+    const courseName = (await pool.query('SELECT name FROM courses WHERE id=$1', [req.params.id]).catch(() => ({ rows: [] }))).rows[0]?.name;
+    const studentName = (await pool.query('SELECT name FROM students WHERE id=$1', [req.params.studentId]).catch(() => ({ rows: [] }))).rows[0]?.name;
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'enroll_student',
+      entity: { type: 'course', id: parseInt(req.params.id, 10), name: courseName },
+      details: { student_name: studentName },
+    });
     res.json({ message: 'Student enrolled' });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
@@ -994,6 +1002,12 @@ router.put('/enrollment-requests/:id', requireRole('teacher', 'assistant'), chec
         courseId: enrReq.course_id,
       });
       sendFCMToStudents(pool, [enrReq.student_id], 'قبول في كورس', `🎓 تمت الموافقة على انضمامك لكورس: "${courseName}"`).catch(() => {});
+      logActivity({
+        teacherId, actor: getActor(req), ip: getIp(req),
+        action: 'review_enrollment_request',
+        entity: { type: 'course', id: enrReq.course_id, name: courseName },
+        details: { decision: 'approved', student_id: enrReq.student_id },
+      });
     } else {
       await pool.query(
         'UPDATE course_enrollment_requests SET status=$1, handled_at=NOW() WHERE id=$2',
@@ -1009,6 +1023,12 @@ router.put('/enrollment-requests/:id', requireRole('teacher', 'assistant'), chec
         courseId: enrReq.course_id,
       });
       sendFCMToStudents(pool, [enrReq.student_id], 'رفض طلب كورس', `رُفض طلب انضمامك لكورس: "${courseName}"`).catch(() => {});
+      logActivity({
+        teacherId, actor: getActor(req), ip: getIp(req),
+        action: 'review_enrollment_request',
+        entity: { type: 'course', id: enrReq.course_id, name: courseName },
+        details: { decision: 'rejected', student_id: enrReq.student_id },
+      });
     }
     res.json({ success: true, action });
   } catch (err) {

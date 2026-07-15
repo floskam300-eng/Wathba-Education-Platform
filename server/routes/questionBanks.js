@@ -3,6 +3,7 @@ const pool = require('../db/connection');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { getPermissions } = require('../lib/permissionsCache');
 const { isValidImage, deleteFile } = require('../lib/validateFileMagic');
+const { logActivity, getActor, getIp } = require('../lib/activityLog');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -108,6 +109,11 @@ router.post('/', requireRole('teacher', 'assistant'), checkManageExamsPerm, asyn
       'INSERT INTO question_banks (name, course_id, teacher_id) VALUES ($1,$2,$3) RETURNING *',
       [name.trim(), parsedCourseId || null, teacherId]
     );
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'create_question_bank',
+      entity: { type: 'question_bank', id: result.rows[0].id, name: result.rows[0].name },
+    });
     res.status(201).json({ ...result.rows[0], question_count: 0 });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
@@ -139,6 +145,11 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageExamsPerm, as
       [name.trim(), parsedCourseId || null, bankId, teacherId]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'البنك غير موجود' });
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'edit_question_bank',
+      entity: { type: 'question_bank', id: bankId, name: result.rows[0].name },
+    });
     res.json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
@@ -153,11 +164,17 @@ router.delete('/:id', requireRole('teacher', 'assistant'), checkManageExamsPerm,
 
   const teacherId = getTeacherId(req);
   try {
+    const bankInfo = await pool.query('SELECT name FROM question_banks WHERE id=$1 AND teacher_id=$2', [bankId, teacherId]);
     const result = await pool.query(
       'DELETE FROM question_banks WHERE id=$1 AND teacher_id=$2 RETURNING id',
       [bankId, teacherId]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'البنك غير موجود' });
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'delete_question_bank',
+      entity: { type: 'question_bank', id: bankId, name: bankInfo.rows[0]?.name },
+    });
     res.json({ message: 'تم حذف البنك' });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });

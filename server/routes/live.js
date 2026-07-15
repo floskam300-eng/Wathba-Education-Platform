@@ -3,6 +3,7 @@ const crypto  = require('crypto');
 const pool    = require('../db/connection');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { sendEvent, broadcastToTeacherStudents } = require('../sse');
+const { logActivity, getActor, getIp } = require('../lib/activityLog');
 
 /* ── LiveKit SDK — loaded once at module level (not per-request) ── */
 let AccessToken;
@@ -376,6 +377,12 @@ router.post('/schedule', requireRole('teacher'), async (req, res) => {
         new Date(scheduled_at),
       ]
     );
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'schedule_livestream',
+      entity: { type: 'live_stream', id: result.rows[0].id, name: result.rows[0].title },
+      details: { scheduled_at },
+    });
     res.json({ success: true, stream: result.rows[0] });
   } catch (err) {
     console.error('[live/schedule]', err);
@@ -454,6 +461,12 @@ router.post('/scheduled/:streamId/start', requireRole('teacher'), async (req, re
     const payload = { streamId: stream.id, title: stream.title, teacherName, roomId: stream.room_id };
     await broadcastToTeacherStudents(pool, teacherId, 'live_started', payload);
 
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'start_livestream',
+      entity: { type: 'live_stream', id: stream.id, name: stream.title },
+    });
+
     res.json({ success: true, stream });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
@@ -478,11 +491,16 @@ router.delete('/scheduled/:streamId', requireRole('teacher'), async (req, res) =
 
   try {
     const result = await pool.query(
-      "DELETE FROM live_streams WHERE id=$1 AND teacher_id=$2 AND status='scheduled' RETURNING id",
+      "DELETE FROM live_streams WHERE id=$1 AND teacher_id=$2 AND status='scheduled' RETURNING id, title",
       [streamId, teacherId]
     );
     if (!result.rows.length)
       return res.status(404).json({ error: 'البث غير موجود' });
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'cancel_scheduled_livestream',
+      entity: { type: 'live_stream', id: streamId, name: result.rows[0].title },
+    });
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
@@ -594,6 +612,12 @@ router.post('/start', requireRole('teacher'), async (req, res) => {
         sendEvent(`student_${id}`, 'live_started', payload);
     }
 
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'start_livestream',
+      entity: { type: 'live_stream', id: stream.id, name: stream.title },
+    });
+
     res.json({ success: true, stream });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
@@ -633,6 +657,12 @@ router.post('/:streamId/end', requireRole('teacher'), async (req, res) => {
     vcClear(streamId);
 
     fanOut(activeViewers, 'live_ended', { streamId, message: 'انتهى البث المباشر' });
+
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'end_livestream',
+      entity: { type: 'live_stream', id: streamId, name: result.rows[0].title },
+    });
 
     res.json({ success: true });
   } catch (err) {
@@ -1013,6 +1043,14 @@ router.post('/:streamId/kick/:studentId', requireRole('teacher'), async (req, re
       action: 'kicked', studentId,
     });
 
+    const studentName = (await pool.query('SELECT name FROM students WHERE id=$1', [studentId]).catch(() => ({ rows: [] }))).rows[0]?.name;
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'kick_student_livestream',
+      entity: { type: 'live_stream', id: streamId, name: streamRows[0].title },
+      details: { student_id: studentId, student_name: studentName },
+    });
+
     res.json({ success: true });
   } catch (err) {
     console.error('[live/kick]', err);
@@ -1050,6 +1088,13 @@ router.post('/:streamId/permissions/:studentId', requireRole('teacher'), async (
       streamId,
       can_speak:        !!can_speak,
       can_share_screen: !!can_share_screen,
+    });
+
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'update_stream_permissions',
+      entity: { type: 'live_stream', id: streamId },
+      details: { student_id: studentId, can_speak: !!can_speak, can_share_screen: !!can_share_screen },
     });
 
     res.json({ success: true });
@@ -1097,6 +1142,13 @@ router.post('/:streamId/mute-all', requireRole('teacher'), async (req, res) => {
       });
     }
 
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'mute_all_students',
+      entity: { type: 'live_stream', id: streamId },
+      details: { muted_count: speakingViewers.length },
+    });
+
     res.json({ success: true, mutedCount: speakingViewers.length });
   } catch (err) {
     console.error('[live/mute-all]', err);
@@ -1120,6 +1172,12 @@ router.post('/:streamId/lock', requireRole('teacher'), async (req, res) => {
       [!!locked, streamId, teacherId]
     );
     if (!rowCount) return res.status(404).json({ error: 'البث غير موجود' });
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'lock_livestream',
+      entity: { type: 'live_stream', id: streamId },
+      details: { locked: !!locked },
+    });
     res.json({ success: true, is_locked: !!locked });
   } catch (err) {
     console.error('[live/lock]', err);
@@ -1201,6 +1259,13 @@ router.post('/:streamId/award-points', requireRole('teacher'), async (req, res) 
       studentName: viewerCheck[0].name,
       reason:      safeReason || 'منح نقاط أثناء البث المباشر',
       streamTitle: streamRows[0].title,
+    });
+
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'award_livestream_points',
+      entity: { type: 'student', id: studentIdParsed, name: viewerCheck[0].name },
+      details: { points, reason: safeReason, stream_id: streamId },
     });
 
     res.json({ success: true, pointsAwarded: points });

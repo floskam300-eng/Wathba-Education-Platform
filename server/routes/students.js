@@ -1136,6 +1136,14 @@ router.post('/device-alerts/:alertId/action', requireRole('teacher', 'assistant'
       );
     }
 
+    const studentName = (await pool.query('SELECT name FROM students WHERE id=$1', [alert.student_id]).catch(() => ({ rows: [] }))).rows[0]?.name;
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'device_alert_review',
+      entity: { type: 'student', id: alert.student_id, name: studentName },
+      details: { alert_action: action },
+    });
+
     res.json({ success: true });
   } catch (err) {
     console.error(err);

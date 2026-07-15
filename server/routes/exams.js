@@ -1030,8 +1030,8 @@ router.put('/retry-requests/:reqId/reject', requireRole('teacher', 'assistant'),
       "UPDATE exam_retry_requests SET status='rejected', teacher_note=$1, handled_at=NOW() WHERE id=$2",
       [teacher_note || null, reqId]
     );
+    const row = rr.rows[0];
     try {
-      const row = rr.rows[0];
       await pool.query(
         `INSERT INTO notification_log (teacher_id, student_id, recipient_type, message, type, is_read, source, title)
          VALUES ($1, $2, 'student', 'تم رفض طلب إعادة الاختبار', 'retry_rejected', false, 'platform', 'رفض إعادة اختبار')`,
@@ -1040,6 +1040,14 @@ router.put('/retry-requests/:reqId/reject', requireRole('teacher', 'assistant'),
       sendEvent(`student_${row.student_id}`, 'retry_rejected', { examId: row.exam_id });
       sendFCMToStudents(pool, [row.student_id], 'رفض إعادة اختبار', 'تم رفض طلب إعادة الاختبار').catch(() => {});
     } catch (_) {}
+    const examTitle = (await pool.query('SELECT title FROM exams WHERE id=$1', [row.exam_id]).catch(() => ({ rows: [] }))).rows[0]?.title;
+    const studentName = (await pool.query('SELECT name FROM students WHERE id=$1', [row.student_id]).catch(() => ({ rows: [] }))).rows[0]?.name;
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'reject_retry',
+      entity: { type: 'exam', id: row.exam_id, name: examTitle },
+      details: { student_name: studentName },
+    });
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });

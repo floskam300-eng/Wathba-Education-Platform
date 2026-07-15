@@ -433,6 +433,11 @@ router.post('/leaderboard/reset', requireRole('teacher'), async (req, res) => {
     // Use the current month label (the month being closed/archived now)
     const label = getArabicMonthLabel(new Date());
     await doLeaderboardReset(teacherId, label);
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'reset_leaderboard',
+      entity: { type: 'leaderboard', name: label },
+    });
     res.json({ success: true, message: 'تم تصفير اللوحة وحفظ سجل الشهر بنجاح' });
   } catch (err) {
     console.error('manual reset error:', err.message);

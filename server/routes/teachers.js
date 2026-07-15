@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const pool = require('../db/connection');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { getPermissions } = require('../lib/permissionsCache');
+const { logActivity, getActor, getIp } = require('../lib/activityLog');
 
 const router = express.Router();
 router.use(authenticate);
@@ -109,6 +110,12 @@ router.put('/profile', requireRole('teacher'), async (req, res) => {
       invalidateTenantCache(slug);
     }
 
+    logActivity({
+      teacherId: req.user.id, actor: getActor(req), ip: getIp(req),
+      action: 'edit_profile',
+      entity: { type: 'teacher', id: req.user.id, name: safe.name },
+    });
+
     res.json(safe);
   } catch (err) {
     // BUG-14 FIX: two concurrent profile saves can both pass the app-level uniqueness check
@@ -144,6 +151,11 @@ router.put('/profile/password', requireRole('teacher'), async (req, res) => {
       'UPDATE teachers SET password=$1, force_password_change=false WHERE id=$2',
       [hashed, req.user.id]
     );
+    logActivity({
+      teacherId: req.user.id, actor: getActor(req), ip: getIp(req),
+      action: 'change_password',
+      entity: { type: 'teacher', id: req.user.id },
+    });
     res.json({ success: true, message: 'تم تغيير كلمة المرور بنجاح' });
   } catch (err) {
     console.error(err);

@@ -41,6 +41,23 @@ const ACTION_COLORS = {
   reset_leaderboard:         { bg: 'bg-amber-500/20',   text: 'text-amber-400',   border: 'border-amber-500/30'   },
   login_teacher:             { bg: 'bg-slate-500/20',   text: 'text-slate-400',   border: 'border-slate-500/30'   },
   login_assistant:           { bg: 'bg-violet-500/20',  text: 'text-violet-400',  border: 'border-violet-500/30'  },
+  device_alert_review:      { bg: 'bg-amber-500/20',   text: 'text-amber-400',   border: 'border-amber-500/30'   },
+  enroll_student:            { bg: 'bg-green-500/20',   text: 'text-green-400',   border: 'border-green-500/30'   },
+  review_enrollment_request: { bg: 'bg-blue-500/20',    text: 'text-blue-400',    border: 'border-blue-500/30'    },
+  edit_profile:              { bg: 'bg-indigo-500/20',  text: 'text-indigo-400',  border: 'border-indigo-500/30'  },
+  change_password:           { bg: 'bg-amber-500/20',   text: 'text-amber-400',   border: 'border-amber-500/30'   },
+  create_question_bank:      { bg: 'bg-purple-500/20',  text: 'text-purple-400',  border: 'border-purple-500/30'  },
+  edit_question_bank:        { bg: 'bg-indigo-500/20',  text: 'text-indigo-400',  border: 'border-indigo-500/30'  },
+  delete_question_bank:      { bg: 'bg-red-500/20',     text: 'text-red-400',     border: 'border-red-500/30'     },
+  schedule_livestream:       { bg: 'bg-sky-500/20',     text: 'text-sky-400',     border: 'border-sky-500/30'     },
+  start_livestream:          { bg: 'bg-green-500/20',   text: 'text-green-400',   border: 'border-green-500/30'   },
+  end_livestream:            { bg: 'bg-orange-500/20',  text: 'text-orange-400',  border: 'border-orange-500/30'  },
+  cancel_scheduled_livestream: { bg: 'bg-red-500/20',   text: 'text-red-400',     border: 'border-red-500/30'     },
+  kick_student_livestream:  { bg: 'bg-red-500/20',      text: 'text-red-400',     border: 'border-red-500/30'     },
+  update_stream_permissions: { bg: 'bg-blue-500/20',    text: 'text-blue-400',    border: 'border-blue-500/30'    },
+  mute_all_students:         { bg: 'bg-amber-500/20',   text: 'text-amber-400',   border: 'border-amber-500/30'   },
+  lock_livestream:           { bg: 'bg-slate-500/20',   text: 'text-slate-400',   border: 'border-slate-500/30'   },
+  award_livestream_points:  { bg: 'bg-green-500/20',    text: 'text-green-400',   border: 'border-green-500/30'   },
 };
 
 const ENTITY_ICONS = {
@@ -52,6 +69,8 @@ const ENTITY_ICONS = {
   notification: <Bell className="w-4 h-4" />,
   leaderboard:  <Trophy className="w-4 h-4" />,
   teacher:      <User className="w-4 h-4" />,
+  question_bank: <FileText className="w-4 h-4" />,
+  live_stream:  <Video className="w-4 h-4" />,
 };
 
 const ACTION_LABELS = {
@@ -86,6 +105,23 @@ const ACTION_LABELS = {
   reset_leaderboard:         'تصفير المتصدرين',
   login_teacher:             'تسجيل دخول معلم',
   login_assistant:           'تسجيل دخول مساعد',
+  device_alert_review:      'مراجعة تنبيه جهاز',
+  enroll_student:            'تسجيل طالب في كورس',
+  review_enrollment_request: 'مراجعة طلب انضمام',
+  edit_profile:              'تعديل الملف الشخصي',
+  change_password:           'تغيير كلمة المرور',
+  create_question_bank:      'إنشاء بنك أسئلة',
+  edit_question_bank:        'تعديل بنك أسئلة',
+  delete_question_bank:      'حذف بنك أسئلة',
+  schedule_livestream:       'جدولة بث مباشر',
+  start_livestream:          'بدء بث مباشر',
+  end_livestream:            'إنهاء بث مباشر',
+  cancel_scheduled_livestream: 'إلغاء بث مجدول',
+  kick_student_livestream:  'إخراج طالب من البث',
+  update_stream_permissions: 'تعديل صلاحيات بث',
+  mute_all_students:         'كتم صوت الجميع',
+  lock_livestream:           'قفل/فتح البث',
+  award_livestream_points:  'منح نقاط بالبث',
 };
 
 const ENTITY_TYPE_LABELS = {
@@ -97,6 +133,8 @@ const ENTITY_TYPE_LABELS = {
   notification: 'إشعار',
   leaderboard:  'متصدرون',
   teacher:      'معلم',
+  question_bank: 'بنك أسئلة',
+  live_stream:  'بث مباشر',
 };
 
 function formatDateTime(ts) {
@@ -365,6 +403,33 @@ export default function ActivityLog() {
               <option value="edit_assistant_perms">تعديل صلاحيات</option>
               <option value="delete_assistant">حذف مساعد</option>
             </optgroup>
+            <optgroup label="بنوك الأسئلة">
+              <option value="create_question_bank">إنشاء بنك أسئلة</option>
+              <option value="edit_question_bank">تعديل بنك أسئلة</option>
+              <option value="delete_question_bank">حذف بنك أسئلة</option>
+            </optgroup>
+            <optgroup label="البث المباشر">
+              <option value="schedule_livestream">جدولة بث مباشر</option>
+              <option value="start_livestream">بدء بث مباشر</option>
+              <option value="end_livestream">إنهاء بث مباشر</option>
+              <option value="cancel_scheduled_livestream">إلغاء بث مجدول</option>
+              <option value="kick_student_livestream">إخراج طالب من البث</option>
+              <option value="update_stream_permissions">تعديل صلاحيات بث</option>
+              <option value="mute_all_students">كتم صوت الجميع</option>
+              <option value="lock_livestream">قفل/فتح البث</option>
+              <option value="award_livestream_points">منح نقاط بالبث</option>
+            </optgroup>
+            <optgroup label="الملف الشخصي">
+              <option value="edit_profile">تعديل الملف الشخصي</option>
+              <option value="change_password">تغيير كلمة المرور</option>
+            </optgroup>
+            <optgroup label="الأجهزة">
+              <option value="device_alert_review">مراجعة تنبيه جهاز</option>
+            </optgroup>
+            <optgroup label="التسجيل في الكورسات">
+              <option value="enroll_student">تسجيل طالب في كورس</option>
+              <option value="review_enrollment_request">مراجعة طلب انضمام</option>
+            </optgroup>
             <optgroup label="أخرى">
               <option value="send_notification">إرسال إشعار</option>
               <option value="reset_leaderboard">تصفير المتصدرين</option>
@@ -382,6 +447,9 @@ export default function ActivityLog() {
             <option value="payment">دفعة</option>
             <option value="assistant">مساعد</option>
             <option value="notification">إشعار</option>
+            <option value="question_bank">بنك أسئلة</option>
+            <option value="live_stream">بث مباشر</option>
+            <option value="teacher">معلم</option>
           </select>
 
           {/* Date from */}

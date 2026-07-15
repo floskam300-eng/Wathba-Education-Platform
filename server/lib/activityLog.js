@@ -48,6 +48,22 @@ const ACTION_LABELS = {
   device_alert_review:       'مراجعة تنبيه جهاز',
   send_whatsapp_broadcast:   'إرسال رسالة واتساب جماعية',
   create_whatsapp_schedule:  'إنشاء جدولة واتساب',
+  enroll_student:            'تسجيل طالب في كورس',
+  review_enrollment_request: 'مراجعة طلب انضمام لكورس',
+  edit_profile:              'تعديل الملف الشخصي',
+  change_password:           'تغيير كلمة المرور',
+  create_question_bank:      'إنشاء بنك أسئلة',
+  edit_question_bank:        'تعديل بنك أسئلة',
+  delete_question_bank:      'حذف بنك أسئلة',
+  schedule_livestream:       'جدولة بث مباشر',
+  start_livestream:          'بدء بث مباشر',
+  end_livestream:            'إنهاء بث مباشر',
+  cancel_scheduled_livestream: 'إلغاء بث مجدول',
+  kick_student_livestream:  'إخراج طالب من البث',
+  update_stream_permissions: 'تعديل صلاحيات طالب في البث',
+  mute_all_students:         'كتم صوت جميع الطلاب',
+  lock_livestream:           'قفل/فتح البث المباشر',
+  award_livestream_points:  'منح نقاط أثناء البث',
 };
 
 async function logActivity({ teacherId, actor, action, entity = {}, details = null, ip = null }) {
