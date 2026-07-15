@@ -1,190 +1,375 @@
-# خطة تحسين الأداء الشاملة — منصة وثبة (WATHBA)
-### الهدف: أعلى استفادة من Hostinger VPS **KVM 4** (4 vCPU / 16GB RAM / 200GB NVMe) + كود Clean & Optimized
+# خطة تحسين الأداء — منصة وثبة (WATHBA)
+### الهدف: أعلى استفادة من Hostinger VPS **KVM 4** (4 vCPU / 16GB RAM / 200GB NVMe)
 
-> تاريخ التحليل: 2026-07-15
-> نطاق التحليل: كامل الـ backend (`server/`)، الـ frontend (`client/`)، الـ schema، وبيئة الـ deployment الحالية (Docker + Cloudflare Tunnel، راجع `docs/DEPLOYMENT_GUIDE_VPS.md`).
-
----
-
-## 0) ملخص تنفيذي
-
-المنصة مبنية بشكل سليم معماريًا (soft-deletes، rate limiting، caching جزئي، migrations، تدقيقات أمان سابقة موثقة في `.agents/memory/`)، لكنها حاليًا:
-- تعمل بـ **Node process واحد فقط** على سيرفر بـ 4 أنوية — أي 3 أنوية معطّلة تمامًا وقت التشغيل الطبيعي.
-- تعتمد على **state داخل الذاكرة (in-memory Maps)** في أكثر من مكان حرج (SSE viewers، WhatsApp sessions، rate-limit counters، analytics/permissions cache) — وهذا **يمنع** التوسّع لأكثر من process واحد بدون إعادة هيكلة.
-- فيها استعلامات DB غير محسّنة (N+1، `SELECT *`، استعلامات بلا `LIMIT`) على جداول متنامية.
-- الـ frontend يحمّل الكل في bundle واحد (لا `React.lazy`)، وفيه polling بفواصل قصيرة (5–30 ثانية) بدل الاعتماد الكامل على SSE الموجود فعليًا.
-- لا يوجد ضبط لـ PostgreSQL يستفيد من الـ 16GB RAM المتاحة (still على القيم الافتراضية لـ `postgres:16-alpine`).
-
-الخطة أدناه مقسّمة لمراحل بالأولوية، كل بند فيه: المكان بالكود، المشكلة، والحل المحدد.
+> آخر تحديث: 2026-07-15
+> المصدر: تدقيق كامل على الكود (backend + frontend + schema) + قياس أنماط الاستعلامات الفعلية
 
 ---
 
-## 1) قيود معمارية يجب معرفتها قبل أي تغيير (اقرأها أولاً)
+## 0) ما تم تطبيقه بالفعل ✅
 
-هذه نقاط **تمنع** حلول سطحية زي "شغّل PM2 cluster وخلص" بدون تعديل مرافق:
+البنود التالية مُطبَّقة ومغلقة — لا تحتاج عمل:
+
+| البند | التفاصيل |
+|---|---|
+| Pool size رُفع لـ 20 + timeouts صريحة | `server/db/connection.js` |
+| Migration loop → single UPDATE | `server/index.js` |
+| Broadcast WhatsApp مع `waSendDelay()` | `server/routes/whatsapp.js` |
+| Notifications SELECT محدد الأعمدة + LIMIT 100 | `server/routes/notifications.js` |
+| Video progress LIMIT 15 | `server/routes/students.js` |
+| Dashboard analytics → SQL aggregation بدل fetch-all | `server/routes/teachers.js` |
+| SELECT * أُزيل من exams + recitations queries | `server/routes/exams.js`, `recitations.js` |
+| Magic-byte check → async | `server/lib/validateFileMagic.js` |
+| analyticsCache مفعّل على course-stats + recitation analytics | `server/routes/teachers.js` |
+| `idx_live_chat_stream_sent` composite index | `server/db/schema.sql` |
+| `idx_live_streams_status` index | `server/db/schema.sql` |
+| compression() middleware | `server/index.js` |
+| GET /health endpoint | `server/index.js` |
+| postgres.conf مضبوط لـ 16GB RAM + مربوط في docker-compose | `postgres.conf`, `docker-compose.yml` |
+| React.lazy على كل الصفحات | `client/src/App.jsx` |
+| manualChunks: echarts, firebase, pdfjs, livekit | `client/vite.config.js` |
+| xlsx → dynamic import | `client/src/pages/teacher/Students.jsx` |
+| staleTime موحّد 5 دقائق في QueryClient | `client/src/main.jsx` |
+| Bulk import طلاب → batch EXISTS check + parallel bcrypt + unnest INSERT | `server/routes/teachers.js` |
+| Retention scheduler يشمل exam_results + recitation_results | `server/scheduler.js` |
+| `loading="lazy" decoding="async"` على صور المحتوى | ExamQuestions, Recitations, QuestionBanks... |
+| WhatsApp history polling: 5s → 30s | `client/src/components/WhatsAppTab.jsx` |
+
+---
+
+## 1) قيود معمارية — يجب قراءتها قبل أي تغيير
 
 | المكوّن | الموقع | القيد |
 |---|---|---|
-| SSE / live-stream viewers | `server/index.js` (SSE clients)، `server/routes/live.js` (`viewerCache`, `leaveTicketMap`, `chatRateMap`, `tokenRateMap`, `handRateMap`) | كل هذا `Map()` محلي داخل الـ process. مع أكثر من instance، الطالب المتصل بـ instance A لن يستقبل event لو الحدث حصل على instance B. |
-| WhatsApp (Baileys) | `server/lib/whatsapp.js` (`connections` Map) + ملفات session في `whatsapp-sessions/` | جلسة WhatsApp per-teacher **stateful** ومربوطة بملفات على القرص وباتصال socket مفتوح — **لا يجوز** تشغيلها على أكثر من process/instance في نفس الوقت (سيحصل تعارض في الجلسة أو قطع اتصال). |
-| Analytics / Permissions cache | `server/lib/analyticsCache.js`, `server/lib/permissionsCache.js` | Cache محلي بالذاكرة — يعمل صح مع process واحد فقط؛ مع أكثر من process يصبح غير متسق (كل process له نسخة كاش مختلفة). |
-| File-access cache | `server/index.js:119` (`_fileAccessCache`) | نفس المشكلة — TTL cache محلي. |
+| SSE / live-stream viewers | `server/index.js`, `server/routes/live.js` | كل `Map()` محلي — مع أكثر من process، الأحداث لا تصل للـ instance الصح |
+| WhatsApp (Baileys) | `server/lib/whatsapp.js` | Session stateful مربوطة بالقرص — process واحد فقط |
+| Analytics / Permissions cache | `server/lib/analyticsCache.js`, `server/lib/permissionsCache.js` | Cache محلي — غير متسق مع أكثر من process |
+| File-access cache | `server/index.js` (`_fileAccessCache`) | نفس المشكلة |
 
-**القرار المعماري الموصى به لـ KVM4:**
-- **لا** تُشغّل عدة نسخ Node عشوائيًا. الاستراتيجية الصحيحة للاستفادة من 4 الأنوية بدون كسر الحالة المشتركة:
-  1. **قصير المدى (لا تغيير هيكلي):** عملية Node واحدة، لكن بضبط event-loop نظيف (إزالة أي كود متزامن/blocking) + Postgres مضبوط جيدًا يستخدم باقي الأنوية والـ RAM لتنفيذ الاستعلامات بالتوازي. هذا يعطي أغلب الفايدة بأقل خطر.
-  2. **متوسط المدى (اختياري، فيه هيكلة):** فصل عملية WhatsApp (Baileys) في service منفصل (Node process ثاني ثابت العدد = 1)، وتشغيل باقي الـ API عبر PM2 **cluster mode** (2–3 workers) بعد نقل الحالة المشتركة (SSE viewers، rate-limit counters، الكاش) إلى **Redis** بدل `Map()` المحلي. لا تفعل هذا قبل الخطوة السابقة ولا بدون Redis — التوسّع بدون نقل الحالة سيُنتج أخطاء تسجيل دخول للبث/الشات بشكل متقطع يصعب تتبعه.
+**التوصية المعمارية لـ KVM4:**
+- **قصير المدى:** process واحد + ضبط DB + إصلاح الـ queries (هذه الخطة بأكملها).
+- **متوسط المدى (اختياري):** نقل الحالة المشتركة إلى Redis ثم PM2 cluster (2–3 workers). لا تبدأ هذا قبل قياس فعلي يثبت أن CPU هو العنق الزجاجة.
 
 ---
 
-## 2) أخطاء وقضايا أداء في الـ Backend
+## 2) قاعدة البيانات — Indexes ناقصة
 
 ### 2.1 حرجة (Critical)
 
-| # | الموقع | المشكلة | الحل |
+| # | الجدول | المشكلة | الحل |
 |---|---|---|---|
-| B1 | `server/db/connection.js` (pool config) | حجم الـ pool الافتراضي (10) منخفض جدًا مقارنة بـ 4 vCPU/16GB و`statement_timeout`/`query_timeout` = 30s قد يخنق طلبات ثقيلة زي تصدير CSV | رفع `max` إلى ~20 (صيغة تقريبية: `عدد الأنوية × 2` إلى `× 4` كبداية، مع قياس فعلي بعدها)، وإضافة `idleTimeoutMillis`, `connectionTimeoutMillis` صريحة، وفصل timeout الاستعلامات الثقيلة (تصدير، تقارير) عن الافتراضي |
-| B2 | `server/index.js` (تشغيل عام) | عملية Node واحدة على 4 أنوية — 75% من الـ CPU غير مستخدم وقت الحمل العادي | تطبيق القرار المعماري في القسم (1) — الأولوية للضبط الرأسي (vertical) قبل الأفقي (horizontal) |
-| B3 | `server/routes/teachers.js:843-1064` (bulk import/sync) | حلقات `for` بها `await pool.query(...)` لكل طالب (N+1) أثناء الاستيراد الجماعي — استيراد 500 طالب = 500+ رحلة DB متتابعة | تحويلها لـ **batched INSERT** (`INSERT ... VALUES ($1,$2),($3,$4)...` أو `unnest()`) داخل transaction واحدة، أو استخدام `pg-promise` batch helpers |
-| B4 | `server/index.js:643-646` (migration loop عند الإقلاع) | حلقة migration تمشي على كل الطلاب بـ query منفصل لكل واحد وقت startup | تحويلها لاستعلام UPDATE واحد بشرط WHERE بدل حلقة، أو تشغيلها كـ one-off script بدل تنفيذها في كل إقلاع |
-| B5 | `server/routes/whatsapp.js:227` | حلقة إرسال رسائل جماعية (broadcast) تنتظر `wa.sendMessage` لكل مستلم بالتتابع — بطء شديد مع أعداد كبيرة، وخطر حظر الرقم من واتساب لو السرعة غير محسوبة | إضافة **rate-limited queue** (delay عشوائي بين كل رسالة، batch صغير + توقف، تسجيل تقدم) بدل حلقة `await` مباشرة؛ استخدام مكتبة queue خفيفة (`p-queue`) بدل حلقة يدوية |
+| DB-1 | `students.name` | كل بحث بالاسم (`ILIKE '%...%'`) يُنتج **full table scan** — B-tree index لا يفيد مع leading wildcard | تفعيل `pg_trgm` extension وإضافة GIN trigram index (شرح أدناه) |
+
+```sql
+-- يُضاف في server/db/schema.sql
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE INDEX IF NOT EXISTS idx_students_name_trgm
+  ON students USING GIN (name gin_trgm_ops);
+-- يُستخدم تلقائياً مع: WHERE name ILIKE '%محمد%'
+```
+
+> **لماذا هذا حرج؟** البحث بالاسم هو العملية الأكثر تكراراً في المنصة (students.js, whatsapp.js, archive.js). مع 500+ طالب لكل معلم وعشرات المعلمين، كل بحث يقرأ الجدول كاملاً.
 
 ### 2.2 عالية (High)
 
-| # | الموقع | المشكلة | الحل |
+| # | الجدول | المشكلة | الحل |
 |---|---|---|---|
-| B6 | `server/routes/notifications.js:179` | `SELECT *` بلا `LIMIT` على `notification_log` — الجدول سريع النمو | تحديد الأعمدة المطلوبة فقط + `LIMIT`/`pagination` (نفس نموذج `activityLogs.js` الموجود) |
-| B7 | `server/routes/students.js:942` | سحب كامل سجل تقدم الفيديو للطالب بلا `LIMIT` | Pagination أو تحديد بحد أقصى (آخر N سجل) |
-| B8 | `server/routes/teachers.js:716-727` | سحب `payments` + `enrollment` + `video_progress` لكل الطلاب تحت المعلم دفعة واحدة بلا حد — خطر استهلاك ذاكرة مع عدد طلاب كبير | Pagination على مستوى الطالب، أو تجميع (aggregate) في SQL بدل سحب كل الصفوف للتجميع في JS |
-| B9 | `server/routes/exams.js:585,1377`, `server/routes/recitations.js:1094,1239` | `SELECT *` على `questions`/`recitation_sessions` يسحب أعمدة نصية/صور ثقيلة غير مطلوبة في كل السياقات | تحديد الأعمدة صريحًا في كل استعلام حسب الاستخدام الفعلي |
-| B10 | `server/routes/recitations.js:378-380` | قراءة ملف بالتزامن (`fs.openSync/readSync/closeSync`) للتحقق من magic bytes **داخل مسار الطلب** — يوقف event loop لحظيًا لكل رفع | تحويلها لنسخة async (`fs.promises` أو stream-based magic-byte check) |
-| B11 | `server/lib/analyticsCache.js` / لوحات المعلم | لا يوجد كاش لـ leaderboard والتحليلات على صفحات لوحة التحكم رغم وجود بنية تحتية للكاش أصلًا (`analyticsCache.js`) — كل تحميل صفحة = استعلامات تجميع (`COUNT`, `SUM`, `GROUP BY`) طازجة | تفعيل/توسيع استخدام `analyticsCache` على الـ endpoints الأكثر طلبًا (leaderboard, dashboard stats) بـ TTL قصير (30–60 ثانية) — التغيير بسيط ومكسبه كبير لأنه أكثر مسار يتكرر ضغطه |
+| DB-2 | `activity_logs` | فلترة بـ `actor_id + actor_type` بدون index — الجدول ينمو بسرعة | `CREATE INDEX IF NOT EXISTS idx_activity_logs_actor ON activity_logs(actor_id, actor_type);` |
+| DB-3 | `videos` | JOIN متكرر على `section_id` في عمليات export بدون index | `CREATE INDEX IF NOT EXISTS idx_videos_section_id ON videos(section_id);` |
 
-### 2.3 متوسطة (Medium)
+### 2.3 منخفضة (Low)
 
-| # | الموقع | المشكلة | الحل |
+| # | الجدول | المشكلة | الحل |
 |---|---|---|---|
-| B12 | `server/index.js` (لوجات متعددة، مثل الأسطر حول 509, 513, 606-649) | حجم `console.log` كبير في مسارات ساخنة وعند كل إقلاع/migration | استبدال بمكتبة logging خفيفة (`pino`) بمستويات (`debug`/`info`/`warn`) تُضبط بمتغيّر بيئة، وتعطيل مستوى `debug` في production |
-| B13 | `live_streams(status)` | فلترة متكررة بلا index مخصص (`live.js:1074, 1351`) | إضافة `CREATE INDEX idx_live_streams_status ON live_streams(status);` |
-| B14 | `live_chat_messages` | ترتيب بـ `sent_at ASC` بدون composite index مع `stream_id` (`live.js:1320`) | `CREATE INDEX idx_live_chat_stream_sent ON live_chat_messages(stream_id, sent_at);` |
-| B15 | لا يوجد retention/archival لـ `notification_log`, `exam_results`, `recitation_results` | نمو غير محدود لهذه الجداول (فقط `activity_logs` له تنظيف حاليًا في `activityLogs.js:94`) | إضافة scheduler مشابه (موجود نموذجه أصلًا في `server/index.js` لبقية الـ schedulers) لأرشفة/حذف السجلات الأقدم من فترة معقولة (مثلاً نقل النتائج القديمة لجدول `_archive` بدل الحذف، حفاظًا على تاريخ الطالب) |
-| B16 | `students.points` (تحديث يدوي في أكثر من مكان، مثل `live.js:1255`) | لا يوجد قيد DB يربط `points` بمجموع مصادرها — خطر "drift" مع الوقت | إضافة job دوري (weekly) يعيد حساب/يتحقق من التطابق، أو نقل المنطق لدالة DB واحدة تُستخدم من كل نقاط المنح بدل تكرار المنطق في كل route |
+| DB-4 | `recitation_sessions` | `UNIQUE(student_id, recitation_id)` بلا اسم صريح | تحويله لـ `CREATE UNIQUE INDEX IF NOT EXISTS uq_recitation_sessions_student_rec ON recitation_sessions(student_id, recitation_id)` في schema.sql |
+| DB-5 | `students` | `idx_students_username` (B-tree عادي) **زائد تماماً** مع وجود `uq_students_username_active` | حذف `idx_students_username` — الـ Postgres لا يستخدمهما معاً وهو استهلاك إضافي في الكتابة |
 
 ---
 
-## 3) قاعدة البيانات (PostgreSQL) — استفادة من 16GB RAM
+## 3) نظام البحث (Search)
 
-الصورة الحالية: `postgres:16-alpine` بالقيم الافتراضية (مبنية لأجهزة صغيرة جدًا، غالبًا `shared_buffers=128MB`). هذا **أكبر فرصة أداء غير مستغلة** على KVM4.
+### الوضع الحالي
 
-أضف ملف `postgres.conf` مخصص ومونته في `docker-compose.yml` (خدمة `db`) بقيم مبدئية معقولة لـ 16GB RAM مخصصة جزئيًا للـ DB (نفترض ~4GB للـ Postgres لأن الـ 16GB مشتركة مع Node + الحاويات الأخرى):
+**البحث server-side مع pagination ✅** — مطبّق بشكل صح على:
+- قائمة الطلاب الكاملة (`GET /students`)
+- الأرشيف (`GET /archive/exams`, `/archive/recitations`)
+- سجل النشاط (`GET /activity-logs`)
 
-```conf
-# postgres.conf — قيم مبدئية لـ VPS بـ 16GB RAM (نصيب DB ~4GB)
-shared_buffers = 1GB              # ~25% من نصيب DB
-effective_cache_size = 3GB        # ~75% من نصيب DB
-work_mem = 16MB                   # لكل عملية sort/hash — احذر الرفع الزائد مع تعدد الاتصالات
-maintenance_work_mem = 256MB
-max_connections = 60              # يتماشى مع pool الجديد (20) + هامش أدوات إدارية
-random_page_cost = 1.1            # القرص NVMe سريع، خليه قريب من SSD/NVMe لا HDD
-effective_io_concurrency = 200
-checkpoint_completion_target = 0.9
-wal_buffers = 16MB
-```
+**المشكلة الجوهرية: كل البحث النصي يستخدم ILIKE بدون trigram**
 
-**تعديل `docker-compose.yml`:**
-```yaml
-  db:
-    image: postgres:16-alpine
-    volumes:
-      - pg_data:/var/lib/postgresql/data
-      - ./postgres.conf:/etc/postgresql/postgresql.conf
-    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
-```
-
-بعد التطبيق، قِس الأداء بـ `EXPLAIN ANALYZE` على أثقل 5 استعلامات (لوحة المعلم، leaderboard، تقارير) وضبط `work_mem`/`shared_buffers` حسب النتائج الفعلية بدل تركها نظرية.
-
-### فهارس مطلوبة (تُضاف في `server/db/schema.sql` كملحق migration، لا تُعدَّل الجداول الأساسية القديمة مباشرة):
 ```sql
-CREATE INDEX IF NOT EXISTS idx_live_streams_status ON live_streams(status);
-CREATE INDEX IF NOT EXISTS idx_live_chat_stream_sent ON live_chat_messages(stream_id, sent_at);
+-- النمط الحالي في كل الـ routes — غير فعّال مع leading wildcard
+WHERE s.name ILIKE '%' || $1 || '%'
+WHERE e.title ILIKE '%' || $1 || '%'
 ```
+
+الـ B-tree index لا يُستخدم مع `%query%` — النتيجة: Sequential Scan على الجدول بالكامل في كل بحث. بعد تفعيل `pg_trgm` في DB-1 أعلاه، نفس الاستعلام يعمل تلقائياً بدون تعديل في الكود.
+
+### Client-Side Filtering — خطر مستقبلي
+
+| الصفحة | البيانات | الخطر |
+|---|---|---|
+| `client/src/pages/teacher/Payments.jsx` | **كل مدفوعات** المعلم (بلا pagination) | مع 1000+ دفعة: الـ browser يفلتر كل البيانات على كل ضغطة مفتاح |
+| `client/src/pages/teacher/Analytics.jsx` | كل الطلاب + نتائجهم | نفس المشكلة مع عدد طلاب كبير |
+
+الحل طويل المدى: نقل الفلترة لـ server-side مع query params + pagination (نفس نموذج archive.js).
 
 ---
 
-## 4) الـ Frontend (React + Vite)
+## 4) الـ Backend — Requests غير محسَّنة
+
+### 4.1 حرجة (Critical)
+
+#### R-1: لوحة تحكم المعلم — 16 query في كل تحميل، بدون cache
+
+**الموقع:** `server/routes/teachers.js:29–47` و`322–370`
+
+```javascript
+// يُنفَّذ في كل فتح للداشبورد — بدون أي cache
+Promise.all([
+  COUNT(students),              // 1
+  COUNT(courses),               // 2
+  COUNT(exams),                 // 3
+  COUNT(assistants),            // 4
+  SUM(payments WHERE verified), // 5 — subquery داخلي
+  COUNT(enrollment_requests pending), // 6
+  COUNT(payments pending),      // 7
+  COUNT(retry_requests pending),// 8
+  // ثم Promise.all آخر:
+  COUNT(students) مرة ثانية,   // 9 — تكرار
+  top_students,                 // 10
+  recent_results,               // 11
+  stage_distribution,           // 12
+  gender_distribution,          // 13
+  course_stats (loop),          // 14+
+  recitations_analytics,        // 15+
+  ...                           // 16+
+])
+```
+
+**الحل:** تطبيق `getCached/setCache` من `analyticsCache.js` على هذا الـ endpoint بـ TTL = 60 ثانية. البنية التحتية موجودة — فقط يحتاج wrapping.
+
+```javascript
+// في /dashboard handler:
+const cacheKey = `t${teacherId}_dashboard_v1`;
+const cached = getCached(cacheKey);
+if (cached) return res.json(cached);
+// ... run all queries ...
+setCache(cacheKey, payload, 60_000); // 60 ثانية
+```
+
+**الأثر المتوقع:** من 16 DB round-trips لكل طلب → 0 round-trips لمدة 60 ثانية.
+
+#### R-2: إحصائيات الأدمن — Full table scans بدون cache
+
+**الموقع:** `server/routes/admin.js:974–1007`
+
+```javascript
+// في كل طلب لصفحة /stats — بلا cache
+COUNT(all teachers)    // full scan
+COUNT(all students)    // full scan
+COUNT(subscriptions)   // full scan
+SUM(revenue)           // full scan
+```
+
+**الحل:** cache بـ TTL = 5 دقائق (إحصائيات الأدمن لا تحتاج تحديثاً فورياً).
+
+---
+
+### 4.2 عالية (High)
+
+#### R-3: N+1 في badge check أثناء video progress
+
+**الموقع:** `server/routes/students.js:928–934`
+
+```javascript
+// لكل فيديو في الكورس = query منفصل
+for (const videoId of videoIds) {
+  await pool.query(
+    'SELECT id FROM badges WHERE student_id=$1 AND video_id=$2',
+    [studentId, videoId]
+  );
+}
+// 10 فيديوهات = 10 queries متتابعة
+```
+
+**الحل:** query واحد بـ `WHERE video_id = ANY($2::int[])` قبل الحلقة.
+
+#### R-4: `SELECT *` في تسجيل الدخول
+
+**الموقع:** `server/routes/auth.js:155`
+
+```sql
+-- يُنفَّذ في كل محاولة دخول
+SELECT * FROM students WHERE username=$1 AND teacher_id=$2
+-- يجيب password_hash + force_password_change + device_ids + كل الأعمدة
+```
+
+**الحل:** تحديد الأعمدة المطلوبة فعلاً للـ auth فقط (`id, username, password, name, teacher_id, is_suspended, force_password_change, ...`).
+
+#### R-5: `SELECT *` على badges بدون LIMIT
+
+**الموقع:** `server/routes/students.js:962`
+
+```sql
+SELECT * FROM badges WHERE student_id=$1 ORDER BY earned_at DESC
+-- بلا LIMIT — كل شارات الطالب منذ البداية
+```
+
+**الحل:** أعمدة محددة + `LIMIT 50`.
+
+#### R-6: حساب الـ Rank في الصفحة العامة — بدون cache
+
+**الموقع:** `server/routes/public.js:139`
+
+```sql
+-- يُنفَّذ في كل طلب لصفحة أولياء الأمور
+SELECT COUNT(*)+1 AS rank FROM students
+WHERE points > $1 AND teacher_id=$2 AND deleted_at IS NULL
+```
+
+الصفحة العامة مفتوحة لأولياء الأمور الذين يفتحونها بشكل متكرر. Cache بـ TTL = 2 دقيقة كافٍ.
+
+---
+
+### 4.3 متوسطة (Medium)
+
+#### R-7: Queries متتالية يمكن تحويلها لـ Promise.all
+
+**الموقع:** `server/routes/exams.js:264, 278, 291`
+
+```javascript
+// sequential حالياً
+const exam   = await pool.query(...);  // ثم
+const count  = await pool.query(...);  // ثم
+const bank   = await pool.query(...);
+// هذه الثلاثة مستقلة تماماً → يمكن Promise.all
+```
+
+نفس النمط في `server/routes/courses.js:990, 999`.
+
+#### R-8: Queries متكررة بدون cache — Public profile stats
+
+**الموقع:** `server/routes/public.js:37–40`
+
+```javascript
+// كل طلب للصفحة العامة للمعلم (قد يكون مئات الزيارات يومياً)
+COUNT(students), COUNT(courses), COUNT(exams)
+// بلا cache — نفس الأرقام لكل زائر
+```
+
+**الحل:** cache بـ TTL = 5 دقائق.
+
+#### R-9: `SELECT *` في LATERAL join على recitations
+
+**الموقع:** `server/routes/recitations.js:512`
+
+```sql
+SELECT * FROM recitation_results rr2
+WHERE rr2.student_id=$1 AND rr2.recitation_id=r.id ...
+ORDER BY rr2.created_at DESC LIMIT 1
+-- الـ LIMIT 1 يخفف الأثر، لكن لا يزال يجيب كل الأعمدة
+```
+
+**الحل:** تحديد الأعمدة المطلوبة فقط.
+
+#### R-10: Export بلا LIMIT safety net
+
+**الموقع:** `server/routes/teachers.js:741`
+
+```sql
+SELECT ... FROM students WHERE teacher_id=$1
+-- للتصدير CSV — بلا LIMIT → خطر استهلاك ذاكرة مع آلاف الطلاب
+```
+
+**الحل:** `LIMIT 10000` كحد أقصى + إشعار في الـ response لو الرقم تخطاه.
+
+---
+
+## 5) الـ Frontend — مشاكل متبقية
 
 | # | الملف | المشكلة | الحل |
 |---|---|---|---|
-| F1 | `client/src/App.jsx` | كل الصفحات (40+) مستوردة بشكل static — bundle واحد ضخم | تحويل كل صفحة route لـ `React.lazy(() => import('./pages/...'))` + `<Suspense fallback={...}>` حول الـ Router. هذا أعلى أثر أداء ممكن على الواجهة بأقل مجهود |
-| F2 | `client/vite.config.js` | لا `manualChunks` — مكتبات ثقيلة (`echarts`, `firebase`, `pdfjs-dist`, `livekit-client`) تدخل ضمن كل الصفحات | إضافة `build.rollupOptions.output.manualChunks` تفصل: `vendor-echarts`, `vendor-firebase`, `vendor-pdf`, `vendor-livekit` — كل واحدة تُحمّل فقط مع الصفحة التي تحتاجها |
-| F3 | `xlsx`, `jspdf` (استخدام في `client/src/lib/pdfReport.js` وغيره) | مستوردة بشكل ثابت حتى لو المستخدم لم يفتح شاشة التصدير أبدًا | تحويلها لـ dynamic import (`const { default: jsPDF } = await import('jspdf')`) وقت الحاجة فقط (عند الضغط على "تصدير") |
-| F4 | صور `<img>` في كل الصفحات (لا `loading="lazy"` باستثناء prop منفصل بنفس الاسم في `WhatsAppTab.jsx`) | كل الصور تُحمّل فورًا حتى لو خارج الشاشة | إضافة `loading="lazy"` + `decoding="async"` على كل صور المحتوى غير الحرجة (شعارات صغيرة/أفاتار تبقى عادية) |
-| F5 | React Query — `staleTime: 0` في `Payments.jsx`, `Courses.jsx` وتباين كبير في باقي الصفحات | إعادة جلب عدوانية عند كل تركيز نافذة | توحيد `staleTime` الافتراضي (مثلاً 30–60 ثانية) في `QueryClient` المركزي، مع استثناءات صريحة فقط للشاشات الحساسة (المدفوعات المباشرة وقت المراجعة) |
-| F6 | Polling بفواصل قصيرة: `Students.jsx` (30-60s)، `Courses.jsx` (20-30s)، `WhatsAppTab.jsx` (5s) | حمل متكرر على السيرفر بلا داعٍ رغم وجود بنية SSE فعلية (`useSSE.js`) | استبدال الـ polling القصير (وخصوصًا 5 ثانية) بالاعتماد على event عبر SSE الموجود، والاحتفاظ بـ polling طويل (60s+) فقط كـ fallback احتياطي |
-| F7 | غياب `React.memo`/`useCallback`/`useMemo` في قوائم كبيرة (طلاب، نتائج، سجل نشاط) | إعادة render غير ضرورية لعناصر القوائم الطويلة | تطبيق `React.memo` على مكوّنات الصفوف (`StudentRow`, `LogRow`, ...) + `useCallback` للـ handlers المُمرَّرة كـ props لهذه الصفوف |
+| F-1 | `Payments.jsx` | Client-side filtering على كل المدفوعات | نقل البحث لـ server-side مع query params (أولوية متوسطة) |
+| F-2 | `Analytics.jsx` | Client-side filtering على قوائم الطلاب | نفس الحل — أو على الأقل debounce 300ms على input البحث |
+| F-3 | قوائم الطلاب الطويلة | لا يوجد `React.memo` على row components — إعادة render غير ضرورية عند أي تغيير في state الصفحة | `React.memo` على مكوّنات الصفوف المستقلة — مفيد بعد نقل الصفوف لملفات منفصلة |
 
 ---
 
-## 5) البنية التحتية والنشر (VPS / Docker)
-
-الوضع الحالي موصوف في `docs/DEPLOYMENT_GUIDE_VPS.md`: Docker Compose (app + db + admin) خلف **Cloudflare Tunnel** (فلا حاجة لـ nginx/SSL محلي — الـ Tunnel يتولى TLS والتوجيه من الإنترنت للخادم).
+## 6) البنية التحتية — مشاكل متبقية
 
 | # | البند | الحالة | الحل |
 |---|---|---|---|
-| I1 | Gzip/Brotli compression | غير مفعّل على مستوى Express (لا `compression` middleware) | إضافة `app.use(compression())` في `server/index.js` قبل الـ routes — تأثير فوري على حجم الردود (JSON APIs + أي static لم يخدمه Cloudflare cache) |
-| I2 | استغلال الأنوية | Node process واحد فقط | تطبيق التوصية المعمارية في القسم (1) — أولوية لضبط Postgres والاستعلامات أولًا، ثم تقييم PM2/فصل خدمات لاحقًا |
-| I3 | Health check | لا يوجد `/health` مخصص في `server/index.js` — فقط `pg_isready` على مستوى Compose | إضافة `GET /health` يرجع حالة DB (`SELECT 1`) وحالة WhatsApp connections، ليُستخدم مع Uptime monitoring خارجي |
-| I4 | Logging / rotation | `console.log` مباشر بلا rotation | التحويل لـ `pino` (أو `winston`) + `docker-compose.yml`: `logging: { driver: "json-file", options: { max-size: "10m", max-file: "3" } }` لكل خدمة، لمنع امتلاء القرص بمرور الوقت |
-| I5 | نسخ احتياطي | لا استراتيجية backup موثقة لـ Postgres أو `/uploads` | إضافة سكريبت cron يومي: `pg_dump` مضغوط + `rsync`/`tar` لمجلد `uploads_data` إلى تخزين خارجي (أو حساب S3-compatible)، مع الاحتفاظ بآخر 7-14 نسخة |
-| I6 | ضبط Postgres للـ RAM | القيم الافتراضية لـ `postgres:16-alpine` (مبنية لأجهزة صغيرة) | انظر القسم (3) أعلاه |
-| I7 | مراقبة الموارد | لا أداة مراقبة CPU/RAM/Disk للـ VPS | تركيب أداة خفيفة (`netdata` أو `docker stats` + تنبيه بسيط عبر cron+webhook) لرصد استهلاك الموارد بعد كل تغيير في هذه الخطة، للتحقق الفعلي من الأثر |
+| I-1 | Logging / rotation | `console.log` مباشر بلا rotation | `pino` أو `winston` + `docker-compose logging` بـ `max-size: 10m, max-file: 3` لكل خدمة |
+| I-2 | Backup | لا استراتيجية backup موثقة | cron يومي: `pg_dump` مضغوط + `rsync` لـ `uploads_data` إلى تخزين خارجي |
+| I-3 | مراقبة الموارد | لا أداة مراقبة | `netdata` أو `docker stats` + تنبيه بسيط لرصد CPU/RAM/Disk |
+| I-4 | استغلال الأنوية | Node process واحد على 4 vCPU | راجع القسم (1) — الأولوية لـ DB + cache أولاً |
 
 ---
 
-## 6) خارطة التنفيذ بالأولوية (Roadmap)
+## 7) خارطة التنفيذ بالأولوية
 
-### المرحلة 1 — إصلاحات سريعة منخفضة الخطر (أسبوع 1)
-- [ ] B1: رفع pool size + timeouts منفصلة
-- [ ] B6, B7, B8, B9: تحديد أعمدة الاستعلامات + إضافة LIMIT/pagination
-- [ ] B10: تحويل magic-byte check لـ async
-- [ ] B13, B14: إضافة الفهارس الناقصة
-- [ ] I1: تفعيل `compression` middleware
-- [ ] F1: `React.lazy` على كل الصفحات (أعلى أثر ممكن بأقل كود)
-- [ ] F4: `loading="lazy"` على الصور
-- [ ] F5: توحيد `staleTime`
+### المرحلة 1 — أداء فوري، خطر منخفض (أسبوع 1)
 
-### المرحلة 2 — أداء الخادم والتخزين (أسبوع 2)
-- [ ] B3, B4, B5: تحويل حلقات N+1 لـ batch operations / queue
-- [ ] B11: تفعيل `analyticsCache` على لوحات المعلم/leaderboard
-- [ ] القسم (3): ضبط `postgres.conf` كامل + قياس بـ `EXPLAIN ANALYZE`
-- [ ] F2, F3: manualChunks + dynamic imports للمكتبات الثقيلة
-- [ ] F6: استبدال polling القصير بـ SSE
+- [ ] **DB-1:** `pg_trgm` extension + GIN index على `students.name` — أعلى أثر واحد ممكن
+- [ ] **DB-2:** `idx_activity_logs_actor`
+- [ ] **DB-3:** `idx_videos_section_id`
+- [ ] **R-1:** Cache لوحة المعلم (TTL 60s) — يُنهي 16 query لكل فتح صفحة
+- [ ] **R-2:** Cache إحصائيات الأدمن (TTL 5min)
+- [ ] **R-6:** Cache public rank (TTL 2min)
+- [ ] **R-8:** Cache public profile stats (TTL 5min)
+
+### المرحلة 2 — تنظيف الـ queries (أسبوع 2)
+
+- [ ] **R-3:** إزالة N+1 في badge check → `ANY($2::int[])`
+- [ ] **R-4:** `SELECT *` في auth login → أعمدة محددة
+- [ ] **R-5:** `SELECT *` على badges → أعمدة محددة + `LIMIT 50`
+- [ ] **R-7:** Queries متتالية → `Promise.all` في exams.js + courses.js
+- [ ] **R-9:** `SELECT *` في recitations LATERAL → أعمدة محددة
+- [ ] **R-10:** Export → `LIMIT 10000` safety net
+- [ ] **DB-4:** تسمية `recitation_sessions` UNIQUE index صراحةً
+- [ ] **DB-5:** حذف `idx_students_username` الزائد
 
 ### المرحلة 3 — بنية تحتية وعمليات (أسبوع 3)
-- [ ] I3: endpoint صحة `/health`
-- [ ] I4: تحويل logging لـ `pino` + log rotation في Compose
-- [ ] I5: سكريبت backup تلقائي (DB + uploads)
-- [ ] I7: مراقبة موارد VPS
-- [ ] B12: تقليل console.log في المسارات الساخنة
 
-### المرحلة 4 — توسّع أفقي (اختياري، لاحقًا فقط إذا الحمل يتطلبه)
-- [ ] نقل الحالة المشتركة (SSE viewers، rate-limit counters، caches) إلى Redis
-- [ ] فصل خدمة WhatsApp (Baileys) في process/container منفصل بعدد ثابت = 1
-- [ ] تشغيل باقي الـ API بـ PM2 cluster mode (2-3 workers) بعد التأكد من نقل كل الحالة المحلية
+- [ ] **I-1:** Logging → pino + log rotation في docker-compose
+- [ ] **I-2:** Backup script تلقائي (DB + uploads)
+- [ ] **I-3:** مراقبة موارد VPS
+- [ ] **F-1/F-2:** نقل Payments + Analytics filtering لـ server-side
 
-> **لا تبدأ المرحلة 4 قبل قياس فعلي يوضح أن CPU الخادم أصبح هو العنق الزجاجة بعد تطبيق المراحل 1-3.** في أغلب حالات هذا النوع من التطبيقات (I/O-bound، أغلب الوقت بانتظار DB/الشبكة)، ضبط DB + الاستعلامات + الـ frontend يغطي الحمل المتوقع على KVM4 بدون الحاجة لتعقيد التوسّع الأفقي.
+### المرحلة 4 — توسّع أفقي (اختياري — لاحقاً فقط إذا الحمل يتطلبه)
 
----
+> **لا تبدأ هذه المرحلة قبل قياس فعلي يثبت أن CPU هو العنق الزجاجة بعد المراحل 1–3.**
 
-## 7) طريقة التحقق من الأثر بعد كل مرحلة
-
-- **قبل/بعد كل مرحلة:** قياس زمن استجابة أهم 5 مسارات (`/api/students`, `/api/teachers/dashboard-stats`, `/api/exams`, `/api/activity-logs`, صفحة تسجيل الدخول) بأداة بسيطة (`autocannon` أو `k6`) بحمل ثابت (مثلاً 50 مستخدم متزامن لمدة 30 ثانية).
-- **حجم الـ bundle:** `npm run build` في `client/` وفحص حجم `dist/` قبل وبعد المرحلة 1 (يجب أن ينخفض حجم الـ chunk الأولي بشكل ملحوظ بعد `React.lazy` + `manualChunks`).
-- **استهلاك DB:** `EXPLAIN ANALYZE` على الاستعلامات المذكورة في القسم (2) و(3) قبل وبعد إضافة الفهارس/تحديد الأعمدة.
-- **استهلاك الموارد:** `docker stats` قبل وبعد كل مرحلة لمقارنة استخدام CPU/RAM الفعلي على الـ VPS.
+- [ ] نقل SSE viewers + rate-limit counters + caches إلى **Redis**
+- [ ] فصل خدمة WhatsApp (Baileys) في process/container منفصل (عدد ثابت = 1)
+- [ ] تشغيل الـ API بـ PM2 cluster mode (2–3 workers) بعد نقل كل الحالة المحلية
 
 ---
 
-## 8) ملاحظة على النطاق
+## 8) طريقة قياس الأثر
 
-هذه الخطة تغطي الأداء والبنية التحتية فقط. الأخطاء الوظيفية/الأمنية في المنصة (صلاحيات، تحقق من المدخلات، إلخ) تمت تغطيتها بشكل مستقل في تدقيقات سابقة موثقة في `.agents/memory/` (أكثر من 15 جولة تدقيق شاملة على الطلاب، الاختبارات، التسميعات، البث المباشر، المدفوعات، سجل النشاط). لم تُكتشف في هذا التحليل أي ثغرة أمنية أو خطأ وظيفي جديد لم يُغطَّ سابقًا؛ التركيز هنا كان حصريًا على الأداء والاستعداد لبيئة KVM4.
+```bash
+# قبل/بعد كل مرحلة — قياس زمن أهم 5 مسارات
+autocannon -c 50 -d 30 https://your-domain/api/students
+autocannon -c 50 -d 30 https://your-domain/api/teachers/dashboard
+autocannon -c 50 -d 30 https://your-domain/api/exams
+autocannon -c 50 -d 30 https://your-domain/api/activity-logs
+autocannon -c 50 -d 30 https://your-domain/api/archive/exams
+
+# قبل/بعد DB-1 (pg_trgm)
+EXPLAIN ANALYZE SELECT * FROM students WHERE name ILIKE '%محمد%' AND teacher_id=1;
+-- يجب أن يتحول من Seq Scan → Bitmap Index Scan
+
+# حجم الـ bundle
+cd client && npm run build
+# فحص dist/assets — الـ chunk الأولي يجب أن يكون < 200KB gzipped
+```
+
+---
+
+## 9) ملاحظات
+
+- **الأخطاء الوظيفية والأمنية** تمت تغطيتها في أكثر من 30 جولة تدقيق موثقة في `.agents/memory/` — هذا الملف يركز على الأداء فقط.
+- **pg_trgm** آمن تماماً للإضافة على قاعدة بيانات production — `CREATE EXTENSION IF NOT EXISTS` لا يؤثر على الجداول أو البيانات الموجودة.
+- **Cache TTLs** المقترحة (60s–5min) مبنية على طبيعة البيانات: إحصائيات التجميع لا تتغير بشكل فوري، وأي invalidation منطقي ممكن إضافته لاحقاً على mutation endpoints.
