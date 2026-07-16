@@ -214,6 +214,7 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
 
   const [playing,      setPlaying]      = useState(false);
   const [buffering,    setBuffering]    = useState(true);
+  const [ytError,      setYtError]      = useState(null);
   const [progress,     setProgress]     = useState(0);
   const [duration,     setDuration]     = useState(0);
   const [currentTime,  setCurrentTime]  = useState(0);
@@ -279,12 +280,11 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
   }, []);
 
   /* ── initialise / destroy player ── */
-  // controls:0 hides ALL YouTube chrome — title, channel, logo, "Watch on YouTube".
-  // This is the ONLY way to fully prevent the student from clicking through to
-  // youtube.com and stealing the URL. We render our own minimal controls instead.
   useEffect(() => {
     if (!ytId) return;
 
+    setYtError(null);
+    setBuffering(true);
     const startPos = initialPositionRef.current > 5 ? Math.floor(initialPositionRef.current) : 0;
     const savedVol   = loadVolume();
     const savedSpeed = loadSpeed();
@@ -300,7 +300,11 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
         videoId: ytId,
         playerVars: {
           autoplay: 1,
-          controls: 0,          // ← hide ALL YouTube chrome (no link-theft vectors)
+          // controls:0 was deprecated by YouTube for non-partners (post-2023) and
+          // causes the player to stall indefinitely. We use controls:1 instead —
+          // YouTube's native UI is harmless because the click-interceptor overlay
+          // (z-index 10) sits on top of the iframe and absorbs all pointer events.
+          controls: 1,
           disablekb: 1,
           fs: 0,
           modestbranding: 1,
@@ -308,6 +312,7 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
           iv_load_policy: 3,
           playsinline: 1,
           cc_load_policy: 0,
+          origin: window.location.origin,
           start: startPos,
         },
         events: {
@@ -387,6 +392,16 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
                 } catch (_) {}
               }
             }
+          },
+          onError: (e) => {
+            // YouTube error codes: 2=bad videoId, 5=HTML5 error,
+            // 100=not found/private, 101/150=embedding disabled by owner.
+            setBuffering(false);
+            setPlaying(false);
+            const msg = (e.data === 150 || e.data === 101)
+              ? 'هذا الفيديو لا يسمح بتضمينه خارج YouTube — تواصل مع المعلم لتحديث الرابط.'
+              : 'حدث خطأ أثناء تحميل الفيديو. حاول مرة أخرى أو تواصل مع المعلم.';
+            setYtError(msg);
           },
         },
       });
@@ -539,7 +554,7 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
     >
       <FloatingWatermark name={studentName} code={studentCode} />
 
-      {/* YouTube iframe — full size. controls:0 hides all chrome. */}
+      {/* YouTube iframe — full size, overlaid by click interceptor so native controls are unreachable. */}
       <div
         id={playerDivId}
         className="absolute inset-0 w-full h-full"
@@ -570,9 +585,19 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
       )}
 
       {/* Buffering spinner */}
-      {buffering && (
+      {buffering && !ytError && (
         <div className="absolute inset-0 flex items-center justify-center" style={{ zIndex: 20, pointerEvents: 'none' }}>
           <div className="w-12 h-12 border-4 border-white/20 border-t-orange-500 rounded-full animate-spin" />
+        </div>
+      )}
+
+      {/* YouTube error message */}
+      {ytError && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/80" style={{ zIndex: 20, pointerEvents: 'none' }}>
+          <div className="text-center px-6 max-w-sm">
+            <div className="text-red-400 text-4xl mb-3">⚠️</div>
+            <p className="text-white text-sm leading-relaxed">{ytError}</p>
+          </div>
         </div>
       )}
 

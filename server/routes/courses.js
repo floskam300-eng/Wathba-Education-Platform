@@ -1,6 +1,6 @@
 const { sendEvent } = require('../sse');
 const { sendFCMToStudents } = require('../lib/fcm');
-const { isValidImage, isValidPdf, isValidVideo, deleteFile } = require('../lib/validateFileMagic');
+const { isValidImage, isValidPdf, deleteFile } = require('../lib/validateFileMagic');
 const express = require('express');
 const rateLimit = require('express-rate-limit');
 const multer = require('multer');
@@ -70,9 +70,9 @@ const checkManageCoursesPerm = async (req, res, next) => {
 };
 
 // Pre-create upload directories once at startup (not on every request)
+// Note: video uploads are not supported — only YouTube URLs are accepted.
 const UPLOAD_DIRS = {
   thumbnails: path.join(__dirname, '../../uploads/thumbnails'),
-  videos:     path.join(__dirname, '../../uploads/videos'),
   pdfs:       path.join(__dirname, '../../uploads/pdfs'),
 };
 Object.values(UPLOAD_DIRS).forEach(dir => fs.mkdirSync(dir, { recursive: true }));
@@ -93,25 +93,10 @@ const uploadThumbnail = multer({
   },
 });
 
-const videoStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, UPLOAD_DIRS.videos),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `vid_${Date.now()}${ext}`);
-  },
-});
 const pdfStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOAD_DIRS.pdfs),
   filename: (req, file, cb) => {
     cb(null, `pdf_${Date.now()}.pdf`);
-  },
-});
-const uploadVideo = multer({
-  storage: videoStorage,
-  limits: { fileSize: 500 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('video/')) cb(null, true);
-    else cb(new Error('Only video files allowed'));
   },
 });
 const ACCEPTED_PDF_MIMES = [
@@ -644,41 +629,6 @@ router.post('/:id/videos/url', requireRole('teacher', 'assistant'), checkManageC
       action: 'add_video_url',
       entity: { type: 'course', id: parseInt(req.params.id), name: title.trim() },
       details: { video_id: result.rows[0].id },
-    });
-    res.status(201).json(result.rows[0]);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-router.post('/:id/videos/upload', requireRole('teacher', 'assistant'), checkManageCoursesPerm, preCheckOwnership, withMulterErrors(uploadVideo.single('video'), '500 MB'), async (req, res) => {
-  const teacherId = getTeacherId(req);
-  try {
-    if (!req.file) return res.status(400).json({ error: 'No video file uploaded' });
-    // [M-11] FIX: validate file magic bytes — MIME and extension are easily spoofed
-    const diskPath = req.file.path;
-    const validVideo = await isValidVideo(diskPath);
-    if (!validVideo) {
-      deleteFile(diskPath);
-      return res.status(400).json({ error: 'الملف المرفوع ليس فيديو صالح (MP4 / WebM / AVI) — يُرجى رفع ملف فيديو حقيقي' });
-    }
-    const { title, duration_minutes, sort_order, section_id } = req.body;
-    if (section_id) {
-      const secCheck = await pool.query('SELECT id FROM sections WHERE id=$1 AND course_id=$2', [section_id, req.params.id]);
-      if (!secCheck.rows.length) return res.status(400).json({ error: 'القسم المحدد لا ينتمي لهذا الكورس' });
-    }
-    const filePath = `/uploads/videos/${req.file.filename}`;
-    const videoTitle = title || req.file.originalname;
-    const result = await pool.query(
-      'INSERT INTO videos (title,file_path_or_url,duration_minutes,course_id,sort_order,section_id) VALUES($1,$2,$3,$4,$5,$6) RETURNING *',
-      [videoTitle, filePath, parseInt(duration_minutes) || 0, req.params.id, parseInt(sort_order) || 0, section_id || null]
-    );
-    logActivity({
-      teacherId, actor: getActor(req), ip: getIp(req),
-      action: 'upload_video',
-      entity: { type: 'course', id: parseInt(req.params.id), name: videoTitle },
-      details: { video_id: result.rows[0].id, file: req.file.originalname },
     });
     res.status(201).json(result.rows[0]);
   } catch (err) {
