@@ -17,6 +17,9 @@ export default function Sidebar() {
   return (
     <aside className="w-64 bg-slate-900 border-l border-slate-800 flex flex-col h-screen sticky top-0 select-none">
       <div className="p-6 border-b border-slate-800">
+        <div className="flex items-center justify-center mb-3">
+          <img src="/wathba-logo.png" alt="وثبة" className="h-12 w-auto object-contain" />
+        </div>
         <div className="flex items-center justify-center gap-2">
           <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></div>
           <h2 className="text-xl font-bold text-white tracking-wide font-cairo text-center">وثبة الإدارية</h2>
