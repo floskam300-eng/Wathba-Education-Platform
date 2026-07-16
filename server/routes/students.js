@@ -1127,9 +1127,10 @@ router.post('/device-alerts/:alertId/action', requireRole('teacher', 'assistant'
 
     if (action === 'reactivate') {
       await pool.query('UPDATE students SET is_suspended=false WHERE id=$1', [alert.student_id]);
+      // Resolve ALL pending alerts for this student, not just the triggered one
       await pool.query(
-        "UPDATE device_alerts SET status='reactivated', resolved_at=NOW() WHERE id=$1",
-        [alertId]
+        "UPDATE device_alerts SET status='reactivated', resolved_at=NOW() WHERE student_id=$1 AND teacher_id=$2 AND status='pending'",
+        [alert.student_id, teacherId]
       );
       // Invalidate auth cache so student can immediately access the app
       invalidateStudentAuthCache(alert.student_id);
@@ -1137,8 +1138,8 @@ router.post('/device-alerts/:alertId/action', requireRole('teacher', 'assistant'
       await pool.query('UPDATE students SET is_suspended=false WHERE id=$1', [alert.student_id]);
       await pool.query('DELETE FROM student_devices WHERE student_id=$1', [alert.student_id]);
       await pool.query(
-        "UPDATE device_alerts SET status='reactivated', resolved_at=NOW() WHERE id=$1",
-        [alertId]
+        "UPDATE device_alerts SET status='reactivated', resolved_at=NOW() WHERE student_id=$1 AND teacher_id=$2 AND status='pending'",
+        [alert.student_id, teacherId]
       );
       invalidateStudentAuthCache(alert.student_id);
     } else if (action === 'reset_devices') {
@@ -1146,13 +1147,14 @@ router.post('/device-alerts/:alertId/action', requireRole('teacher', 'assistant'
       // Does NOT suspend the account — the student's current session keeps working.
       await pool.query('DELETE FROM student_devices WHERE student_id=$1', [alert.student_id]);
       await pool.query(
-        "UPDATE device_alerts SET status='reactivated', resolved_at=NOW() WHERE id=$1",
-        [alertId]
+        "UPDATE device_alerts SET status='reactivated', resolved_at=NOW() WHERE student_id=$1 AND teacher_id=$2 AND status='pending'",
+        [alert.student_id, teacherId]
       );
     } else if (action === 'dismiss') {
+      // Dismiss ALL pending alerts for this student at once
       await pool.query(
-        "UPDATE device_alerts SET status='dismissed', resolved_at=NOW() WHERE id=$1",
-        [alertId]
+        "UPDATE device_alerts SET status='dismissed', resolved_at=NOW() WHERE student_id=$1 AND teacher_id=$2 AND status='pending'",
+        [alert.student_id, teacherId]
       );
     }
 

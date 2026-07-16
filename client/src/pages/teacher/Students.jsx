@@ -96,6 +96,30 @@ function DeviceAlertsPanel({ canEdit }) {
   const pending   = alerts.filter(a => a.status === 'pending');
   const resolved  = alerts.filter(a => a.status !== 'pending');
 
+  // Group pending alerts by student so the same student never appears twice.
+  // Each group uses the latest alert's id (for the action) and collects all device names.
+  const pendingByStudent = Object.values(
+    pending.reduce((acc, alert) => {
+      if (!acc[alert.student_id]) {
+        acc[alert.student_id] = { ...alert, devices: [alert.device_name], count: 1 };
+      } else {
+        // Keep the latest alert's id and timestamp for the action
+        if (new Date(alert.created_at) > new Date(acc[alert.student_id].created_at)) {
+          const existing = acc[alert.student_id];
+          acc[alert.student_id] = {
+            ...alert,
+            devices: [...existing.devices, alert.device_name].filter(Boolean),
+            count: existing.count + 1,
+          };
+        } else {
+          if (alert.device_name) acc[alert.student_id].devices.push(alert.device_name);
+          acc[alert.student_id].count += 1;
+        }
+      }
+      return acc;
+    }, {})
+  );
+
   const statusLabel = (s) => {
     if (s === 'pending')     return { text: 'معلّق', cls: 'bg-red-100 text-red-700' };
     if (s === 'reactivated') return { text: 'تم السماح بجهاز جديد', cls: 'bg-green-100 text-green-700' };
@@ -118,7 +142,7 @@ function DeviceAlertsPanel({ canEdit }) {
             <ShieldAlert className="w-5 h-5 text-red-600" />
           </div>
           <div>
-            <p className="text-2xl font-black text-red-600">{pending.length}</p>
+            <p className="text-2xl font-black text-red-600">{pendingByStudent.length}</p>
             <p className="text-xs text-gray-500 font-semibold">محاولات دخول من جهاز جديد</p>
           </div>
         </div>
@@ -145,16 +169,16 @@ function DeviceAlertsPanel({ canEdit }) {
       </div>
 
       {/* Pending Alerts */}
-      {pending.length > 0 && (
+      {pendingByStudent.length > 0 && (
         <div className="card !p-0 overflow-hidden">
           <div className="p-4 border-b border-red-100 bg-red-50 flex items-center gap-2">
             <ShieldAlert className="w-4 h-4 text-red-600" />
             <span className="font-black text-red-700 text-sm">محاولات دخول من جهاز جديد</span>
-            <span className="bg-red-600 text-white text-xs font-black px-2 py-0.5 rounded-full">{pending.length}</span>
+            <span className="bg-red-600 text-white text-xs font-black px-2 py-0.5 rounded-full">{pendingByStudent.length}</span>
           </div>
           <div className="divide-y divide-gray-100">
-            {pending.map(alert => (
-              <div key={alert.id} className="p-4 hover:bg-orange-50/30 transition-colors">
+            {pendingByStudent.map(alert => (
+              <div key={alert.student_id} className="p-4 hover:bg-orange-50/30 transition-colors">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-start gap-3">
                     <div className="w-9 h-9 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -164,10 +188,17 @@ function DeviceAlertsPanel({ canEdit }) {
                       <p className="font-black text-navy-700 text-sm">
                         {alert.student_name}
                         <span className="font-mono text-xs text-gray-500 mr-2">({alert.student_username})</span>
+                        {alert.count > 1 && (
+                          <span className="mr-2 bg-red-100 text-red-700 text-[10px] font-black px-1.5 py-0.5 rounded-full">
+                            {alert.count} محاولة
+                          </span>
+                        )}
                       </p>
                       <p className="text-xs text-gray-500 mt-0.5">{alert.academic_stage}</p>
                       <p className="text-xs text-orange-700 font-semibold mt-1">
-                        محاولة دخول من جهاز جديد: {alert.device_name}
+                        {alert.count > 1
+                          ? `أجهزة جديدة: ${[...new Set(alert.devices)].join(' · ')}`
+                          : `محاولة دخول من جهاز جديد: ${alert.device_name}`}
                       </p>
                       <p className="text-[10px] text-blue-600 font-medium mt-0.5">
                         ✓ جهازه الأصلي لا يزال يعمل بشكل طبيعي
@@ -338,7 +369,8 @@ export default function TeacherStudents() {
     queryFn: () => api.get('/students/device-alerts').then(r => r.data),
     refetchInterval: 60000,
   });
-  const pendingAlertsCount = deviceAlerts.filter(a => a.status === 'pending').length;
+  // Count unique students with pending alerts (not raw alert rows) to avoid inflated badge numbers
+  const pendingAlertsCount = new Set(deviceAlerts.filter(a => a.status === 'pending').map(a => a.student_id)).size;
 
   const createMut = useMutation({
     mutationFn: (data) => api.post('/students', data),
