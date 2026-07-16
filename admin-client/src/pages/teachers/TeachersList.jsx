@@ -257,25 +257,28 @@ export default function TeachersList() {
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-4">
-                          <label className="flex items-center gap-1.5 cursor-pointer text-xs select-none">
-                            <input
-                              type="checkbox"
-                              checked={features.live_streaming}
-                              onChange={() => handleToggleFeature(t.id, 'live_streaming', features.live_streaming)}
-                              className="rounded border-slate-800 bg-slate-950 text-amber-500 focus:ring-amber-500 h-3.5 w-3.5"
-                            />
-                            <span>بث مباشر</span>
-                          </label>
-                          <label className="flex items-center gap-1.5 cursor-pointer text-xs select-none">
-                            <input
-                              type="checkbox"
-                              checked={features.stickman_run}
-                              onChange={() => handleToggleFeature(t.id, 'stickman_run', features.stickman_run)}
-                              className="rounded border-slate-800 bg-slate-950 text-amber-500 focus:ring-amber-500 h-3.5 w-3.5"
-                            />
-                            <span>الفعاليات</span>
-                          </label>
+                        <div className="flex flex-col gap-2">
+                          {[
+                            { key: 'live_streaming', label: 'بث مباشر', color: 'bg-amber-500' },
+                            { key: 'stickman_run',   label: 'الفعاليات', color: 'bg-violet-500' },
+                          ].map(({ key, label, color }) => {
+                            const enabled = features[key];
+                            return (
+                              <button
+                                key={key}
+                                onClick={() => handleToggleFeature(t.id, key, enabled)}
+                                className="flex items-center gap-2 cursor-pointer select-none group w-fit"
+                                title={enabled ? 'إيقاف' : 'تفعيل'}
+                              >
+                                <div className={`relative w-8 h-4 rounded-full transition-colors duration-200 ${enabled ? color : 'bg-slate-700'}`}>
+                                  <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all duration-200 ${enabled ? 'right-0.5' : 'left-0.5'}`} />
+                                </div>
+                                <span className={`text-xs font-medium transition-colors ${enabled ? 'text-slate-200' : 'text-slate-500'}`}>
+                                  {label}
+                                </span>
+                              </button>
+                            );
+                          })}
                         </div>
                       </td>
                       <td className="px-6 py-4">

@@ -20,7 +20,7 @@ export default function TeacherLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { teacherLive, endTeacherStream } = useLiveStream();
-  const { platformName, logoUrl } = useTeacher();
+  const { platformName, logoUrl, features } = useTeacher();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const onLivePage = location.pathname.endsWith('/livestream');
@@ -50,10 +50,10 @@ export default function TeacherLayout() {
     { to: '/teacher/leaderboard',    icon: Trophy,          label: 'المتصدرون' },
     { to: '/teacher/notifications',  icon: Bell,            label: 'الإشعارات' },
     { to: '/teacher/backup',         icon: Database,        label: 'النسخ الاحتياطي' },
-    { to: '/teacher/livestream',     icon: Radio,           label: 'البث المباشر' },
+    ...(features.live_streaming ? [{ to: '/teacher/livestream', icon: Radio, label: 'البث المباشر' }] : []),
     { to: '/teacher/activity-log',   icon: Activity,        label: 'سجل النشاط' },
     { to: '/teacher/settings',       icon: Settings,        label: 'الإعدادات' },
-  ], []);
+  ], [features.live_streaming]);
 
   const handleLogout = () => { logout(); };
 

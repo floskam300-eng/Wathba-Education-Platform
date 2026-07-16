@@ -103,6 +103,11 @@ export function TeacherProvider({ children }) {
     applyManifest(platformName);
   }, [teacher, platformName, logoUrl]);
 
+  const features = {
+    live_streaming: teacher?.features_enabled?.live_streaming !== false,
+    stickman_run:   teacher?.features_enabled?.stickman_run   !== false,
+  };
+
   return (
     <TeacherContext.Provider value={{
       teacher,
@@ -115,6 +120,7 @@ export function TeacherProvider({ children }) {
       teacherSlug,
       platformName,
       logoUrl,
+      features,
     }}>
       {children}
     </TeacherContext.Provider>

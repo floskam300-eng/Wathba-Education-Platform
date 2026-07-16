@@ -244,7 +244,7 @@ export default function StudentLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { studentStream, leaveStudentStream, availableLive, clearAvailableLive } = useLiveStream();
-  const { platformName, logoUrl } = useTeacher();
+  const { platformName, logoUrl, features } = useTeacher();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [captureWarning, setCaptureWarning] = useState(false);
   const warningTimer = useRef(null);
@@ -257,7 +257,7 @@ export default function StudentLayout() {
     { to: '/student/exams',          icon: FileText,        label: 'الاختبارات' },
     { to: '/student/stats',          icon: BarChart2,       label: 'إحصائياتي' },
     { to: '/student/leaderboard',    icon: Trophy,          label: 'المتصدرون' },
-    { to: '/student/live',           icon: Radio,           label: 'بث مباشر' },
+    ...(features.live_streaming ? [{ to: '/student/live', icon: Radio, label: 'بث مباشر' }] : []),
   ];
 
   useSSE(!!user, user?.role || 'student');
@@ -318,12 +318,14 @@ export default function StudentLayout() {
             <span>{label}</span>
           </NavLink>
         ))}
-        <div style={{ paddingTop: 4 }}>
-          <NavLink to="/student/events" className="events-nav-link" onClick={() => setSidebarOpen(false)}>
-            <Gamepad2 className="w-5 h-5" style={{ flexShrink: 0, position: 'relative', zIndex: 1 }} />
-            <span style={{ position: 'relative', zIndex: 1 }}>الفعاليات 🎮</span>
-          </NavLink>
-        </div>
+        {features.stickman_run && (
+          <div style={{ paddingTop: 4 }}>
+            <NavLink to="/student/events" className="events-nav-link" onClick={() => setSidebarOpen(false)}>
+              <Gamepad2 className="w-5 h-5" style={{ flexShrink: 0, position: 'relative', zIndex: 1 }} />
+              <span style={{ position: 'relative', zIndex: 1 }}>الفعاليات 🎮</span>
+            </NavLink>
+          </div>
+        )}
       </nav>
 
       <div className="p-3 border-t border-white/10">
