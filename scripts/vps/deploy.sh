@@ -20,13 +20,13 @@ git fetch origin
 git reset --hard origin/main
 
 echo ""
-echo "[2/4] Building app image..."
-sudo docker compose build app
+echo "[2/4] Building app & admin images..."
+sudo docker compose build app admin
 
 echo ""
-echo "[3/4] Restarting app container..."
+echo "[3/4] Restarting containers..."
 echo "  NOTE: Site will be unavailable for ~2-5 seconds..."
-sudo docker compose up -d --force-recreate app
+sudo docker compose up -d --force-recreate app admin
 
 echo ""
 echo "[4/4] Checking status..."
