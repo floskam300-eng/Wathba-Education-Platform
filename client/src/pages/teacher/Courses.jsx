@@ -244,8 +244,8 @@ export default function TeacherCourses() {
                     {/* Price badge */}
                     <div className="absolute top-2 end-2">
                       {c.is_free
-                        ? <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-green-500 text-white shadow">مجاني</span>
-                        : <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-orange-500 text-white shadow">{c.price} جنيه</span>}
+                        ? <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-green-700 text-white shadow">مجاني</span>
+                        : <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-orange-700 text-white shadow">{c.price} جنيه</span>}
                     </div>
                     {/* Published badge */}
                     {c.is_published && (
@@ -267,7 +267,7 @@ export default function TeacherCourses() {
 
                   {/* Details */}
                   <div className="p-3 flex-1 flex flex-col">
-                    <h3 className="font-black text-navy-700 text-sm leading-snug line-clamp-2 mb-1">{c.name}</h3>
+                    <h2 className="font-black text-navy-700 text-sm leading-snug line-clamp-2 mb-1">{c.name}</h2>
                     {c.description && (
                       <p className="text-gray-400 text-[11px] line-clamp-1 mb-2">{c.description}</p>
                     )}
