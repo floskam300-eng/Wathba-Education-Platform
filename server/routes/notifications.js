@@ -82,10 +82,8 @@ router.post('/fcm-token', requireRole('student'), async (req, res) => {
   if (!token) return res.status(400).json({ error: 'token required' });
   try {
     await pool.query('UPDATE students SET fcm_token = $1 WHERE id = $2', [token, req.user.id]);
-    console.log(`[FCM] Token saved for student id=${req.user.id}`);
     res.json({ ok: true });
   } catch (err) {
-    console.error('[FCM] Token save error:', err.message);
     res.status(500).json({ error: 'Server error' });
   }
 });
