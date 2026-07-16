@@ -48,7 +48,8 @@ export default function TeacherForm() {
           const res = await api.get('/plans');
           const activePlans = res.data.plans.filter((p) => p.is_active);
           setPlans(activePlans);
-          if (activePlans.length > 0) setSelectedPlanId(activePlans[0].id);
+          // F1 FIX: convert to string so <select value> matches option value (string coercion)
+        if (activePlans.length > 0) setSelectedPlanId(String(activePlans[0].id));
         } else {
           // Fetch existing teacher details
           const res = await api.get(`/teachers/${id}`);
@@ -280,7 +281,7 @@ export default function TeacherForm() {
                 <input
                   id="phone"
                   type="text"
-                  required
+                  required={!isEdit}
                   value={whatsappPhone}
                   onChange={(e) => setWhatsappPhone(e.target.value)}
                   placeholder="+201000000000"
@@ -340,7 +341,7 @@ export default function TeacherForm() {
                   <option value="">لا توجد باقات مفعلة بالمنصة حالياً</option>
                 ) : (
                   plans.map((p) => (
-                    <option key={p.id} value={p.id}>
+                    <option key={p.id} value={String(p.id)}>
                       {p.name} — سعرها {p.price} EGP / فوترة {p.billing_type === 'monthly' ? 'شهري' : p.billing_type === 'annual' ? 'سنوي' : 'مرة واحدة'}
                     </option>
                   ))

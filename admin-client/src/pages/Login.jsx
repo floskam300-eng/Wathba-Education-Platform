@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { KeyRound, User, AlertCircle } from 'lucide-react';
@@ -8,8 +8,15 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const { login } = useAuth();
+  const { login, admin, loading } = useAuth();
   const navigate = useNavigate();
+
+  // F4 FIX: redirect already-authenticated admins away from the login page
+  useEffect(() => {
+    if (!loading && admin) {
+      navigate('/', { replace: true });
+    }
+  }, [admin, loading, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

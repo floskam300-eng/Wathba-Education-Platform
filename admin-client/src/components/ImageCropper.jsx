@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import api from '../api/axios';
+import toast from 'react-hot-toast';
 import { Upload, X, Crop } from 'lucide-react';
 
 function centerAspectCrop(mediaWidth, mediaHeight, aspect) {
@@ -52,24 +53,25 @@ export default function ImageCropper({ aspect, onComplete, label, currentImage, 
     const scaleX = image.naturalWidth / image.width;
     const scaleY = image.naturalHeight / image.height;
 
-    // Use dimensions of the selection
-    const cropWidth = completedCrop.width;
-    const cropHeight = completedCrop.height;
+    // F2 FIX: set canvas to natural-pixel dimensions so the output image preserves
+    // the full resolution of the crop region, not the small display-pixel size.
+    const naturalCropWidth  = Math.round(completedCrop.width  * scaleX);
+    const naturalCropHeight = Math.round(completedCrop.height * scaleY);
 
-    canvas.width = cropWidth;
-    canvas.height = cropHeight;
+    canvas.width  = naturalCropWidth;
+    canvas.height = naturalCropHeight;
     const ctx = canvas.getContext('2d');
 
     ctx.drawImage(
       image,
       completedCrop.x * scaleX,
       completedCrop.y * scaleY,
-      completedCrop.width * scaleX,
-      completedCrop.height * scaleY,
+      naturalCropWidth,
+      naturalCropHeight,
       0,
       0,
-      cropWidth,
-      cropHeight
+      naturalCropWidth,
+      naturalCropHeight
     );
 
     setUploading(true);
@@ -91,7 +93,8 @@ export default function ImageCropper({ aspect, onComplete, label, currentImage, 
       setSrc(null);
     } catch (err) {
       console.error('Failed to upload image:', err);
-      alert('حدث خطأ أثناء رفع الصورة');
+      // F3 FIX: use toast instead of alert() for consistent UX
+      toast.error('حدث خطأ أثناء رفع الصورة، يرجى المحاولة مجدداً');
     } finally {
       setUploading(false);
     }

@@ -77,8 +77,9 @@ export default function SubscriptionsList() {
 
   const openAddModal = () => {
     setEditingSubId(null);
-    setSelectedTeacherId(teachers[0]?.id || '');
-    setSelectedPlanId(plans[0]?.id || '');
+    // F1 FIX: stringify IDs so <select value> matches option value (HTML always coerces to string)
+    setSelectedTeacherId(teachers[0]?.id ? String(teachers[0].id) : '');
+    setSelectedPlanId(plans[0]?.id ? String(plans[0].id) : '');
     setNotes('');
     setStatus('active');
     setStartDate(new Date().toISOString().split('T')[0]);
@@ -87,8 +88,9 @@ export default function SubscriptionsList() {
 
   const openEditModal = (sub) => {
     setEditingSubId(sub.id);
-    setSelectedTeacherId(sub.teacher_id);
-    setSelectedPlanId(sub.plan_id);
+    // F1 FIX: stringify IDs so <select value> matches option value
+    setSelectedTeacherId(String(sub.teacher_id));
+    setSelectedPlanId(String(sub.plan_id));
     setBillingType(sub.billing_type);
     setPriceOverride(sub.price_override?.toString() || '');
     setStartDate(sub.start_date.split('T')[0]);
@@ -216,7 +218,7 @@ export default function SubscriptionsList() {
           >
             <option value="">تصفية بالمدرس (الكل)</option>
             {teachers.map((t) => (
-              <option key={t.id} value={t.id}>{t.name}</option>
+              <option key={t.id} value={String(t.id)}>{t.name}</option>
             ))}
           </select>
 
@@ -356,7 +358,7 @@ export default function SubscriptionsList() {
                     className="mt-1.5 block w-full rounded-xl border border-slate-800 bg-slate-950 py-2.5 px-3 text-white focus:outline-none text-sm disabled:opacity-50"
                   >
                     {teachers.map((t) => (
-                      <option key={t.id} value={t.id}>{t.name} (@{t.slug})</option>
+                      <option key={t.id} value={String(t.id)}>{t.name} (@{t.slug})</option>
                     ))}
                   </select>
                 </div>
@@ -370,7 +372,7 @@ export default function SubscriptionsList() {
                     className="mt-1.5 block w-full rounded-xl border border-slate-800 bg-slate-950 py-2.5 px-3 text-white focus:outline-none text-sm disabled:opacity-50"
                   >
                     {plans.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name} ({p.price} EGP)</option>
+                      <option key={p.id} value={String(p.id)}>{p.name} ({p.price} EGP)</option>
                     ))}
                   </select>
                 </div>

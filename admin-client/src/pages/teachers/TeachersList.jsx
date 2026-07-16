@@ -104,10 +104,12 @@ export default function TeachersList() {
   };
 
   const filteredTeachers = teachers.filter((t) => {
+    // F6 FIX: null-guard each field before calling .toLowerCase() to prevent crash
+    const q = search.toLowerCase();
     const matchSearch =
-      t.name.toLowerCase().includes(search.toLowerCase()) ||
-      t.username.toLowerCase().includes(search.toLowerCase()) ||
-      t.slug.toLowerCase().includes(search.toLowerCase());
+      (t.name || '').toLowerCase().includes(q) ||
+      (t.username || '').toLowerCase().includes(q) ||
+      (t.slug || '').toLowerCase().includes(q);
 
     const matchStatus =
       filterStatus === 'all' ||

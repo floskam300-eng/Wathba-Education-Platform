@@ -1,9 +1,11 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
+const rateLimit = require('express-rate-limit');
 const pool = require('../db/connection');
 const { requireAdminAuth, ADMIN_JWT_SECRET, invalidateTeacherAuthCache } = require('../middleware/auth');
 const { getTotalConnections } = require('../sse');
@@ -12,6 +14,25 @@ const { getTotalConnections } = require('../sse');
 // that change slowly; 5-minute staleness is acceptable for the admin dashboard.
 const _statsCache = { data: null, ts: 0 };
 const _STATS_TTL  = 5 * 60 * 1000; // 5 minutes
+
+// S1 FIX: Rate limiter for admin login — 10 attempts per 15 minutes per IP
+const adminLoginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'عدد كبير من محاولات الدخول. يرجى الانتظار 15 دقيقة قبل المحاولة مجدداً' },
+  skipSuccessfulRequests: true,
+});
+
+// S4 FIX: Rate limiter for admin image uploads — 30 uploads per 10 minutes per IP
+const adminUploadLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'تجاوزت الحد المسموح به لرفع الصور. يرجى الانتظار قليلاً' },
+});
 
 const router = express.Router();
 
@@ -22,11 +43,12 @@ if (!fs.existsSync(adminUploadDir)) {
 }
 
 // Multer Storage Configuration for Admin Uploads
+// S3/P-upload FIX: use crypto.randomBytes for filename — avoids low-entropy Math.random()
 const adminStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, adminUploadDir),
   filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `admin_${Date.now()}_${Math.floor(Math.random() * 1000)}${ext}`);
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `admin_${Date.now()}_${crypto.randomBytes(8).toString('hex')}${ext}`);
   },
 });
 
@@ -43,10 +65,13 @@ const uploadAdminImage = multer({
 });
 
 // Helper: Calculate Teacher Stats (students count, courses count, exams count, storage usage)
+// B6 FIX: run all count queries in parallel with Promise.all instead of sequentially
 async function getTeacherStats(teacherId, includeStorage = false) {
-  const studentRes = await pool.query('SELECT COUNT(*) FROM students WHERE teacher_id = $1 AND deleted_at IS NULL', [teacherId]);
-  const courseRes = await pool.query('SELECT COUNT(*) FROM courses WHERE teacher_id = $1', [teacherId]);
-  const examRes = await pool.query('SELECT COUNT(*) FROM exams WHERE teacher_id = $1', [teacherId]);
+  const [studentRes, courseRes, examRes] = await Promise.all([
+    pool.query('SELECT COUNT(*) FROM students WHERE teacher_id = $1 AND deleted_at IS NULL', [teacherId]),
+    pool.query('SELECT COUNT(*) FROM courses WHERE teacher_id = $1', [teacherId]),
+    pool.query('SELECT COUNT(*) FROM exams WHERE teacher_id = $1', [teacherId]),
+  ]);
 
   let totalBytes = 0;
 
@@ -114,8 +139,8 @@ async function getTeacherStats(teacherId, includeStorage = false) {
    1. Auth Routes
    ══════════════════════════════════════════════════════════════════ */
 
-// Admin Login
-router.post('/auth/login', async (req, res) => {
+// Admin Login — S1 FIX: rate-limited
+router.post('/auth/login', adminLoginLimiter, async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) {
     return res.status(400).json({ error: 'اسم المستخدم وكلمة المرور مطلوبان' });
@@ -136,9 +161,10 @@ router.post('/auth/login', async (req, res) => {
     if (!match) {
       return res.status(401).json({ error: 'اسم المستخدم أو كلمة المرور غير صحيحة' });
     }
-    // Generate JWT token
+    // S3 FIX: include jti to guarantee uniqueness even on same-second logins
     const token = jwt.sign(
-      { id: admin.id, username: admin.username, name: admin.name, role: admin.role },
+      { id: admin.id, username: admin.username, name: admin.name, role: admin.role,
+        jti: crypto.randomBytes(16).toString('hex') },
       ADMIN_JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -314,11 +340,11 @@ router.post('/teachers', requireAdminAuth, async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    // Check if username/slug exists
+    // Check if username/slug exists — return 409 Conflict (not 400) to match HTTP semantics
     const checkUser = await client.query('SELECT id FROM teachers WHERE username = $1 OR slug = $2', [username.trim().toLowerCase(), slug]);
     if (checkUser.rows.length > 0) {
       await client.query('ROLLBACK');
-      return res.status(400).json({ error: 'اسم المستخدم أو الرابط الفرعي مستخدم بالفعل' });
+      return res.status(409).json({ error: 'اسم المستخدم أو الرابط الفرعي مستخدم بالفعل' });
     }
 
     const checkPlan = await client.query('SELECT id, price, billing_type FROM subscription_plans WHERE id = $1', [plan_id]);
@@ -377,6 +403,9 @@ router.post('/teachers', requireAdminAuth, async (req, res) => {
     if (subdomainTenant && typeof subdomainTenant.invalidateCache === 'function') {
       subdomainTenant.invalidateCache(slug);
     }
+
+    // B4 FIX: invalidate stats cache when a teacher is created
+    _statsCache.ts = 0;
 
     res.status(201).json({ success: true, teacherId: newTeacherId, slug });
   } catch (err) {
@@ -444,6 +473,9 @@ router.delete('/teachers/:id', requireAdminAuth, async (req, res) => {
       subdomainTenant.invalidateCache(slug);
     }
 
+    // B4 FIX: invalidate stats cache when a teacher is deleted
+    _statsCache.ts = 0;
+
     res.json({ success: true });
   } catch (err) {
     console.error('Delete teacher error:', err.message);
@@ -451,7 +483,7 @@ router.delete('/teachers/:id', requireAdminAuth, async (req, res) => {
   }
 });
 
-// Toggle Platform Suspension for Teacher
+// Toggle Platform Suspension for Teacher — B4 FIX: invalidate stats cache
 router.post('/teachers/:id/suspend', requireAdminAuth, async (req, res) => {
   const teacherId = parseInt(req.params.id, 10);
   if (isNaN(teacherId)) return res.status(400).json({ error: 'معرّف غير صحيح' });
@@ -482,6 +514,7 @@ router.post('/teachers/:id/suspend', requireAdminAuth, async (req, res) => {
       invalidateTeacherAuthCache(teacherId);
     }
 
+    _statsCache.ts = 0; // B4 FIX: stale stats after suspension change
     res.json({ success: true, is_platform_suspended: isSuspended });
   } catch (err) {
     console.error('Suspend teacher error:', err.message);
@@ -521,13 +554,21 @@ router.post('/teachers/:id/reset-password', requireAdminAuth, async (req, res) =
 });
 
 // Update Teacher Custom Features (Flags)
+// B3 FIX: merge incoming feature flags with existing features_enabled instead of
+// overwriting the whole object — prevents silently dropping future feature keys.
 router.put('/teachers/:id/features', requireAdminAuth, async (req, res) => {
   const teacherId = parseInt(req.params.id, 10);
   if (isNaN(teacherId)) return res.status(400).json({ error: 'معرّف غير صحيح' });
 
   const { live_streaming, stickman_run } = req.body;
   try {
+    // Fetch current features first so we only overwrite known keys
+    const current = await pool.query('SELECT features_enabled FROM teachers WHERE id = $1', [teacherId]);
+    if (current.rows.length === 0) return res.status(404).json({ error: 'المدرس غير موجود' });
+
+    const existing = current.rows[0].features_enabled || {};
     const features = {
+      ...existing,
       live_streaming: live_streaming !== false,
       stickman_run: stickman_run !== false,
     };
@@ -538,6 +579,10 @@ router.put('/teachers/:id/features', requireAdminAuth, async (req, res) => {
     );
 
     if (rowCount === 0) return res.status(404).json({ error: 'المدرس غير موجود' });
+
+    // B4 FIX: invalidate stats cache whenever teacher features change
+    _statsCache.ts = 0;
+
     res.json({ success: true, features });
   } catch (err) {
     console.error('Update teacher features error:', err.message);
@@ -759,14 +804,19 @@ router.get('/subscriptions', requireAdminAuth, async (req, res) => {
     `;
     const values = [];
 
+    // B1 FIX: validate teacher_id is a real integer before passing to DB
     const conditions = [];
     if (teacher_id) {
-      values.push(parseInt(teacher_id));
-      conditions.push(`ts.teacher_id = $${values.length}`);
+      const tid = parseInt(teacher_id, 10);
+      if (isNaN(tid)) return res.status(400).json({ error: 'معرّف المدرس غير صحيح' });
+      values.push(tid);
+      conditions.push(`ts.teacher_id = ${values.length}`);
     }
     if (status) {
+      const VALID_STATUSES = ['active', 'expired', 'cancelled'];
+      if (!VALID_STATUSES.includes(status)) return res.status(400).json({ error: 'حالة الاشتراك غير صحيحة' });
       values.push(status);
-      conditions.push(`ts.status = $${values.length}`);
+      conditions.push(`ts.status = ${values.length}`);
     }
 
     if (conditions.length) {
@@ -841,16 +891,30 @@ router.put('/subscriptions/:id', requireAdminAuth, async (req, res) => {
   if (isNaN(subId)) return res.status(400).json({ error: 'معرّف غير صحيح' });
 
   const { status, price_override, start_date, end_date, notes } = req.body;
+
+  // B5 FIX: validate status is a known value
+  if (status) {
+    const VALID_STATUSES = ['active', 'expired', 'cancelled'];
+    if (!VALID_STATUSES.includes(status)) {
+      return res.status(400).json({ error: 'حالة الاشتراك غير صحيحة، المقبول: active, expired, cancelled' });
+    }
+  }
+
   try {
     const subInfo = await pool.query('SELECT teacher_id FROM teacher_subscriptions WHERE id = $1', [subId]);
     if (subInfo.rows.length === 0) return res.status(404).json({ error: 'الاشتراك غير موجود' });
     const teacherId = subInfo.rows[0].teacher_id;
 
+    // B2 FIX: price_override=0 is a valid price, don't treat it as null via falsy check
+    const priceValue = (price_override !== undefined && price_override !== null && price_override !== '')
+      ? parseFloat(price_override)
+      : null;
+
     const { rowCount } = await pool.query(
       `UPDATE teacher_subscriptions
           SET status = $1, price_override = $2, start_date = $3, end_date = $4, notes = $5
         WHERE id = $6`,
-      [status, price_override ? parseFloat(price_override) : null, start_date, end_date || null, notes || '', subId]
+      [status, priceValue, start_date, end_date || null, notes || '', subId]
     );
     if (rowCount === 0) return res.status(404).json({ error: 'الاشتراك غير موجود' });
     invalidateTeacherAuthCache(teacherId);
@@ -900,8 +964,11 @@ router.get('/payments', requireAdminAuth, async (req, res) => {
     `;
     const values = [];
 
+    // B1 FIX: validate teacher_id is a real integer before passing to DB
     if (teacher_id) {
-      values.push(parseInt(teacher_id));
+      const tid = parseInt(teacher_id, 10);
+      if (isNaN(tid)) return res.status(400).json({ error: 'معرّف المدرس غير صحيح' });
+      values.push(tid);
       queryStr += ` WHERE sp.teacher_id = $1`;
     }
 
@@ -1059,7 +1126,8 @@ router.get('/stats', requireAdminAuth, async (req, res) => {
    ══════════════════════════════════════════════════════════════════ */
 
 // Upload Image (For teacher logo, background/hero, or team photos)
-router.post('/upload/image', requireAdminAuth, uploadAdminImage.single('image'), async (req, res) => {
+// S4 FIX: apply upload rate limiter before processing
+router.post('/upload/image', requireAdminAuth, adminUploadLimiter, uploadAdminImage.single('image'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'الرجاء اختيار ملف صورة صالح لرفعه' });
   }

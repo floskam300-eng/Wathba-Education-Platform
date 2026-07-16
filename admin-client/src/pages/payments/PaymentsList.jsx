@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import api from '../../api/axios';
 import ConfirmModal from '../../components/ConfirmModal';
 import { Plus, Trash2, Search, Calendar, Landmark } from 'lucide-react';
@@ -131,27 +131,26 @@ export default function PaymentsList() {
     }
   };
 
-  // Financial Sums calculations
-  const calculateTotalThisMonth = () => {
+  // F5 FIX: use useMemo so totals are only recalculated when payments array changes,
+  // not on every re-render (e.g. dropdown open/close, hover effects, etc.)
+  const totalThisMonth = useMemo(() => {
     const now = new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
-
     return payments
       .filter((p) => {
         const paidDate = new Date(p.paid_at);
         return paidDate.getMonth() === currentMonth && paidDate.getFullYear() === currentYear;
       })
       .reduce((sum, p) => sum + parseFloat(p.amount), 0);
-  };
+  }, [payments]);
 
-  const calculateTotalThisYear = () => {
+  const totalThisYear = useMemo(() => {
     const currentYear = new Date().getFullYear();
-
     return payments
       .filter((p) => new Date(p.paid_at).getFullYear() === currentYear)
       .reduce((sum, p) => sum + parseFloat(p.amount), 0);
-  };
+  }, [payments]);
 
   const filteredPayments = payments.filter((p) => {
     return !filterTeacher || p.teacher_id === parseInt(filterTeacher, 10);
@@ -186,11 +185,11 @@ export default function PaymentsList() {
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
         <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-6 shadow-md">
           <div className="text-xs text-slate-400 font-cairo">المحصل المالي هذا الشهر</div>
-          <div className="mt-2 text-3xl font-bold text-emerald-500">{calculateTotalThisMonth()} EGP</div>
+          <div className="mt-2 text-3xl font-bold text-emerald-500">{totalThisMonth} EGP</div>
         </div>
         <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-6 shadow-md">
           <div className="text-xs text-slate-400 font-cairo">المحصل المالي هذا العام</div>
-          <div className="mt-2 text-3xl font-bold text-amber-500">{calculateTotalThisYear()} EGP</div>
+          <div className="mt-2 text-3xl font-bold text-amber-500">{totalThisYear} EGP</div>
         </div>
         <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-6 shadow-md">
           <div className="text-xs text-slate-400 font-cairo">إجمالي الدفعات المسجلة</div>
@@ -208,7 +207,7 @@ export default function PaymentsList() {
           >
             <option value="">كل المدرسين</option>
             {teachers.map((t) => (
-              <option key={t.id} value={t.id}>{t.name}</option>
+              <option key={t.id} value={String(t.id)}>{t.name}</option>
             ))}
           </select>
         </div>
@@ -304,7 +303,7 @@ export default function PaymentsList() {
                   >
                     <option value="">اختر المدرس...</option>
                     {teachers.map((t) => (
-                      <option key={t.id} value={t.id}>{t.name} (@{t.slug})</option>
+                      <option key={t.id} value={String(t.id)}>{t.name} (@{t.slug})</option>
                     ))}
                   </select>
                 </div>
