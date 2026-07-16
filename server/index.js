@@ -34,13 +34,16 @@ app.use(helmet({
   contentSecurityPolicy: isProd ? {
     directives: {
       defaultSrc:     ["'self'"],
-      scriptSrc:      ["'self'", "'unsafe-inline'", 'https://www.gstatic.com'],
+      scriptSrc:      ["'self'", "'unsafe-inline'", 'https://www.gstatic.com',
+                       'https://www.youtube.com', 'https://s.ytimg.com'],
       styleSrc:       ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
       fontSrc:        ["'self'", 'https://fonts.gstatic.com', 'data:'],
       imgSrc:         ["'self'", 'data:', 'blob:', 'https:'],
       connectSrc:     ["'self'", 'wss:', 'ws:', 'https:'],
       mediaSrc:       ["'self'", 'blob:', 'https:'],
-      frameSrc:       ["'self'"],
+      // YouTube embedded player iframes load from www.youtube.com and
+      // www.youtube-nocookie.com; both must be whitelisted in frame-src.
+      frameSrc:       ["'self'", 'https://www.youtube.com', 'https://www.youtube-nocookie.com'],
       objectSrc:      ["'none'"],
       upgradeInsecureRequests: [],
     },
