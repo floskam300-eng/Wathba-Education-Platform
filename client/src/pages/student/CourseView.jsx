@@ -179,26 +179,16 @@ function isYoutubeUrl(url) {
 let _ytApiReady = false;
 const _ytApiQueue = [];
 function ensureYTApi(cb) {
-  console.log('[YT-DEBUG] ensureYTApi called. _ytApiReady=', _ytApiReady, 'window.YT=', !!window.YT, 'window.YT.Player=', !!window.YT?.Player);
-  if (_ytApiReady && window.YT?.Player) {
-    console.log('[YT-DEBUG] API already ready, calling init directly');
-    cb();
-    return;
-  }
+  if (_ytApiReady && window.YT?.Player) { cb(); return; }
   _ytApiQueue.push(cb);
   if (!document.getElementById('yt-api-script')) {
-    console.log('[YT-DEBUG] Injecting YouTube IFrame API script...');
     const s = document.createElement('script');
     s.id = 'yt-api-script';
     s.src = 'https://www.youtube.com/iframe_api';
-    s.onerror = () => console.error('[YT-DEBUG] ❌ Failed to load YouTube IFrame API script! Check network/CSP.');
     document.head.appendChild(s);
-  } else {
-    console.log('[YT-DEBUG] Script tag already exists, waiting for onYouTubeIframeAPIReady...');
   }
   const prevReady = window.onYouTubeIframeAPIReady;
   window.onYouTubeIframeAPIReady = () => {
-    console.log('[YT-DEBUG] ✅ onYouTubeIframeAPIReady fired! window.YT=', !!window.YT);
     if (prevReady) prevReady();
     _ytApiReady = true;
     _ytApiQueue.forEach(fn => fn());
@@ -291,12 +281,8 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
 
   /* ── initialise / destroy player ── */
   useEffect(() => {
-    if (!ytId) {
-      console.warn('[YT-DEBUG] ⚠️ ytId is empty/null — cannot create player. video=', JSON.stringify(video));
-      return;
-    }
+    if (!ytId) return;
 
-    console.log('[YT-DEBUG] useEffect triggered. ytId=', ytId, 'playerDivId=', playerDivId);
     setYtError(null);
     setBuffering(true);
     const startPos = initialPositionRef.current > 5 ? Math.floor(initialPositionRef.current) : 0;
@@ -304,7 +290,6 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
     const savedSpeed = loadSpeed();
 
     const init = () => {
-      console.log('[YT-DEBUG] init() called. Creating window.YT.Player with videoId=', ytId, 'controls=1, origin=', window.location.origin);
       if (playerRef.current) {
         try { playerRef.current.destroy(); } catch (_) {}
         playerRef.current = null;
@@ -332,9 +317,8 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
         },
         events: {
           onReady: (e) => {
-            const d = e.target.getDuration();
-            console.log('[YT-DEBUG] ✅ onReady fired! duration=', d, 'getVideoData=', JSON.stringify(e.target.getVideoData?.()));
             setBuffering(false);
+            const d = e.target.getDuration();
             if (d > 0) setDuration(d);
             e.target.setVolume(savedVol);
             if (loadMuted()) { try { e.target.mute(); } catch (_) {} }
@@ -345,8 +329,6 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
           },
           onStateChange: (e) => {
             const S = window.YT.PlayerState;
-            const stateNames = { [-1]: 'UNSTARTED', 0: 'ENDED', 1: 'PLAYING', 2: 'PAUSED', 3: 'BUFFERING', 5: 'VIDEO_CUED' };
-            console.log('[YT-DEBUG] onStateChange:', stateNames[e.data] || e.data, '(code', e.data, ')');
             if (e.data === S.PLAYING) {
               setPlaying(true);
               setBuffering(false);
@@ -414,8 +396,6 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
           onError: (e) => {
             // YouTube error codes: 2=bad videoId, 5=HTML5 error,
             // 100=not found/private, 101/150=embedding disabled by owner.
-            const errorNames = { 2: 'INVALID_PARAM', 5: 'HTML5_ERROR', 100: 'NOT_FOUND_OR_PRIVATE', 101: 'EMBED_NOT_ALLOWED', 150: 'EMBED_NOT_ALLOWED_DISGUISED' };
-            console.error('[YT-DEBUG] ❌ onError! code=', e.data, '(', errorNames[e.data] || 'UNKNOWN', ')');
             setBuffering(false);
             setPlaying(false);
             const msg = (e.data === 150 || e.data === 101)
