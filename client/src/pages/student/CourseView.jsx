@@ -1298,9 +1298,9 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
     return (
       <div className="flex flex-col h-full overflow-hidden" dir="rtl">
         {/* Timer bar */}
-        <div className="px-3 py-2 border-b border-white/10 flex items-center justify-between flex-shrink-0">
+        <div className="px-3 py-2 border-b border-gray-200 dark:border-white/10 flex items-center justify-between flex-shrink-0">
           <div>
-            <p className="text-white text-xs font-black truncate max-w-[140px]">{selectedRec?.title}</p>
+            <p className="text-gray-900 dark:text-white text-xs font-black truncate max-w-[140px]">{selectedRec?.title}</p>
             <p className="text-gray-500 text-[10px]">{answered}/{questions.length} إجابة</p>
           </div>
           <div className={`flex items-center gap-1 px-3 py-1.5 rounded-xl font-black text-sm tabular-nums ${
@@ -1347,8 +1347,8 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
           )}
         </div>
         <div className="grid grid-cols-3 gap-2">
-          {[['✅', 'صحيح', correct, 'text-green-400'], ['❌', 'خطأ', wrong, 'text-red-400'], ['⬜', 'بلا إجابة', unanswered, 'text-gray-400']].map(([icon, label, val, cls]) => (
-            <div key={label} className="bg-white/5 rounded-xl p-2.5 text-center border border-white/10">
+          {[['✅', 'صحيح', correct, 'text-green-600 dark:text-green-400'], ['❌', 'خطأ', wrong, 'text-red-500 dark:text-red-400'], ['⬜', 'بلا إجابة', unanswered, 'text-gray-500 dark:text-gray-400']].map(([icon, label, val, cls]) => (
+            <div key={label} className="bg-gray-100 dark:bg-white/5 rounded-xl p-2.5 text-center border border-gray-200 dark:border-white/10">
               <div className="text-lg">{icon}</div>
               <div className={`text-lg font-black ${cls}`}>{val}</div>
               <div className="text-[10px] text-gray-500">{label}</div>
@@ -1370,7 +1370,7 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
           </button>
         )}
         <button onClick={backToList}
-          className="w-full py-2.5 rounded-xl font-bold text-xs text-gray-400 hover:text-white hover:bg-white/5 transition-colors">
+          className="w-full py-2.5 rounded-xl font-bold text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5 transition-colors">
           العودة للقائمة →
         </button>
       </div>
@@ -1394,14 +1394,14 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
     return (
       <div className="flex flex-col h-full" dir="rtl">
         <div className="flex flex-col items-center justify-center flex-1 min-h-[180px] p-4 text-center">
-          <BookOpen className="w-10 h-10 text-gray-700 mb-2" />
-          <p className="text-gray-600 text-sm font-semibold">لا توجد تسميعات مرتبطة بهذا الكورس</p>
+          <BookOpen className="w-10 h-10 text-gray-400 dark:text-gray-700 mb-2" />
+          <p className="text-gray-500 dark:text-gray-600 text-sm font-semibold">لا توجد تسميعات مرتبطة بهذا الكورس</p>
         </div>
         {/* [C2-FIX] Link to standalone recitations so students can still access non-course-linked ones */}
-        <div className="px-3 pb-3 border-t border-white/10 pt-3 flex-shrink-0">
+        <div className="px-3 pb-3 border-t border-gray-200 dark:border-white/10 pt-3 flex-shrink-0">
           <button
             onClick={() => navigate('/student/recitations')}
-            className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-bold text-gray-500 hover:text-purple-400 hover:bg-purple-500/5 transition-colors border border-white/5">
+            className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-bold text-gray-500 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-500/5 transition-colors border border-gray-200 dark:border-white/5">
             <BookOpen className="w-3.5 h-3.5" /> كل التسميعات
           </button>
         </div>
@@ -1417,14 +1417,14 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
           <div className="w-14 h-14 rounded-2xl bg-green-500/15 flex items-center justify-center mb-3">
             <CheckCircle className="w-7 h-7 text-green-400" />
           </div>
-          <p className="text-white text-sm font-black mb-1">أحسنت! 🎉</p>
-          <p className="text-gray-400 text-xs font-semibold">اجتزت كل التسميعات المطلوبة في هذا الكورس</p>
-          <p className="text-gray-600 text-[11px] mt-1">يمكنك الآن متابعة جميع المحاضرات</p>
+          <p className="text-gray-900 dark:text-white text-sm font-black mb-1">أحسنت! 🎉</p>
+          <p className="text-gray-600 dark:text-gray-400 text-xs font-semibold">اجتزت كل التسميعات المطلوبة في هذا الكورس</p>
+          <p className="text-gray-500 dark:text-gray-600 text-[11px] mt-1">يمكنك الآن متابعة جميع المحاضرات</p>
         </div>
-        <div className="px-3 pb-3 border-t border-white/10 pt-2 flex-shrink-0">
+        <div className="px-3 pb-3 border-t border-gray-200 dark:border-white/10 pt-2 flex-shrink-0">
           <button
             onClick={() => navigate('/student/recitations')}
-            className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-bold text-gray-500 hover:text-purple-400 hover:bg-purple-500/5 transition-colors border border-white/5">
+            className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-bold text-gray-500 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-500/5 transition-colors border border-gray-200 dark:border-white/5">
             <BookOpen className="w-3.5 h-3.5" /> عرض كل التسميعات (المكتملة)
           </button>
         </div>
@@ -1452,17 +1452,17 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
                 ? 'border-green-500/30 bg-green-500/5'
                 : hasResult
                 ? 'border-red-500/30 bg-red-500/5'
-                : 'border-white/10 bg-white/5'
+                : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5'
             }`}>
               <div className="flex items-start gap-2.5 mb-2">
                 {/* Sequential number so the student sees the required order (1, 2, 3...) */}
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-black ${
-                  passed ? 'bg-green-500/20 text-green-400' : hasResult ? 'bg-red-500/20 text-red-400' : 'bg-purple-500/20 text-purple-300'
+                  passed ? 'bg-green-500/20 text-green-600 dark:text-green-400' : hasResult ? 'bg-red-500/20 text-red-500 dark:text-red-400' : 'bg-purple-500/20 text-purple-600 dark:text-purple-300'
                 }`}>
                   {passed ? <CheckCircle className="w-4 h-4" /> : idx + 1}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-white text-xs font-bold truncate">{rec.title}</p>
+                  <p className="text-gray-900 dark:text-white text-xs font-bold truncate">{rec.title}</p>
                   <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                     <span className="text-[10px] text-gray-500">
                       <Clock className="w-2.5 h-2.5 inline ml-0.5" />{rec.duration_minutes} دقيقة
@@ -1489,9 +1489,9 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
                   </div>
                   {/* Linked-video context: show which lecture this recitation unlocks */}
                   {rec.linked_video_title && (
-                    <p className="text-[10px] text-gray-400 mt-1 flex items-center gap-1">
+                    <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1">
                       <Video className="w-2.5 h-2.5 inline" />
-                      يفتح: <span className="text-gray-300 font-semibold truncate">{rec.linked_video_title}</span>
+                      يفتح: <span className="text-gray-700 dark:text-gray-300 font-semibold truncate">{rec.linked_video_title}</span>
                     </p>
                   )}
                   {/* Prominent gate hint for unpassed recitations that block the next video */}
@@ -1533,10 +1533,10 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
       </div>
       {/* Link to the full recitations page — shows ALL recitations
           (pending + completed) so the student can review past results. */}
-      <div className="px-3 pb-3 border-t border-white/10 pt-2 flex-shrink-0">
+      <div className="px-3 pb-3 border-t border-gray-200 dark:border-white/10 pt-2 flex-shrink-0">
         <button
           onClick={() => navigate('/student/recitations')}
-          className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-bold text-gray-500 hover:text-purple-400 hover:bg-purple-500/5 transition-colors border border-white/5">
+          className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-bold text-gray-500 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-500/5 transition-colors border border-gray-200 dark:border-white/5">
           <BookOpen className="w-3.5 h-3.5" /> عرض كل التسميعات (المكتملة والمطلوبة)
         </button>
       </div>
@@ -1561,11 +1561,11 @@ function SidebarQuestionCard({ q, idx, answers, setAnswers }) {
 
   return (
     <>
-    <div className={`rounded-xl p-3 border transition-all ${hasAny ? 'border-purple-500/40 bg-purple-500/5' : 'border-white/10 bg-white/5'}`}>
+    <div className={`rounded-xl p-3 border transition-all ${hasAny ? 'border-purple-500/40 bg-purple-500/5' : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5'}`}>
       <div className="flex items-start gap-2 mb-2">
-        <span className="w-5 h-5 rounded-full bg-purple-500/20 text-purple-400 text-[10px] font-black flex items-center justify-center flex-shrink-0">{idx + 1}</span>
+        <span className="w-5 h-5 rounded-full bg-purple-500/20 text-purple-600 dark:text-purple-400 text-[10px] font-black flex items-center justify-center flex-shrink-0">{idx + 1}</span>
         {q.question_text && (
-          <p className="text-gray-200 text-xs font-semibold flex-1">{q.question_text}</p>
+          <p className="text-gray-800 dark:text-gray-200 text-xs font-semibold flex-1">{q.question_text}</p>
         )}
       </div>
       {q.question_image_url && (
@@ -1573,7 +1573,7 @@ function SidebarQuestionCard({ q, idx, answers, setAnswers }) {
           <img
             src={withToken(q.question_image_url)}
             alt="question"
-            className="w-full max-h-64 sm:max-h-80 object-contain rounded-lg border border-white/10 cursor-zoom-in"
+            className="w-full max-h-64 sm:max-h-80 object-contain rounded-lg border border-gray-200 dark:border-white/10 cursor-zoom-in"
             onClick={() => setLightboxSrc(withToken(q.question_image_url))}
           />
           <button
@@ -1590,7 +1590,7 @@ function SidebarQuestionCard({ q, idx, answers, setAnswers }) {
           {options.some(o => o.text !== o.letter) && (
             <div className="flex flex-wrap gap-1 mb-1.5">
               {options.map(({ letter, text }) => (
-                <span key={letter} className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-gray-400">{letter}: {text}</span>
+                <span key={letter} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 dark:bg-white/10 text-gray-600 dark:text-gray-400">{letter}: {text}</span>
               ))}
             </div>
           )}
@@ -1599,8 +1599,8 @@ function SidebarQuestionCard({ q, idx, answers, setAnswers }) {
             const isTF = sub.type === 'true_false';
             const subOptions = isTF ? [{ letter: 'A', label: 'صح' }, { letter: 'B', label: 'خطأ' }] : options;
             return (
-              <div key={sub.label} className="rounded-lg p-2 bg-white/5 border border-white/10">
-                <p className="text-[10px] font-bold text-gray-300 mb-1 flex items-center justify-between">
+              <div key={sub.label} className="rounded-lg p-2 bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10">
+                <p className="text-[10px] font-bold text-gray-700 dark:text-gray-300 mb-1 flex items-center justify-between">
                   <span>البند {sub.label}</span>
                   <span className="text-[9px] text-gray-500 font-normal">({sub.points || 1} درجة)</span>
                 </p>
@@ -1611,7 +1611,7 @@ function SidebarQuestionCard({ q, idx, answers, setAnswers }) {
                       className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all ${
                         subSel === opt.letter
                           ? 'bg-purple-500 text-white border-purple-500'
-                          : 'bg-white/5 border-white/20 text-gray-300 hover:border-purple-400'
+                          : 'bg-gray-100 dark:bg-white/5 border-gray-300 dark:border-white/20 text-gray-700 dark:text-gray-300 hover:border-purple-500 dark:hover:border-purple-400'
                       }`}>
                       {isTF ? opt.label : opt.letter}
                     </button>
@@ -1629,9 +1629,9 @@ function SidebarQuestionCard({ q, idx, answers, setAnswers }) {
               className={`w-full text-right flex items-center gap-2 px-2.5 py-2 rounded-lg border text-[11px] font-semibold transition-all ${
                 selected === letter
                   ? 'bg-purple-500 text-white border-purple-500'
-                  : 'bg-white/5 border-white/15 text-gray-300 hover:border-purple-400'
+                  : 'bg-gray-100 dark:bg-white/5 border-gray-200 dark:border-white/15 text-gray-700 dark:text-gray-300 hover:border-purple-500 dark:hover:border-purple-400'
               }`}>
-              <span className={`w-4.5 h-4.5 rounded-full flex items-center justify-center text-[9px] font-black flex-shrink-0 ${selected === letter ? 'bg-white/20' : 'bg-white/10 text-purple-400'}`}>{letter}</span>
+              <span className={`w-4.5 h-4.5 rounded-full flex items-center justify-center text-[9px] font-black flex-shrink-0 ${selected === letter ? 'bg-white/20' : 'bg-gray-200 dark:bg-white/10 text-purple-600 dark:text-purple-400'}`}>{letter}</span>
               {text}
             </button>
           ))}
@@ -1789,19 +1789,19 @@ export default function CourseView() {
   const canExpand = activeTab === 'pdfs' || activeTab === 'recitations';
 
   return (
-    <div className="flex flex-col h-full bg-gray-950">
+    <div className="flex flex-col h-full bg-white dark:bg-gray-950">
 
       {/* ── Breadcrumb Header ── */}
-      <div className="flex-shrink-0 bg-gray-900 border-b border-white/10 px-5 py-3 flex items-center gap-3 z-10">
+      <div className="flex-shrink-0 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-white/10 px-5 py-3 flex items-center gap-3 z-10">
         <button
           onClick={() => navigate('/student/courses')}
-          className="flex items-center gap-1.5 text-sm font-bold text-gray-400 hover:text-orange-400 transition-colors"
+          className="flex items-center gap-1.5 text-sm font-bold text-gray-500 dark:text-gray-400 hover:text-orange-500 dark:hover:text-orange-400 transition-colors"
         >
           <ArrowRight className="w-4 h-4" />
           <span>كورساتي</span>
         </button>
-        <ChevronRight className="w-4 h-4 text-gray-600" />
-        <span className="text-sm font-black text-white truncate">{course?.name || '…'}</span>
+        <ChevronRight className="w-4 h-4 text-gray-400 dark:text-gray-600" />
+        <span className="text-sm font-black text-gray-900 dark:text-white truncate">{course?.name || '…'}</span>
 
         {course && (
           <div className="mr-auto flex items-center gap-2">
@@ -1816,11 +1816,11 @@ export default function CourseView() {
       <div className="flex-1 flex flex-col-reverse md:flex-row overflow-hidden">
 
         {/* ── Sidebar ── */}
-        <aside className={`w-full h-[34vh] md:w-80 md:h-auto flex-shrink-0 bg-gray-900 border-t md:border-t-0 md:border-l border-white/10 flex-col overflow-hidden ${contentExpanded ? 'hidden md:flex' : 'flex'}`}>
+        <aside className={`w-full h-[34vh] md:w-80 md:h-auto flex-shrink-0 bg-gray-50 dark:bg-gray-900 border-t md:border-t-0 md:border-l border-gray-200 dark:border-white/10 flex-col overflow-hidden ${contentExpanded ? 'hidden md:flex' : 'flex'}`}>
 
           {/* Course info strip — desktop only */}
-          <div className="hidden md:block flex-shrink-0 px-4 py-4 border-b border-white/10 bg-gradient-to-b from-orange-500/10 to-transparent">
-            <p className="text-white font-black text-sm leading-relaxed line-clamp-2">{course?.name}</p>
+          <div className="hidden md:block flex-shrink-0 px-4 py-4 border-b border-gray-200 dark:border-white/10 bg-gradient-to-b from-orange-500/10 to-transparent">
+            <p className="text-gray-900 dark:text-white font-black text-sm leading-relaxed line-clamp-2">{course?.name}</p>
             {course?.target_stage && (
               <span className="mt-1.5 inline-block text-[10px] font-bold text-orange-400 bg-orange-400/10 px-2 py-0.5 rounded-full">
                 {course.target_stage}
@@ -1829,21 +1829,21 @@ export default function CourseView() {
           </div>
 
           {/* Tabs */}
-          <div className="flex-shrink-0 flex border-b border-white/10">
+          <div className="flex-shrink-0 flex border-b border-gray-200 dark:border-white/10">
             {tabs.map(tab => (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
                 className={`flex-1 flex flex-col items-center gap-1 py-3 text-[11px] font-bold transition-all border-b-2 ${
                   activeTab === tab.key
-                    ? 'text-orange-400 border-orange-400 bg-orange-400/5'
-                    : 'text-gray-500 border-transparent hover:text-gray-300'
+                    ? 'text-orange-500 dark:text-orange-400 border-orange-500 dark:border-orange-400 bg-orange-400/5'
+                    : 'text-gray-500 border-transparent hover:text-gray-700 dark:hover:text-gray-300'
                 }`}
               >
                 <tab.icon className="w-4 h-4" />
                 {tab.label}
                 <span className={`text-[9px] rounded-full px-1.5 py-0.5 font-black leading-none ${
-                  activeTab === tab.key ? 'bg-orange-400/20 text-orange-300' : 'bg-white/5 text-gray-500'
+                  activeTab === tab.key ? 'bg-orange-400/20 text-orange-500 dark:text-orange-300' : 'bg-gray-200 dark:bg-white/5 text-gray-500'
                 }`}>
                   {tab.count}
                 </span>
@@ -1856,7 +1856,7 @@ export default function CourseView() {
             {isLoading ? (
               <div className="p-4 space-y-3">
                 {[...Array(5)].map((_, i) => (
-                  <div key={i} className="h-16 rounded-xl bg-white/5 animate-pulse" />
+                  <div key={i} className="h-16 rounded-xl bg-gray-200 dark:bg-white/5 animate-pulse" />
                 ))}
               </div>
             ) : activeTab === 'videos' ? (
@@ -1882,12 +1882,12 @@ export default function CourseView() {
                           ? 'opacity-50 cursor-not-allowed text-gray-500'
                           : isActive
                           ? 'bg-orange-500 shadow-lg shadow-orange-500/20'
-                          : 'hover:bg-white/5 text-gray-400 hover:text-white'
+                          : 'hover:bg-gray-100 dark:hover:bg-white/5 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                       }`}
                     >
                       <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-black ${
-                        locked ? 'bg-white/5 text-gray-600'
-                          : isActive ? 'bg-white/20 text-white' : 'bg-white/5 text-gray-500'
+                        locked ? 'bg-gray-200 dark:bg-white/5 text-gray-500 dark:text-gray-600'
+                          : isActive ? 'bg-white/20 text-white' : 'bg-gray-200 dark:bg-white/5 text-gray-500'
                       }`}>
                         {locked
                           ? <Lock className="w-4 h-4" />
@@ -1897,28 +1897,28 @@ export default function CourseView() {
                         }
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className={`font-bold text-sm truncate ${isActive ? 'text-white' : locked ? 'text-gray-600' : 'text-gray-300'}`}>
+                        <p className={`font-bold text-sm truncate ${isActive ? 'text-white' : locked ? 'text-gray-500 dark:text-gray-600' : 'text-gray-700 dark:text-gray-300'}`}>
                           {v.title}
                         </p>
                         <div className="flex items-center gap-2 mt-0.5">
                           {locked && (
-                            <span className="text-[10px] font-bold text-purple-400 bg-purple-400/10 px-1.5 py-0.5 rounded-full">
+                            <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-400/10 px-1.5 py-0.5 rounded-full">
                               🔒 يتطلب تسميع
                             </span>
                           )}
                           {!locked && v.duration_minutes > 0 && (
-                            <p className={`text-xs flex items-center gap-1 ${isActive ? 'text-white/60' : 'text-gray-600'}`}>
+                            <p className={`text-xs flex items-center gap-1 ${isActive ? 'text-white/60' : 'text-gray-500 dark:text-gray-600'}`}>
                               <Clock className="w-3 h-3" /> {fmt(v.duration_minutes)}
                             </p>
                           )}
                           {!locked && v.saved_progress > 0 && (
-                            <span className={`text-[10px] font-bold ${isActive ? 'text-white/70' : 'text-orange-400'}`}>
+                            <span className={`text-[10px] font-bold ${isActive ? 'text-white/70' : 'text-orange-500 dark:text-orange-400'}`}>
                               {Math.round(v.saved_progress)}%
                             </span>
                           )}
                         </div>
                         {!locked && v.saved_progress > 0 && !isActive && (
-                          <div className="mt-1.5 h-0.5 w-full rounded-full bg-white/10 overflow-hidden">
+                          <div className="mt-1.5 h-0.5 w-full rounded-full bg-gray-200 dark:bg-white/10 overflow-hidden">
                             <div
                               className="h-full rounded-full bg-orange-500/70"
                               style={{ width: `${Math.min(100, v.saved_progress)}%` }}
@@ -1927,7 +1927,7 @@ export default function CourseView() {
                         )}
                       </div>
                       {!locked && v.saved_progress >= 95 && (
-                        <CheckCircle2 className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-white/70' : 'text-green-400'}`} />
+                        <CheckCircle2 className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-white/70' : 'text-green-500 dark:text-green-400'}`} />
                       )}
                     </button>
                   );
@@ -1946,15 +1946,15 @@ export default function CourseView() {
                       className={`w-full text-right flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 ${
                         isActive
                           ? 'bg-orange-500 shadow-lg shadow-orange-500/20'
-                          : 'hover:bg-white/5 text-gray-400 hover:text-white'
+                          : 'hover:bg-gray-100 dark:hover:bg-white/5 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                       }`}
                     >
                       <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                        isActive ? 'bg-white/20' : 'bg-white/5'
+                        isActive ? 'bg-white/20' : 'bg-gray-200 dark:bg-white/5'
                       }`}>
                         <FileText className={`w-4 h-4 ${isActive ? 'text-white' : 'text-gray-500'}`} />
                       </div>
-                      <p className={`flex-1 font-bold text-sm text-right truncate ${isActive ? 'text-white' : 'text-gray-300'}`}>
+                      <p className={`flex-1 font-bold text-sm text-right truncate ${isActive ? 'text-white' : 'text-gray-700 dark:text-gray-300'}`}>
                         {p.title}
                       </p>
                       {isActive && <Eye className="w-3.5 h-3.5 text-white/60 flex-shrink-0" />}
@@ -1965,7 +1965,7 @@ export default function CourseView() {
             ) : activeTab === 'recitations' ? (
               <div className="p-3 space-y-2">
                 {courseRecitations.length === 0 ? (
-                  <div className="text-center py-8 text-gray-600">
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-600">
                     <BookOpen className="w-8 h-8 mx-auto mb-2 opacity-30" />
                     <p className="text-xs font-medium">لا توجد تسميعات</p>
                   </div>
@@ -1973,11 +1973,11 @@ export default function CourseView() {
                   const passed = isRecPassed(rec);
                   const hasResult = !!rec.result_id;
                   return (
-                    <div key={rec.id} className={`rounded-xl p-3 border ${hasResult ? (passed ? 'border-green-500/30 bg-green-500/5' : 'border-red-500/30 bg-red-500/5') : 'border-white/10 bg-white/5'}`}>
+                    <div key={rec.id} className={`rounded-xl p-3 border ${hasResult ? (passed ? 'border-green-500/30 bg-green-500/5' : 'border-red-500/30 bg-red-500/5') : 'border-gray-200 dark:border-white/10 bg-gray-100 dark:bg-white/5'}`}>
                       <div className="flex items-center justify-between gap-2">
-                        <p className="text-white font-bold text-xs truncate flex-1">{rec.title}</p>
+                        <p className="text-gray-900 dark:text-white font-bold text-xs truncate flex-1">{rec.title}</p>
                         {hasResult ? (
-                          <span className={`text-xs font-black flex-shrink-0 ${passed ? 'text-green-400' : 'text-red-400'}`}>
+                          <span className={`text-xs font-black flex-shrink-0 ${passed ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`}>
                             {rec.my_score}/{rec.total_score}
                           </span>
                         ) : (
@@ -1985,7 +1985,7 @@ export default function CourseView() {
                         )}
                       </div>
                       {hasResult && (
-                        <span className={`inline-block mt-1 text-xs font-bold px-1.5 py-0.5 rounded-full ${passed ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                        <span className={`inline-block mt-1 text-xs font-bold px-1.5 py-0.5 rounded-full ${passed ? 'bg-green-500/20 text-green-600 dark:text-green-400' : 'bg-red-500/20 text-red-500 dark:text-red-400'}`}>
                           {passed ? '✓ ناجح' : '✗ راسب'}
                         </span>
                       )}
@@ -2009,7 +2009,7 @@ export default function CourseView() {
               // Bottom-right corner, not top — the top of the PDF viewer and the
               // recitation timer/status bar are both load-bearing UI, so a
               // top-anchored floating button risks covering them on mobile.
-              className="md:hidden absolute bottom-3 left-3 z-30 flex items-center gap-1.5 bg-gray-900/90 border border-white/10 text-gray-300 hover:text-orange-400 text-[11px] font-bold px-2.5 py-1.5 rounded-full shadow-lg backdrop-blur-sm active:scale-95 transition-all"
+              className="md:hidden absolute bottom-3 left-3 z-30 flex items-center gap-1.5 bg-white/90 dark:bg-gray-900/90 border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-300 hover:text-orange-500 dark:hover:text-orange-400 text-[11px] font-bold px-2.5 py-1.5 rounded-full shadow-lg backdrop-blur-sm active:scale-95 transition-all"
               title={contentExpanded ? 'إظهار القائمة' : 'تكبير الشاشة'}
             >
               {contentExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
@@ -2036,9 +2036,9 @@ export default function CourseView() {
 
               {/* Mobile compact title + next button */}
               {currentVideo && (
-                <div className="md:hidden flex-shrink-0 bg-gray-900 border-t border-white/10 px-4 py-2.5 flex items-center justify-between gap-3">
+                <div className="md:hidden flex-shrink-0 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-white/10 px-4 py-2.5 flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-white font-bold text-sm truncate">{currentVideo.title}</p>
+                    <p className="text-gray-900 dark:text-white font-bold text-sm truncate">{currentVideo.title}</p>
                     <p className="text-gray-500 text-xs mt-0.5">
                       {videos.findIndex(v => v.id === currentVideo.id) + 1} / {videos.length}
                       {currentVideo.duration_minutes > 0 && ` · ${fmt(currentVideo.duration_minutes)}`}
@@ -2074,10 +2074,10 @@ export default function CourseView() {
 
               {/* Desktop full info bar */}
               {currentVideo && (
-                <div className="hidden md:block flex-shrink-0 bg-gray-900 border-t border-white/10 px-6 py-4">
+                <div className="hidden md:block flex-shrink-0 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-white/10 px-6 py-4">
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <h2 className="text-white font-black text-lg leading-tight">
+                      <h2 className="text-gray-900 dark:text-white font-black text-lg leading-tight">
                         {currentVideo.title}
                       </h2>
                       <div className="flex items-center gap-3 mt-1.5">
@@ -2087,7 +2087,7 @@ export default function CourseView() {
                             {fmt(currentVideo.duration_minutes)}
                           </span>
                         )}
-                        <span className="text-xs text-gray-600">
+                        <span className="text-xs text-gray-500 dark:text-gray-600">
                           محاضرة {(videos.findIndex(v => v.id === currentVideo.id) + 1)} من {videos.length}
                         </span>
                       </div>
@@ -2119,7 +2119,7 @@ export default function CourseView() {
                         className={`h-1 rounded-full flex-1 transition-all ${
                           v.id === currentVideo.id
                             ? 'bg-orange-500'
-                            : 'bg-white/10 hover:bg-white/20'
+                            : 'bg-gray-300 dark:bg-white/10 hover:bg-gray-400 dark:hover:bg-white/20'
                         }`}
                       />
                     ))}
@@ -2130,13 +2130,13 @@ export default function CourseView() {
           ) : activeTab === 'pdfs' ? (
             <>
               {currentPdf && (
-                <div className="flex-shrink-0 bg-gray-900 border-b border-white/10 px-5 py-3 flex items-center justify-between">
+                <div className="flex-shrink-0 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-white/10 px-5 py-3 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-lg bg-orange-500/20 flex items-center justify-center">
-                      <FileText className="w-4 h-4 text-orange-400" />
+                      <FileText className="w-4 h-4 text-orange-500 dark:text-orange-400" />
                     </div>
                     <div>
-                      <p className="text-white font-black text-sm">{currentPdf.title}</p>
+                      <p className="text-gray-900 dark:text-white font-black text-sm">{currentPdf.title}</p>
                       <p className="text-gray-500 text-xs">ملف PDF</p>
                     </div>
                   </div>
@@ -2163,12 +2163,12 @@ export default function CourseView() {
             /* Exams tab main area — shows grades breakdown */
             <div className="flex-1 overflow-y-auto p-6">
               <div className="max-w-2xl mx-auto space-y-5">
-                <h2 className="text-white font-black text-xl mb-4 flex items-center gap-2">
-                  <BookOpen className="w-6 h-6 text-purple-400" /> درجاتي في الاختبارات
+                <h2 className="text-gray-900 dark:text-white font-black text-xl mb-4 flex items-center gap-2">
+                  <BookOpen className="w-6 h-6 text-purple-500 dark:text-purple-400" /> درجاتي في الاختبارات
                 </h2>
 
                 {exams.length === 0 ? (
-                  <div className="text-center py-16 text-gray-600">
+                  <div className="text-center py-16 text-gray-500 dark:text-gray-600">
                     <BookOpen className="w-10 h-10 mx-auto mb-3 opacity-30" />
                     <p className="text-sm font-medium">لا توجد اختبارات بعد</p>
                   </div>
@@ -2178,40 +2178,40 @@ export default function CourseView() {
                   const passed = myResult && !isAbsent && myResult.score >= ex.pass_score;
                   const pct = myResult && !isAbsent ? Math.round((myResult.score / ex.total_score) * 100) : 0;
                   return (
-                    <div key={ex.id} className={`bg-white/5 rounded-2xl p-5 border ${
-                      isAbsent ? 'border-gray-600/30'
+                    <div key={ex.id} className={`bg-gray-50 dark:bg-white/5 rounded-2xl p-5 border ${
+                      isAbsent ? 'border-gray-300 dark:border-gray-600/30'
                       : myResult ? (passed ? 'border-green-500/30' : 'border-red-500/30')
-                      : 'border-white/10'
+                      : 'border-gray-200 dark:border-white/10'
                     }`}>
                       <div className="flex items-start justify-between gap-3 mb-3">
                         <div>
-                          <h3 className="text-white font-bold text-sm">{ex.title}</h3>
+                          <h3 className="text-gray-900 dark:text-white font-bold text-sm">{ex.title}</h3>
                           <p className="text-gray-500 text-xs mt-0.5">{ex.total_score} درجة · حد النجاح {ex.pass_score}</p>
                         </div>
                         {isAbsent ? (
-                          <span className="text-xs font-bold text-gray-400 bg-gray-500/20 px-3 py-1.5 rounded-full">غائب</span>
+                          <span className="text-xs font-bold text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-gray-500/20 px-3 py-1.5 rounded-full">غائب</span>
                         ) : myResult ? (
                           <div className="text-left flex-shrink-0">
-                            <div className={`text-2xl font-black ${passed ? 'text-green-400' : 'text-red-400'}`}>
+                            <div className={`text-2xl font-black ${passed ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`}>
                               {myResult.score}<span className="text-sm text-gray-500">/{ex.total_score}</span>
                             </div>
-                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${passed ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${passed ? 'bg-green-500/20 text-green-600 dark:text-green-400' : 'bg-red-500/20 text-red-500 dark:text-red-400'}`}>
                               {passed ? '✓ ناجح' : '✗ راسب'}
                             </span>
                           </div>
                         ) : (
-                          <span className="text-xs font-bold text-gray-500 bg-white/5 px-3 py-1.5 rounded-full">لم تُؤدَّ بعد</span>
+                          <span className="text-xs font-bold text-gray-500 bg-gray-100 dark:bg-white/5 px-3 py-1.5 rounded-full">لم تُؤدَّ بعد</span>
                         )}
                       </div>
                       {/* Score breakdown + review button: hidden for absent students */}
                       {myResult && !isAbsent && (
                         <>
-                          <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden mb-3">
+                          <div className="w-full bg-gray-200 dark:bg-white/10 rounded-full h-2 overflow-hidden mb-3">
                             <div className={`h-2 rounded-full transition-all ${passed ? 'bg-green-500' : 'bg-red-400'}`} style={{ width: `${pct}%` }} />
                           </div>
                           <div className="flex items-center gap-4 text-xs">
-                            <span className="text-green-400 font-bold">✓ صحيح: {myResult.correct_count}</span>
-                            <span className="text-red-400 font-bold">✗ خاطئ: {myResult.wrong_count}</span>
+                            <span className="text-green-600 dark:text-green-400 font-bold">✓ صحيح: {myResult.correct_count}</span>
+                            <span className="text-red-500 dark:text-red-400 font-bold">✗ خاطئ: {myResult.wrong_count}</span>
                             <span className="text-gray-500 font-bold">— متروك: {myResult.unanswered_count}</span>
                           </div>
                           <div className="flex gap-2 mt-3">
