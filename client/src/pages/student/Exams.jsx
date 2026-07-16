@@ -86,7 +86,8 @@ export default function StudentExams() {
   const [retryModal, setRetryModal] = useState(null);
   const [retryMessage, setRetryMessage] = useState('');
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
+  // Start expanded — history is now the primary place for taken exams
+  const [showHistory, setShowHistory] = useState(true);
 
   // Ref attached to the root scrollable div in every view (exam-taking, list, result).
   // scrollAllToTop resets both this container AND the layout <main> so we cover all cases.
@@ -809,16 +810,43 @@ export default function StudentExams() {
                             <span className={`text-xs font-black ${passed ? 'text-green-600' : 'text-red-500'}`}>
                               {r.score}/{r.total_score}
                             </span>
-                            {/* Review button is available for EVERY attempt (latest and
-                                archived) — the student must always be able to revisit a
-                                previous grade/answers, never only the last one. */}
-                            <button
-                              onClick={() => navigate(`/student/exam-review/${r.id}`)}
-                              className="p-1.5 rounded-lg text-gray-400 hover:text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors"
-                              title="مراجعة الإجابات"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                            </button>
+                            {/* Review button — available for every attempt */}
+                            {(passed || retryMap[r.exam_id]?.status === 'rejected' || (!passed && !r.is_latest)) && (
+                              <button
+                                onClick={() => navigate(`/student/exam-review/${r.id}`)}
+                                className="p-1.5 rounded-lg text-gray-400 hover:text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors"
+                                title="مراجعة الإجابات"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            {/* Retry controls — only for latest failed attempt */}
+                            {!passed && r.is_latest && (() => {
+                              const myRetry = retryMap[r.exam_id];
+                              if (myRetry?.status === 'pending') {
+                                return (
+                                  <span className="text-[10px] bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 font-bold px-1.5 py-0.5 rounded-full" title="طلب الإعادة قيد المراجعة">
+                                    ⏳ معلّق
+                                  </span>
+                                );
+                              }
+                              if (myRetry?.status === 'rejected') {
+                                return (
+                                  <span className="text-[10px] bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-bold px-1.5 py-0.5 rounded-full" title={myRetry.teacher_note || 'رُفض طلب الإعادة'}>
+                                    ✗ رُفض
+                                  </span>
+                                );
+                              }
+                              return (
+                                <button
+                                  onClick={() => { setRetryModal({ id: r.exam_id, title: r.exam_title }); setRetryMessage(''); }}
+                                  className="p-1.5 rounded-lg text-gray-400 hover:text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors"
+                                  title="طلب إعادة الاختبار"
+                                >
+                                  <RotateCcw className="w-3.5 h-3.5" />
+                                </button>
+                              );
+                            })()}
                           </>
                         )}
                       </div>
@@ -956,14 +984,21 @@ export default function StudentExams() {
 
         {isLoading ? (
           [...Array(3)].map((_, i) => <div key={i} className="card h-24 animate-pulse bg-gray-100" />)
-        ) : exams.length === 0 ? (
-          <div className="card text-center py-16">
-            <FileText className="w-16 h-16 mx-auto mb-3 text-gray-400" />
-            <p className="text-gray-600 font-medium">لا توجد اختبارات متاحة حالياً</p>
-          </div>
-        ) : (
+        ) : (() => {
+          // Show only exams not yet taken, or taken but retry is approved (student can retake)
+          const availableExams = exams.filter(ex => !ex.already_taken || retryMap[ex.id]?.status === 'approved');
+          if (availableExams.length === 0) {
+            return (
+              <div className="card text-center py-12">
+                <CheckCircle className="w-14 h-14 mx-auto mb-3 text-green-400" />
+                <p className="text-gray-700 font-black text-base">أنهيت جميع الاختبارات المتاحة 🎉</p>
+                <p className="text-gray-400 text-sm mt-1">راجع نتائجك في سجل اختباراتي أعلاه</p>
+              </div>
+            );
+          }
+          return (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-            {exams.map(ex => {
+            {availableExams.map(ex => {
               const scheduleStatus = getExamScheduleStatus(ex);
               const isUpcoming = scheduleStatus === 'upcoming';
               const isExpired = scheduleStatus === 'expired';
@@ -1077,7 +1112,8 @@ export default function StudentExams() {
               );
             })}
           </div>
-        )}
+          );
+        })()}
 
       </div>
     </div>
