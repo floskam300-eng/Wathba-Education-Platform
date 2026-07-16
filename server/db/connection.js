@@ -42,4 +42,10 @@ pool.on('error', (err) => {
   console.error('PostgreSQL pool error:', err);
 });
 
+// Suppress PostgreSQL NOTICE messages (e.g. "index already exists, skipping")
+// that pg v8 logs to stderr by default during schema/migration runs.
+pool.on('connect', (client) => {
+  client.on('notice', () => {});
+});
+
 module.exports = pool;
