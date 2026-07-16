@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import api from '../../api/axios';
 import ImageCropper from '../../components/ImageCropper';
-import { ArrowRight, Save, UserPlus, Phone, User, Sparkles, Plus, Trash2, ArrowUpDown, KeyRound } from 'lucide-react';
+import { ArrowRight, Save, Phone, User, Sparkles, Plus, Trash2, KeyRound } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function TeacherForm() {
@@ -25,9 +25,13 @@ export default function TeacherForm() {
   // BUG-3 FIX: compute the normalized slug exactly as the server does
   const previewSlug = username.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'username';
 
+  // Actual subdomain slug (edit mode — may differ from username)
+  const [slug, setSlug] = useState('');
+
   // Subscriptions setup (only when creating)
   const [plans, setPlans] = useState([]);
-  const [selectedPlanId, setSelectedPlanId] = useState('');
+  // Multi-plan selection: Set of plan IDs (strings)
+  const [selectedPlanIds, setSelectedPlanIds] = useState(new Set());
 
   // Support Team Members (only when editing)
   const [team, setTeam] = useState([]);
@@ -44,18 +48,20 @@ export default function TeacherForm() {
     const init = async () => {
       try {
         if (!isEdit) {
-          // Fetch plans to select one for the new teacher
+          // Fetch plans to select one or more for the new teacher
           const res = await api.get('/plans');
           const activePlans = res.data.plans.filter((p) => p.is_active);
           setPlans(activePlans);
-          // F1 FIX: convert to string so <select value> matches option value (string coercion)
-        if (activePlans.length > 0) setSelectedPlanId(String(activePlans[0].id));
+          // Pre-select the first platform plan by default
+          const firstPlatform = activePlans.find((p) => p.category === 'platform');
+          if (firstPlatform) setSelectedPlanIds(new Set([String(firstPlatform.id)]));
         } else {
           // Fetch existing teacher details
           const res = await api.get(`/teachers/${id}`);
           const { teacher } = res.data;
           setName(teacher.name);
           setUsername(teacher.username);
+          setSlug(teacher.slug || teacher.username || '');
           setClassification(teacher.classification || '');
           setWhatsappPhone(teacher.whatsapp_phone || '');
           setBio(teacher.bio || '');
@@ -77,10 +83,22 @@ export default function TeacherForm() {
     init();
   }, [id, isEdit]);
 
+  const togglePlan = (planId) => {
+    setSelectedPlanIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(planId)) {
+        next.delete(planId);
+      } else {
+        next.add(planId);
+      }
+      return next;
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!name || (!isEdit && (!username || !password || !selectedPlanId))) {
-      return toast.error('يرجى ملء جميع الحقول المطلوبة');
+    if (!name || (!isEdit && (!username || !password || selectedPlanIds.size === 0))) {
+      return toast.error('يرجى ملء جميع الحقول المطلوبة، ويجب اختيار باقة واحدة على الأقل');
     }
 
     setSaving(true);
@@ -97,7 +115,7 @@ export default function TeacherForm() {
           logo_url: logoUrl,
           hero_image_url: heroImageUrl,
           background_color: backgroundColor,
-          plan_id: selectedPlanId,
+          plan_ids: Array.from(selectedPlanIds).map(Number),
           force_password_change: forcePasswordChange,
         });
         toast.success('تم إنشاء حساب المدرس والمنصة بنجاح!');
@@ -221,7 +239,7 @@ export default function TeacherForm() {
 
             <div>
               <label className="block text-sm font-semibold text-slate-300 font-cairo" htmlFor="teacherUsername">
-                اسم المستخدم / اسم النطاق الفرعي *
+                {isEdit ? 'اسم المستخدم (للدخول)' : 'اسم المستخدم / اسم النطاق الفرعي *'}
               </label>
               <input
                 id="teacherUsername"
@@ -236,6 +254,12 @@ export default function TeacherForm() {
               {!isEdit && (
                 <p className="mt-1 text-xs text-slate-500 font-cairo">
                   سيتم توليد النطاق الفرعي تلقائياً: <span className="font-mono text-amber-500">{previewSlug}.wathba.site</span>
+                </p>
+              )}
+              {isEdit && slug && (
+                <p className="mt-1 text-xs text-slate-500 font-cairo">
+                  النطاق الفرعي الفعلي للمنصة:{' '}
+                  <span className="font-mono text-amber-400">{slug}.wathba.site</span>
                 </p>
               )}
             </div>
@@ -320,34 +344,85 @@ export default function TeacherForm() {
           </div>
         </div>
 
-        {/* Section 2: Plan Selection (Only on Create) */}
+        {/* Section 2: Plan Selection (Only on Create) — multi-select by category */}
         {!isEdit && (
           <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-6 space-y-6">
             <h3 className="text-lg font-bold text-white font-cairo border-b border-slate-800 pb-3 flex items-center gap-2">
               <Sparkles className="text-amber-500" size={20} />
-              <span>باقة الاشتراك للمنصة</span>
+              <span>باقات الاشتراك للمنصة</span>
             </h3>
 
-            <div>
-              <label className="block text-sm font-semibold text-slate-300 font-cairo">
-                اختر الباقة الأساسية لبدء تشغيل المنصة *
-              </label>
-              <select
-                value={selectedPlanId}
-                onChange={(e) => setSelectedPlanId(e.target.value)}
-                className="mt-2 block w-full rounded-xl border border-slate-800 bg-slate-950 py-3 px-4 text-white focus:border-amber-500 focus:outline-none text-sm"
-              >
-                {plans.length === 0 ? (
-                  <option value="">لا توجد باقات مفعلة بالمنصة حالياً</option>
-                ) : (
-                  plans.map((p) => (
-                    <option key={p.id} value={String(p.id)}>
-                      {p.name} — سعرها {p.price} EGP / فوترة {p.billing_type === 'monthly' ? 'شهري' : p.billing_type === 'annual' ? 'سنوي' : 'مرة واحدة'}
-                    </option>
-                  ))
+            {plans.length === 0 ? (
+              <p className="text-sm text-slate-500 font-cairo">لا توجد باقات مفعلة بالمنصة حالياً.</p>
+            ) : (
+              <div className="space-y-6">
+                <p className="text-xs text-slate-400 font-cairo">
+                  يمكنك اختيار أكثر من باقة للمدرس (باقة المنصة + خدمات إضافية). يجب اختيار باقة واحدة على الأقل. *
+                </p>
+                {/* Group plans by category */}
+                {[
+                  { key: 'platform',      label: 'باقات استضافة المنصة',   color: 'text-amber-400',   border: 'border-amber-500/30' },
+                  { key: 'service',       label: 'خدمات الإنتاج والتصميم', color: 'text-sky-400',     border: 'border-sky-500/30'   },
+                  { key: 'social_media',  label: 'إدارة السوشيال ميديا',   color: 'text-purple-400',  border: 'border-purple-500/30'},
+                ]
+                  .filter(({ key }) => plans.some((p) => p.category === key))
+                  .map(({ key, label, color, border }) => (
+                    <div key={key} className={`rounded-xl border ${border} bg-slate-950/40 p-4 space-y-3`}>
+                      <h4 className={`text-xs font-bold font-cairo uppercase tracking-wide ${color}`}>{label}</h4>
+                      <div className="space-y-2">
+                        {plans
+                          .filter((p) => p.category === key)
+                          .map((p) => {
+                            const checked = selectedPlanIds.has(String(p.id));
+                            return (
+                              <label
+                                key={p.id}
+                                className={`flex items-center gap-3 cursor-pointer rounded-xl border px-4 py-3 transition ${
+                                  checked
+                                    ? 'border-amber-500/50 bg-amber-500/10'
+                                    : 'border-slate-800 hover:border-slate-600'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => togglePlan(String(p.id))}
+                                  className="h-4 w-4 rounded border-slate-700 bg-slate-950 text-amber-500 focus:ring-amber-500 flex-shrink-0"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-semibold text-white text-sm font-cairo">{p.name}</div>
+                                  {p.description && (
+                                    <div className="text-xs text-slate-500 font-cairo mt-0.5 truncate">{p.description}</div>
+                                  )}
+                                </div>
+                                <div className="text-right flex-shrink-0">
+                                  <div className="text-sm font-bold text-amber-400 font-mono">{p.price} EGP</div>
+                                  <div className="text-[10px] text-slate-500 font-cairo">
+                                    {p.billing_type === 'monthly' ? 'شهري' : p.billing_type === 'annual' ? 'سنوي' : 'مرة واحدة'}
+                                  </div>
+                                </div>
+                              </label>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  ))}
+
+                {selectedPlanIds.size > 0 && (
+                  <div className="rounded-xl border border-slate-700 bg-slate-950/60 px-4 py-3 flex items-center justify-between">
+                    <span className="text-xs text-slate-400 font-cairo">
+                      إجمالي الباقات المحددة: <span className="text-white font-semibold">{selectedPlanIds.size} باقة</span>
+                    </span>
+                    <span className="text-sm font-bold text-amber-400 font-mono">
+                      {plans
+                        .filter((p) => selectedPlanIds.has(String(p.id)))
+                        .reduce((sum, p) => sum + Number(p.price), 0)
+                        .toLocaleString()} EGP / شهر
+                    </span>
+                  </div>
                 )}
-              </select>
-            </div>
+              </div>
+            )}
           </div>
         )}
 

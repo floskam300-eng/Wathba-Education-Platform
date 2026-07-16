@@ -316,9 +316,17 @@ router.get('/teachers/:id', requireAdminAuth, async (req, res) => {
 
 // Create New Teacher (Platform Setup / Subdomain automatic creation via slug)
 router.post('/teachers', requireAdminAuth, async (req, res) => {
-  const { username, password, name, classification, whatsapp_phone, logo_url, hero_image_url, background_color, bio, plan_id, force_password_change } = req.body;
-  if (!username || !password || !name || !plan_id) {
-    return res.status(400).json({ error: 'الاسم واسم المستخدم وكلمة المرور واشتراك الباقة مطلوبين' });
+  const { username, password, name, classification, whatsapp_phone, logo_url, hero_image_url, background_color, bio, plan_ids, force_password_change } = req.body;
+
+  // Accept plan_ids array (multi-plan support); also accept legacy plan_id for backwards compat
+  const rawPlanId = req.body.plan_id;
+  const planIdsArray = Array.isArray(plan_ids) && plan_ids.length > 0
+    ? plan_ids.map((id) => parseInt(id, 10)).filter((id) => !isNaN(id) && id > 0)
+    : rawPlanId ? [parseInt(rawPlanId, 10)].filter((id) => !isNaN(id) && id > 0)
+    : [];
+
+  if (!username || !password || !name || planIdsArray.length === 0) {
+    return res.status(400).json({ error: 'الاسم واسم المستخدم وكلمة المرور واشتراك باقة واحدة على الأقل مطلوبين' });
   }
 
   const slug = username.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
@@ -347,10 +355,15 @@ router.post('/teachers', requireAdminAuth, async (req, res) => {
       return res.status(409).json({ error: 'اسم المستخدم أو الرابط الفرعي مستخدم بالفعل' });
     }
 
-    const checkPlan = await client.query('SELECT id, price, billing_type FROM subscription_plans WHERE id = $1', [plan_id]);
-    if (checkPlan.rows.length === 0) {
+    // Validate all requested plan IDs exist
+    const placeholders = planIdsArray.map((_, i) => `${i + 1}`).join(', ');
+    const plansCheck = await client.query(
+      `SELECT id, price, billing_type, category FROM subscription_plans WHERE id IN (${placeholders}) AND is_active = true`,
+      planIdsArray
+    );
+    if (plansCheck.rows.length !== planIdsArray.length) {
       await client.query('ROLLBACK');
-      return res.status(400).json({ error: 'الباقة المحددة غير موجودة' });
+      return res.status(400).json({ error: 'إحدى الباقات المحددة غير موجودة أو غير مفعلة' });
     }
 
     const hashed = await bcrypt.hash(password, 10);
@@ -377,22 +390,17 @@ router.post('/teachers', requireAdminAuth, async (req, res) => {
     );
     const newTeacherId = teacherRes.rows[0].id;
 
-    // Create teacher subscription using DB-level CURRENT_DATE (eliminates local timezone drift)
-    const plan = checkPlan.rows[0];
-    await client.query(
-      `INSERT INTO teacher_subscriptions (teacher_id, plan_id, billing_type, price_override, start_date, end_date, status, created_by)
-       VALUES ($1, $2, $3::varchar, $4, CURRENT_DATE,
-               CASE WHEN $3::varchar = 'monthly' THEN CURRENT_DATE + INTERVAL '1 month'
-                    WHEN $3::varchar = 'annual' THEN CURRENT_DATE + INTERVAL '1 year'
-                    ELSE NULL END, 'active', $5)`,
-      [
-        newTeacherId,
-        plan.id,
-        plan.billing_type,
-        plan.price,
-        req.admin.id,
-      ]
-    );
+    // Create one teacher_subscription row per selected plan
+    for (const plan of plansCheck.rows) {
+      await client.query(
+        `INSERT INTO teacher_subscriptions (teacher_id, plan_id, billing_type, price_override, start_date, end_date, status, created_by)
+         VALUES ($1, $2, $3::varchar, $4, CURRENT_DATE,
+                 CASE WHEN $3::varchar = 'monthly' THEN CURRENT_DATE + INTERVAL '1 month'
+                      WHEN $3::varchar = 'annual'  THEN CURRENT_DATE + INTERVAL '1 year'
+                      ELSE NULL END, 'active', $5)`,
+        [newTeacherId, plan.id, plan.billing_type, plan.price, req.admin.id]
+      );
+    }
 
     // BUG-1 FIX: COMMIT first, THEN invalidate cache.
     // Invalidating before COMMIT means a concurrent request could query DB
