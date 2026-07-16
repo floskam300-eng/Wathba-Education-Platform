@@ -41,12 +41,12 @@ function PasswordCell({ password, onCopy }) {
       <span className="font-mono text-sm font-bold text-green-700 tracking-widest">
         {visible ? password : '••••••'}
       </span>
-      <button onClick={() => setVisible(v => !v)} className="text-gray-400 hover:text-navy-600 transition-colors" title={visible ? 'إخفاء' : 'إظهار'}>
-        {visible ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+      <button onClick={() => setVisible(v => !v)} className="text-gray-400 hover:text-navy-600 transition-colors" title={visible ? 'إخفاء' : 'إظهار'} aria-label={visible ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}>
+        {visible ? <EyeOff className="w-3.5 h-3.5" aria-hidden="true" /> : <Eye className="w-3.5 h-3.5" aria-hidden="true" />}
       </button>
       {visible && (
-        <button onClick={() => onCopy(password)} className="text-gray-400 hover:text-green-600 transition-colors" title="نسخ">
-          <Copy className="w-3.5 h-3.5" />
+        <button onClick={() => onCopy(password)} className="text-gray-400 hover:text-green-600 transition-colors" title="نسخ" aria-label="نسخ كلمة المرور">
+          <Copy className="w-3.5 h-3.5" aria-hidden="true" />
         </button>
       )}
     </div>
@@ -1157,15 +1157,16 @@ export default function TeacherStudents() {
                                   : 'text-green-600 hover:bg-green-50'
                               }`}
                               title={s.is_suspended ? 'إعادة تفعيل الحساب' : 'إيقاف الحساب'}
+                              aria-label={s.is_suspended ? `إعادة تفعيل حساب ${s.name}` : `إيقاف حساب ${s.name}`}
                             >
-                              {s.is_suspended ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                              {s.is_suspended ? <Unlock className="w-4 h-4" aria-hidden="true" /> : <Lock className="w-4 h-4" aria-hidden="true" />}
                             </button>
                           )}
                           {canEdit && (
-                            <button onClick={() => openEdit(s)} className="p-1.5 rounded-lg text-navy-600 hover:bg-navy-50"><Pencil className="w-4 h-4" /></button>
+                            <button onClick={() => openEdit(s)} className="p-1.5 rounded-lg text-navy-600 hover:bg-navy-50" aria-label={`تعديل بيانات ${s.name}`}><Pencil className="w-4 h-4" aria-hidden="true" /></button>
                           )}
                           {canDelete && (
-                            <button onClick={() => setDeleteId(s.id)} className="p-1.5 rounded-lg text-red-700 hover:bg-red-50"><Trash2 className="w-4 h-4" /></button>
+                            <button onClick={() => setDeleteId(s.id)} className="p-1.5 rounded-lg text-red-700 hover:bg-red-50" aria-label={`حذف الطالب ${s.name}`}><Trash2 className="w-4 h-4" aria-hidden="true" /></button>
                           )}
                         </div>
                       </td>
