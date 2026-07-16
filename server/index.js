@@ -35,7 +35,8 @@ app.use(helmet({
     directives: {
       defaultSrc:     ["'self'"],
       scriptSrc:      ["'self'", "'unsafe-inline'", 'https://www.gstatic.com',
-                       'https://www.youtube.com', 'https://s.ytimg.com'],
+                       'https://www.youtube.com', 'https://s.ytimg.com',
+                       'https://static.cloudflareinsights.com'],
       styleSrc:       ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
       fontSrc:        ["'self'", 'https://fonts.gstatic.com', 'data:'],
       imgSrc:         ["'self'", 'data:', 'blob:', 'https:'],
@@ -600,6 +601,18 @@ app.get('/manifest.json', subdomainTenant, async (req, res) => {
   res.set('Content-Type', 'application/manifest+json');
   res.set('Cache-Control', 'public, max-age=3600');
   res.json(manifest);
+});
+
+// ── robots.txt (must come BEFORE the SPA catch-all, otherwise the React
+//    app shell HTML is served for /robots.txt, producing 33 syntax errors
+//    in Lighthouse's SEO audit and blocking legitimate crawlers.)
+app.get('/robots.txt', (req, res) => {
+  const wildcardDomain = process.env.WILDCARD_DOMAIN || 'wathba.site';
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.send(
+    `User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /uploads/\n\nSitemap: https://${wildcardDomain}/sitemap.xml\n`
+  );
 });
 
 const clientDist = path.join(__dirname, '../client/dist');

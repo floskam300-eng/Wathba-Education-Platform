@@ -32,6 +32,15 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
+    // Prevent the browser from preloading lazy-loaded vendor chunks (echarts, livekit,
+    // pdfjs, xlsx, jspdf) on the initial page load. These are only needed on specific
+    // pages and would waste ~400 KB of bandwidth for every student hitting the dashboard.
+    modulePreload: {
+      resolveDependencies: (filename, deps) => {
+        const heavyVendors = ['vendor-echarts', 'vendor-livekit', 'vendor-pdfjs', 'vendor-xlsx', 'vendor-jspdf'];
+        return deps.filter(dep => !heavyVendors.some(v => dep.includes(v)));
+      },
+    },
     rollupOptions: {
       output: {
         manualChunks(id) {

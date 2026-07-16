@@ -271,17 +271,29 @@ export default function StudentDashboard() {
               <span style={{ fontWeight:900, fontSize:'.95rem', color: s.text }}>شاراتي</span>
             </div>
             <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
-              {data.badges.map(b => (
-                <span key={b.id} style={{
-                  display:'flex', alignItems:'center', gap:6,
-                  padding:'5px 14px',
-                  borderRadius:99,
-                  fontSize:'.75rem', fontWeight:800, color:'#fff',
-                  backgroundColor: b.badge_color || '#f97316',
-                }}>
-                  🏅 {b.badge_name}
-                </span>
-              ))}
+              {data.badges.map(b => {
+                // Pick text colour with ≥4.5:1 contrast against the badge background.
+                // Uses WCAG relative-luminance formula so any badge_color works.
+                const bg = b.badge_color || '#f97316';
+                const hex = bg.replace('#', '');
+                const r = parseInt(hex.slice(0,2),16)/255;
+                const g = parseInt(hex.slice(2,4),16)/255;
+                const bv = parseInt(hex.slice(4,6),16)/255;
+                const toLinear = c => c <= 0.04045 ? c/12.92 : Math.pow((c+0.055)/1.055,2.4);
+                const lum = 0.2126*toLinear(r)+0.7152*toLinear(g)+0.0722*toLinear(bv);
+                const textColor = lum > 0.179 ? '#1a1a1a' : '#fff';
+                return (
+                  <span key={b.id} style={{
+                    display:'flex', alignItems:'center', gap:6,
+                    padding:'5px 14px',
+                    borderRadius:99,
+                    fontSize:'.75rem', fontWeight:800, color: textColor,
+                    backgroundColor: bg,
+                  }}>
+                    🏅 {b.badge_name}
+                  </span>
+                );
+              })}
             </div>
           </div>
         )}

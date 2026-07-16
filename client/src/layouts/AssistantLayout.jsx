@@ -114,7 +114,8 @@ export default function AssistantLayout() {
         <header className={`app-header-safe border-b px-4 py-3 flex items-center justify-between gap-2 flex-shrink-0 ${dark ? '' : 'bg-white border-gray-200 shadow-sm'}`}
                 style={dark ? { backgroundColor: 'var(--dk-surface)', borderColor: 'var(--dk-border)', boxShadow: '0 1px 0 var(--dk-border)' } : {}}>
           <button className={`lg:hidden flex-shrink-0 p-2 rounded-lg transition-colors ${dark ? 'text-[var(--dk-text-2)] hover:bg-[var(--dk-elevated)]' : 'text-navy-600 hover:bg-gray-100'}`}
-                  onClick={() => setSidebarOpen(true)}>
+                  onClick={() => setSidebarOpen(true)}
+                  aria-label="فتح القائمة الجانبية">
             <Menu className="w-5 h-5" />
           </button>
           <span className={`text-sm font-semibold min-w-0 truncate ${dark ? 'text-[var(--dk-text-1)]' : 'text-gray-700'}`}>لوحة المساعد</span>
