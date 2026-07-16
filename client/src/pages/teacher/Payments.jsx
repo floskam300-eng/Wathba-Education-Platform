@@ -15,7 +15,13 @@ function FieldError({ error }) {
   );
 }
 
-import ReactECharts from 'echarts-for-react';
+import { lazy, Suspense } from 'react';
+const _EChartsCore = lazy(() => import('echarts-for-react'));
+const ReactECharts = (props) => (
+  <Suspense fallback={<div className="animate-pulse bg-gray-50 rounded-xl" style={{ height: props.style?.height || '200px' }} />}>
+    <_EChartsCore {...props} />
+  </Suspense>
+);
 import Modal from '../../components/ui/Modal';
 import Badge from '../../components/ui/Badge';
 import api from '../../lib/api';
@@ -376,14 +382,14 @@ export default function TeacherPayments() {
           <table className="w-full mobile-card-table min-w-0 sm:min-w-[700px]">
             <thead>
               <tr>
-                <th className="table-header rounded-r-lg">الطالب</th>
-                <th className="table-header hidden sm:table-cell">كود الطالب</th>
-                <th className="table-header hidden sm:table-cell">الكورس</th>
-                <th className="table-header">المبلغ</th>
-                <th className="table-header hidden md:table-cell">طريقة الدفع</th>
-                <th className="table-header hidden lg:table-cell">رقم الوصل</th>
-                <th className="table-header">الحالة</th>
-                <th className="table-header rounded-l-lg">إجراءات</th>
+                <th scope="col" className="table-header rounded-r-lg">الطالب</th>
+                <th scope="col" className="table-header hidden sm:table-cell">كود الطالب</th>
+                <th scope="col" className="table-header hidden sm:table-cell">الكورس</th>
+                <th scope="col" className="table-header">المبلغ</th>
+                <th scope="col" className="table-header hidden md:table-cell">طريقة الدفع</th>
+                <th scope="col" className="table-header hidden lg:table-cell">رقم الوصل</th>
+                <th scope="col" className="table-header">الحالة</th>
+                <th scope="col" className="table-header rounded-l-lg">إجراءات</th>
               </tr>
             </thead>
             <tbody>

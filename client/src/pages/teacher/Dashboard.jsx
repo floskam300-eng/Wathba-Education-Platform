@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, lazy, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -6,7 +6,14 @@ import {
   UserPlus, Bell, Inbox, CreditCard, RotateCcw, ArrowLeft,
   AlertTriangle, Video, ClipboardList, Clock, ChevronLeft,
 } from 'lucide-react';
-import ReactECharts from 'echarts-for-react';
+// Lazy-load echarts so it doesn't block the initial Dashboard paint.
+// Self-contained Suspense wrapper: each chart shows a skeleton while loading.
+const _EChartsCore = lazy(() => import('echarts-for-react'));
+const ReactECharts = (props) => (
+  <Suspense fallback={<div className="animate-pulse bg-gray-50 rounded-xl" style={{ height: props.style?.height || '200px' }} />}>
+    <_EChartsCore {...props} />
+  </Suspense>
+);
 import StatCard from '../../components/ui/StatCard';
 import StudentProfileModal from '../../components/ui/StudentProfileModal';
 import api from '../../lib/api';
@@ -484,12 +491,12 @@ export default function TeacherDashboard() {
           <table className="w-full mobile-card-table" style={{ minWidth: 0 }}>
             <thead>
               <tr className="bg-gray-50/50">
-                <th className="px-4 py-3 text-right text-[11px] font-black text-gray-500">الطالب</th>
-                <th className="px-4 py-3 text-right text-[11px] font-black text-gray-500">الاختبار</th>
-                <th className="px-4 py-3 text-center text-[11px] font-black text-gray-500">الدرجة</th>
-                <th className="px-4 py-3 text-center text-[11px] font-black text-gray-500">الحالة</th>
-                <th className="px-4 py-3 text-center text-[11px] font-black text-gray-500 hidden sm:table-cell">صواب / خطأ</th>
-                <th className="px-4 py-3 text-center text-[11px] font-black text-gray-500 hidden sm:table-cell"></th>
+                <th scope="col" className="px-4 py-3 text-right text-[11px] font-black text-gray-500">الطالب</th>
+                <th scope="col" className="px-4 py-3 text-right text-[11px] font-black text-gray-500">الاختبار</th>
+                <th scope="col" className="px-4 py-3 text-center text-[11px] font-black text-gray-500">الدرجة</th>
+                <th scope="col" className="px-4 py-3 text-center text-[11px] font-black text-gray-500">الحالة</th>
+                <th scope="col" className="px-4 py-3 text-center text-[11px] font-black text-gray-500 hidden sm:table-cell">صواب / خطأ</th>
+                <th scope="col" className="px-4 py-3 text-center text-[11px] font-black text-gray-500 hidden sm:table-cell">إجراءات</th>
               </tr>
             </thead>
             <tbody>

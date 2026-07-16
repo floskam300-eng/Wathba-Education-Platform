@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, lazy, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   BarChart3, TrendingUp, Users, Award, Target, GraduationCap,
@@ -7,7 +7,12 @@ import {
   BookOpen, Flame, PieChart, Layers, ArrowLeft, ShieldAlert, ChevronLeft, AlertTriangle
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import ReactECharts from 'echarts-for-react';
+const _EChartsCore = lazy(() => import('echarts-for-react'));
+const ReactECharts = (props) => (
+  <Suspense fallback={<div className="animate-pulse bg-gray-50 rounded-xl" style={{ height: props.style?.height || '200px' }} />}>
+    <_EChartsCore {...props} />
+  </Suspense>
+);
 import StudentProfileModal from '../../components/ui/StudentProfileModal';
 import api from '../../lib/api';
 

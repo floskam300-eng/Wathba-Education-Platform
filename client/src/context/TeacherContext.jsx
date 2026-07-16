@@ -49,10 +49,21 @@ function applyFavicon(url) {
     }
   };
 
+  // Only attempt crossOrigin='anonymous' for same-origin images.
+  // External logos (e.g. ui-avatars.com) don't support CORS, causing a
+  // console error that Lighthouse flags as a Best Practices failure.
+  // For external URLs we skip straight to the canvas-without-CORS path,
+  // which will hit the tainted-canvas catch and fall back to setHref(url).
+  const isSameOrigin = (() => {
+    try { return new URL(url).origin === window.location.origin; }
+    catch (_) { return false; }
+  })();
+
   const img = new Image();
-  img.crossOrigin = 'anonymous';
+  if (isSameOrigin) img.crossOrigin = 'anonymous';
   img.onload = () => drawRounded(img);
   img.onerror = () => {
+    if (!isSameOrigin) { setHref(url); return; }
     const img2 = new Image();
     img2.onload = () => drawRounded(img2);
     img2.onerror = () => setHref(url);

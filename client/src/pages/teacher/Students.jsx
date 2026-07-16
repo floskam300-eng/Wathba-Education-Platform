@@ -1093,16 +1093,16 @@ export default function TeacherStudents() {
               <table className="w-full mobile-card-table min-w-0 sm:min-w-[700px]">
                 <thead>
                   <tr>
-                    <th className="table-header rounded-r-lg hidden sm:table-cell">#</th>
-                    <th className="table-header">الاسم</th>
-                    <th className="table-header">كود الطالب</th>
-                    <th className="table-header hidden md:table-cell">كلمة المرور</th>
-                    <th className="table-header hidden md:table-cell">الهاتف</th>
-                    <th className="table-header hidden lg:table-cell">رقم ولي الأمر</th>
-                    <th className="table-header hidden sm:table-cell">المرحلة</th>
-                    <th className="table-header hidden sm:table-cell">النقاط</th>
-                    <th className="table-header hidden lg:table-cell">الكورسات</th>
-                    <th className="table-header rounded-l-lg">إجراءات</th>
+                    <th scope="col" className="table-header rounded-r-lg hidden sm:table-cell">#</th>
+                    <th scope="col" className="table-header">الاسم</th>
+                    <th scope="col" className="table-header">كود الطالب</th>
+                    <th scope="col" className="table-header hidden md:table-cell">كلمة المرور</th>
+                    <th scope="col" className="table-header hidden md:table-cell">الهاتف</th>
+                    <th scope="col" className="table-header hidden lg:table-cell">رقم ولي الأمر</th>
+                    <th scope="col" className="table-header hidden sm:table-cell">المرحلة</th>
+                    <th scope="col" className="table-header hidden sm:table-cell">النقاط</th>
+                    <th scope="col" className="table-header hidden lg:table-cell">الكورسات</th>
+                    <th scope="col" className="table-header rounded-l-lg">إجراءات</th>
                   </tr>
                 </thead>
                 <tbody>

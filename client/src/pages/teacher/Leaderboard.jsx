@@ -66,11 +66,11 @@ function HistoryCard({ record }) {
           <table className="w-full min-w-[400px]">
             <thead>
               <tr className="bg-gray-50">
-                <th className="px-4 py-2 text-right text-xs font-bold text-gray-500">#</th>
-                <th className="px-4 py-2 text-right text-xs font-bold text-gray-500">الطالب</th>
-                <th className="px-4 py-2 text-right text-xs font-bold text-gray-500">النقاط</th>
-                <th className="px-4 py-2 text-right text-xs font-bold text-gray-500">المرحلة</th>
-                <th className="px-4 py-2 text-right text-xs font-bold text-gray-500">الشارات</th>
+                <th scope="col" className="px-4 py-2 text-right text-xs font-bold text-gray-500">#</th>
+                <th scope="col" className="px-4 py-2 text-right text-xs font-bold text-gray-500">الطالب</th>
+                <th scope="col" className="px-4 py-2 text-right text-xs font-bold text-gray-500">النقاط</th>
+                <th scope="col" className="px-4 py-2 text-right text-xs font-bold text-gray-500">المرحلة</th>
+                <th scope="col" className="px-4 py-2 text-right text-xs font-bold text-gray-500">الشارات</th>
               </tr>
             </thead>
             <tbody>
@@ -259,12 +259,12 @@ export default function TeacherLeaderboard() {
               <table className="w-full mobile-card-table min-w-0 sm:min-w-[500px]">
                 <thead>
                   <tr>
-                    <th className="table-header rounded-r-lg">#</th>
-                    <th className="table-header">الطالب</th>
-                    <th className="table-header">النقاط</th>
-                    <th className="table-header hidden sm:table-cell">الاختبارات</th>
-                    <th className="table-header hidden md:table-cell">متوسط الدرجات</th>
-                    <th className="table-header rounded-l-lg hidden sm:table-cell">الشارات</th>
+                    <th scope="col" className="table-header rounded-r-lg">#</th>
+                    <th scope="col" className="table-header">الطالب</th>
+                    <th scope="col" className="table-header">النقاط</th>
+                    <th scope="col" className="table-header hidden sm:table-cell">الاختبارات</th>
+                    <th scope="col" className="table-header hidden md:table-cell">متوسط الدرجات</th>
+                    <th scope="col" className="table-header rounded-l-lg hidden sm:table-cell">الشارات</th>
                   </tr>
                 </thead>
                 <tbody>
