@@ -88,6 +88,10 @@ export default function StudentExams() {
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
 
+  // Ref attached to the root scrollable div in every view (exam-taking, list, result).
+  // scrollAllToTop resets both this container AND the layout <main> so we cover all cases.
+  const scrollContainerRef = useRef(null);
+
   const answersRef = useRef({});
   useEffect(() => { answersRef.current = answers; }, [answers]);
 
@@ -219,9 +223,10 @@ export default function StudentExams() {
   const [lightboxSrc, setLightboxSrc] = useState(null);
 
   // Shared scroll-to-top helper used on both exam entry and result display.
-  // Mobile browsers can re-scroll after virtual-keyboard dismissal or focus
-  // events, so we fire at 0 ms, 50 ms, 150 ms, and 300 ms to reliably win
-  // against any post-layout scroll adjustment.
+  // Resets BOTH the layout <main> AND the component's own scrollable div (via
+  // scrollContainerRef) so we cover all browser/device combinations.
+  // We fire at 0 ms, 50 ms, 150 ms, 300 ms, and 600 ms to win against
+  // post-layout adjustments, late data renders, and query-cache refetches.
   const scrollAllToTop = useCallback(() => {
     const reset = () => {
       // Blur any focused element so the browser doesn't re-scroll to keep it
@@ -229,8 +234,11 @@ export default function StudentExams() {
       if (document.activeElement && document.activeElement !== document.body) {
         document.activeElement.blur();
       }
-      const el = document.querySelector('main');
-      if (el) el.scrollTop = 0;
+      // Reset the component's own scrollable container (the most reliable target)
+      if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
+      // Also reset layout-level containers as fallback
+      const mainEl = document.querySelector('main');
+      if (mainEl) mainEl.scrollTop = 0;
       if (document.documentElement) document.documentElement.scrollTop = 0;
       if (document.body) document.body.scrollTop = 0;
       window.scrollTo(0, 0);
@@ -239,7 +247,8 @@ export default function StudentExams() {
     const t1 = setTimeout(reset, 50);
     const t2 = setTimeout(reset, 150);
     const t3 = setTimeout(reset, 300);
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+    const t4 = setTimeout(reset, 600);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
   }, []);
 
   // Scroll to top when result is shown (exam finished).
@@ -252,6 +261,13 @@ export default function StudentExams() {
   useEffect(() => {
     if (taking) return scrollAllToTop();
   }, [!!taking]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Scroll to top again when exam questions finish loading.
+  // examData arrives via React Query AFTER taking is set, so without this the
+  // question list renders after the earlier resets and can land mid-page.
+  useEffect(() => {
+    if (examData) return scrollAllToTop();
+  }, [!!examData]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Must be declared here (before any early returns) to satisfy the Rules of Hooks.
   // When the exam-taking view is active, this will always return [] due to the
@@ -522,7 +538,7 @@ export default function StudentExams() {
 
     return (
       <>
-      <div className="h-full overflow-y-auto p-3 sm:p-4 lg:p-6">
+      <div ref={scrollContainerRef} className="h-full overflow-y-auto p-3 sm:p-4 lg:p-6">
         <div className="space-y-4 sm:space-y-6">
           {/* Exam header bar */}
           <div className="card bg-navy-600 text-white !p-3 sm:!p-5">
@@ -728,7 +744,7 @@ export default function StudentExams() {
   }
 
   return (
-    <div className="h-full overflow-y-auto p-4 lg:p-6">
+    <div ref={scrollContainerRef} className="h-full overflow-y-auto p-4 lg:p-6">
       <div className="space-y-6">
         <h1 className="text-2xl font-black text-navy-600 flex items-center gap-2">
           <FileText className="w-7 h-7 text-orange-500" /> الاختبارات
