@@ -1839,13 +1839,24 @@ router.get('/results/:resultId/review', requireRole('teacher', 'assistant', 'stu
         if (correctLetter === 'T') correctLetter = 'A';
         if (correctLetter === 'F') correctLetter = 'B';
       }
-      const correctAnswer = correctLetter;
 
-      const isCorrect = !studentAnswer ? false : studentAnswer === correctLetter;
+      // Prefer the correct_answer recorded at submission time (stored in answers JSON).
+      // This prevents a teacher editing correct_answer_letter after the exam from silently
+      // changing what the review shows vs. the score that was actually granted.
+      const storedCorrect = stored?.correct_answer
+        ? String(stored.correct_answer).toUpperCase()
+        : null;
+      const correctAnswer = storedCorrect || correctLetter;
+
+      // Use authoritative is_correct from submission time when available.
+      // Fall back to live comparison only for legacy records that predate this field.
+      const isCorrect = stored?.is_correct !== undefined && stored?.is_correct !== null
+        ? !!stored.is_correct
+        : (!studentAnswer ? false : studentAnswer === correctAnswer);
 
       return {
         ...q,
-        correct_answer_letter: correctLetter,
+        correct_answer_letter: correctAnswer,
         student_answer: studentAnswer,
         correct_answer: correctAnswer,
         is_correct: isCorrect,

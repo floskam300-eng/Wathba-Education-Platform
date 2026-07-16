@@ -810,8 +810,9 @@ export default function StudentExams() {
                             <span className={`text-xs font-black ${passed ? 'text-green-600' : 'text-red-500'}`}>
                               {r.score}/{r.total_score}
                             </span>
-                            {/* Review button — available for every attempt */}
-                            {(passed || retryMap[r.exam_id]?.status === 'rejected' || (!passed && !r.is_latest)) && (
+                            {/* Review button — always visible EXCEPT when latest+failed+retry pending
+                                (pending retry: hide so student can't study the answers before retaking) */}
+                            {!(r.is_latest && !passed && retryMap[r.exam_id]?.status === 'pending') && (
                               <button
                                 onClick={() => navigate(`/student/exam-review/${r.id}`)}
                                 className="p-1.5 rounded-lg text-gray-400 hover:text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors"
