@@ -24,10 +24,11 @@ RUN apk add --no-cache dumb-init
 WORKDIR /app
 
 # Backend dependencies only (no devDeps)
-# Copy package.json + package-lock.json, then force real npm registry so
-# any Replit-internal resolved URLs in the lockfile are overridden at build time.
-COPY package*.json ./
-RUN npm ci --omit=dev --registry=https://registry.npmjs.org
+# Do NOT copy package-lock.json — it contains Replit-internal registry URLs
+# (package-firewall.replit.local) that are unreachable outside Replit.
+# npm install without a lockfile resolves from the real npm registry.
+COPY package.json ./
+RUN npm install --omit=dev
 
 # Copy server source
 COPY server/ ./server/
