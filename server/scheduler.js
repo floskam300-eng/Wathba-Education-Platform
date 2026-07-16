@@ -437,8 +437,19 @@ async function runDataRetentionCleanup() {
       _pool.query(`DELETE FROM whatsapp_send_log WHERE created_at < NOW() - INTERVAL '180 days'`),
       // Keep only the latest attempt per student+exam beyond 1 year (preserve is_latest=true rows always)
       _pool.query(`DELETE FROM exam_results WHERE created_at < NOW() - INTERVAL '365 days' AND is_latest = false`),
-      // Recitation results older than 1 year (non-latest sessions only)
-      _pool.query(`DELETE FROM recitation_results WHERE submitted_at < NOW() - INTERVAL '365 days'`),
+      // Recitation results older than 1 year — only delete a row if a NEWER
+      // result exists for the same (student, recitation), so the student's latest
+      // grade is never erased even after 365 days.
+      _pool.query(`
+        DELETE FROM recitation_results rr
+        WHERE rr.submitted_at < NOW() - INTERVAL '365 days'
+          AND EXISTS (
+            SELECT 1 FROM recitation_results newer
+            WHERE newer.student_id     = rr.student_id
+              AND newer.recitation_id  = rr.recitation_id
+              AND newer.submitted_at   > rr.submitted_at
+          )
+      `),
     ]);
     const deleted = [
       notifRes.rowCount || 0,
