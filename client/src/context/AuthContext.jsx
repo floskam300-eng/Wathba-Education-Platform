@@ -78,6 +78,8 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     localStorage.removeItem('wathba_token');
     localStorage.removeItem('wathba_user');
+    // Clear the persisted React Query cache so the next user starts fresh
+    localStorage.removeItem('WATHBA_QUERY_CACHE');
     clearMediaToken();
     // wathba_teacher_slug is intentionally kept so the user stays on the tenant
     // route after logout (in dev / Replit the slug comes from localStorage, not
