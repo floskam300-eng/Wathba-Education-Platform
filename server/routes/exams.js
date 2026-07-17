@@ -1,5 +1,6 @@
 const { sendEvent } = require('../sse');
 const { isValidImage, deleteFile } = require('../lib/validateFileMagic');
+const { convertToWebp } = require('../lib/convertToWebp');
 const rateLimit = require('express-rate-limit');
 const { sendFCMToStudents } = require('../lib/fcm');
 const express = require('express');
@@ -568,8 +569,16 @@ router.post('/upload-question-image', requireRole('teacher', 'assistant'), check
       deleteFile(req.file.path);
       return res.status(400).json({ error: 'الملف المرفوع ليس صورة صالحة (PNG / JPEG / GIF / WebP)' });
     }
-    const url = `/uploads/question-images/${req.file.filename}`;
-    res.json({ url });
+    // Convert to WebP for smaller file size (up to 80% reduction)
+    try {
+      const { filename: webpName } = await convertToWebp(req.file.path, req.file.filename);
+      const url = `/uploads/question-images/${webpName}`;
+      res.json({ url });
+    } catch (convErr) {
+      console.error('[exams] WebP conversion error:', convErr.message);
+      deleteFile(req.file.path);
+      return res.status(500).json({ error: 'خطأ أثناء معالجة الصورة' });
+    }
   }
 );
 

@@ -9,6 +9,8 @@ const rateLimit = require('express-rate-limit');
 const pool = require('../db/connection');
 const { requireAdminAuth, ADMIN_JWT_SECRET, invalidateTeacherAuthCache } = require('../middleware/auth');
 const { getTotalConnections } = require('../sse');
+const { isValidImage, deleteFile } = require('../lib/validateFileMagic');
+const { convertToWebp } = require('../lib/convertToWebp');
 
 // R-2 OPT: simple TTL cache for platform stats — these are global aggregates
 // that change slowly; 5-minute staleness is acceptable for the admin dashboard.
@@ -1141,15 +1143,23 @@ router.post('/upload/image', requireAdminAuth, adminUploadLimiter, uploadAdminIm
   }
 
   // Magic-byte check to prevent faked mime-type (M-11)
-  const { isValidImage, deleteFile } = require('../lib/validateFileMagic');
   if (!(await isValidImage(req.file.path))) {
     deleteFile(req.file.path);
     return res.status(400).json({ error: 'ملف الصورة المرفوع غير صالح أو تالف' });
   }
 
-  // Return URL relative to base server structure
-  const fileUrl = `/uploads/admin/${req.file.filename}`;
-  res.json({ success: true, url: fileUrl });
+  // Convert to WebP for smaller file size (up to 80% reduction)
+  try {
+    const { filename: webpName } = await convertToWebp(req.file.path, req.file.filename);
+    const fileUrl = `/uploads/admin/${webpName}`;
+    res.json({ success: true, url: fileUrl });
+  } catch (convErr) {
+    console.error('[admin] WebP conversion error:', convErr.message);
+    // convertToWebp throws without deleting the original on sharp failure,
+    // so we must clean it up here to avoid orphan files on disk.
+    deleteFile(req.file.path);
+    return res.status(500).json({ error: 'خطأ أثناء معالجة الصورة' });
+  }
 }, (err, req, res, next) => {
   // Catch Multer errors
   res.status(400).json({ error: err.message });

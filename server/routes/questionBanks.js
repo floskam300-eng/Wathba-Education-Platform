@@ -4,6 +4,7 @@ const { authenticate, requireRole } = require('../middleware/auth');
 const { getPermissions } = require('../lib/permissionsCache');
 const { isValidImage, deleteFile } = require('../lib/validateFileMagic');
 const { logActivity, getActor, getIp } = require('../lib/activityLog');
+const { convertToWebp } = require('../lib/convertToWebp');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -472,7 +473,15 @@ router.post('/upload-image', requireRole('teacher', 'assistant'), checkManageExa
     deleteFile(req.file.path);
     return res.status(400).json({ error: 'الملف المرفوع ليس صورة صالحة (PNG / JPEG / GIF / WebP)' });
   }
-  res.json({ url: `/uploads/question-images/${req.file.filename}` });
+  // Convert to WebP for smaller file size (up to 80% reduction)
+  try {
+    const { filename: webpName } = await convertToWebp(req.file.path, req.file.filename);
+    res.json({ url: `/uploads/question-images/${webpName}` });
+  } catch (convErr) {
+    console.error('[questionBanks] WebP conversion error:', convErr.message);
+    deleteFile(req.file.path);
+    return res.status(500).json({ error: 'خطأ أثناء معالجة الصورة' });
+  }
 });
 
 module.exports = router;

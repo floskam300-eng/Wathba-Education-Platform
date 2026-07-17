@@ -1,11 +1,13 @@
 const { sendEvent } = require('../sse');
 const { sendFCMToStudents } = require('../lib/fcm');
 const { isValidImage, isValidPdf, deleteFile } = require('../lib/validateFileMagic');
+const { convertToWebp } = require('../lib/convertToWebp');
 const express = require('express');
 const rateLimit = require('express-rate-limit');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const pool = require('../db/connection');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { validateCourse } = require('../middleware/validate');
@@ -80,8 +82,11 @@ Object.values(UPLOAD_DIRS).forEach(dir => fs.mkdirSync(dir, { recursive: true })
 const thumbnailStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOAD_DIRS.thumbnails),
   filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `thumb_${Date.now()}${ext}`);
+    // [L2-FIX] Use crypto.randomBytes to prevent filename collision when two users
+    // upload a thumbnail at the same millisecond. Date.now() alone was insufficient.
+    const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
+    const rand = crypto.randomBytes(8).toString('hex');
+    cb(null, `thumb_${Date.now()}_${rand}${ext}`);
   },
 });
 const uploadThumbnail = multer({
@@ -137,8 +142,16 @@ router.post('/upload-thumbnail', requireRole('teacher', 'assistant'), checkManag
     deleteFile(req.file.path);
     return res.status(400).json({ error: 'الملف المرفوع ليس صورة صالحة (PNG / JPEG / GIF / WebP)' });
   }
-  const url = `/uploads/thumbnails/${req.file.filename}`;
-  res.json({ url });
+  // Convert to WebP for smaller file size (up to 80% reduction)
+  try {
+    const { filename: webpName } = await convertToWebp(req.file.path, req.file.filename);
+    const url = `/uploads/thumbnails/${webpName}`;
+    res.json({ url });
+  } catch (convErr) {
+    console.error('[courses] WebP conversion error:', convErr.message);
+    deleteFile(req.file.path);
+    return res.status(500).json({ error: 'خطأ أثناء معالجة الصورة' });
+  }
 });
 
 router.delete('/upload-thumbnail', requireRole('teacher', 'assistant'), checkManageCoursesPerm, async (req, res) => {

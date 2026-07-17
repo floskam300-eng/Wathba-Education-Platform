@@ -4,6 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const { convertToWebp } = require('../lib/convertToWebp');
 const pool = require('../db/connection');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { getPermissions } = require('../lib/permissionsCache');
@@ -573,7 +574,17 @@ router.post('/upload-image', requireRole('teacher', 'assistant'), checkManageRec
       return res.status(400).json({ error: 'الملف تالف أو غير صالح' });
     }
 
-    res.json({ url: `/uploads/question-images/${req.file.filename}` });
+    // Convert to WebP for smaller file size (up to 80% reduction)
+    try {
+      const { filename: webpName } = await convertToWebp(req.file.path, req.file.filename);
+      res.json({ url: `/uploads/question-images/${webpName}` });
+    } catch (convErr) {
+      console.error('[recitations] WebP conversion error:', convErr.message);
+      // convertToWebp throws without deleting the original on sharp failure,
+      // so we must clean it up here to avoid orphan files on disk.
+      try { await fs.promises.unlink(req.file.path); } catch (_) {}
+      return res.status(500).json({ error: 'خطأ أثناء معالجة الصورة' });
+    }
   });
 });
 
