@@ -35,7 +35,7 @@ fs.mkdirSync(QUESTION_IMG_DIR, { recursive: true });
 async function markAbsentStudents(poolOrClient, examId, teacherId) {
   try {
     const examInfo = await poolOrClient.query(
-      'SELECT course_id FROM exams WHERE id=$1', [examId]
+      'SELECT course_id FROM exams WHERE id=$1 AND deleted_at IS NULL', [examId]
     );
     if (!examInfo.rows.length) return 0;
     const courseId = examInfo.rows[0].course_id;
@@ -155,7 +155,7 @@ const checkManageExamsPerm = async (req, res, next) => {
 };
 
 const verifyExamOwnership = async (examId, teacherId) => {
-  const r = await pool.query('SELECT id FROM exams WHERE id=$1 AND teacher_id=$2', [examId, teacherId]);
+  const r = await pool.query('SELECT id FROM exams WHERE id=$1 AND teacher_id=$2 AND deleted_at IS NULL', [examId, teacherId]);
   return r.rows.length > 0;
 };
 
@@ -170,7 +170,7 @@ const verifyQuestionOwnership = async (questionId, teacherId) => {
 // Returns { id, is_published } for ownership check + published guard, or null if not found/not owned
 const getExamForOwner = async (examId, teacherId) => {
   const r = await pool.query(
-    'SELECT id, is_published FROM exams WHERE id=$1 AND teacher_id=$2',
+    'SELECT id, is_published FROM exams WHERE id=$1 AND teacher_id=$2 AND deleted_at IS NULL',
     [examId, teacherId]
   );
   return r.rows[0] || null;
@@ -179,7 +179,7 @@ const getExamForOwner = async (examId, teacherId) => {
 // Returns { id, is_published } of the parent exam for a question, or null if not found/not owned
 const getExamForQuestion = async (questionId, teacherId) => {
   const r = await pool.query(
-    'SELECT e.id, e.is_published FROM questions q JOIN exams e ON q.exam_id=e.id WHERE q.id=$1 AND e.teacher_id=$2',
+    'SELECT e.id, e.is_published FROM questions q JOIN exams e ON q.exam_id=e.id WHERE q.id=$1 AND e.teacher_id=$2 AND e.deleted_at IS NULL',
     [questionId, teacherId]
   );
   return r.rows[0] || null;
@@ -202,7 +202,7 @@ router.get('/', requireRole('teacher', 'assistant'), async (req, res) => {
        LEFT JOIN courses c ON e.course_id = c.id
        LEFT JOIN questions q ON e.id = q.exam_id AND e.question_source != 'bank'
        LEFT JOIN exam_results er ON e.id = er.exam_id
-       WHERE e.teacher_id = $1
+       WHERE e.teacher_id = $1 AND e.deleted_at IS NULL
        GROUP BY e.id, c.name ORDER BY e.created_at DESC`,
       [teacherId]
     );
@@ -263,7 +263,7 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageExamsPerm, va
   const { title, duration_minutes, total_score, course_id, pass_score, badge_name, badge_color, start_date, end_date, shuffle_questions, shuffle_options, question_source, bank_id, bank_question_count, points_on_attempt, points_on_pass, bank_easy_count, bank_medium_count, bank_hard_count } = req.body;
   try {
     const existingExam = await pool.query(
-      'SELECT id, end_date, is_published FROM exams WHERE id=$1 AND teacher_id=$2',
+      'SELECT id, end_date, is_published FROM exams WHERE id=$1 AND teacher_id=$2 AND deleted_at IS NULL',
       [examId, teacherId]
     );
     if (!existingExam.rows.length) return res.status(404).json({ error: 'Exam not found' });
@@ -329,7 +329,7 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExams
   try {
     // Get current exam state before toggling
     const current = await pool.query(
-      'SELECT * FROM exams WHERE id=$1 AND teacher_id=$2',
+      'SELECT * FROM exams WHERE id=$1 AND teacher_id=$2 AND deleted_at IS NULL',
       [examId, teacherId]
     );
     if (!current.rows.length) return res.status(404).json({ error: 'Exam not found' });
@@ -582,19 +582,30 @@ router.post('/upload-question-image', requireRole('teacher', 'assistant'), check
   }
 );
 
-// ── Delete exam ──
+// ── Delete exam (soft delete — results preserved) ──
 router.delete('/:id', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
   const examId = parseParamId(req.params.id);
   if (!examId) return res.status(400).json({ error: 'معرّف الاختبار غير صالح' });
   const teacherId = getTeacherId(req);
   try {
-    const examInfo = await pool.query('SELECT title FROM exams WHERE id=$1 AND teacher_id=$2', [examId, teacherId]);
-    const result = await pool.query('DELETE FROM exams WHERE id=$1 AND teacher_id=$2 RETURNING id', [examId, teacherId]);
+    const exam = await pool.query(
+      'SELECT title, is_published FROM exams WHERE id=$1 AND teacher_id=$2 AND deleted_at IS NULL',
+      [examId, teacherId]
+    );
+    if (!exam.rows.length) return res.status(404).json({ error: 'Exam not found' });
+    // Block deletion of published exams — must unpublish first (mirrors recitation guard).
+    // Soft delete preserves all student results; the exam just disappears from all lists.
+    if (exam.rows[0].is_published)
+      return res.status(409).json({ error: 'لا يمكن حذف اختبار منشور — قم بإلغاء النشر أولاً' });
+    const result = await pool.query(
+      'UPDATE exams SET deleted_at=NOW() WHERE id=$1 AND teacher_id=$2 AND deleted_at IS NULL RETURNING id',
+      [examId, teacherId]
+    );
     if (!result.rows.length) return res.status(404).json({ error: 'Exam not found' });
     logActivity({
       teacherId, actor: getActor(req), ip: getIp(req),
       action: 'delete_exam',
-      entity: { type: 'exam', id: examId, name: examInfo.rows[0]?.title },
+      entity: { type: 'exam', id: examId, name: exam.rows[0].title },
     });
     res.json({ message: 'Exam deleted' });
   } catch (err) {
@@ -886,7 +897,7 @@ router.post('/:id/retry-request', retryRequestLimiter, requireRole('student'), a
   const { message } = req.body;
   try {
     const examCheck = await pool.query(
-      'SELECT id, course_id, end_date FROM exams WHERE id=$1 AND teacher_id=(SELECT teacher_id FROM students WHERE id=$2)',
+      'SELECT id, course_id, end_date FROM exams WHERE id=$1 AND teacher_id=(SELECT teacher_id FROM students WHERE id=$2) AND deleted_at IS NULL',
       [examId, studentId]
     );
     if (!examCheck.rows.length) return res.status(403).json({ error: 'Access denied: exam not from your teacher' });
@@ -1129,7 +1140,8 @@ router.get('/student/available', requireRole('student'), async (req, res) => {
          )
        WHERE e.teacher_id = (SELECT teacher_id FROM students WHERE id = $1)
          AND (e.course_id IS NULL OR sce.status = 'active')
-         AND e.is_published = true`,
+         AND e.is_published = true
+         AND e.deleted_at IS NULL`,
       [req.user.id]
     );
     res.json(result.rows);
@@ -1186,6 +1198,7 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
        LEFT JOIN student_course_enrollment sce ON e.course_id = sce.course_id AND sce.student_id = $1
        WHERE e.id = $2
          AND e.is_published = true
+         AND e.deleted_at IS NULL
          AND e.teacher_id = (SELECT teacher_id FROM students WHERE id = $1)
          AND (e.course_id IS NULL OR sce.status = 'active')`,
       [studentId, examId]
@@ -1347,6 +1360,7 @@ router.post('/:id/submit', submitLimiter, requireRole('student'), async (req, re
        LEFT JOIN student_course_enrollment sce ON e.course_id = sce.course_id AND sce.student_id = $1
        WHERE e.id = $2
          AND e.is_published = true
+         AND e.deleted_at IS NULL
          AND e.teacher_id = (SELECT teacher_id FROM students WHERE id = $1)
          AND (e.course_id IS NULL OR sce.status = 'active')`,
       [studentId, examId]
@@ -1607,7 +1621,7 @@ router.get('/results/by-exam-student/:examId/:studentId', requireRole('teacher',
   try {
     // Ownership / access check
     const examRow = await pool.query(
-      'SELECT id, teacher_id, title FROM exams WHERE id=$1',
+      'SELECT id, teacher_id, title FROM exams WHERE id=$1 AND deleted_at IS NULL',
       [examId]
     );
     if (!examRow.rows.length) return res.status(404).json({ error: 'Exam not found' });

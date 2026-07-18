@@ -454,11 +454,11 @@ router.get('/filters', requireRole('teacher', 'assistant'), checkAnyPerm, async 
       pool.query(
         `SELECT e.id, e.title, e.course_id, c.name AS course_name
          FROM exams e LEFT JOIN courses c ON e.course_id=c.id
-         WHERE e.teacher_id=$1 ORDER BY c.name NULLS LAST, e.title`,
+         WHERE e.teacher_id=$1 AND e.deleted_at IS NULL ORDER BY c.name NULLS LAST, e.title`,
         [teacherId]
       ),
       pool.query(
-        `SELECT id, title FROM recitations WHERE teacher_id=$1 ORDER BY title`,
+        `SELECT id, title FROM recitations WHERE teacher_id=$1 AND deleted_at IS NULL ORDER BY title`,
         [teacherId]
       ),
       pool.query(

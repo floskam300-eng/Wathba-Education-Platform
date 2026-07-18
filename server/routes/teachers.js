@@ -34,7 +34,7 @@ router.get('/dashboard', requireRole('teacher'), async (req, res) => {
     const [students, courses, exams, assistants, payments, pendingRequests, pendingPayments, retryRequests] = await Promise.all([
       pool.query('SELECT COUNT(*) FROM students WHERE teacher_id = $1 AND deleted_at IS NULL', [teacherId]),
       pool.query('SELECT COUNT(*) FROM courses WHERE teacher_id = $1', [teacherId]),
-      pool.query('SELECT COUNT(*) FROM exams WHERE teacher_id = $1', [teacherId]),
+      pool.query('SELECT COUNT(*) FROM exams WHERE teacher_id = $1 AND deleted_at IS NULL', [teacherId]),
       pool.query('SELECT COUNT(*) FROM assistants WHERE teacher_id = $1', [teacherId]),
       // M-3 OPT: JOIN instead of IN (subquery) — lets PG use the composite index directly
       pool.query(
@@ -59,7 +59,7 @@ router.get('/dashboard', requireRole('teacher'), async (req, res) => {
       pool.query(
         `SELECT COUNT(*) FROM exam_retry_requests err
          JOIN exams e ON e.id = err.exam_id
-         WHERE e.teacher_id = $1 AND err.status = 'pending'`,
+         WHERE e.teacher_id = $1 AND err.status = 'pending' AND e.deleted_at IS NULL`,
         [teacherId]
       ),
     ]);
@@ -329,7 +329,7 @@ router.get('/analytics', requireRole('teacher'), async (req, res) => {
         WHERE status = 'verified' AND course_id IS NOT NULL
         GROUP BY course_id
       ) sales ON e.course_id = sales.course_id
-      WHERE e.teacher_id = $1
+      WHERE e.teacher_id = $1 AND e.deleted_at IS NULL
       GROUP BY e.id, e.title, e.total_score, e.pass_score, e.created_at, e.course_id, c.name, c.target_stage, sales.sales_count
       ORDER BY e.created_at DESC
     `, [teacherId]);
@@ -532,7 +532,7 @@ router.get('/analytics/exam/:examId', requireRole('teacher', 'assistant'), async
     // 1. Verify exam belongs to teacher
     const examRow = await pool.query(
       `SELECT id, title, total_score, pass_score, duration_minutes, created_at, question_source, bank_id
-       FROM exams WHERE id = $1 AND teacher_id = $2`,
+       FROM exams WHERE id = $1 AND teacher_id = $2 AND deleted_at IS NULL`,
       [examId, teacherId]
     );
     if (!examRow.rows.length) return res.status(404).json({ error: 'Exam not found' });
@@ -759,7 +759,7 @@ router.get('/export', requireRole('teacher'), async (req, res) => {
       exportQuery('SELECT s.* FROM sections s JOIN courses c ON s.course_id=c.id WHERE c.teacher_id=$1 ORDER BY s.course_id, s.sort_order', [teacherId]),
       exportQuery('SELECT v.* FROM videos v JOIN courses c ON v.course_id=c.id WHERE c.teacher_id=$1 ORDER BY v.course_id, v.sort_order, v.id', [teacherId]),
       exportQuery('SELECT p.* FROM pdf_files p JOIN courses c ON p.course_id=c.id WHERE c.teacher_id=$1 ORDER BY p.course_id, p.id', [teacherId]),
-      exportQuery('SELECT * FROM exams WHERE teacher_id=$1 ORDER BY created_at', [teacherId]),
+      exportQuery('SELECT * FROM exams WHERE teacher_id=$1 AND deleted_at IS NULL ORDER BY created_at', [teacherId]),
       exportQuery('SELECT q.* FROM questions q JOIN exams e ON q.exam_id=e.id WHERE e.teacher_id=$1 ORDER BY q.exam_id, q.id', [teacherId]),
       exportQuery(`SELECT er.id, er.student_id, er.exam_id, er.score, er.correct_count, er.wrong_count,
                          er.unanswered_count, er.points_earned, er.start_time, er.end_time, er.answers, er.created_at,

@@ -211,6 +211,7 @@ async function runRecitationSchedule() {
     const { rows: recs } = await _pool.query(`
       SELECT * FROM recitations
        WHERE is_published = true
+         AND deleted_at IS NULL
          AND schedule_type IN ('daily','weekly')
          AND end_date IS NOT NULL
          AND end_date < NOW()
@@ -318,6 +319,7 @@ async function runRecitationSchedule() {
       UPDATE recitations
          SET start_notified = true
        WHERE is_published = true
+         AND deleted_at IS NULL
          AND start_date IS NOT NULL
          AND start_date <= NOW()
          AND start_notified = false
@@ -370,6 +372,7 @@ async function runEndedRecitationCheck() {
          AND r.end_date <= NOW()
          AND r.absent_marked = false
          AND r.is_published = true
+         AND r.deleted_at IS NULL
          AND r.schedule_type = 'once'
        LIMIT 50
     `);
@@ -408,6 +411,7 @@ async function runEndedExamCheck() {
         AND e.end_date <= NOW()
         AND e.absent_marked = false
         AND e.is_published = true
+        AND e.deleted_at IS NULL
       LIMIT 50
     `);
 

@@ -285,13 +285,13 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageCours
       if (!newPublished) {
         // Save current published state before zeroing it out (so we can restore on re-publish)
         await client.query(
-          'UPDATE exams SET pre_unpublish_published=is_published, is_published=false WHERE course_id=$1 AND teacher_id=$2',
+          'UPDATE exams SET pre_unpublish_published=is_published, is_published=false WHERE course_id=$1 AND teacher_id=$2 AND deleted_at IS NULL',
           [courseId, teacherId]
         );
       } else {
         // Restore each exam's published state from before the course was unpublished
         await client.query(
-          'UPDATE exams SET is_published=pre_unpublish_published, pre_unpublish_published=false WHERE course_id=$1 AND teacher_id=$2',
+          'UPDATE exams SET is_published=pre_unpublish_published, pre_unpublish_published=false WHERE course_id=$1 AND teacher_id=$2 AND deleted_at IS NULL',
           [courseId, teacherId]
         );
       }
@@ -478,8 +478,8 @@ router.get('/:id/content', requireRole('teacher', 'assistant', 'student'), async
         : pool.query('SELECT * FROM videos WHERE course_id=$1 ORDER BY sort_order, id', [courseId]),
       pool.query('SELECT * FROM pdf_files WHERE course_id=$1 ORDER BY id', [courseId]),
       isStudent
-        ? pool.query('SELECT id,title,duration_minutes,total_score,pass_score,start_date,end_date FROM exams WHERE course_id=$1 AND is_published=true', [courseId])
-        : pool.query('SELECT id,title,duration_minutes,total_score,pass_score,start_date,end_date,is_published FROM exams WHERE course_id=$1', [courseId]),
+        ? pool.query('SELECT id,title,duration_minutes,total_score,pass_score,start_date,end_date FROM exams WHERE course_id=$1 AND is_published=true AND deleted_at IS NULL', [courseId])
+        : pool.query('SELECT id,title,duration_minutes,total_score,pass_score,start_date,end_date,is_published FROM exams WHERE course_id=$1 AND deleted_at IS NULL', [courseId]),
       pool.query('SELECT * FROM sections WHERE course_id=$1 ORDER BY sort_order, id', [courseId]),
     ]);
 
@@ -498,6 +498,7 @@ router.get('/:id/content', requireRole('teacher', 'assistant', 'student'), async
              ON rr.recitation_id = r.id AND rr.student_id = $2
           WHERE r.course_id = $1
             AND r.is_published = true
+            AND r.deleted_at IS NULL
             AND r.video_ids IS NOT NULL
             AND r.video_ids != '[]'::jsonb
           GROUP BY r.id, r.video_ids`,

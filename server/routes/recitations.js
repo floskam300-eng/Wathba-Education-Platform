@@ -143,7 +143,7 @@ function seededShuffle(arr, seed) {
 // ── Ownership helpers ─────────────────────────────────────────────────────────
 const getRecitationForOwner = async (id, teacherId) => {
   const r = await pool.query(
-    'SELECT * FROM recitations WHERE id=$1 AND teacher_id=$2',
+    'SELECT * FROM recitations WHERE id=$1 AND teacher_id=$2 AND deleted_at IS NULL',
     [id, teacherId]
   );
   return r.rows[0] || null;
@@ -164,7 +164,7 @@ router.get('/', requireRole('teacher', 'assistant'), checkManageRecitationsPerm,
               (SELECT COUNT(*) FROM recitation_questions WHERE recitation_id = r.id) AS question_count,
               (SELECT COUNT(*) FROM recitation_results WHERE recitation_id = r.id) AS result_count
          FROM recitations r
-        WHERE r.teacher_id = $1
+        WHERE r.teacher_id = $1 AND r.deleted_at IS NULL
         ORDER BY r.created_at DESC`,
       [teacherId]
     );
@@ -302,7 +302,7 @@ router.get('/analytics', requireRole('teacher', 'assistant'), async (req, res) =
     const teacherId = teacherIdForCache;
 
     const [totalRec, totalResults, avgScore, byStage, topStudents, recentActivity] = await Promise.all([
-      pool.query('SELECT COUNT(*) AS cnt FROM recitations WHERE teacher_id=$1', [teacherId]),
+      pool.query('SELECT COUNT(*) AS cnt FROM recitations WHERE teacher_id=$1 AND deleted_at IS NULL', [teacherId]),
       pool.query(
         'SELECT COUNT(*) AS cnt FROM recitation_results rr JOIN recitations r ON rr.recitation_id=r.id WHERE r.teacher_id=$1',
         [teacherId]
@@ -365,7 +365,7 @@ router.get('/analytics', requireRole('teacher', 'assistant'), async (req, res) =
                 COALESCE(AVG(CASE WHEN rr.passed THEN 1 ELSE 0 END)*100,0)::numeric(5,1) AS pass_rate
            FROM recitations r
            LEFT JOIN recitation_results rr ON r.id=rr.recitation_id
-          WHERE r.teacher_id=$1
+          WHERE r.teacher_id=$1 AND r.deleted_at IS NULL
           GROUP BY r.id
           ORDER BY r.created_at DESC
           LIMIT 10`,
@@ -473,6 +473,7 @@ router.get('/student/course/:courseId', requireRole('student'), async (req, res)
          ) lv ON true
         WHERE r.teacher_id=$3
           AND r.is_published=true
+          AND r.deleted_at IS NULL
           AND (r.course_id=$2 OR (r.course_id IS NULL AND r.academic_stage=$4))
         ORDER BY COALESCE(lv.min_sort_order, 999999) ASC, r.created_at ASC`,
       [studentId, courseId, teacherId, academic_stage]
@@ -522,6 +523,7 @@ router.get('/student/list', requireRole('student'), async (req, res) => {
          LEFT JOIN recitation_sessions rs2 ON r.id=rs2.recitation_id AND rs2.student_id=$1
         WHERE r.teacher_id=$2
           AND r.is_published=true
+          AND r.deleted_at IS NULL
           AND (r.academic_stage IS NULL OR r.academic_stage=$3)
         ORDER BY r.start_date DESC NULLS LAST, r.created_at DESC`,
       [studentId, teacherId, academic_stage]
@@ -703,7 +705,8 @@ router.delete('/:id', requireRole('teacher', 'assistant'), checkManageRecitation
     if (rec.is_published)
       return res.status(409).json({ error: 'لا يمكن حذف تسميع منشور — قم بإلغاء النشر أولاً' });
 
-    await pool.query('DELETE FROM recitations WHERE id=$1 AND teacher_id=$2', [id, teacherId]);
+    // Soft delete — student results survive; recitation disappears from all lists.
+    await pool.query('UPDATE recitations SET deleted_at=NOW() WHERE id=$1 AND teacher_id=$2 AND deleted_at IS NULL', [id, teacherId]);
     logActivity({
       teacherId, actor: getActor(req), ip: getIp(req),
       action: 'delete_recitation',
@@ -1124,7 +1127,7 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
     // Load recitation — strict tenant + stage isolation
     const { rows: recRows } = await pool.query(
       `SELECT * FROM recitations
-        WHERE id=$1 AND teacher_id=$2 AND is_published=true
+        WHERE id=$1 AND teacher_id=$2 AND is_published=true AND deleted_at IS NULL
           AND (academic_stage IS NULL OR academic_stage=$3)`,
       [id, teacherId, academic_stage]
     );
@@ -1271,7 +1274,7 @@ router.post('/:id/submit', recitationSubmitLimiter, requireRole('student'), asyn
     // Load recitation
     const { rows: recRows } = await pool.query(
       `SELECT * FROM recitations
-        WHERE id=$1 AND teacher_id=$2 AND is_published=true
+        WHERE id=$1 AND teacher_id=$2 AND is_published=true AND deleted_at IS NULL
           AND (academic_stage IS NULL OR academic_stage=$3)`,
       [id, teacherId, academic_stage]
     );
@@ -1697,7 +1700,7 @@ router.get('/results/:resultId/review', authenticate, async (req, res) => {
 async function markAbsentRecitationStudents(poolOrClient, recitationId, teacherId) {
   try {
     const recInfo = await poolOrClient.query(
-      'SELECT academic_stage FROM recitations WHERE id=$1', [recitationId]
+      'SELECT academic_stage FROM recitations WHERE id=$1 AND deleted_at IS NULL', [recitationId]
     );
     if (!recInfo.rows.length) return 0;
     const { academic_stage } = recInfo.rows[0];
