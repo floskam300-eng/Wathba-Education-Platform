@@ -20,15 +20,20 @@ export default function TeacherForm() {
   const [whatsappPhone, setWhatsappPhone] = useState('');
   const [bio, setBio] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
-  const [logoWideUrl, setLogoWideUrl] = useState('');
 
   // Subdomain slug — separate from username in create mode
   const [slug, setSlug] = useState('');
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
 
   // Auto-derive slug preview from username unless user manually changed it
+  // Final normalization (used on submit and for preview)
   const normalizeSlug = (v) =>
     v.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+  // Loose normalization while typing — strips invalid chars but keeps trailing dash
+  // so the user can type "mr-youssef" without the dash disappearing mid-word
+  const normalizeSlugTyping = (v) =>
+    v.toLowerCase().replace(/[^a-z0-9-_]/g, '').replace(/_/g, '-');
 
   const handleUsernameChange = (v) => {
     setUsername(v);
@@ -39,8 +44,12 @@ export default function TeacherForm() {
 
   const handleSlugChange = (v) => {
     setSlugManuallyEdited(true);
-    // Normalize in real-time so the input always shows valid slug characters
-    setSlug(normalizeSlug(v) || v);
+    setSlug(normalizeSlugTyping(v));
+  };
+
+  const handleSlugBlur = () => {
+    // On blur, apply full normalization (strip leading/trailing dashes)
+    setSlug(prev => normalizeSlug(prev));
   };
 
   const previewSlug = normalizeSlug(slug) || 'subdomain';
@@ -79,7 +88,6 @@ export default function TeacherForm() {
           setWhatsappPhone(teacher.whatsapp_phone || '');
           setBio(teacher.bio || '');
           setLogoUrl(teacher.logo_url || '');
-          setLogoWideUrl(teacher.logo_wide_url || '');
 
           const teamRes = await api.get(`/teachers/${id}/team`);
           setTeam(teamRes.data.team);
@@ -129,7 +137,6 @@ export default function TeacherForm() {
           whatsapp_phone: whatsappPhone,
           bio,
           logo_url: logoUrl,
-          logo_wide_url: logoWideUrl,
           plan_ids: Array.from(selectedPlanIds).map(Number),
           force_password_change: forcePasswordChange,
         });
@@ -141,7 +148,6 @@ export default function TeacherForm() {
           whatsapp_phone: whatsappPhone,
           bio,
           logo_url: logoUrl,
-          logo_wide_url: logoWideUrl,
         });
         toast.success('تم تحديث بيانات المدرس بنجاح');
       }
@@ -282,6 +288,7 @@ export default function TeacherForm() {
                   required
                   value={slug}
                   onChange={(e) => handleSlugChange(e.target.value)}
+                  onBlur={handleSlugBlur}
                   placeholder="mr-ahmed"
                   className="mt-2 block w-full rounded-xl border border-slate-800 bg-slate-950 py-3 px-4 text-white placeholder-slate-600 focus:border-amber-500 focus:outline-none font-mono text-sm"
                 />
@@ -496,13 +503,6 @@ export default function TeacherForm() {
                 onComplete={(url) => setLogoUrl(url)}
                 label="الشعار المربع — أيقونة التطبيق / Favicon (1:1)"
                 currentImage={logoUrl}
-                circular={false}
-              />
-              <ImageCropper
-                aspect={3}
-                onComplete={(url) => setLogoWideUrl(url)}
-                label="الشعار العريض — Navbar على الكمبيوتر (3:1)"
-                currentImage={logoWideUrl}
                 circular={false}
               />
             </div>
