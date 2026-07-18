@@ -1156,18 +1156,18 @@ router.get('/student/available', requireRole('student'), async (req, res) => {
 });
 
 // ── Seeded shuffle helper (Fisher-Yates with LCG RNG) ──
+// Seeded Fisher-Yates shuffle — deterministic per student+exam combination.
+// Uses modulo (not fraction-division) to match the recitations.js implementation
+// exactly. Both files must stay in sync or take/review/scoring will diverge.
 function seededShuffle(arr, seed) {
-  const result = [...arr];
+  const a = [...arr];
   let s = seed >>> 0;
-  const rand = () => {
-    s = Math.imul(s, 1664525) + 1013904223 >>> 0;
-    return s / 0x100000000;
-  };
-  for (let i = result.length - 1; i > 0; i--) {
-    const j = Math.floor(rand() * (i + 1));
-    [result[i], result[j]] = [result[j], result[i]];
+  for (let i = a.length - 1; i > 0; i--) {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    const j = s % (i + 1);
+    [a[i], a[j]] = [a[j], a[i]];
   }
-  return result;
+  return a;
 }
 
 // Shuffle MCQ options within image_multi sub-questions.
@@ -1287,16 +1287,20 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
         const seed = (studentId * 31 + examId * 17) >>> 0;
         questions = seededShuffle(questions, seed);
       }
-      // Shuffle image_multi sub-question options server-side so the snapshot stores
-      // the shuffled order. Scoring and review both use the snapshot, so they stay consistent.
-      if (exam.shuffle_options) {
-        const seed = ((studentId * 31 + examId * 17) >>> 0);
-        questions = questions.map(q => {
-          if (q.question_type !== 'image_multi' || !Array.isArray(q.sub_questions) || !q.sub_questions.length) return q;
-          return { ...q, sub_questions: shuffleImgMultiSubQs(q.sub_questions, seed, q.id) };
-        });
-      }
     }
+
+    // ── Shuffle image_multi sub-question options server-side (bank AND manual exams) ──
+    // Must happen AFTER question selection so the shuffled order is captured in the
+    // snapshot. Scoring and review both read from the snapshot, so they stay consistent.
+    // Seed formula must match the one used in GET /results/:resultId/review.
+    if (exam.shuffle_options) {
+      const imgMultiSeed = ((studentId * 31 + examId * 17) >>> 0);
+      questions = questions.map(q => {
+        if (q.question_type !== 'image_multi' || !Array.isArray(q.sub_questions) || !q.sub_questions.length) return q;
+        return { ...q, sub_questions: shuffleImgMultiSubQs(q.sub_questions, imgMultiSeed, q.id) };
+      });
+    }
+
     // ── Store server-side session: start time + question snapshot ──
     // This prevents timer cheating and bank-question tampering on submit.
     // H-9 fix: if a session already exists, ALWAYS return the stored snapshot
@@ -1343,8 +1347,17 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
       }
     }
 
-    // Strip correct_answer_letter from client response to prevent answer leaking
-    const clientQuestions = questions.map(({ correct_answer_letter: _omit, ...q }) => q);
+    // Strip correct_answer_letter and sub-question correct fields before sending to client
+    // (prevents answer-key leaking for both MCQ and image_multi question types)
+    const clientQuestions = questions.map(({ correct_answer_letter: _omit, ...q }) => {
+      if (q.question_type === 'image_multi' && Array.isArray(q.sub_questions)) {
+        return {
+          ...q,
+          sub_questions: q.sub_questions.map(({ correct: _c, ...sub }) => sub),
+        };
+      }
+      return q;
+    });
     res.json({ exam, questions: clientQuestions, serverStartedAt });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });

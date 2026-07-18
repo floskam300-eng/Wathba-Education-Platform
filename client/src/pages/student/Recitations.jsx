@@ -721,7 +721,13 @@ function QuestionCard({ q, idx, answers, setAnswers, dark, onImagePress }) {
           {(q.sub_questions || []).map(sub => {
             const subSel = subAnswers[sub.label];
             const isTF = sub.type === 'true_false';
-            const subOptions = isTF ? [{ letter: 'A', label: 'صح' }, { letter: 'B', label: 'خطأ' }] : options;
+            // Build sub-options from sub.option_labels (image_multi MCQ sub-questions do not
+            // use the parent question's option_a/b/c/d — those are null for image_multi).
+            // Limit to actual option count to avoid phantom buttons.
+            const subOptions = isTF
+              ? [{ letter: 'A', label: 'صح' }, { letter: 'B', label: 'خطأ' }]
+              : ['A', 'B', 'C', 'D'].slice(0, sub.option_labels?.length || 4)
+                  .map((letter, i) => ({ letter, label: sub.option_labels?.[i] || letter }));
             return (
               <div key={sub.label} className={`rounded-xl p-3 border ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)]' : 'bg-gray-50 border-gray-200'}`}>
                 <p className={`text-sm font-bold mb-2 flex items-center justify-between ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>
@@ -739,7 +745,7 @@ function QuestionCard({ q, idx, answers, setAnswers, dark, onImagePress }) {
                             ? 'bg-purple-500 text-white border-purple-500 shadow-sm'
                             : dark ? 'bg-[var(--dk-surface)] border-[var(--dk-border)] text-[var(--dk-text)] hover:border-purple-400' : 'bg-white border-gray-300 text-gray-700 hover:border-purple-300'
                         }`}>
-                        {isTF ? opt.label : (sub.option_labels?.[['A', 'B', 'C', 'D'].indexOf(opt.letter)] || opt.displayLabel)}
+                        {opt.label}
                       </button>
                     );
                   })}

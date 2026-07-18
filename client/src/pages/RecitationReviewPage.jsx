@@ -38,8 +38,12 @@ export default function RecitationReviewPage() {
   const questions = data?.review || [];
 
   const correct    = questions.filter(q => q.is_correct).length;
-  const wrong      = questions.filter(q => !q.is_correct && q.student_answer).length;
-  const unanswered = questions.filter(q => !q.student_answer).length;
+  // For image_multi, student_answer is a JSON string — check sub_results for actual answered state
+  const hasAnswer  = q => q.question_type === 'image_multi'
+    ? (Array.isArray(q.sub_results) && q.sub_results.some(s => !!s.student_answer))
+    : !!q.student_answer;
+  const wrong      = questions.filter(q => !q.is_correct && hasAnswer(q)).length;
+  const unanswered = questions.filter(q => !hasAnswer(q)).length;
   const pct        = questions.length > 0 ? Math.round((correct / questions.length) * 100) : 0;
   const [lightboxSrc, setLightboxSrc] = useState(null);
 
@@ -185,7 +189,7 @@ export default function RecitationReviewPage() {
                           const isTF = sub.type === 'true_false';
                           const subSa = isTF ? (rawSubSa === 'T' ? 'A' : rawSubSa === 'F' ? 'B' : rawSubSa) : rawSubSa;
                           const subCorrect = isTF ? (rawSubCorrect === 'T' ? 'A' : rawSubCorrect === 'F' ? 'B' : rawSubCorrect) : rawSubCorrect;
-                          const listLetters = isTF ? ['A', 'B'] : ['A', 'B', 'C', 'D'];
+                          const listLetters = isTF ? ['A', 'B'] : ['A', 'B', 'C', 'D'].slice(0, sub.option_labels?.length || 4);
                           return (
                             <div key={sub.label} className={`flex items-center gap-2 p-2.5 rounded-xl border-2 ${
                               !hasSubAns

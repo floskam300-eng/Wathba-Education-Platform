@@ -631,7 +631,7 @@ export default function StudentExams() {
                                 {sub.label} <span className="text-[10px] text-gray-400 font-normal">({sub.points || 1} د)</span>
                               </span>
                               <div className="flex gap-1 flex-1">
-                                {(sub.type === 'true_false' ? ['A', 'B'] : ['A', 'B', 'C', 'D']).map(letter => (
+                                {(sub.type === 'true_false' ? ['A', 'B'] : ['A', 'B', 'C', 'D'].slice(0, sub.option_labels?.length || 4)).map(letter => (
                                   <button key={letter} type="button"
                                     onClick={() => {
                                       let current = {};

@@ -1651,6 +1651,7 @@ router.get('/results/:resultId/review', authenticate, async (req, res) => {
             correct: subCorrect,
             type: sub.type || 'mcq',
             points: sub.points !== undefined ? sub.points : 1,
+            option_labels: sub.option_labels || null,
             student_answer: subSa,
             is_correct: isSubCorrect,
           };
