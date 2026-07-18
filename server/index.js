@@ -413,14 +413,18 @@ app.use('/uploads/pdfs',
         makeProtectedUploadsMiddleware('pdf'),
         (req, res, next) => {
           res.setHeader('Content-Disposition', 'inline');
-          // [B-5 fix] no-cache + must-revalidate are redundant alongside no-store
-          res.setHeader('Cache-Control', 'private, no-store');
+          // Use no-cache (not no-store) so the browser can store the PDF locally
+          // and revalidate with ETag. On repeated opens the server returns 304 with
+          // no body — the file loads from the browser cache instantly instead of
+          // being re-downloaded from disk on every visit.  `private` ensures the
+          // response is never stored in shared/proxy caches.
+          res.setHeader('Cache-Control', 'private, no-cache');
           res.setHeader('X-Content-Type-Options', 'nosniff');
           // [B-6 fix] prevent search-engine crawlers from indexing PDF URLs
           res.setHeader('X-Robots-Tag', 'noindex, nofollow');
           next();
         },
-        express.static(path.join(__dirname, '../uploads/pdfs')));
+        express.static(path.join(__dirname, '../uploads/pdfs'), { etag: true, lastModified: true }));
 app.use('/uploads/videos',
         uploadsLimiter,
         makeProtectedUploadsMiddleware('video'),
@@ -429,6 +433,20 @@ app.use('/uploads/question-images',
         uploadsLimiter,
         makeProtectedUploadsMiddleware('question-image'),
         express.static(path.join(__dirname, '../uploads/question-images')));
+
+// ── PDF.js assets (cMaps + standard fonts) ───────────────────────────────────
+// Served locally so SecurePdfViewer never has to hit an external CDN.
+// These are static binary files that never change for a given pdfjs-dist version,
+// so they can be cached aggressively in the browser.
+const _pdfjsCmapDir      = path.join(__dirname, '../client/node_modules/pdfjs-dist/cmaps');
+const _pdfjsFontsDir     = path.join(__dirname, '../client/node_modules/pdfjs-dist/standard_fonts');
+const _pdfjsCacheHeader  = (req, res) => res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+app.use('/pdfjs/cmaps',
+  (req, res, next) => { _pdfjsCacheHeader(req, res); next(); },
+  express.static(_pdfjsCmapDir));
+app.use('/pdfjs/standard_fonts',
+  (req, res, next) => { _pdfjsCacheHeader(req, res); next(); },
+  express.static(_pdfjsFontsDir));
 
 // Images and thumbnails remain public (needed for login page / course cards)
 // Safety guard: block direct access to protected subdirs through the general handler.

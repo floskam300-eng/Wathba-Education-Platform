@@ -101,7 +101,10 @@ const uploadThumbnail = multer({
 const pdfStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOAD_DIRS.pdfs),
   filename: (req, file, cb) => {
-    cb(null, `pdf_${Date.now()}.pdf`);
+    // Use randomBytes (same pattern as thumbnails) to prevent collision when
+    // two uploads happen at the same millisecond.
+    const rand = crypto.randomBytes(8).toString('hex');
+    cb(null, `pdf_${Date.now()}_${rand}.pdf`);
   },
 });
 const ACCEPTED_PDF_MIMES = [

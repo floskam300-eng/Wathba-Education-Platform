@@ -210,13 +210,13 @@ export default function SecurePdfViewer({ pdf }) {
     const url  = withToken(pdf.file_url);
     // cMapUrl + standardFontDataUrl fix Arabic/non-Latin text rendering in PDF.js.
     // Without cMaps, Arabic characters from embedded fonts appear as garbled symbols.
-    const PDFJS_VERSION = '4.10.38';
-    const CDN = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}`;
+    // We serve these assets locally (via Express /pdfjs/*) instead of hitting a CDN,
+    // so there is zero external-network latency before the first page appears.
     const task = pdfjsLib.getDocument({
       url,
-      cMapUrl: `${CDN}/cmaps/`,
+      cMapUrl: '/pdfjs/cmaps/',
       cMapPacked: true,
-      standardFontDataUrl: `${CDN}/standard_fonts/`,
+      standardFontDataUrl: '/pdfjs/standard_fonts/',
       // Some Arabic PDFs (especially exports from older Arabic word processors)
       // embed fonts whose glyphs get mis-shaped/disconnected when the browser's
       // native @font-face engine applies its own ligature/shaping rules on top
@@ -260,6 +260,19 @@ export default function SecurePdfViewer({ pdf }) {
       renderPage(pdfDocRef.current, currentPage, scale);
     }
   }, [currentPage, scale, isLoading, error, renderPage]);
+
+  /* ── Prefetch next page ─────────────────────────────────────── */
+  // After the current page renders, call getPage() for the next page.
+  // PDF.js internally caches parsed page data, so the subsequent render
+  // when the user navigates forward skips the parsing step entirely and
+  // starts painting immediately.
+  useEffect(() => {
+    if (isLoading || error || !pdfDocRef.current) return;
+    const nextPageNum = currentPage + 1;
+    if (nextPageNum <= numPages) {
+      pdfDocRef.current.getPage(nextPageNum).catch(() => {});
+    }
+  }, [currentPage, numPages, isLoading, error]);
 
   /* ── Re-draw watermark when label changes (user data update) ── */
   // [B-4 fix] read page/scale from refs so we never have a stale closure —
