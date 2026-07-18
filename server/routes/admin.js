@@ -200,7 +200,7 @@ router.get('/teachers', requireAdminAuth, async (req, res) => {
   try {
     const { rows: teachers } = await pool.query(
       `SELECT 
-          t.id, t.username, t.name, t.classification, t.whatsapp_phone, t.logo_url, t.photo_url, t.slug,
+          t.id, t.username, t.name, t.classification, t.whatsapp_phone, t.logo_url, t.logo_wide_url, t.photo_url, t.slug,
           t.is_platform_suspended, t.platform_suspended_at, t.platform_suspended_reason,
           t.features_enabled, t.hero_image_url, t.background_color, t.created_at,
           (SELECT COUNT(*)::int FROM students WHERE teacher_id = t.id AND deleted_at IS NULL) AS total_students,
@@ -231,6 +231,7 @@ router.get('/teachers', requireAdminAuth, async (req, res) => {
       classification: t.classification,
       whatsapp_phone: t.whatsapp_phone,
       logo_url: t.logo_url,
+      logo_wide_url: t.logo_wide_url,
       photo_url: t.photo_url,
       slug: t.slug,
       is_platform_suspended: t.is_platform_suspended,
@@ -269,7 +270,7 @@ router.get('/teachers/:id', requireAdminAuth, async (req, res) => {
   if (isNaN(teacherId)) return res.status(400).json({ error: 'معرّف غير صحيح' });
   try {
     const { rows } = await pool.query(
-      `SELECT id, username, name, classification, whatsapp_phone, logo_url, photo_url, slug,
+      `SELECT id, username, name, classification, whatsapp_phone, logo_url, logo_wide_url, photo_url, slug,
               is_platform_suspended, platform_suspended_at, platform_suspended_reason,
               features_enabled, hero_image_url, background_color, created_at
          FROM teachers
@@ -318,7 +319,7 @@ router.get('/teachers/:id', requireAdminAuth, async (req, res) => {
 
 // Create New Teacher (Platform Setup / Subdomain automatic creation via slug)
 router.post('/teachers', requireAdminAuth, async (req, res) => {
-  const { username, password, name, classification, whatsapp_phone, logo_url, hero_image_url, background_color, bio, plan_ids, force_password_change } = req.body;
+  const { username, password, name, classification, whatsapp_phone, logo_url, logo_wide_url, hero_image_url, background_color, bio, plan_ids, force_password_change } = req.body;
 
   // Accept plan_ids array (multi-plan support); also accept legacy plan_id for backwards compat
   const rawPlanId = req.body.plan_id;
@@ -331,11 +332,13 @@ router.post('/teachers', requireAdminAuth, async (req, res) => {
     return res.status(400).json({ error: 'الاسم واسم المستخدم وكلمة المرور واشتراك باقة واحدة على الأقل مطلوبين' });
   }
 
-  const slug = username.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-  if (!slug) return res.status(400).json({ error: 'اسم المستخدم يجب أن يحتوي على حروف أو أرقام إنجليزية ليكون رابطاً صالحاً' });
+  // Allow caller to supply a custom slug; otherwise derive from username
+  const rawSlugInput = (req.body.slug || username).trim();
+  const slug = rawSlugInput.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  if (!slug) return res.status(400).json({ error: 'النطاق الفرعي يجب أن يحتوي على حروف أو أرقام إنجليزية' });
 
   // BUG-5 FIX: DNS label max length is 63 characters
-  if (slug.length > 63) return res.status(400).json({ error: 'اسم المستخدم طويل جداً (الحد الأقصى 63 حرفاً)' });
+  if (slug.length > 63) return res.status(400).json({ error: 'النطاق الفرعي طويل جداً (الحد الأقصى 63 حرفاً)' });
 
   // BUG-4 FIX: Minimum password length
   if (password.length < 8) return res.status(400).json({ error: 'كلمة المرور يجب أن تكون 8 أحرف على الأقل' });
@@ -373,8 +376,8 @@ router.post('/teachers', requireAdminAuth, async (req, res) => {
     // Insert Teacher — BUG-6 FIX: honour force_password_change flag from admin
     const shouldForceChange = force_password_change === true || force_password_change === 'true';
     const teacherRes = await client.query(
-      `INSERT INTO teachers (username, password, name, classification, whatsapp_phone, logo_url, hero_image_url, background_color, bio, slug, features_enabled, force_password_change)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
+      `INSERT INTO teachers (username, password, name, classification, whatsapp_phone, logo_url, logo_wide_url, hero_image_url, background_color, bio, slug, features_enabled, force_password_change)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id`,
       [
         username.trim().toLowerCase(),
         hashed,
@@ -382,6 +385,7 @@ router.post('/teachers', requireAdminAuth, async (req, res) => {
         classification ? classification.trim() : null,
         whatsapp_phone ? whatsapp_phone.trim() : null,
         logo_url || null,
+        logo_wide_url || null,
         hero_image_url || null,
         background_color || '#000000',
         bio || '',
@@ -436,20 +440,21 @@ router.put('/teachers/:id', requireAdminAuth, async (req, res) => {
   const teacherId = parseInt(req.params.id, 10);
   if (isNaN(teacherId)) return res.status(400).json({ error: 'معرّف غير صحيح' });
 
-  const { name, classification, whatsapp_phone, logo_url, hero_image_url, background_color, bio } = req.body;
+  const { name, classification, whatsapp_phone, logo_url, logo_wide_url, hero_image_url, background_color, bio } = req.body;
   if (!name) return res.status(400).json({ error: 'الاسم بالكامل مطلوب' });
 
   try {
     const { rowCount } = await pool.query(
       `UPDATE teachers
           SET name = $1, classification = $2, whatsapp_phone = $3, logo_url = $4,
-              hero_image_url = $5, background_color = $6, bio = $7
-        WHERE id = $8`,
+              logo_wide_url = $5, hero_image_url = $6, background_color = $7, bio = $8
+        WHERE id = $9`,
       [
         name.trim(),
         classification ? classification.trim() : null,
         whatsapp_phone ? whatsapp_phone.trim() : null,
         logo_url || null,
+        logo_wide_url || null,
         hero_image_url || null,
         background_color || '#000000',
         bio || '',

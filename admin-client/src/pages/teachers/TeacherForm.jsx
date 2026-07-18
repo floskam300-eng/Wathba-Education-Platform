@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import api from '../../api/axios';
 import ImageCropper from '../../components/ImageCropper';
-import { ArrowRight, Save, Phone, User, Sparkles, Plus, Trash2, KeyRound } from 'lucide-react';
+import { ArrowRight, Save, Phone, User, Sparkles, Plus, Trash2, KeyRound, Eye, EyeOff, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function TeacherForm() {
@@ -14,23 +14,40 @@ export default function TeacherForm() {
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [forcePasswordChange, setForcePasswordChange] = useState(false);
   const [classification, setClassification] = useState('');
   const [whatsappPhone, setWhatsappPhone] = useState('');
   const [bio, setBio] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
+  const [logoWideUrl, setLogoWideUrl] = useState('');
   const [heroImageUrl, setHeroImageUrl] = useState('');
   const [backgroundColor, setBackgroundColor] = useState('#0B0F19');
 
-  // BUG-3 FIX: compute the normalized slug exactly as the server does
-  const previewSlug = username.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'username';
-
-  // Actual subdomain slug (edit mode — may differ from username)
+  // Subdomain slug — separate from username in create mode
   const [slug, setSlug] = useState('');
+  const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
+
+  // Auto-derive slug preview from username unless user manually changed it
+  const normalizeSlug = (v) =>
+    v.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+  const handleUsernameChange = (v) => {
+    setUsername(v);
+    if (!slugManuallyEdited) {
+      setSlug(normalizeSlug(v));
+    }
+  };
+
+  const handleSlugChange = (v) => {
+    setSlugManuallyEdited(true);
+    setSlug(v);
+  };
+
+  const previewSlug = normalizeSlug(slug) || 'subdomain';
 
   // Subscriptions setup (only when creating)
   const [plans, setPlans] = useState([]);
-  // Multi-plan selection: Set of plan IDs (strings)
   const [selectedPlanIds, setSelectedPlanIds] = useState(new Set());
 
   // Support Team Members (only when editing)
@@ -48,15 +65,12 @@ export default function TeacherForm() {
     const init = async () => {
       try {
         if (!isEdit) {
-          // Fetch plans to select one or more for the new teacher
           const res = await api.get('/plans');
           const activePlans = res.data.plans.filter((p) => p.is_active);
           setPlans(activePlans);
-          // Pre-select the first platform plan by default
           const firstPlatform = activePlans.find((p) => p.category === 'platform');
           if (firstPlatform) setSelectedPlanIds(new Set([String(firstPlatform.id)]));
         } else {
-          // Fetch existing teacher details
           const res = await api.get(`/teachers/${id}`);
           const { teacher } = res.data;
           setName(teacher.name);
@@ -66,10 +80,10 @@ export default function TeacherForm() {
           setWhatsappPhone(teacher.whatsapp_phone || '');
           setBio(teacher.bio || '');
           setLogoUrl(teacher.logo_url || '');
+          setLogoWideUrl(teacher.logo_wide_url || '');
           setHeroImageUrl(teacher.hero_image_url || '');
           setBackgroundColor(teacher.background_color || '#0B0F19');
 
-          // Fetch team members
           const teamRes = await api.get(`/teachers/${id}/team`);
           setTeam(teamRes.data.team);
         }
@@ -86,11 +100,8 @@ export default function TeacherForm() {
   const togglePlan = (planId) => {
     setSelectedPlanIds((prev) => {
       const next = new Set(prev);
-      if (next.has(planId)) {
-        next.delete(planId);
-      } else {
-        next.add(planId);
-      }
+      if (next.has(planId)) next.delete(planId);
+      else next.add(planId);
       return next;
     });
   };
@@ -104,15 +115,16 @@ export default function TeacherForm() {
     setSaving(true);
     try {
       if (!isEdit) {
-        // Create teacher
         await api.post('/teachers', {
           username,
+          slug: slug || username,
           password,
           name,
           classification,
           whatsapp_phone: whatsappPhone,
           bio,
           logo_url: logoUrl,
+          logo_wide_url: logoWideUrl,
           hero_image_url: heroImageUrl,
           background_color: backgroundColor,
           plan_ids: Array.from(selectedPlanIds).map(Number),
@@ -120,13 +132,13 @@ export default function TeacherForm() {
         });
         toast.success('تم إنشاء حساب المدرس والمنصة بنجاح!');
       } else {
-        // Update teacher
         await api.put(`/teachers/${id}`, {
           name,
           classification,
           whatsapp_phone: whatsappPhone,
           bio,
           logo_url: logoUrl,
+          logo_wide_url: logoWideUrl,
           hero_image_url: heroImageUrl,
           background_color: backgroundColor,
         });
@@ -152,19 +164,16 @@ export default function TeacherForm() {
         whatsapp_phone: newMemberPhone,
         display_order: newMemberOrder,
       });
-
-      setTeam([
-        ...team,
-        {
+      setTeam(
+        [...team, {
           id: res.data.memberId,
           name: newMemberName,
           role_title: newMemberRole,
           photo_url: newMemberPhoto,
           whatsapp_phone: newMemberPhone,
           display_order: newMemberOrder,
-        },
-      ].sort((a, b) => a.display_order - b.display_order));
-
+        }].sort((a, b) => a.display_order - b.display_order)
+      );
       toast.success('تم إضافة عضو فريق الدعم');
       setNewMemberName('');
       setNewMemberRole('');
@@ -208,13 +217,15 @@ export default function TeacherForm() {
             {isEdit ? 'تعديل بيانات المدرس' : 'إضافة مدرس جديد'}
           </h1>
           <p className="text-slate-400 mt-1 font-cairo">
-            {isEdit ? 'تعديل بيانات الحساب وتخصيص المنصة والموقع' : 'إنشاء حساب مدرس جديد وتعيين باقة الاشتراك وتوليد النطاق تلقائياً'}
+            {isEdit
+              ? 'تعديل بيانات الحساب وتخصيص المنصة والموقع'
+              : 'إنشاء حساب مدرس جديد وتعيين باقة الاشتراك وضبط النطاق الفرعي'}
           </p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
-        {/* Section 1: Account Info */}
+        {/* ── Section 1: Account Info ── */}
         <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-6 space-y-6">
           <h3 className="text-lg font-bold text-white font-cairo border-b border-slate-800 pb-3 flex items-center gap-2">
             <User className="text-amber-500" size={20} />
@@ -222,6 +233,7 @@ export default function TeacherForm() {
           </h3>
 
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+            {/* Full name */}
             <div>
               <label className="block text-sm font-semibold text-slate-300 font-cairo" htmlFor="fullName">
                 الاسم بالكامل *
@@ -237,9 +249,10 @@ export default function TeacherForm() {
               />
             </div>
 
+            {/* Username (login) */}
             <div>
               <label className="block text-sm font-semibold text-slate-300 font-cairo" htmlFor="teacherUsername">
-                {isEdit ? 'اسم المستخدم (للدخول)' : 'اسم المستخدم / اسم النطاق الفرعي *'}
+                اسم المستخدم (للدخول) *
               </label>
               <input
                 id="teacherUsername"
@@ -247,39 +260,75 @@ export default function TeacherForm() {
                 required
                 disabled={isEdit}
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                onChange={(e) => handleUsernameChange(e.target.value)}
                 placeholder="mr-ahmed"
                 className="mt-2 block w-full rounded-xl border border-slate-800 bg-slate-950 py-3 px-4 text-white placeholder-slate-600 focus:border-amber-500 focus:outline-none disabled:opacity-50 font-mono text-sm"
               />
-              {!isEdit && (
-                <p className="mt-1 text-xs text-slate-500 font-cairo">
-                  سيتم توليد النطاق الفرعي تلقائياً: <span className="font-mono text-amber-500">{previewSlug}.wathba.site</span>
-                </p>
-              )}
-              {isEdit && slug && (
-                <p className="mt-1 text-xs text-slate-500 font-cairo">
-                  النطاق الفرعي الفعلي للمنصة:{' '}
-                  <span className="font-mono text-amber-400">{slug}.wathba.site</span>
-                </p>
-              )}
+              <p className="mt-1 text-xs text-slate-500 font-cairo">
+                يُستخدم فقط لتسجيل الدخول — لا يظهر للطلاب
+              </p>
             </div>
 
+            {/* Subdomain slug — create mode only (editable), edit mode shows read-only */}
+            {!isEdit ? (
+              <div>
+                <label className="block text-sm font-semibold text-slate-300 font-cairo" htmlFor="teacherSlug">
+                  النطاق الفرعي (رابط المنصة) *
+                </label>
+                <input
+                  id="teacherSlug"
+                  type="text"
+                  required
+                  value={slug}
+                  onChange={(e) => handleSlugChange(e.target.value)}
+                  placeholder="mr-ahmed"
+                  className="mt-2 block w-full rounded-xl border border-slate-800 bg-slate-950 py-3 px-4 text-white placeholder-slate-600 focus:border-amber-500 focus:outline-none font-mono text-sm"
+                />
+                <p className="mt-1 text-xs text-slate-500 font-cairo">
+                  رابط منصة المدرس:{' '}
+                  <span className="font-mono text-amber-500">{previewSlug}.wathba.site</span>
+                  {!slugManuallyEdited && slug && (
+                    <span className="text-slate-600"> (مولّد تلقائياً)</span>
+                  )}
+                </p>
+              </div>
+            ) : (
+              <div>
+                <label className="block text-sm font-semibold text-slate-300 font-cairo">
+                  النطاق الفرعي الفعلي
+                </label>
+                <div className="mt-2 rounded-xl border border-slate-800 bg-slate-900 py-3 px-4 font-mono text-sm text-amber-400 select-all">
+                  {slug}.wathba.site
+                </div>
+              </div>
+            )}
+
+            {/* Password (create only) */}
             {!isEdit && (
               <div className="space-y-3">
                 <label className="block text-sm font-semibold text-slate-300 font-cairo" htmlFor="teacherPassword">
                   كلمة المرور * (8 أحرف على الأقل)
                 </label>
-                <input
-                  id="teacherPassword"
-                  type="password"
-                  required
-                  minLength={8}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="block w-full rounded-xl border border-slate-800 bg-slate-950 py-3 px-4 text-white placeholder-slate-600 focus:border-amber-500 focus:outline-none"
-                />
-                {/* BUG-6 FIX: force_password_change option */}
+                <div className="relative">
+                  <input
+                    id="teacherPassword"
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    minLength={8}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="block w-full rounded-xl border border-slate-800 bg-slate-950 py-3 pr-4 pl-11 text-white placeholder-slate-600 focus:border-amber-500 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 hover:text-white transition"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
                 <label className="flex items-center gap-3 cursor-pointer select-none">
                   <input
                     type="checkbox"
@@ -294,6 +343,7 @@ export default function TeacherForm() {
               </div>
             )}
 
+            {/* WhatsApp Phone */}
             <div>
               <label className="block text-sm font-semibold text-slate-300 font-cairo" htmlFor="phone">
                 رقم الهاتف (الواتساب) *
@@ -314,6 +364,7 @@ export default function TeacherForm() {
               </div>
             </div>
 
+            {/* Classification */}
             <div>
               <label className="block text-sm font-semibold text-slate-300 font-cairo" htmlFor="classification">
                 التخصص العلمي / الوصف التعليمي
@@ -329,6 +380,7 @@ export default function TeacherForm() {
             </div>
           </div>
 
+          {/* Bio */}
           <div>
             <label className="block text-sm font-semibold text-slate-300 font-cairo" htmlFor="bio">
               الوصف / السيرة الذاتية (Bio)
@@ -344,7 +396,7 @@ export default function TeacherForm() {
           </div>
         </div>
 
-        {/* Section 2: Plan Selection (Only on Create) — multi-select by category */}
+        {/* ── Section 2: Plan Selection (create only) ── */}
         {!isEdit && (
           <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-6 space-y-6">
             <h3 className="text-lg font-bold text-white font-cairo border-b border-slate-800 pb-3 flex items-center gap-2">
@@ -359,51 +411,46 @@ export default function TeacherForm() {
                 <p className="text-xs text-slate-400 font-cairo">
                   يمكنك اختيار أكثر من باقة للمدرس (باقة المنصة + خدمات إضافية). يجب اختيار باقة واحدة على الأقل. *
                 </p>
-                {/* Group plans by category */}
                 {[
-                  { key: 'platform',      label: 'باقات استضافة المنصة',   color: 'text-amber-400',   border: 'border-amber-500/30' },
-                  { key: 'service',       label: 'خدمات الإنتاج والتصميم', color: 'text-sky-400',     border: 'border-sky-500/30'   },
-                  { key: 'social_media',  label: 'إدارة السوشيال ميديا',   color: 'text-purple-400',  border: 'border-purple-500/30'},
+                  { key: 'platform',     label: 'باقات استضافة المنصة',   color: 'text-amber-400',  border: 'border-amber-500/30'  },
+                  { key: 'service',      label: 'خدمات الإنتاج والتصميم', color: 'text-sky-400',    border: 'border-sky-500/30'    },
+                  { key: 'social_media', label: 'إدارة السوشيال ميديا',   color: 'text-purple-400', border: 'border-purple-500/30' },
                 ]
                   .filter(({ key }) => plans.some((p) => p.category === key))
                   .map(({ key, label, color, border }) => (
                     <div key={key} className={`rounded-xl border ${border} bg-slate-950/40 p-4 space-y-3`}>
                       <h4 className={`text-xs font-bold font-cairo uppercase tracking-wide ${color}`}>{label}</h4>
                       <div className="space-y-2">
-                        {plans
-                          .filter((p) => p.category === key)
-                          .map((p) => {
-                            const checked = selectedPlanIds.has(String(p.id));
-                            return (
-                              <label
-                                key={p.id}
-                                className={`flex items-center gap-3 cursor-pointer rounded-xl border px-4 py-3 transition ${
-                                  checked
-                                    ? 'border-amber-500/50 bg-amber-500/10'
-                                    : 'border-slate-800 hover:border-slate-600'
-                                }`}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={checked}
-                                  onChange={() => togglePlan(String(p.id))}
-                                  className="h-4 w-4 rounded border-slate-700 bg-slate-950 text-amber-500 focus:ring-amber-500 flex-shrink-0"
-                                />
-                                <div className="flex-1 min-w-0">
-                                  <div className="font-semibold text-white text-sm font-cairo">{p.name}</div>
-                                  {p.description && (
-                                    <div className="text-xs text-slate-500 font-cairo mt-0.5 truncate">{p.description}</div>
-                                  )}
+                        {plans.filter((p) => p.category === key).map((p) => {
+                          const checked = selectedPlanIds.has(String(p.id));
+                          return (
+                            <label
+                              key={p.id}
+                              className={`flex items-center gap-3 cursor-pointer rounded-xl border px-4 py-3 transition ${
+                                checked ? 'border-amber-500/50 bg-amber-500/10' : 'border-slate-800 hover:border-slate-600'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => togglePlan(String(p.id))}
+                                className="h-4 w-4 rounded border-slate-700 bg-slate-950 text-amber-500 focus:ring-amber-500 flex-shrink-0"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="font-semibold text-white text-sm font-cairo">{p.name}</div>
+                                {p.description && (
+                                  <div className="text-xs text-slate-500 font-cairo mt-0.5 truncate">{p.description}</div>
+                                )}
+                              </div>
+                              <div className="text-right flex-shrink-0">
+                                <div className="text-sm font-bold text-amber-400 font-mono">{p.price} EGP</div>
+                                <div className="text-[10px] text-slate-500 font-cairo">
+                                  {p.billing_type === 'monthly' ? 'شهري' : p.billing_type === 'annual' ? 'سنوي' : 'مرة واحدة'}
                                 </div>
-                                <div className="text-right flex-shrink-0">
-                                  <div className="text-sm font-bold text-amber-400 font-mono">{p.price} EGP</div>
-                                  <div className="text-[10px] text-slate-500 font-cairo">
-                                    {p.billing_type === 'monthly' ? 'شهري' : p.billing_type === 'annual' ? 'سنوي' : 'مرة واحدة'}
-                                  </div>
-                                </div>
-                              </label>
-                            );
-                          })}
+                              </div>
+                            </label>
+                          );
+                        })}
                       </div>
                     </div>
                   ))}
@@ -426,54 +473,82 @@ export default function TeacherForm() {
           </div>
         )}
 
-        {/* Section 3: Customization (Branding) */}
+        {/* ── Section 3: Branding ── */}
         <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-6 space-y-6">
           <h3 className="text-lg font-bold text-white font-cairo border-b border-slate-800 pb-3 flex items-center gap-2">
             <Sparkles className="text-amber-500" size={20} />
             <span>التخصيص الاحترافي (Branding)</span>
           </h3>
 
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-            <ImageCropper
-              aspect={1}
-              onComplete={(url) => setLogoUrl(url)}
-              label="شعار المدرس / لوجو المنصة (نسبة 1:1)"
-              currentImage={logoUrl}
-              circular={false}
-            />
+          {/* ── Logo row ── */}
+          <div className="rounded-xl border border-slate-700 bg-slate-950/40 p-4 space-y-4">
+            <div className="flex items-start gap-2">
+              <Info size={15} className="text-sky-400 mt-0.5 flex-shrink-0" />
+              <p className="text-xs text-slate-400 font-cairo leading-relaxed">
+                <span className="text-white font-semibold">الشعار المربع</span> يُستخدم كأيقونة تطبيق على الهاتف (PWA) وكـ favicon في المتصفح.
+                {' '}<span className="text-white font-semibold">الشعار العريض</span> يظهر في شريط التنقل العلوي (Navbar) عند فتح المنصة على الكمبيوتر أو المتصفح — لو لم يُرفع يُستخدم الشعار المربع بدلاً منه.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+              <ImageCropper
+                aspect={1}
+                onComplete={(url) => setLogoUrl(url)}
+                label="الشعار المربع — أيقونة التطبيق / Favicon (1:1)"
+                currentImage={logoUrl}
+                circular={false}
+              />
+              <ImageCropper
+                aspect={3}
+                onComplete={(url) => setLogoWideUrl(url)}
+                label="الشعار العريض — Navbar على الكمبيوتر (3:1)"
+                currentImage={logoWideUrl}
+                circular={false}
+              />
+            </div>
+          </div>
 
+          {/* ── Hero image ── */}
+          <div className="rounded-xl border border-slate-700 bg-slate-950/40 p-4 space-y-4">
+            <div className="flex items-start gap-2">
+              <Info size={15} className="text-sky-400 mt-0.5 flex-shrink-0" />
+              <p className="text-xs text-slate-400 font-cairo leading-relaxed">
+                <span className="text-white font-semibold">صورة الغلاف (16:9)</span> هي الصورة الكبيرة التي تظهر في الجزء العلوي (Hero Section) من{' '}
+                <span className="text-amber-400">الموقع التعريفي للمدرس</span> الذي يراه الزوار والطلاب الجدد عند زيارة رابط المنصة — مثل غلاف قناة يوتيوب تماماً.
+              </p>
+            </div>
             <ImageCropper
               aspect={16 / 9}
               onComplete={(url) => setHeroImageUrl(url)}
-              label="خلفية المنصة / غلاف الموقع التعريفي (نسبة 16:9)"
+              label="صورة الغلاف — Hero Section في الموقع التعريفي (16:9)"
               currentImage={heroImageUrl}
             />
+          </div>
 
-            <div>
-              <label className="block text-sm font-semibold text-slate-300 font-cairo" htmlFor="bgColor">
-                لون خلفية المنصة (اللون الاحتياطي)
-              </label>
-              <div className="flex items-center gap-3 mt-2">
-                <input
-                  id="bgColor"
-                  type="color"
-                  value={backgroundColor}
-                  onChange={(e) => setBackgroundColor(e.target.value)}
-                  className="h-10 w-12 rounded border border-slate-800 bg-slate-950 cursor-pointer"
-                />
-                <input
-                  type="text"
-                  value={backgroundColor}
-                  onChange={(e) => setBackgroundColor(e.target.value)}
-                  placeholder="#0B0F19"
-                  className="block w-full max-w-[120px] rounded-xl border border-slate-800 bg-slate-950 py-2.5 px-4 text-white focus:border-amber-500 focus:outline-none text-center font-mono text-sm"
-                />
-              </div>
+          {/* Background color */}
+          <div>
+            <label className="block text-sm font-semibold text-slate-300 font-cairo" htmlFor="bgColor">
+              لون خلفية المنصة (اللون الاحتياطي)
+            </label>
+            <div className="flex items-center gap-3 mt-2">
+              <input
+                id="bgColor"
+                type="color"
+                value={backgroundColor}
+                onChange={(e) => setBackgroundColor(e.target.value)}
+                className="h-10 w-12 rounded border border-slate-800 bg-slate-950 cursor-pointer"
+              />
+              <input
+                type="text"
+                value={backgroundColor}
+                onChange={(e) => setBackgroundColor(e.target.value)}
+                placeholder="#0B0F19"
+                className="block w-full max-w-[120px] rounded-xl border border-slate-800 bg-slate-950 py-2.5 px-4 text-white focus:border-amber-500 focus:outline-none text-center font-mono text-sm"
+              />
             </div>
           </div>
         </div>
 
-        {/* Section 4: Support Team Members (Only on Edit) */}
+        {/* ── Section 4: Support Team (edit only) ── */}
         {isEdit && (
           <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-6 space-y-6">
             <h3 className="text-lg font-bold text-white font-cairo border-b border-slate-800 pb-3 flex items-center gap-2">
@@ -481,7 +556,6 @@ export default function TeacherForm() {
               <span>فريق الدعم والمسؤولين (يعرض في الموقع التعريفي)</span>
             </h3>
 
-            {/* Existing team members */}
             <div className="space-y-3">
               {team.length === 0 ? (
                 <p className="text-sm text-slate-500 font-cairo">لم يتم إضافة أي أعضاء لفريق الدعم بعد.</p>
@@ -516,37 +590,30 @@ export default function TeacherForm() {
               )}
             </div>
 
-            {/* Add Team Member form */}
             <div className="border-t border-slate-800 pt-6 space-y-4">
               <h4 className="text-sm font-semibold text-white font-cairo">إضافة عضو جديد للفريق:</h4>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
-                <div>
-                  <input
-                    type="text"
-                    placeholder="الاسم"
-                    value={newMemberName}
-                    onChange={(e) => setNewMemberName(e.target.value)}
-                    className="block w-full rounded-xl border border-slate-800 bg-slate-950 py-2.5 px-3 text-white placeholder-slate-600 focus:outline-none text-xs font-cairo"
-                  />
-                </div>
-                <div>
-                  <input
-                    type="text"
-                    placeholder="المسمى الوظيفي (دعم فني)"
-                    value={newMemberRole}
-                    onChange={(e) => setNewMemberRole(e.target.value)}
-                    className="block w-full rounded-xl border border-slate-800 bg-slate-950 py-2.5 px-3 text-white placeholder-slate-600 focus:outline-none text-xs font-cairo"
-                  />
-                </div>
-                <div>
-                  <input
-                    type="text"
-                    placeholder="هاتف الواتس الخاص به"
-                    value={newMemberPhone}
-                    onChange={(e) => setNewMemberPhone(e.target.value)}
-                    className="block w-full rounded-xl border border-slate-800 bg-slate-950 py-2.5 px-3 text-white placeholder-slate-600 focus:outline-none text-xs font-mono"
-                  />
-                </div>
+                <input
+                  type="text"
+                  placeholder="الاسم"
+                  value={newMemberName}
+                  onChange={(e) => setNewMemberName(e.target.value)}
+                  className="block w-full rounded-xl border border-slate-800 bg-slate-950 py-2.5 px-3 text-white placeholder-slate-600 focus:outline-none text-xs font-cairo"
+                />
+                <input
+                  type="text"
+                  placeholder="المسمى الوظيفي (دعم فني)"
+                  value={newMemberRole}
+                  onChange={(e) => setNewMemberRole(e.target.value)}
+                  className="block w-full rounded-xl border border-slate-800 bg-slate-950 py-2.5 px-3 text-white placeholder-slate-600 focus:outline-none text-xs font-cairo"
+                />
+                <input
+                  type="text"
+                  placeholder="هاتف الواتس الخاص به"
+                  value={newMemberPhone}
+                  onChange={(e) => setNewMemberPhone(e.target.value)}
+                  className="block w-full rounded-xl border border-slate-800 bg-slate-950 py-2.5 px-3 text-white placeholder-slate-600 focus:outline-none text-xs font-mono"
+                />
                 <div className="flex items-center gap-2">
                   <input
                     type="number"
@@ -578,12 +645,10 @@ export default function TeacherForm() {
           </div>
         )}
 
-        {/* Section: Reset Password (Edit only) */}
-        {isEdit && (
-          <ResetPasswordSection teacherId={id} />
-        )}
+        {/* ── Section 5: Reset Password (edit only) ── */}
+        {isEdit && <ResetPasswordSection teacherId={id} />}
 
-        {/* Submit Actions */}
+        {/* Submit */}
         <div className="flex justify-end gap-4">
           <Link
             to="/teachers"
@@ -605,9 +670,10 @@ export default function TeacherForm() {
   );
 }
 
-/* ── Reset Password Section (edit mode only) ─────────────────────── */
+/* ── Reset Password Section ── */
 function ResetPasswordSection({ teacherId }) {
   const [newPassword, setNewPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [forceChange, setForceChange] = useState(true);
   const [resetting, setResetting] = useState(false);
 
@@ -645,14 +711,24 @@ function ResetPasswordSection({ teacherId }) {
           <label className="block text-sm font-semibold text-slate-300 font-cairo mb-2">
             كلمة المرور الجديدة (8 أحرف على الأقل)
           </label>
-          <input
-            type="password"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            placeholder="••••••••"
-            minLength={8}
-            className="block w-full rounded-xl border border-slate-800 bg-slate-950 py-3 px-4 text-white placeholder-slate-600 focus:border-red-500 focus:outline-none"
-          />
+          <div className="relative">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="••••••••"
+              minLength={8}
+              className="block w-full rounded-xl border border-slate-800 bg-slate-950 py-3 pr-4 pl-11 text-white placeholder-slate-600 focus:border-red-500 focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 hover:text-white transition"
+              tabIndex={-1}
+            >
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
         </div>
         <button
           type="button"

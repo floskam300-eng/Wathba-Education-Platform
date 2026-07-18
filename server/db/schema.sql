@@ -1250,3 +1250,6 @@ CREATE INDEX IF NOT EXISTS idx_students_teacher_points
 CREATE INDEX IF NOT EXISTS idx_video_progress_student_watched
   ON video_progress (student_id, last_watched_at DESC);
 
+
+-- Wide logo for desktop navbar/header (separate from square PWA icon)
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS logo_wide_url VARCHAR(500);
