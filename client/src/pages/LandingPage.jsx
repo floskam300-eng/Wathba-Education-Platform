@@ -261,7 +261,7 @@ export default function LandingPage() {
               <div className="absolute -inset-3 rounded-[2rem] bg-gradient-to-br from-orange-500/25 to-[#0B3C5D]/15 blur-xl" />
               {teacher?.photo_url ? (
                 <img
-                  src={teacher.photo_url.startsWith('http') ? teacher.photo_url : `/uploads/${teacher.photo_url}`}
+                  src={teacher.photo_url.startsWith('http') || teacher.photo_url.startsWith('/') ? teacher.photo_url : `/uploads/${teacher.photo_url}`}
                   alt={teacher?.name}
                   className="relative w-56 h-56 sm:w-64 sm:h-64 lg:w-72 lg:h-72 rounded-[2rem] object-cover shadow-2xl shadow-orange-500/20 border-4 border-white"
                   onError={e => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
@@ -336,7 +336,7 @@ export default function LandingPage() {
                 <div className="relative inline-block mb-5">
                   {teacher?.photo_url ? (
                     <img
-                      src={teacher.photo_url.startsWith('http') ? teacher.photo_url : `/uploads/${teacher.photo_url}`}
+                      src={teacher.photo_url.startsWith('http') || teacher.photo_url.startsWith('/') ? teacher.photo_url : `/uploads/${teacher.photo_url}`}
                       alt={teacher.name}
                       className="w-28 h-28 rounded-2xl object-cover shadow-xl shadow-orange-500/25 mx-auto border-2 border-orange-500/30"
                       onError={e => {

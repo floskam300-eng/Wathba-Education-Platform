@@ -103,9 +103,14 @@ export function TeacherProvider({ children }) {
 
   const teacher = data?.teacher || null;
   const platformName = teacher?.platform_name || teacher?.name || 'منصة تعليمية';
-  const logoUrl = teacher?.logo_url
-    ? (teacher.logo_url.startsWith('http') ? teacher.logo_url : `/uploads/${teacher.logo_url}`)
-    : null;
+  // URLs stored by the admin upload endpoint already start with /uploads/admin/...
+  // so we must NOT prepend /uploads/ again. Only prepend for legacy bare filenames.
+  const resolveUploadUrl = (url) => {
+    if (!url) return null;
+    if (url.startsWith('http') || url.startsWith('/')) return url;
+    return `/uploads/${url}`;
+  };
+  const logoUrl = resolveUploadUrl(teacher?.logo_url);
 
   useEffect(() => {
     if (!teacher) return;

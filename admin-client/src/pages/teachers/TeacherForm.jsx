@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import api from '../../api/axios';
 import ImageCropper from '../../components/ImageCropper';
+import DirectImageUploader from '../../components/DirectImageUploader';
 import { ArrowRight, Save, Phone, User, Sparkles, Plus, Trash2, KeyRound, Eye, EyeOff, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -20,6 +21,7 @@ export default function TeacherForm() {
   const [whatsappPhone, setWhatsappPhone] = useState('');
   const [bio, setBio] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
+  const [photoUrl, setPhotoUrl] = useState('');
 
   // Subdomain slug — separate from username in create mode
   const [slug, setSlug] = useState('');
@@ -88,6 +90,7 @@ export default function TeacherForm() {
           setWhatsappPhone(teacher.whatsapp_phone || '');
           setBio(teacher.bio || '');
           setLogoUrl(teacher.logo_url || '');
+          setPhotoUrl(teacher.photo_url || '');
 
           const teamRes = await api.get(`/teachers/${id}/team`);
           setTeam(teamRes.data.team);
@@ -148,6 +151,7 @@ export default function TeacherForm() {
           whatsapp_phone: whatsappPhone,
           bio,
           logo_url: logoUrl,
+          photo_url: photoUrl,
         });
         toast.success('تم تحديث بيانات المدرس بنجاح');
       }
@@ -506,6 +510,22 @@ export default function TeacherForm() {
                 circular={false}
               />
             </div>
+          </div>
+
+          {/* ── Teacher personal photo row ── */}
+          <div className="rounded-xl border border-slate-700 bg-slate-950/40 p-4 space-y-4">
+            <div className="flex items-start gap-2">
+              <Info size={15} className="text-amber-400 mt-0.5 flex-shrink-0" />
+              <p className="text-xs text-slate-400 font-cairo leading-relaxed">
+                <span className="text-white font-semibold">الصورة الشخصية للمدرس</span> تظهر في الصفحة الرئيسية (Landing Page) للمنصة في قسم Hero وقسم "عن المعلم".
+                الصورة تُعرض بنسبها الأصلية — بورتريه أو مربع أو أفقي — دون قص إجباري.
+              </p>
+            </div>
+            <DirectImageUploader
+              onComplete={(url) => setPhotoUrl(url)}
+              label="الصورة الشخصية للمدرس (تُعرض في Landing Page)"
+              currentImage={photoUrl}
+            />
           </div>
 
         </div>

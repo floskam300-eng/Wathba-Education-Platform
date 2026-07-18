@@ -450,15 +450,19 @@ router.put('/teachers/:id', requireAdminAuth, async (req, res) => {
   const teacherId = parseInt(req.params.id, 10);
   if (isNaN(teacherId)) return res.status(400).json({ error: 'معرّف غير صحيح' });
 
-  const { name, classification, whatsapp_phone, logo_url, logo_wide_url, hero_image_url, background_color, bio } = req.body;
+  const { name, classification, whatsapp_phone, logo_url, logo_wide_url, hero_image_url, background_color, bio, photo_url } = req.body;
   if (!name) return res.status(400).json({ error: 'الاسم بالكامل مطلوب' });
 
   try {
+    const check = await pool.query('SELECT slug FROM teachers WHERE id = $1', [teacherId]);
+    if (check.rows.length === 0) return res.status(404).json({ error: 'المدرس غير موجود' });
+
     const { rowCount } = await pool.query(
       `UPDATE teachers
           SET name = $1, classification = $2, whatsapp_phone = $3, logo_url = $4,
-              logo_wide_url = $5, hero_image_url = $6, background_color = $7, bio = $8
-        WHERE id = $9`,
+              logo_wide_url = $5, hero_image_url = $6, background_color = $7, bio = $8,
+              photo_url = $9
+        WHERE id = $10`,
       [
         name.trim(),
         classification ? classification.trim() : null,
@@ -468,10 +472,19 @@ router.put('/teachers/:id', requireAdminAuth, async (req, res) => {
         hero_image_url || null,
         background_color || '#000000',
         bio || '',
+        photo_url || null,
         teacherId,
       ]
     );
     if (rowCount === 0) return res.status(404).json({ error: 'المدرس غير موجود' });
+
+    // Invalidate the subdomain tenant cache so the landing page reflects changes immediately
+    const slug = check.rows[0].slug;
+    const subdomainTenant = require('../middleware/subdomainTenant');
+    if (subdomainTenant && typeof subdomainTenant.invalidateCache === 'function') {
+      subdomainTenant.invalidateCache(slug);
+    }
+
     res.json({ success: true });
   } catch (err) {
     console.error('Update teacher error:', err.message);
