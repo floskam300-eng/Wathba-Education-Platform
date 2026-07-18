@@ -21,8 +21,6 @@ export default function TeacherForm() {
   const [bio, setBio] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
   const [logoWideUrl, setLogoWideUrl] = useState('');
-  const [heroImageUrl, setHeroImageUrl] = useState('');
-  const [backgroundColor, setBackgroundColor] = useState('#0B0F19');
 
   // Subdomain slug — separate from username in create mode
   const [slug, setSlug] = useState('');
@@ -82,8 +80,6 @@ export default function TeacherForm() {
           setBio(teacher.bio || '');
           setLogoUrl(teacher.logo_url || '');
           setLogoWideUrl(teacher.logo_wide_url || '');
-          setHeroImageUrl(teacher.hero_image_url || '');
-          setBackgroundColor(teacher.background_color || '#0B0F19');
 
           const teamRes = await api.get(`/teachers/${id}/team`);
           setTeam(teamRes.data.team);
@@ -134,8 +130,6 @@ export default function TeacherForm() {
           bio,
           logo_url: logoUrl,
           logo_wide_url: logoWideUrl,
-          hero_image_url: heroImageUrl,
-          background_color: backgroundColor,
           plan_ids: Array.from(selectedPlanIds).map(Number),
           force_password_change: forcePasswordChange,
         });
@@ -148,8 +142,6 @@ export default function TeacherForm() {
           bio,
           logo_url: logoUrl,
           logo_wide_url: logoWideUrl,
-          hero_image_url: heroImageUrl,
-          background_color: backgroundColor,
         });
         toast.success('تم تحديث بيانات المدرس بنجاح');
       }
@@ -516,45 +508,6 @@ export default function TeacherForm() {
             </div>
           </div>
 
-          {/* ── Hero image ── */}
-          <div className="rounded-xl border border-slate-700 bg-slate-950/40 p-4 space-y-4">
-            <div className="flex items-start gap-2">
-              <Info size={15} className="text-sky-400 mt-0.5 flex-shrink-0" />
-              <p className="text-xs text-slate-400 font-cairo leading-relaxed">
-                <span className="text-white font-semibold">صورة الغلاف (16:9)</span> هي الصورة الكبيرة التي تظهر في الجزء العلوي (Hero Section) من{' '}
-                <span className="text-amber-400">الموقع التعريفي للمدرس</span> الذي يراه الزوار والطلاب الجدد عند زيارة رابط المنصة — مثل غلاف قناة يوتيوب تماماً.
-              </p>
-            </div>
-            <ImageCropper
-              aspect={16 / 9}
-              onComplete={(url) => setHeroImageUrl(url)}
-              label="صورة الغلاف — Hero Section في الموقع التعريفي (16:9)"
-              currentImage={heroImageUrl}
-            />
-          </div>
-
-          {/* Background color */}
-          <div>
-            <label className="block text-sm font-semibold text-slate-300 font-cairo" htmlFor="bgColor">
-              لون خلفية المنصة (اللون الاحتياطي)
-            </label>
-            <div className="flex items-center gap-3 mt-2">
-              <input
-                id="bgColor"
-                type="color"
-                value={backgroundColor}
-                onChange={(e) => setBackgroundColor(e.target.value)}
-                className="h-10 w-12 rounded border border-slate-800 bg-slate-950 cursor-pointer"
-              />
-              <input
-                type="text"
-                value={backgroundColor}
-                onChange={(e) => setBackgroundColor(e.target.value)}
-                placeholder="#0B0F19"
-                className="block w-full max-w-[120px] rounded-xl border border-slate-800 bg-slate-950 py-2.5 px-4 text-white focus:border-amber-500 focus:outline-none text-center font-mono text-sm"
-              />
-            </div>
-          </div>
         </div>
 
         {/* ── Section 4: Support Team (edit only) ── */}
