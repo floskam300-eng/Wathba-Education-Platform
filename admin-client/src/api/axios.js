@@ -2,6 +2,9 @@ import axios from 'axios';
 
 const instance = axios.create({
   baseURL: '/api/admin',
+  // 30-second timeout — prevents upload/request from hanging indefinitely
+  // when the backend server is unreachable or unresponsive.
+  timeout: 30000,
 });
 
 instance.interceptors.request.use(

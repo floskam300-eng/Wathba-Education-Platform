@@ -84,9 +84,10 @@ export default function ImageCropper({ aspect, onComplete, label, currentImage, 
       const formData = new FormData();
       formData.append('image', blob, 'cropped_image.jpg');
 
-      const res = await api.post('/upload/image', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      // Do NOT set Content-Type manually — axios detects FormData and adds
+      // multipart/form-data WITH the correct boundary automatically.
+      // Overriding it manually strips the boundary and breaks multer parsing.
+      const res = await api.post('/upload/image', formData);
 
       onComplete(res.data.url);
       setIsModalOpen(false);
