@@ -88,7 +88,7 @@ async function getTeacherStats(teacherId, includeStorage = false) {
       [teacherId]
     );
     const teacherRes = await pool.query(
-      'SELECT logo_url, photo_url, hero_image_url FROM teachers WHERE id = $1',
+      'SELECT logo_url, logo_wide_url, photo_url, hero_image_url FROM teachers WHERE id = $1',
       [teacherId]
     );
     const teamRes = await pool.query(
@@ -104,6 +104,7 @@ async function getTeacherStats(teacherId, includeStorage = false) {
     if (teacherRes.rows.length) {
       const t = teacherRes.rows[0];
       if (t.logo_url) filePaths.push(t.logo_url);
+      if (t.logo_wide_url) filePaths.push(t.logo_wide_url); // FIX: was missing from storage calc
       if (t.photo_url) filePaths.push(t.photo_url);
       if (t.hero_image_url) filePaths.push(t.hero_image_url);
     }
@@ -185,9 +186,17 @@ router.get('/auth/me', requireAdminAuth, async (req, res) => {
   res.json({ admin: req.admin });
 });
 
-// Admin Logout
-router.post('/auth/logout', (req, res) => {
-  // Client discards JWT token, returns simple success
+// Admin Logout — FIX: revoke the token server-side via blacklistToken so it can't be reused
+// requireAdminAuth already validates the token, so req.admin is populated here.
+const { blacklistToken } = require('../middleware/auth');
+router.post('/auth/logout', requireAdminAuth, (req, res) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (token) {
+    const expiresAt = req.admin?.exp
+      ? new Date(req.admin.exp * 1000)
+      : Date.now() + 7 * 24 * 60 * 60 * 1000;
+    blacklistToken(token, expiresAt);
+  }
   res.json({ success: true });
 });
 
@@ -361,7 +370,8 @@ router.post('/teachers', requireAdminAuth, async (req, res) => {
     }
 
     // Validate all requested plan IDs exist
-    const placeholders = planIdsArray.map((_, i) => `${i + 1}`).join(', ');
+    // FIX: use $1,$2,... placeholders (not bare numbers) for parameterized query
+    const placeholders = planIdsArray.map((_, i) => `$${i + 1}`).join(', ');
     const plansCheck = await client.query(
       `SELECT id, price, billing_type, category FROM subscription_plans WHERE id IN (${placeholders}) AND is_active = true`,
       planIdsArray
@@ -820,18 +830,19 @@ router.get('/subscriptions', requireAdminAuth, async (req, res) => {
     const values = [];
 
     // B1 FIX: validate teacher_id is a real integer before passing to DB
+    // FIX: use $N placeholders (not bare values.length) in dynamic conditions
     const conditions = [];
     if (teacher_id) {
       const tid = parseInt(teacher_id, 10);
       if (isNaN(tid)) return res.status(400).json({ error: 'معرّف المدرس غير صحيح' });
       values.push(tid);
-      conditions.push(`ts.teacher_id = ${values.length}`);
+      conditions.push(`ts.teacher_id = $${values.length}`);
     }
     if (status) {
       const VALID_STATUSES = ['active', 'expired', 'cancelled'];
       if (!VALID_STATUSES.includes(status)) return res.status(400).json({ error: 'حالة الاشتراك غير صحيحة' });
       values.push(status);
-      conditions.push(`ts.status = ${values.length}`);
+      conditions.push(`ts.status = $${values.length}`);
     }
 
     if (conditions.length) {

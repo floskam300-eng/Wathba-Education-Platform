@@ -318,6 +318,10 @@ const requireAdminAuth = async (req, res, next) => {
   if (!token) {
     return res.status(401).json({ error: 'No token provided' });
   }
+  // FIX: check blacklist before JWT verification so revoked tokens are rejected
+  if (_tokenBlacklist.has(hashToken(token))) {
+    return res.status(401).json({ error: 'Token has been revoked' });
+  }
   try {
     const decoded = jwt.verify(token, ADMIN_JWT_SECRET);
     if (decoded.role !== 'admin' && decoded.role !== 'super_admin') {

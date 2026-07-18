@@ -41,7 +41,8 @@ export default function TeacherForm() {
 
   const handleSlugChange = (v) => {
     setSlugManuallyEdited(true);
-    setSlug(v);
+    // Normalize in real-time so the input always shows valid slug characters
+    setSlug(normalizeSlug(v) || v);
   };
 
   const previewSlug = normalizeSlug(slug) || 'subdomain';
@@ -110,6 +111,14 @@ export default function TeacherForm() {
     e.preventDefault();
     if (!name || (!isEdit && (!username || !password || selectedPlanIds.size === 0))) {
       return toast.error('يرجى ملء جميع الحقول المطلوبة، ويجب اختيار باقة واحدة على الأقل');
+    }
+    // Validate WhatsApp phone on create
+    if (!isEdit && !whatsappPhone.trim()) {
+      return toast.error('رقم الهاتف (الواتساب) مطلوب');
+    }
+    // Password strength validation
+    if (!isEdit && password.length < 8) {
+      return toast.error('كلمة المرور يجب أن تكون 8 أحرف على الأقل');
     }
 
     setSaving(true);
