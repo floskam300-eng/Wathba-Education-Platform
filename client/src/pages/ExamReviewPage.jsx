@@ -334,7 +334,7 @@ export default function ExamReviewPage() {
                               : rawSubCorrect;
                             const subIsCorrect = subResult?.is_correct ?? false;
                             const hasSubAnswer = !!subSa;
-                            const listLetters = isTF ? ['A', 'B'] : ['A', 'B', 'C', 'D'];
+                            const listLetters = isTF ? ['A', 'B'] : ['A', 'B', 'C', 'D'].slice(0, sub.option_labels?.length || 4);
                             return (
                               <div key={sub.label} className={`flex items-center gap-2 p-2.5 rounded-xl border-2 ${
                                 !hasSubAnswer
