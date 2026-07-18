@@ -29,7 +29,8 @@
     "livekit-server-sdk": "^2.15.3",
     "multer": "^2.2.0",
     "pg": "^8.11.3",
-    "qrcode": "^1.5.4"
+    "qrcode": "^1.5.4",
+    "sharp": "^0.35.3"
   },
   "devDependencies": {
     "jest": "^30.4.2",
