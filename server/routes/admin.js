@@ -1177,13 +1177,29 @@ router.post('/upload/image', requireAdminAuth, adminUploadLimiter, uploadAdminIm
     return res.status(400).json({ error: 'ملف الصورة المرفوع غير صالح أو تالف' });
   }
 
-  // Convert to WebP for smaller file size (up to 80% reduction)
+  // Convert to WebP for smaller file size (up to 80% reduction).
+  // Race against a 20-second timeout: if sharp/libvips hangs (common on Alpine
+  // when native bindings are misconfigured), we fall back to serving the
+  // original file rather than leaving the request hanging indefinitely.
   try {
-    const { filename: webpName } = await convertToWebp(req.file.path, req.file.filename);
+    const conversionTimeout = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('WebP conversion timed out after 20s')), 20000)
+    );
+    const { filename: webpName } = await Promise.race([
+      convertToWebp(req.file.path, req.file.filename),
+      conversionTimeout,
+    ]);
     const fileUrl = `/uploads/admin/${webpName}`;
     res.json({ success: true, url: fileUrl });
   } catch (convErr) {
     console.error('[admin] WebP conversion error:', convErr.message);
+    // If conversion timed out, the original file is still on disk — serve it
+    // directly rather than returning an error and losing the upload entirely.
+    if (convErr.message.includes('timed out')) {
+      const fileUrl = `/uploads/admin/${req.file.filename}`;
+      console.warn('[admin] Falling back to original (non-WebP) file:', req.file.filename);
+      return res.json({ success: true, url: fileUrl });
+    }
     // convertToWebp throws without deleting the original on sharp failure,
     // so we must clean it up here to avoid orphan files on disk.
     deleteFile(req.file.path);

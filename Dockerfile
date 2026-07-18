@@ -18,8 +18,15 @@ RUN npm run build
 # ── Stage 2: Production Node image ───────────────────────
 FROM node:20-alpine AS runner
 
-# Install dumb-init for proper signal handling (SIGTERM → graceful shutdown)
-RUN apk add --no-cache dumb-init
+# dumb-init: proper SIGTERM forwarding.
+# vips + supporting libs: required by sharp (WebP image conversion) on Alpine/musl.
+# Without these, sharp silently hangs instead of throwing an error.
+RUN apk add --no-cache \
+    dumb-init \
+    vips-dev \
+    fftw-dev \
+    build-base \
+    python3
 
 WORKDIR /app
 
@@ -28,6 +35,9 @@ WORKDIR /app
 # (package-firewall.replit.local) that are unreachable outside Replit.
 # npm install without a lockfile resolves from the real npm registry.
 COPY package.json ./
+# SHARP_IGNORE_GLOBAL_LIBVIPS=0 tells sharp to use the system libvips installed above
+# instead of downloading its own bundled copy, ensuring Alpine compatibility.
+ENV SHARP_IGNORE_GLOBAL_LIBVIPS=0
 RUN npm install --omit=dev
 
 # Copy server source
