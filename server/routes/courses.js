@@ -713,6 +713,48 @@ router.post('/:id/pdfs/upload', requireRole('teacher', 'assistant'), checkManage
   }
 });
 
+router.put('/:id/videos/:videoId', requireRole('teacher', 'assistant'), checkManageCoursesPerm, async (req, res) => {
+  const teacherId = getTeacherId(req);
+  try {
+    if (!(await verifyCourseOwnership(req.params.id, teacherId))) {
+      return res.status(403).json({ error: 'Access denied: course not yours' });
+    }
+    const parseParamId = (v) => { if (!/^\d+$/.test(String(v))) return null; const n = parseInt(v, 10); return n > 0 && n <= 2147483647 ? n : null; };
+    const videoId = parseParamId(req.params.videoId);
+    if (!videoId) return res.status(400).json({ error: 'معرف الفيديو غير صالح' });
+
+    const existing = await pool.query('SELECT * FROM videos WHERE id=$1 AND course_id=$2', [videoId, req.params.id]);
+    if (!existing.rows.length) return res.status(404).json({ error: 'الفيديو غير موجود' });
+    const v = existing.rows[0];
+
+    // Only URL-based videos can be edited (not uploaded files)
+    if (v.file_path_or_url?.startsWith('/uploads/')) {
+      return res.status(400).json({ error: 'لا يمكن تعديل بيانات فيديو مرفوع' });
+    }
+
+    const { title, url, duration_minutes } = req.body;
+    if (!title?.trim()) return res.status(400).json({ error: 'عنوان الفيديو مطلوب' });
+    if (!url?.trim()) return res.status(400).json({ error: 'رابط الفيديو مطلوب' });
+    if (!/^https?:\/\//.test(url.trim()))
+      return res.status(400).json({ error: 'رابط الفيديو غير صالح' });
+
+    const updated = await pool.query(
+      'UPDATE videos SET title=$1, file_path_or_url=$2, duration_minutes=$3 WHERE id=$4 AND course_id=$5 RETURNING *',
+      [title.trim(), url.trim(), parseInt(duration_minutes) || 0, videoId, req.params.id]
+    );
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'edit_video_url',
+      entity: { type: 'course', id: parseInt(req.params.id), name: title.trim() },
+      details: { video_id: videoId },
+    });
+    res.json(updated.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 router.delete('/:id/videos/:videoId', requireRole('teacher', 'assistant'), checkManageCoursesPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
   try {

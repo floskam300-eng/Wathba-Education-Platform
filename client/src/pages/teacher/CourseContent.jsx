@@ -175,7 +175,9 @@ function VideoPreviewModal({ video, onClose }) {
   const ytId = ytIdMatch ? ytIdMatch[1] : null;
 
   let embedUrl = url;
-  if (isDrive) {
+  if (isYoutube && ytId) {
+    embedUrl = `https://www.youtube.com/embed/${ytId}?autoplay=1&rel=0`;
+  } else if (isDrive) {
     const match = url.match(/\/d\/([^/]+)/);
     if (match) embedUrl = `https://drive.google.com/file/d/${match[1]}/preview`;
   }
@@ -190,33 +192,25 @@ function VideoPreviewModal({ video, onClose }) {
           </button>
         </div>
         <div className="relative" style={{ paddingTop: '56.25%' }}>
-          {isYoutube ? (
+          {(isYoutube && ytId) || isDrive ? (
+            <iframe
+              src={embedUrl}
+              className="absolute inset-0 w-full h-full"
+              allowFullScreen
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              title={video.title}
+            />
+          ) : isYoutube && !ytId ? (
+            /* YouTube URL but couldn't extract ID — fallback to external link */
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 gap-4">
-              {ytId && (
-                <img
-                  src={`https://img.youtube.com/vi/${ytId}/hqdefault.jpg`}
-                  alt={video.title}
-                  className="absolute inset-0 w-full h-full object-cover opacity-40"
-                />
-              )}
-              <div className="relative z-10 flex flex-col items-center gap-3 text-center px-6">
-                <div className="w-16 h-16 rounded-full bg-orange-500/90 flex items-center justify-center shadow-2xl">
-                  <Play className="w-7 h-7 text-white fill-white mr-[-2px]" />
-                </div>
-                <p className="text-white font-bold text-sm">{video.title}</p>
-                <a
-                  href={url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold px-5 py-2.5 rounded-xl transition-all shadow-lg"
-                >
-                  <ExternalLink className="w-4 h-4" /> فتح على YouTube
-                </a>
+              <div className="w-16 h-16 rounded-full bg-red-600/90 flex items-center justify-center shadow-2xl">
+                <Play className="w-7 h-7 text-white fill-white mr-[-2px]" />
               </div>
+              <a href={url} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold px-5 py-2.5 rounded-xl transition-all shadow-lg">
+                <ExternalLink className="w-4 h-4" /> فتح على YouTube
+              </a>
             </div>
-          ) : isDrive ? (
-            <iframe src={embedUrl} className="absolute inset-0 w-full h-full" allowFullScreen
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" title={video.title} />
           ) : isLocal ? (
             <video src={withToken(url)} className="absolute inset-0 w-full h-full object-contain bg-black" controls preload="none" />
           ) : (
@@ -228,6 +222,86 @@ function VideoPreviewModal({ video, onClose }) {
               </a>
             </div>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EditVideoModal({ video, courseId, onClose, onSuccess }) {
+  const [title, setTitle] = useState(video.title || '');
+  const [url, setUrl] = useState(video.file_path_or_url || '');
+  const [duration, setDuration] = useState(video.duration_minutes > 0 ? String(video.duration_minutes) : '');
+  const [loading, setLoading] = useState(false);
+
+  const handleSave = async () => {
+    if (!title.trim()) return toast.error('أدخل عنوان الفيديو');
+    if (!url.trim()) return toast.error('أدخل رابط الفيديو');
+    setLoading(true);
+    try {
+      await api.put(`/courses/${courseId}/videos/${video.id}`, {
+        title: title.trim(),
+        url: url.trim(),
+        duration_minutes: duration || '0',
+      });
+      toast.success('تم تحديث الفيديو ✅');
+      onSuccess();
+      onClose();
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'فشل تحديث الفيديو');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl p-6 space-y-4" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h2 className="font-black text-navy-700 text-base flex items-center gap-2">
+            <Pencil className="w-4 h-4 text-orange-500" /> تعديل بيانات الفيديو
+          </h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="space-y-3">
+          <input
+            value={title}
+            onChange={e => setTitle(e.target.value)}
+            className="input-field w-full"
+            placeholder="عنوان الفيديو *"
+            disabled={loading}
+          />
+          <input
+            value={url}
+            onChange={e => setUrl(e.target.value)}
+            className="input-field w-full"
+            placeholder="رابط الفيديو * (YouTube, Drive, أو أي رابط مباشر)"
+            dir="ltr"
+            disabled={loading}
+          />
+          <input
+            type="number"
+            value={duration}
+            onChange={e => setDuration(e.target.value)}
+            className="input-field w-full"
+            placeholder="المدة (دقائق)"
+            disabled={loading}
+          />
+        </div>
+        <div className="flex gap-2 pt-1">
+          <button
+            onClick={handleSave}
+            disabled={loading || !title.trim() || !url.trim()}
+            className="btn-primary flex-1 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? 'جارٍ الحفظ...' : <><Check className="w-4 h-4" /> حفظ التعديلات</>}
+          </button>
+          <button onClick={onClose} disabled={loading}
+            className="px-4 py-2 rounded-xl border border-gray-200 text-gray-600 font-bold text-sm hover:bg-gray-50 transition-colors">
+            إلغاء
+          </button>
         </div>
       </div>
     </div>
@@ -302,8 +376,9 @@ function SectionDropZone({ sectionKey, label, icon, labelColor, isDraggingAny, d
 // [PF-1] VideoItem lifted to module scope — avoids React treating it as a new
 // component type on every parent render, which caused full unmount/remount of
 // every video row whenever any parent state changed.
-function VideoItem({ v, videoRecitationsMap, onPreview, onDelete, onDragStart, onDragEnd, isDragging }) {
+function VideoItem({ v, videoRecitationsMap, onPreview, onEdit, onDelete, onDragStart, onDragEnd, isDragging }) {
   const linkedRecs = videoRecitationsMap[Number(v.id)] || [];
+  const isUrlBased = v.file_path_or_url && !v.file_path_or_url.startsWith('/uploads/');
   return (
     <div
       draggable
@@ -323,7 +398,7 @@ function VideoItem({ v, videoRecitationsMap, onPreview, onDelete, onDragStart, o
         <p className="font-semibold text-navy-600 text-sm truncate">{v.title}</p>
         <div className="flex items-center gap-2 mt-0.5 flex-wrap">
           {v.duration_minutes > 0 && <p className="text-xs text-gray-500 font-medium">{v.duration_minutes} دقيقة</p>}
-          {v.file_path_or_url && !v.file_path_or_url.startsWith('/uploads/') && (
+          {isUrlBased && (
             <span className="text-[10px] bg-blue-50 text-blue-600 font-bold px-1.5 py-0.5 rounded-full flex items-center gap-1">
               <Link className="w-2.5 h-2.5" /> رابط
             </span>
@@ -340,6 +415,11 @@ function VideoItem({ v, videoRecitationsMap, onPreview, onDelete, onDragStart, o
           </div>
         )}
       </div>
+      {isUrlBased && (
+        <button onClick={() => onEdit(v)} className="p-1.5 text-navy-500 hover:bg-navy-50 rounded-lg flex-shrink-0 transition-colors mt-0.5" title="تعديل الفيديو">
+          <Pencil className="w-4 h-4" />
+        </button>
+      )}
       <button onClick={() => onDelete(v.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg flex-shrink-0 transition-colors mt-0.5">
         <Trash2 className="w-4 h-4" />
       </button>
@@ -362,6 +442,7 @@ export default function CourseContent() {
   const [editingSectionTitle, setEditingSectionTitle] = useState('');
   const [previewVideo, setPreviewVideo] = useState(null);
   const [previewPdf, setPreviewPdf] = useState(null);
+  const [editingVideo, setEditingVideo] = useState(null);
   const [expandedSections, setExpandedSections] = useState({});
 
   // Drag-and-drop state
@@ -504,6 +585,7 @@ export default function CourseContent() {
   }, [courseRecitations]);
 
   const onPreviewVideo = useCallback((v) => setPreviewVideo(v), []);
+  const onEditVideo    = useCallback((v) => setEditingVideo(v), []);
   const onDeleteVideo  = useCallback((id) => setDeleteVideoId(id), []);
   const onPreviewPdf   = useCallback((p) => setPreviewPdf(p), []);
   const onDeletePdf    = useCallback((id) => setDeletePdfId(id), []);
@@ -636,6 +718,7 @@ export default function CourseContent() {
                                   v={v}
                                   videoRecitationsMap={videoRecitationsMap}
                                   onPreview={onPreviewVideo}
+                                  onEdit={onEditVideo}
                                   onDelete={onDeleteVideo}
                                   onDragStart={onDragStartVideo}
                                   onDragEnd={handleDragEnd}
@@ -671,6 +754,7 @@ export default function CourseContent() {
                                   v={v}
                                   videoRecitationsMap={videoRecitationsMap}
                                   onPreview={onPreviewVideo}
+                                  onEdit={onEditVideo}
                                   onDelete={onDeleteVideo}
                                   onDragStart={onDragStartVideo}
                                   onDragEnd={handleDragEnd}
@@ -696,6 +780,7 @@ export default function CourseContent() {
                           v={v}
                           videoRecitationsMap={videoRecitationsMap}
                           onPreview={onPreviewVideo}
+                          onEdit={onEditVideo}
                           onDelete={onDeleteVideo}
                           onDragStart={onDragStartVideo}
                           onDragEnd={handleDragEnd}
@@ -906,6 +991,7 @@ export default function CourseContent() {
                                         v={v}
                                         videoRecitationsMap={videoRecitationsMap}
                                         onPreview={onPreviewVideo}
+                                        onEdit={onEditVideo}
                                         onDelete={onDeleteVideo}
                                         onDragStart={(id, sid) => handleDragStart('video', id, sid)}
                                         onDragEnd={handleDragEnd}
@@ -948,6 +1034,15 @@ export default function CourseContent() {
       </div>
 
       <VideoPreviewModal video={previewVideo} onClose={() => setPreviewVideo(null)} />
+
+      {editingVideo && (
+        <EditVideoModal
+          video={editingVideo}
+          courseId={courseId}
+          onClose={() => setEditingVideo(null)}
+          onSuccess={refreshContent}
+        />
+      )}
 
       {/* PDF Preview Modal */}
       {previewPdf && (
