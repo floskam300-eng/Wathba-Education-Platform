@@ -70,6 +70,11 @@ function DeviceAlertsPanel({ canEdit }) {
   const [devicesModal, setDevicesModal] = useState(null); // student object for viewing devices
   const [actionAlert, setActionAlert]   = useState(null); // alert being actioned
 
+  // Search & filter state
+  const [alertSearch, setAlertSearch]     = useState('');
+  const [statusFilter, setStatusFilter]   = useState('all');   // 'all' | 'pending' | 'resolved'
+  const [stageFilterA, setStageFilterA]   = useState('الكل');
+
   const { data: alerts = [], isLoading } = useQuery({
     queryKey: ['device-alerts'],
     queryFn: () => api.get('/students/device-alerts').then(r => r.data),
@@ -120,12 +125,42 @@ function DeviceAlertsPanel({ canEdit }) {
     }, {})
   );
 
+  // Apply search & stage filter to pending groups
+  const q = alertSearch.trim().toLowerCase();
+  const filteredPending = pendingByStudent.filter(a => {
+    if (stageFilterA !== 'الكل' && a.academic_stage !== stageFilterA) return false;
+    if (!q) return true;
+    return (
+      (a.student_name   || '').toLowerCase().includes(q) ||
+      (a.student_username || '').toLowerCase().includes(q) ||
+      a.devices.some(d => (d || '').toLowerCase().includes(q)) ||
+      (a.ip_address || '').includes(q)
+    );
+  });
+
+  // Apply search & stage filter to resolved list
+  const filteredResolved = resolved.filter(a => {
+    if (stageFilterA !== 'الكل' && a.academic_stage !== stageFilterA) return false;
+    if (!q) return true;
+    return (
+      (a.student_name   || '').toLowerCase().includes(q) ||
+      (a.student_username || '').toLowerCase().includes(q) ||
+      (a.device_name    || '').toLowerCase().includes(q) ||
+      (a.ip_address     || '').includes(q)
+    );
+  });
+
+  // Available stages from actual data
+  const availableStages = ['الكل', ...Array.from(new Set(alerts.map(a => a.academic_stage).filter(Boolean)))];
+
   const statusLabel = (s) => {
     if (s === 'pending')     return { text: 'معلّق', cls: 'bg-red-100 text-red-700' };
     if (s === 'reactivated') return { text: 'تم السماح بجهاز جديد', cls: 'bg-green-100 text-green-700' };
     if (s === 'dismissed')   return { text: 'تم التجاهل', cls: 'bg-gray-100 text-gray-600' };
     return { text: s, cls: 'bg-gray-100 text-gray-600' };
   };
+
+  const hasActiveFilters = alertSearch.trim() || stageFilterA !== 'الكل' || statusFilter !== 'all';
 
   if (isLoading) return (
     <div className="card flex items-center justify-center py-16">
@@ -168,16 +203,93 @@ function DeviceAlertsPanel({ canEdit }) {
         </div>
       </div>
 
+      {/* Search & Filters */}
+      {alerts.length > 0 && (
+        <div className="card !p-4 space-y-3">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <input
+              type="text"
+              value={alertSearch}
+              onChange={e => setAlertSearch(e.target.value)}
+              placeholder="ابحث باسم الطالب أو اليوزر أو الجهاز أو IP..."
+              className="w-full pr-9 pl-9 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
+              dir="rtl"
+            />
+            {alertSearch && (
+              <button
+                onClick={() => setAlertSearch('')}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Filter pills */}
+          <div className="flex flex-wrap gap-2 items-center">
+            {/* Status filter */}
+            <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+              {[
+                { value: 'all',      label: 'الكل' },
+                { value: 'pending',  label: 'معلّقة' },
+                { value: 'resolved', label: 'تم معالجتها' },
+              ].map(opt => (
+                <button
+                  key={opt.value}
+                  onClick={() => setStatusFilter(opt.value)}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                    statusFilter === opt.value
+                      ? 'bg-white text-orange-600 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Stage filter */}
+            {availableStages.length > 1 && (
+              <select
+                value={stageFilterA}
+                onChange={e => setStageFilterA(e.target.value)}
+                className="text-xs font-bold border border-gray-200 rounded-xl px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-orange-400 cursor-pointer"
+                dir="rtl"
+              >
+                {availableStages.map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            )}
+
+            {/* Clear all */}
+            {hasActiveFilters && (
+              <button
+                onClick={() => { setAlertSearch(''); setStatusFilter('all'); setStageFilterA('الكل'); }}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 transition-colors"
+              >
+                <X className="w-3.5 h-3.5" /> مسح الفلاتر
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Pending Alerts */}
-      {pendingByStudent.length > 0 && (
+      {(statusFilter === 'all' || statusFilter === 'pending') && filteredPending.length > 0 && (
         <div className="card !p-0 overflow-hidden">
           <div className="p-4 border-b border-red-100 bg-red-50 flex items-center gap-2">
             <ShieldAlert className="w-4 h-4 text-red-600" />
             <span className="font-black text-red-700 text-sm">محاولات دخول من جهاز جديد</span>
-            <span className="bg-red-600 text-white text-xs font-black px-2 py-0.5 rounded-full">{pendingByStudent.length}</span>
+            <span className="bg-red-600 text-white text-xs font-black px-2 py-0.5 rounded-full">{filteredPending.length}</span>
+            {hasActiveFilters && filteredPending.length !== pendingByStudent.length && (
+              <span className="text-red-400 text-xs font-semibold">من أصل {pendingByStudent.length}</span>
+            )}
           </div>
           <div className="divide-y divide-gray-100">
-            {pendingByStudent.map(alert => (
+            {filteredPending.map(alert => (
               <div key={alert.student_id} className="p-4 hover:bg-orange-50/30 transition-colors">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-start gap-3">
@@ -245,14 +357,18 @@ function DeviceAlertsPanel({ canEdit }) {
       )}
 
       {/* Resolved History */}
-      {resolved.length > 0 && (
+      {(statusFilter === 'all' || statusFilter === 'resolved') && filteredResolved.length > 0 && (
         <div className="card !p-0 overflow-hidden">
           <div className="p-4 border-b border-gray-100 flex items-center gap-2">
             <CheckCircle className="w-4 h-4 text-gray-500" />
             <span className="font-black text-gray-600 text-sm">السجل السابق</span>
+            <span className="bg-gray-200 text-gray-600 text-xs font-black px-2 py-0.5 rounded-full">{filteredResolved.length}</span>
+            {hasActiveFilters && filteredResolved.length !== resolved.length && (
+              <span className="text-gray-400 text-xs font-semibold">من أصل {resolved.length}</span>
+            )}
           </div>
           <div className="divide-y divide-gray-100">
-            {resolved.slice(0, 20).map(alert => {
+            {filteredResolved.slice(0, 20).map(alert => {
               const st = statusLabel(alert.status);
               return (
                 <div key={alert.id} className="p-4 flex items-center justify-between gap-3 opacity-75">
@@ -260,13 +376,30 @@ function DeviceAlertsPanel({ canEdit }) {
                     <p className="font-bold text-navy-700 text-sm">{alert.student_name}
                       <span className="font-mono text-xs text-gray-500 mr-2">({alert.student_username})</span>
                     </p>
-                    <p className="text-xs text-gray-400 mt-0.5">{new Date(alert.created_at).toLocaleString('ar-EG')} — {alert.device_name}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{alert.academic_stage && <span className="ml-2">{alert.academic_stage}</span>}{new Date(alert.created_at).toLocaleString('ar-EG')} — {alert.device_name}</p>
                   </div>
                   <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${st.cls}`}>{st.text}</span>
                 </div>
               );
             })}
           </div>
+        </div>
+      )}
+
+      {/* No results from filters */}
+      {alerts.length > 0 && hasActiveFilters && filteredPending.length === 0 && filteredResolved.length === 0 && (
+        <div className="card flex flex-col items-center justify-center py-14 gap-3">
+          <div className="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center">
+            <Search className="w-7 h-7 text-gray-400" />
+          </div>
+          <p className="font-bold text-gray-600">لا توجد نتائج مطابقة</p>
+          <p className="text-xs text-gray-400">جرّب تغيير كلمة البحث أو الفلاتر</p>
+          <button
+            onClick={() => { setAlertSearch(''); setStatusFilter('all'); setStageFilterA('الكل'); }}
+            className="mt-1 text-xs font-bold text-orange-600 hover:underline"
+          >
+            مسح الفلاتر
+          </button>
         </div>
       )}
 
