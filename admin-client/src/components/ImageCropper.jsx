@@ -109,8 +109,8 @@ export default function ImageCropper({ aspect, onComplete, label, currentImage, 
           <img
             src={currentImage}
             alt="Preview"
-            className={`h-16 w-16 object-cover border border-slate-700 bg-slate-800 ${
-              circular ? 'rounded-full' : 'rounded-lg'
+            className={`h-16 object-contain border border-slate-700 bg-slate-800 ${
+              circular ? 'rounded-full w-16' : 'rounded-lg'
             }`}
           />
         )}
@@ -147,7 +147,7 @@ export default function ImageCropper({ aspect, onComplete, label, currentImage, 
               </button>
             </div>
 
-            <div className="mt-4 flex max-h-[60vh] justify-center overflow-auto border border-slate-800 bg-black/40 p-4 rounded-lg">
+            <div className="mt-4 flex justify-center border border-slate-800 bg-black/40 p-4 rounded-lg">
               <ReactCrop
                 crop={crop}
                 onChange={(c) => setCrop(c)}
@@ -160,7 +160,7 @@ export default function ImageCropper({ aspect, onComplete, label, currentImage, 
                   src={src}
                   onLoad={onImageLoad}
                   alt="Crop target"
-                  className="max-w-full"
+                  style={{ maxHeight: '55vh', maxWidth: '100%', display: 'block' }}
                 />
               </ReactCrop>
             </div>
