@@ -140,6 +140,29 @@ function seededShuffle(arr, seed) {
   return a;
 }
 
+// Shuffle MCQ options within image_multi sub-questions.
+// Returns new sub_questions array with option_labels shuffled and correct letter remapped.
+// Deterministic: same seed + questionId + subIdx always produces the same result.
+function shuffleImgMultiSubQs(subQs, baseSeed, questionId) {
+  const LETTERS = ['A', 'B', 'C', 'D'];
+  return subQs.map((sub, subIdx) => {
+    if (sub.type === 'true_false') return sub; // T/F only has 2 fixed positions — no shuffle needed
+    const optCount = sub.option_labels ? Math.min(sub.option_labels.length, 4) : 4;
+    if (optCount < 2) return sub;
+    const origPositions = Array.from({ length: optCount }, (_, i) => i);
+    const subSeed = ((baseSeed >>> 0) ^ ((questionId * 1000003) >>> 0) ^ ((subIdx * 31337) >>> 0)) >>> 0;
+    const shuffled = seededShuffle(origPositions, subSeed || 1);
+    // shuffled[newIdx] = origIdx — the original slot that occupies each new position
+    const origCorrectIdx = LETTERS.indexOf(String(sub.correct || '').toUpperCase());
+    const newCorrectIdx  = shuffled.indexOf(origCorrectIdx);
+    const newCorrect     = (origCorrectIdx >= 0 && newCorrectIdx >= 0) ? LETTERS[newCorrectIdx] : sub.correct;
+    const newOptionLabels = sub.option_labels
+      ? shuffled.map(origIdx => sub.option_labels[origIdx] !== undefined ? sub.option_labels[origIdx] : null)
+      : null;
+    return { ...sub, option_labels: newOptionLabels, correct: newCorrect };
+  });
+}
+
 // ── Ownership helpers ─────────────────────────────────────────────────────────
 const getRecitationForOwner = async (id, teacherId) => {
   const r = await pool.query(
@@ -1193,26 +1216,31 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
 
     if (rec.shuffle_options) {
       snapshotQs = snapshotQs.map(q => {
-        if (q.question_type !== 'mcq') return q;
-        const opts = [
-          { letter: 'A', text: q.option_a },
-          { letter: 'B', text: q.option_b },
-          q.option_c ? { letter: 'C', text: q.option_c } : null,
-          q.option_d ? { letter: 'D', text: q.option_d } : null,
-        ].filter(Boolean);
-        const shuffledOpts = seededShuffle(opts, seed ^ q.id);
-        const letterMap = {};
-        ['A','B','C','D'].forEach((l, i) => {
-          if (shuffledOpts[i]) letterMap[shuffledOpts[i].letter] = l;
-        });
-        return {
-          ...q,
-          option_a: shuffledOpts[0]?.text || null,
-          option_b: shuffledOpts[1]?.text || null,
-          option_c: shuffledOpts[2]?.text || null,
-          option_d: shuffledOpts[3]?.text || null,
-          correct_answer_letter: letterMap[q.correct_answer_letter] || q.correct_answer_letter,
-        };
+        if (q.question_type === 'mcq') {
+          const opts = [
+            { letter: 'A', text: q.option_a },
+            { letter: 'B', text: q.option_b },
+            q.option_c ? { letter: 'C', text: q.option_c } : null,
+            q.option_d ? { letter: 'D', text: q.option_d } : null,
+          ].filter(Boolean);
+          const shuffledOpts = seededShuffle(opts, seed ^ q.id);
+          const letterMap = {};
+          ['A','B','C','D'].forEach((l, i) => {
+            if (shuffledOpts[i]) letterMap[shuffledOpts[i].letter] = l;
+          });
+          return {
+            ...q,
+            option_a: shuffledOpts[0]?.text || null,
+            option_b: shuffledOpts[1]?.text || null,
+            option_c: shuffledOpts[2]?.text || null,
+            option_d: shuffledOpts[3]?.text || null,
+            correct_answer_letter: letterMap[q.correct_answer_letter] || q.correct_answer_letter,
+          };
+        }
+        if (q.question_type === 'image_multi' && Array.isArray(q.sub_questions) && q.sub_questions.length > 0) {
+          return { ...q, sub_questions: shuffleImgMultiSubQs(q.sub_questions, seed, q.id) };
+        }
+        return q;
       });
     }
 

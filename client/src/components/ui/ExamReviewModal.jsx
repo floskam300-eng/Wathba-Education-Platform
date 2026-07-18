@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { X, CheckCircle, XCircle, Minus, Clock, Award, FileText } from 'lucide-react';
 import api from '../../lib/api';
+import ImageLightbox from '../ImageLightbox';
 
 import { withToken } from '../../lib/mediaAccess';
 
@@ -54,6 +55,7 @@ function optIcon(opt, studentAnswer, correctAnswer) {
 }
 
 export default function ExamReviewModal({ resultId, onClose }) {
+  const [lightboxSrc, setLightboxSrc] = useState(null);
   const { data, isLoading, isError } = useQuery({
     queryKey: ['exam-review', resultId],
     queryFn: () => api.get(`/exams/results/${resultId}/review`).then(r => r.data),
@@ -62,10 +64,12 @@ export default function ExamReviewModal({ resultId, onClose }) {
 
   const { result, questions = [] } = data || {};
   const passed = result && result.score >= result.pass_score;
-  const pct = result ? Math.round((result.score / result.total_score) * 100) : 0;
-  const correctCount  = questions.filter(q => q.is_correct === true).length;
-  const wrongCount    = questions.filter(q => q.is_correct === false && q.student_answer).length;
-  const skippedCount  = questions.filter(q => !q.student_answer).length;
+  const pct = result && result.total_score > 0 ? Math.round((result.score / result.total_score) * 100) : 0;
+  // Use DB-stored counts (authoritative). For image_multi, student_answer is a JSON string
+  // that may be truthy even when partially answered — avoid re-computing from the array.
+  const correctCount  = result?.correct_count  ?? questions.filter(q => q.is_correct === true).length;
+  const wrongCount    = result?.wrong_count     ?? questions.filter(q => q.is_correct === false && !!q.student_answer).length;
+  const skippedCount  = result?.unanswered_count ?? questions.filter(q => !q.student_answer).length;
 
   const shuffleOptions = result?.shuffle_options || false;
   const studentId      = result?.student_id || 0;
@@ -156,15 +160,20 @@ export default function ExamReviewModal({ resultId, onClose }) {
           )}
 
           {!isLoading && !isError && questions.map((q, qi) => {
-            const studentAns  = q.student_answer;
-            const correctAns  = q.correct_answer;
-            const answered    = !!studentAns;
+            const isImgMulti  = q.question_type === 'image_multi';
             const isTrueFalse = q.question_type === 'true_false';
 
-            const displayOpts = isTrueFalse
-              ? ['A', 'B']
-              : getShuffledOpts(q, studentId, shuffleOptions);
+            const studentAns = isTrueFalse
+              ? (q.student_answer === 'T' ? 'A' : q.student_answer === 'F' ? 'B' : q.student_answer)
+              : q.student_answer;
+            const correctAns = isTrueFalse
+              ? (q.correct_answer === 'T' ? 'A' : q.correct_answer === 'F' ? 'B' : q.correct_answer)
+              : q.correct_answer;
+            const answered = isImgMulti
+              ? (Array.isArray(q.sub_results) && q.sub_results.some(s => !!s.student_answer))
+              : !!studentAns;
 
+            const displayOpts = isImgMulti ? [] : isTrueFalse ? ['A', 'B'] : getShuffledOpts(q, studentId, shuffleOptions);
             const displayLabels = isTrueFalse
               ? { A: '✅ صح', B: '❌ خطأ' }
               : (() => {
@@ -174,12 +183,12 @@ export default function ExamReviewModal({ resultId, onClose }) {
 
             return (
               <div key={q.id} className={`rounded-2xl border-2 p-4 ${
-                !answered     ? 'border-gray-200 bg-gray-50/50'
-                : q.is_correct  ? 'border-green-200 bg-green-50/30'
-                :                  'border-red-200 bg-red-50/30'
+                !answered ? 'border-gray-200 bg-gray-50/50'
+                : q.is_correct ? 'border-green-200 bg-green-50/30'
+                : 'border-red-200 bg-red-50/30'
               }`}>
                 {/* Question header */}
-                <div className="flex items-start gap-3 mb-4">
+                <div className="flex items-start gap-3 mb-3">
                   <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 text-xs font-black text-white ${
                     !answered ? 'bg-gray-400' : q.is_correct ? 'bg-green-500' : 'bg-red-500'
                   }`}>
@@ -188,44 +197,118 @@ export default function ExamReviewModal({ resultId, onClose }) {
                   <div className="flex-1">
                     <p className="font-bold text-navy-700 text-sm leading-relaxed">{q.question_text}</p>
                     {q.question_image_url && (
-                      <img src={withToken(q.question_image_url)} alt="" className="mt-2 max-w-xs rounded-xl border" loading="lazy" decoding="async" />
+                      <img
+                        src={withToken(q.question_image_url)}
+                        alt=""
+                        className="mt-2 max-w-full max-h-56 rounded-xl border border-gray-200 object-contain cursor-zoom-in"
+                        loading="lazy"
+                        decoding="async"
+                        onClick={() => setLightboxSrc(withToken(q.question_image_url))}
+                      />
                     )}
-                    <div className="flex items-center gap-2 mt-1.5">
+                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                       <span className="text-xs text-gray-400 font-medium">{q.points} نقطة</span>
                       {isTrueFalse && (
                         <span className="text-xs text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full font-bold">صح/خطأ</span>
+                      )}
+                      {isImgMulti && (
+                        <span className="text-xs text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full font-bold">صورة مع أسئلة</span>
                       )}
                       {!answered && (
                         <span className="flex items-center gap-1 text-xs text-gray-400 font-bold">
                           <Clock className="w-3 h-3" /> لم تُجَب
                         </span>
                       )}
+                      {answered && q.is_correct && (
+                        <span className="flex items-center gap-1 text-xs text-green-700 bg-green-100 px-2 py-0.5 rounded-full font-bold">
+                          <CheckCircle className="w-3 h-3" /> صحيحة ✓
+                        </span>
+                      )}
+                      {answered && !q.is_correct && (
+                        <span className="flex items-center gap-1 text-xs text-red-600 bg-red-100 px-2 py-0.5 rounded-full font-bold">
+                          <XCircle className="w-3 h-3" /> خاطئة ✗
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
 
-                <div className={`grid gap-2 ${isTrueFalse ? 'grid-cols-2' : 'grid-cols-1 sm:grid-cols-2'}`}>
-                  {displayOpts.map(opt => {
-                    const text = isTrueFalse
-                      ? (opt === 'A' ? 'صح' : 'خطأ')
-                      : q[`option_${opt.toLowerCase()}`];
-                    if (!text || text === '-') return null;
-                    const label = displayLabels[opt];
-                    return (
-                      <div key={opt}
-                        className={`flex items-center gap-2.5 p-3 rounded-xl border-2 transition-all ${optStyle(opt, studentAns, correctAns)}`}>
-                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 ${optBadge(opt, studentAns, correctAns)}`}>
-                          {isTrueFalse ? (opt === 'A' ? '✓' : '✗') : label}
-                        </span>
-                        <span className="text-sm font-medium flex-1">{isTrueFalse ? label : text}</span>
-                        {optIcon(opt, studentAns, correctAns)}
-                      </div>
-                    );
-                  })}
-                </div>
+                {/* image_multi sub-results */}
+                {isImgMulti && (
+                  <div className="space-y-1.5 mt-2">
+                    {(q.sub_results || q.sub_questions || []).map(sub => {
+                      const subResult    = q.sub_results ? sub : null;
+                      const rawSubSa     = subResult?.student_answer || null;
+                      const rawSubCorrect = subResult?.correct || sub.correct;
+                      const isTF         = sub.type === 'true_false';
+                      const subSa = isTF
+                        ? (rawSubSa === 'T' ? 'A' : rawSubSa === 'F' ? 'B' : rawSubSa)
+                        : rawSubSa;
+                      const subCorrect = isTF
+                        ? (rawSubCorrect === 'T' ? 'A' : rawSubCorrect === 'F' ? 'B' : rawSubCorrect)
+                        : rawSubCorrect;
+                      const subIsCorrect  = subResult?.is_correct ?? false;
+                      const hasSubAnswer  = !!subSa;
+                      const listLetters   = isTF ? ['A', 'B'] : ['A', 'B', 'C', 'D'];
+                      return (
+                        <div key={sub.label} className={`flex items-center gap-2 p-2.5 rounded-xl border-2 ${
+                          !hasSubAnswer
+                            ? 'border-gray-200 bg-gray-50'
+                            : subIsCorrect
+                              ? 'border-green-300 bg-green-50'
+                              : 'border-red-300 bg-red-50'
+                        }`}>
+                          <span className="text-xs font-black w-24 flex-shrink-0 text-navy-600">
+                            {sub.label} <span className="text-[10px] text-gray-400 font-normal">({sub.points || 1} د)</span>
+                          </span>
+                          <div className="flex gap-1 flex-1">
+                            {listLetters.map(letter => (
+                              <span key={letter} className={`flex-1 text-center py-0.5 rounded text-xs font-bold border ${
+                                letter === subCorrect && letter === subSa ? 'bg-green-600 text-white border-green-600'
+                                : letter === subSa && !subIsCorrect ? 'bg-red-500 text-white border-red-500'
+                                : letter === subCorrect ? 'bg-green-100 text-green-800 border-green-300'
+                                : 'bg-white text-gray-400 border-gray-200'
+                              }`}>
+                                {isTF
+                                  ? (letter === 'A' ? 'صح' : 'خطأ')
+                                  : (sub.option_labels?.[['A','B','C','D'].indexOf(letter)] || letter)}
+                              </span>
+                            ))}
+                          </div>
+                          {!hasSubAnswer && <span className="text-[10px] text-gray-400 flex-shrink-0">لم تُجَب</span>}
+                          {hasSubAnswer && subIsCorrect && <CheckCircle className="w-3.5 h-3.5 text-green-600 flex-shrink-0" />}
+                          {hasSubAnswer && !subIsCorrect && <XCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
-                {/* Correction note for wrong answers */}
-                {answered && q.is_correct === false && (
+                {/* MCQ / True-False options */}
+                {!isImgMulti && (
+                  <div className={`grid gap-2 ${isTrueFalse ? 'grid-cols-2' : 'grid-cols-1 sm:grid-cols-2'}`}>
+                    {displayOpts.map(opt => {
+                      const text = isTrueFalse
+                        ? (opt === 'A' ? 'صح' : 'خطأ')
+                        : q[`option_${opt.toLowerCase()}`];
+                      if (!text || text === '-') return null;
+                      const label = displayLabels[opt];
+                      return (
+                        <div key={opt}
+                          className={`flex items-center gap-2.5 p-3 rounded-xl border-2 transition-all ${optStyle(opt, studentAns, correctAns)}`}>
+                          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 ${optBadge(opt, studentAns, correctAns)}`}>
+                            {isTrueFalse ? (opt === 'A' ? '✓' : '✗') : label}
+                          </span>
+                          <span className="text-sm font-medium flex-1">{isTrueFalse ? label : text}</span>
+                          {optIcon(opt, studentAns, correctAns)}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Correction note for wrong MCQ/TF answers */}
+                {!isImgMulti && answered && q.is_correct === false && (
                   <div className="mt-3 flex flex-wrap gap-3 text-xs font-semibold">
                     <span className="flex items-center gap-1 text-red-600">
                       <XCircle className="w-3.5 h-3.5" />
@@ -247,6 +330,9 @@ export default function ExamReviewModal({ resultId, onClose }) {
           <button onClick={onClose} className="btn-primary px-6 py-2 text-sm">إغلاق</button>
         </div>
       </div>
+
+      {/* Image lightbox */}
+      {lightboxSrc && <ImageLightbox src={lightboxSrc} alt="صورة السؤال" onClose={() => setLightboxSrc(null)} />}
     </div>
   );
 }

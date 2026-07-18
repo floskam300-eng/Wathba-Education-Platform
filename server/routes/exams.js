@@ -1170,6 +1170,28 @@ function seededShuffle(arr, seed) {
   return result;
 }
 
+// Shuffle MCQ options within image_multi sub-questions.
+// Returns new sub_questions array with option_labels shuffled and correct letter remapped.
+// Must match the identical function in recitations.js — same seed formula.
+function shuffleImgMultiSubQs(subQs, baseSeed, questionId) {
+  const LETTERS = ['A', 'B', 'C', 'D'];
+  return subQs.map((sub, subIdx) => {
+    if (sub.type === 'true_false') return sub;
+    const optCount = sub.option_labels ? Math.min(sub.option_labels.length, 4) : 4;
+    if (optCount < 2) return sub;
+    const origPositions = Array.from({ length: optCount }, (_, i) => i);
+    const subSeed = ((baseSeed >>> 0) ^ ((questionId * 1000003) >>> 0) ^ ((subIdx * 31337) >>> 0)) >>> 0;
+    const shuffled = seededShuffle(origPositions, subSeed || 1);
+    const origCorrectIdx = LETTERS.indexOf(String(sub.correct || '').toUpperCase());
+    const newCorrectIdx  = shuffled.indexOf(origCorrectIdx);
+    const newCorrect     = (origCorrectIdx >= 0 && newCorrectIdx >= 0) ? LETTERS[newCorrectIdx] : sub.correct;
+    const newOptionLabels = sub.option_labels
+      ? shuffled.map(origIdx => sub.option_labels[origIdx] !== undefined ? sub.option_labels[origIdx] : null)
+      : null;
+    return { ...sub, option_labels: newOptionLabels, correct: newCorrect };
+  });
+}
+
 // ── Student: take exam ──
 router.get('/:id/take', requireRole('student'), async (req, res) => {
   const examId = parseParamId(req.params.id);
@@ -1264,6 +1286,15 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
       if (exam.shuffle_questions) {
         const seed = (studentId * 31 + examId * 17) >>> 0;
         questions = seededShuffle(questions, seed);
+      }
+      // Shuffle image_multi sub-question options server-side so the snapshot stores
+      // the shuffled order. Scoring and review both use the snapshot, so they stay consistent.
+      if (exam.shuffle_options) {
+        const seed = ((studentId * 31 + examId * 17) >>> 0);
+        questions = questions.map(q => {
+          if (q.question_type !== 'image_multi' || !Array.isArray(q.sub_questions) || !q.sub_questions.length) return q;
+          return { ...q, sub_questions: shuffleImgMultiSubQs(q.sub_questions, seed, q.id) };
+        });
       }
     }
     // ── Store server-side session: start time + question snapshot ──
@@ -1426,10 +1457,18 @@ router.post('/:id/submit', submitLimiter, requireRole('student'), async (req, re
       // Without a snapshot, the timer check is bypassed AND any question
       // could be answered regardless of what was shown to the student.
       if (serverSession?.questions_snapshot?.length > 0) {
-        // Snapshot stores questions as-shown; re-attach correct_answer_letter from DB for scoring
+        // Snapshot stores questions as-shown; re-attach correct_answer_letter from DB for scoring.
+        // For image_multi: sub_questions in snapshot may have shuffled option_labels and remapped
+        // correct letters — we MUST use the snapshot version, not the original DB version.
         const snapshotIds = serverSession.questions_snapshot.map(q => q.id);
         const qr = await pool.query('SELECT id, question_type, correct_answer_letter, points, sub_questions FROM questions WHERE exam_id=$1 AND id = ANY($2)', [examId, snapshotIds]);
-        questionsData = qr.rows;
+        const snapSubQsMap = {};
+        serverSession.questions_snapshot.forEach(sq => { if (sq.question_type === 'image_multi') snapSubQsMap[sq.id] = sq.sub_questions; });
+        questionsData = qr.rows.map(q =>
+          (q.question_type === 'image_multi' && snapSubQsMap[q.id])
+            ? { ...q, sub_questions: snapSubQsMap[q.id] }
+            : q
+        );
       } else {
         return res.status(409).json({
           error: 'جلسة الاختبار غير موجودة أو انتهت — يرجى الدخول للاختبار مجدداً ثم التسليم',
@@ -1827,22 +1866,33 @@ router.get('/results/:resultId/review', requireRole('teacher', 'assistant', 'stu
       const qType  = q.question_type || 'mcq';
 
       if (qType === 'image_multi') {
-        const subQs = Array.isArray(q.sub_questions) ? q.sub_questions : [];
+        // Re-derive the same shuffle applied in GET /take — deterministic, no session needed.
+        let subQs = Array.isArray(q.sub_questions) ? [...q.sub_questions] : [];
+        if (row.shuffle_options && subQs.length > 0) {
+          const shuffleSeed = ((parseInt(row.student_id) * 31 + parseInt(row.exam_id) * 17) >>> 0);
+          subQs = shuffleImgMultiSubQs(subQs, shuffleSeed, q.id);
+        }
         const rawSa = stored?.student_answer ?? null;
         let parsedAns = {};
         try { if (rawSa) parsedAns = typeof rawSa === 'string' ? JSON.parse(rawSa) : rawSa; } catch {}
         const subResults = subQs.map(sub => {
-          const rawSubSa = parsedAns[sub.label] || null;
+          const rawSubSa = parsedAns[sub.label] !== undefined ? (parsedAns[sub.label] || null) : null;
           const rawSubCorrect = sub.correct;
-          const isTF = sub.type === 'true_false' || String(rawSubCorrect).toUpperCase() === 'T' || String(rawSubCorrect).toUpperCase() === 'F' || String(rawSubSa).toUpperCase() === 'T' || String(rawSubSa).toUpperCase() === 'F';
-          const subSa = isTF ? (String(rawSubSa).toUpperCase() === 'T' ? 'A' : String(rawSubSa).toUpperCase() === 'F' ? 'B' : rawSubSa) : rawSa ? parsedAns[sub.label] : null;
-          const subCorrect = isTF ? (String(rawSubCorrect).toUpperCase() === 'T' ? 'A' : String(rawSubCorrect).toUpperCase() === 'F' ? 'B' : rawSubCorrect) : rawSubCorrect;
-          const isSubCorrect = String(subSa || '').toUpperCase() === String(subCorrect || '').toUpperCase();
+          const isTF = sub.type === 'true_false';
+          const subSa = isTF
+            ? (String(rawSubSa || '').toUpperCase() === 'T' ? 'A' : String(rawSubSa || '').toUpperCase() === 'F' ? 'B' : (rawSubSa || null))
+            : (rawSubSa || null);
+          const subCorrect = isTF
+            ? (String(rawSubCorrect || '').toUpperCase() === 'T' ? 'A' : String(rawSubCorrect || '').toUpperCase() === 'F' ? 'B' : (rawSubCorrect || null))
+            : (rawSubCorrect || null);
+          // Guard: unanswered sub-questions must never be marked correct
+          const isSubCorrect = !!subSa && !!subCorrect && String(subSa).toUpperCase() === String(subCorrect).toUpperCase();
           return {
             label: sub.label,
             correct: subCorrect,
             type: sub.type || 'mcq',
             points: sub.points !== undefined ? sub.points : 1,
+            option_labels: sub.option_labels || null,
             student_answer: subSa,
             is_correct: isSubCorrect,
           };
