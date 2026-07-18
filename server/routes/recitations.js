@@ -707,6 +707,12 @@ router.delete('/:id', requireRole('teacher', 'assistant'), checkManageRecitation
 
     // Soft delete — student results survive; recitation disappears from all lists.
     await pool.query('UPDATE recitations SET deleted_at=NOW() WHERE id=$1 AND teacher_id=$2 AND deleted_at IS NULL', [id, teacherId]);
+    // BUG-1 FIX: Clean up any remaining sessions (e.g. from students who opened the
+    // recitation but never submitted before the teacher unpublished + deleted it).
+    // The DB has ON DELETE CASCADE but that only fires on hard-delete; soft-delete
+    // leaves them as orphans that the scheduler's N4-FIX won't reach.
+    await pool.query('DELETE FROM recitation_sessions WHERE recitation_id=$1', [id])
+      .catch(err => console.warn('[recitations DELETE] session cleanup failed:', err.message));
     logActivity({
       teacherId, actor: getActor(req), ip: getIp(req),
       action: 'delete_recitation',

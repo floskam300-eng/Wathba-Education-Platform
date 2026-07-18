@@ -602,6 +602,11 @@ router.delete('/:id', requireRole('teacher', 'assistant'), checkManageExamsPerm,
       [examId, teacherId]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Exam not found' });
+    // BUG-2 FIX: Clean up any remaining exam_sessions so students mid-exam don't
+    // get a cryptic 404 on submit. ON DELETE CASCADE only fires on hard-delete;
+    // soft-delete leaves sessions as orphans until the 14-day schema cleanup runs.
+    await pool.query('DELETE FROM exam_sessions WHERE exam_id=$1', [examId])
+      .catch(err => console.warn('[exams DELETE] session cleanup failed:', err.message));
     logActivity({
       teacherId, actor: getActor(req), ip: getIp(req),
       action: 'delete_exam',

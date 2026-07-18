@@ -408,29 +408,32 @@ router.delete('/:id', requireRole('teacher', 'assistant'), async (req, res, next
       [studentId, teacherId]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Student not found' });
+    // BUG-4 FIX: All cleanup queries must use the validated integer `studentId`,
+    // not the raw URL string `req.params.id`. PostgreSQL will implicitly cast the
+    // string but it is inconsistent and fragile if the param ever contains non-digits.
     await pool.query(
       "UPDATE student_course_enrollment SET status='inactive' WHERE student_id=$1",
-      [req.params.id]
+      [studentId]
     ).catch(err => console.warn('[delete student] enrollment deactivation failed:', err.message));
     await pool.query(
       'DELETE FROM student_devices WHERE student_id=$1',
-      [req.params.id]
+      [studentId]
     ).catch(err => console.warn('[delete student] device cleanup failed:', err.message));
     await pool.query(
       'DELETE FROM exam_sessions WHERE student_id=$1',
-      [req.params.id]
+      [studentId]
     ).catch(err => console.warn('[delete student] exam session cleanup failed:', err.message));
     await pool.query(
       "UPDATE live_stream_viewers SET is_active=false, left_at=NOW() WHERE student_id=$1 AND is_active=true",
-      [req.params.id]
+      [studentId]
     ).catch(err => console.warn('[delete student] live viewer cleanup failed:', err.message));
     await pool.query(
       'DELETE FROM video_progress WHERE student_id=$1',
-      [req.params.id]
+      [studentId]
     ).catch(err => console.warn('[delete student] video progress cleanup failed:', err.message));
     await pool.query(
       'UPDATE exam_results SET is_latest=false WHERE student_id=$1',
-      [req.params.id]
+      [studentId]
     ).catch(err => console.warn('[delete student] exam results cleanup failed:', err.message));
     invalidateCache(teacherId);
     invalidateStudentAuthCache(studentId);
@@ -619,7 +622,11 @@ router.get('/me/stats', requireRole('student'), async (req, res) => {
         FROM exam_results er
         JOIN exams e ON er.exam_id = e.id
         LEFT JOIN courses c ON e.course_id = c.id
-        WHERE er.student_id = $1
+        -- BUG-7 FIX: exclude results for soft-deleted exams so the student's
+        -- stats/summary (pass count, avg score, total exams) are not skewed by
+        -- exams the teacher has deleted. Results rows are kept in DB for history
+        -- but the student should not see or be graded against deleted exams.
+        WHERE er.student_id = $1 AND e.deleted_at IS NULL
         ORDER BY er.created_at DESC
       `, [studentId]),
       pool.query(`
@@ -957,12 +964,16 @@ router.get('/me/dashboard', requireRole('student'), async (req, res) => {
   try {
     const [enrollments, results, progress, badges, student, totalExamsRes] = await Promise.all([
       pool.query('SELECT sce.*, c.name, c.description, c.thumbnail_url FROM student_course_enrollment sce JOIN courses c ON sce.course_id=c.id WHERE sce.student_id=$1 AND c.is_published=true', [studentId]),
-      pool.query('SELECT er.*, e.title as exam_title, e.total_score, e.pass_score FROM exam_results er JOIN exams e ON er.exam_id=e.id WHERE er.student_id=$1 AND er.is_latest=true ORDER BY er.created_at DESC LIMIT 5', [studentId]),
+      // BUG-5 FIX: filter e.deleted_at IS NULL so soft-deleted exams don't appear
+      // in the student's recent results list on their dashboard.
+      pool.query('SELECT er.*, e.title as exam_title, e.total_score, e.pass_score FROM exam_results er JOIN exams e ON er.exam_id=e.id WHERE er.student_id=$1 AND er.is_latest=true AND e.deleted_at IS NULL ORDER BY er.created_at DESC LIMIT 5', [studentId]),
       pool.query('SELECT vp.student_id, vp.video_id, vp.watch_count, vp.watched_minutes, vp.progress_percentage, vp.last_watched_at, v.title, v.course_id FROM video_progress vp JOIN videos v ON vp.video_id=v.id WHERE vp.student_id=$1 ORDER BY vp.last_watched_at DESC LIMIT 15', [studentId]),
       // R-5 OPT: explicit columns + LIMIT 50 (was SELECT * with no limit)
       pool.query('SELECT id, student_id, exam_id, badge_name, badge_color, earned_at FROM badges WHERE student_id=$1 ORDER BY earned_at DESC LIMIT 50', [studentId]),
       pool.query('SELECT id,name,points,academic_stage,gender FROM students WHERE id=$1', [studentId]),
-      pool.query('SELECT COUNT(*)::int AS count FROM exam_results WHERE student_id=$1 AND is_latest=true', [studentId]),
+      // BUG-6 FIX: join exams and filter deleted_at IS NULL so the total exam
+      // count shown to the student excludes exams the teacher has soft-deleted.
+      pool.query('SELECT COUNT(er.id)::int AS count FROM exam_results er JOIN exams e ON er.exam_id=e.id WHERE er.student_id=$1 AND er.is_latest=true AND e.deleted_at IS NULL', [studentId]),
     ]);
     res.json({ student: student.rows[0], enrollments: enrollments.rows, recentResults: results.rows, videoProgress: progress.rows, badges: badges.rows, totalExams: totalExamsRes.rows[0].count });
   } catch (err) {

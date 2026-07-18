@@ -302,9 +302,14 @@ async function runRecitationSchedule() {
         WHERE EXISTS (
           SELECT 1 FROM recitations r
            WHERE r.id = rs.recitation_id
-             AND r.schedule_type = 'once'
-             AND r.end_date IS NOT NULL
-             AND r.end_date < NOW()
+             AND (
+               -- Expired 'once' recitations whose window has passed
+               (r.schedule_type = 'once' AND r.end_date IS NOT NULL AND r.end_date < NOW())
+               -- BUG-3 FIX: Also clean sessions for soft-deleted recitations.
+               -- The soft-delete endpoint now cleans sessions immediately, but
+               -- this acts as a safety net for any that slipped through.
+               OR r.deleted_at IS NOT NULL
+             )
         )
       `);
       if (cleanedSessions > 0) {

@@ -409,6 +409,30 @@ router.delete('/:id', requireRole('teacher', 'assistant'), checkManageCoursesPer
         count: parseInt(enrollCount.rows[0].cnt),
       });
     }
+    // BUG-8 FIX: Soft-delete all exams linked to this course BEFORE the hard-delete.
+    // Schema has `exams.course_id ON DELETE SET NULL`, so a hard-delete would leave
+    // those exams alive as standalone exams. If any were published, students could
+    // still access them even after the course is gone. Cleaning their sessions too.
+    await pool.query(`
+      DELETE FROM exam_sessions
+       WHERE exam_id IN (SELECT id FROM exams WHERE course_id=$1 AND deleted_at IS NULL)
+    `, [courseId]).catch(err => console.warn('[delete course] exam session cleanup failed:', err.message));
+    await pool.query(
+      'UPDATE exams SET deleted_at=NOW() WHERE course_id=$1 AND deleted_at IS NULL',
+      [courseId]
+    ).catch(err => console.warn('[delete course] exam soft-delete failed:', err.message));
+
+    // BUG-9 FIX: Same issue for recitations — `recitations.course_id ON DELETE SET NULL`
+    // would orphan published recitations as standalone ones after course deletion.
+    await pool.query(`
+      DELETE FROM recitation_sessions
+       WHERE recitation_id IN (SELECT id FROM recitations WHERE course_id=$1 AND deleted_at IS NULL)
+    `, [courseId]).catch(err => console.warn('[delete course] recitation session cleanup failed:', err.message));
+    await pool.query(
+      'UPDATE recitations SET deleted_at=NOW() WHERE course_id=$1 AND deleted_at IS NULL',
+      [courseId]
+    ).catch(err => console.warn('[delete course] recitation soft-delete failed:', err.message));
+
     const result = await pool.query('DELETE FROM courses WHERE id=$1 AND teacher_id=$2 RETURNING id', [courseId, teacherId]);
     logActivity({
       teacherId, actor: getActor(req), ip: getIp(req),
