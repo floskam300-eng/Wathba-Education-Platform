@@ -1193,7 +1193,7 @@ BEGIN
     ('فيديو', 'مونتاج فيديو قصير أو درس تعليمي', 'service', NULL, 170.00, NULL, 'one_time', 11),
     ('ريل (Reel)', 'تصميم ومونتاج فيديو قصير تفاعلي (Reel/Short)', 'service', NULL, 300.00, NULL, 'one_time', 12);
   END IF;
-END $;
+END $$;
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- OPTIMIZATION PLAN — Phase 1 & 2 Indexes (2026-07-15)
@@ -1219,12 +1219,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_recitation_sessions_student_rec
 
 -- DB-5: drop redundant idx_students_username — fully superseded by
 --       uq_students_username_teacher_active which already covers username lookups (Low)
-DO $
+DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_students_username') THEN
     DROP INDEX idx_students_username;
   END IF;
-END $;
+END $$;
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- OPTIMIZATION PLAN — Phase 3 Indexes (2026-07-15)
