@@ -751,40 +751,96 @@ router.get('/export', requireRole('teacher'), async (req, res) => {
   const teacherId = req.user.id;
   try {
     const exportQuery = (text, values) => pool.query({ text, values, query_timeout: 120_000 });
-    const [teacher, students, courses, sections, videos, pdfs, exams, questions, results, payments, enrollments, videoProgress] = await Promise.all([
-      exportQuery('SELECT id,username,name,bio,classification,logo_url,photo_url,whatsapp_phone,created_at FROM teachers WHERE id=$1', [teacherId]),
-      // R-10 OPT: LIMIT 10000 safety net — prevents memory exhaustion on very large tenants
-      exportQuery('SELECT id,username,name,phone,parent_phone,academic_stage,gender,points,created_at FROM students WHERE teacher_id=$1 AND deleted_at IS NULL ORDER BY name LIMIT 10000', [teacherId]),
+    const [
+      teacher, students, courses, sections, videos, pdfs,
+      exams, questions, results, payments, enrollments, videoProgress,
+      questionBanks, bankQuestions,
+      recitations, recitationQuestions, recitationResults,
+    ] = await Promise.all([
+      // teachers — include branding/appearance columns added post-launch
+      exportQuery(
+        `SELECT id, username, name, bio, classification,
+                logo_url, logo_wide_url, photo_url, whatsapp_phone,
+                platform_name, background_image_url, hero_image_url, background_color,
+                created_at
+           FROM teachers WHERE id=$1`, [teacherId]),
+
+      // students — include is_suspended and plain_password (plain text password kept for teacher visibility)
+      // R-10 OPT: LIMIT 10000 safety net
+      exportQuery(
+        `SELECT id, username, name, phone, parent_phone, academic_stage, gender,
+                points, is_suspended, plain_password, created_at
+           FROM students
+          WHERE teacher_id=$1 AND deleted_at IS NULL
+          ORDER BY name LIMIT 10000`, [teacherId]),
+
       exportQuery('SELECT * FROM courses WHERE teacher_id=$1 ORDER BY created_at', [teacherId]),
       exportQuery('SELECT s.* FROM sections s JOIN courses c ON s.course_id=c.id WHERE c.teacher_id=$1 ORDER BY s.course_id, s.sort_order', [teacherId]),
       exportQuery('SELECT v.* FROM videos v JOIN courses c ON v.course_id=c.id WHERE c.teacher_id=$1 ORDER BY v.course_id, v.sort_order, v.id', [teacherId]),
       exportQuery('SELECT p.* FROM pdf_files p JOIN courses c ON p.course_id=c.id WHERE c.teacher_id=$1 ORDER BY p.course_id, p.id', [teacherId]),
       exportQuery('SELECT * FROM exams WHERE teacher_id=$1 AND deleted_at IS NULL ORDER BY created_at', [teacherId]),
       exportQuery('SELECT q.* FROM questions q JOIN exams e ON q.exam_id=e.id WHERE e.teacher_id=$1 ORDER BY q.exam_id, q.id', [teacherId]),
-      exportQuery(`SELECT er.id, er.student_id, er.exam_id, er.score, er.correct_count, er.wrong_count,
-                         er.unanswered_count, er.points_earned, er.start_time, er.end_time, er.answers, er.created_at,
-                         e.total_score
-                  FROM exam_results er
-                  JOIN students s ON er.student_id=s.id
-                  JOIN exams e ON er.exam_id=e.id
-                  WHERE e.teacher_id=$1 AND s.deleted_at IS NULL ORDER BY er.created_at DESC`, [teacherId]),
-      exportQuery(`SELECT p.id, p.student_id, p.course_id, p.amount, p.method, p.payment_date, p.status, p.reference_number, p.notes
-                  FROM payments p
-                  JOIN students s ON p.student_id=s.id
-                  WHERE s.teacher_id=$1 AND s.deleted_at IS NULL ORDER BY p.payment_date DESC`, [teacherId]),
-      exportQuery(`SELECT sce.student_id, sce.course_id, sce.enrollment_date, sce.status
-                  FROM student_course_enrollment sce
-                  JOIN students s ON sce.student_id=s.id
-                  WHERE s.teacher_id=$1 AND s.deleted_at IS NULL`, [teacherId]),
-      exportQuery(`SELECT vp.student_id, vp.video_id, vp.watch_count, vp.watched_minutes, vp.progress_percentage, vp.last_watched_at
-                  FROM video_progress vp
-                  JOIN students s ON vp.student_id=s.id
-                  WHERE s.teacher_id=$1 AND s.deleted_at IS NULL`, [teacherId]),
+
+      // exam_results — include attempt tracking and absent flag
+      exportQuery(
+        `SELECT er.id, er.student_id, er.exam_id, er.score, er.correct_count, er.wrong_count,
+                er.unanswered_count, er.points_earned, er.start_time, er.end_time, er.answers,
+                er.is_absent, er.attempt_number, er.is_latest, er.created_at, e.total_score
+           FROM exam_results er
+           JOIN students s ON er.student_id=s.id
+           JOIN exams e ON er.exam_id=e.id
+          WHERE e.teacher_id=$1 AND s.deleted_at IS NULL
+          ORDER BY er.created_at DESC`, [teacherId]),
+
+      // payments — include verifier info
+      exportQuery(
+        `SELECT p.id, p.student_id, p.course_id, p.amount, p.method, p.payment_date,
+                p.status, p.reference_number, p.notes, p.verified_at, p.verified_by_name
+           FROM payments p
+           JOIN students s ON p.student_id=s.id
+          WHERE s.teacher_id=$1 AND s.deleted_at IS NULL
+          ORDER BY p.payment_date DESC`, [teacherId]),
+
+      exportQuery(
+        `SELECT sce.student_id, sce.course_id, sce.enrollment_date, sce.status
+           FROM student_course_enrollment sce
+           JOIN students s ON sce.student_id=s.id
+          WHERE s.teacher_id=$1 AND s.deleted_at IS NULL`, [teacherId]),
+
+      // video_progress — include resume-position columns
+      exportQuery(
+        `SELECT vp.student_id, vp.video_id, vp.watch_count, vp.watched_minutes,
+                vp.progress_percentage, vp.last_watched_at, vp.last_position, vp.actual_watched_seconds
+           FROM video_progress vp
+           JOIN students s ON vp.student_id=s.id
+          WHERE s.teacher_id=$1 AND s.deleted_at IS NULL`, [teacherId]),
+
+      // question banks
+      exportQuery('SELECT * FROM question_banks WHERE teacher_id=$1 ORDER BY created_at', [teacherId]),
+      exportQuery(
+        `SELECT bq.* FROM bank_questions bq
+           JOIN question_banks qb ON bq.bank_id=qb.id
+          WHERE qb.teacher_id=$1
+          ORDER BY bq.bank_id, bq.id`, [teacherId]),
+
+      // recitations
+      exportQuery('SELECT * FROM recitations WHERE teacher_id=$1 AND deleted_at IS NULL ORDER BY created_at', [teacherId]),
+      exportQuery(
+        `SELECT rq.* FROM recitation_questions rq
+           JOIN recitations r ON rq.recitation_id=r.id
+          WHERE r.teacher_id=$1
+          ORDER BY rq.recitation_id, rq.id`, [teacherId]),
+      exportQuery(
+        `SELECT rr.* FROM recitation_results rr
+           JOIN students s ON rr.student_id=s.id
+           JOIN recitations r ON rr.recitation_id=r.id
+          WHERE r.teacher_id=$1 AND s.deleted_at IS NULL
+          ORDER BY rr.created_at DESC`, [teacherId]),
     ]);
 
     const exportData = {
       exported_at: new Date().toISOString(),
-      version: '2',
+      version: '3',
       teacher: teacher.rows[0],
       students: students.rows,
       courses: courses.rows,
@@ -797,15 +853,25 @@ router.get('/export', requireRole('teacher'), async (req, res) => {
       payments: payments.rows,
       enrollments: enrollments.rows,
       video_progress: videoProgress.rows,
+      question_banks: questionBanks.rows,
+      bank_questions: bankQuestions.rows,
+      recitations: recitations.rows,
+      recitation_questions: recitationQuestions.rows,
+      recitation_results: recitationResults.rows,
       summary: {
-        total_students: students.rows.length,
-        total_courses: courses.rows.length,
-        total_exams: exams.rows.length,
-        total_questions: questions.rows.length,
-        total_results: results.rows.length,
-        total_payments: payments.rows.length,
-        total_videos: videos.rows.length,
-        total_pdfs: pdfs.rows.length,
+        total_students:             students.rows.length,
+        total_courses:              courses.rows.length,
+        total_exams:                exams.rows.length,
+        total_questions:            questions.rows.length,
+        total_results:              results.rows.length,
+        total_payments:             payments.rows.length,
+        total_videos:               videos.rows.length,
+        total_pdfs:                 pdfs.rows.length,
+        total_question_banks:       questionBanks.rows.length,
+        total_bank_questions:       bankQuestions.rows.length,
+        total_recitations:          recitations.rows.length,
+        total_recitation_questions: recitationQuestions.rows.length,
+        total_recitation_results:   recitationResults.rows.length,
       }
     };
 
@@ -827,14 +893,17 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
     return res.status(400).json({ error: 'ملف النسخة الاحتياطية غير صالح — تأكد أنه ملف JSON صادر من وثبة' });
   }
 
-  // Guard against oversized import payloads that would cause excessive DB queries
+  // Guard against oversized import payloads
   const IMPORT_LIMITS = {
     courses: 500, sections: 2000, videos: 5000, pdfs: 2000,
     exams: 1000, questions: 50000, students: 5000,
     exam_results: 100000, payments: 20000, enrollments: 20000,
+    question_banks: 500, bank_questions: 50000,
+    recitations: 2000, recitation_questions: 50000, recitation_results: 100000,
+    video_progress: 100000,
   };
   for (const [key, limit] of Object.entries(IMPORT_LIMITS)) {
-    const arr = data[key === 'exam_results' ? 'exam_results' : key];
+    const arr = data[key];
     if (Array.isArray(arr) && arr.length > limit) {
       return res.status(400).json({ error: `عدد ${key} تجاوز الحد المسموح (${limit})` });
     }
@@ -876,27 +945,32 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
     courses: 0, sections: 0, videos: 0, pdfs: 0,
     exams: 0, questions: 0, students: 0,
     enrollments: 0, payments: 0, results: 0,
+    video_progress: 0,
+    question_banks: 0, bank_questions: 0,
+    recitations: 0, recitation_questions: 0, recitation_results: 0,
     skipped_students: 0, errors: []
   };
 
   // ID maps: old_id → new_id
-  const courseMap = {};
-  const sectionMap = {};
-  const examMap = {};
-  const studentMap = {};
+  const courseMap     = {};
+  const sectionMap    = {};
+  const videoMap      = {};
+  const examMap       = {};
+  const studentMap    = {};
+  const bankMap       = {};
+  const recitationMap = {};
 
-  // Wrap entire import in a single transaction with per-item savepoints
-  // so partial failures are logged but don't leave the DB in a half-imported state
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-    // 1. Import courses
+    // ── 1. Courses ──────────────────────────────────────────────────────────
     for (const c of (data.courses || [])) {
       await client.query('SAVEPOINT sp');
       try {
         const r = await client.query(
-          `INSERT INTO courses (name,description,price,thumbnail_url,teacher_id,target_stage,is_free,is_published,points_on_complete,created_at)
+          `INSERT INTO courses (name,description,price,thumbnail_url,teacher_id,target_stage,
+             is_free,is_published,points_on_complete,created_at)
            VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
           [c.name, c.description || null, c.price || 0, c.thumbnail_url || null, teacherId,
            c.target_stage || null, c.is_free || false, c.is_published || false,
@@ -911,7 +985,7 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
       }
     }
 
-    // 2. Import sections
+    // ── 2. Sections ─────────────────────────────────────────────────────────
     for (const s of (data.sections || [])) {
       const newCourseId = courseMap[s.course_id];
       if (!newCourseId) continue;
@@ -930,19 +1004,21 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
       }
     }
 
-    // 3. Import videos
+    // ── 3. Videos — RETURNING id needed for video_progress map ──────────────
     for (const v of (data.videos || [])) {
       const newCourseId = courseMap[v.course_id];
       if (!newCourseId) continue;
       await client.query('SAVEPOINT sp');
       try {
-        await client.query(
-          `INSERT INTO videos (title,file_path_or_url,duration_minutes,course_id,sort_order,section_id,url_480,url_720,url_1080,created_at)
-           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+        const r = await client.query(
+          `INSERT INTO videos (title,file_path_or_url,duration_minutes,course_id,sort_order,
+             section_id,url_480,url_720,url_1080,created_at)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
           [v.title, v.file_path_or_url || null, v.duration_minutes || 0, newCourseId,
            v.sort_order || 0, v.section_id ? (sectionMap[v.section_id] || null) : null,
            v.url_480 || null, v.url_720 || null, v.url_1080 || null, v.created_at || new Date()]
         );
+        videoMap[v.id] = r.rows[0].id;
         stats.videos++;
         await client.query('RELEASE SAVEPOINT sp');
       } catch (e) {
@@ -951,7 +1027,7 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
       }
     }
 
-    // 4. Import PDFs
+    // ── 4. PDFs ─────────────────────────────────────────────────────────────
     for (const p of (data.pdfs || [])) {
       const newCourseId = courseMap[p.course_id];
       if (!newCourseId) continue;
@@ -970,14 +1046,15 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
       }
     }
 
-    // 5. Import exams
+    // ── 5. Exams ─────────────────────────────────────────────────────────────
     for (const e of (data.exams || [])) {
       await client.query('SAVEPOINT sp');
       try {
         const newCourseId = e.course_id ? (courseMap[e.course_id] || null) : null;
         const r = await client.query(
-          `INSERT INTO exams (title,duration_minutes,total_score,course_id,teacher_id,pass_score,badge_name,badge_color,
-             start_date,end_date,is_published,shuffle_questions,shuffle_options,points_on_attempt,points_on_pass,created_at)
+          `INSERT INTO exams (title,duration_minutes,total_score,course_id,teacher_id,pass_score,
+             badge_name,badge_color,start_date,end_date,is_published,
+             shuffle_questions,shuffle_options,points_on_attempt,points_on_pass,created_at)
            VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`,
           [e.title, e.duration_minutes || 60, e.total_score || 100, newCourseId, teacherId,
            e.pass_score ?? 50, e.badge_name || null, e.badge_color || '#FF8C00',
@@ -994,7 +1071,7 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
       }
     }
 
-    // 6. Import questions
+    // ── 6. Questions — include option_labels and sub_questions (image_multi) ─
     for (const q of (data.questions || [])) {
       const newExamId = examMap[q.exam_id];
       if (!newExamId) continue;
@@ -1002,11 +1079,13 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
       try {
         await client.query(
           `INSERT INTO questions (question_text,question_image_url,option_a,option_b,option_c,option_d,
-             correct_answer_letter,points,exam_id,question_type)
-           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-          [q.question_text, q.question_image_url || null, q.option_a || '-', q.option_b || '-',
-           q.option_c || null, q.option_d || null, q.correct_answer_letter || 'A',
-           q.points || 1, newExamId, q.question_type || 'mcq']
+             correct_answer_letter,points,exam_id,question_type,option_labels,sub_questions)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+          [q.question_text, q.question_image_url || null,
+           q.option_a || '-', q.option_b || '-', q.option_c || null, q.option_d || null,
+           q.correct_answer_letter || 'A', q.points || 1, newExamId, q.question_type || 'mcq',
+           q.option_labels ? JSON.stringify(q.option_labels) : null,
+           q.sub_questions ? JSON.stringify(q.sub_questions) : null]
         );
         stats.questions++;
         await client.query('RELEASE SAVEPOINT sp');
@@ -1016,11 +1095,10 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
       }
     }
 
-    // 7. Import students — batched: one existence check + parallel hashing + single unnest INSERT
-    const generatedPasswords = []; // {username, password}
+    // ── 7. Students — include is_suspended and plain_password ────────────────
+    const generatedPasswords = [];
     const studentsToImport = data.students || [];
     if (studentsToImport.length > 0) {
-      // 7a. Fetch all existing usernames for this teacher in one query
       const usernames = studentsToImport.map(s => s.username);
       const existingRes = await client.query(
         'SELECT id, username FROM students WHERE username = ANY($1) AND teacher_id=$2 AND deleted_at IS NULL',
@@ -1028,7 +1106,6 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
       );
       const existingByUsername = new Map(existingRes.rows.map(r => [r.username, r.id]));
 
-      // Mark existing students in the map
       for (const s of studentsToImport) {
         if (existingByUsername.has(s.username)) {
           studentMap[s.id] = existingByUsername.get(s.username);
@@ -1036,11 +1113,9 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
         }
       }
 
-      // 7b. Determine which students are genuinely new
       const newStudents = studentsToImport.filter(s => !existingByUsername.has(s.username));
 
       if (newStudents.length > 0) {
-        // 7c. Hash passwords in parallel (batches of 10 to avoid CPU overload)
         const HASH_BATCH = 10;
         const prepared = [];
         for (let i = 0; i < newStudents.length; i += HASH_BATCH) {
@@ -1052,39 +1127,39 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
           prepared.push(...hashed);
         }
 
-        // 7d. Batch INSERT with unnest() — one round-trip for all new students
         await client.query('SAVEPOINT sp_students');
         try {
-          const unames = [], pwds = [], names = [], phones = [], parentPhones = [],
-                stages = [], genders = [], points = [], createdAts = [];
-          for (const { s, hash } of prepared) {
+          const unames = [], pwds = [], plains = [], names = [], phones = [], parentPhones = [],
+                stages = [], genders = [], points = [], suspended = [], createdAts = [];
+          for (const { s, plain, hash } of prepared) {
             unames.push(s.username);
             pwds.push(hash);
+            plains.push(plain);
             names.push(s.name);
             phones.push(s.phone || null);
             parentPhones.push(s.parent_phone || null);
             stages.push(s.academic_stage || null);
             genders.push(s.gender || null);
             points.push(s.points || 0);
+            suspended.push(s.is_suspended || false);
             createdAts.push(s.created_at ? new Date(s.created_at) : new Date());
           }
           const insertRes = await client.query(
             `INSERT INTO students
-               (username, password, name, phone, parent_phone, academic_stage, gender,
-                teacher_id, points, created_at)
+               (username, password, plain_password, name, phone, parent_phone, academic_stage, gender,
+                teacher_id, points, is_suspended, created_at)
              SELECT * FROM unnest(
-               $1::text[], $2::text[], $3::text[], $4::text[], $5::text[],
-               $6::text[], $7::text[], $8::int[], $9::int[], $10::timestamptz[]
-             ) AS t(username,password,name,phone,parent_phone,academic_stage,gender,
-                    teacher_id,points,created_at)
+               $1::text[], $2::text[], $3::text[], $4::text[], $5::text[], $6::text[],
+               $7::text[], $8::text[], $9::int[], $10::int[], $11::boolean[], $12::timestamptz[]
+             ) AS t(username,password,plain_password,name,phone,parent_phone,academic_stage,gender,
+                    teacher_id,points,is_suspended,created_at)
              ON CONFLICT DO NOTHING
              RETURNING id, username`,
-            [unames, pwds, names, phones, parentPhones, stages, genders,
-             Array(prepared.length).fill(teacherId), points, createdAts]
+            [unames, pwds, plains, names, phones, parentPhones, stages, genders,
+             Array(prepared.length).fill(teacherId), points, suspended, createdAts]
           );
           await client.query('RELEASE SAVEPOINT sp_students');
 
-          // Map inserted IDs back and collect generated passwords
           const insertedByUsername = new Map(insertRes.rows.map(r => [r.username, r.id]));
           for (const { s, plain } of prepared) {
             const newId = insertedByUsername.get(s.username);
@@ -1095,24 +1170,23 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
                 generatedPasswords.push({ username: s.username, name: s.name, generated_password: plain });
               }
             } else {
-              // ON CONFLICT: student was inserted by a concurrent request, skip
               stats.skipped_students++;
             }
           }
         } catch (batchErr) {
-          // Batch insert failed — fall back to row-by-row with savepoints
+          // Batch INSERT failed — fall back to row-by-row
           await client.query('ROLLBACK TO SAVEPOINT sp_students');
           await client.query('RELEASE SAVEPOINT sp_students');
           for (const { s, plain, hash } of prepared) {
             await client.query('SAVEPOINT sp');
             try {
               const r = await client.query(
-                `INSERT INTO students (username,password,name,phone,parent_phone,academic_stage,gender,
-                   teacher_id,points,created_at)
-                 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
-                [s.username, hash, s.name, s.phone || null, s.parent_phone || null,
+                `INSERT INTO students (username,password,plain_password,name,phone,parent_phone,
+                   academic_stage,gender,teacher_id,points,is_suspended,created_at)
+                 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
+                [s.username, hash, plain, s.name, s.phone || null, s.parent_phone || null,
                  s.academic_stage || null, s.gender || null, teacherId,
-                 s.points || 0, s.created_at || new Date()]
+                 s.points || 0, s.is_suspended || false, s.created_at || new Date()]
               );
               studentMap[s.id] = r.rows[0].id;
               stats.students++;
@@ -1129,7 +1203,7 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
       }
     }
 
-    // 8. Import enrollments
+    // ── 8. Enrollments ───────────────────────────────────────────────────────
     for (const e of (data.enrollments || [])) {
       const newStudentId = studentMap[e.student_id];
       const newCourseId  = courseMap[e.course_id];
@@ -1146,34 +1220,34 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
       } catch (e2) { await client.query('ROLLBACK TO SAVEPOINT sp'); }
     }
 
-    // 9. Import payments
+    // ── 9. Payments — include verified_at / verified_by_name ─────────────────
     const VALID_PAYMENT_STATUSES = new Set(['pending', 'verified', 'rejected']);
     for (const p of (data.payments || [])) {
       const newStudentId = studentMap[p.student_id];
       if (!newStudentId) continue;
       await client.query('SAVEPOINT sp');
       try {
-        // Normalize status: 'confirmed' → 'verified', anything unknown → 'pending'
         const safeStatus = VALID_PAYMENT_STATUSES.has(p.status)
           ? p.status
           : (p.status === 'confirmed' ? 'verified' : 'pending');
         await client.query(
-          `INSERT INTO payments (student_id,course_id,amount,method,payment_date,status,reference_number,notes)
-           VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
+          `INSERT INTO payments (student_id,course_id,amount,method,payment_date,status,
+             reference_number,notes,verified_at,verified_by_name)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
           [newStudentId, p.course_id ? (courseMap[p.course_id] || null) : null,
            p.amount, p.method || '', p.payment_date || new Date(),
-           safeStatus, p.reference_number || null, p.notes || null]
+           safeStatus, p.reference_number || null, p.notes || null,
+           p.verified_at || null, p.verified_by_name || null]
         );
         stats.payments++;
         await client.query('RELEASE SAVEPOINT sp');
       } catch (e) { await client.query('ROLLBACK TO SAVEPOINT sp'); }
     }
 
-    // 10. Import exam results
-    // Insert all with is_latest=false first to avoid the partial-unique-index conflict
-    // (uidx_exam_results_latest only allows one is_latest=true per student+exam).
-    // After all inserts, promote the most-recent result per (student_id, exam_id) to is_latest=true.
-    const insertedResults = []; // { id, student_id, exam_id, created_at }
+    // ── 10. Exam results — include is_absent and attempt_number ─────────────
+    // Insert all as is_latest=false first to avoid the partial-unique-index conflict.
+    // Promote the most-recent result per (student_id, exam_id) to is_latest=true after.
+    const insertedResults = [];
     for (const r of (data.exam_results || [])) {
       const newStudentId = studentMap[r.student_id];
       const newExamId    = examMap[r.exam_id];
@@ -1182,22 +1256,23 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
       try {
         const ins = await client.query(
           `INSERT INTO exam_results (student_id,exam_id,score,correct_count,wrong_count,
-             unanswered_count,start_time,end_time,answers,points_earned,created_at,is_latest)
-           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,false) RETURNING id,student_id,exam_id,created_at`,
+             unanswered_count,start_time,end_time,answers,points_earned,
+             is_absent,attempt_number,created_at,is_latest)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,false)
+           RETURNING id,student_id,exam_id,created_at`,
           [newStudentId, newExamId, r.score || 0, r.correct_count || 0,
            r.wrong_count || 0, r.unanswered_count || 0,
            r.start_time || null, r.end_time || null,
            r.answers ? JSON.stringify(r.answers) : null,
-           r.points_earned || 0, r.created_at || new Date()]
+           r.points_earned || 0, r.is_absent || false,
+           r.attempt_number || 1, r.created_at || new Date()]
         );
         insertedResults.push(ins.rows[0]);
         stats.results++;
         await client.query('RELEASE SAVEPOINT sp');
       } catch (e) { await client.query('ROLLBACK TO SAVEPOINT sp'); }
     }
-
-    // Promote the most-recent inserted result per (student_id, exam_id) to is_latest=true.
-    // First reset any existing is_latest=true rows for those pairs, then set the new latest.
+    // Promote latest per (student, exam)
     if (insertedResults.length > 0) {
       const latestMap = {};
       for (const row of insertedResults) {
@@ -1207,17 +1282,152 @@ router.post('/import', requireRole('teacher'), async (req, res) => {
         }
       }
       for (const row of Object.values(latestMap)) {
-        // Reset all existing is_latest=true for this pair (could conflict with older data)
         await client.query(
           'UPDATE exam_results SET is_latest=false WHERE student_id=$1 AND exam_id=$2 AND is_latest=true',
           [row.student_id, row.exam_id]
         );
-        // Mark the newly imported latest result
-        await client.query(
-          'UPDATE exam_results SET is_latest=true WHERE id=$1',
-          [row.id]
-        );
+        await client.query('UPDATE exam_results SET is_latest=true WHERE id=$1', [row.id]);
       }
+    }
+
+    // ── 11. Video progress — include last_position and actual_watched_seconds ─
+    for (const vp of (data.video_progress || [])) {
+      const newStudentId = studentMap[vp.student_id];
+      const newVideoId   = videoMap[vp.video_id];
+      if (!newStudentId || !newVideoId) continue;
+      await client.query('SAVEPOINT sp');
+      try {
+        await client.query(
+          `INSERT INTO video_progress
+             (student_id,video_id,watch_count,watched_minutes,progress_percentage,
+              last_watched_at,last_position,actual_watched_seconds)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8)
+           ON CONFLICT (student_id,video_id) DO NOTHING`,
+          [newStudentId, newVideoId, vp.watch_count || 0, vp.watched_minutes || 0,
+           vp.progress_percentage || 0, vp.last_watched_at || new Date(),
+           vp.last_position || 0, vp.actual_watched_seconds || 0]
+        );
+        stats.video_progress++;
+        await client.query('RELEASE SAVEPOINT sp');
+      } catch (e) { await client.query('ROLLBACK TO SAVEPOINT sp'); }
+    }
+
+    // ── 12. Question banks ───────────────────────────────────────────────────
+    for (const b of (data.question_banks || [])) {
+      await client.query('SAVEPOINT sp');
+      try {
+        const newCourseId = b.course_id ? (courseMap[b.course_id] || null) : null;
+        const r = await client.query(
+          `INSERT INTO question_banks (name,subject,teacher_id,course_id,created_at)
+           VALUES($1,$2,$3,$4,$5) RETURNING id`,
+          [b.name, b.subject || null, teacherId, newCourseId, b.created_at || new Date()]
+        );
+        bankMap[b.id] = r.rows[0].id;
+        stats.question_banks++;
+        await client.query('RELEASE SAVEPOINT sp');
+      } catch (e) {
+        await client.query('ROLLBACK TO SAVEPOINT sp');
+        stats.errors.push(`بنك أسئلة "${b.name}": ${e.message}`);
+      }
+    }
+
+    // ── 13. Bank questions — include option_labels, sub_questions, difficulty ─
+    for (const bq of (data.bank_questions || [])) {
+      const newBankId = bankMap[bq.bank_id];
+      if (!newBankId) continue;
+      await client.query('SAVEPOINT sp');
+      try {
+        await client.query(
+          `INSERT INTO bank_questions (bank_id,question_text,question_image_url,option_a,option_b,
+             option_c,option_d,correct_answer_letter,points,question_type,
+             option_labels,sub_questions,difficulty,created_at)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+          [newBankId, bq.question_text, bq.question_image_url || null,
+           bq.option_a || '-', bq.option_b || '-', bq.option_c || null, bq.option_d || null,
+           bq.correct_answer_letter || 'A', bq.points || 1, bq.question_type || 'mcq',
+           bq.option_labels ? JSON.stringify(bq.option_labels) : null,
+           bq.sub_questions ? JSON.stringify(bq.sub_questions) : null,
+           bq.difficulty || 'medium', bq.created_at || new Date()]
+        );
+        stats.bank_questions++;
+        await client.query('RELEASE SAVEPOINT sp');
+      } catch (e) { await client.query('ROLLBACK TO SAVEPOINT sp'); }
+    }
+
+    // ── 14. Recitations ──────────────────────────────────────────────────────
+    for (const rec of (data.recitations || [])) {
+      await client.query('SAVEPOINT sp');
+      try {
+        const newCourseId = rec.course_id ? (courseMap[rec.course_id] || null) : null;
+        const r = await client.query(
+          `INSERT INTO recitations (teacher_id,title,description,academic_stage,duration_minutes,
+             total_score,pass_score,points_on_attempt,points_on_pass,schedule_type,schedule_day,
+             start_date,end_date,is_published,shuffle_questions,shuffle_options,
+             course_id,video_ids,allow_retry,absent_marked,created_at)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+           RETURNING id`,
+          [teacherId, rec.title, rec.description || null, rec.academic_stage || null,
+           rec.duration_minutes || 10, rec.total_score || 10, rec.pass_score || 5,
+           rec.points_on_attempt || 0, rec.points_on_pass || 5,
+           rec.schedule_type || 'once', rec.schedule_day ?? null,
+           rec.start_date || null, rec.end_date || null,
+           rec.is_published || false, rec.shuffle_questions || false, rec.shuffle_options || false,
+           newCourseId, rec.video_ids ? JSON.stringify(rec.video_ids) : '[]',
+           rec.allow_retry !== false, rec.absent_marked || false,
+           rec.created_at || new Date()]
+        );
+        recitationMap[rec.id] = r.rows[0].id;
+        stats.recitations++;
+        await client.query('RELEASE SAVEPOINT sp');
+      } catch (e) {
+        await client.query('ROLLBACK TO SAVEPOINT sp');
+        stats.errors.push(`تسميع "${rec.title}": ${e.message}`);
+      }
+    }
+
+    // ── 15. Recitation questions ─────────────────────────────────────────────
+    for (const rq of (data.recitation_questions || [])) {
+      const newRecitationId = recitationMap[rq.recitation_id];
+      if (!newRecitationId) continue;
+      await client.query('SAVEPOINT sp');
+      try {
+        await client.query(
+          `INSERT INTO recitation_questions (recitation_id,question_text,question_image_url,
+             question_type,option_a,option_b,option_c,option_d,correct_answer_letter,
+             points,sort_order,option_labels,sub_questions)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+          [newRecitationId, rq.question_text, rq.question_image_url || null,
+           rq.question_type || 'mcq',
+           rq.option_a || null, rq.option_b || null, rq.option_c || null, rq.option_d || null,
+           rq.correct_answer_letter || 'A', rq.points || 1, rq.sort_order || 0,
+           rq.option_labels ? JSON.stringify(rq.option_labels) : null,
+           rq.sub_questions ? JSON.stringify(rq.sub_questions) : null]
+        );
+        stats.recitation_questions++;
+        await client.query('RELEASE SAVEPOINT sp');
+      } catch (e) { await client.query('ROLLBACK TO SAVEPOINT sp'); }
+    }
+
+    // ── 16. Recitation results ───────────────────────────────────────────────
+    for (const rr of (data.recitation_results || [])) {
+      const newStudentId    = studentMap[rr.student_id];
+      const newRecitationId = recitationMap[rr.recitation_id];
+      if (!newStudentId || !newRecitationId) continue;
+      await client.query('SAVEPOINT sp');
+      try {
+        await client.query(
+          `INSERT INTO recitation_results (student_id,recitation_id,score,correct_count,wrong_count,
+             unanswered_count,answers,points_earned,start_time,end_time,passed,is_absent,created_at)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+          [newStudentId, newRecitationId, rr.score || 0, rr.correct_count || 0,
+           rr.wrong_count || 0, rr.unanswered_count || 0,
+           rr.answers ? JSON.stringify(rr.answers) : '[]',
+           rr.points_earned || 0, rr.start_time || null, rr.end_time || null,
+           rr.passed || false, rr.is_absent || false, rr.created_at || new Date()]
+        );
+        stats.recitation_results++;
+        await client.query('RELEASE SAVEPOINT sp');
+      } catch (e) { await client.query('ROLLBACK TO SAVEPOINT sp'); }
     }
 
     await client.query('COMMIT');

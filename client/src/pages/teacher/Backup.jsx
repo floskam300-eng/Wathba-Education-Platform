@@ -1,6 +1,10 @@
 import React, { useState, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, Upload, Database, Users, BookOpen, FileText, CreditCard, BarChart3, CheckCircle, AlertCircle, Loader2, X } from 'lucide-react';
+import {
+  Download, Upload, Database, Users, BookOpen, FileText,
+  CreditCard, BarChart3, CheckCircle, AlertCircle, Loader2, X,
+  ClipboardList, Library,
+} from 'lucide-react';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
 
@@ -15,7 +19,7 @@ export default function Backup() {
   const [importResult, setImportResult] = useState(null);
   const importFileRef = useRef(null);
 
-  const [csvExporting, setCsvExporting] = useState(null); // key of currently exporting CSV
+  const [csvExporting, setCsvExporting] = useState(null);
 
   const { data: stats } = useQuery({
     queryKey: ['teacher-dashboard'],
@@ -36,7 +40,7 @@ export default function Backup() {
       window.URL.revokeObjectURL(url);
       setLastExport(new Date());
       toast.success('تم تصدير البيانات بنجاح!');
-    } catch (err) {
+    } catch {
       toast.error('حدث خطأ أثناء التصدير');
     } finally {
       setExporting(false);
@@ -57,15 +61,20 @@ export default function Backup() {
         }
         setImportFile(parsed);
         setImportPreview({
-          exported_at: parsed.exported_at,
-          courses:  (parsed.courses  || []).length,
-          students: (parsed.students || []).length,
-          exams:    (parsed.exams    || []).length,
-          questions:(parsed.questions|| []).length,
-          videos:   (parsed.videos   || []).length,
-          pdfs:     (parsed.pdfs     || []).length,
-          payments: (parsed.payments || []).length,
-          results:  (parsed.exam_results || []).length,
+          exported_at:          parsed.exported_at,
+          courses:              (parsed.courses               || []).length,
+          students:             (parsed.students              || []).length,
+          exams:                (parsed.exams                 || []).length,
+          questions:            (parsed.questions             || []).length,
+          videos:               (parsed.videos                || []).length,
+          pdfs:                 (parsed.pdfs                  || []).length,
+          payments:             (parsed.payments              || []).length,
+          results:              (parsed.exam_results          || []).length,
+          question_banks:       (parsed.question_banks        || []).length,
+          bank_questions:       (parsed.bank_questions        || []).length,
+          recitations:          (parsed.recitations           || []).length,
+          recitation_questions: (parsed.recitation_questions  || []).length,
+          recitation_results:   (parsed.recitation_results    || []).length,
         });
       } catch {
         toast.error('تعذّر قراءة الملف — تأكد أنه ملف JSON صحيح');
@@ -85,11 +94,12 @@ export default function Backup() {
       toast.success('تم استيراد البيانات بنجاح!');
       setImportFile(null);
       setImportPreview(null);
-      // Refresh cached data so stats and student lists update
       qc.invalidateQueries(['teacher-dashboard']);
       qc.invalidateQueries(['students']);
       qc.invalidateQueries(['courses']);
       qc.invalidateQueries(['exams']);
+      qc.invalidateQueries(['recitations']);
+      qc.invalidateQueries(['question-banks']);
     } catch (err) {
       toast.error(err.response?.data?.error || 'حدث خطأ أثناء الاستيراد');
     } finally {
@@ -125,16 +135,17 @@ export default function Backup() {
       const res = await api.get('/teachers/export');
       const data = res.data;
 
-      // Build lookup maps for human-readable names
       const studentById = {};
       (data.students || []).forEach(s => { studentById[s.id] = s.name; });
       const examById = {};
       (data.exams || []).forEach(e => { examById[e.id] = e.title; });
       const courseById = {};
       (data.courses || []).forEach(c => { courseById[c.id] = c.name; });
+      const recitationById = {};
+      (data.recitations || []).forEach(r => { recitationById[r.id] = r.title; });
 
       if (type === 'students') {
-        const headers = ['الاسم', 'الهاتف', 'هاتف ولي الأمر', 'المرحلة الدراسية', 'الجنس', 'النقاط', 'تاريخ التسجيل'];
+        const headers = ['الاسم', 'الهاتف', 'هاتف ولي الأمر', 'المرحلة الدراسية', 'الجنس', 'النقاط', 'الحالة', 'تاريخ التسجيل'];
         const rows = [
           headers,
           ...(data.students || []).map(s => [
@@ -144,6 +155,7 @@ export default function Backup() {
             sanitizeCell(s.academic_stage || ''),
             sanitizeCell(s.gender || ''),
             s.points ?? 0,
+            s.is_suspended ? 'موقوف' : 'نشط',
             new Date(s.created_at).toLocaleDateString('ar-EG'),
           ]),
         ];
@@ -151,7 +163,7 @@ export default function Backup() {
         toast.success(`تم تصدير ${data.students?.length ?? 0} طالب`);
 
       } else if (type === 'results') {
-        const headers = ['اسم الطالب', 'الاختبار', 'الدرجة', 'إجمالي الدرجات', 'صحيح', 'خطأ', 'لم يُجب', 'التاريخ'];
+        const headers = ['اسم الطالب', 'الاختبار', 'الدرجة', 'إجمالي الدرجات', 'صحيح', 'خطأ', 'لم يُجب', 'غائب', 'المحاولة', 'التاريخ'];
         const rows = [
           headers,
           ...(data.exam_results || []).map(r => [
@@ -162,6 +174,8 @@ export default function Backup() {
             r.correct_count ?? 0,
             r.wrong_count ?? 0,
             r.unanswered_count ?? 0,
+            r.is_absent ? 'نعم' : 'لا',
+            r.attempt_number ?? 1,
             new Date(r.created_at).toLocaleDateString('ar-EG'),
           ]),
         ];
@@ -169,7 +183,7 @@ export default function Backup() {
         toast.success(`تم تصدير ${data.exam_results?.length ?? 0} نتيجة`);
 
       } else if (type === 'payments') {
-        const headers = ['اسم الطالب', 'الكورس', 'المبلغ (جنيه)', 'طريقة الدفع', 'الحالة', 'رقم مرجعي', 'التاريخ'];
+        const headers = ['اسم الطالب', 'الكورس', 'المبلغ (جنيه)', 'طريقة الدفع', 'الحالة', 'رقم مرجعي', 'تاريخ التحقق', 'التاريخ'];
         const rows = [
           headers,
           ...(data.payments || []).map(p => [
@@ -183,11 +197,31 @@ export default function Backup() {
               p.status === 'rejected' ? 'مرفوض'   : p.status
             ),
             sanitizeCell(p.reference_number || ''),
+            p.verified_at ? new Date(p.verified_at).toLocaleDateString('ar-EG') : '—',
             new Date(p.payment_date).toLocaleDateString('ar-EG'),
           ]),
         ];
         downloadCSV(rows, `payments_${new Date().toISOString().slice(0, 10)}.csv`);
         toast.success(`تم تصدير ${data.payments?.length ?? 0} عملية دفع`);
+
+      } else if (type === 'recitation_results') {
+        const headers = ['اسم الطالب', 'التسميع', 'الدرجة', 'إجمالي الدرجات', 'صحيح', 'خطأ', 'لم يُجب', 'غائب', 'التاريخ'];
+        const rows = [
+          headers,
+          ...(data.recitation_results || []).map(r => [
+            sanitizeCell(studentById[r.student_id] || r.student_id),
+            sanitizeCell(recitationById[r.recitation_id] || r.recitation_id),
+            r.score ?? 0,
+            r.total_score ?? '',
+            r.correct_count ?? 0,
+            r.wrong_count ?? 0,
+            r.unanswered_count ?? 0,
+            r.is_absent ? 'نعم' : 'لا',
+            new Date(r.created_at).toLocaleDateString('ar-EG'),
+          ]),
+        ];
+        downloadCSV(rows, `recitation_results_${new Date().toISOString().slice(0, 10)}.csv`);
+        toast.success(`تم تصدير ${data.recitation_results?.length ?? 0} نتيجة تسميع`);
       }
     } catch {
       toast.error('حدث خطأ أثناء التصدير');
@@ -197,17 +231,35 @@ export default function Backup() {
   };
 
   const statCards = [
-    { icon: Users,    label: 'الطلاب',            value: stats?.totalStudents,             color: 'text-blue-600 bg-blue-50'   },
-    { icon: BookOpen, label: 'الكورسات',           value: stats?.totalCourses,              color: 'text-purple-600 bg-purple-50'},
-    { icon: FileText, label: 'الاختبارات',         value: stats?.totalExams,                color: 'text-orange-600 bg-orange-50'},
-    { icon: CreditCard, label: 'الإيرادات (جنيه)', value: stats?.totalRevenue?.toLocaleString(), color: 'text-green-600 bg-green-50'},
+    { icon: Users,       label: 'الطلاب',            value: stats?.totalStudents,              color: 'text-blue-600 bg-blue-50'    },
+    { icon: BookOpen,    label: 'الكورسات',           value: stats?.totalCourses,               color: 'text-purple-600 bg-purple-50' },
+    { icon: FileText,    label: 'الاختبارات',         value: stats?.totalExams,                 color: 'text-orange-600 bg-orange-50' },
+    { icon: CreditCard,  label: 'الإيرادات (جنيه)',   value: stats?.totalRevenue?.toLocaleString(), color: 'text-green-600 bg-green-50' },
   ];
 
   const csvExports = [
-    { key: 'students', label: 'قائمة الطلاب',     desc: 'الاسم، الهاتف، رقم ولي الأمر، المرحلة، الجنس، النقاط', icon: Users      },
-    { key: 'results',  label: 'نتائج الاختبارات', desc: 'جميع نتائج الاختبارات مع أسماء الطلاب والاختبارات',     icon: BarChart3   },
-    { key: 'payments', label: 'سجل المدفوعات',    desc: 'جميع عمليات الدفع مع أسماء الطلاب والكورسات',           icon: CreditCard  },
+    { key: 'students',           label: 'قائمة الطلاب',          desc: 'الاسم، الهاتف، المرحلة، الجنس، النقاط، الحالة',           icon: Users        },
+    { key: 'results',            label: 'نتائج الاختبارات',       desc: 'جميع نتائج الاختبارات مع رقم المحاولة وعلامة الغياب',      icon: BarChart3    },
+    { key: 'payments',           label: 'سجل المدفوعات',          desc: 'جميع عمليات الدفع مع أسماء الطلاب والكورسات وتاريخ التحقق', icon: CreditCard   },
+    { key: 'recitation_results', label: 'نتائج التسميعات',        desc: 'جميع نتائج التسميعات مع أسماء الطلاب وعلامة الغياب',       icon: ClipboardList },
   ];
+
+  // Preview rows for import modal
+  const previewItems = importPreview ? [
+    { label: 'الكورسات',          value: importPreview.courses              },
+    { label: 'الطلاب',            value: importPreview.students             },
+    { label: 'الفيديوهات',        value: importPreview.videos               },
+    { label: 'ملفات PDF',         value: importPreview.pdfs                 },
+    { label: 'الاختبارات',        value: importPreview.exams                },
+    { label: 'الأسئلة',           value: importPreview.questions            },
+    { label: 'نتائج الاختبارات',  value: importPreview.results              },
+    { label: 'المدفوعات',         value: importPreview.payments             },
+    { label: 'بنوك الأسئلة',      value: importPreview.question_banks       },
+    { label: 'أسئلة البنوك',      value: importPreview.bank_questions       },
+    { label: 'التسميعات',         value: importPreview.recitations          },
+    { label: 'أسئلة التسميعات',   value: importPreview.recitation_questions },
+    { label: 'نتائج التسميعات',   value: importPreview.recitation_results   },
+  ] : [];
 
   return (
     <div className="space-y-6">
@@ -236,8 +288,11 @@ export default function Backup() {
           </div>
           <div className="flex-1">
             <h2 className="text-lg font-black text-navy-700 mb-1">نسخة احتياطية كاملة (JSON)</h2>
-            <p className="text-sm text-gray-500 mb-4">
-              تصدير جميع بياناتك — الطلاب، الكورسات، الفيديوهات، الملفات، الاختبارات، النتائج، والمدفوعات — في ملف JSON واحد يمكنك استعادته لاحقاً بالكامل.
+            <p className="text-sm text-gray-500 mb-1">
+              تصدير جميع بياناتك — الطلاب، الكورسات، الاختبارات، التسميعات، بنوك الأسئلة، النتائج، والمدفوعات — في ملف JSON واحد يمكنك استعادته بالكامل.
+            </p>
+            <p className="text-xs text-gray-400 mb-4">
+              يشمل: الكورسات · الفيديوهات · ملفات PDF · الاختبارات · التسميعات · بنوك الأسئلة · الطلاب · النتائج · المدفوعات · التسجيلات · تقدم الفيديو
             </p>
             <div className="flex items-center gap-4">
               <button
@@ -268,7 +323,7 @@ export default function Backup() {
           <div className="flex-1">
             <h2 className="text-lg font-black text-navy-700 mb-1">استعادة نسخة احتياطية (JSON)</h2>
             <p className="text-sm text-gray-500 mb-1">
-              ارفع ملف JSON صادر من وثبة لاستعادة جميع بياناتك — الكورسات، الطلاب، الاختبارات، النتائج، والمدفوعات.
+              ارفع ملف JSON صادر من وثبة لاستعادة جميع بياناتك — الكورسات، الطلاب، الاختبارات، التسميعات، بنوك الأسئلة، النتائج، والمدفوعات.
             </p>
             <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
               ⚠️ سيتم إضافة البيانات المستوردة إلى حسابك الحالي. الطلاب ذوو أسماء المستخدمين المكررة سيُتجاهلون تلقائياً.
@@ -299,16 +354,7 @@ export default function Backup() {
                     </div>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {[
-                      { label: 'الكورسات',  value: importPreview.courses   },
-                      { label: 'الطلاب',    value: importPreview.students   },
-                      { label: 'الفيديوهات',value: importPreview.videos     },
-                      { label: 'الملفات PDF',value: importPreview.pdfs     },
-                      { label: 'الاختبارات',value: importPreview.exams      },
-                      { label: 'الأسئلة',   value: importPreview.questions  },
-                      { label: 'النتائج',   value: importPreview.results    },
-                      { label: 'المدفوعات', value: importPreview.payments   },
-                    ].map(({ label, value }) => (
+                    {previewItems.map(({ label, value }) => (
                       <div key={label} className="bg-white border border-gray-100 rounded-lg p-2 text-center">
                         <p className="text-lg font-black text-navy-700">{value}</p>
                         <p className="text-xs text-gray-500">{label}</p>
@@ -345,14 +391,20 @@ export default function Backup() {
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {[
-                      { label: 'كورسات جديدة',   value: importResult.stats?.courses    },
-                      { label: 'طلاب جدد',        value: importResult.stats?.students   },
-                      { label: 'فيديوهات',        value: importResult.stats?.videos     },
-                      { label: 'ملفات PDF',       value: importResult.stats?.pdfs       },
-                      { label: 'اختبارات',        value: importResult.stats?.exams      },
-                      { label: 'أسئلة',           value: importResult.stats?.questions  },
-                      { label: 'نتائج',           value: importResult.stats?.results    },
-                      { label: 'مدفوعات',         value: importResult.stats?.payments   },
+                      { label: 'كورسات جديدة',         value: importResult.stats?.courses              },
+                      { label: 'طلاب جدد',              value: importResult.stats?.students             },
+                      { label: 'فيديوهات',              value: importResult.stats?.videos               },
+                      { label: 'ملفات PDF',             value: importResult.stats?.pdfs                 },
+                      { label: 'اختبارات',              value: importResult.stats?.exams                },
+                      { label: 'أسئلة اختبارات',        value: importResult.stats?.questions            },
+                      { label: 'نتائج اختبارات',        value: importResult.stats?.results              },
+                      { label: 'مدفوعات',               value: importResult.stats?.payments             },
+                      { label: 'بنوك أسئلة',            value: importResult.stats?.question_banks       },
+                      { label: 'أسئلة البنوك',          value: importResult.stats?.bank_questions       },
+                      { label: 'تسميعات',               value: importResult.stats?.recitations          },
+                      { label: 'أسئلة التسميعات',       value: importResult.stats?.recitation_questions },
+                      { label: 'نتائج التسميعات',       value: importResult.stats?.recitation_results   },
+                      { label: 'تقدم الفيديو',          value: importResult.stats?.video_progress       },
                     ].map(({ label, value }) => (
                       <div key={label} className="bg-white border border-green-100 rounded-lg p-2 text-center">
                         <p className="text-lg font-black text-green-800">{value ?? 0}</p>
@@ -365,6 +417,11 @@ export default function Backup() {
                       ⚠️ تم تجاهل {importResult.stats.skipped_students} طالب بسبب تكرار اسم المستخدم.
                     </p>
                   )}
+                  {importResult.generated_passwords?.length > 0 && (
+                    <p className="text-xs text-blue-700 mt-1">
+                      🔑 تم إنشاء كلمات مرور عشوائية لـ {importResult.generated_passwords.length} طالب جديد.
+                    </p>
+                  )}
                   {importResult.stats?.errors?.length > 0 && (
                     <div className="mt-2 space-y-1">
                       {importResult.stats.errors.slice(0, 5).map((e, i) => (
@@ -372,6 +429,9 @@ export default function Backup() {
                           <AlertCircle className="w-3 h-3 flex-shrink-0" /> {e}
                         </p>
                       ))}
+                      {importResult.stats.errors.length > 5 && (
+                        <p className="text-xs text-red-600">... و{importResult.stats.errors.length - 5} أخطاء أخرى</p>
+                      )}
                     </div>
                   )}
                 </div>
@@ -390,7 +450,7 @@ export default function Backup() {
       {/* CSV exports */}
       <div>
         <h2 className="text-lg font-black text-navy-600 mb-3">تصدير CSV مخصص</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {csvExports.map(({ key, label, desc, icon: Icon }) => (
             <div key={key} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 hover:shadow-md transition-shadow">
               <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center mb-3">
@@ -415,7 +475,7 @@ export default function Backup() {
 
       <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-sm text-blue-800">
         <p className="font-bold mb-1">💡 نصيحة</p>
-        <p>ننصح بعمل نسخة احتياطية أسبوعياً على الأقل لضمان عدم فقدان أي بيانات. النسخة الاحتياطية JSON هي الوحيدة التي تدعم الاستعادة الكاملة.</p>
+        <p>ننصح بعمل نسخة احتياطية أسبوعياً على الأقل لضمان عدم فقدان أي بيانات. النسخة الاحتياطية JSON هي الوحيدة التي تدعم الاستعادة الكاملة بما فيها التسميعات وبنوك الأسئلة.</p>
       </div>
     </div>
   );
