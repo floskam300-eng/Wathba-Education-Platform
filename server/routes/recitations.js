@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { convertToWebp } = require('../lib/convertToWebp');
+const { deleteUploadFile, extractSubQuestionImages } = require('../lib/validateFileMagic');
 const pool = require('../db/connection');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { getPermissions } = require('../lib/permissionsCache');
@@ -1093,11 +1094,13 @@ router.delete('/:id/questions/:qid', requireRole('teacher', 'assistant'), checkM
     );
     if (!rowCount) return res.status(404).json({ error: 'السؤال غير موجود' });
 
-    // [H2] Delete orphaned image file from disk (best-effort, ignore errors)
+    // [H2] Delete orphaned image files from disk (best-effort, ignore errors)
     if (qRows[0].question_image_url && VALID_Q_IMG_RE.test(qRows[0].question_image_url)) {
       const imgPath = path.join(__dirname, '../..', qRows[0].question_image_url);
       fs.unlink(imgPath, () => {});
     }
+    // Also clean up sub_questions images (image_multi type)
+    extractSubQuestionImages(qRows[0].sub_questions).forEach(deleteUploadFile);
 
     res.json({ success: true });
   } catch (err) {

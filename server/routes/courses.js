@@ -1,6 +1,6 @@
 const { sendEvent } = require('../sse');
 const { sendFCMToStudents } = require('../lib/fcm');
-const { isValidImage, isValidPdf, deleteFile } = require('../lib/validateFileMagic');
+const { isValidImage, isValidPdf, deleteFile, deleteUploadFile } = require('../lib/validateFileMagic');
 const { convertToWebp } = require('../lib/convertToWebp');
 const express = require('express');
 const rateLimit = require('express-rate-limit');
@@ -409,6 +409,12 @@ router.delete('/:id', requireRole('teacher', 'assistant'), checkManageCoursesPer
         count: parseInt(enrollCount.rows[0].cnt),
       });
     }
+    // Collect course files before the hard-delete so we can clean up disk after
+    const [thumbRow, pdfFilesRow] = await Promise.all([
+      pool.query('SELECT thumbnail_url FROM courses WHERE id=$1', [courseId]),
+      pool.query('SELECT file_url FROM pdf_files WHERE course_id=$1', [courseId]),
+    ]);
+
     // BUG-8 FIX: Soft-delete all exams linked to this course BEFORE the hard-delete.
     // Schema has `exams.course_id ON DELETE SET NULL`, so a hard-delete would leave
     // those exams alive as standalone exams. If any were published, students could
@@ -434,6 +440,11 @@ router.delete('/:id', requireRole('teacher', 'assistant'), checkManageCoursesPer
     ).catch(err => console.warn('[delete course] recitation soft-delete failed:', err.message));
 
     const result = await pool.query('DELETE FROM courses WHERE id=$1 AND teacher_id=$2 RETURNING id', [courseId, teacherId]);
+
+    // Clean up course files from disk (best-effort, after DB delete)
+    deleteUploadFile(thumbRow.rows[0]?.thumbnail_url);
+    pdfFilesRow.rows.forEach(r => deleteUploadFile(r.file_url));
+
     logActivity({
       teacherId, actor: getActor(req), ip: getIp(req),
       action: 'delete_course',

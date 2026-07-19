@@ -2,7 +2,7 @@ const express = require('express');
 const pool = require('../db/connection');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { getPermissions } = require('../lib/permissionsCache');
-const { isValidImage, deleteFile } = require('../lib/validateFileMagic');
+const { isValidImage, deleteFile, deleteUploadFile, extractSubQuestionImages } = require('../lib/validateFileMagic');
 const { logActivity, getActor, getIp } = require('../lib/activityLog');
 const { convertToWebp } = require('../lib/convertToWebp');
 const multer = require('multer');
@@ -456,7 +456,18 @@ router.delete('/questions/:qid', requireRole('teacher', 'assistant'), checkManag
       [qid, teacherId]
     );
     if (!ownership.rows.length) return res.status(403).json({ error: 'Access denied' });
+    // Fetch file paths before DELETE so we can clean up disk after
+    const qFileRow = await pool.query(
+      'SELECT question_image_url, sub_questions FROM bank_questions WHERE id=$1',
+      [qid]
+    );
     await pool.query('DELETE FROM bank_questions WHERE id=$1', [qid]);
+    // Clean up image files from disk (best-effort, after DB delete)
+    if (qFileRow.rows.length) {
+      const { question_image_url, sub_questions } = qFileRow.rows[0];
+      deleteUploadFile(question_image_url);
+      extractSubQuestionImages(sub_questions).forEach(deleteUploadFile);
+    }
     res.json({ message: 'تم حذف السؤال' });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });

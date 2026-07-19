@@ -11,6 +11,36 @@
  */
 
 const fs = require('fs');
+const path = require('path');
+
+// Absolute path to the uploads root — used for path-traversal guard
+const UPLOADS_ROOT = path.resolve(__dirname, '../../uploads');
+
+/**
+ * Safely delete a file referenced by its URL path (e.g. /uploads/question-images/abc.webp).
+ * Validates the path is inside the uploads directory to guard against traversal.
+ * Swallows all errors — always call best-effort, after the DB record is already deleted.
+ */
+function deleteUploadFile(urlPath) {
+  if (!urlPath || typeof urlPath !== 'string') return;
+  if (!urlPath.startsWith('/uploads/')) return;
+  try {
+    const abs = path.resolve(__dirname, '../..', urlPath.slice(1));
+    if (!abs.startsWith(UPLOADS_ROOT + path.sep)) return; // path traversal guard
+    fs.unlinkSync(abs);
+  } catch (_) {}
+}
+
+/**
+ * Extract all image_url values from a sub_questions JSONB array (image_multi type).
+ * Returns an array of /uploads/... URL strings.
+ */
+function extractSubQuestionImages(subQuestions) {
+  if (!Array.isArray(subQuestions)) return [];
+  return subQuestions
+    .map(sq => sq && sq.image_url)
+    .filter(url => url && url.startsWith('/uploads/'));
+}
 
 const SIGNATURES = {
   png:     { bytes: [0x89, 0x50, 0x4E, 0x47], offset: 0 },
@@ -77,4 +107,4 @@ function deleteFile(filePath) {
   try { fs.unlinkSync(filePath); } catch (_) {}
 }
 
-module.exports = { isValidImage, isValidPdf, isValidVideo, deleteFile };
+module.exports = { isValidImage, isValidPdf, isValidVideo, deleteFile, deleteUploadFile, extractSubQuestionImages };

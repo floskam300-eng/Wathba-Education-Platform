@@ -1,5 +1,5 @@
 const { sendEvent } = require('../sse');
-const { isValidImage, deleteFile } = require('../lib/validateFileMagic');
+const { isValidImage, deleteFile, deleteUploadFile, extractSubQuestionImages } = require('../lib/validateFileMagic');
 const { convertToWebp } = require('../lib/convertToWebp');
 const rateLimit = require('express-rate-limit');
 const { sendFCMToStudents } = require('../lib/fcm');
@@ -861,7 +861,18 @@ router.delete('/questions/:qid', requireRole('teacher', 'assistant'), checkManag
     if (examRow.is_published) {
       return res.status(409).json({ error: 'لا يمكن حذف أسئلة من اختبار منشور — أوقف النشر أولاً' });
     }
+    // Fetch file paths before the DELETE so we can clean up disk after
+    const qFileRow = await pool.query(
+      'SELECT question_image_url, sub_questions FROM questions WHERE id=$1',
+      [qid]
+    );
     await pool.query('DELETE FROM questions WHERE id=$1', [qid]);
+    // Clean up image files from disk (best-effort, after DB delete)
+    if (qFileRow.rows.length) {
+      const { question_image_url, sub_questions } = qFileRow.rows[0];
+      deleteUploadFile(question_image_url);
+      extractSubQuestionImages(sub_questions).forEach(deleteUploadFile);
+    }
     res.json({ message: 'Question deleted' });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });

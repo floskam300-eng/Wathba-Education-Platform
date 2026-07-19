@@ -9,7 +9,7 @@ const rateLimit = require('express-rate-limit');
 const pool = require('../db/connection');
 const { requireAdminAuth, ADMIN_JWT_SECRET, invalidateTeacherAuthCache } = require('../middleware/auth');
 const { getTotalConnections } = require('../sse');
-const { isValidImage, deleteFile } = require('../lib/validateFileMagic');
+const { isValidImage, deleteFile, deleteUploadFile, extractSubQuestionImages } = require('../lib/validateFileMagic');
 const { convertToWebp } = require('../lib/convertToWebp');
 
 // R-2 OPT: simple TTL cache for platform stats — these are global aggregates
@@ -503,7 +503,49 @@ router.delete('/teachers/:id', requireAdminAuth, async (req, res) => {
 
     const slug = check.rows[0].slug;
 
+    // Gather all file paths BEFORE the CASCADE delete wipes child rows
+    const [teacherFilesRow, teamRows, courseRows, pdfRows, examQRows, bankQRows, recQRows] = await Promise.all([
+      pool.query('SELECT logo_url, logo_wide_url, photo_url, hero_image_url FROM teachers WHERE id=$1', [teacherId]),
+      pool.query('SELECT photo_url FROM teacher_team_members WHERE teacher_id=$1', [teacherId]),
+      pool.query('SELECT thumbnail_url FROM courses WHERE teacher_id=$1', [teacherId]),
+      pool.query(
+        `SELECT pf.file_url FROM pdf_files pf
+           JOIN courses c ON pf.course_id = c.id
+          WHERE c.teacher_id=$1`, [teacherId]
+      ),
+      pool.query(
+        `SELECT q.question_image_url, q.sub_questions FROM questions q
+           JOIN exams e ON q.exam_id = e.id
+          WHERE e.teacher_id=$1`, [teacherId]
+      ),
+      pool.query(
+        `SELECT bq.question_image_url, bq.sub_questions FROM bank_questions bq
+           JOIN question_banks qb ON bq.bank_id = qb.id
+          WHERE qb.teacher_id=$1`, [teacherId]
+      ),
+      pool.query(
+        `SELECT rq.question_image_url, rq.sub_questions FROM recitation_questions rq
+           JOIN recitations r ON rq.recitation_id = r.id
+          WHERE r.teacher_id=$1`, [teacherId]
+      ),
+    ]);
+
+    // Collect every file URL into one list
+    const filesToDelete = [];
+    const tf = teacherFilesRow.rows[0] || {};
+    [tf.logo_url, tf.logo_wide_url, tf.photo_url, tf.hero_image_url].forEach(u => u && filesToDelete.push(u));
+    teamRows.rows.forEach(r => r.photo_url && filesToDelete.push(r.photo_url));
+    courseRows.rows.forEach(r => r.thumbnail_url && filesToDelete.push(r.thumbnail_url));
+    pdfRows.rows.forEach(r => r.file_url && filesToDelete.push(r.file_url));
+    [...examQRows.rows, ...bankQRows.rows, ...recQRows.rows].forEach(r => {
+      if (r.question_image_url) filesToDelete.push(r.question_image_url);
+      extractSubQuestionImages(r.sub_questions).forEach(u => filesToDelete.push(u));
+    });
+
     await pool.query('DELETE FROM teachers WHERE id = $1', [teacherId]);
+
+    // Delete all upload files from disk (best-effort, after DB delete)
+    filesToDelete.forEach(deleteUploadFile);
 
     // Clean resolved tenant cache
     const subdomainTenant = require('../middleware/subdomainTenant');
@@ -700,11 +742,19 @@ router.delete('/teachers/:id/team/:memberId', requireAdminAuth, async (req, res)
   if (isNaN(teacherId) || isNaN(memberId)) return res.status(400).json({ error: 'معرّفات غير صحيحة' });
 
   try {
-    const { rowCount } = await pool.query(
+    // Fetch photo before delete so we can clean up disk
+    const memberRow = await pool.query(
+      'SELECT photo_url FROM teacher_team_members WHERE id = $1 AND teacher_id = $2',
+      [memberId, teacherId]
+    );
+    if (!memberRow.rows.length) return res.status(404).json({ error: 'عضو فريق الدعم غير موجود' });
+
+    await pool.query(
       'DELETE FROM teacher_team_members WHERE id = $1 AND teacher_id = $2',
       [memberId, teacherId]
     );
-    if (rowCount === 0) return res.status(404).json({ error: 'عضو فريق الدعم غير موجود' });
+    // Clean up photo from disk (best-effort)
+    deleteUploadFile(memberRow.rows[0].photo_url);
     res.json({ success: true });
   } catch (err) {
     console.error('Delete team member error:', err.message);
