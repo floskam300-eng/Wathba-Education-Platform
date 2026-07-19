@@ -117,7 +117,7 @@ function WatermarkBadge({ name, code, slotIndex }) {
         left: `${pos.x}%`,
         top: `${pos.y}%`,
         transition: 'opacity 0.7s ease',
-        opacity: visible ? 0.45 : 0,
+        opacity: visible ? 0.22 : 0,
         pointerEvents: 'none',
         zIndex: 20,
         userSelect: 'none',
@@ -150,7 +150,7 @@ function FloatingWatermark({ name, code }) {
   if (!name && !code) return null;
   return (
     <>
-      {[0, 1, 2].map(i => (
+      {[0, 1].map(i => (
         <WatermarkBadge key={i} name={name} code={code} slotIndex={i} />
       ))}
     </>
@@ -1998,23 +1998,20 @@ export default function CourseView() {
         </aside>
 
         {/* ── Main content ── */}
-        <main className="flex-1 flex flex-col overflow-hidden relative">
-          {/* Mobile expand/collapse toggle — lets the student hide the tab
-              picker box (files/lectures/recitations) while viewing a PDF or
-              taking a recitation, to get more screen space, then bring it
-              back whenever they want. */}
+        <main className="flex-1 flex flex-col overflow-hidden">
+          {/* Mobile expand/collapse toggle — sits in the normal document flow
+              so it never overlaps or overflows onto the PDF / recitation below. */}
           {canExpand && (
-            <button
-              onClick={() => setContentExpanded(e => !e)}
-              // Bottom-right corner, not top — the top of the PDF viewer and the
-              // recitation timer/status bar are both load-bearing UI, so a
-              // top-anchored floating button risks covering them on mobile.
-              className="md:hidden absolute bottom-3 left-3 z-30 flex items-center gap-1.5 bg-white/90 dark:bg-gray-900/90 border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-300 hover:text-orange-500 dark:hover:text-orange-400 text-[11px] font-bold px-2.5 py-1.5 rounded-full shadow-lg backdrop-blur-sm active:scale-95 transition-all"
-              title={contentExpanded ? 'إظهار القائمة' : 'تكبير الشاشة'}
-            >
-              {contentExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-              {contentExpanded ? 'إظهار القائمة' : 'تكبير الشاشة'}
-            </button>
+            <div className="md:hidden flex-shrink-0 flex justify-start px-3 py-1.5 bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-white/10">
+              <button
+                onClick={() => setContentExpanded(e => !e)}
+                className="flex items-center gap-1.5 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-300 hover:text-orange-500 dark:hover:text-orange-400 text-[11px] font-bold px-2.5 py-1.5 rounded-full active:scale-95 transition-all"
+                title={contentExpanded ? 'إظهار القائمة' : 'تكبير الشاشة'}
+              >
+                {contentExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                {contentExpanded ? 'إظهار القائمة' : 'تكبير الشاشة'}
+              </button>
+            </div>
           )}
           {activeTab === 'videos' ? (
             <>

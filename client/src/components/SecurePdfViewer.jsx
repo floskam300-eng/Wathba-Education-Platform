@@ -47,6 +47,9 @@ export default function SecurePdfViewer({ pdf }) {
   // Root container ref — used to enter fullscreen so the toolbar + canvas both
   // expand together and stay usable while studying.
   const containerRef       = useRef(null);
+  // Ref for the scrollable canvas area — used to attach non-passive wheel/touch
+  // listeners for pinch-to-zoom and Ctrl+scroll zoom.
+  const canvasAreaRef      = useRef(null);
   const pdfDocRef          = useRef(null);
   const renderTaskRef      = useRef(null);
   const loadTaskRef        = useRef(null);
@@ -328,6 +331,77 @@ export default function SecurePdfViewer({ pdf }) {
     }
   };
 
+  /* ── Pinch-to-zoom (mobile) + Ctrl+scroll (desktop) ────────── */
+  // Listeners are attached directly (non-passive) so we can call
+  // preventDefault() and block the browser's native page-scroll/zoom.
+  useEffect(() => {
+    const el = canvasAreaRef.current;
+    if (!el) return;
+
+    // --- Pinch tracking (closure variables, reset on every touchstart) ---
+    let pinchStartDist  = null;
+    let pinchStartScale = null;
+    let pendingScale    = null; // committed on touchend
+
+    const getTouchDist = (t) => {
+      const dx = t[0].clientX - t[1].clientX;
+      const dy = t[0].clientY - t[1].clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+    };
+
+    const onTouchStart = (e) => {
+      if (e.touches.length === 2) {
+        pinchStartDist  = getTouchDist(e.touches);
+        pinchStartScale = scaleRef.current;
+        pendingScale    = null;
+      }
+    };
+
+    const onTouchMove = (e) => {
+      if (e.touches.length !== 2 || pinchStartDist === null) return;
+      e.preventDefault(); // stop page zoom/scroll during pinch
+      const ratio = getTouchDist(e.touches) / pinchStartDist;
+      pendingScale = parseFloat(
+        Math.min(MAX_SCALE, Math.max(MIN_SCALE, pinchStartScale * ratio)).toFixed(1)
+      );
+    };
+
+    const onTouchEnd = () => {
+      // Commit the scale only when the user lifts their fingers to avoid
+      // kicking off a heavy PDF re-render on every pixel of movement.
+      if (pendingScale !== null) {
+        setScale(pendingScale);
+      }
+      pinchStartDist  = null;
+      pinchStartScale = null;
+      pendingScale    = null;
+    };
+
+    // --- Ctrl+scroll (desktop) ---
+    const onWheel = (e) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.2 : 0.2;
+      setScale(s => parseFloat(
+        Math.min(MAX_SCALE, Math.max(MIN_SCALE, s + delta)).toFixed(1)
+      ));
+    };
+
+    el.addEventListener('touchstart', onTouchStart, { passive: true  });
+    el.addEventListener('touchmove',  onTouchMove,  { passive: false });
+    el.addEventListener('touchend',   onTouchEnd,   { passive: true  });
+    el.addEventListener('touchcancel',onTouchEnd,   { passive: true  });
+    el.addEventListener('wheel',      onWheel,      { passive: false });
+
+    return () => {
+      el.removeEventListener('touchstart',  onTouchStart);
+      el.removeEventListener('touchmove',   onTouchMove);
+      el.removeEventListener('touchend',    onTouchEnd);
+      el.removeEventListener('touchcancel', onTouchEnd);
+      el.removeEventListener('wheel',       onWheel);
+    };
+  }, []); // scaleRef always has the latest value — no deps needed
+
   /* ── Navigation helpers ─────────────────────────────────────── */
   const prevPage = () => setCurrentPage(p => Math.max(1, p - 1));
   const nextPage = () => setCurrentPage(p => Math.min(numPages, p + 1));
@@ -437,7 +511,7 @@ export default function SecurePdfViewer({ pdf }) {
       </div>
 
       {/* ── Canvas area ── */}
-      <div className="flex-1 overflow-auto flex flex-col items-center py-4 px-2">
+      <div ref={canvasAreaRef} className="flex-1 overflow-auto flex flex-col items-center py-4 px-2">
 
         {/* Loading */}
         {isLoading && (
