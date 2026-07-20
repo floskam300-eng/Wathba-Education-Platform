@@ -300,11 +300,11 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
         videoId: ytId,
         playerVars: {
           autoplay: 1,
-          // controls:0 was deprecated by YouTube for non-partners (post-2023) and
-          // causes the player to stall indefinitely. We use controls:1 instead —
-          // YouTube's native UI is harmless because the click-interceptor overlay
-          // (z-index 10) sits on top of the iframe and absorbs all pointer events.
-          controls: 1,
+          // controls:0 hides all YouTube native UI (control bar, title, logo,
+          // end cards). We have our own custom React controls so this is safe.
+          // If autoplay is blocked by the browser the user's first tap on our
+          // custom play button calls playVideo() directly — no YouTube UI needed.
+          controls: 0,
           disablekb: 1,
           fs: 0,
           modestbranding: 1,
@@ -556,20 +556,13 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
     >
       <FloatingWatermark name={studentName} code={studentCode} />
 
-      {/* YouTube iframe — extended 65px beyond the container on top & bottom so
-          that YouTube's native control bar and title bar are pushed outside the
-          visible area. The parent's overflow-hidden clips everything outside,
-          giving a clean chromeless look without needing controls:0 (which stalls). */}
+      {/* YouTube iframe — full size, pointer-events disabled so all interaction
+          goes through our custom React controls. controls:0 eliminates YouTube's
+          native UI completely (title bar, progress bar, logo, end cards). */}
       <div
         id={playerDivId}
-        className="absolute w-full"
-        style={{
-          pointerEvents: 'none',
-          top: -65,
-          left: 0,
-          right: 0,
-          bottom: -65,
-        }}
+        className="absolute inset-0 w-full h-full"
+        style={{ pointerEvents: 'none' }}
       />
 
       {/* Click interceptor — captures taps to toggle controls without letting
