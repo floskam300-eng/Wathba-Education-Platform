@@ -556,23 +556,20 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
     >
       <FloatingWatermark name={studentName} code={studentCode} />
 
-      {/* YouTube iframe — full size, overlaid by click interceptor so native controls are unreachable. */}
+      {/* YouTube iframe — extended 65px beyond the container on top & bottom so
+          that YouTube's native control bar and title bar are pushed outside the
+          visible area. The parent's overflow-hidden clips everything outside,
+          giving a clean chromeless look without needing controls:0 (which stalls). */}
       <div
         id={playerDivId}
-        className="absolute inset-0 w-full h-full"
-        style={{ pointerEvents: 'none' }}
-      />
-
-      {/* Top gradient overlay — covers YouTube logo, title, and top-bar branding */}
-      <div
-        className="absolute top-0 left-0 right-0 pointer-events-none"
-        style={{ height: 70, background: 'linear-gradient(to bottom, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.5) 60%, transparent 100%)', zIndex: 6 }}
-      />
-
-      {/* Bottom gradient overlay — covers any residual YouTube control bar */}
-      <div
-        className="absolute bottom-0 left-0 right-0 pointer-events-none"
-        style={{ height: 70, background: 'linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.5) 60%, transparent 100%)', zIndex: 6 }}
+        className="absolute w-full"
+        style={{
+          pointerEvents: 'none',
+          top: -65,
+          left: 0,
+          right: 0,
+          bottom: -65,
+        }}
       />
 
       {/* Click interceptor — captures taps to toggle controls without letting
