@@ -536,7 +536,17 @@ export default function SecurePdfViewer({ pdf }) {
       </div>
 
       {/* ── Canvas area ── */}
-      <div ref={canvasAreaRef} className="flex-1 overflow-auto flex flex-col items-center py-4 px-2">
+      {/*
+        overflow-auto is on this element so zoom-in makes the canvas scrollable.
+        We intentionally do NOT use `flex items-center` here because centering a
+        child that is wider than the container pushes it equally left and right —
+        the left overflow is unreachable (can't scroll past x=0), so the user
+        sees the right half of the page disappear.  Instead we let the wrapper
+        div be exactly as wide as the canvas (`width: fit-content`) and use
+        `mx-auto` to center it when it fits.  When it overflows, scroll starts
+        at x=0 (left edge) and the whole page is reachable.
+      */}
+      <div ref={canvasAreaRef} className="flex-1 overflow-auto py-4 px-2">
 
         {/* Loading */}
         {isLoading && (
@@ -562,7 +572,7 @@ export default function SecurePdfViewer({ pdf }) {
 
         {/* Canvas (always mounted once loaded, hidden during load/error) */}
         {!isLoading && !error && (
-          <div className="relative w-full max-w-full flex justify-center">
+          <div className="relative mx-auto" style={{ width: 'fit-content' }}>
             {pageLoading && (
               <div className="absolute inset-0 flex items-center justify-center bg-white/50 z-10 rounded">
                 <Loader2 className="w-8 h-8 animate-spin text-orange-400" />
