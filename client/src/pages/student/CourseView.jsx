@@ -300,11 +300,12 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
         videoId: ytId,
         playerVars: {
           autoplay: 1,
-          // controls:0 hides all YouTube native UI (control bar, title, logo,
-          // end cards). We have our own custom React controls so this is safe.
-          // If autoplay is blocked by the browser the user's first tap on our
-          // custom play button calls playVideo() directly — no YouTube UI needed.
-          controls: 0,
+          // controls:0 is deprecated for non-partner YouTube channels (post-2023)
+          // and silently ignored — YouTube shows its chrome anyway and may stall.
+          // We use controls:1 and rely on the iframe-extension technique below
+          // (top:-52 / bottom:-150 on the player div + overflow-hidden on the
+          // container) to push YouTube's native chrome outside the visible area.
+          controls: 1,
           disablekb: 1,
           fs: 0,
           modestbranding: 1,
@@ -571,7 +572,7 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
       <div
         id={playerDivId}
         className="absolute w-full"
-        style={{ pointerEvents: 'none', top: -52, left: 0, right: 0, bottom: -72 }}
+        style={{ pointerEvents: 'none', top: -52, left: 0, right: 0, bottom: -150 }}
       />
 
       {/* Thin aesthetic fade — top edge (covers any residual pixel bleed) */}
