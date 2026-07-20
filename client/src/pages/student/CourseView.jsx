@@ -556,29 +556,33 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
     >
       <FloatingWatermark name={studentName} code={studentCode} />
 
-      {/* YouTube iframe — full size, pointer-events disabled so all interaction
-          goes through our custom React controls. */}
+      {/* ── YouTube iframe — extended beyond the container ──────────────────
+          YouTube's native overlays (info bar, chapter title, share/clock, logo)
+          are absolutely-positioned at the TOP and BOTTOM edges of the iframe.
+          By extending the iframe -TOP_H px above and -BOT_H px below the
+          container, those overlays are pushed OUTSIDE the container boundary.
+          overflow-hidden clips them invisibly.
+
+          The video itself fills the full iframe as a background layer, so the
+          pixels that were previously hidden BEHIND YouTube's chrome are now
+          revealed — no real video content is lost.
+
+          Thin gradient fades at the edges give a clean visual blend.          */}
       <div
         id={playerDivId}
-        className="absolute inset-0 w-full h-full"
-        style={{ pointerEvents: 'none' }}
+        className="absolute w-full"
+        style={{ pointerEvents: 'none', top: -52, left: 0, right: 0, bottom: -72 }}
       />
 
-      {/* ── YouTube UI masks ──────────────────────────────────────────────────
-          YouTube always renders certain overlays (info bar, chapter title,
-          share/clock icons, logo watermark) that survive controls:0. We cover
-          them with solid black masks sized to the YouTube player chrome heights:
-          • Bottom mask: covers the ~72px info/chapter bar (share, clock, logo)
-          • Top mask:    covers the ~48px title/branding bar
-          Both masks sit between the iframe and the click interceptor (z-index 9)
-          so they're always visible but never block our React controls.           */}
-      <div
-        className="absolute bottom-0 left-0 right-0 pointer-events-none"
-        style={{ height: 72, background: '#000', zIndex: 9 }}
-      />
+      {/* Thin aesthetic fade — top edge (covers any residual pixel bleed) */}
       <div
         className="absolute top-0 left-0 right-0 pointer-events-none"
-        style={{ height: 48, background: '#000', zIndex: 9 }}
+        style={{ height: 28, background: 'linear-gradient(to bottom, #000 0%, transparent 100%)', zIndex: 9 }}
+      />
+      {/* Thin aesthetic fade — bottom edge */}
+      <div
+        className="absolute bottom-0 left-0 right-0 pointer-events-none"
+        style={{ height: 28, background: 'linear-gradient(to top, #000 0%, transparent 100%)', zIndex: 9 }}
       />
 
       {/* Click interceptor — captures taps to toggle controls without letting
