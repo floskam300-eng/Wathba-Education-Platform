@@ -325,8 +325,20 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
             setBuffering(false);
             const d = e.target.getDuration();
             if (d > 0) setDuration(d);
-            // Player started muted (mute:1 in playerVars) so autoplay works on mobile.
-            // Immediately restore the user's preferred volume/mute state.
+            // Apply pointer-events:none to the actual iframe now that YouTube
+            // has created it (the original div no longer exists at this point).
+            try {
+              const iframe = e.target.getIframe();
+              if (iframe) {
+                iframe.style.pointerEvents = 'none';
+                // sandbox attribute restricts YouTube from opening pop-ups /
+                // navigation that would escape our player chrome.
+                iframe.setAttribute('sandbox',
+                  'allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox');
+              }
+            } catch (_) {}
+            // Player started muted (mute:1 in playerVars) so autoplay works on
+            // mobile. Immediately restore the user's preferred volume/mute state.
             try {
               if (loadMuted()) {
                 e.target.mute();
@@ -567,27 +579,27 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
     >
       <FloatingWatermark name={studentName} code={studentCode} />
 
-      {/* ── YouTube iframe — extended beyond the container ──────────────────
-          YouTube's native overlays (info bar, chapter title, share/clock, logo)
-          are absolutely-positioned at the TOP and BOTTOM edges of the iframe.
-          By extending the iframe -TOP_H px above and -BOT_H px below the
-          container, those overlays are pushed OUTSIDE the container boundary.
-          overflow-hidden clips them invisibly.
+      {/* ── YouTube iframe wrapper ────────────────────────────────────────────
+          CRITICAL: new YT.Player(divId) *replaces* the target div with an
+          iframe.  Any CSS positioning on that div disappears once YouTube
+          swaps it out, because the iframe inherits its dimensions from its
+          *new* parent — the container — not from the original div's styles.
 
-          The video itself fills the full iframe as a background layer, so the
-          pixels that were previously hidden BEHIND YouTube's chrome are now
-          revealed — no real video content is lost.
+          Fix: put the CSS extension on a permanent WRAPPER div.  YouTube
+          replaces only the inner #playerDivId div, so the iframe ends up as
+          a child of the wrapper and `height="100%"` resolves to the wrapper's
+          extended height (containerH + 60 + 100 px), not the container.
 
-          Thin gradient fades at the edges give a clean visual blend.          */}
-      {/* YouTube iframe — sits inside a div that extends slightly beyond the
-          container on all sides so YouTube's chapter/branding bar (which is
-          positioned at the very bottom edge of the iframe) is clipped by the
-          container's overflow-hidden before it enters the visible area.        */}
+          The wrapper extends 60 px above and 100 px below the container.
+          YouTube's chrome (chapter bar, branding, controls) sits at the very
+          bottom of the iframe → outside the container → clipped by
+          overflow-hidden and invisible to the user.                           */}
       <div
-        id={playerDivId}
-        className="absolute w-full"
-        style={{ pointerEvents: 'none', top: -50, left: 0, right: 0, bottom: -70 }}
-      />
+        className="absolute"
+        style={{ top: -60, left: 0, right: 0, bottom: -100 }}
+      >
+        <div id={playerDivId} className="w-full h-full" />
+      </div>
 
       {/* ── YouTube UI gradient masks (same technique as reference platform) ──
           controls=0 hides the main control bar.  A ~60px chapter/branding bar
