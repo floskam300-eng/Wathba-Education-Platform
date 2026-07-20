@@ -557,16 +557,32 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
       <FloatingWatermark name={studentName} code={studentCode} />
 
       {/* YouTube iframe — full size, pointer-events disabled so all interaction
-          goes through our custom React controls. controls:0 eliminates YouTube's
-          native UI completely (title bar, progress bar, logo, end cards). */}
+          goes through our custom React controls. */}
       <div
         id={playerDivId}
         className="absolute inset-0 w-full h-full"
         style={{ pointerEvents: 'none' }}
       />
 
+      {/* ── YouTube UI masks ──────────────────────────────────────────────────
+          YouTube always renders certain overlays (info bar, chapter title,
+          share/clock icons, logo watermark) that survive controls:0. We cover
+          them with solid black masks sized to the YouTube player chrome heights:
+          • Bottom mask: covers the ~72px info/chapter bar (share, clock, logo)
+          • Top mask:    covers the ~48px title/branding bar
+          Both masks sit between the iframe and the click interceptor (z-index 9)
+          so they're always visible but never block our React controls.           */}
+      <div
+        className="absolute bottom-0 left-0 right-0 pointer-events-none"
+        style={{ height: 72, background: '#000', zIndex: 9 }}
+      />
+      <div
+        className="absolute top-0 left-0 right-0 pointer-events-none"
+        style={{ height: 48, background: '#000', zIndex: 9 }}
+      />
+
       {/* Click interceptor — captures taps to toggle controls without letting
-          any click reach the (chromeless) iframe. */}
+          any click reach the iframe. */}
       <div className="absolute inset-0" style={{ zIndex: 10 }} onClick={handleScreenTap} onContextMenu={(e) => e.preventDefault()} />
 
       {/* Centered play/pause overlay — shows on hover (showControls) or when paused */}
