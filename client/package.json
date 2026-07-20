@@ -13,6 +13,7 @@
     "@tanstack/react-query-persist-client": "^5.101.2",
     "axios": "^1.6.8",
     "clsx": "^2.1.1",
+    "disable-devtool": "^0.3.9",
     "echarts": "^6.0.0",
     "echarts-for-react": "^3.0.6",
     "firebase": "^12.13.0",

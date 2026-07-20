@@ -16,6 +16,7 @@ import { useFCM } from '../hooks/useFCM';
 import { refreshMediaToken } from '../lib/mediaAccess';
 import api from '../lib/api';
 import { useAntiCapture } from '../hooks/useAntiCapture';
+import DisableDevtool from 'disable-devtool';
 
 const EVENTS_NAV_CSS = `
   .events-nav-link {
@@ -269,6 +270,44 @@ export default function StudentLayout() {
     const id = setInterval(refreshMediaToken, 12 * 60 * 1000);
     return () => clearInterval(id);
   }, [user?.id]);
+
+  // ── Content protection: block right-click & DevTools for student pages ──
+  useEffect(() => {
+    // 1. Global right-click prevention
+    const blockContextMenu = (e) => e.preventDefault();
+    document.addEventListener('contextmenu', blockContextMenu);
+
+    // 2. Block common keyboard shortcuts that open DevTools or allow saving
+    const blockKeys = (e) => {
+      const k = e.key;
+      const ctrl = e.ctrlKey || e.metaKey;
+      // F12, Ctrl+Shift+I/J/C/U, Ctrl+U (view source), Ctrl+S (save)
+      if (
+        k === 'F12' ||
+        (ctrl && e.shiftKey && ['i', 'I', 'j', 'J', 'c', 'C'].includes(k)) ||
+        (ctrl && ['u', 'U', 's', 'S'].includes(k))
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }
+    };
+    document.addEventListener('keydown', blockKeys, true);
+
+    // 3. DevTools detection — redirect to home when opened
+    DisableDevtool({
+      ondevtoolopen: () => {
+        window.location.replace('/student');
+      },
+      interval: 1000,
+      disableMenu: false, // we handle contextmenu ourselves above
+    });
+
+    return () => {
+      document.removeEventListener('contextmenu', blockContextMenu);
+      document.removeEventListener('keydown', blockKeys, true);
+    };
+  }, []);
 
   const handleLogout = () => { logout(); };
 

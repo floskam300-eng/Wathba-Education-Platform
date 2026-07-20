@@ -314,6 +314,8 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
           cc_load_policy: 0,
           origin: window.location.origin,
           start: startPos,
+          // Use youtube-nocookie.com to reduce YouTube branding/cookies
+          host: 'https://www.youtube-nocookie.com',
         },
         events: {
           onReady: (e) => {
@@ -559,6 +561,18 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
         id={playerDivId}
         className="absolute inset-0 w-full h-full"
         style={{ pointerEvents: 'none' }}
+      />
+
+      {/* Top gradient overlay — covers YouTube logo, title, and top-bar branding */}
+      <div
+        className="absolute top-0 left-0 right-0 pointer-events-none"
+        style={{ height: 70, background: 'linear-gradient(to bottom, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.5) 60%, transparent 100%)', zIndex: 6 }}
+      />
+
+      {/* Bottom gradient overlay — covers any residual YouTube control bar */}
+      <div
+        className="absolute bottom-0 left-0 right-0 pointer-events-none"
+        style={{ height: 70, background: 'linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.5) 60%, transparent 100%)', zIndex: 6 }}
       />
 
       {/* Click interceptor — captures taps to toggle controls without letting
