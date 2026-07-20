@@ -300,12 +300,15 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
         videoId: ytId,
         playerVars: {
           autoplay: 1,
-          // controls:0 is deprecated for non-partner YouTube channels (post-2023)
-          // and silently ignored — YouTube shows its chrome anyway and may stall.
-          // We use controls:1 and rely on the iframe-extension technique below
-          // (top:-52 / bottom:-150 on the player div + overflow-hidden on the
-          // container) to push YouTube's native chrome outside the visible area.
-          controls: 1,
+          // mute=1 lets autoplay succeed on mobile (browsers block unmuted autoplay).
+          // We unmute immediately in onReady (unless the user explicitly chose muted).
+          // This prevents YouTube from showing its large "tap-to-play" overlay that
+          // appears when autoplay is blocked — that overlay is what was leaking through.
+          mute: 1,
+          // controls=0 hides YouTube's native control bar (progress, time, fullscreen).
+          // The chapter/branding overlay (~60px) that remains is covered by the gradient
+          // masks below. Requires muted autoplay above to avoid the tap-to-play overlay.
+          controls: 0,
           disablekb: 1,
           fs: 0,
           modestbranding: 1,
@@ -315,7 +318,6 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
           cc_load_policy: 0,
           origin: window.location.origin,
           start: startPos,
-          // Use youtube-nocookie.com to reduce YouTube branding/cookies
           host: 'https://www.youtube-nocookie.com',
         },
         events: {
@@ -323,8 +325,16 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
             setBuffering(false);
             const d = e.target.getDuration();
             if (d > 0) setDuration(d);
-            e.target.setVolume(savedVol);
-            if (loadMuted()) { try { e.target.mute(); } catch (_) {} }
+            // Player started muted (mute:1 in playerVars) so autoplay works on mobile.
+            // Immediately restore the user's preferred volume/mute state.
+            try {
+              if (loadMuted()) {
+                e.target.mute();
+              } else {
+                e.target.unMute();
+                e.target.setVolume(savedVol);
+              }
+            } catch (_) {}
             try { e.target.setPlaybackRate(savedSpeed); } catch (_) {}
             if (startPos > 0) {
               try { e.target.seekTo(startPos, true); } catch (_) {}
@@ -569,21 +579,28 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
           revealed — no real video content is lost.
 
           Thin gradient fades at the edges give a clean visual blend.          */}
+      {/* YouTube iframe — sits inside a div that extends slightly beyond the
+          container on all sides so YouTube's chapter/branding bar (which is
+          positioned at the very bottom edge of the iframe) is clipped by the
+          container's overflow-hidden before it enters the visible area.        */}
       <div
         id={playerDivId}
         className="absolute w-full"
-        style={{ pointerEvents: 'none', top: -52, left: 0, right: 0, bottom: -150 }}
+        style={{ pointerEvents: 'none', top: -50, left: 0, right: 0, bottom: -70 }}
       />
 
-      {/* Thin aesthetic fade — top edge (covers any residual pixel bleed) */}
+      {/* ── YouTube UI gradient masks (same technique as reference platform) ──
+          controls=0 hides the main control bar.  A ~60px chapter/branding bar
+          can still appear at the top and bottom edges of the iframe.
+          80px opaque-to-transparent gradients cover it completely, same as
+          the reference platform's ::before / ::after on .plyr__video-wrapper.  */}
       <div
         className="absolute top-0 left-0 right-0 pointer-events-none"
-        style={{ height: 28, background: 'linear-gradient(to bottom, #000 0%, transparent 100%)', zIndex: 9 }}
+        style={{ height: 80, background: 'linear-gradient(to bottom, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.6) 50%, transparent 100%)', zIndex: 9 }}
       />
-      {/* Thin aesthetic fade — bottom edge */}
       <div
         className="absolute bottom-0 left-0 right-0 pointer-events-none"
-        style={{ height: 28, background: 'linear-gradient(to top, #000 0%, transparent 100%)', zIndex: 9 }}
+        style={{ height: 80, background: 'linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.6) 50%, transparent 100%)', zIndex: 9 }}
       />
 
       {/* Click interceptor — captures taps to toggle controls without letting
