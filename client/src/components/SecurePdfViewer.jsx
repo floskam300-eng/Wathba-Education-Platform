@@ -118,30 +118,38 @@ export default function SecurePdfViewer({ pdf }) {
     }
 
     setPageLoading(true);
-    // [B-1 fix] track cancellation so finally doesn't clear the spinner
-    // that the *next* render already started.
     let wasCancelled = false;
     try {
       const page = await doc.getPage(pageNum);
       if (!mountedRef.current) return;
 
-      const dpr      = window.devicePixelRatio || 1;
+      // Cap DPR to 2.  On high-DPI mobile (DPR=3) at 300% zoom the canvas
+      // would be 595 × 3 × 3 = 5 355 px wide (≈40 MP) — enough to freeze or
+      // OOM the device GPU.  DPR=2 still gives crisp text on retina screens
+      // while capping canvas area to ≈16 MP in the worst case.
+      const dpr      = Math.min(window.devicePixelRatio || 1, 2);
       const viewport = page.getViewport({ scale: sc * dpr });
       const canvas   = canvasRef.current;
       if (!canvas || !mountedRef.current) return;
 
       const ctx = canvas.getContext('2d');
-      canvas.width        = viewport.width;
-      canvas.height       = viewport.height;
-      // Only cap the *intrinsic* (native pixel) display size here — leave
-      // actual width/height to the CSS (width:100%, height:auto) set via the
-      // React `style` prop below, which scales the page down proportionally
-      // to fit narrow mobile screens. Setting a fixed px width AND height
-      // imperatively (like before) fights that CSS: capping only the width
-      // via max-w-full while height stayed a fixed px value squashed the
-      // aspect ratio, so a wide/landscape PDF page looked stretched/tall.
-      canvas.style.maxWidth  = `${viewport.width  / dpr}px`;
-      canvas.style.maxHeight = `${viewport.height / dpr}px`;
+      canvas.width  = viewport.width;
+      canvas.height = viewport.height;
+
+      // Set the CSS display size explicitly so that:
+      //  • At ≥ default zoom the page fills the container (no smaller)
+      //  • At higher zoom levels the canvas grows beyond the container
+      //    and becomes scrollable — this is what "zoom in" actually means.
+      // Previously `width: '100%'` in the JSX style forced the canvas to
+      // always stay at container width regardless of zoom, so 300% zoom
+      // looked identical to 100% zoom to the user.
+      const cssW = Math.round(viewport.width  / dpr);
+      const cssH = Math.round(viewport.height / dpr);
+      canvas.style.width     = `${cssW}px`;
+      canvas.style.height    = `${cssH}px`;
+      canvas.style.maxWidth  = '';
+      canvas.style.maxHeight = '';
+
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       const task = page.render({ canvasContext: ctx, viewport });
@@ -149,20 +157,17 @@ export default function SecurePdfViewer({ pdf }) {
       await task.promise;
 
       if (!mountedRef.current) return;
-      // Read the label from ref so this callback never needs to be recreated
       drawWatermark(canvas, watermarkLabelRef.current);
     } catch (err) {
       if (err?.name === 'RenderingCancelledException') {
-        // Do NOT clear pageLoading — the new render already owns the spinner.
         wasCancelled = true;
         return;
       }
       console.error('[SecurePdfViewer] render error', err);
     } finally {
-      // Skip if cancelled: the replacement render will call setPageLoading(false).
       if (mountedRef.current && !wasCancelled) setPageLoading(false);
     }
-  }, [drawWatermark]);                          // watermarkLabel removed from deps
+  }, [drawWatermark]);
 
   /* ── Keep currentPage/scale refs in sync with state ─────────── */
   // [B-4 fix] so the watermark re-draw effect always reads the latest page/zoom
@@ -258,10 +263,30 @@ export default function SecurePdfViewer({ pdf }) {
   }, [pdf?.file_url, pdf?.id, retryKey, user?.id]);
 
   /* ── Re-render page when doc / page / zoom changes ──────────── */
+  // Page changes render immediately; zoom changes are debounced 250 ms so
+  // that tapping the +/- button rapidly (or pinch-settling) doesn't queue
+  // up multiple heavy PDF re-renders before the previous one even finishes.
+  const lastRenderedPage  = useRef(0);
+  const zoomDebounceTimer = useRef(null);
   useEffect(() => {
-    if (!isLoading && !error && pdfDocRef.current) {
+    if (isLoading || error || !pdfDocRef.current) return;
+
+    const pageChanged = lastRenderedPage.current !== currentPage;
+    lastRenderedPage.current = currentPage;
+
+    clearTimeout(zoomDebounceTimer.current);
+    if (pageChanged) {
+      // Immediate — don't keep the user waiting when flipping pages.
       renderPage(pdfDocRef.current, currentPage, scale);
+    } else {
+      // Debounced — scale changed; wait for the user to settle.
+      zoomDebounceTimer.current = setTimeout(() => {
+        if (pdfDocRef.current && mountedRef.current) {
+          renderPage(pdfDocRef.current, currentPage, scale);
+        }
+      }, 250);
     }
+    return () => clearTimeout(zoomDebounceTimer.current);
   }, [currentPage, scale, isLoading, error, renderPage]);
 
   /* ── Prefetch next page ─────────────────────────────────────── */
@@ -545,12 +570,14 @@ export default function SecurePdfViewer({ pdf }) {
             )}
             <canvas
               ref={canvasRef}
-              className="shadow-xl rounded max-w-full block"
+              className="shadow-xl rounded block"
               style={{
-                imageRendering: 'auto',   // [B-1 fix] 'high-quality' is not a valid CSS value
+                imageRendering: 'auto',
                 pointerEvents: 'none',
-                width: '100%',
-                height: 'auto',
+                // width/height are set imperatively in renderPage so that:
+                //  • The canvas grows with zoom (enabling horizontal scroll)
+                //  • Physical pixel size = cssSize × min(DPR, 2) — not more
+                // DO NOT add width/height/maxWidth CSS here; it overrides that.
               }}
               draggable={false}
               onDragStart={e => e.preventDefault()}
