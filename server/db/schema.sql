@@ -1255,3 +1255,6 @@ CREATE INDEX IF NOT EXISTS idx_video_progress_student_watched
 
 -- Wide logo for desktop navbar/header (separate from square PWA icon)
 ALTER TABLE teachers ADD COLUMN IF NOT EXISTS logo_wide_url VARCHAR(500);
+
+-- PWA short name: the label shown under the app icon on phone home screen
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS pwa_name VARCHAR(50);

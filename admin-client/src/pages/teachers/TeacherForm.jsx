@@ -23,6 +23,7 @@ export default function TeacherForm() {
   const [logoUrl, setLogoUrl] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
   const [photoUploading, setPhotoUploading] = useState(false);
+  const [pwaName, setPwaName] = useState('');
 
   // Subdomain slug — separate from username in create mode
   const [slug, setSlug] = useState('');
@@ -92,6 +93,7 @@ export default function TeacherForm() {
           setBio(teacher.bio || '');
           setLogoUrl(teacher.logo_url || '');
           setPhotoUrl(teacher.photo_url || '');
+          setPwaName(teacher.pwa_name || '');
 
           const teamRes = await api.get(`/teachers/${id}/team`);
           setTeam(teamRes.data.team);
@@ -153,6 +155,7 @@ export default function TeacherForm() {
           bio,
           logo_url: logoUrl,
           photo_url: photoUrl,
+          pwa_name: pwaName,
         });
         toast.success('تم تحديث بيانات المدرس بنجاح');
       }
@@ -492,6 +495,52 @@ export default function TeacherForm() {
             <Sparkles className="text-amber-500" size={20} />
             <span>التخصيص الاحترافي (Branding)</span>
           </h3>
+
+          {/* ── PWA Name ── */}
+          <div className="rounded-xl border border-slate-700 bg-slate-950/40 p-4 space-y-3">
+            <div className="flex items-start gap-2">
+              <Info size={15} className="text-green-400 mt-0.5 flex-shrink-0" />
+              <p className="text-xs text-slate-400 font-cairo leading-relaxed">
+                <span className="text-white font-semibold">اسم التطبيق على الهاتف</span> — هو الاسم اللي بيظهر تحت أيقونة المنصة لما الطالب ينزّلها على هاتفه (iOS أو Android). يُفضل يكون قصير (12 حرف أو أقل) عشان مايتقطعش على الشاشة.
+                لو تركته فاضي، هيستخدم اسم المنصة الكامل تلقائياً.
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-slate-300 font-cairo" htmlFor="pwaName">
+                اسم التطبيق على الهاتف (PWA Short Name)
+              </label>
+              <div className="mt-2 flex items-center gap-3">
+                <input
+                  id="pwaName"
+                  type="text"
+                  maxLength={50}
+                  value={pwaName}
+                  onChange={(e) => setPwaName(e.target.value)}
+                  placeholder="مثال: أ.أحمد، رياضيات أحمد"
+                  className="block w-full rounded-xl border border-slate-800 bg-slate-950 py-3 px-4 text-white placeholder-slate-600 focus:border-green-500 focus:outline-none text-sm"
+                />
+                {pwaName && (
+                  <div className="flex-shrink-0 text-center">
+                    <div className="w-16 flex flex-col items-center gap-1">
+                      <div className="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center">
+                        <span className="text-lg">📱</span>
+                      </div>
+                      <span className="text-[10px] text-slate-300 font-cairo text-center leading-tight max-w-[64px] break-words">
+                        {pwaName.length > 12 ? pwaName.slice(0, 12) + '…' : pwaName}
+                      </span>
+                    </div>
+                    <p className="text-[9px] text-slate-600 mt-1 font-cairo">معاينة</p>
+                  </div>
+                )}
+              </div>
+              <p className="mt-1.5 text-xs text-slate-500 font-cairo">
+                {pwaName.length}/50 حرف
+                {pwaName.length > 12 && (
+                  <span className="text-yellow-500 mr-2">⚠ أطول من 12 حرف — قد يُقطع على بعض الهواتف</span>
+                )}
+              </p>
+            </div>
+          </div>
 
           {/* ── Logo row ── */}
           <div className="rounded-xl border border-slate-700 bg-slate-950/40 p-4 space-y-4">

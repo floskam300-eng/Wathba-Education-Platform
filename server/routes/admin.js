@@ -281,7 +281,7 @@ router.get('/teachers/:id', requireAdminAuth, async (req, res) => {
     const { rows } = await pool.query(
       `SELECT id, username, name, classification, whatsapp_phone, logo_url, logo_wide_url, photo_url, slug,
               is_platform_suspended, platform_suspended_at, platform_suspended_reason,
-              features_enabled, hero_image_url, background_color, created_at
+              features_enabled, hero_image_url, background_color, created_at, pwa_name
          FROM teachers
         WHERE id = $1`,
       [teacherId]
@@ -462,11 +462,13 @@ router.put('/teachers/:id', requireAdminAuth, async (req, res) => {
     // (or not yet exposed in this form) — omitting them from the UPDATE prevents
     // accidental null-overwrite every time the admin saves basic profile data.
     const bio = typeof req.body.bio === 'string' ? req.body.bio : '';
+    const rawPwaName = typeof req.body.pwa_name === 'string' ? req.body.pwa_name.trim() : null;
+    const pwaName = rawPwaName || null;
     const { rowCount } = await pool.query(
       `UPDATE teachers
           SET name = $1, classification = $2, whatsapp_phone = $3,
-              logo_url = $4, bio = $5, photo_url = $6
-        WHERE id = $7`,
+              logo_url = $4, bio = $5, photo_url = $6, pwa_name = $7
+        WHERE id = $8`,
       [
         name.trim(),
         classification ? classification.trim() : null,
@@ -474,6 +476,7 @@ router.put('/teachers/:id', requireAdminAuth, async (req, res) => {
         logo_url || null,
         bio,
         photo_url || null,
+        pwaName,
         teacherId,
       ]
     );

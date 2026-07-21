@@ -202,14 +202,16 @@ router.get('/parent-lookup', parentLookupLimiter, async (req, res) => {
 // Dynamic PWA manifest — scoped to current tenant (subdomain or X-Tenant-Slug)
 async function buildManifest(req, slug) {
   const result = await pool.query(
-    'SELECT name, platform_name, logo_url FROM teachers WHERE slug = $1',
+    'SELECT name, platform_name, pwa_name, logo_url FROM teachers WHERE slug = $1',
     [slug]
   );
   if (result.rows.length === 0) return null;
 
   const t = result.rows[0];
   const appName   = t.platform_name || t.name || 'منصة تعليمية';
-  const shortName = appName.length > 14 ? appName.slice(0, 14) : appName;
+  // pwa_name is the admin-configured short label for the phone home screen icon.
+  // Fall back to appName if not set (no artificial truncation — admin controls the length).
+  const shortName = t.pwa_name || appName;
 
   const rawLogo = t.logo_url;
   const logoSrc = rawLogo
