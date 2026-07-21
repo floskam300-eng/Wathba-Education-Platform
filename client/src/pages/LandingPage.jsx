@@ -263,11 +263,11 @@ export default function LandingPage() {
                 <img
                   src={teacher.photo_url.startsWith('http') || teacher.photo_url.startsWith('/') ? teacher.photo_url : `/uploads/${teacher.photo_url}`}
                   alt={teacher?.name}
-                  className="relative w-56 h-56 sm:w-64 sm:h-64 lg:w-72 lg:h-72 rounded-[2rem] object-cover shadow-2xl shadow-orange-500/20 border-4 border-white"
+                  className="relative w-44 h-60 sm:w-52 sm:h-72 lg:w-56 lg:h-80 rounded-[2rem] object-cover object-top shadow-2xl shadow-orange-500/20 border-4 border-white"
                   onError={e => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
                 />
               ) : null}
-              <div className="relative w-56 h-56 sm:w-64 sm:h-64 lg:w-72 lg:h-72 rounded-[2rem] bg-gradient-to-br from-orange-500 to-orange-700 items-center justify-center text-6xl font-black text-white shadow-2xl shadow-orange-500/20 border-4 border-white"
+              <div className="relative w-44 h-60 sm:w-52 sm:h-72 lg:w-56 lg:h-80 rounded-[2rem] bg-gradient-to-br from-orange-500 to-orange-700 items-center justify-center text-6xl font-black text-white shadow-2xl shadow-orange-500/20 border-4 border-white"
                 style={{ display: teacher?.photo_url ? 'none' : 'flex' }}>
                 {teacher?.name?.charAt(0) || 'م'}
               </div>
@@ -338,14 +338,14 @@ export default function LandingPage() {
                     <img
                       src={teacher.photo_url.startsWith('http') || teacher.photo_url.startsWith('/') ? teacher.photo_url : `/uploads/${teacher.photo_url}`}
                       alt={teacher.name}
-                      className="w-28 h-28 rounded-2xl object-cover shadow-xl shadow-orange-500/25 mx-auto border-2 border-orange-500/30"
+                      className="w-24 h-32 rounded-2xl object-cover object-top shadow-xl shadow-orange-500/25 mx-auto border-2 border-orange-500/30"
                       onError={e => {
                         e.target.style.display = 'none';
                         e.target.nextSibling.style.display = 'flex';
                       }}
                     />
                   ) : null}
-                  <div className="w-28 h-28 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-700 items-center justify-center text-4xl font-black text-white shadow-xl shadow-orange-500/25 mx-auto"
+                  <div className="w-24 h-32 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-700 items-center justify-center text-4xl font-black text-white shadow-xl shadow-orange-500/25 mx-auto"
                     style={{ display: teacher?.photo_url ? 'none' : 'flex' }}>
                     {teacher?.name?.charAt(0) || 'م'}
                   </div>
