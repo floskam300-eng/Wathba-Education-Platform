@@ -258,34 +258,20 @@ export default function LandingPage() {
           {/* Large teacher photo */}
           <Reveal delay={0.05} className="order-1 lg:order-2 lg:col-span-2 flex justify-center">
             <div className="relative flex items-center justify-center" style={{ width: 'fit-content' }}>
-              {/* Glow blob behind photo */}
-              <div className="absolute -inset-8 rounded-[3rem] bg-gradient-to-br from-orange-500/25 via-[#0B3C5D]/8 to-purple-400/15 blur-3xl pointer-events-none" />
-
-              {/* Decorative circle — top-right */}
-              <div className="absolute -top-5 -right-5 w-14 h-14 rounded-full bg-orange-500/15 border-2 border-orange-400/30 pointer-events-none" />
-              <div className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-orange-500/40 pointer-events-none" />
-
-              {/* Decorative circle — bottom-left */}
-              <div className="absolute -bottom-5 -left-5 w-12 h-12 rounded-full bg-[#0B3C5D]/10 border-2 border-[#0B3C5D]/15 pointer-events-none" />
-              <div className="absolute -bottom-1 -left-1 w-4 h-4 rounded-full bg-[#0B3C5D]/25 pointer-events-none" />
-
-              {/* Decorative small dot — top-left */}
-              <div className="absolute top-6 -left-6 w-3 h-3 rounded-full bg-purple-400/50 pointer-events-none" />
-              <div className="absolute top-14 -left-4 w-2 h-2 rounded-full bg-orange-400/40 pointer-events-none" />
-
-              {/* Decorative line accent — bottom-right */}
-              <div className="absolute -bottom-3 -right-3 w-8 h-8 rounded-full bg-purple-500/15 border border-purple-400/25 pointer-events-none" />
+              {/* Gradient banner border */}
+              <div className="absolute -inset-[5px] rounded-[2.3rem] pointer-events-none z-20"
+                style={{ background: 'linear-gradient(135deg, #f97316 0%, #0B3C5D 50%, #f97316 100%)', borderRadius: '2.3rem' }} />
 
               {/* Photo */}
               {teacher?.photo_url ? (
                 <img
                   src={teacher.photo_url.startsWith('http') || teacher.photo_url.startsWith('/') ? teacher.photo_url : `/uploads/${teacher.photo_url}`}
                   alt={teacher?.name}
-                  className="relative w-52 h-72 sm:w-64 sm:h-80 lg:w-72 lg:h-96 rounded-[2rem] object-cover object-top shadow-2xl shadow-orange-500/25 border-4 border-white z-10"
+                  className="relative w-52 h-72 sm:w-64 sm:h-80 lg:w-72 lg:h-96 rounded-[2rem] object-cover object-top shadow-2xl z-10"
                   onError={e => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
                 />
               ) : null}
-              <div className="relative w-52 h-72 sm:w-64 sm:h-80 lg:w-72 lg:h-96 rounded-[2rem] bg-gradient-to-br from-orange-500 to-orange-700 items-center justify-center text-7xl font-black text-white shadow-2xl shadow-orange-500/25 border-4 border-white z-10"
+              <div className="relative w-52 h-72 sm:w-64 sm:h-80 lg:w-72 lg:h-96 rounded-[2rem] bg-gradient-to-br from-orange-500 to-orange-700 items-center justify-center text-7xl font-black text-white shadow-2xl z-10"
                 style={{ display: teacher?.photo_url ? 'none' : 'flex' }}>
                 {teacher?.name?.charAt(0) || 'م'}
               </div>
