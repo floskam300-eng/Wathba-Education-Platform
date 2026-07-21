@@ -258,51 +258,23 @@ export default function LandingPage() {
           {/* Large teacher photo */}
           <Reveal delay={0.05} className="order-1 lg:order-2 lg:col-span-2 flex justify-center">
             <div className="relative flex items-center justify-center" style={{ width: 'fit-content' }}>
-              {/* Outer rotating ring */}
-              <div className="absolute w-[115%] h-[115%] rounded-[3rem] border-2 border-dashed border-orange-400/30 lp-ring-spin pointer-events-none" />
-              {/* Inner pulse ring */}
-              <div className="absolute w-[108%] h-[108%] rounded-[2.5rem] border border-[#0B3C5D]/10 lp-ring-pulse pointer-events-none" />
+              {/* Glow blob behind photo */}
+              <div className="absolute -inset-8 rounded-[3rem] bg-gradient-to-br from-orange-500/25 via-[#0B3C5D]/8 to-purple-400/15 blur-3xl pointer-events-none" />
 
-              {/* Glow blob */}
-              <div className="absolute -inset-6 rounded-[3rem] bg-gradient-to-br from-orange-500/30 via-[#0B3C5D]/10 to-purple-500/15 blur-2xl pointer-events-none" />
+              {/* Decorative circle — top-right */}
+              <div className="absolute -top-5 -right-5 w-14 h-14 rounded-full bg-orange-500/15 border-2 border-orange-400/30 pointer-events-none" />
+              <div className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-orange-500/40 pointer-events-none" />
 
-              {/* Corner accent — top-right */}
-              <div className="absolute -top-3 -right-3 w-10 h-10 rounded-2xl bg-orange-500 flex items-center justify-center shadow-lg shadow-orange-500/40 z-20 pointer-events-none">
-                <Star className="w-5 h-5 text-white fill-white" />
-              </div>
+              {/* Decorative circle — bottom-left */}
+              <div className="absolute -bottom-5 -left-5 w-12 h-12 rounded-full bg-[#0B3C5D]/10 border-2 border-[#0B3C5D]/15 pointer-events-none" />
+              <div className="absolute -bottom-1 -left-1 w-4 h-4 rounded-full bg-[#0B3C5D]/25 pointer-events-none" />
 
-              {/* Floating badge — bottom-left */}
-              <div className="absolute -bottom-4 -left-4 z-20 flex items-center gap-2 bg-white border border-slate-200 shadow-xl shadow-[#0B3C5D]/10 rounded-2xl px-3 py-2 pointer-events-none">
-                <div className="w-7 h-7 rounded-xl bg-emerald-500/15 flex items-center justify-center shrink-0">
-                  <CheckCircle className="w-4 h-4 text-emerald-500" />
-                </div>
-                <div className="leading-tight">
-                  <p className="text-[10px] font-black text-[#0B3C5D]">معلم موثّق</p>
-                  <p className="text-[9px] text-slate-400">Verified Teacher</p>
-                </div>
-              </div>
+              {/* Decorative small dot — top-left */}
+              <div className="absolute top-6 -left-6 w-3 h-3 rounded-full bg-purple-400/50 pointer-events-none" />
+              <div className="absolute top-14 -left-4 w-2 h-2 rounded-full bg-orange-400/40 pointer-events-none" />
 
-              {/* Floating badge — top-left */}
-              <div className="absolute -top-4 -left-4 z-20 flex items-center gap-2 bg-white border border-slate-200 shadow-xl shadow-[#0B3C5D]/10 rounded-2xl px-3 py-2 pointer-events-none">
-                <div className="w-7 h-7 rounded-xl bg-orange-500/15 flex items-center justify-center shrink-0">
-                  <Trophy className="w-4 h-4 text-orange-500" />
-                </div>
-                <div className="leading-tight">
-                  <p className="text-[10px] font-black text-[#0B3C5D]">{stats?.total_students || '+'} طالب</p>
-                  <p className="text-[9px] text-slate-400">Students</p>
-                </div>
-              </div>
-
-              {/* Floating badge — bottom-right */}
-              <div className="absolute -bottom-4 -right-4 z-20 flex items-center gap-2 bg-white border border-slate-200 shadow-xl shadow-[#0B3C5D]/10 rounded-2xl px-3 py-2 pointer-events-none">
-                <div className="w-7 h-7 rounded-xl bg-purple-500/15 flex items-center justify-center shrink-0">
-                  <BookOpen className="w-4 h-4 text-purple-500" />
-                </div>
-                <div className="leading-tight">
-                  <p className="text-[10px] font-black text-[#0B3C5D]">{stats?.total_courses || '+'} كورس</p>
-                  <p className="text-[9px] text-slate-400">Courses</p>
-                </div>
-              </div>
+              {/* Decorative line accent — bottom-right */}
+              <div className="absolute -bottom-3 -right-3 w-8 h-8 rounded-full bg-purple-500/15 border border-purple-400/25 pointer-events-none" />
 
               {/* Photo */}
               {teacher?.photo_url ? (
@@ -384,14 +356,14 @@ export default function LandingPage() {
                     <img
                       src={teacher.photo_url.startsWith('http') || teacher.photo_url.startsWith('/') ? teacher.photo_url : `/uploads/${teacher.photo_url}`}
                       alt={teacher.name}
-                      className="w-24 h-32 rounded-2xl object-cover object-top shadow-xl shadow-orange-500/25 mx-auto border-2 border-orange-500/30"
+                      className="w-40 h-52 rounded-2xl object-cover object-top shadow-xl shadow-orange-500/25 mx-auto border-2 border-orange-500/30"
                       onError={e => {
                         e.target.style.display = 'none';
                         e.target.nextSibling.style.display = 'flex';
                       }}
                     />
                   ) : null}
-                  <div className="w-24 h-32 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-700 items-center justify-center text-4xl font-black text-white shadow-xl shadow-orange-500/25 mx-auto"
+                  <div className="w-40 h-52 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-700 items-center justify-center text-5xl font-black text-white shadow-xl shadow-orange-500/25 mx-auto"
                     style={{ display: teacher?.photo_url ? 'none' : 'flex' }}>
                     {teacher?.name?.charAt(0) || 'م'}
                   </div>
