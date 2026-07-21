@@ -257,21 +257,18 @@ export default function LandingPage() {
         <div className="relative z-10 max-w-6xl mx-auto px-5 grid lg:grid-cols-5 gap-10 items-center">
           {/* Large teacher photo */}
           <Reveal delay={0.05} className="order-1 lg:order-2 lg:col-span-2 flex justify-center">
-            <div className="relative flex items-center justify-center" style={{ width: 'fit-content' }}>
-              {/* Gradient banner border */}
-              <div className="absolute -inset-[5px] rounded-[2.3rem] pointer-events-none z-20"
-                style={{ background: 'linear-gradient(135deg, #f97316 0%, #0B3C5D 50%, #f97316 100%)', borderRadius: '2.3rem' }} />
-
-              {/* Photo */}
+            {/* Gradient border wrapper — acts as the "banner" frame */}
+            <div className="p-[5px] rounded-[2.3rem] shadow-2xl shadow-orange-500/30"
+              style={{ background: 'linear-gradient(135deg, #f97316 0%, #0B3C5D 55%, #f97316 100%)' }}>
               {teacher?.photo_url ? (
                 <img
                   src={teacher.photo_url.startsWith('http') || teacher.photo_url.startsWith('/') ? teacher.photo_url : `/uploads/${teacher.photo_url}`}
                   alt={teacher?.name}
-                  className="relative w-52 h-72 sm:w-64 sm:h-80 lg:w-72 lg:h-96 rounded-[2rem] object-cover object-top shadow-2xl z-10"
+                  className="w-52 h-72 sm:w-64 sm:h-80 lg:w-72 lg:h-96 rounded-[2rem] object-cover object-top block"
                   onError={e => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
                 />
               ) : null}
-              <div className="relative w-52 h-72 sm:w-64 sm:h-80 lg:w-72 lg:h-96 rounded-[2rem] bg-gradient-to-br from-orange-500 to-orange-700 items-center justify-center text-7xl font-black text-white shadow-2xl z-10"
+              <div className="w-52 h-72 sm:w-64 sm:h-80 lg:w-72 lg:h-96 rounded-[2rem] bg-gradient-to-br from-orange-500 to-orange-700 items-center justify-center text-7xl font-black text-white"
                 style={{ display: teacher?.photo_url ? 'none' : 'flex' }}>
                 {teacher?.name?.charAt(0) || 'م'}
               </div>
