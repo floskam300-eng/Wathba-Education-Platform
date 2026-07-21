@@ -257,17 +257,63 @@ export default function LandingPage() {
         <div className="relative z-10 max-w-6xl mx-auto px-5 grid lg:grid-cols-5 gap-10 items-center">
           {/* Large teacher photo */}
           <Reveal delay={0.05} className="order-1 lg:order-2 lg:col-span-2 flex justify-center">
-            <div className="relative">
-              <div className="absolute -inset-3 rounded-[2rem] bg-gradient-to-br from-orange-500/25 to-[#0B3C5D]/15 blur-xl" />
+            <div className="relative flex items-center justify-center" style={{ width: 'fit-content' }}>
+              {/* Outer rotating ring */}
+              <div className="absolute w-[115%] h-[115%] rounded-[3rem] border-2 border-dashed border-orange-400/30 lp-ring-spin pointer-events-none" />
+              {/* Inner pulse ring */}
+              <div className="absolute w-[108%] h-[108%] rounded-[2.5rem] border border-[#0B3C5D]/10 lp-ring-pulse pointer-events-none" />
+
+              {/* Glow blob */}
+              <div className="absolute -inset-6 rounded-[3rem] bg-gradient-to-br from-orange-500/30 via-[#0B3C5D]/10 to-purple-500/15 blur-2xl pointer-events-none" />
+
+              {/* Corner accent — top-right */}
+              <div className="absolute -top-3 -right-3 w-10 h-10 rounded-2xl bg-orange-500 flex items-center justify-center shadow-lg shadow-orange-500/40 z-20 pointer-events-none">
+                <Star className="w-5 h-5 text-white fill-white" />
+              </div>
+
+              {/* Floating badge — bottom-left */}
+              <div className="absolute -bottom-4 -left-4 z-20 flex items-center gap-2 bg-white border border-slate-200 shadow-xl shadow-[#0B3C5D]/10 rounded-2xl px-3 py-2 pointer-events-none">
+                <div className="w-7 h-7 rounded-xl bg-emerald-500/15 flex items-center justify-center shrink-0">
+                  <CheckCircle className="w-4 h-4 text-emerald-500" />
+                </div>
+                <div className="leading-tight">
+                  <p className="text-[10px] font-black text-[#0B3C5D]">معلم موثّق</p>
+                  <p className="text-[9px] text-slate-400">Verified Teacher</p>
+                </div>
+              </div>
+
+              {/* Floating badge — top-left */}
+              <div className="absolute -top-4 -left-4 z-20 flex items-center gap-2 bg-white border border-slate-200 shadow-xl shadow-[#0B3C5D]/10 rounded-2xl px-3 py-2 pointer-events-none">
+                <div className="w-7 h-7 rounded-xl bg-orange-500/15 flex items-center justify-center shrink-0">
+                  <Trophy className="w-4 h-4 text-orange-500" />
+                </div>
+                <div className="leading-tight">
+                  <p className="text-[10px] font-black text-[#0B3C5D]">{stats?.total_students || '+'} طالب</p>
+                  <p className="text-[9px] text-slate-400">Students</p>
+                </div>
+              </div>
+
+              {/* Floating badge — bottom-right */}
+              <div className="absolute -bottom-4 -right-4 z-20 flex items-center gap-2 bg-white border border-slate-200 shadow-xl shadow-[#0B3C5D]/10 rounded-2xl px-3 py-2 pointer-events-none">
+                <div className="w-7 h-7 rounded-xl bg-purple-500/15 flex items-center justify-center shrink-0">
+                  <BookOpen className="w-4 h-4 text-purple-500" />
+                </div>
+                <div className="leading-tight">
+                  <p className="text-[10px] font-black text-[#0B3C5D]">{stats?.total_courses || '+'} كورس</p>
+                  <p className="text-[9px] text-slate-400">Courses</p>
+                </div>
+              </div>
+
+              {/* Photo */}
               {teacher?.photo_url ? (
                 <img
                   src={teacher.photo_url.startsWith('http') || teacher.photo_url.startsWith('/') ? teacher.photo_url : `/uploads/${teacher.photo_url}`}
                   alt={teacher?.name}
-                  className="relative w-44 h-60 sm:w-52 sm:h-72 lg:w-56 lg:h-80 rounded-[2rem] object-cover object-top shadow-2xl shadow-orange-500/20 border-4 border-white"
+                  className="relative w-52 h-72 sm:w-64 sm:h-80 lg:w-72 lg:h-96 rounded-[2rem] object-cover object-top shadow-2xl shadow-orange-500/25 border-4 border-white z-10"
                   onError={e => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
                 />
               ) : null}
-              <div className="relative w-44 h-60 sm:w-52 sm:h-72 lg:w-56 lg:h-80 rounded-[2rem] bg-gradient-to-br from-orange-500 to-orange-700 items-center justify-center text-6xl font-black text-white shadow-2xl shadow-orange-500/20 border-4 border-white"
+              <div className="relative w-52 h-72 sm:w-64 sm:h-80 lg:w-72 lg:h-96 rounded-[2rem] bg-gradient-to-br from-orange-500 to-orange-700 items-center justify-center text-7xl font-black text-white shadow-2xl shadow-orange-500/25 border-4 border-white z-10"
                 style={{ display: teacher?.photo_url ? 'none' : 'flex' }}>
                 {teacher?.name?.charAt(0) || 'م'}
               </div>
