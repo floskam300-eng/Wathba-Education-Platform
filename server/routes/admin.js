@@ -450,40 +450,44 @@ router.put('/teachers/:id', requireAdminAuth, async (req, res) => {
   const teacherId = parseInt(req.params.id, 10);
   if (isNaN(teacherId)) return res.status(400).json({ error: 'معرّف غير صحيح' });
 
-  const { name, classification, whatsapp_phone, logo_url, logo_wide_url, hero_image_url, background_color, bio, photo_url } = req.body;
+  const { name, classification, whatsapp_phone, logo_url, photo_url } = req.body;
   if (!name) return res.status(400).json({ error: 'الاسم بالكامل مطلوب' });
 
   try {
     const check = await pool.query('SELECT slug FROM teachers WHERE id = $1', [teacherId]);
     if (check.rows.length === 0) return res.status(404).json({ error: 'المدرس غير موجود' });
 
+    // Only update the fields the admin form actually sends.
+    // logo_wide_url, hero_image_url, and background_color are managed separately
+    // (or not yet exposed in this form) — omitting them from the UPDATE prevents
+    // accidental null-overwrite every time the admin saves basic profile data.
+    const bio = typeof req.body.bio === 'string' ? req.body.bio : '';
     const { rowCount } = await pool.query(
       `UPDATE teachers
-          SET name = $1, classification = $2, whatsapp_phone = $3, logo_url = $4,
-              logo_wide_url = $5, hero_image_url = $6, background_color = $7, bio = $8,
-              photo_url = $9
-        WHERE id = $10`,
+          SET name = $1, classification = $2, whatsapp_phone = $3,
+              logo_url = $4, bio = $5, photo_url = $6
+        WHERE id = $7`,
       [
         name.trim(),
         classification ? classification.trim() : null,
         whatsapp_phone ? whatsapp_phone.trim() : null,
         logo_url || null,
-        logo_wide_url || null,
-        hero_image_url || null,
-        background_color || '#000000',
-        bio || '',
+        bio,
         photo_url || null,
         teacherId,
       ]
     );
     if (rowCount === 0) return res.status(404).json({ error: 'المدرس غير موجود' });
 
-    // Invalidate the subdomain tenant cache so the landing page reflects changes immediately
+    // Invalidate both the subdomain tenant cache and the public /info cache
+    // so the landing page reflects the new photo_url immediately.
     const slug = check.rows[0].slug;
     const subdomainTenant = require('../middleware/subdomainTenant');
     if (subdomainTenant && typeof subdomainTenant.invalidateCache === 'function') {
       subdomainTenant.invalidateCache(slug);
     }
+    const { invalidatePubInfoCache } = require('./public');
+    invalidatePubInfoCache(slug);
 
     res.json({ success: true });
   } catch (err) {

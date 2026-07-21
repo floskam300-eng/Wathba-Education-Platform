@@ -7,10 +7,15 @@ import { Upload, X, Image as ImageIcon } from 'lucide-react';
  * DirectImageUploader — رفع صورة مباشرة بدون قص أو تغيير نسب العرض.
  * مناسب لصورة المدرس الشخصية (portrait / أي نسب).
  */
-export default function DirectImageUploader({ onComplete, label, currentImage }) {
+export default function DirectImageUploader({ onComplete, onUploadingChange, label, currentImage }) {
   const [preview, setPreview] = useState(currentImage || null);
   const [uploading, setUploading] = useState(false);
   const inputRef = useRef(null);
+
+  const setUploadingState = (val) => {
+    setUploading(val);
+    if (typeof onUploadingChange === 'function') onUploadingChange(val);
+  };
 
   // Sync if parent updates currentImage (e.g. on form load)
   React.useEffect(() => {
@@ -25,7 +30,7 @@ export default function DirectImageUploader({ onComplete, label, currentImage })
     const objectUrl = URL.createObjectURL(file);
     setPreview(objectUrl);
 
-    setUploading(true);
+    setUploadingState(true);
     try {
       const formData = new FormData();
       formData.append('image', file);
@@ -43,7 +48,7 @@ export default function DirectImageUploader({ onComplete, label, currentImage })
       // Revert preview on failure
       setPreview(currentImage || null);
     } finally {
-      setUploading(false);
+      setUploadingState(false);
       // Reset input so the same file can be re-selected
       if (inputRef.current) inputRef.current.value = '';
     }

@@ -22,6 +22,7 @@ export default function TeacherForm() {
   const [bio, setBio] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
+  const [photoUploading, setPhotoUploading] = useState(false);
 
   // Subdomain slug — separate from username in create mode
   const [slug, setSlug] = useState('');
@@ -523,6 +524,7 @@ export default function TeacherForm() {
             </div>
             <DirectImageUploader
               onComplete={(url) => setPhotoUrl(url)}
+              onUploadingChange={(v) => setPhotoUploading(v)}
               label="الصورة الشخصية للمدرس (تُعرض في Landing Page)"
               currentImage={photoUrl}
             />
@@ -640,11 +642,11 @@ export default function TeacherForm() {
           </Link>
           <button
             type="submit"
-            disabled={saving}
+            disabled={saving || photoUploading}
             className="flex items-center gap-2 rounded-xl bg-amber-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition disabled:opacity-50 font-cairo"
           >
             <Save size={16} />
-            <span>{saving ? 'جاري الحفظ...' : 'حفظ البيانات'}</span>
+            <span>{saving ? 'جاري الحفظ...' : photoUploading ? 'جاري رفع الصورة...' : 'حفظ البيانات'}</span>
           </button>
         </div>
       </form>

@@ -24,6 +24,12 @@ function _pubSet(key, data) { _pubCache.set(key, { data, ts: Date.now() }); }
 const PUB_TTL_5MIN = 5 * 60 * 1000;
 const PUB_TTL_2MIN = 2 * 60 * 1000;
 
+// Allow admin routes to invalidate the pub_info cache when teacher data changes
+// (e.g. after PUT /api/admin/teachers/:id updates photo_url or other profile fields)
+function invalidatePubInfoCache(slug) {
+  if (slug) _pubCache.delete(`pub_info_${slug}`);
+}
+
 // Public landing page info — scoped by tenant (subdomain or X-Tenant-Slug header)
 router.get('/info', async (req, res) => {
   // Tenant must be resolved by subdomainTenant middleware — never fall back to
@@ -269,5 +275,9 @@ router.get('/manifest', async (req, res) => {
   }
 });
 
+
+// Attach to router so callers can do:
+//   const { invalidatePubInfoCache } = require('./public');
+router.invalidatePubInfoCache = invalidatePubInfoCache;
 
 module.exports = router;
