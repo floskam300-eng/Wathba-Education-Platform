@@ -93,12 +93,13 @@ function applyManifest(appName) {
 export function TeacherProvider({ children }) {
   const teacherSlug = getTenantSlug();
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isPending, isError } = useQuery({
     queryKey: ['teacher-public', teacherSlug],
     queryFn: () => api.get('/public/info').then(r => r.data),
     enabled: !!teacherSlug,
     staleTime: 60 * 1000,
-    retry: 1,
+    retry: 2,
+    retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 8000),
   });
 
   const teacher = data?.teacher || null;
@@ -131,7 +132,7 @@ export function TeacherProvider({ children }) {
       courses: data?.courses || [],
       topCourses: data?.topCourses || [],
       supportContacts: data?.supportContacts || [],
-      isLoading,
+      isLoading: isPending,
       isError,
       teacherSlug,
       platformName,
