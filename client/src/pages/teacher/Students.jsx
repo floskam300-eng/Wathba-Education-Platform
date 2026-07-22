@@ -564,7 +564,7 @@ export default function TeacherStudents() {
   // Returns { headers: string[], headerMap: {idx,name}[], dataRows: any[][] }
   // headerMap preserves the ORIGINAL column index so dataRowsToObjects can
   // correctly align data even when the sheet has empty/gap columns.
-  const parseSheetSmart = (ws) => {
+  const parseSheetSmart = (ws, XLSX) => {
     // ── Pass 1: detect header row on the UNMODIFIED sheet ─────────────────
     // Expanding merged cells BEFORE this step would inflate metadata rows
     // (school name, date banners, etc.) and cause the wrong row to be chosen.
@@ -640,17 +640,18 @@ export default function TeacherStudents() {
       return obj;
     });
 
-  const handleModelFile = (e) => {
+  const handleModelFile = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = '';
+    const XLSX = await import('xlsx');
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
         // Use ArrayBuffer (same as handleExcelFile) so both parse identically
         const wb = XLSX.read(ev.target.result, { type: 'array' });
         const ws = wb.Sheets[wb.SheetNames[0]];
-        const { headers, headerMap, dataRows } = parseSheetSmart(ws);
+        const { headers, headerMap, dataRows } = parseSheetSmart(ws, XLSX);
         if (!headers.length) { toast.error('لم يتم العثور على أعمدة صالحة في الملف'); return; }
         // Build sample using headerMap so column indices are correctly aligned
         const sampleRow = dataRows[0] || [];
@@ -786,7 +787,7 @@ export default function TeacherStudents() {
       try {
         const wb = XLSX.read(evt.target.result, { type: 'array' });
         const ws = wb.Sheets[wb.SheetNames[0]];
-        const { headers, headerMap, dataRows } = parseSheetSmart(ws);
+        const { headers, headerMap, dataRows } = parseSheetSmart(ws, XLSX);
         if (!headers.length) { toast.error('لم يتم العثور على أعمدة صالحة في الملف'); return; }
         const rows = dataRowsToObjects(headerMap, dataRows);
 
