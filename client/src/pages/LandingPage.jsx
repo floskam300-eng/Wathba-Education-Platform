@@ -244,7 +244,7 @@ export default function LandingPage() {
       </nav>
 
       {/* ─────────────── HERO ─────────────── */}
-      <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-16" style={{ zIndex: 1 }}>
+      <section className="landing-hero relative min-h-screen flex flex-col items-center justify-center overflow-hidden pt-20 pb-20 sm:pt-16 sm:pb-0" style={{ zIndex: 1 }}>
         {/* Teacher background image with dark gradient overlay for text legibility */}
         <div className="absolute inset-0 overflow-hidden">
           <img src={heroBg} alt="" className="w-full h-full object-cover" />
@@ -256,7 +256,7 @@ export default function LandingPage() {
 
         <div className="relative z-10 max-w-6xl mx-auto px-5 grid lg:grid-cols-5 gap-10 items-center">
           {/* Large teacher photo */}
-          <Reveal delay={0.05} className="order-1 lg:order-2 lg:col-span-2 flex justify-center">
+          <div className="order-1 lg:order-2 lg:col-span-2 flex justify-center mt-4 sm:mt-0">
             {/* Gradient border wrapper — acts as the "banner" frame */}
             <div className="p-[5px] rounded-[2.3rem] shadow-2xl shadow-orange-500/30"
               style={{ background: 'linear-gradient(135deg, #f97316 0%, #0B3C5D 55%, #f97316 100%)' }}>
@@ -273,7 +273,7 @@ export default function LandingPage() {
                 {teacher?.name?.charAt(0) || 'م'}
               </div>
             </div>
-          </Reveal>
+          </div>
 
           <div className="order-2 lg:order-1 lg:col-span-3 text-center lg:text-right">
             <div className="lp-fade-1 inline-flex items-center gap-2 bg-orange-500/10 border border-orange-500/20 text-orange-600 text-xs font-bold px-4 py-2 rounded-full mb-8 tracking-widest uppercase">
@@ -297,9 +297,7 @@ export default function LandingPage() {
             </h1>
 
             <p className="lp-fade-3 text-slate-500 text-base max-w-xl mx-auto lg:mx-0 leading-relaxed mb-10">
-              {teacher?.bio
-                ? teacher.bio.slice(0, 120) + (teacher.bio.length > 120 ? '...' : '')
-                : 'منصة تعليمية احترافية تجمع الكورسات والامتحانات والتحليلات في مكان واحد'}
+              {teacher?.bio || 'منصة تعليمية احترافية تجمع الكورسات والامتحانات والتحليلات في مكان واحد'}
             </p>
 
             <div className="lp-fade-3 flex items-center justify-center lg:justify-start gap-3 flex-wrap">
@@ -313,7 +311,7 @@ export default function LandingPage() {
         </div>
 
         <button onClick={() => scrollTo('about')}
-          className="lp-fade-4 absolute bottom-8 inset-x-0 flex flex-col items-center gap-1.5 mx-auto text-[#0B3C5D]/30 hover:text-[#0B3C5D]/50 transition-colors z-10">
+          className="lp-fade-4 static sm:absolute bottom-8 inset-x-0 flex w-full flex-col items-center gap-1.5 mx-auto mt-8 sm:mt-0 text-[#0B3C5D]/30 hover:text-[#0B3C5D]/50 transition-colors z-10">
           <span className="text-[11px] font-semibold tracking-widest uppercase">اكتشف</span>
           <ChevronDown className="w-4 h-4 animate-bounce" />
         </button>
