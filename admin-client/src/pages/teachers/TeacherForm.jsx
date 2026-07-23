@@ -23,6 +23,8 @@ export default function TeacherForm() {
   const [logoUrl, setLogoUrl] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
   const [photoUploading, setPhotoUploading] = useState(false);
+  const [backgroundImageUrl, setBackgroundImageUrl] = useState('');
+  const [backgroundUploading, setBackgroundUploading] = useState(false);
   const [pwaName, setPwaName] = useState('');
 
   // Subdomain slug — separate from username in create mode
@@ -93,6 +95,7 @@ export default function TeacherForm() {
           setBio(teacher.bio || '');
           setLogoUrl(teacher.logo_url || '');
           setPhotoUrl(teacher.photo_url || '');
+          setBackgroundImageUrl(teacher.background_image_url || '');
           setPwaName(teacher.pwa_name || '');
 
           const teamRes = await api.get(`/teachers/${id}/team`);
@@ -143,6 +146,7 @@ export default function TeacherForm() {
           whatsapp_phone: whatsappPhone,
           bio,
           logo_url: logoUrl,
+          background_image_url: backgroundImageUrl,
           plan_ids: Array.from(selectedPlanIds).map(Number),
           force_password_change: forcePasswordChange,
         });
@@ -155,6 +159,7 @@ export default function TeacherForm() {
           bio,
           logo_url: logoUrl,
           photo_url: photoUrl,
+          background_image_url: backgroundImageUrl,
           pwa_name: pwaName,
         });
         toast.success('تم تحديث بيانات المدرس بنجاح');
@@ -579,6 +584,23 @@ export default function TeacherForm() {
             />
           </div>
 
+          {/* ── Landing page background row ── */}
+          <div className="rounded-xl border border-slate-700 bg-slate-950/40 p-4 space-y-4">
+            <div className="flex items-start gap-2">
+              <Info size={15} className="text-violet-400 mt-0.5 flex-shrink-0" />
+              <p className="text-xs text-slate-400 font-cairo leading-relaxed">
+                <span className="text-white font-semibold">خلفية الصفحة الرئيسية</span> تظهر خلف قسم الـ Hero في Landing Page الخاصة بالمدرس.
+                ارفع صورة أفقية أو كبيرة للحصول على أفضل نتيجة؛ سيتم عرضها كخلفية مع طبقة شفافة للحفاظ على وضوح النص.
+              </p>
+            </div>
+            <DirectImageUploader
+              onComplete={(url) => setBackgroundImageUrl(url)}
+              onUploadingChange={(v) => setBackgroundUploading(v)}
+              label="صورة خلفية Landing Page"
+              currentImage={backgroundImageUrl}
+            />
+          </div>
+
         </div>
 
         {/* ── Section 4: Support Team (edit only) ── */}
@@ -691,11 +713,17 @@ export default function TeacherForm() {
           </Link>
           <button
             type="submit"
-            disabled={saving || photoUploading}
+            disabled={saving || photoUploading || backgroundUploading}
             className="flex items-center gap-2 rounded-xl bg-amber-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition disabled:opacity-50 font-cairo"
           >
             <Save size={16} />
-            <span>{saving ? 'جاري الحفظ...' : photoUploading ? 'جاري رفع الصورة...' : 'حفظ البيانات'}</span>
+            <span>
+              {saving
+                ? 'جاري الحفظ...'
+                : photoUploading || backgroundUploading
+                  ? 'جاري رفع الصورة...'
+                  : 'حفظ البيانات'}
+            </span>
           </button>
         </div>
       </form>
