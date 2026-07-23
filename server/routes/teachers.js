@@ -757,9 +757,9 @@ router.get('/export', requireRole('teacher'), async (req, res) => {
       questionBanks, bankQuestions,
       recitations, recitationQuestions, recitationResults,
     ] = await Promise.all([
-      // teachers — include branding/appearance columns added post-launch
-      exportQuery(
-        `SELECT id, username, name, bio, classification,
+       // teachers — include branding/appearance and landing bio columns
+       exportQuery(
+        `SELECT id, username, name, bio, bio_hero, bio_about, bio_card, classification,
                 logo_url, logo_wide_url, photo_url, whatsapp_phone,
                 platform_name, background_image_url, hero_image_url, background_color,
                 created_at

@@ -15,6 +15,9 @@ CREATE TABLE IF NOT EXISTS teachers (
 );
 -- [M-16] Add force_password_change if upgrading from older schema
 ALTER TABLE teachers ADD COLUMN IF NOT EXISTS force_password_change BOOLEAN DEFAULT false;
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS bio_hero TEXT;
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS bio_about TEXT;
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS bio_card TEXT;
 
 CREATE TABLE IF NOT EXISTS assistants (
   id SERIAL PRIMARY KEY,

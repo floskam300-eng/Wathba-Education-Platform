@@ -323,6 +323,12 @@ ALTER TABLE teachers ADD COLUMN IF NOT EXISTS slug VARCHAR(100) UNIQUE;
 
 ALTER TABLE teachers ADD COLUMN IF NOT EXISTS platform_name VARCHAR(200);
 
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS bio_hero TEXT;
+
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS bio_about TEXT;
+
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS bio_card TEXT;
+
 ALTER TABLE teachers ALTER COLUMN logo_url SET DEFAULT '/wathba-logo.png';
 
 ALTER TABLE teachers ALTER COLUMN photo_url SET DEFAULT '/uploads/images/default-avatar.png';

@@ -19,7 +19,9 @@ export default function TeacherForm() {
   const [forcePasswordChange, setForcePasswordChange] = useState(false);
   const [classification, setClassification] = useState('');
   const [whatsappPhone, setWhatsappPhone] = useState('');
-  const [bio, setBio] = useState('');
+  const [bioHero, setBioHero] = useState('');
+  const [bioAbout, setBioAbout] = useState('');
+  const [bioCard, setBioCard] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
   const [photoUploading, setPhotoUploading] = useState(false);
@@ -92,7 +94,10 @@ export default function TeacherForm() {
           setSlug(teacher.slug || teacher.username || '');
           setClassification(teacher.classification || '');
           setWhatsappPhone(teacher.whatsapp_phone || '');
-          setBio(teacher.bio || '');
+          const legacyBio = teacher.bio || '';
+          setBioHero(teacher.bio_hero || legacyBio);
+          setBioAbout(teacher.bio_about || legacyBio);
+          setBioCard(teacher.bio_card || legacyBio);
           setLogoUrl(teacher.logo_url || '');
           setPhotoUrl(teacher.photo_url || '');
           setBackgroundImageUrl(teacher.background_image_url || '');
@@ -144,7 +149,10 @@ export default function TeacherForm() {
           name,
           classification,
           whatsapp_phone: whatsappPhone,
-          bio,
+          bio: bioHero,
+          bio_hero: bioHero,
+          bio_about: bioAbout,
+          bio_card: bioCard,
           logo_url: logoUrl,
           background_image_url: backgroundImageUrl,
           plan_ids: Array.from(selectedPlanIds).map(Number),
@@ -156,7 +164,10 @@ export default function TeacherForm() {
           name,
           classification,
           whatsapp_phone: whatsappPhone,
-          bio,
+          bio: bioHero,
+          bio_hero: bioHero,
+          bio_about: bioAbout,
+          bio_card: bioCard,
           logo_url: logoUrl,
           photo_url: photoUrl,
           background_image_url: backgroundImageUrl,
@@ -401,19 +412,56 @@ export default function TeacherForm() {
             </div>
           </div>
 
-          {/* Bio */}
-          <div>
-            <label className="block text-sm font-semibold text-slate-300 font-cairo" htmlFor="bio">
-              الوصف / السيرة الذاتية (Bio)
-            </label>
-            <textarea
-              id="bio"
-              rows="3"
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-              placeholder="اكتب هنا نبذة عن المدرس لعرضها في الموقع التعريفي..."
-              className="mt-2 block w-full rounded-xl border border-slate-800 bg-slate-950 py-3 px-4 text-white placeholder-slate-600 focus:border-amber-500 focus:outline-none resize-none text-sm"
-            ></textarea>
+          {/* Landing bios */}
+          <div className="space-y-4">
+            <div>
+              <h4 className="text-sm font-bold text-amber-400 font-cairo">نبذات صفحة الـ Landing</h4>
+              <p className="mt-1 text-xs text-slate-500 font-cairo">
+                اكتب نبذة مستقلة لكل مكان؛ ستظهر تلقائيًا في المواضع الموضحة أسفل كل حقل.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-300 font-cairo" htmlFor="bio-hero">
+                النبذة التعريفية الرئيسية — أعلى الصفحة
+              </label>
+              <textarea
+                id="bio-hero"
+                rows="3"
+                value={bioHero}
+                onChange={(e) => setBioHero(e.target.value)}
+                placeholder="تظهر تحت اسم المدرس في الـ Hero..."
+                className="mt-2 block w-full rounded-xl border border-slate-800 bg-slate-950 py-3 px-4 text-white placeholder-slate-600 focus:border-amber-500 focus:outline-none resize-none text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-300 font-cairo" htmlFor="bio-about">
+                نبذة «من أنا؟»
+              </label>
+              <textarea
+                id="bio-about"
+                rows="3"
+                value={bioAbout}
+                onChange={(e) => setBioAbout(e.target.value)}
+                placeholder="تظهر في بطاقة من أنا؟ داخل قسم عن المعلم..."
+                className="mt-2 block w-full rounded-xl border border-slate-800 bg-slate-950 py-3 px-4 text-white placeholder-slate-600 focus:border-amber-500 focus:outline-none resize-none text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-300 font-cairo" htmlFor="bio-card">
+                نبذة بطاقة المدرس — تحت الصورة
+              </label>
+              <textarea
+                id="bio-card"
+                rows="3"
+                value={bioCard}
+                onChange={(e) => setBioCard(e.target.value)}
+                placeholder="تظهر تحت الصورة الصغيرة في بطاقة المدرس..."
+                className="mt-2 block w-full rounded-xl border border-slate-800 bg-slate-950 py-3 px-4 text-white placeholder-slate-600 focus:border-amber-500 focus:outline-none resize-none text-sm"
+              />
+            </div>
           </div>
         </div>
 

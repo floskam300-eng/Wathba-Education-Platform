@@ -281,7 +281,8 @@ router.get('/teachers/:id', requireAdminAuth, async (req, res) => {
   if (isNaN(teacherId)) return res.status(400).json({ error: 'معرّف غير صحيح' });
   try {
     const { rows } = await pool.query(
-      `SELECT id, username, name, classification, whatsapp_phone, logo_url, logo_wide_url, photo_url, background_image_url, bio, slug,
+      `SELECT id, username, name, classification, whatsapp_phone, logo_url, logo_wide_url, photo_url, background_image_url,
+              bio, bio_hero, bio_about, bio_card, slug,
               is_platform_suspended, platform_suspended_at, platform_suspended_reason,
               features_enabled, hero_image_url, background_color, created_at, pwa_name
          FROM teachers
@@ -330,7 +331,12 @@ router.get('/teachers/:id', requireAdminAuth, async (req, res) => {
 
 // Create New Teacher (Platform Setup / Subdomain automatic creation via slug)
 router.post('/teachers', requireAdminAuth, async (req, res) => {
-  const { username, password, name, classification, whatsapp_phone, logo_url, logo_wide_url, background_image_url, hero_image_url, background_color, bio, plan_ids, force_password_change } = req.body;
+  const {
+    username, password, name, classification, whatsapp_phone,
+    logo_url, logo_wide_url, background_image_url, hero_image_url,
+    background_color, bio, bio_hero, bio_about, bio_card,
+    plan_ids, force_password_change,
+  } = req.body;
 
   // Accept plan_ids array (multi-plan support); also accept legacy plan_id for backwards compat
   const rawPlanId = req.body.plan_id;
@@ -388,8 +394,10 @@ router.post('/teachers', requireAdminAuth, async (req, res) => {
     // Insert Teacher — BUG-6 FIX: honour force_password_change flag from admin
     const shouldForceChange = force_password_change === true || force_password_change === 'true';
     const teacherRes = await client.query(
-      `INSERT INTO teachers (username, password, name, classification, whatsapp_phone, logo_url, logo_wide_url, background_image_url, hero_image_url, background_color, bio, slug, features_enabled, force_password_change)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id`,
+      `INSERT INTO teachers (username, password, name, classification, whatsapp_phone, logo_url, logo_wide_url,
+                             background_image_url, hero_image_url, background_color, bio, bio_hero, bio_about, bio_card,
+                             slug, features_enabled, force_password_change)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id`,
       [
         username.trim().toLowerCase(),
         hashed,
@@ -401,7 +409,10 @@ router.post('/teachers', requireAdminAuth, async (req, res) => {
         background_image_url || null,
         hero_image_url || null,
         background_color || '#000000',
-        bio || '',
+        bio || bio_hero || bio_about || bio_card || '',
+        bio_hero || null,
+        bio_about || null,
+        bio_card || null,
         slug,
         JSON.stringify({ live_streaming: true, stickman_run: true }),
         shouldForceChange,
@@ -453,26 +464,37 @@ router.put('/teachers/:id', requireAdminAuth, async (req, res) => {
   const teacherId = parseInt(req.params.id, 10);
   if (isNaN(teacherId)) return res.status(400).json({ error: 'معرّف غير صحيح' });
 
-  const { name, classification, whatsapp_phone, logo_url, photo_url, background_image_url } = req.body;
+  const {
+    name, classification, whatsapp_phone, logo_url, photo_url,
+    background_image_url, bio_hero, bio_about, bio_card,
+  } = req.body;
   if (!name) return res.status(400).json({ error: 'الاسم بالكامل مطلوب' });
 
   try {
-    const check = await pool.query('SELECT slug FROM teachers WHERE id = $1', [teacherId]);
+    const check = await pool.query(
+      'SELECT slug, bio, bio_hero, bio_about, bio_card FROM teachers WHERE id = $1',
+      [teacherId]
+    );
     if (check.rows.length === 0) return res.status(404).json({ error: 'المدرس غير موجود' });
 
     // Only update the fields the admin form actually sends.
     // logo_wide_url, hero_image_url, and background_color are managed separately
     // (or not exposed in this form) — omitting them from the UPDATE prevents
     // accidental null-overwrite every time the admin saves basic profile data.
-    const bio = typeof req.body.bio === 'string' ? req.body.bio : '';
+    const legacyBio = typeof req.body.bio === 'string' ? req.body.bio : check.rows[0].bio || '';
+    const bioHero = typeof bio_hero === 'string' ? bio_hero : check.rows[0].bio_hero || '';
+    const bioAbout = typeof bio_about === 'string' ? bio_about : check.rows[0].bio_about || '';
+    const bioCard = typeof bio_card === 'string' ? bio_card : check.rows[0].bio_card || '';
+    const bio = legacyBio || bioHero || bioAbout || bioCard;
     const rawPwaName = typeof req.body.pwa_name === 'string' ? req.body.pwa_name.trim() : null;
     const pwaName = rawPwaName || null;
     const { rowCount } = await pool.query(
       `UPDATE teachers
           SET name = $1, classification = $2, whatsapp_phone = $3,
               logo_url = $4, bio = $5, photo_url = $6,
-              background_image_url = $7, pwa_name = $8
-        WHERE id = $9`,
+              background_image_url = $7, bio_hero = $8, bio_about = $9,
+              bio_card = $10, pwa_name = $11
+        WHERE id = $12`,
       [
         name.trim(),
         classification ? classification.trim() : null,
@@ -481,6 +503,9 @@ router.put('/teachers/:id', requireAdminAuth, async (req, res) => {
         bio,
         photo_url || null,
         background_image_url || null,
+        bioHero || null,
+        bioAbout || null,
+        bioCard || null,
         pwaName,
         teacherId,
       ]

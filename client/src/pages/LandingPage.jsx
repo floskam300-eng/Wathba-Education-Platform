@@ -63,6 +63,9 @@ export default function LandingPage() {
   const { teacher, stats, supportContacts, topCourses, isLoading, platformName, logoUrl } = useTeacher();
   const displayLogo = logoUrl || wathbaLogo;
   const heroBg = teacher?.background_image_url || DEFAULT_TEACHER_BG;
+  const heroBio = teacher?.bio_hero?.trim() || teacher?.bio || 'منصة تعليمية احترافية تجمع الكورسات والامتحانات والتحليلات في مكان واحد';
+  const aboutBio = teacher?.bio_about?.trim() || teacher?.bio || 'معلم متخصص بخبرة واسعة في التدريس، يهتم بتقديم المحتوى التعليمي بأسلوب مبسط ومشوق لمساعدة الطلاب على التفوق وتحقيق أعلى الدرجات.';
+  const cardBio = teacher?.bio_card?.trim() || teacher?.bio || 'معلم متخصص بخبرة واسعة في التدريس، يهتم بتقديم المحتوى التعليمي بأسلوب مبسط ومشوق لمساعدة الطلاب على التفوق وتحقيق أعلى الدرجات.';
 
 
 
@@ -297,7 +300,7 @@ export default function LandingPage() {
             </h1>
 
             <p className="lp-fade-3 text-slate-500 text-base max-w-xl mx-auto lg:mx-0 leading-relaxed mb-10">
-              {teacher?.bio || 'منصة تعليمية احترافية تجمع الكورسات والامتحانات والتحليلات في مكان واحد'}
+              {heroBio}
             </p>
 
             <div className="lp-fade-3 flex items-center justify-center lg:justify-start gap-3 flex-wrap">
@@ -356,7 +359,7 @@ export default function LandingPage() {
                 <h3 className="font-black text-[#0B3C5D] text-xl mb-1">{teacher?.name || '—'}</h3>
                 <p className="text-orange-500 text-sm font-semibold mb-6">{teacher?.classification || '—'}</p>
                  <p className="text-slate-500 text-sm leading-relaxed text-right mb-5 whitespace-pre-wrap">
-                   {teacher?.bio?.trim() || 'معلم متخصص بخبرة واسعة في التدريس، يهتم بتقديم المحتوى التعليمي بأسلوب مبسط ومشوق لمساعدة الطلاب على التفوق وتحقيق أعلى الدرجات.'}
+                   {cardBio}
                  </p>
 
                 <div className="grid grid-cols-2 gap-2.5">
@@ -391,7 +394,7 @@ export default function LandingPage() {
                     <p className="font-black text-[#0B3C5D] text-base">من أنا؟</p>
                   </div>
                   <p className="text-slate-500 text-sm leading-relaxed">
-                    {teacher?.bio || 'معلم متخصص بخبرة واسعة في التدريس، يهتم بتقديم المحتوى التعليمي بأسلوب مبسط ومشوق لمساعدة الطلاب على التفوق وتحقيق أعلى الدرجات.'}
+                    {aboutBio}
                   </p>
                 </div>
               </Reveal>
