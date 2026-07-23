@@ -281,7 +281,7 @@ router.get('/teachers/:id', requireAdminAuth, async (req, res) => {
   if (isNaN(teacherId)) return res.status(400).json({ error: 'معرّف غير صحيح' });
   try {
     const { rows } = await pool.query(
-      `SELECT id, username, name, classification, whatsapp_phone, logo_url, logo_wide_url, photo_url, background_image_url, slug,
+      `SELECT id, username, name, classification, whatsapp_phone, logo_url, logo_wide_url, photo_url, background_image_url, bio, slug,
               is_platform_suspended, platform_suspended_at, platform_suspended_reason,
               features_enabled, hero_image_url, background_color, created_at, pwa_name
          FROM teachers

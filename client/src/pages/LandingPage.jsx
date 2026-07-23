@@ -355,6 +355,9 @@ export default function LandingPage() {
 
                 <h3 className="font-black text-[#0B3C5D] text-xl mb-1">{teacher?.name || '—'}</h3>
                 <p className="text-orange-500 text-sm font-semibold mb-6">{teacher?.classification || '—'}</p>
+                 <p className="text-slate-500 text-sm leading-relaxed text-right mb-5 whitespace-pre-wrap">
+                   {teacher?.bio?.trim() || 'معلم متخصص بخبرة واسعة في التدريس، يهتم بتقديم المحتوى التعليمي بأسلوب مبسط ومشوق لمساعدة الطلاب على التفوق وتحقيق أعلى الدرجات.'}
+                 </p>
 
                 <div className="grid grid-cols-2 gap-2.5">
                   {[
