@@ -4,6 +4,7 @@ import 'react-image-crop/dist/ReactCrop.css';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
 import { Upload, X, Crop } from 'lucide-react';
+import { convertImageToWebp } from '../lib/image';
 
 function centerAspectCrop(mediaWidth, mediaHeight, aspect) {
   return centerCrop(
@@ -77,12 +78,19 @@ export default function ImageCropper({ aspect, onComplete, label, currentImage, 
     setUploading(true);
 
     try {
-      const blob = await new Promise((resolve) => {
-        canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.85);
+      const croppedBlob = await new Promise((resolve, reject) => {
+        canvas.toBlob((blob) => {
+          if (!blob || blob.type !== 'image/jpeg') {
+            reject(new Error('تعذّر تجهيز الصورة'));
+            return;
+          }
+          resolve(blob);
+        }, 'image/jpeg', 0.85);
       });
+      const blob = await convertImageToWebp(croppedBlob);
 
       const formData = new FormData();
-      formData.append('image', blob, 'cropped_image.jpg');
+      formData.append('image', blob, 'cropped_image.webp');
 
       // Do NOT set Content-Type manually — axios detects FormData and adds
       // multipart/form-data WITH the correct boundary automatically.

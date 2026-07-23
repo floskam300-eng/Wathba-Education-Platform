@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
 import { Upload, X, Image as ImageIcon } from 'lucide-react';
+import { convertImageToWebp } from '../lib/image';
 
 /**
  * DirectImageUploader — رفع صورة مباشرة بدون قص أو تغيير نسب العرض.
@@ -32,8 +33,10 @@ export default function DirectImageUploader({ onComplete, onUploadingChange, lab
 
     setUploadingState(true);
     try {
+      // Convert in the browser first so the upload request contains WebP.
+      const webpBlob = await convertImageToWebp(file);
       const formData = new FormData();
-      formData.append('image', file);
+      formData.append('image', webpBlob, 'image.webp');
 
       // Do NOT set Content-Type manually — axios detects FormData and adds
       // multipart/form-data WITH the correct boundary automatically.
@@ -48,6 +51,7 @@ export default function DirectImageUploader({ onComplete, onUploadingChange, lab
       // Revert preview on failure
       setPreview(currentImage || null);
     } finally {
+      URL.revokeObjectURL(objectUrl);
       setUploadingState(false);
       // Reset input so the same file can be re-selected
       if (inputRef.current) inputRef.current.value = '';
