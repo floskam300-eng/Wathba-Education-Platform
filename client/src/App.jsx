@@ -109,6 +109,35 @@ class ErrorBoundary extends React.Component {
   }
 }
 
+// ─── PWA Root Redirect ───────────────────────────────────────────────────────
+// Only active when the app is launched as an installed PWA (standalone mode).
+// • Logged-in user  → goes straight to their dashboard, skipping the landing page
+// • Not logged in   → goes straight to /login, skipping the landing page
+// • Normal browser  → renders the LandingPage as usual
+const PwaRootRedirect = () => {
+  const { user, loading } = useAuth();
+
+  const isPwa =
+    window.matchMedia('(display-mode: standalone)').matches ||
+    window.navigator.standalone === true;
+
+  // Normal browser visit → show the landing page
+  if (!isPwa) return <LandingPage />;
+
+  // Wait for auth state to resolve before redirecting
+  if (loading) return (
+    <div className="flex items-center justify-center h-screen bg-gray-50">
+      <div className="animate-spin w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full" />
+    </div>
+  );
+
+  // Logged in → dashboard
+  if (user && user.teacher_slug) return <Navigate to={`/${user.role}`} replace />;
+
+  // Not logged in → login
+  return <Navigate to="/login" replace />;
+};
+
 // ─── Assistant Permission Route ──────────────────────────────────────────────
 const AssistantPermissionRoute = ({ children, permission, anyOf }) => {
   const { user } = useAuth();
@@ -150,7 +179,7 @@ const TenantRoutes = () => {
       {/* Layout route: TeacherWrapper loads teacher context, shows spinner/error, then <Outlet /> */}
       <Route element={<TeacherWrapper />}>
 
-        <Route index element={<LandingPage />} />
+        <Route index element={<PwaRootRedirect />} />
 
         <Route path="login"
           element={user && user.teacher_slug ? <Navigate to={`/${user.role}`} replace /> : <Login />} />

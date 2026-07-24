@@ -632,7 +632,7 @@ app.get('/manifest.json', subdomainTenant, async (req, res) => {
     name:        appName,
     short_name:  shortName,
     description: `منصة ${appName} التعليمية`,
-    start_url:   `${base}/student`,
+    start_url:   `${base}/`,          // root → PwaRootRedirect handles role-aware redirect
     scope:       `${base}/`,
     display:     'standalone',
     orientation: 'portrait',
