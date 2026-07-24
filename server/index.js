@@ -564,60 +564,93 @@ app.get('/health', async (req, res) => {
   }
 });
 
+// ── In-memory cache for tenant branding (5-min TTL) ─────────────────────────
+// Shared by /manifest.json and the SPA catch-all (iOS meta-tag injection).
+const _tenantBrandingCache = new Map();
+async function getTenantBranding(slug) {
+  if (!slug) return null;
+  const cached = _tenantBrandingCache.get(slug);
+  if (cached && Date.now() - cached.ts < 5 * 60_000) return cached.data;
+  try {
+    const r = await pool.query(
+      'SELECT name, platform_name, pwa_name, logo_url, logo_wide_url FROM teachers WHERE slug=$1',
+      [slug]
+    );
+    if (!r.rows.length) return null;
+    const t = r.rows[0];
+    const data = {
+      appName:   t.platform_name || t.name || 'وثبة',
+      shortName: t.pwa_name || t.platform_name || t.name || 'وثبة',
+      logoUrl:   t.logo_url || t.logo_wide_url || null,
+    };
+    _tenantBrandingCache.set(slug, { data, ts: Date.now() });
+    return data;
+  } catch (_) { return null; }
+}
+
 // ── Dynamic PWA manifest — must come BEFORE express.static so it takes
 //    precedence over the static client/dist/manifest.json.
-//    Each teacher subdomain gets its own `id`, `name`, and `short_name` so
-//    browsers treat them as distinct installable apps and allow multiple
-//    installs from the same device (one per teacher).
+//    Each teacher subdomain gets its own `id`, `name`, `short_name`, and logo
+//    so browsers treat them as distinct installable apps.
 app.get('/manifest.json', subdomainTenant, async (req, res) => {
   const slug = req.tenantSlug || null;
-  let teacherName = 'وثبة';
 
-  if (slug && req.tenantTeacherId) {
-    try {
-      const r = await pool.query('SELECT name FROM teachers WHERE id=$1', [req.tenantTeacherId]);
-      if (r.rows.length) teacherName = r.rows[0].name;
-    } catch (_) {}
-  }
-
-  // Build absolute base URL from the incoming request so that start_url and
-  // scope resolve to the correct teacher subdomain, NOT the root domain.
-  // Using relative "/" can cause some Android browsers to fall back to the
-  // apex domain (wathba.site) instead of the subdomain (teacher.wathba.site).
+  // Build absolute base URL — relative URLs cause some Android browsers to
+  // fall back to the apex domain instead of the teacher subdomain.
   const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
   const host  = req.get('host') || '';
   const base  = `${proto}://${host}`;
 
-  const tenantId = slug || 'default';
+  const branding = await getTenantBranding(slug);
+
+  const appName   = branding ? branding.appName   : 'وثبة - المنصة التعليمية';
+  const shortName = branding ? branding.shortName : 'وثبة';
+  const rawLogo   = branding ? branding.logoUrl   : null;
+
+  // Resolve teacher logo to an absolute URL for the manifest icons array.
+  const logoSrc = rawLogo
+    ? (rawLogo.startsWith('http') ? rawLogo : `${base}${rawLogo.startsWith('/') ? '' : '/'}${rawLogo}`)
+    : null;
+
+  const icons = logoSrc
+    ? [
+        { src: logoSrc, sizes: '48x48',   type: 'image/png', purpose: 'any' },
+        { src: logoSrc, sizes: '192x192', type: 'image/png', purpose: 'any' },
+        { src: logoSrc, sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+      ]
+    : [
+        { src: `${base}/icon-48.png`,  sizes: '48x48',   type: 'image/png', purpose: 'any' },
+        { src: `${base}/icon-192.png`, sizes: '192x192', type: 'image/png', purpose: 'any' },
+        { src: `${base}/icon-512.png`, sizes: '512x512', type: 'image/png', purpose: 'any' },
+        { src: `${base}/icon-512.png`, sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+      ];
+
+  const iconSrc192 = logoSrc || `${base}/icon-192.png`;
+
   const manifest = {
-    id: `${base}/`,                  // globally unique per origin
-    name: slug ? `وثبة — ${teacherName}` : 'وثبة - المنصة التعليمية',
-    short_name: slug ? teacherName : 'وثبة',
-    description: 'منصة تعليمية متكاملة لمراكز الدروس الخصوصية في مصر',
-    start_url: `${base}/`,           // absolute — always opens the teacher's subdomain
-    scope: `${base}/`,               // absolute — locks the PWA to this origin
-    display: 'standalone',
+    id:          `${base}/`,
+    name:        appName,
+    short_name:  shortName,
+    description: `منصة ${appName} التعليمية`,
+    start_url:   `${base}/student`,
+    scope:       `${base}/`,
+    display:     'standalone',
     orientation: 'portrait',
     background_color: '#0F0E15',
     theme_color: '#f97316',
     lang: 'ar',
     dir: 'rtl',
-    icons: [
-      { src: `${base}/icon-48.png`,  sizes: '48x48',   type: 'image/png', purpose: 'any' },
-      { src: `${base}/icon-192.png`, sizes: '192x192', type: 'image/png', purpose: 'any' },
-      { src: `${base}/icon-512.png`, sizes: '512x512', type: 'image/png', purpose: 'any' },
-      { src: `${base}/icon-512.png`, sizes: '512x512', type: 'image/png', purpose: 'maskable' },
-    ],
+    icons,
     categories: ['education'],
     screenshots: [],
     shortcuts: [
-      { name: 'لوحتي',    short_name: 'لوحتي',  url: `${base}/student`,         icons: [{ src: `${base}/icon-192.png`, sizes: '192x192' }] },
-      { name: 'كورساتي', short_name: 'كورسات', url: `${base}/student/courses`, icons: [{ src: `${base}/icon-192.png`, sizes: '192x192' }] },
+      { name: 'لوحتي',    short_name: 'لوحتي',  url: `${base}/student`,         icons: [{ src: iconSrc192, sizes: '192x192' }] },
+      { name: 'كورساتي', short_name: 'كورسات', url: `${base}/student/courses`, icons: [{ src: iconSrc192, sizes: '192x192' }] },
     ],
   };
 
   res.set('Content-Type', 'application/manifest+json');
-  res.set('Cache-Control', 'public, max-age=3600');
+  res.set('Cache-Control', 'public, max-age=300');
   res.json(manifest);
 });
 
@@ -636,13 +669,75 @@ app.get('/robots.txt', (req, res) => {
 const clientDist = path.join(__dirname, '../client/dist');
 if (process.env.NODE_ENV === 'production' || fs.existsSync(clientDist)) {
   app.use(express.static(clientDist));
-  app.get('*', (req, res) => {
-    const index = path.join(clientDist, 'index.html');
-    if (fs.existsSync(index)) {
-      res.sendFile(index);
-    } else {
-      res.status(404).send('Client build not found. Run: cd client && npm run build');
+
+  // ── SPA catch-all: inject per-tenant branding into the HTML shell ──────────
+  // iOS Safari completely ignores manifest.json and reads these HTML tags
+  // directly to determine the app name and icon on the home screen:
+  //   • <meta name="apple-mobile-web-app-title">  → home-screen label
+  //   • <link rel="apple-touch-icon">             → home-screen icon
+  //   • <title>                                   → shown in browser tab / share sheet
+  // Without this injection every student gets the generic "وثبة" branding
+  // regardless of which teacher's subdomain they are on.
+  app.get('*', subdomainTenant, async (req, res) => {
+    const indexPath = path.join(clientDist, 'index.html');
+    if (!fs.existsSync(indexPath)) {
+      return res.status(404).send('Client build not found. Run: cd client && npm run build');
     }
+
+    const slug = req.tenantSlug || null;
+    const branding = await getTenantBranding(slug);
+
+    if (!branding) {
+      // No tenant or no branding data — serve the static file as-is
+      return res.sendFile(indexPath);
+    }
+
+    const { appName, shortName, logoUrl } = branding;
+    const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+    const host  = req.get('host') || '';
+    const base  = `${proto}://${host}`;
+
+    const resolvedLogo = logoUrl
+      ? (logoUrl.startsWith('http') ? logoUrl : `${base}${logoUrl.startsWith('/') ? '' : '/'}${logoUrl}`)
+      : null;
+
+    let html = fs.readFileSync(indexPath, 'utf8');
+
+    // Replace <title>
+    html = html.replace(
+      /<title>[^<]*<\/title>/,
+      `<title>${appName}</title>`
+    );
+
+    // Replace apple-mobile-web-app-title
+    html = html.replace(
+      /<meta name="apple-mobile-web-app-title"[^>]*>/,
+      `<meta name="apple-mobile-web-app-title" content="${shortName}" />`
+    );
+
+    // Replace application-name
+    html = html.replace(
+      /<meta name="application-name"[^>]*>/,
+      `<meta name="application-name" content="${shortName}" />`
+    );
+
+    // Replace description
+    html = html.replace(
+      /<meta name="description"[^>]*>/,
+      `<meta name="description" content="منصة ${appName} التعليمية" />`
+    );
+
+    // Replace apple-touch-icon with teacher logo (if available)
+    if (resolvedLogo) {
+      html = html.replace(
+        /<link rel="apple-touch-icon"[^>]*>/g,
+        `<link rel="apple-touch-icon" sizes="192x192" href="${resolvedLogo}" />`
+      );
+    }
+
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    res.set('Cache-Control', 'no-store'); // must not cache; each subdomain differs
+    res.send(html);
   });
 }
 
