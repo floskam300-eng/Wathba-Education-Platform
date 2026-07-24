@@ -12,11 +12,12 @@ import {
 import { useLiveStream } from '../context/LiveStreamContext';
 import WathbaLogo from '../assets/wathba_logo.png';
 import { useSSE } from '../hooks/useSSE';
-import { useFCM } from '../hooks/useFCM';
+import { useFCM, setupFCM, isFCMSupported } from '../hooks/useFCM';
 import { refreshMediaToken } from '../lib/mediaAccess';
 import api from '../lib/api';
 import { useAntiCapture } from '../hooks/useAntiCapture';
 import DisableDevtool from 'disable-devtool';
+import toast from 'react-hot-toast';
 
 const EVENTS_NAV_CSS = `
   .events-nav-link {
@@ -239,6 +240,94 @@ function NotificationBell({ dark }) {
   );
 }
 
+// ── Push-permission pre-prompt modal ─────────────────────────────────────────
+// Shows once after login when permission is still 'default' (never asked).
+// "Later" sets a per-user snooze flag so the modal won't auto-pop again,
+// but the button in the Notifications page still works (permission stays 'default').
+function PushPromptModal({ userId, dark, onClose }) {
+  const [loading, setLoading] = useState(false);
+
+  const handleEnable = async () => {
+    setLoading(true);
+    const result = await setupFCM();
+    setLoading(false);
+    // Mark prompted regardless of outcome — don't re-show the auto-popup
+    localStorage.setItem(`fcm_prompt_snoozed_${userId}`, '1');
+    if (result === 'granted') {
+      toast.success('✅ تم تفعيل الإشعارات! ستصلك إشعارات معلمك فوراً.', {
+        duration: 5000,
+        style: { fontFamily: 'inherit', direction: 'rtl' },
+      });
+    } else if (result === 'denied') {
+      toast.error('⛔ تم رفض الإذن — يمكنك تفعيله لاحقاً من إعدادات المتصفح.', {
+        duration: 6000,
+        style: { fontFamily: 'inherit', direction: 'rtl' },
+      });
+    }
+    onClose();
+  };
+
+  const handleLater = () => {
+    // Snooze the auto-popup — the Notifications page button stays available
+    localStorage.setItem(`fcm_prompt_snoozed_${userId}`, '1');
+    onClose();
+  };
+
+  const surface = dark
+    ? { backgroundColor: 'var(--dk-surface)', borderColor: 'var(--dk-border)', color: 'var(--dk-text)' }
+    : {};
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-4"
+         style={{ backgroundColor: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}>
+      <div
+        className={`w-full max-w-sm rounded-3xl border shadow-2xl overflow-hidden
+          ${dark ? '' : 'bg-white border-slate-200'}`}
+        style={surface}
+      >
+        {/* Colourful header strip */}
+        <div className="relative h-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-orange-400" />
+
+        <div className="px-6 pt-6 pb-5 text-right" dir="rtl">
+          {/* Icon */}
+          <div className="w-14 h-14 rounded-2xl bg-indigo-100 flex items-center justify-center mb-4 mx-auto">
+            <Bell className="w-7 h-7 text-indigo-600" />
+          </div>
+
+          <h2 className={`text-lg font-black text-center mb-1 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>
+            فعّل إشعارات التليفون 🔔
+          </h2>
+          <p className={`text-sm text-center leading-relaxed mb-5 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-500'}`}>
+            عشان توصلك إشعارات معلمك فوراً حتى لو التطبيق مغلق — اختبارات جديدة، نتايج، وإعلانات مهمة.
+          </p>
+
+          <button
+            onClick={handleEnable}
+            disabled={loading}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-black text-white
+              bg-indigo-600 hover:bg-indigo-700 active:scale-[.98] transition-all disabled:opacity-70 mb-3"
+          >
+            {loading
+              ? <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              : <Bell className="w-5 h-5" />
+            }
+            {loading ? 'جاري التفعيل…' : 'فعّل الإشعارات'}
+          </button>
+
+          <button
+            onClick={handleLater}
+            disabled={loading}
+            className={`w-full py-2.5 rounded-2xl font-bold text-sm transition-colors
+              ${dark ? 'text-[var(--dk-text-2)] hover:bg-[var(--dk-elevated)]' : 'text-gray-400 hover:bg-gray-50'}`}
+          >
+            لاحقاً
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function StudentLayout() {
   const { user, logout } = useAuth();
   const { dark, toggle } = useTheme();
@@ -248,6 +337,7 @@ export default function StudentLayout() {
   const { platformName, logoUrl, features } = useTeacher();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [captureWarning, setCaptureWarning] = useState(false);
+  const [showPushPrompt, setShowPushPrompt] = useState(false);
   const warningTimer = useRef(null);
 
   const onLivePage = location.pathname.endsWith('/live');
@@ -270,6 +360,19 @@ export default function StudentLayout() {
     const id = setInterval(refreshMediaToken, 12 * 60 * 1000);
     return () => clearInterval(id);
   }, [user?.id]);
+
+  // ── Auto push-permission prompt ───────────────────────────────────────────
+  // Show once after login when permission is 'default' and not snoozed before.
+  useEffect(() => {
+    if (!user || user.role !== 'student') return;
+    if (!isFCMSupported()) return;
+    if (Notification.permission !== 'default') return;
+    if (localStorage.getItem(`fcm_prompt_snoozed_${user.id}`)) return;
+
+    // Small delay so the page renders first
+    const t = setTimeout(() => setShowPushPrompt(true), 1500);
+    return () => clearTimeout(t);
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Content protection: block right-click & DevTools for student pages ──
   useEffect(() => {
@@ -510,6 +613,15 @@ export default function StudentLayout() {
           </React.Suspense>
         </main>
       </div>
+
+      {/* Push-permission pre-prompt modal */}
+      {showPushPrompt && user && (
+        <PushPromptModal
+          userId={user.id}
+          dark={dark}
+          onClose={() => setShowPushPrompt(false)}
+        />
+      )}
     </div>
   );
 }

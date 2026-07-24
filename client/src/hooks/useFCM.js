@@ -18,6 +18,11 @@ function isSupported() {
   );
 }
 
+// Exported so other modules can guard without importing the whole hook
+export function isFCMSupported() {
+  return isSupported();
+}
+
 // ── Internal: register SW, get token, save to server ──────────────────────────
 async function _doSetup() {
   await navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/' });
