@@ -14,7 +14,7 @@ const pool = new Pool(
     ? {
         connectionString: dbUrl,
         ssl:
-          process.env.DATABASE_SSL === 'false' || dbUrl.includes('localhost')
+          process.env.DATABASE_SSL === 'false' || dbUrl.includes('localhost') || dbUrl.includes('127.0.0.1')
             ? false
             : { rejectUnauthorized: false },
         max: 20,
