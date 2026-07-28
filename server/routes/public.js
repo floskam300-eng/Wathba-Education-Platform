@@ -134,14 +134,17 @@ router.get('/parent-lookup', parentLookupLimiter, async (req, res) => {
     const cachedRank   = _pubGet(rankCacheKey, PUB_TTL_2MIN);
 
     const queries = [
+      // [P-1,P-3,P-4,P-6] Courses scoped to this teacher via enrollment
       pool.query(
         `SELECT c.id, c.name, c.description, c.thumbnail_url, c.target_stage, sce.enrollment_date, sce.status
          FROM student_course_enrollment sce
          JOIN courses c ON c.id = sce.course_id
          WHERE sce.student_id = $1
+           AND c.teacher_id = $2
          ORDER BY sce.enrollment_date DESC`,
-        [sid]
+        [sid, teacherId]
       ),
+      // [P-2] Exclude absent rows [P-3] Scope to teacher [P-4] Exclude soft-deleted exams [P-6] Latest attempt only
       pool.query(
         `SELECT er.id, er.score, er.correct_count, er.wrong_count, er.unanswered_count,
                 er.created_at, e.title AS exam_title, e.total_score, e.pass_score,
@@ -150,16 +153,38 @@ router.get('/parent-lookup', parentLookupLimiter, async (req, res) => {
          JOIN exams e ON e.id = er.exam_id
          LEFT JOIN courses c ON c.id = e.course_id
          WHERE er.student_id = $1
+           AND e.teacher_id = $2
+           AND er.is_absent = false
+           AND er.is_latest = true
+           AND e.deleted_at IS NULL
          ORDER BY er.created_at DESC`,
-        [sid]
+        [sid, teacherId]
       ),
+      // [P-5] Scope to this teacher's videos only
       pool.query(
         `SELECT COUNT(DISTINCT vp.video_id) AS videos_started,
                 COALESCE(SUM(vp.watched_minutes), 0) AS total_watched_minutes,
                 COALESCE(AVG(vp.progress_percentage), 0) AS avg_progress
          FROM video_progress vp
-         WHERE vp.student_id = $1`,
-        [sid]
+         JOIN videos v ON v.id = vp.video_id
+         JOIN courses c ON c.id = v.course_id
+         WHERE vp.student_id = $1
+           AND c.teacher_id = $2`,
+        [sid, teacherId]
+      ),
+      // [P-1] Recitation results — missing entirely before this fix
+      pool.query(
+        `SELECT rr.id, rr.score, rr.correct_count, rr.wrong_count, rr.unanswered_count,
+                rr.passed, rr.created_at,
+                r.title AS recitation_title, r.total_score, r.pass_score
+         FROM recitation_results rr
+         JOIN recitations r ON r.id = rr.recitation_id
+         WHERE rr.student_id = $1
+           AND r.teacher_id = $2
+           AND rr.is_absent = false
+           AND r.deleted_at IS NULL
+         ORDER BY rr.created_at DESC`,
+        [sid, teacherId]
       ),
     ];
     // Only run the COUNT rank query when not cached
@@ -172,7 +197,7 @@ router.get('/parent-lookup', parentLookupLimiter, async (req, res) => {
       );
     }
 
-    const [coursesRes, examsRes, videoProgressRes, rankRes] = await Promise.all(queries);
+    const [coursesRes, examsRes, videoProgressRes, recitationsRes, rankRes] = await Promise.all(queries);
 
     const rank = cachedRank ?? (() => {
       const r = parseInt(rankRes.rows[0].rank);
@@ -191,6 +216,7 @@ router.get('/parent-lookup', parentLookupLimiter, async (req, res) => {
       },
       courses: coursesRes.rows,
       exam_results: examsRes.rows,
+      recitation_results: recitationsRes.rows,
       video_progress: videoProgressRes.rows[0],
     });
   } catch (err) {

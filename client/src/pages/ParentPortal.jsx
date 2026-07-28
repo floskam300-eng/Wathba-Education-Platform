@@ -5,7 +5,7 @@ import {
   Search, ArrowLeft, GraduationCap, BookOpen, FileText,
   Trophy, Star, CheckCircle, XCircle, Clock, Play,
   TrendingUp, Award, Users, ChevronRight, AlertCircle,
-  Sparkles, Phone, BarChart3, Target
+  Sparkles, Phone, BarChart3, Target, Mic
 } from 'lucide-react';
 import wathbaLogo from '../assets/wathba_logo_transparent.png';
 import { useTeacher } from '../context/TeacherContext';
@@ -106,6 +106,53 @@ function ExamRow({ result, index }) {
   );
 }
 
+/* ─── Recitation Result Row (Light) ─── */
+function RecitationRow({ result, index }) {
+  const pct = result.total_score > 0 ? Math.round((result.score / result.total_score) * 100) : 0;
+  const passed = result.passed;
+  const barColor = passed
+    ? pct >= 85 ? 'bg-emerald-500' : 'bg-blue-500'
+    : 'bg-red-400';
+
+  return (
+    <Reveal delay={index * 0.06}
+      className="bg-white border border-slate-200 rounded-2xl p-4 hover:border-orange-300 hover:shadow-sm transition-all duration-300"
+      style={{ boxShadow: '0 1px 4px rgba(11,60,93,0.05)' }}>
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-[#0B3C5D] font-bold text-sm leading-snug">{result.recitation_title}</p>
+        </div>
+        <div className={`shrink-0 flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full ${passed ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-600 border border-red-200'}`}>
+          {passed ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+          {passed ? 'ناجح' : 'راسب'}
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3 mb-2">
+        <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+          <div className={`h-full rounded-full transition-all duration-700 ${barColor}`}
+            style={{ width: `${pct}%` }} />
+        </div>
+        <span className="text-[#0B3C5D] font-black text-sm shrink-0">
+          {result.score}<span className="text-[#0B3C5D]/40 font-normal text-xs">/{result.total_score}</span>
+        </span>
+      </div>
+
+      <div className="flex items-center gap-4 text-xs text-[#0B3C5D]/40">
+        <span className="flex items-center gap-1 text-emerald-600">
+          <CheckCircle className="w-3 h-3" />{result.correct_count} صح
+        </span>
+        <span className="flex items-center gap-1 text-red-500">
+          <XCircle className="w-3 h-3" />{result.wrong_count} غلط
+        </span>
+        <span className="mr-auto">
+          {new Date(result.created_at).toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' })}
+        </span>
+      </div>
+    </Reveal>
+  );
+}
+
 /* ─── Course Row (Light) ─── */
 function CourseRow({ course, index }) {
   return (
@@ -160,6 +207,7 @@ export default function ParentPortal() {
 
   const student = data?.student;
   const exams = data?.exam_results || [];
+  const recitations = data?.recitation_results || [];
   const courses = data?.courses || [];
   const vp = data?.video_progress;
 
@@ -167,6 +215,11 @@ export default function ParentPortal() {
     ? Math.round(exams.reduce((acc, r) => acc + (r.total_score > 0 ? (r.score / r.total_score) * 100 : 0), 0) / exams.length)
     : 0;
   const passedCount = exams.filter(r => r.score >= r.pass_score).length;
+
+  const recitationAvgScore = recitations.length > 0
+    ? Math.round(recitations.reduce((acc, r) => acc + (r.total_score > 0 ? (r.score / r.total_score) * 100 : 0), 0) / recitations.length)
+    : 0;
+  const recitationPassedCount = recitations.filter(r => r.passed).length;
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-[#0B3C5D]" dir="rtl">
@@ -342,11 +395,13 @@ export default function ParentPortal() {
             </Reveal>
 
             {/* ── Stats Grid ── */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-10">
-              <StatCard icon={FileText}   label="الامتحانات"     value={exams.length}      color="bg-blue-500"    delay={0}    />
-              <StatCard icon={CheckCircle} label="ناجح في"       value={`${passedCount}`}  color="bg-emerald-500" delay={0.08} />
-              <StatCard icon={BarChart3}  label="متوسط الدرجات" value={`${avgScore}%`}    color="bg-orange-500"  delay={0.16} />
-              <StatCard icon={BookOpen}   label="الكورسات"       value={courses.length}    color="bg-purple-500"  delay={0.24} />
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-10">
+              <StatCard icon={FileText}   label="الامتحانات"          value={exams.length}             color="bg-blue-500"    delay={0}    />
+              <StatCard icon={CheckCircle} label="ناجح (امتحانات)"   value={`${passedCount}`}         color="bg-emerald-500" delay={0.06} />
+              <StatCard icon={Mic}        label="التسميعات"           value={recitations.length}       color="bg-indigo-500"  delay={0.12} />
+              <StatCard icon={CheckCircle} label="ناجح (تسميعات)"    value={`${recitationPassedCount}`} color="bg-teal-500"  delay={0.18} />
+              <StatCard icon={BarChart3}  label="متوسط الامتحانات"   value={`${avgScore}%`}           color="bg-orange-500"  delay={0.24} />
+              <StatCard icon={BookOpen}   label="الكورسات"            value={courses.length}           color="bg-purple-500"  delay={0.30} />
             </div>
 
             {/* ── Video Progress ── */}
@@ -396,6 +451,31 @@ export default function ParentPortal() {
                 )}
               </div>
 
+              {/* ── Recitation Results ── */}
+              <div>
+                <Reveal className="flex items-center gap-3 mb-5">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-100 border border-indigo-200 flex items-center justify-center">
+                    <Mic className="w-5 h-5 text-indigo-500" />
+                  </div>
+                  <h3 className="text-[#0B3C5D] font-black text-lg">نتائج التسميعات</h3>
+                  <span className="mr-auto text-[#0B3C5D]/40 text-sm bg-[#0B3C5D]/5 px-3 py-1 rounded-full">{recitations.length}</span>
+                </Reveal>
+
+                {recitations.length === 0 ? (
+                  <Reveal className="text-center py-12 text-[#0B3C5D]/30">
+                    <Mic className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                    <p className="text-sm">لا توجد نتائج تسميعات حتى الآن</p>
+                  </Reveal>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    {recitations.map((r, i) => <RecitationRow key={r.id} result={r} index={i} />)}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* ── Courses + Performance Summary ── */}
+            <div className="grid lg:grid-cols-2 gap-8 mt-8">
               {/* ── Courses ── */}
               <div>
                 <Reveal className="flex items-center gap-3 mb-5">
@@ -416,16 +496,38 @@ export default function ParentPortal() {
                     {courses.map((c, i) => <CourseRow key={c.id} course={c} index={i} />)}
                   </div>
                 )}
+              </div>
 
-                {/* Performance Summary */}
-                {exams.length > 0 && (
-                  <Reveal delay={0.2} className="mt-6 bg-white border border-slate-200 rounded-2xl p-5"
+              {/* Performance Summary */}
+              {(exams.length > 0 || recitations.length > 0) && (
+                <div>
+                  <Reveal className="flex items-center gap-3 mb-5">
+                    <div className="w-9 h-9 rounded-xl bg-orange-100 border border-orange-200 flex items-center justify-center">
+                      <BarChart3 className="w-5 h-5 text-orange-500" />
+                    </div>
+                    <h3 className="text-[#0B3C5D] font-black text-lg">ملخص الأداء</h3>
+                  </Reveal>
+                  <Reveal delay={0.1} className="bg-white border border-slate-200 rounded-2xl p-5"
                     style={{ boxShadow: '0 2px 8px rgba(11,60,93,0.06)' }}>
-                    <p className="text-[#0B3C5D]/50 text-xs font-bold mb-4 uppercase tracking-widest">ملخص الأداء</p>
-                    <div className="space-y-3">
-                      {[
-                        { label: 'نسبة النجاح', value: exams.length > 0 ? Math.round((passedCount / exams.length) * 100) : 0, color: 'from-emerald-400 to-emerald-600' },
-                        { label: 'متوسط الدرجات', value: avgScore, color: 'from-orange-400 to-orange-600' },
+                    <div className="space-y-4">
+                      {exams.length > 0 && [
+                        { label: 'نسبة نجاح الامتحانات', value: Math.round((passedCount / exams.length) * 100), color: 'from-emerald-400 to-emerald-600' },
+                        { label: 'متوسط درجات الامتحانات', value: avgScore, color: 'from-orange-400 to-orange-600' },
+                      ].map(item => (
+                        <div key={item.label}>
+                          <div className="flex justify-between text-xs text-[#0B3C5D]/50 mb-1">
+                            <span>{item.label}</span>
+                            <span className="text-[#0B3C5D] font-bold">{item.value}%</span>
+                          </div>
+                          <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                            <div className={`h-full bg-gradient-to-l ${item.color} rounded-full transition-all duration-1000`}
+                              style={{ width: `${item.value}%` }} />
+                          </div>
+                        </div>
+                      ))}
+                      {recitations.length > 0 && [
+                        { label: 'نسبة نجاح التسميعات', value: Math.round((recitationPassedCount / recitations.length) * 100), color: 'from-indigo-400 to-indigo-600' },
+                        { label: 'متوسط درجات التسميعات', value: recitationAvgScore, color: 'from-teal-400 to-teal-600' },
                       ].map(item => (
                         <div key={item.label}>
                           <div className="flex justify-between text-xs text-[#0B3C5D]/50 mb-1">
@@ -440,8 +542,8 @@ export default function ParentPortal() {
                       ))}
                     </div>
                   </Reveal>
-                )}
-              </div>
+                </div>
+              )}
             </div>
 
             {/* New search */}
