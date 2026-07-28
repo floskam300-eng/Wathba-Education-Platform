@@ -18,7 +18,7 @@ const ALL_FEATURE_PAGES = [
   { key: 'archive',        label: 'أرشيف النتائج',      icon: '🗄️', badge: 'معلم' },
   { key: 'question_banks', label: 'بنوك الأسئلة',      icon: '📖', badge: 'معلم' },
   { key: 'requests',       label: 'صفحة الطلبات',      icon: '📬', badge: 'معلم' },
-  { key: 'attendance',     label: 'الحضور والغياب',     icon: '✅', badge: 'معلم' },
+  { key: 'attendance',     label: 'سجل مشاهدة الكورسات',     icon: '✅', badge: 'معلم' },
   { key: 'assistants',     label: 'المساعدون',          icon: '🤝', badge: 'معلم' },
   { key: 'analytics',      label: 'التحليلات',          icon: '📊', badge: 'معلم' },
   { key: 'payments',       label: 'المدفوعات',          icon: '💳', badge: 'معلم' },

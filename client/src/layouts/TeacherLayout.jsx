@@ -44,7 +44,7 @@ export default function TeacherLayout() {
     { to: '/teacher/archive',        icon: Archive,         label: 'أرشيف النتائج',     featureKey: 'archive' },
     { to: '/teacher/question-banks', icon: BookMarked,      label: 'بنوك الأسئلة',     featureKey: 'question_banks' },
     { to: '/teacher/requests',       icon: Inbox,           label: 'صفحة الطلبات',     featureKey: 'requests' },
-    { to: '/teacher/attendance',     icon: ClipboardList,   label: 'الحضور والغياب',    featureKey: 'attendance' },
+    { to: '/teacher/attendance',     icon: ClipboardList,   label: 'سجل مشاهدة الكورسات',    featureKey: 'attendance' },
     { to: '/teacher/assistants',     icon: UserCog,         label: 'المساعدون',         featureKey: 'assistants' },
     { to: '/teacher/analytics',      icon: BarChart3,       label: 'التحليلات',         featureKey: 'analytics' },
     { to: '/teacher/payments',       icon: CreditCard,      label: 'المدفوعات',         featureKey: 'payments' },

@@ -121,7 +121,7 @@ export default function Attendance() {
     <div className="space-y-6">
       <div className="page-header">
         <div>
-          <h1 className="text-xl sm:text-2xl font-black text-navy-700">سجل الحضور والغياب</h1>
+          <h1 className="text-xl sm:text-2xl font-black text-navy-700">سجل مشاهدة الكورسات</h1>
           <p className="text-sm text-gray-500 mt-1">تتبع تقدم الطلاب في مشاهدة فيديوهات كل كورس</p>
         </div>
         {attendance && (
