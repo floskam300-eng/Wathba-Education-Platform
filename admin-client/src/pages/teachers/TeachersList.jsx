@@ -252,14 +252,14 @@ export default function TeachersList() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white font-cairo">إدارة المدرسين</h1>
-          <p className="text-slate-400 mt-1 font-cairo">إدارة حسابات المدرسين المشتركين، صلاحياتهم، وحالات الحسابات</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white font-cairo">إدارة المدرسين</h1>
+          <p className="text-slate-400 mt-1 font-cairo text-sm">إدارة حسابات المدرسين المشتركين، صلاحياتهم، وحالات الحسابات</p>
         </div>
         <Link
           to="/teachers/new"
-          className="flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition font-cairo"
+          className="flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition font-cairo whitespace-nowrap"
         >
           <Plus size={16} />
           <span>إضافة مدرس جديد</span>

@@ -244,7 +244,7 @@ export default function TeacherForm() {
           <ArrowRight size={24} />
         </Link>
         <div>
-          <h1 className="text-3xl font-bold text-white font-cairo">
+          <h1 className="text-xl sm:text-3xl font-bold text-white font-cairo">
             {isEdit ? 'تعديل بيانات المدرس' : 'إضافة مدرس جديد'}
           </h1>
           <p className="text-slate-400 mt-1 font-cairo">

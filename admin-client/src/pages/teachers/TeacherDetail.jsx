@@ -123,7 +123,7 @@ export default function TeacherDetail() {
             />
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-3xl font-bold text-white font-cairo">{teacher.name}</h1>
+                <h1 className="text-xl sm:text-3xl font-bold text-white font-cairo">{teacher.name}</h1>
                 {isSuspended && (
                   <span className="inline-flex rounded-full bg-red-500/10 text-red-500 border border-red-500/20 px-2 py-0.5 text-xs font-semibold leading-5 font-cairo">
                     موقوف إدارياً

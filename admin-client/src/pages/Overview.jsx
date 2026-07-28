@@ -35,7 +35,7 @@ export default function Overview() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold text-white font-cairo">الرئيسية</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-white font-cairo">الرئيسية</h1>
         <p className="text-slate-400 mt-1 font-cairo">إحصاءات منصة وثبة وحالة الخادم الفورية</p>
       </div>
 
