@@ -342,14 +342,27 @@ export default function StudentLayout() {
 
   const onLivePage = location.pathname.endsWith('/live');
 
-  const navItems = [
-    { to: '/student',                icon: LayoutDashboard, label: 'لوحتي',       end: true },
-    { to: '/student/courses',        icon: BookOpen,        label: 'كورساتي' },
-    { to: '/student/exams',          icon: FileText,        label: 'الاختبارات' },
-    { to: '/student/stats',          icon: BarChart2,       label: 'إحصائياتي' },
-    { to: '/student/leaderboard',    icon: Trophy,          label: 'المتصدرون' },
-    ...(features.live_streaming ? [{ to: '/student/live', icon: Radio, label: 'بث مباشر' }] : []),
+  // Full student nav definitions — featureKey = undefined means always visible
+  const ALL_STUDENT_NAV_DEFS = [
+    { to: '/student',             icon: LayoutDashboard, label: 'لوحتي',       end: true },
+    { to: '/student/courses',     icon: BookOpen,        label: 'كورساتي',     featureKey: 'courses' },
+    { to: '/student/exams',       icon: FileText,        label: 'الاختبارات',  featureKey: 'exams' },
+    { to: '/student/stats',       icon: BarChart2,       label: 'إحصائياتي',  featureKey: 'student_stats' },
+    { to: '/student/leaderboard', icon: Trophy,          label: 'المتصدرون',  featureKey: 'leaderboard' },
+    { to: '/student/live',        icon: Radio,           label: 'بث مباشر',   featureKey: 'live_streaming' },
+    { to: '/student/events',      icon: null,            label: 'الفعاليات',   featureKey: 'stickman_run' },
   ];
+
+  const navItems = ALL_STUDENT_NAV_DEFS
+    .filter(item => !item.featureKey || features[item.featureKey] !== false)
+    .filter(item => item.icon !== null); // events has special rendering below
+
+  // Detect if currently visited page is disabled — show forbidden overlay
+  const isCurrentPageDisabled = ALL_STUDENT_NAV_DEFS.some(
+    item => item.featureKey &&
+            features[item.featureKey] === false &&
+            (item.end ? location.pathname === item.to : location.pathname.startsWith(item.to))
+  );
 
   useSSE(!!user, user?.role || 'student');
   useFCM(!!user && user?.role === 'student');
@@ -460,7 +473,7 @@ export default function StudentLayout() {
             <span>{label}</span>
           </NavLink>
         ))}
-        {features.stickman_run && (
+        {features.stickman_run !== false && (
           <div style={{ paddingTop: 4 }}>
             <NavLink to="/student/events" className="events-nav-link" onClick={() => setSidebarOpen(false)}>
               <Gamepad2 className="w-5 h-5" style={{ flexShrink: 0, position: 'relative', zIndex: 1 }} />
@@ -604,13 +617,25 @@ export default function StudentLayout() {
 
         <main className="flex-1 overflow-y-auto"
               style={dark ? { backgroundColor: 'var(--dk-bg)' } : {}}>
-          <React.Suspense fallback={
-            <div className="flex items-center justify-center h-64">
-              <div className="animate-spin w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full" />
+          {isCurrentPageDisabled ? (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6" dir="rtl">
+              <div className={`w-20 h-20 rounded-3xl flex items-center justify-center mb-6 ${dark ? 'bg-slate-800' : 'bg-gray-100'}`}>
+                <span className="text-4xl">🔒</span>
+              </div>
+              <h2 className={`text-2xl font-black mb-2 ${dark ? 'text-white' : 'text-navy-700'}`}>هذه الصفحة غير متاحة</h2>
+              <p className={`text-sm mb-2 max-w-xs leading-relaxed ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
+                تم إيقاف تشغيل هذه الصفحة من قِبل المعلم.
+              </p>
             </div>
-          }>
-            <Outlet />
-          </React.Suspense>
+          ) : (
+            <React.Suspense fallback={
+              <div className="flex items-center justify-center h-64">
+                <div className="animate-spin w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full" />
+              </div>
+            }>
+              <Outlet />
+            </React.Suspense>
+          )}
         </main>
       </div>
 

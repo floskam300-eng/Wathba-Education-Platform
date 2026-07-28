@@ -1,9 +1,126 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../api/axios';
 import ConfirmModal from '../../components/ConfirmModal';
-import { Search, Plus, Eye, Edit, Trash2, ShieldAlert, Check, X, ShieldCheck } from 'lucide-react';
+import { Search, Plus, Eye, Edit, Trash2, ShieldAlert, X, ShieldCheck, LayoutGrid } from 'lucide-react';
 import toast from 'react-hot-toast';
+
+/* ── All controllable page/feature definitions ───────────────────────────── */
+const ALL_FEATURE_PAGES = [
+  // Teacher + Student (both roles see these)
+  { key: 'courses',        label: 'الكورسات',           icon: '📚', badge: 'معلم + طالب' },
+  { key: 'exams',          label: 'الاختبارات',          icon: '📝', badge: 'معلم + طالب' },
+  { key: 'leaderboard',    label: 'المتصدرون',          icon: '🏆', badge: 'معلم + طالب' },
+  { key: 'live_streaming', label: 'البث المباشر',       icon: '📡', badge: 'معلم + طالب' },
+  // Teacher pages only
+  { key: 'students',       label: 'الطلاب',             icon: '👥', badge: 'معلم' },
+  { key: 'recitations',    label: 'التسميع',            icon: '🎓', badge: 'معلم' },
+  { key: 'archive',        label: 'أرشيف النتائج',      icon: '🗄️', badge: 'معلم' },
+  { key: 'question_banks', label: 'بنوك الأسئلة',      icon: '📖', badge: 'معلم' },
+  { key: 'requests',       label: 'صفحة الطلبات',      icon: '📬', badge: 'معلم' },
+  { key: 'attendance',     label: 'الحضور والغياب',     icon: '✅', badge: 'معلم' },
+  { key: 'assistants',     label: 'المساعدون',          icon: '🤝', badge: 'معلم' },
+  { key: 'analytics',      label: 'التحليلات',          icon: '📊', badge: 'معلم' },
+  { key: 'payments',       label: 'المدفوعات',          icon: '💳', badge: 'معلم' },
+  { key: 'notifications',  label: 'الإشعارات',          icon: '🔔', badge: 'معلم' },
+  { key: 'backup',         label: 'النسخ الاحتياطي',   icon: '💾', badge: 'معلم' },
+  { key: 'activity_log',   label: 'سجل النشاط',        icon: '📋', badge: 'معلم' },
+  { key: 'settings',       label: 'الإعدادات',          icon: '⚙️', badge: 'معلم' },
+  // Student pages only
+  { key: 'student_stats',  label: 'إحصائياتي',         icon: '📈', badge: 'طالب' },
+  { key: 'stickman_run',   label: 'الفعاليات 🎮',       icon: '🎮', badge: 'طالب' },
+];
+
+/* ── Feature value helper — default true unless explicitly false ─────────── */
+function getFeat(features, key) {
+  return features?.[key] !== false;
+}
+
+/* ── Pages Popup Modal ───────────────────────────────────────────────────── */
+function FeaturesPopup({ teacher, onToggle, onClose }) {
+  const overlayRef = useRef(null);
+  const features = teacher?.features_enabled || {};
+  const enabledCount = ALL_FEATURE_PAGES.filter(p => getFeat(features, p.key)).length;
+
+  // Close on backdrop click
+  const handleOverlayClick = (e) => {
+    if (e.target === overlayRef.current) onClose();
+  };
+
+  return (
+    <div
+      ref={overlayRef}
+      onClick={handleOverlayClick}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}
+    >
+      <div
+        className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl border border-slate-700 shadow-2xl overflow-hidden"
+        style={{ backgroundColor: '#0f172a' }}
+        dir="rtl"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700 flex-shrink-0">
+          <div>
+            <h2 className="text-white font-black text-lg font-cairo">صلاحيات الصفحات</h2>
+            <p className="text-slate-400 text-xs mt-0.5 font-cairo">
+              {teacher?.name} — {enabledCount} من {ALL_FEATURE_PAGES.length} صفحة مفعّلة
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Pages grid */}
+        <div className="flex-1 overflow-y-auto p-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {ALL_FEATURE_PAGES.map(({ key, label, icon, badge }) => {
+              const enabled = getFeat(features, key);
+              return (
+                <button
+                  key={key}
+                  onClick={() => onToggle(teacher.id, key, enabled)}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-right transition-all duration-150 group
+                    ${enabled
+                      ? 'border-amber-500/30 bg-amber-500/8 hover:bg-amber-500/15'
+                      : 'border-slate-700 bg-slate-900/40 hover:bg-slate-800/60'
+                    }`}
+                >
+                  <span className="text-xl flex-shrink-0">{icon}</span>
+                  <div className="flex-1 min-w-0 text-right">
+                    <p className={`text-sm font-bold font-cairo truncate ${enabled ? 'text-white' : 'text-slate-500'}`}>
+                      {label}
+                    </p>
+                    <p className="text-xs text-slate-600 font-cairo">{badge}</p>
+                  </div>
+                  {/* Toggle pill */}
+                  <div className={`relative w-9 h-5 rounded-full flex-shrink-0 transition-colors duration-200 ${enabled ? 'bg-amber-500' : 'bg-slate-700'}`}>
+                    <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all duration-200 ${enabled ? 'right-0.5' : 'left-0.5'}`} />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-3 border-t border-slate-700 flex-shrink-0 flex items-center justify-between">
+          <p className="text-slate-500 text-xs font-cairo">التغييرات تُحفظ فوراً ✓</p>
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-bold font-cairo transition"
+          >
+            إغلاق
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function TeachersList() {
   const [teachers, setTeachers] = useState([]);
@@ -19,6 +136,8 @@ export default function TeachersList() {
   const [suspendId, setSuspendId] = useState(null);
   const [suspendCurrentState, setSuspendCurrentState] = useState(false);
   const [suspendReason, setSuspendReason] = useState('');
+
+  const [featuresPopupId, setFeaturesPopupId] = useState(null);
 
   const fetchTeachers = async () => {
     try {
@@ -37,23 +156,27 @@ export default function TeachersList() {
   }, []);
 
   const handleToggleFeature = async (id, feature, currentValue) => {
-    const teacher = teachers.find((t) => t.id === id);
-    const updatedFeatures = {
-      ...(teacher.features_enabled || { live_streaming: true, stickman_run: true }),
-      [feature]: !currentValue,
-    };
-
+    const newValue = !currentValue;
+    // Optimistic update in local state
+    setTeachers(prev =>
+      prev.map(t => t.id === id
+        ? { ...t, features_enabled: { ...(t.features_enabled || {}), [feature]: newValue } }
+        : t
+      )
+    );
     try {
-      await api.put(`/teachers/${id}/features`, updatedFeatures);
-      setTeachers(
-        teachers.map((t) =>
-          t.id === id ? { ...t, features_enabled: updatedFeatures } : t
-        )
-      );
-      toast.success('تم تحديث صلاحيات الميزة بنجاح');
+      // Send only the changed key — backend merges with existing
+      await api.put(`/teachers/${id}/features`, { [feature]: newValue });
     } catch (err) {
       console.error(err);
-      toast.error('فشل تحديث صلاحيات الميزة');
+      // Rollback on failure
+      setTeachers(prev =>
+        prev.map(t => t.id === id
+          ? { ...t, features_enabled: { ...(t.features_enabled || {}), [feature]: currentValue } }
+          : t
+        )
+      );
+      toast.error('فشل تحديث صلاحيات الصفحة');
     }
   };
 
@@ -187,7 +310,7 @@ export default function TeachersList() {
                 <th className="px-6 py-4">الرابط الفرعي (Subdomain)</th>
                 <th className="px-6 py-4">الباقة الحالية</th>
                 <th className="px-6 py-4">الطلاب النشطين</th>
-                <th className="px-6 py-4">الميزات المفعلة</th>
+                <th className="px-6 py-4">صلاحيات الصفحات</th>
                 <th className="px-6 py-4 text-center">الإجراءات</th>
               </tr>
             </thead>
@@ -259,29 +382,20 @@ export default function TeachersList() {
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="flex flex-col gap-2">
-                          {[
-                            { key: 'live_streaming', label: 'بث مباشر', color: 'bg-amber-500' },
-                            { key: 'stickman_run',   label: 'الفعاليات', color: 'bg-violet-500' },
-                          ].map(({ key, label, color }) => {
-                            const enabled = features[key];
-                            return (
-                              <button
-                                key={key}
-                                onClick={() => handleToggleFeature(t.id, key, enabled)}
-                                className="flex items-center gap-2 cursor-pointer select-none group w-fit"
-                                title={enabled ? 'إيقاف' : 'تفعيل'}
-                              >
-                                <div className={`relative w-8 h-4 rounded-full transition-colors duration-200 ${enabled ? color : 'bg-slate-700'}`}>
-                                  <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all duration-200 ${enabled ? 'right-0.5' : 'left-0.5'}`} />
-                                </div>
-                                <span className={`text-xs font-medium transition-colors ${enabled ? 'text-slate-200' : 'text-slate-500'}`}>
-                                  {label}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
+                        {(() => {
+                          const enabledCount = ALL_FEATURE_PAGES.filter(p => getFeat(features, p.key)).length;
+                          const totalCount   = ALL_FEATURE_PAGES.length;
+                          return (
+                            <button
+                              onClick={() => setFeaturesPopupId(t.id)}
+                              className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/50 px-3 py-2 text-sm font-semibold text-slate-300 hover:border-amber-500/50 hover:bg-amber-500/10 hover:text-white transition-all duration-150 font-cairo"
+                              title="إدارة صلاحيات الصفحات"
+                            >
+                              <LayoutGrid size={15} className="text-amber-500 flex-shrink-0" />
+                              <span>{enabledCount}/{totalCount} صفحة</span>
+                            </button>
+                          );
+                        })()}
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center justify-center gap-2">
@@ -406,6 +520,19 @@ export default function TeachersList() {
           setDeleteConfirmText('');
         }}
       />
+
+      {/* Features Pages Popup */}
+      {featuresPopupId !== null && (() => {
+        const popupTeacher = teachers.find(t => t.id === featuresPopupId);
+        if (!popupTeacher) return null;
+        return (
+          <FeaturesPopup
+            teacher={popupTeacher}
+            onToggle={handleToggleFeature}
+            onClose={() => setFeaturesPopupId(null)}
+          />
+        );
+      })()}
     </div>
   );
 }

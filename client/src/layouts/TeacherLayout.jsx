@@ -34,26 +34,43 @@ export default function TeacherLayout() {
     return () => clearInterval(id);
   }, [user?.id]);
 
-  const navItems = useMemo(() => [
-    { to: '/teacher',               icon: LayoutDashboard, label: 'لوحة التحكم',       end: true },
-    { to: '/teacher/students',       icon: Users,           label: 'الطلاب' },
-    { to: '/teacher/courses',        icon: BookOpen,        label: 'الكورسات' },
-    { to: '/teacher/exams',          icon: FileText,        label: 'الاختبارات' },
-    { to: '/teacher/recitations',    icon: GraduationCap,   label: 'التسميع' },
-    { to: '/teacher/archive',        icon: Archive,         label: 'أرشيف النتائج' },
-    { to: '/teacher/question-banks', icon: BookMarked,      label: 'بنوك الأسئلة' },
-    { to: '/teacher/requests',       icon: Inbox,           label: 'صفحة الطلبات' },
-    { to: '/teacher/attendance',     icon: ClipboardList,   label: 'الحضور والغياب' },
-    { to: '/teacher/assistants',     icon: UserCog,         label: 'المساعدون' },
-    { to: '/teacher/analytics',      icon: BarChart3,       label: 'التحليلات' },
-    { to: '/teacher/payments',       icon: CreditCard,      label: 'المدفوعات' },
-    { to: '/teacher/leaderboard',    icon: Trophy,          label: 'المتصدرون' },
-    { to: '/teacher/notifications',  icon: Bell,            label: 'الإشعارات' },
-    { to: '/teacher/backup',         icon: Database,        label: 'النسخ الاحتياطي' },
-    ...(features.live_streaming ? [{ to: '/teacher/livestream', icon: Radio, label: 'البث المباشر' }] : []),
-    { to: '/teacher/activity-log',   icon: Activity,        label: 'سجل النشاط' },
-    { to: '/teacher/settings',       icon: Settings,        label: 'الإعدادات' },
-  ], [features.live_streaming]);
+  // Full nav definitions — featureKey = undefined means always visible (Dashboard)
+  const ALL_NAV_DEFS = useMemo(() => [
+    { to: '/teacher',                icon: LayoutDashboard, label: 'لوحة التحكم',      end: true },
+    { to: '/teacher/students',       icon: Users,           label: 'الطلاب',            featureKey: 'students' },
+    { to: '/teacher/courses',        icon: BookOpen,        label: 'الكورسات',          featureKey: 'courses' },
+    { to: '/teacher/exams',          icon: FileText,        label: 'الاختبارات',         featureKey: 'exams' },
+    { to: '/teacher/recitations',    icon: GraduationCap,   label: 'التسميع',           featureKey: 'recitations' },
+    { to: '/teacher/archive',        icon: Archive,         label: 'أرشيف النتائج',     featureKey: 'archive' },
+    { to: '/teacher/question-banks', icon: BookMarked,      label: 'بنوك الأسئلة',     featureKey: 'question_banks' },
+    { to: '/teacher/requests',       icon: Inbox,           label: 'صفحة الطلبات',     featureKey: 'requests' },
+    { to: '/teacher/attendance',     icon: ClipboardList,   label: 'الحضور والغياب',    featureKey: 'attendance' },
+    { to: '/teacher/assistants',     icon: UserCog,         label: 'المساعدون',         featureKey: 'assistants' },
+    { to: '/teacher/analytics',      icon: BarChart3,       label: 'التحليلات',         featureKey: 'analytics' },
+    { to: '/teacher/payments',       icon: CreditCard,      label: 'المدفوعات',         featureKey: 'payments' },
+    { to: '/teacher/leaderboard',    icon: Trophy,          label: 'المتصدرون',         featureKey: 'leaderboard' },
+    { to: '/teacher/notifications',  icon: Bell,            label: 'الإشعارات',         featureKey: 'notifications' },
+    { to: '/teacher/backup',         icon: Database,        label: 'النسخ الاحتياطي',  featureKey: 'backup' },
+    { to: '/teacher/livestream',     icon: Radio,           label: 'البث المباشر',      featureKey: 'live_streaming' },
+    { to: '/teacher/activity-log',   icon: Activity,        label: 'سجل النشاط',       featureKey: 'activity_log' },
+    { to: '/teacher/settings',       icon: Settings,        label: 'الإعدادات',         featureKey: 'settings' },
+  ], []);
+
+  const navItems = useMemo(
+    () => ALL_NAV_DEFS.filter(item => !item.featureKey || features[item.featureKey] !== false),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [ALL_NAV_DEFS, JSON.stringify(features)]
+  );
+
+  // Detect if the currently visited page is disabled — show forbidden overlay
+  const isCurrentPageDisabled = useMemo(() => {
+    const blocked = ALL_NAV_DEFS.find(
+      item => item.featureKey &&
+              features[item.featureKey] === false &&
+              (item.end ? location.pathname === item.to : location.pathname.startsWith(item.to))
+    );
+    return !!blocked;
+  }, [ALL_NAV_DEFS, features, location.pathname]);
 
   const handleLogout = () => { logout(); };
 
@@ -177,13 +194,26 @@ export default function TeacherLayout() {
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-6"
               style={dark ? { backgroundColor: 'var(--dk-bg)' } : {}}>
-          <React.Suspense fallback={
-            <div className="flex items-center justify-center h-64">
-              <div className="animate-spin w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full" />
+          {isCurrentPageDisabled ? (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center" dir="rtl">
+              <div className={`w-20 h-20 rounded-3xl flex items-center justify-center mb-6 ${dark ? 'bg-slate-800' : 'bg-gray-100'}`}>
+                <span className="text-4xl">🔒</span>
+              </div>
+              <h2 className={`text-2xl font-black mb-2 ${dark ? 'text-white' : 'text-navy-700'}`}>هذه الصفحة غير متاحة</h2>
+              <p className={`text-sm mb-6 max-w-xs leading-relaxed ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
+                تم إيقاف تشغيل هذه الصفحة من قِبل إدارة المنصة.
+                للاستفسار، تواصل مع الدعم.
+              </p>
             </div>
-          }>
-            <Outlet />
-          </React.Suspense>
+          ) : (
+            <React.Suspense fallback={
+              <div className="flex items-center justify-center h-64">
+                <div className="animate-spin w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full" />
+              </div>
+            }>
+              <Outlet />
+            </React.Suspense>
+          )}
         </main>
       </div>
     </div>

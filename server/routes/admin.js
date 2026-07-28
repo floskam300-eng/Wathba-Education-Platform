@@ -670,6 +670,18 @@ router.post('/teachers/:id/reset-password', requireAdminAuth, async (req, res) =
   }
 });
 
+// All valid page/feature keys — whitelist prevents unknown keys being stored
+const VALID_FEATURE_KEYS = new Set([
+  // Legacy keys (keep for backward compat)
+  'live_streaming', 'stickman_run',
+  // Teacher sidebar pages
+  'students', 'courses', 'exams', 'recitations', 'archive', 'question_banks',
+  'requests', 'attendance', 'assistants', 'analytics', 'payments', 'leaderboard',
+  'notifications', 'backup', 'activity_log', 'settings',
+  // Student-only pages
+  'student_stats',
+]);
+
 // Update Teacher Custom Features (Flags)
 // B3 FIX: merge incoming feature flags with existing features_enabled instead of
 // overwriting the whole object — prevents silently dropping future feature keys.
@@ -677,18 +689,28 @@ router.put('/teachers/:id/features', requireAdminAuth, async (req, res) => {
   const teacherId = parseInt(req.params.id, 10);
   if (isNaN(teacherId)) return res.status(400).json({ error: 'معرّف غير صحيح' });
 
-  const { live_streaming, stickman_run } = req.body;
+  // Reject any keys not in the whitelist
+  const incoming = req.body || {};
+  for (const key of Object.keys(incoming)) {
+    if (!VALID_FEATURE_KEYS.has(key)) {
+      return res.status(400).json({ error: `مفتاح غير مسموح: ${key}` });
+    }
+    if (typeof incoming[key] !== 'boolean') {
+      return res.status(400).json({ error: `قيمة المفتاح ${key} يجب أن تكون boolean` });
+    }
+  }
+
+  const prevLive = null; // we'll read below
   try {
     // Fetch current features first so we only overwrite known keys
     const current = await pool.query('SELECT features_enabled FROM teachers WHERE id = $1', [teacherId]);
     if (current.rows.length === 0) return res.status(404).json({ error: 'المدرس غير موجود' });
 
     const existing = current.rows[0].features_enabled || {};
-    const features = {
-      ...existing,
-      live_streaming: live_streaming !== false,
-      stickman_run: stickman_run !== false,
-    };
+    const prevLiveStreaming = existing.live_streaming !== false;
+
+    // Merge: only update keys present in the incoming payload
+    const features = { ...existing, ...incoming };
 
     const { rowCount } = await pool.query(
       'UPDATE teachers SET features_enabled = $1 WHERE id = $2',
@@ -699,6 +721,12 @@ router.put('/teachers/:id/features', requireAdminAuth, async (req, res) => {
 
     // B4 FIX: invalidate stats cache whenever teacher features change
     _statsCache.ts = 0;
+
+    // Invalidate live feature cache when live_streaming flag changes
+    const newLiveStreaming = features.live_streaming !== false;
+    if ('live_streaming' in incoming && prevLiveStreaming !== newLiveStreaming) {
+      try { require('./live').invalidateLiveFeatureCache(teacherId); } catch (_) {}
+    }
 
     res.json({ success: true, features });
   } catch (err) {

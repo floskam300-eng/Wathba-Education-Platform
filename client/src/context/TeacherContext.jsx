@@ -120,9 +120,30 @@ export function TeacherProvider({ children }) {
     applyManifest(platformName);
   }, [teacher, platformName, logoUrl]);
 
+  const fe = teacher?.features_enabled || {};
   const features = {
-    live_streaming: teacher?.features_enabled?.live_streaming !== false,
-    stickman_run:   teacher?.features_enabled?.stickman_run   !== false,
+    // ── Legacy keys (backward compat) ──────────────────────────────
+    live_streaming:  fe.live_streaming  !== false,
+    stickman_run:    fe.stickman_run    !== false,
+    // ── Teacher sidebar pages ───────────────────────────────────────
+    students:        fe.students        !== false,
+    courses:         fe.courses         !== false,
+    exams:           fe.exams           !== false,
+    recitations:     fe.recitations     !== false,
+    archive:         fe.archive         !== false,
+    question_banks:  fe.question_banks  !== false,
+    requests:        fe.requests        !== false,
+    attendance:      fe.attendance      !== false,
+    assistants:      fe.assistants      !== false,
+    analytics:       fe.analytics       !== false,
+    payments:        fe.payments        !== false,
+    leaderboard:     fe.leaderboard     !== false,
+    notifications:   fe.notifications   !== false,
+    backup:          fe.backup          !== false,
+    activity_log:    fe.activity_log    !== false,
+    settings:        fe.settings        !== false,
+    // ── Student-only pages ─────────────────────────────────────────
+    student_stats:   fe.student_stats   !== false,
   };
 
   return (
