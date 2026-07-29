@@ -335,7 +335,7 @@ router.post('/teachers', requireAdminAuth, async (req, res) => {
     username, password, name, classification, whatsapp_phone,
     logo_url, logo_wide_url, photo_url, background_image_url, hero_image_url,
     background_color, bio, bio_hero, bio_about, bio_card,
-    plan_ids, force_password_change,
+    pwa_name, plan_ids, force_password_change,
   } = req.body;
 
   // Accept plan_ids array (multi-plan support); also accept legacy plan_id for backwards compat
@@ -396,8 +396,8 @@ router.post('/teachers', requireAdminAuth, async (req, res) => {
     const teacherRes = await client.query(
       `INSERT INTO teachers (username, password, name, classification, whatsapp_phone, logo_url, logo_wide_url,
                              photo_url, background_image_url, hero_image_url, background_color, bio, bio_hero, bio_about, bio_card,
-                             slug, features_enabled, force_password_change)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING id`,
+                             pwa_name, slug, features_enabled, force_password_change)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING id`,
       [
         username.trim().toLowerCase(),
         hashed,
@@ -414,6 +414,7 @@ router.post('/teachers', requireAdminAuth, async (req, res) => {
         bio_hero || null,
         bio_about || null,
         bio_card || null,
+        typeof pwa_name === 'string' && pwa_name.trim() ? pwa_name.trim() : null,
         slug,
         JSON.stringify({ live_streaming: true, stickman_run: true }),
         shouldForceChange,

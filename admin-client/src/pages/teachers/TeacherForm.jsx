@@ -158,6 +158,7 @@ export default function TeacherForm() {
           logo_url: logoUrl,
           photo_url: photoUrl,
           background_image_url: backgroundImageUrl,
+          pwa_name: pwaName || null,
           plan_ids: Array.from(selectedPlanIds).map(Number),
           force_password_change: forcePasswordChange,
         });
