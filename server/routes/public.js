@@ -44,7 +44,7 @@ router.get('/info', async (req, res) => {
     if (cachedInfo) return res.json(cachedInfo);
 
     const teacherRes = await pool.query(
-      'SELECT id, name, bio, bio_hero, bio_about, bio_card, classification, logo_url, photo_url, background_image_url, whatsapp_phone, platform_name, slug, features_enabled, created_at FROM teachers WHERE slug = $1',
+      'SELECT id, name, bio, bio_hero, bio_about, bio_card, classification, logo_url, photo_url, background_image_url, whatsapp_phone, platform_name, pwa_name, slug, features_enabled, created_at FROM teachers WHERE slug = $1',
       [slug]
     );
 
@@ -234,10 +234,10 @@ async function buildManifest(req, slug) {
   if (result.rows.length === 0) return null;
 
   const t = result.rows[0];
-  const appName   = t.platform_name || t.name || 'منصة تعليمية';
-  // pwa_name is the admin-configured short label for the phone home screen icon.
-  // Fall back to appName if not set (no artificial truncation — admin controls the length).
-  const shortName = t.pwa_name || appName;
+  // pwa_name is what the admin explicitly set as the app/platform name.
+  // platform_name is a legacy field; teacher.name is the final fallback.
+  const appName   = t.pwa_name || t.platform_name || t.name || 'منصة تعليمية';
+  const shortName = t.pwa_name || t.platform_name || t.name || 'منصة تعليمية';
 
   const rawLogo = t.logo_url;
   const logoSrc = rawLogo
