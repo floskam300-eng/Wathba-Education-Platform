@@ -479,7 +479,8 @@ export default function StudentExams() {
   const openExam = (exam) => {
     const status = getExamScheduleStatus(exam);
     if (status === 'upcoming') return toast.error('الاختبار لم يبدأ بعد');
-    if (status === 'expired') return toast.error('انتهى وقت هذا الاختبار');
+    // Allow students with an approved retry to bypass the expired-date guard
+    if (status === 'expired' && retryMap[exam.id]?.status !== 'approved') return toast.error('انتهى وقت هذا الاختبار');
     // Do NOT clear localStorage here — if a student navigated away mid-exam, their
     // saved answers and timer position should be restored. Stale data from a previous
     // attempt is detected and cleared in the examData useEffect below using the
@@ -1170,19 +1171,25 @@ export default function StudentExams() {
                               </button>
                             </>
                           ) : (
-                            <button
-                              onClick={() => { setRetryModal(ex); setRetryMessage(''); }}
-                              className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border-2 border-orange-200 dark:border-orange-700/40 hover:border-orange-400 dark:hover:bg-orange-900/20 hover:bg-orange-50 text-orange-700 dark:text-orange-400 text-sm font-bold transition-all"
-                            >
-                              <RotateCcw className="w-4 h-4" /> طلب إعادة الاختبار
-                            </button>
+                            <>
+                              <button onClick={() => navigate(`/student/exam-review/${ex.already_taken}`)}
+                                className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border-2 border-navy-200 dark:border-[var(--dk-border)] hover:border-navy-400 dark:hover:bg-[var(--dk-elevated)] hover:bg-navy-50 text-navy-700 dark:text-[var(--dk-text-1)] text-sm font-bold transition-all">
+                                <Eye className="w-4 h-4" /> مراجعة الإجابات
+                              </button>
+                              <button
+                                onClick={() => { setRetryModal(ex); setRetryMessage(''); }}
+                                className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border-2 border-orange-200 dark:border-orange-700/40 hover:border-orange-400 dark:hover:bg-orange-900/20 hover:bg-orange-50 text-orange-700 dark:text-orange-400 text-sm font-bold transition-all"
+                              >
+                                <RotateCcw className="w-4 h-4" /> طلب إعادة الاختبار
+                              </button>
+                            </>
                           )
                         )}
                       </div>
                     );
                   })() : (
                     <button onClick={() => openExam(ex)}
-                      disabled={isExpired || isUpcoming}
+                      disabled={isUpcoming || (isExpired && retryMap[ex.id]?.status !== 'approved')}
                       className="w-full btn-primary flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                       <Play className="w-4 h-4" /> ابدأ الاختبار
                     </button>

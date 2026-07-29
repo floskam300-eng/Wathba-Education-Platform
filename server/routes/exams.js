@@ -1248,7 +1248,9 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
     if (exam.start_date && new Date(exam.start_date) > now) {
       return res.status(403).json({ error: 'الاختبار لم يبدأ بعد', start_date: exam.start_date });
     }
-    if (exam.end_date && new Date(exam.end_date) < now) {
+    // Allow students with an approved retry to bypass the end_date guard so
+    // the teacher's approval works even after the exam window has closed.
+    if (exam.end_date && new Date(exam.end_date) < now && retryRes.rows.length === 0) {
       return res.status(403).json({ error: 'انتهى وقت الاختبار', end_date: exam.end_date });
     }
 
