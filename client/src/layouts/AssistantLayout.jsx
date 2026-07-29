@@ -12,7 +12,7 @@ export default function AssistantLayout() {
   const { user, logout } = useAuth();
   const { dark, toggle } = useTheme();
   const navigate = useNavigate();
-  const { platformName, logoUrl } = useTeacher();
+  const { platformName, logoUrl, teacher } = useTeacher();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useSSE(!!user, 'assistant');
@@ -85,7 +85,14 @@ export default function AssistantLayout() {
         ))}
       </nav>
 
-      <div className="p-3 border-t border-white/10">
+      <div className="p-3 border-t border-white/10 space-y-1">
+        {teacher?.support_form_url && (
+          <a href={teacher.support_form_url} target="_blank" rel="noopener noreferrer"
+            className="sidebar-link">
+            <MessageCircle className="w-5 h-5" />
+            <span>مركز المساعدة</span>
+          </a>
+        )}
         <button onClick={handleLogout} className="sidebar-link w-full text-red-200 hover:bg-red-500/20 hover:text-red-100">
           <LogOut className="w-5 h-5" />
           <span>تسجيل الخروج</span>

@@ -114,8 +114,11 @@ export default function TeacherLayout() {
       </nav>
 
       <div className="p-3 border-t border-white/10 space-y-1">
-        {user?.whatsapp_phone && (
-          <a href={`https://wa.me/${user.whatsapp_phone}`} target="_blank" rel="noopener noreferrer"
+        {(user?.support_form_url || user?.whatsapp_phone) && (
+          <a
+            href={user.support_form_url || `https://wa.me/${user.whatsapp_phone}`}
+            target="_blank"
+            rel="noopener noreferrer"
             className="sidebar-link">
             <MessageCircle className="w-5 h-5" />
             <span>مركز المساعدة</span>

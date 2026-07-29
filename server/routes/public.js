@@ -44,7 +44,7 @@ router.get('/info', async (req, res) => {
     if (cachedInfo) return res.json(cachedInfo);
 
     const teacherRes = await pool.query(
-      'SELECT id, name, bio, bio_hero, bio_about, bio_card, classification, logo_url, photo_url, background_image_url, whatsapp_phone, platform_name, pwa_name, slug, features_enabled, created_at FROM teachers WHERE slug = $1',
+      'SELECT id, name, bio, bio_hero, bio_about, bio_card, classification, logo_url, photo_url, background_image_url, whatsapp_phone, support_form_url, platform_name, pwa_name, slug, features_enabled, created_at FROM teachers WHERE slug = $1',
       [slug]
     );
 

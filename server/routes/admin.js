@@ -282,7 +282,7 @@ router.get('/teachers/:id', requireAdminAuth, async (req, res) => {
   if (isNaN(teacherId)) return res.status(400).json({ error: 'معرّف غير صحيح' });
   try {
     const { rows } = await pool.query(
-      `SELECT id, username, name, classification, whatsapp_phone, logo_url, logo_wide_url, photo_url, background_image_url,
+      `SELECT id, username, name, classification, whatsapp_phone, support_form_url, logo_url, logo_wide_url, photo_url, background_image_url,
               bio, bio_hero, bio_about, bio_card, slug,
               is_platform_suspended, platform_suspended_at, platform_suspended_reason,
               features_enabled, hero_image_url, background_color, created_at, pwa_name
@@ -333,7 +333,7 @@ router.get('/teachers/:id', requireAdminAuth, async (req, res) => {
 // Create New Teacher (Platform Setup / Subdomain automatic creation via slug)
 router.post('/teachers', requireAdminAuth, async (req, res) => {
   const {
-    username, password, name, classification, whatsapp_phone,
+    username, password, name, classification, whatsapp_phone, support_form_url,
     logo_url, logo_wide_url, photo_url, background_image_url, hero_image_url,
     background_color, bio, bio_hero, bio_about, bio_card,
     platform_name, pwa_name, plan_ids, force_password_change,
@@ -395,16 +395,17 @@ router.post('/teachers', requireAdminAuth, async (req, res) => {
     // Insert Teacher — BUG-6 FIX: honour force_password_change flag from admin
     const shouldForceChange = force_password_change === true || force_password_change === 'true';
     const teacherRes = await client.query(
-      `INSERT INTO teachers (username, password, name, classification, whatsapp_phone, logo_url, logo_wide_url,
+      `INSERT INTO teachers (username, password, name, classification, whatsapp_phone, support_form_url, logo_url, logo_wide_url,
                              photo_url, background_image_url, hero_image_url, background_color, bio, bio_hero, bio_about, bio_card,
                              platform_name, pwa_name, slug, features_enabled, force_password_change)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) RETURNING id`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) RETURNING id`,
       [
         username.trim().toLowerCase(),
         hashed,
         name.trim(),
         classification ? classification.trim() : null,
         whatsapp_phone ? whatsapp_phone.trim() : null,
+        support_form_url ? support_form_url.trim() : null,
         logo_url || null,
         logo_wide_url || null,
         photo_url || null,
@@ -472,7 +473,7 @@ router.put('/teachers/:id', requireAdminAuth, async (req, res) => {
   if (isNaN(teacherId)) return res.status(400).json({ error: 'معرّف غير صحيح' });
 
   const {
-    name, classification, whatsapp_phone, logo_url, photo_url,
+    name, classification, whatsapp_phone, support_form_url, logo_url, photo_url,
     background_image_url, bio_hero, bio_about, bio_card,
   } = req.body;
   if (!name) return res.status(400).json({ error: 'الاسم بالكامل مطلوب' });
@@ -502,8 +503,9 @@ router.put('/teachers/:id', requireAdminAuth, async (req, res) => {
           SET name = $1, classification = $2, whatsapp_phone = $3,
               logo_url = $4, bio = $5, photo_url = $6,
               background_image_url = $7, bio_hero = $8, bio_about = $9,
-              bio_card = $10, pwa_name = $11, platform_name = $12
-        WHERE id = $13`,
+              bio_card = $10, pwa_name = $11, platform_name = $12,
+              support_form_url = $13
+        WHERE id = $14`,
       [
         name.trim(),
         classification ? classification.trim() : null,
@@ -517,6 +519,7 @@ router.put('/teachers/:id', requireAdminAuth, async (req, res) => {
         bioCard || null,
         pwaName,
         platformName,
+        support_form_url ? support_form_url.trim() : null,
         teacherId,
       ]
     );

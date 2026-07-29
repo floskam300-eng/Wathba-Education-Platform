@@ -7,7 +7,7 @@ import { useTeacher } from '../context/TeacherContext';
 import {
   LayoutDashboard, BookOpen, FileText, Trophy, LogOut,
   Menu, BarChart2, Moon, Sun, Bell, CheckCheck, X, ShieldAlert, Radio,
-  StopCircle, ExternalLink, Gamepad2, GraduationCap,
+  StopCircle, ExternalLink, Gamepad2, GraduationCap, MessageCircle,
 } from 'lucide-react';
 import { useLiveStream } from '../context/LiveStreamContext';
 import WathbaLogo from '../assets/wathba_logo.png';
@@ -334,7 +334,7 @@ export default function StudentLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { studentStream, leaveStudentStream, availableLive, clearAvailableLive } = useLiveStream();
-  const { platformName, logoUrl, features } = useTeacher();
+  const { platformName, logoUrl, features, teacher } = useTeacher();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [captureWarning, setCaptureWarning] = useState(false);
   const [showPushPrompt, setShowPushPrompt] = useState(false);
@@ -483,7 +483,14 @@ export default function StudentLayout() {
         )}
       </nav>
 
-      <div className="p-3 border-t border-white/10">
+      <div className="p-3 border-t border-white/10 space-y-1">
+        {teacher?.support_form_url && (
+          <a href={teacher.support_form_url} target="_blank" rel="noopener noreferrer"
+            className="sidebar-link">
+            <MessageCircle className="w-5 h-5" />
+            <span>مركز المساعدة</span>
+          </a>
+        )}
         <button onClick={handleLogout} className="sidebar-link w-full text-red-200 hover:bg-red-500/20 hover:text-red-100">
           <LogOut className="w-5 h-5" />
           <span>تسجيل الخروج</span>

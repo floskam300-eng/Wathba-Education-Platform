@@ -29,6 +29,7 @@ export default function TeacherForm() {
   const [backgroundUploading, setBackgroundUploading] = useState(false);
   const [platformName, setPlatformName] = useState('');
   const [pwaName, setPwaName] = useState('');
+  const [supportFormUrl, setSupportFormUrl] = useState('');
 
   // Subdomain slug — separate from username in create mode
   const [slug, setSlug] = useState('');
@@ -106,6 +107,7 @@ export default function TeacherForm() {
           setBackgroundImageUrl(teacher.background_image_url || '');
           setPlatformName(teacher.platform_name || '');
           setPwaName(teacher.pwa_name || '');
+          setSupportFormUrl(teacher.support_form_url || '');
 
           const teamRes = await api.get(`/teachers/${id}/team`);
           setTeam(teamRes.data.team);
@@ -162,6 +164,7 @@ export default function TeacherForm() {
           photo_url: photoUrl,
           background_image_url: backgroundImageUrl,
           pwa_name: pwaName || null,
+          support_form_url: supportFormUrl || null,
           plan_ids: Array.from(selectedPlanIds).map(Number),
           force_password_change: forcePasswordChange,
         });
@@ -190,6 +193,7 @@ export default function TeacherForm() {
           photo_url: photoUrl,
           background_image_url: backgroundImageUrl,
           pwa_name: pwaName,
+          support_form_url: supportFormUrl || null,
         });
         toast.success('تم تحديث بيانات المدرس بنجاح');
         navigate('/teachers');
@@ -424,6 +428,24 @@ export default function TeacherForm() {
                 </label>
               </div>
             )}
+
+            {/* Support Form URL */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-300 font-cairo" htmlFor="support_form_url">
+                رابط نموذج الدعم (Google Form)
+              </label>
+              <input
+                id="support_form_url"
+                type="url"
+                value={supportFormUrl}
+                onChange={(e) => setSupportFormUrl(e.target.value)}
+                placeholder="https://docs.google.com/forms/..."
+                className="mt-2 block w-full rounded-xl border border-slate-800 bg-slate-950 py-3 px-4 text-white placeholder-slate-600 focus:border-amber-500 focus:outline-none text-sm"
+              />
+              <p className="mt-1 text-xs text-slate-500 font-cairo">
+                الرابط الذي سيفتحه زر «مركز المساعدة» للطلاب والمدرس والمساعد.
+              </p>
+            </div>
 
             {/* WhatsApp Phone */}
             <div>
