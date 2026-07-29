@@ -333,7 +333,7 @@ router.get('/teachers/:id', requireAdminAuth, async (req, res) => {
 router.post('/teachers', requireAdminAuth, async (req, res) => {
   const {
     username, password, name, classification, whatsapp_phone,
-    logo_url, logo_wide_url, background_image_url, hero_image_url,
+    logo_url, logo_wide_url, photo_url, background_image_url, hero_image_url,
     background_color, bio, bio_hero, bio_about, bio_card,
     plan_ids, force_password_change,
   } = req.body;
@@ -395,9 +395,9 @@ router.post('/teachers', requireAdminAuth, async (req, res) => {
     const shouldForceChange = force_password_change === true || force_password_change === 'true';
     const teacherRes = await client.query(
       `INSERT INTO teachers (username, password, name, classification, whatsapp_phone, logo_url, logo_wide_url,
-                             background_image_url, hero_image_url, background_color, bio, bio_hero, bio_about, bio_card,
+                             photo_url, background_image_url, hero_image_url, background_color, bio, bio_hero, bio_about, bio_card,
                              slug, features_enabled, force_password_change)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING id`,
       [
         username.trim().toLowerCase(),
         hashed,
@@ -406,6 +406,7 @@ router.post('/teachers', requireAdminAuth, async (req, res) => {
         whatsapp_phone ? whatsapp_phone.trim() : null,
         logo_url || null,
         logo_wide_url || null,
+        photo_url || null,
         background_image_url || null,
         hero_image_url || null,
         background_color || '#000000',

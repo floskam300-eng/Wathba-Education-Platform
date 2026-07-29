@@ -153,6 +153,7 @@ export function TeacherProvider({ children }) {
       courses: data?.courses || [],
       topCourses: data?.topCourses || [],
       supportContacts: data?.supportContacts || [],
+      team: data?.team || [],
       isLoading: isPending,
       isError,
       teacherSlug,

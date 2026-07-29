@@ -154,6 +154,7 @@ export default function TeacherForm() {
           bio_about: bioAbout,
           bio_card: bioCard,
           logo_url: logoUrl,
+          photo_url: photoUrl,
           background_image_url: backgroundImageUrl,
           plan_ids: Array.from(selectedPlanIds).map(Number),
           force_password_change: forcePasswordChange,
