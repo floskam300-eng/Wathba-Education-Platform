@@ -103,7 +103,7 @@ export function TeacherProvider({ children }) {
   });
 
   const teacher = data?.teacher || null;
-  const platformName = teacher?.pwa_name || teacher?.platform_name || teacher?.name || 'منصة تعليمية';
+  const platformName = teacher?.platform_name || teacher?.pwa_name || teacher?.name || 'منصة تعليمية';
   // URLs stored by the admin upload endpoint already start with /uploads/admin/...
   // so we must NOT prepend /uploads/ again. Only prepend for legacy bare filenames.
   const resolveUploadUrl = (url) => {

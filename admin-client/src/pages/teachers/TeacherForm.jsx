@@ -27,6 +27,7 @@ export default function TeacherForm() {
   const [photoUploading, setPhotoUploading] = useState(false);
   const [backgroundImageUrl, setBackgroundImageUrl] = useState('');
   const [backgroundUploading, setBackgroundUploading] = useState(false);
+  const [platformName, setPlatformName] = useState('');
   const [pwaName, setPwaName] = useState('');
 
   // Subdomain slug — separate from username in create mode
@@ -103,6 +104,7 @@ export default function TeacherForm() {
           setLogoUrl(teacher.logo_url || '');
           setPhotoUrl(teacher.photo_url || '');
           setBackgroundImageUrl(teacher.background_image_url || '');
+          setPlatformName(teacher.platform_name || '');
           setPwaName(teacher.pwa_name || '');
 
           const teamRes = await api.get(`/teachers/${id}/team`);
@@ -155,6 +157,7 @@ export default function TeacherForm() {
           bio_hero: bioHero,
           bio_about: bioAbout,
           bio_card: bioCard,
+          platform_name: platformName || null,
           logo_url: logoUrl,
           photo_url: photoUrl,
           background_image_url: backgroundImageUrl,
@@ -182,6 +185,7 @@ export default function TeacherForm() {
           bio_hero: bioHero,
           bio_about: bioAbout,
           bio_card: bioCard,
+          platform_name: platformName || null,
           logo_url: logoUrl,
           photo_url: photoUrl,
           background_image_url: backgroundImageUrl,
@@ -306,6 +310,24 @@ export default function TeacherForm() {
                 placeholder="أحمد محمد علي"
                 className="mt-2 block w-full rounded-xl border border-slate-800 bg-slate-950 py-3 px-4 text-white placeholder-slate-600 focus:border-amber-500 focus:outline-none"
               />
+              <p className="mt-1 text-xs text-slate-500 font-cairo">اسم المدرس الشخصي — لا يظهر كاسم المنصة</p>
+            </div>
+
+            {/* Platform name */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-300 font-cairo" htmlFor="platformName">
+                اسم المنصة *
+              </label>
+              <input
+                id="platformName"
+                type="text"
+                maxLength={100}
+                value={platformName}
+                onChange={(e) => setPlatformName(e.target.value)}
+                placeholder="منصة أ.أحمد التعليمية"
+                className="mt-2 block w-full rounded-xl border border-slate-800 bg-slate-950 py-3 px-4 text-white placeholder-slate-600 focus:border-amber-500 focus:outline-none"
+              />
+              <p className="mt-1 text-xs text-slate-500 font-cairo">الاسم اللي بيظهر للطلاب وعند تنزيل التطبيق على الهاتف</p>
             </div>
 
             {/* Username (login) */}

@@ -335,7 +335,7 @@ router.post('/teachers', requireAdminAuth, async (req, res) => {
     username, password, name, classification, whatsapp_phone,
     logo_url, logo_wide_url, photo_url, background_image_url, hero_image_url,
     background_color, bio, bio_hero, bio_about, bio_card,
-    pwa_name, plan_ids, force_password_change,
+    platform_name, pwa_name, plan_ids, force_password_change,
   } = req.body;
 
   // Accept plan_ids array (multi-plan support); also accept legacy plan_id for backwards compat
@@ -396,8 +396,8 @@ router.post('/teachers', requireAdminAuth, async (req, res) => {
     const teacherRes = await client.query(
       `INSERT INTO teachers (username, password, name, classification, whatsapp_phone, logo_url, logo_wide_url,
                              photo_url, background_image_url, hero_image_url, background_color, bio, bio_hero, bio_about, bio_card,
-                             pwa_name, slug, features_enabled, force_password_change)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING id`,
+                             platform_name, pwa_name, slug, features_enabled, force_password_change)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) RETURNING id`,
       [
         username.trim().toLowerCase(),
         hashed,
@@ -414,6 +414,7 @@ router.post('/teachers', requireAdminAuth, async (req, res) => {
         bio_hero || null,
         bio_about || null,
         bio_card || null,
+        typeof platform_name === 'string' && platform_name.trim() ? platform_name.trim() : null,
         typeof pwa_name === 'string' && pwa_name.trim() ? pwa_name.trim() : null,
         slug,
         JSON.stringify({ live_streaming: true, stickman_run: true }),
@@ -490,13 +491,15 @@ router.put('/teachers/:id', requireAdminAuth, async (req, res) => {
     const bio = legacyBio || bioHero || bioAbout || bioCard;
     const rawPwaName = typeof req.body.pwa_name === 'string' ? req.body.pwa_name.trim() : null;
     const pwaName = rawPwaName || null;
+    const rawPlatformName = typeof req.body.platform_name === 'string' ? req.body.platform_name.trim() : null;
+    const platformName = rawPlatformName || null;
     const { rowCount } = await pool.query(
       `UPDATE teachers
           SET name = $1, classification = $2, whatsapp_phone = $3,
               logo_url = $4, bio = $5, photo_url = $6,
               background_image_url = $7, bio_hero = $8, bio_about = $9,
-              bio_card = $10, pwa_name = $11
-        WHERE id = $12`,
+              bio_card = $10, pwa_name = $11, platform_name = $12
+        WHERE id = $13`,
       [
         name.trim(),
         classification ? classification.trim() : null,
@@ -509,6 +512,7 @@ router.put('/teachers/:id', requireAdminAuth, async (req, res) => {
         bioAbout || null,
         bioCard || null,
         pwaName,
+        platformName,
         teacherId,
       ]
     );

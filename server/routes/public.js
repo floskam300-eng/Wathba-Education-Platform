@@ -234,9 +234,10 @@ async function buildManifest(req, slug) {
   if (result.rows.length === 0) return null;
 
   const t = result.rows[0];
-  // pwa_name is what the admin explicitly set as the app/platform name.
-  // platform_name is a legacy field; teacher.name is the final fallback.
-  const appName   = t.pwa_name || t.platform_name || t.name || 'منصة تعليمية';
+  // platform_name is the admin-set full platform name (e.g. "منصة أ.أحمد التعليمية").
+  // pwa_name is the short label for the phone home-screen icon.
+  // teacher.name is the final fallback.
+  const appName   = t.platform_name || t.pwa_name || t.name || 'منصة تعليمية';
   const shortName = t.pwa_name || t.platform_name || t.name || 'منصة تعليمية';
 
   const rawLogo = t.logo_url;
