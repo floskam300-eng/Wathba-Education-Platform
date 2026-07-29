@@ -66,8 +66,10 @@ export default function TeacherForm() {
   const [plans, setPlans] = useState([]);
   const [selectedPlanIds, setSelectedPlanIds] = useState(new Set());
 
-  // Support Team Members (only when editing)
+  // Support Team Members
   const [team, setTeam] = useState([]);
+  // In create mode, pendingTeam holds members queued locally before the teacher exists
+  const [pendingTeam, setPendingTeam] = useState([]);
   const [newMemberName, setNewMemberName] = useState('');
   const [newMemberRole, setNewMemberRole] = useState('');
   const [newMemberPhoto, setNewMemberPhoto] = useState('');
@@ -160,8 +162,16 @@ export default function TeacherForm() {
           force_password_change: forcePasswordChange,
         });
         const newTeacherId = createRes.data?.teacherId;
-        toast.success('تم إنشاء حساب المدرس والمنصة بنجاح! يمكنك الآن إضافة فريق الدعم.');
-        navigate(newTeacherId ? `/teachers/${newTeacherId}/edit` : '/teachers');
+        // Submit any pending team members that were queued during create
+        if (newTeacherId && pendingTeam.length > 0) {
+          await Promise.allSettled(
+            pendingTeam.map(({ _tempId: _ignored, ...m }) =>
+              api.post(`/teachers/${newTeacherId}/team`, m)
+            )
+          );
+        }
+        toast.success('تم إنشاء حساب المدرس والمنصة بنجاح!');
+        navigate('/teachers');
       } else {
         await api.put(`/teachers/${id}`, {
           name,
@@ -190,30 +200,40 @@ export default function TeacherForm() {
   // Support Team Actions
   const handleAddTeamMember = async () => {
     if (!newMemberName) return toast.error('اسم العضو مطلوب');
-    try {
-      const res = await api.post(`/teachers/${id}/team`, {
-        name: newMemberName,
-        role_title: newMemberRole,
-        photo_url: newMemberPhoto,
-        whatsapp_phone: newMemberPhone,
-        display_order: newMemberOrder,
-      });
-      setTeam(
-        [...team, {
-          id: res.data.memberId,
-          name: newMemberName,
-          role_title: newMemberRole,
-          photo_url: newMemberPhoto,
-          whatsapp_phone: newMemberPhone,
-          display_order: newMemberOrder,
-        }].sort((a, b) => a.display_order - b.display_order)
-      );
-      toast.success('تم إضافة عضو فريق الدعم');
+    const memberData = {
+      name: newMemberName,
+      role_title: newMemberRole,
+      photo_url: newMemberPhoto,
+      whatsapp_phone: newMemberPhone,
+      display_order: newMemberOrder,
+    };
+    const clearInputs = () => {
       setNewMemberName('');
       setNewMemberRole('');
       setNewMemberPhoto('');
       setNewMemberPhone('');
       setNewMemberOrder(0);
+    };
+
+    if (!isEdit) {
+      // In create mode: queue locally, will be submitted after teacher is created
+      setPendingTeam(prev =>
+        [...prev, { ...memberData, _tempId: Date.now() }]
+          .sort((a, b) => a.display_order - b.display_order)
+      );
+      toast.success('تم إضافة العضو - سيتم حفظه عند إنشاء المدرس');
+      clearInputs();
+      return;
+    }
+
+    try {
+      const res = await api.post(`/teachers/${id}/team`, memberData);
+      setTeam(prev =>
+        [...prev, { ...memberData, id: res.data.memberId }]
+          .sort((a, b) => a.display_order - b.display_order)
+      );
+      toast.success('تم إضافة عضو فريق الدعم');
+      clearInputs();
     } catch (err) {
       console.error(err);
       toast.error('فشل إضافة عضو فريق الدعم');
@@ -221,6 +241,10 @@ export default function TeacherForm() {
   };
 
   const handleDeleteTeamMember = async (memberId) => {
+    if (!isEdit) {
+      setPendingTeam(prev => prev.filter(m => m._tempId !== memberId));
+      return;
+    }
     try {
       await api.delete(`/teachers/${id}/team/${memberId}`);
       setTeam(team.filter((m) => m.id !== memberId));
@@ -654,102 +678,102 @@ export default function TeacherForm() {
 
         </div>
 
-        {/* ── Section 4: Support Team (edit only) ── */}
-        {isEdit && (
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-6 space-y-6">
-            <h3 className="text-lg font-bold text-white font-cairo border-b border-slate-800 pb-3 flex items-center gap-2">
-              <Sparkles className="text-amber-500" size={20} />
-              <span>فريق الدعم والمسؤولين (يعرض في الموقع التعريفي)</span>
-            </h3>
+        {/* ── Section 4: Support Team ── */}
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-6 space-y-6">
+          <h3 className="text-lg font-bold text-white font-cairo border-b border-slate-800 pb-3 flex items-center gap-2">
+            <Sparkles className="text-amber-500" size={20} />
+            <span>فريق الدعم والمسؤولين (يعرض في الموقع التعريفي)</span>
+          </h3>
 
-            <div className="space-y-3">
-              {team.length === 0 ? (
-                <p className="text-sm text-slate-500 font-cairo">لم يتم إضافة أي أعضاء لفريق الدعم بعد.</p>
-              ) : (
-                team.map((member) => (
-                  <div key={member.id} className="flex items-center justify-between border border-slate-800 bg-slate-950/40 p-3 rounded-xl">
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={member.photo_url || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(member.name) + '&background=f59e0b&color=fff'}
-                        alt={member.name}
-                        className="h-10 w-10 rounded-full object-cover border border-slate-800"
-                      />
-                      <div>
-                        <div className="font-semibold text-white font-cairo">{member.name}</div>
-                        <div className="text-xs text-slate-500 font-cairo">
-                          {member.role_title || 'مسؤول دعم'} | هاتف: {member.whatsapp_phone || 'لا يوجد'}
-                        </div>
+          {/* List of existing/pending members */}
+          <div className="space-y-3">
+            {(isEdit ? team : pendingTeam).length === 0 ? (
+              <p className="text-sm text-slate-500 font-cairo">لم يتم إضافة أي أعضاء لفريق الدعم بعد.</p>
+            ) : (
+              (isEdit ? team : pendingTeam).map((member) => (
+                <div key={isEdit ? member.id : member._tempId} className="flex items-center justify-between border border-slate-800 bg-slate-950/40 p-3 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={member.photo_url || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(member.name) + '&background=f59e0b&color=fff'}
+                      alt={member.name}
+                      className="h-10 w-10 rounded-full object-cover border border-slate-800"
+                    />
+                    <div>
+                      <div className="font-semibold text-white font-cairo">{member.name}</div>
+                      <div className="text-xs text-slate-500 font-cairo">
+                        {member.role_title || 'مسؤول دعم'} | هاتف: {member.whatsapp_phone || 'لا يوجد'}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-slate-500 font-mono">ترتيب: {member.display_order}</span>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteTeamMember(member.id)}
-                        className="rounded-lg bg-red-950/40 p-2 text-red-400 hover:bg-red-900/60 transition"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
                   </div>
-                ))
-              )}
-            </div>
-
-            <div className="border-t border-slate-800 pt-6 space-y-4">
-              <h4 className="text-sm font-semibold text-white font-cairo">إضافة عضو جديد للفريق:</h4>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
-                <input
-                  type="text"
-                  placeholder="الاسم"
-                  value={newMemberName}
-                  onChange={(e) => setNewMemberName(e.target.value)}
-                  className="block w-full rounded-xl border border-slate-800 bg-slate-950 py-2.5 px-3 text-white placeholder-slate-600 focus:outline-none text-xs font-cairo"
-                />
-                <input
-                  type="text"
-                  placeholder="المسمى الوظيفي (دعم فني)"
-                  value={newMemberRole}
-                  onChange={(e) => setNewMemberRole(e.target.value)}
-                  className="block w-full rounded-xl border border-slate-800 bg-slate-950 py-2.5 px-3 text-white placeholder-slate-600 focus:outline-none text-xs font-cairo"
-                />
-                <input
-                  type="text"
-                  placeholder="هاتف الواتس الخاص به"
-                  value={newMemberPhone}
-                  onChange={(e) => setNewMemberPhone(e.target.value)}
-                  className="block w-full rounded-xl border border-slate-800 bg-slate-950 py-2.5 px-3 text-white placeholder-slate-600 focus:outline-none text-xs font-mono"
-                />
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    placeholder="الترتيب"
-                    value={newMemberOrder}
-                    onChange={(e) => setNewMemberOrder(parseInt(e.target.value) || 0)}
-                    className="block w-16 rounded-xl border border-slate-800 bg-slate-950 py-2.5 px-2 text-white text-center focus:outline-none text-xs font-mono"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddTeamMember}
-                    className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-amber-500 py-2.5 text-xs font-semibold text-white hover:bg-amber-600 transition font-cairo px-3"
-                  >
-                    <Plus size={14} />
-                    <span>إضافة</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-500 font-mono">ترتيب: {member.display_order}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteTeamMember(isEdit ? member.id : member._tempId)}
+                      className="rounded-lg bg-red-950/40 p-2 text-red-400 hover:bg-red-900/60 transition"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </div>
-              </div>
-              <div className="w-full">
-                <ImageCropper
-                  aspect={1}
-                  circular={true}
-                  onComplete={(url) => setNewMemberPhoto(url)}
-                  label="صورة العضو الشخصية (قص دائري 1:1)"
-                  currentImage={newMemberPhoto}
+              ))
+            )}
+          </div>
+
+          {/* Add new member inputs */}
+          <div className="border-t border-slate-800 pt-6 space-y-4">
+            <h4 className="text-sm font-semibold text-white font-cairo">إضافة عضو جديد للفريق:</h4>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
+              <input
+                type="text"
+                placeholder="الاسم"
+                value={newMemberName}
+                onChange={(e) => setNewMemberName(e.target.value)}
+                className="block w-full rounded-xl border border-slate-800 bg-slate-950 py-2.5 px-3 text-white placeholder-slate-600 focus:outline-none text-xs font-cairo"
+              />
+              <input
+                type="text"
+                placeholder="المسمى الوظيفي (دعم فني)"
+                value={newMemberRole}
+                onChange={(e) => setNewMemberRole(e.target.value)}
+                className="block w-full rounded-xl border border-slate-800 bg-slate-950 py-2.5 px-3 text-white placeholder-slate-600 focus:outline-none text-xs font-cairo"
+              />
+              <input
+                type="text"
+                placeholder="هاتف الواتس الخاص به"
+                value={newMemberPhone}
+                onChange={(e) => setNewMemberPhone(e.target.value)}
+                className="block w-full rounded-xl border border-slate-800 bg-slate-950 py-2.5 px-3 text-white placeholder-slate-600 focus:outline-none text-xs font-mono"
+              />
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  placeholder="الترتيب"
+                  value={newMemberOrder}
+                  onChange={(e) => setNewMemberOrder(parseInt(e.target.value) || 0)}
+                  className="block w-16 rounded-xl border border-slate-800 bg-slate-950 py-2.5 px-2 text-white text-center focus:outline-none text-xs font-mono"
                 />
+                <button
+                  type="button"
+                  onClick={handleAddTeamMember}
+                  className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-amber-500 py-2.5 text-xs font-semibold text-white hover:bg-amber-600 transition font-cairo px-3"
+                >
+                  <Plus size={14} />
+                  <span>إضافة</span>
+                </button>
               </div>
+            </div>
+            <div className="w-full">
+              <ImageCropper
+                aspect={1}
+                circular={true}
+                onComplete={(url) => setNewMemberPhoto(url)}
+                label="صورة العضو الشخصية (قص دائري 1:1)"
+                currentImage={newMemberPhoto}
+              />
             </div>
           </div>
-        )}
+        </div>
 
         {/* ── Section 5: Reset Password (edit only) ── */}
         {isEdit && <ResetPasswordSection teacherId={id} />}
