@@ -142,7 +142,7 @@ export default function TeacherForm() {
     setSaving(true);
     try {
       if (!isEdit) {
-        await api.post('/teachers', {
+        const createRes = await api.post('/teachers', {
           username,
           slug: slug || username,
           password,
@@ -159,7 +159,9 @@ export default function TeacherForm() {
           plan_ids: Array.from(selectedPlanIds).map(Number),
           force_password_change: forcePasswordChange,
         });
-        toast.success('تم إنشاء حساب المدرس والمنصة بنجاح!');
+        const newTeacherId = createRes.data?.teacherId;
+        toast.success('تم إنشاء حساب المدرس والمنصة بنجاح! يمكنك الآن إضافة فريق الدعم.');
+        navigate(newTeacherId ? `/teachers/${newTeacherId}/edit` : '/teachers');
       } else {
         await api.put(`/teachers/${id}`, {
           name,
@@ -175,8 +177,8 @@ export default function TeacherForm() {
           pwa_name: pwaName,
         });
         toast.success('تم تحديث بيانات المدرس بنجاح');
+        navigate('/teachers');
       }
-      navigate('/teachers');
     } catch (err) {
       console.error(err);
       toast.error(err.response?.data?.error || 'حدث خطأ أثناء حفظ البيانات');
