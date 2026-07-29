@@ -45,33 +45,76 @@ async function seed() {
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
   // ══════════════════════════════════════════════════════════
-  // 0. مسح البيانات القديمة (بالترتيب الصحيح للـ FK)
+  // 0. مسح بيانات المدرس demo فقط (بدون المساس ببيانات المدرسين الآخرين)
   // ══════════════════════════════════════════════════════════
-  console.log('\n⟳  مسح البيانات القديمة...');
-  const tables = [
-    'revoked_tokens',
-    'whatsapp_send_log', 'whatsapp_schedules',
-    'activity_logs', 'game_session_tokens',
-    'device_alerts', 'student_devices',
-    'recitation_results', 'recitation_sessions',
-    'recitation_questions', 'recitations',
-    'exam_sessions', 'event_plays', 'live_hand_raises',
-    'live_chat_messages', 'live_stream_viewers', 'live_streams',
-    'course_completion_points', 'exam_retry_requests', 'notification_log',
-    'badges', 'video_progress', 'exam_results',
-    'course_enrollment_requests', 'student_course_enrollment',
-    'payments', 'leaderboard_history', 'leaderboard_reset_tracker',
-    'bank_questions', 'question_banks', 'questions', 'exams',
-    'pdf_files', 'videos', 'sections', 'courses',
-    'students', 'assistants',
-    'teacher_support_contacts',
-    'teacher_import_models',
-  ];
-  for (const t of tables) {
-    try { await q(`DELETE FROM ${t}`); } catch (_) {}
+  console.log('\n⟳  مسح بيانات المدرس demo...');
+
+  // نجيب ID المدرس admin قبل أي مسح
+  const [existingAdmin] = await q(`SELECT id FROM teachers WHERE username='admin'`);
+
+  if (existingAdmin) {
+    const tid = existingAdmin.id;
+
+    // ── حذف البيانات المرتبطة بالطلاب أولاً (CASCADE يكمّل الباقي) ──
+    // student_devices, device_alerts, video_progress, payments,
+    // student_course_enrollment, course_enrollment_requests,
+    // notification_log, badges, exam_results, exam_retry_requests,
+    // exam_sessions, recitation_results, recitation_sessions,
+    // recitation_streaks, game_session_tokens, event_plays,
+    // live_stream_viewers, live_hand_raises, course_completion_points
+    // — كلها ON DELETE CASCADE من students
+    await q(`DELETE FROM students WHERE teacher_id=$1`, [tid]);
+
+    // ── حذف الكورسات (CASCADE → sections → videos, pdf_files) ──
+    await q(`DELETE FROM courses WHERE teacher_id=$1`, [tid]);
+
+    // ── حذف الامتحانات (CASCADE → questions) ──
+    await q(`DELETE FROM exams WHERE teacher_id=$1`, [tid]);
+
+    // ── حذف بنوك الأسئلة (CASCADE → bank_questions) ──
+    await q(`DELETE FROM question_banks WHERE teacher_id=$1`, [tid]);
+
+    // ── حذف التسميعات (CASCADE → recitation_questions) ──
+    await q(`DELETE FROM recitations WHERE teacher_id=$1`, [tid]);
+
+    // ── حذف البث المباشر (CASCADE → viewers, chat, hand_raises) ──
+    await q(`DELETE FROM live_streams WHERE teacher_id=$1`, [tid]);
+
+    // ── حذف الجداول المباشرة ──
+    await q(`DELETE FROM whatsapp_send_log  WHERE teacher_id=$1`, [tid]);
+    await q(`DELETE FROM whatsapp_schedules WHERE teacher_id=$1`, [tid]);
+    await q(`DELETE FROM activity_logs      WHERE teacher_id=$1`, [tid]);
+    await q(`DELETE FROM notification_log   WHERE teacher_id=$1`, [tid]);
+    await q(`DELETE FROM device_alerts      WHERE teacher_id=$1`, [tid]);
+    await q(`DELETE FROM leaderboard_history         WHERE teacher_id=$1`, [tid]);
+    await q(`DELETE FROM leaderboard_reset_tracker   WHERE teacher_id=$1`, [tid]);
+    await q(`DELETE FROM assistants              WHERE teacher_id=$1`, [tid]);
+    await q(`DELETE FROM teacher_support_contacts WHERE teacher_id=$1`, [tid]);
+    try { await q(`DELETE FROM teacher_import_models WHERE teacher_id=$1`, [tid]); } catch (_) {}
+  } else {
+    // أول تشغيل: لا يوجد مدرسون بعد — مسح كامل آمن
+    console.log('  (أول تشغيل — مسح كامل)');
+    for (const t of [
+      'whatsapp_send_log', 'whatsapp_schedules',
+      'activity_logs', 'game_session_tokens',
+      'device_alerts', 'student_devices',
+      'recitation_results', 'recitation_sessions',
+      'recitation_questions', 'recitations',
+      'exam_sessions', 'event_plays', 'live_hand_raises',
+      'live_chat_messages', 'live_stream_viewers', 'live_streams',
+      'course_completion_points', 'exam_retry_requests', 'notification_log',
+      'badges', 'video_progress', 'exam_results',
+      'course_enrollment_requests', 'student_course_enrollment',
+      'payments', 'leaderboard_history', 'leaderboard_reset_tracker',
+      'bank_questions', 'question_banks', 'questions', 'exams',
+      'pdf_files', 'videos', 'sections', 'courses',
+      'students', 'assistants',
+      'teacher_support_contacts', 'teacher_import_models',
+    ]) { try { await q(`DELETE FROM ${t}`); } catch (_) {} }
+    await q(`DELETE FROM teachers WHERE username != 'admin'`);
   }
-  await q(`DELETE FROM teachers WHERE username != 'admin'`);
-  console.log('  ✓ تم مسح كل البيانات');
+
+  console.log('  ✓ تم مسح بيانات demo بنجاح');
 
   // كلمات المرور الجاهزة
   const pass6  = await bcrypt.hash('123456',  10);
