@@ -234,15 +234,17 @@ router.post('/login', loginLimiter, async (req, res) => {
               if (knownIds.length >= 1) {
                 // 2nd (new) device → alert teacher but do NOT suspend.
                 // The original registered device continues working normally.
-                // Only create alert if there is no pending alert for this student
-                // already (prevents duplicate alerts from race-condition remnants)
+                // Create an alert for each distinct new device so the teacher sees
+                // ALL attempted devices, not just the first one.
+                // Deduplication is per (student_id, device_id) so retrying the
+                // same blocked device never creates a duplicate row.
                 await client.query(
                   `INSERT INTO device_alerts
                      (teacher_id, student_id, alert_type, device_id, device_name, ip_address, status)
                    SELECT $1,$2,'device_limit_exceeded',$3,$4,$5,'pending'
                    WHERE NOT EXISTS (
                      SELECT 1 FROM device_alerts
-                     WHERE student_id=$2 AND status='pending'
+                     WHERE student_id=$2 AND device_id=$3 AND status='pending'
                    )`,
                   [user.teacher_id, user.id, device_id, deviceName, ip]
                 );
