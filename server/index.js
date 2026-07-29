@@ -566,11 +566,13 @@ app.get('/health', async (req, res) => {
 
 // ── In-memory cache for tenant branding (5-min TTL) ─────────────────────────
 // Shared by /manifest.json and the SPA catch-all (iOS meta-tag injection).
-const _tenantBrandingCache = new Map();
+// The cache lives in a separate module so admin routes can invalidate it
+// immediately after creating or updating a teacher (no stale-manifest bug).
+const { getBrandingCache, setBrandingCache } = require('./cache/tenantBranding');
 async function getTenantBranding(slug) {
   if (!slug) return null;
-  const cached = _tenantBrandingCache.get(slug);
-  if (cached && Date.now() - cached.ts < 5 * 60_000) return cached.data;
+  const cached = getBrandingCache(slug);
+  if (cached) return cached;
   try {
     const r = await pool.query(
       'SELECT name, platform_name, pwa_name, logo_url, logo_wide_url FROM teachers WHERE slug=$1',
@@ -583,7 +585,7 @@ async function getTenantBranding(slug) {
       shortName: t.pwa_name || t.platform_name || t.name || 'وثبة',
       logoUrl:   t.logo_url || t.logo_wide_url || null,
     };
-    _tenantBrandingCache.set(slug, { data, ts: Date.now() });
+    setBrandingCache(slug, data);
     return data;
   } catch (_) { return null; }
 }

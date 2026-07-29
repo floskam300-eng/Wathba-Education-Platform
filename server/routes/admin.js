@@ -9,6 +9,7 @@ const rateLimit = require('express-rate-limit');
 const pool = require('../db/connection');
 const { requireAdminAuth, ADMIN_JWT_SECRET, invalidateTeacherAuthCache } = require('../middleware/auth');
 const { getTotalConnections } = require('../sse');
+const { invalidateBrandingCache } = require('../cache/tenantBranding');
 const { isValidImage, deleteFile, deleteUploadFile, extractSubQuestionImages } = require('../lib/validateFileMagic');
 const { convertToWebp } = require('../lib/convertToWebp');
 
@@ -444,6 +445,9 @@ router.post('/teachers', requireAdminAuth, async (req, res) => {
     if (subdomainTenant && typeof subdomainTenant.invalidateCache === 'function') {
       subdomainTenant.invalidateCache(slug);
     }
+    // Invalidate branding cache so the PWA manifest immediately reflects the
+    // platform_name / pwa_name saved during creation (not a stale fallback).
+    invalidateBrandingCache(slug);
 
     // B4 FIX: invalidate stats cache when a teacher is created
     _statsCache.ts = 0;
@@ -527,6 +531,9 @@ router.put('/teachers/:id', requireAdminAuth, async (req, res) => {
     }
     const { invalidatePubInfoCache } = require('./public');
     invalidatePubInfoCache(slug);
+    // Invalidate branding cache so the PWA manifest immediately reflects the
+    // updated platform_name / pwa_name — without waiting for the 5-min TTL.
+    invalidateBrandingCache(slug);
 
     res.json({ success: true });
   } catch (err) {
