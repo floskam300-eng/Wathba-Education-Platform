@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
   BookOpen, Clock, CheckCircle, XCircle, Trophy,
-  ChevronLeft, AlertCircle, BarChart2, RefreshCw, Lock, Eye, Loader2, ZoomIn,
+  ChevronLeft, ChevronRight, AlertCircle, BarChart2, RefreshCw, Lock, Eye, Loader2, ZoomIn,
   ChevronDown, ChevronUp, X
 } from 'lucide-react';
 import api from '../../lib/api';
@@ -61,6 +61,8 @@ export default function StudentRecitations() {
   // would start a second countdown sequence on top of the first.
   const [startingId, setStartingId] = useState(null);
   const [lightboxSrc, setLightboxSrc] = useState(null);
+  // Question-by-question navigation
+  const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
   const submittedRef = useRef(false);
   const mountedRef = useRef(true);
   const timerRef = useRef(null);
@@ -143,12 +145,13 @@ export default function StudentRecitations() {
     return () => { mountedRef.current = false; };
   }, []);
 
-  // Scroll to top when entering/leaving exam view
+  // Scroll to top when entering/leaving exam view; reset question index on new take
   useEffect(() => {
     if (view === 'take' || view === 'result') {
       const el = document.querySelector('main');
       if (el) el.scrollTop = 0;
     }
+    if (view === 'take') setCurrentQuestionIdx(0);
   }, [view]);
 
   // 3-2-1 countdown
@@ -459,32 +462,87 @@ export default function StudentRecitations() {
       return !!answers[q.id];
     }).length;
 
+    const safeIdx = Math.min(currentQuestionIdx, questions.length - 1);
+    const q = questions[safeIdx];
+    const isFirst = safeIdx === 0;
+    const isLast = safeIdx === questions.length - 1;
+    const nextQ = !isLast ? questions[safeIdx + 1] : null;
+
+    const isQAnswered = (qid) => {
+      const a = answers[qid];
+      if (a && typeof a === 'object') return Object.keys(a).length > 0;
+      return !!a;
+    };
+
+    const goTo = (idx) => {
+      setCurrentQuestionIdx(idx);
+      const el = document.querySelector('main');
+      if (el) el.scrollTop = 0;
+      window.scrollTo(0, 0);
+    };
+
     return (
       <>
       <div className={`min-h-screen ${dark ? 'bg-[var(--dk-bg)]' : 'bg-gray-50'}`} dir="rtl">
-        {/* Sticky timer header */}
-        <div className={`sticky top-0 z-20 border-b px-4 py-3 flex items-center justify-between ${dark ? 'bg-[var(--dk-surface)] border-[var(--dk-border)]' : 'bg-white border-gray-200 shadow-sm'}`}>
-          <div>
+        {/* Sticky header: title + timer + submit */}
+        <div className={`sticky top-0 z-20 border-b px-4 py-3 flex items-center justify-between gap-2 ${dark ? 'bg-[var(--dk-surface)] border-[var(--dk-border)]' : 'bg-white border-gray-200 shadow-sm'}`}>
+          <div className="min-w-0 flex-1">
             <p className={`font-black text-sm truncate max-w-[200px] ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>{selectedRec?.title}</p>
             <p className={`text-xs ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>{answered}/{questions.length} إجابة</p>
           </div>
-          <div className={`flex items-center gap-2 px-4 py-2 rounded-xl font-black text-xl tabular-nums ${
-            urgent ? 'bg-red-100 text-red-600 animate-pulse' : dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text)]' : 'bg-purple-50 text-purple-700'
-          }`}>
-            <Clock className="w-5 h-5" />
-            {mins}:{String(secs).padStart(2, '0')}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl font-black text-lg tabular-nums ${
+              urgent ? 'bg-red-100 text-red-600 animate-pulse' : dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text)]' : 'bg-purple-50 text-purple-700'
+            }`}>
+              <Clock className="w-4 h-4" />
+              {mins}:{String(secs).padStart(2, '0')}
+            </div>
+            <button
+              onClick={() => {
+                if (window.confirm(`هل أنت متأكد من تسليم التسميع؟\nأجبت على ${answered} من ${questions.length} أسئلة`)) {
+                  handleSubmit(false);
+                }
+              }}
+              disabled={submitting}
+              className="bg-purple-500 hover:bg-purple-600 disabled:opacity-60 text-white text-xs sm:text-sm font-black px-3 py-1.5 rounded-xl transition-colors whitespace-nowrap"
+            >
+              {submitting ? <RefreshCw className="w-4 h-4 inline animate-spin" /> : `تسليم (${answered}/${questions.length})`}
+            </button>
           </div>
         </div>
 
-        {/* Questions */}
-        <div className="max-w-2xl mx-auto p-4 space-y-2">
-          {questions.map((q, idx) => (
-            <div key={q.id}>
+        <div className="max-w-2xl mx-auto p-4 space-y-4">
+          {/* Question number grid */}
+          <div className="flex flex-wrap gap-1.5 justify-center pt-1">
+            {questions.map((qq, idx) => {
+              const isAnswered = isQAnswered(qq.id);
+              const isCurrent = idx === safeIdx;
+              return (
+                <button
+                  key={qq.id}
+                  onClick={() => goTo(idx)}
+                  className={`w-9 h-9 rounded-xl text-sm font-black transition-all border-2 ${
+                    isCurrent
+                      ? 'bg-purple-500 text-white border-purple-500 shadow-md scale-110'
+                      : isAnswered
+                      ? (dark ? 'bg-purple-900/30 text-purple-300 border-purple-600' : 'bg-purple-50 text-purple-700 border-purple-400')
+                      : (dark ? 'bg-[var(--dk-surface)] text-[var(--dk-text-2)] border-[var(--dk-border)]' : 'bg-white text-gray-500 border-gray-200 hover:border-purple-300')
+                  }`}
+                >
+                  {idx + 1}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Current question only */}
+          {q && (
+            <div>
               {/* ── Question separator ── */}
-              <div className="flex items-center gap-3 mb-2 mt-3">
+              <div className="flex items-center gap-3 mb-2 mt-1">
                 <div className={`flex-1 h-px ${dark ? 'bg-purple-900/30' : 'bg-purple-100'}`} />
                 <span className={`flex items-center gap-1.5 text-xs font-black px-3 py-1 rounded-full whitespace-nowrap select-none border ${dark ? 'text-purple-400 bg-purple-900/20 border-purple-700/40' : 'text-purple-500 bg-purple-50 border-purple-200'}`}>
-                  السؤال {idx + 1}
+                  السؤال {safeIdx + 1} من {questions.length}
                   <span className={`font-normal ${dark ? 'text-purple-600' : 'text-purple-300'}`}>·</span>
                   <span className={`font-medium ${dark ? 'text-purple-500' : 'text-purple-400'}`}>
                     {q.question_type === 'true_false' ? 'صح / خطأ' : q.question_type === 'image_multi' ? 'صورة + أسئلة' : 'اختيار من متعدد'}
@@ -492,20 +550,49 @@ export default function StudentRecitations() {
                 </span>
                 <div className={`flex-1 h-px ${dark ? 'bg-purple-900/30' : 'bg-purple-100'}`} />
               </div>
-              <QuestionCard q={q} idx={idx} answers={answers} setAnswers={setAnswers} dark={dark} onImagePress={setLightboxSrc} />
+              <QuestionCard q={q} idx={safeIdx} answers={answers} setAnswers={setAnswers} dark={dark} onImagePress={setLightboxSrc} />
             </div>
-          ))}
+          )}
 
-          <button
-            onClick={() => {
-              if (window.confirm(`هل أنت متأكد من تسليم التسميع؟\nأجبت على ${answered} من ${questions.length} أسئلة`)) {
-                handleSubmit(false);
-              }
-            }}
-            disabled={submitting}
-            className="w-full py-4 rounded-2xl font-black text-lg text-white bg-purple-500 hover:bg-purple-600 disabled:opacity-60 transition-colors shadow-lg mt-4">
-            {submitting ? <><RefreshCw className="w-5 h-5 inline ml-2 animate-spin" />جاري التسليم...</> : 'تسليم التسميع'}
-          </button>
+          {/* Prefetch next question's images silently */}
+          {nextQ?.question_image_url && (
+            <img key={`prefetch-${nextQ.id}`} src={withToken(nextQ.question_image_url)} alt="" aria-hidden="true" className="hidden" />
+          )}
+
+          {/* Prev / Next navigation */}
+          <div className="flex gap-2 pb-6">
+            <button
+              onClick={() => goTo(safeIdx - 1)}
+              disabled={isFirst}
+              className={`flex items-center gap-1 px-4 py-3 rounded-2xl font-black text-sm transition-colors disabled:opacity-40 ${
+                dark ? 'bg-[var(--dk-surface)] text-[var(--dk-text)] border border-[var(--dk-border)]' : 'bg-white text-gray-700 border border-gray-200 hover:border-gray-400'
+              }`}
+            >
+              <ChevronRight className="w-4 h-4" />
+              السابق
+            </button>
+            {isLast ? (
+              <button
+                onClick={() => {
+                  if (window.confirm(`هل أنت متأكد من تسليم التسميع؟\nأجبت على ${answered} من ${questions.length} أسئلة`)) {
+                    handleSubmit(false);
+                  }
+                }}
+                disabled={submitting}
+                className="flex-1 py-3 rounded-2xl font-black text-sm text-white bg-purple-500 hover:bg-purple-600 disabled:opacity-60 transition-colors shadow-lg"
+              >
+                {submitting ? <><RefreshCw className="w-4 h-4 inline ml-1 animate-spin" />جاري التسليم...</> : `تسليم (${answered}/${questions.length})`}
+              </button>
+            ) : (
+              <button
+                onClick={() => goTo(safeIdx + 1)}
+                className="flex-1 flex items-center justify-center gap-1 py-3 rounded-2xl font-black text-sm text-white bg-purple-500 hover:bg-purple-600 transition-colors shadow-lg"
+              >
+                التالي
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
       {lightboxSrc && <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}

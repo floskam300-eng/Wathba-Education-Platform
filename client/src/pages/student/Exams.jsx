@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Clock, CheckCircle, Play, Eye, Calendar, Lock, RotateCcw, X, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
+import { FileText, Clock, CheckCircle, Play, Eye, Calendar, Lock, RotateCcw, X, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import ImageLightbox from '../../components/ImageLightbox';
 import { toUTCDate } from '../../lib/dateUtils';
 import Modal from '../../components/ui/Modal';
@@ -88,6 +88,8 @@ export default function StudentExams() {
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   // Start expanded — history is now the primary place for taken exams
   const [showHistory, setShowHistory] = useState(true);
+  // Question-by-question navigation
+  const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
 
   // Ref attached to the root scrollable div in every view (exam-taking, list, result).
   // scrollAllToTop resets both this container AND the layout <main> so we cover all cases.
@@ -269,6 +271,11 @@ export default function StudentExams() {
   useEffect(() => {
     if (examData) return scrollAllToTop();
   }, [!!examData]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset question index whenever a new exam is loaded
+  useEffect(() => {
+    if (examData) setCurrentQuestionIdx(0);
+  }, [examData]);
 
   // Must be declared here (before any early returns) to satisfy the Rules of Hooks.
   // When the exam-taking view is active, this will always return [] due to the
@@ -537,6 +544,24 @@ export default function StudentExams() {
       return !!a;
     }).length;
 
+    const safeIdx = Math.min(currentQuestionIdx, questions.length - 1);
+    const q = questions[safeIdx];
+    const qType = q?.question_type || 'mcq';
+    const isFirst = safeIdx === 0;
+    const isLast = safeIdx === questions.length - 1;
+    const nextQ = !isLast ? questions[safeIdx + 1] : null;
+
+    const isQAnswered = (qid) => {
+      const a = answers[qid];
+      if (a && typeof a === 'object') return Object.keys(a).length > 0;
+      return !!a;
+    };
+
+    const goTo = (idx) => {
+      setCurrentQuestionIdx(idx);
+      scrollAllToTop();
+    };
+
     return (
       <>
       <div ref={scrollContainerRef} className="h-full overflow-y-auto p-3 sm:p-4 lg:p-6">
@@ -548,9 +573,18 @@ export default function StudentExams() {
                 <h2 className="text-sm sm:text-lg font-black text-white leading-snug line-clamp-2">{exam.title}</h2>
                 <p className="text-navy-100 text-xs font-medium mt-0.5">{answered}/{questions.length} سؤال</p>
               </div>
-              <div className={`flex items-center gap-1 flex-shrink-0 px-2.5 py-1.5 rounded-xl ${timeLeft < 60 ? 'bg-red-500/30 text-red-200 animate-pulse' : 'bg-white/10 text-orange-300'}`}>
-                <Clock className="w-4 h-4" />
-                <span className="text-lg sm:text-2xl font-black tabular-nums">{formatTime(timeLeft)}</span>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <div className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl ${timeLeft < 60 ? 'bg-red-500/30 text-red-200 animate-pulse' : 'bg-white/10 text-orange-300'}`}>
+                  <Clock className="w-4 h-4" />
+                  <span className="text-lg sm:text-2xl font-black tabular-nums">{formatTime(timeLeft)}</span>
+                </div>
+                <button
+                  onClick={() => setShowSubmitConfirm(true)}
+                  disabled={submitMut.isPending}
+                  className="bg-orange-500 hover:bg-orange-400 text-white text-xs sm:text-sm font-black px-3 py-1.5 rounded-xl transition-colors whitespace-nowrap"
+                >
+                  {submitMut.isPending ? '...' : `تسليم (${answered}/${questions.length})`}
+                </button>
               </div>
             </div>
             {/* Progress bar inline */}
@@ -559,124 +593,168 @@ export default function StudentExams() {
             </div>
           </div>
 
-          <div className="space-y-2">
-            {questions.map((q, qi) => {
-              const qType = q.question_type || 'mcq';
-
+          {/* Question number grid */}
+          <div className="flex flex-wrap gap-1.5 sm:gap-2 justify-center">
+            {questions.map((qq, idx) => {
+              const isAnswered = isQAnswered(qq.id);
+              const isCurrent = idx === safeIdx;
               return (
-                <div key={q.id}>
-                  {/* ── Question separator ── */}
-                  <div className="flex items-center gap-3 mb-2 mt-3">
-                    <div className="flex-1 h-px bg-orange-100 dark:bg-orange-900/30" />
-                    <span className="flex items-center gap-1.5 text-xs font-black text-orange-500 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700/40 px-3 py-1 rounded-full whitespace-nowrap select-none">
-                      السؤال {qi + 1}
-                      <span className="text-orange-300 dark:text-orange-600 font-normal">·</span>
-                      <span className="font-medium text-orange-400 dark:text-orange-500">
-                        {qType === 'true_false' ? 'صح / خطأ' : qType === 'image_multi' ? 'صورة + أسئلة' : 'اختيار من متعدد'}
-                      </span>
-                    </span>
-                    <div className="flex-1 h-px bg-orange-100 dark:bg-orange-900/30" />
-                  </div>
-                  <div className={`card !p-3 sm:!p-5 ${answers[q.id] ? 'border-2 border-orange-400' : 'border border-gray-200'}`}>
-                    {/* Question label row */}
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="w-6 h-6 rounded-full bg-navy-600 text-white text-xs font-black flex items-center justify-center flex-shrink-0">{qi + 1}</span>
-                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${qType === 'true_false' ? 'bg-purple-100 text-purple-700' : qType === 'image_multi' ? 'bg-indigo-100 text-indigo-700' : 'bg-orange-100 text-orange-700'}`}>
-                        {qType === 'true_false' ? 'صح/خطأ' : qType === 'image_multi' ? 'صورة+أسئلة' : 'اختيار'}
-                      </span>
-                      {answers[q.id] && <span className="text-xs text-green-600 font-bold mr-auto">✓ أُجيب</span>}
-                    </div>
-
-                    {q.question_text && (
-                      <p className="font-semibold text-navy-700 mb-3 text-sm sm:text-base leading-relaxed"><MathText text={q.question_text} /></p>
-                    )}
-
-                    {q.question_image_url && (
-                      <div className="relative rounded-xl mb-3 overflow-hidden">
-                        <img
-                          src={withToken(q.question_image_url)}
-                          alt="سؤال"
-                          className="w-full max-w-full max-h-56 object-contain border border-gray-100 rounded-xl cursor-zoom-in"
-                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                          onClick={() => setLightboxSrc(withToken(q.question_image_url))}
-                        />
-                        <button
-                          onClick={() => setLightboxSrc(withToken(q.question_image_url))}
-                          className="absolute top-2 left-2 bg-black/50 hover:bg-black/70 text-white rounded-lg p-1.5 transition-colors"
-                          title="تكبير الصورة"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" /></svg>
-                        </button>
-                      </div>
-                    )}
-
-                    {qType === 'true_false' ? (
-                      <div className="flex gap-3">
-                        {[{ opt: 'A', label: '✅ صح' }, { opt: 'B', label: '❌ خطأ' }].map(({ opt, label }) => (
-                          <button key={opt} onClick={() => setAnswers({ ...answers, [q.id]: opt })}
-                            className={`flex-1 py-2.5 rounded-xl text-sm font-bold border-2 transition-all ${answers[q.id] === opt ? 'border-orange-500 bg-orange-50 text-orange-850' : 'border-gray-200 hover:border-gray-400 text-gray-700'}`}>
-                            {label}
-                          </button>
-                        ))}
-                      </div>
-                    ) : qType === 'image_multi' ? (
-                      <div className="space-y-1.5">
-                        {(q.sub_questions || []).map(sub => {
-                          let subAnswers = {};
-                          try { const raw = answers[q.id]; subAnswers = raw && typeof raw === 'object' ? raw : JSON.parse(raw || '{}'); } catch {}
-                          const subSel = subAnswers[sub.label];
-                          return (
-                            <div key={sub.label} className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2">
-                              <span className="text-xs font-black text-navy-600 w-24 flex-shrink-0">
-                                {sub.label} <span className="text-[10px] text-gray-400 font-normal">({sub.points || 1} د)</span>
-                              </span>
-                              <div className="flex gap-1 flex-1">
-                                {(sub.type === 'true_false' ? ['A', 'B'] : ['A', 'B', 'C', 'D'].slice(0, sub.option_labels?.length || 4)).map(letter => (
-                                  <button key={letter} type="button"
-                                    onClick={() => {
-                                      let current = {};
-                                      try { const raw = answers[q.id]; current = raw && typeof raw === 'object' ? raw : JSON.parse(raw || '{}'); } catch {}
-                                      setAnswers({ ...answers, [q.id]: { ...current, [sub.label]: letter } });
-                                    }}
-                                    className={`flex-1 py-1.5 rounded-lg text-xs font-bold border-2 transition-all ${
-                                      subSel === letter ? 'border-orange-500 bg-orange-50 text-orange-850' : 'border-gray-200 hover:border-gray-400 text-gray-655'
-                                    }`}>
-                                    {sub.type === 'true_false' ? (letter === 'A' ? 'صح' : 'خطأ') : (sub.option_labels?.[['A', 'B', 'C', 'D'].indexOf(letter)] || letter)}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
-                        {(() => {
-                           const shuffledOpts = shuffledQuestionsOpts[q.id] || getShuffledOpts(q, studentId, exam.shuffle_options);
-                           const displayLabels = q.option_labels && q.option_labels.length === 4 ? q.option_labels : ['أ', 'ب', 'ج', 'د'];
-                           return shuffledOpts.map((origOpt, idx) => (
-                            <button key={origOpt} onClick={() => setAnswers({ ...answers, [q.id]: origOpt })}
-                              className={`flex items-center gap-2 p-2.5 sm:p-3 rounded-xl text-sm font-semibold text-right transition-all border-2 ${answers[q.id] === origOpt ? 'border-orange-500 bg-orange-50 text-orange-800' : 'border-gray-200 hover:border-navy-300 hover:bg-navy-50 text-navy-700'}`}>
-                              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 ${answers[q.id] === origOpt ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600'}`}>{displayLabels[idx]}</span>
-                              <span className="flex-1 leading-snug">{q[`option_${origOpt.toLowerCase()}`]}</span>
-                            </button>
-                          ));
-                        })()}
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <button
+                  key={qq.id}
+                  onClick={() => goTo(idx)}
+                  className={`w-9 h-9 rounded-xl text-sm font-black transition-all border-2 ${
+                    isCurrent
+                      ? 'bg-orange-500 text-white border-orange-500 shadow-md scale-110'
+                      : isAnswered
+                      ? 'bg-orange-50 text-orange-700 border-orange-400'
+                      : 'bg-white text-gray-500 border-gray-200 hover:border-orange-300'
+                  }`}
+                >
+                  {idx + 1}
+                </button>
               );
             })}
           </div>
 
-          {/* Submit / Exit buttons — sticky on mobile */}
-          <div className="flex gap-3 pt-2">
-            <button onClick={() => setShowCancelConfirm(true)} className="btn-secondary flex-none px-4">خروج</button>
-            <button onClick={() => setShowSubmitConfirm(true)} disabled={submitMut.isPending}
-              className="btn-primary flex-1 py-3 text-sm sm:text-base">
-              {submitMut.isPending ? 'جاري الإرسال...' : `تسليم (${answered}/${questions.length})`}
+          {/* Current question only */}
+          {q && (
+            <div>
+              {/* ── Question separator ── */}
+              <div className="flex items-center gap-3 mb-2 mt-1">
+                <div className="flex-1 h-px bg-orange-100 dark:bg-orange-900/30" />
+                <span className="flex items-center gap-1.5 text-xs font-black text-orange-500 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700/40 px-3 py-1 rounded-full whitespace-nowrap select-none">
+                  السؤال {safeIdx + 1} من {questions.length}
+                  <span className="text-orange-300 dark:text-orange-600 font-normal">·</span>
+                  <span className="font-medium text-orange-400 dark:text-orange-500">
+                    {qType === 'true_false' ? 'صح / خطأ' : qType === 'image_multi' ? 'صورة + أسئلة' : 'اختيار من متعدد'}
+                  </span>
+                </span>
+                <div className="flex-1 h-px bg-orange-100 dark:bg-orange-900/30" />
+              </div>
+              <div className={`card !p-3 sm:!p-5 ${answers[q.id] ? 'border-2 border-orange-400' : 'border border-gray-200'}`}>
+                {/* Question label row */}
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-6 h-6 rounded-full bg-navy-600 text-white text-xs font-black flex items-center justify-center flex-shrink-0">{safeIdx + 1}</span>
+                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${qType === 'true_false' ? 'bg-purple-100 text-purple-700' : qType === 'image_multi' ? 'bg-indigo-100 text-indigo-700' : 'bg-orange-100 text-orange-700'}`}>
+                    {qType === 'true_false' ? 'صح/خطأ' : qType === 'image_multi' ? 'صورة+أسئلة' : 'اختيار'}
+                  </span>
+                  {answers[q.id] && <span className="text-xs text-green-600 font-bold mr-auto">✓ أُجيب</span>}
+                </div>
+
+                {q.question_text && (
+                  <p className="font-semibold text-navy-700 mb-3 text-sm sm:text-base leading-relaxed"><MathText text={q.question_text} /></p>
+                )}
+
+                {q.question_image_url && (
+                  <div className="relative rounded-xl mb-3 overflow-hidden">
+                    <img
+                      src={withToken(q.question_image_url)}
+                      alt="سؤال"
+                      className="w-full max-w-full max-h-56 object-contain border border-gray-100 rounded-xl cursor-zoom-in"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      onClick={() => setLightboxSrc(withToken(q.question_image_url))}
+                    />
+                    <button
+                      onClick={() => setLightboxSrc(withToken(q.question_image_url))}
+                      className="absolute top-2 left-2 bg-black/50 hover:bg-black/70 text-white rounded-lg p-1.5 transition-colors"
+                      title="تكبير الصورة"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" /></svg>
+                    </button>
+                  </div>
+                )}
+
+                {qType === 'true_false' ? (
+                  <div className="flex gap-3">
+                    {[{ opt: 'A', label: '✅ صح' }, { opt: 'B', label: '❌ خطأ' }].map(({ opt, label }) => (
+                      <button key={opt} onClick={() => setAnswers({ ...answers, [q.id]: opt })}
+                        className={`flex-1 py-2.5 rounded-xl text-sm font-bold border-2 transition-all ${answers[q.id] === opt ? 'border-orange-500 bg-orange-50 text-orange-850' : 'border-gray-200 hover:border-gray-400 text-gray-700'}`}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                ) : qType === 'image_multi' ? (
+                  <div className="space-y-1.5">
+                    {(q.sub_questions || []).map(sub => {
+                      let subAnswers = {};
+                      try { const raw = answers[q.id]; subAnswers = raw && typeof raw === 'object' ? raw : JSON.parse(raw || '{}'); } catch {}
+                      const subSel = subAnswers[sub.label];
+                      return (
+                        <div key={sub.label} className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2">
+                          <span className="text-xs font-black text-navy-600 w-24 flex-shrink-0">
+                            {sub.label} <span className="text-[10px] text-gray-400 font-normal">({sub.points || 1} د)</span>
+                          </span>
+                          <div className="flex gap-1 flex-1">
+                            {(sub.type === 'true_false' ? ['A', 'B'] : ['A', 'B', 'C', 'D'].slice(0, sub.option_labels?.length || 4)).map(letter => (
+                              <button key={letter} type="button"
+                                onClick={() => {
+                                  let current = {};
+                                  try { const raw = answers[q.id]; current = raw && typeof raw === 'object' ? raw : JSON.parse(raw || '{}'); } catch {}
+                                  setAnswers({ ...answers, [q.id]: { ...current, [sub.label]: letter } });
+                                }}
+                                className={`flex-1 py-1.5 rounded-lg text-xs font-bold border-2 transition-all ${
+                                  subSel === letter ? 'border-orange-500 bg-orange-50 text-orange-850' : 'border-gray-200 hover:border-gray-400 text-gray-655'
+                                }`}>
+                                {sub.type === 'true_false' ? (letter === 'A' ? 'صح' : 'خطأ') : (sub.option_labels?.[['A', 'B', 'C', 'D'].indexOf(letter)] || letter)}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+                    {(() => {
+                       const shuffledOpts = shuffledQuestionsOpts[q.id] || getShuffledOpts(q, studentId, exam.shuffle_options);
+                       const displayLabels = q.option_labels && q.option_labels.length === 4 ? q.option_labels : ['أ', 'ب', 'ج', 'د'];
+                       return shuffledOpts.map((origOpt, idx) => (
+                        <button key={origOpt} onClick={() => setAnswers({ ...answers, [q.id]: origOpt })}
+                          className={`flex items-center gap-2 p-2.5 sm:p-3 rounded-xl text-sm font-semibold text-right transition-all border-2 ${answers[q.id] === origOpt ? 'border-orange-500 bg-orange-50 text-orange-800' : 'border-gray-200 hover:border-navy-300 hover:bg-navy-50 text-navy-700'}`}>
+                          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 ${answers[q.id] === origOpt ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600'}`}>{displayLabels[idx]}</span>
+                          <span className="flex-1 leading-snug">{q[`option_${origOpt.toLowerCase()}`]}</span>
+                        </button>
+                      ));
+                    })()}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Prefetch next question's images silently */}
+          {nextQ?.question_image_url && (
+            <img key={`prefetch-${nextQ.id}`} src={withToken(nextQ.question_image_url)} alt="" aria-hidden="true" className="hidden" />
+          )}
+
+          {/* Prev / Next navigation */}
+          <div className="flex gap-2 pt-1">
+            <button onClick={() => setShowCancelConfirm(true)} className="btn-secondary flex-none px-3 text-sm">خروج</button>
+            <button
+              onClick={() => goTo(safeIdx - 1)}
+              disabled={isFirst}
+              className="flex items-center gap-1 btn-secondary flex-none px-3 text-sm disabled:opacity-40"
+            >
+              <ChevronRight className="w-4 h-4" />
+              السابق
             </button>
+            {isLast ? (
+              <button
+                onClick={() => setShowSubmitConfirm(true)}
+                disabled={submitMut.isPending}
+                className="btn-primary flex-1 py-3 text-sm sm:text-base"
+              >
+                {submitMut.isPending ? 'جاري الإرسال...' : `تسليم (${answered}/${questions.length})`}
+              </button>
+            ) : (
+              <button
+                onClick={() => goTo(safeIdx + 1)}
+                className="flex items-center gap-1 btn-primary flex-1 py-3 text-sm sm:text-base justify-center"
+              >
+                التالي
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            )}
           </div>
 
           {showCancelConfirm && (
