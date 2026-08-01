@@ -10,7 +10,7 @@ import {
   LayoutDashboard, Users, BookOpen, FileText, UserCog,
   BarChart3, CreditCard, Trophy, LogOut, Menu, MessageCircle,
   Bell, Database, ClipboardList, Moon, Sun, Inbox, BookMarked, Radio,
-  StopCircle, ExternalLink, Activity, Settings, GraduationCap, Archive
+  StopCircle, ExternalLink, Activity, Settings, GraduationCap, Archive, CalendarCheck
 } from 'lucide-react';
 import WathbaLogo from '../assets/wathba_logo.png';
 
@@ -45,6 +45,7 @@ export default function TeacherLayout() {
     { to: '/teacher/question-banks', icon: BookMarked,      label: 'بنوك الأسئلة',     featureKey: 'question_banks' },
     { to: '/teacher/requests',       icon: Inbox,           label: 'صفحة الطلبات',     featureKey: 'requests' },
     { to: '/teacher/attendance',     icon: ClipboardList,   label: 'سجل مشاهدة الكورسات',    featureKey: 'attendance' },
+    { to: '/teacher/class-attendance', icon: CalendarCheck,  label: 'الحضور والغياب اليومي', featureKey: 'class_attendance' },
     { to: '/teacher/assistants',     icon: UserCog,         label: 'المساعدون',         featureKey: 'assistants' },
     { to: '/teacher/analytics',      icon: BarChart3,       label: 'التحليلات',         featureKey: 'analytics' },
     { to: '/teacher/payments',       icon: CreditCard,      label: 'المدفوعات',         featureKey: 'payments' },

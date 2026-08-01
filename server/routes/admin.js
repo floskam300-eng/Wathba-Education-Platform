@@ -694,8 +694,11 @@ const VALID_FEATURE_KEYS = new Set([
   'students', 'courses', 'exams', 'recitations', 'archive', 'question_banks',
   'requests', 'attendance', 'assistants', 'analytics', 'payments', 'leaderboard',
   'notifications', 'backup', 'activity_log', 'settings',
+  // New: offline class attendance (daily in-person tracking)
+  'class_attendance',
   // Student-only pages
   'student_stats',
+
 ]);
 
 // Update Teacher Custom Features (Flags)

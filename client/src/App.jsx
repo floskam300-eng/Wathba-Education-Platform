@@ -23,6 +23,7 @@ const TeacherLeaderboard = React.lazy(() => import('./pages/teacher/Leaderboard'
 const TeacherNotifications = React.lazy(() => import('./pages/teacher/Notifications'));
 const TeacherBackup = React.lazy(() => import('./pages/teacher/Backup'));
 const TeacherAttendance = React.lazy(() => import('./pages/teacher/Attendance'));
+const TeacherClassAttendance = React.lazy(() => import('./pages/teacher/ClassAttendance'));
 const TeacherRequests = React.lazy(() => import('./pages/teacher/Requests'));
 const WrongQuestionsPage = React.lazy(() => import('./pages/teacher/WrongQuestions'));
 const QuestionBanks = React.lazy(() => import('./pages/teacher/QuestionBanks'));
@@ -206,6 +207,7 @@ const TenantRoutes = () => {
           <Route path="notifications" element={<TeacherNotifications />} />
           <Route path="backup" element={<TeacherBackup />} />
           <Route path="attendance" element={<TeacherAttendance />} />
+          <Route path="class-attendance" element={<TeacherClassAttendance />} />
           <Route path="requests" element={<TeacherRequests />} />
           <Route path="exam-review/:resultId" element={<ExamReviewPage />} />
           <Route path="recitation-review/:resultId" element={<RecitationReviewPage />} />
@@ -254,6 +256,9 @@ const TenantRoutes = () => {
           } />
           <Route path="requests" element={
             <AssistantPermissionRoute anyOf={['can_manage_exams', 'can_manage_courses']}><TeacherRequests /></AssistantPermissionRoute>
+          } />
+          <Route path="class-attendance" element={
+            <AssistantPermissionRoute permission="can_manage_attendance"><TeacherClassAttendance /></AssistantPermissionRoute>
           } />
           <Route path="exam-review/:resultId" element={<ExamReviewPage />} />
           <Route path="recitation-review/:resultId" element={<RecitationReviewPage />} />

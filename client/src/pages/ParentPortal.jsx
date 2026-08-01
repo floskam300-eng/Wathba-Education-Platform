@@ -5,7 +5,7 @@ import {
   Search, ArrowLeft, GraduationCap, BookOpen, FileText,
   Trophy, Star, CheckCircle, XCircle, Clock, Play,
   TrendingUp, Award, Users, ChevronRight, AlertCircle,
-  Sparkles, Phone, BarChart3, Target, Mic
+  Sparkles, Phone, BarChart3, Target, Mic, CalendarCheck, CalendarDays
 } from 'lucide-react';
 import wathbaLogo from '../assets/wathba_logo_transparent.png';
 import { useTeacher } from '../context/TeacherContext';
@@ -210,6 +210,8 @@ export default function ParentPortal() {
   const recitations = data?.recitation_results || [];
   const courses = data?.courses || [];
   const vp = data?.video_progress;
+  const classAttendance = data?.class_attendance || [];
+  const attendanceEnabled = data?.attendance_enabled === true;
 
   const avgScore = exams.length > 0
     ? Math.round(exams.reduce((acc, r) => acc + (r.total_score > 0 ? (r.score / r.total_score) * 100 : 0), 0) / exams.length)
@@ -402,6 +404,9 @@ export default function ParentPortal() {
               <StatCard icon={CheckCircle} label="ناجح (تسميعات)"    value={`${recitationPassedCount}`} color="bg-teal-500"  delay={0.18} />
               <StatCard icon={BarChart3}  label="متوسط الامتحانات"   value={`${avgScore}%`}           color="bg-orange-500"  delay={0.24} />
               <StatCard icon={BookOpen}   label="الكورسات"            value={courses.length}           color="bg-purple-500"  delay={0.30} />
+              {attendanceEnabled && classAttendance.length > 0 && (
+                <StatCard icon={CalendarCheck} label="جلسات حضور" value={classAttendance.filter(r=>r.status==='present').length} color="bg-cyan-500" delay={0.36} />
+              )}
             </div>
 
             {/* ── Video Progress ── */}
@@ -545,6 +550,84 @@ export default function ParentPortal() {
                 </div>
               )}
             </div>
+
+            {/* ── Class Attendance Section (only if feature enabled and has records) ── */}
+            {attendanceEnabled && classAttendance.length > 0 && (() => {
+              // Group by subject_name
+              const bySubject = {};
+              classAttendance.forEach(r => {
+                if (!bySubject[r.subject_name]) bySubject[r.subject_name] = [];
+                bySubject[r.subject_name].push(r);
+              });
+              return (
+                <Reveal className="mt-8">
+                  <div className="flex items-center gap-3 mb-5">
+                    <div className="w-9 h-9 rounded-xl bg-cyan-100 border border-cyan-200 flex items-center justify-center">
+                      <CalendarCheck className="w-5 h-5 text-cyan-600" />
+                    </div>
+                    <h3 className="text-[#0B3C5D] font-black text-lg">سجل الحضور والغياب</h3>
+                    <span className="mr-auto text-[#0B3C5D]/40 text-sm bg-[#0B3C5D]/5 px-3 py-1 rounded-full">{classAttendance.length} سجل</span>
+                  </div>
+                  <div className="space-y-4">
+                    {Object.entries(bySubject).map(([subjectName, records]) => {
+                      const presentCount = records.filter(r => r.status === 'present').length;
+                      const pct = records.length > 0 ? Math.round((presentCount / records.length) * 100) : 0;
+                      return (
+                        <Reveal key={subjectName}
+                          className="bg-white border border-slate-200 rounded-2xl p-4 hover:border-cyan-300 hover:shadow-sm transition-all duration-300"
+                          style={{ boxShadow: '0 1px 4px rgba(11,60,93,0.05)' }}>
+                          <div className="flex items-center justify-between mb-3">
+                            <div>
+                              <p className="text-[#0B3C5D] font-black text-sm">{subjectName}</p>
+                              {records[0]?.academic_stage && (
+                                <p className="text-[#0B3C5D]/40 text-xs">{records[0].academic_stage}</p>
+                              )}
+                            </div>
+                            <div className="text-left">
+                              <p className={`font-black text-lg ${pct >= 75 ? 'text-emerald-600' : pct >= 50 ? 'text-yellow-600' : 'text-red-500'}`}>{pct}%</p>
+                              <p className="text-[#0B3C5D]/40 text-xs">نسبة الحضور</p>
+                            </div>
+                          </div>
+                          <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden mb-3">
+                            <div className={`h-full rounded-full transition-all duration-700 ${pct >= 75 ? 'bg-emerald-500' : pct >= 50 ? 'bg-yellow-400' : 'bg-red-400'}`}
+                              style={{ width: `${pct}%` }} />
+                          </div>
+                          <div className="flex gap-4 text-xs text-[#0B3C5D]/50 mb-3">
+                            <span className="text-emerald-600 font-bold">{presentCount} حاضر</span>
+                            <span className="text-red-500 font-bold">{records.length - presentCount} غائب</span>
+                            <span className="mr-auto">{records.length} حصة إجمالي</span>
+                          </div>
+                          {/* Last 5 records */}
+                          <div className="space-y-1.5">
+                            {records.slice(0, 6).map((rec, i) => (
+                              <div key={i} className="flex items-center justify-between text-xs">
+                                <div className="flex items-center gap-2">
+                                  {rec.status === 'present'
+                                    ? <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
+                                    : <XCircle className="w-3.5 h-3.5 text-red-400" />}
+                                  <span className={rec.status === 'present' ? 'text-emerald-700 font-semibold' : 'text-red-600 font-semibold'}>
+                                    {rec.status === 'present' ? 'حاضر' : 'غائب'}
+                                  </span>
+                                  <span className="text-[#0B3C5D]/40">{rec.date}</span>
+                                </div>
+                                {rec.exam_score !== null && (
+                                  <span className="font-bold text-[#0B3C5D]">
+                                    {rec.exam_score}{rec.exam_total ? `/${rec.exam_total}` : ''}
+                                  </span>
+                                )}
+                              </div>
+                            ))}
+                            {records.length > 6 && (
+                              <p className="text-[#0B3C5D]/30 text-center text-xs pt-1">+ {records.length - 6} سجل قديم</p>
+                            )}
+                          </div>
+                        </Reveal>
+                      );
+                    })}
+                  </div>
+                </Reveal>
+              );
+            })()}
 
             {/* New search */}
             <Reveal className="mt-12 text-center">

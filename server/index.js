@@ -554,6 +554,8 @@ app.use('/api/activity-logs', require('./routes/activityLogs'));
 app.use('/api/whatsapp',     require('./routes/whatsapp'));
 app.use('/api/recitations', require('./routes/recitations'));
 app.use('/api/archive',    require('./routes/archive'));
+app.use('/api/attendance', require('./routes/attendance'));
+
 
 app.get('/health', async (req, res) => {
   try {

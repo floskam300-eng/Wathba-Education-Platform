@@ -116,6 +116,14 @@ router.get('/parent-lookup', parentLookupLimiter, async (req, res) => {
       return res.status(400).json({ error: 'معرّف المنصة مطلوب' });
     }
 
+    // Check if class_attendance feature is enabled for this teacher
+    const featuresRes = await pool.query(
+      'SELECT features_enabled FROM teachers WHERE id=$1',
+      [teacherId]
+    );
+    const teacherFeatures = featuresRes.rows[0]?.features_enabled || {};
+    const attendanceEnabled = teacherFeatures.class_attendance !== false;
+
     // Find student by parent phone, strictly scoped to this teacher
     const studentRes = await pool.query(
       'SELECT id, name, phone, parent_phone, academic_stage, gender, points, created_at FROM students WHERE parent_phone = $1 AND teacher_id = $2 AND deleted_at IS NULL',
@@ -186,6 +194,17 @@ router.get('/parent-lookup', parentLookupLimiter, async (req, res) => {
          ORDER BY rr.created_at DESC`,
         [sid, teacherId]
       ),
+      // Class attendance records (only if feature enabled)
+      attendanceEnabled ? pool.query(
+        `SELECT car.attendance_date::text AS date, car.status, car.exam_score, car.exam_total,
+                cs.name AS subject_name, cs.academic_stage
+         FROM class_attendance_records car
+         JOIN class_subjects cs ON cs.id = car.subject_id
+         WHERE car.student_id = $1 AND car.teacher_id = $2
+         ORDER BY car.attendance_date DESC, cs.name
+         LIMIT 200`,
+        [sid, teacherId]
+      ) : Promise.resolve({ rows: [] }),
     ];
     // Only run the COUNT rank query when not cached
     if (!cachedRank) {
@@ -197,7 +216,7 @@ router.get('/parent-lookup', parentLookupLimiter, async (req, res) => {
       );
     }
 
-    const [coursesRes, examsRes, videoProgressRes, recitationsRes, rankRes] = await Promise.all(queries);
+    const [coursesRes, examsRes, videoProgressRes, recitationsRes, classAttendanceRes, rankRes] = await Promise.all(queries);
 
     const rank = cachedRank ?? (() => {
       const r = parseInt(rankRes.rows[0].rank);
@@ -218,6 +237,8 @@ router.get('/parent-lookup', parentLookupLimiter, async (req, res) => {
       exam_results: examsRes.rows,
       recitation_results: recitationsRes.rows,
       video_progress: videoProgressRes.rows[0],
+      class_attendance: attendanceEnabled ? classAttendanceRes.rows : null,
+      attendance_enabled: attendanceEnabled,
     });
   } catch (err) {
     console.error('Parent lookup error:', err);
