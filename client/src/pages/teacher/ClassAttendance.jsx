@@ -189,22 +189,28 @@ function SubjectModal({ stages, onClose, onRefresh, dark }) {
           {/* Add new */}
           <div className={`rounded-xl border p-4 ${border} ${dark ? 'bg-[var(--dk-elevated)]' : 'bg-gray-50'}`}>
             <p className={`text-xs font-bold mb-3 ${text2}`}>إضافة مادة جديدة</p>
-            <div className="flex gap-2 mb-2">
-              <input
-                value={newName}
-                onChange={e => setNewName(e.target.value)}
-                placeholder="اسم المادة (مثال: رياضيات)"
-                className="input-field flex-1 text-sm"
-                onKeyDown={e => e.key === 'Enter' && addSubject()}
-              />
-              <select value={newStage} onChange={e => setNewStage(e.target.value)} className="input-field text-sm" style={{ minWidth: '140px' }}>
-                <option value="">السنة الدراسية</option>
-                {stages.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+              <div>
+                <label className={`block text-xs font-bold mb-1.5 ${text2}`}>اسم المادة *</label>
+                <input
+                  value={newName}
+                  onChange={e => setNewName(e.target.value)}
+                  placeholder="مثال: رياضيات، فيزياء"
+                  className="input-field w-full text-sm"
+                  onKeyDown={e => e.key === 'Enter' && addSubject()}
+                />
+              </div>
+              <div>
+                <label className={`block text-xs font-bold mb-1.5 ${text2}`}>السنة الدراسية</label>
+                <select value={newStage} onChange={e => setNewStage(e.target.value)} className="input-field w-full text-sm">
+                  <option value="">كل السنوات / غير محدد</option>
+                  {stages.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
             </div>
             <button onClick={addSubject} disabled={saving || !newName.trim()}
-              className="btn-primary text-sm flex items-center gap-2 disabled:opacity-50">
-              <Plus className="w-4 h-4" />{saving ? 'جارٍ الحفظ...' : 'إضافة'}
+              className="btn-primary text-sm flex items-center justify-center gap-2 w-full sm:w-auto disabled:opacity-50 px-6">
+              <Plus className="w-4 h-4" />{saving ? 'جارٍ الحفظ...' : 'إضافة المادة'}
             </button>
           </div>
 
@@ -223,15 +229,17 @@ function SubjectModal({ stages, onClose, onRefresh, dark }) {
               {subjects.map(s => (
                 <div key={s.id} className={`flex items-center gap-3 p-3 rounded-xl border ${border} ${bg} hover:border-blue-300 transition-colors`}>
                   {editId === s.id ? (
-                    <>
-                      <input value={editName} onChange={e => setEditName(e.target.value)} className="input-field flex-1 text-sm py-1.5" />
-                      <select value={editStage} onChange={e => setEditStage(e.target.value)} className="input-field text-sm py-1.5" style={{ minWidth: '130px' }}>
+                    <div className="flex flex-col sm:flex-row gap-2 w-full">
+                      <input value={editName} onChange={e => setEditName(e.target.value)} className="input-field flex-1 min-w-0 text-sm py-1.5" />
+                      <select value={editStage} onChange={e => setEditStage(e.target.value)} className="input-field text-sm py-1.5 sm:w-40">
                         <option value="">السنة الدراسية</option>
                         {stages.map(st => <option key={st} value={st}>{st}</option>)}
                       </select>
-                      <button onClick={() => saveEdit(s.id)} className="p-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700"><Save className="w-4 h-4" /></button>
-                      <button onClick={() => setEditId(null)} className="p-1.5 rounded-lg bg-gray-200 text-gray-600 hover:bg-gray-300"><X className="w-4 h-4" /></button>
-                    </>
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => saveEdit(s.id)} className="p-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"><Save className="w-4 h-4" /></button>
+                        <button onClick={() => setEditId(null)} className="p-2 rounded-lg bg-gray-200 text-gray-600 hover:bg-gray-300"><X className="w-4 h-4" /></button>
+                      </div>
+                    </div>
                   ) : (
                     <>
                       <div className="flex-1 min-w-0">
