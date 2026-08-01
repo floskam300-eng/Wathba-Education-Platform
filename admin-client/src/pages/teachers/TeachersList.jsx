@@ -8,27 +8,28 @@ import toast from 'react-hot-toast';
 /* ── All controllable page/feature definitions ───────────────────────────── */
 const ALL_FEATURE_PAGES = [
   // Teacher + Student (both roles see these)
-  { key: 'courses',        label: 'الكورسات',           icon: '📚', badge: 'معلم + طالب' },
-  { key: 'exams',          label: 'الاختبارات',          icon: '📝', badge: 'معلم + طالب' },
-  { key: 'leaderboard',    label: 'المتصدرون',          icon: '🏆', badge: 'معلم + طالب' },
-  { key: 'live_streaming', label: 'البث المباشر',       icon: '📡', badge: 'معلم + طالب' },
+  { key: 'courses',          label: 'الكورسات',                  icon: '📚', badge: 'معلم + طالب' },
+  { key: 'exams',            label: 'الاختبارات',                 icon: '📝', badge: 'معلم + طالب' },
+  { key: 'leaderboard',      label: 'المتصدرون',                 icon: '🏆', badge: 'معلم + طالب' },
+  { key: 'live_streaming',   label: 'البث المباشر',              icon: '📡', badge: 'معلم + طالب' },
   // Teacher pages only
-  { key: 'students',       label: 'الطلاب',             icon: '👥', badge: 'معلم' },
-  { key: 'recitations',    label: 'التسميع',            icon: '🎓', badge: 'معلم' },
-  { key: 'archive',        label: 'أرشيف النتائج',      icon: '🗄️', badge: 'معلم' },
-  { key: 'question_banks', label: 'بنوك الأسئلة',      icon: '📖', badge: 'معلم' },
-  { key: 'requests',       label: 'صفحة الطلبات',      icon: '📬', badge: 'معلم' },
-  { key: 'attendance',     label: 'سجل مشاهدة الكورسات',     icon: '✅', badge: 'معلم' },
-  { key: 'assistants',     label: 'المساعدون',          icon: '🤝', badge: 'معلم' },
-  { key: 'analytics',      label: 'التحليلات',          icon: '📊', badge: 'معلم' },
-  { key: 'payments',       label: 'المدفوعات',          icon: '💳', badge: 'معلم' },
-  { key: 'notifications',  label: 'الإشعارات',          icon: '🔔', badge: 'معلم' },
-  { key: 'backup',         label: 'النسخ الاحتياطي',   icon: '💾', badge: 'معلم' },
-  { key: 'activity_log',   label: 'سجل النشاط',        icon: '📋', badge: 'معلم' },
-  { key: 'settings',       label: 'الإعدادات',          icon: '⚙️', badge: 'معلم' },
+  { key: 'students',         label: 'الطلاب',                    icon: '👥', badge: 'معلم' },
+  { key: 'recitations',      label: 'التسميع',                   icon: '🎓', badge: 'معلم' },
+  { key: 'archive',          label: 'أرشيف النتائج',             icon: '🗄️', badge: 'معلم' },
+  { key: 'question_banks',   label: 'بنوك الأسئلة',             icon: '📖', badge: 'معلم' },
+  { key: 'requests',         label: 'صفحة الطلبات',             icon: '📬', badge: 'معلم' },
+  { key: 'attendance',       label: 'سجل مشاهدة الكورسات',      icon: '✅', badge: 'معلم' },
+  { key: 'class_attendance', label: 'الحضور والغياب اليومي',    icon: '📅', badge: 'معلم' },
+  { key: 'assistants',       label: 'المساعدون',                 icon: '🤝', badge: 'معلم' },
+  { key: 'analytics',        label: 'التحليلات',                 icon: '📊', badge: 'معلم' },
+  { key: 'payments',         label: 'المدفوعات',                 icon: '💳', badge: 'معلم' },
+  { key: 'notifications',    label: 'الإشعارات',                 icon: '🔔', badge: 'معلم' },
+  { key: 'backup',           label: 'النسخ الاحتياطي',          icon: '💾', badge: 'معلم' },
+  { key: 'activity_log',     label: 'سجل النشاط',               icon: '📋', badge: 'معلم' },
+  { key: 'settings',         label: 'الإعدادات',                 icon: '⚙️', badge: 'معلم' },
   // Student pages only
-  { key: 'student_stats',  label: 'إحصائياتي',         icon: '📈', badge: 'طالب' },
-  { key: 'stickman_run',   label: 'الفعاليات 🎮',       icon: '🎮', badge: 'طالب' },
+  { key: 'student_stats',    label: 'إحصائياتي',                icon: '📈', badge: 'طالب' },
+  { key: 'stickman_run',     label: 'الفعاليات 🎮',              icon: '🎮', badge: 'طالب' },
 ];
 
 /* ── Feature value helper — default true unless explicitly false ─────────── */
