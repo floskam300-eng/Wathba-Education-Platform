@@ -252,21 +252,26 @@ router.post('/login', loginLimiter, async (req, res) => {
               if (knownIds.length >= 1) {
                 console.log(`[LOGIN] NEW_DEVICE_BLOCKED for student id=${user.id}: inserting device_alert`);
                 // 2nd (new) device → alert teacher but do NOT suspend.
-                // The original registered device continues working normally.
-                // Create an alert for each distinct new device so the teacher sees
-                // ALL attempted devices, not just the first one.
-                // Deduplication is per (student_id, device_id) so retrying the
-                // same blocked device never creates a duplicate row.
-                await client.query(
-                  `INSERT INTO device_alerts
-                     (teacher_id, student_id, alert_type, device_id, device_name, ip_address, status)
-                   SELECT $1,$2,'device_limit_exceeded',$3,$4,$5,'pending'
-                   WHERE NOT EXISTS (
-                     SELECT 1 FROM device_alerts
-                     WHERE student_id=$2 AND device_id=$3 AND status='pending'
-                   )`,
-                  [user.teacher_id, user.id, device_id, deviceName, ip]
+                // [BUG FIX] Split INSERT...SELECT...WHERE NOT EXISTS into two separate
+                // queries to avoid "inconsistent types deduced for parameter $3" error
+                // that occurs when the same placeholder is used in both the SELECT list
+                // and the WHERE subquery in a single parameterized statement.
+                const alertExists = await client.query(
+                  `SELECT 1 FROM device_alerts
+                   WHERE student_id = $1 AND device_id = $2 AND status = 'pending'`,
+                  [user.id, device_id]
                 );
+                if (alertExists.rows.length === 0) {
+                  await client.query(
+                    `INSERT INTO device_alerts
+                       (teacher_id, student_id, alert_type, device_id, device_name, ip_address, status)
+                     VALUES ($1, $2, 'device_limit_exceeded', $3, $4, $5, 'pending')`,
+                    [user.teacher_id, user.id, device_id, deviceName, ip]
+                  );
+                  console.log(`[LOGIN] device_alert inserted for student id=${user.id}`);
+                } else {
+                  console.log(`[LOGIN] device_alert already exists for student id=${user.id}, skipping insert`);
+                }
                 await client.query('COMMIT');
                 console.log(`[LOGIN] NEW_DEVICE_BLOCKED committed for student id=${user.id}`);
                 return res.status(403).json({
