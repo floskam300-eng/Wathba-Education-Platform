@@ -110,6 +110,9 @@ function parseDeviceName(userAgent) {
 // ── POST /api/auth/login ────────────────────────────────────────────────────
 router.post('/login', loginLimiter, async (req, res) => {
   const { username, password, role, device_id } = req.body;
+
+  console.log(`[LOGIN] attempt: user="${username}" role="${role || 'auto'}" device_id="${device_id ? device_id.slice(0,12)+'...' : 'MISSING'}" tenant_id="${req.tenantTeacherId || 'none'}"`);
+
   if (!username || !password) {
     return res.status(400).json({ error: 'Username and password are required' });
   }
@@ -122,6 +125,7 @@ router.post('/login', loginLimiter, async (req, res) => {
   // Without this check, a missing tenant would silently fall back to a global
   // (cross-teacher) user search, which is a security bypass.
   if (req.tenantSlugAttempted && !slugTeacherId) {
+    console.log(`[LOGIN] rejected: tenant slug attempted but not resolved`);
     return res.status(401).json({ error: 'بيانات الدخول غير صحيحة' });
   }
 
@@ -139,6 +143,7 @@ router.post('/login', loginLimiter, async (req, res) => {
     const checks = role ? [role] : ['teacher', 'assistant', 'student'];
 
     for (const r of checks) {
+      console.log(`[LOGIN] checking role="${r}" for user="${username}"`);
       let result;
 
       if (r === 'teacher') {
@@ -151,7 +156,7 @@ router.post('/login', loginLimiter, async (req, res) => {
         result = await pool.query('SELECT * FROM assistants WHERE username = $1 AND teacher_id = $2', [username, slugTeacherId]);
       } else if (r === 'student') {
         // Students MUST belong to a specific tenant — no cross-tenant or main-domain login
-        if (!slugTeacherId) continue;
+        if (!slugTeacherId) { console.log(`[LOGIN] student skip: no tenant`); continue; }
         // R-4 OPT: explicit columns instead of SELECT * — avoids pulling large JSONB/array
         // fields on every login. Includes all fields the auth flow + safeUser response needs.
         result = await pool.query(
@@ -164,21 +169,28 @@ router.post('/login', loginLimiter, async (req, res) => {
         );
       } else continue;
 
+      console.log(`[LOGIN] role="${r}" found=${result.rows.length} rows`);
       if (result.rows.length === 0) continue;
 
       const user  = result.rows[0];
+      console.log(`[LOGIN] verifying password for user id=${user.id} role="${r}"`);
       const valid = await bcrypt.compare(password, user.password);
       if (!valid) {
+        console.log(`[LOGIN] password mismatch for user id=${user.id}`);
         recordFailure(attemptKey);
         return res.status(401).json({ error: 'بيانات الدخول غير صحيحة' });
       }
 
       clearAttempts(attemptKey);
+      console.log(`[LOGIN] password OK for user id=${user.id} role="${r}"`);
 
       // ── Student-specific: device limit enforcement ─────────────────────
       if (r === 'student') {
+        console.log(`[LOGIN] student device check: is_suspended=${user.is_suspended} device_id="${device_id ? device_id.slice(0,12)+'...' : 'MISSING'}"`);
+
         // Block if account is manually suspended by teacher
         if (user.is_suspended) {
+          console.log(`[LOGIN] student id=${user.id} is suspended`);
           return res.status(403).json({
             error: 'تم إيقاف حسابك مؤقتاً من قِبل المدرس. يرجى التواصل معه لإعادة التفعيل.',
             account_suspended: true,
@@ -189,6 +201,7 @@ router.post('/login', loginLimiter, async (req, res) => {
         // Without this guard, API callers could omit device_id entirely and
         // bypass the device-limit check that protects account sharing.
         if (!device_id) {
+          console.log(`[LOGIN] student id=${user.id} missing device_id`);
           return res.status(400).json({
             error: 'device_id مطلوب — يرجى تسجيل الدخول من خلال تطبيق وثبة أو المتصفح الرسمي',
             code: 'DEVICE_ID_REQUIRED',
@@ -201,10 +214,12 @@ router.post('/login', loginLimiter, async (req, res) => {
           const ua         = req.headers['user-agent'] || '';
           const deviceName = parseDeviceName(ua);
 
+          console.log(`[LOGIN] acquiring DB connection for device transaction...`);
           // Use a transaction + SELECT FOR UPDATE to prevent race conditions
           // when two concurrent logins from different unknown devices happen
           // simultaneously (without the lock, both could slip under the limit).
           const client = await pool.connect();
+          console.log(`[LOGIN] DB connection acquired, starting transaction`);
           try {
             await client.query('BEGIN');
 
@@ -213,6 +228,8 @@ router.post('/login', loginLimiter, async (req, res) => {
               'SELECT id, is_suspended FROM students WHERE id = $1 FOR UPDATE',
               [user.id]
             );
+            console.log(`[LOGIN] lock acquired for student id=${user.id}`);
+
             // Re-check suspension inside the transaction (manual suspension by teacher)
             if (lockRes.rows[0]?.is_suspended) {
               await client.query('ROLLBACK');
@@ -229,9 +246,11 @@ router.post('/login', loginLimiter, async (req, res) => {
             );
             const knownIds = devicesRes.rows.map(d => d.device_id);
             const isKnown  = knownIds.includes(device_id);
+            console.log(`[LOGIN] student id=${user.id} known_devices=${knownIds.length} is_known=${isKnown}`);
 
             if (!isKnown) {
               if (knownIds.length >= 1) {
+                console.log(`[LOGIN] NEW_DEVICE_BLOCKED for student id=${user.id}: inserting device_alert`);
                 // 2nd (new) device → alert teacher but do NOT suspend.
                 // The original registered device continues working normally.
                 // Create an alert for each distinct new device so the teacher sees
@@ -249,12 +268,14 @@ router.post('/login', loginLimiter, async (req, res) => {
                   [user.teacher_id, user.id, device_id, deviceName, ip]
                 );
                 await client.query('COMMIT');
+                console.log(`[LOGIN] NEW_DEVICE_BLOCKED committed for student id=${user.id}`);
                 return res.status(403).json({
                   error: 'تم رصد محاولة دخول من جهاز جديد. تم إشعار المدرس — يمكنك الاستمرار من جهازك الأصلي، أو تواصل مع المدرس للسماح لك بتسجيل جهاز جديد.',
                   code: 'NEW_DEVICE_BLOCKED',
                 });
               }
               // No registered device yet → register this one as the primary device
+              console.log(`[LOGIN] registering first device for student id=${user.id}`);
               await client.query(
                 `INSERT INTO student_devices (student_id, device_id, device_name, user_agent, ip_address)
                  VALUES ($1, $2, $3, $4, $5)
@@ -264,6 +285,7 @@ router.post('/login', loginLimiter, async (req, res) => {
               );
             } else {
               // Known device → just update last_seen
+              console.log(`[LOGIN] known device — updating last_seen for student id=${user.id}`);
               await client.query(
                 'UPDATE student_devices SET last_seen = NOW() WHERE student_id = $1 AND device_id = $2',
                 [user.id, device_id]
@@ -271,16 +293,20 @@ router.post('/login', loginLimiter, async (req, res) => {
             }
 
             await client.query('COMMIT');
+            console.log(`[LOGIN] device transaction committed for student id=${user.id}`);
           } catch (txErr) {
+            console.error(`[LOGIN] TRANSACTION ERROR for student id=${user.id}:`, txErr.message, txErr.stack);
             await client.query('ROLLBACK');
             throw txErr;
           } finally {
             client.release();
+            console.log(`[LOGIN] DB connection released for student id=${user.id}`);
           }
         }
       }
       // ──────────────────────────────────────────────────────────────────────
 
+      console.log(`[LOGIN] building JWT payload for user id=${user.id} role="${r}"`);
       const payload = { id: user.id, role: r, username: user.username, name: user.name };
 
       if (r === 'teacher') {
@@ -316,6 +342,7 @@ router.post('/login', loginLimiter, async (req, res) => {
       // the teacher to change their default seed password on first login.
       const forceChange = r === 'teacher' ? (user.force_password_change === true) : false;
 
+      console.log(`[LOGIN] SUCCESS user id=${user.id} role="${r}"`);
       return res.json({
         token,
         user: { ...safeUser, role: r, teacher_slug: payload.teacher_slug },
@@ -323,10 +350,12 @@ router.post('/login', loginLimiter, async (req, res) => {
       });
     }
 
+    console.log(`[LOGIN] no matching user found for username="${username}"`);
     recordFailure(attemptKey);
     return res.status(401).json({ error: 'بيانات الدخول غير صحيحة' });
   } catch (err) {
-    console.error(err);
+    console.error(`[LOGIN] UNHANDLED ERROR for username="${username}":`, err.message);
+    console.error(`[LOGIN] Stack:`, err.stack);
     res.status(500).json({ error: 'Server error' });
   }
 });
