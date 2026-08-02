@@ -274,10 +274,15 @@ async function runRecitationSchedule() {
               title: rec.title,
               recitationId: rec.id,
             });
+          }
+          // [NOTIF-FIX] Batch INSERT all notification_log rows in one query instead
+          // of N+1 fire-and-forget inserts. Avoids partial writes if the loop was
+          // interrupted and reduces race risk if the scheduler ticks twice quickly.
+          if (studentIds.length > 0) {
             _pool.query(
               `INSERT INTO notification_log (teacher_id, student_id, title, message, type, source)
-               VALUES ($1,$2,$3,$4,'new_recitation','platform')`,
-              [rec.teacher_id, sid, 'تسميع جديد 📖', `تسميع "${rec.title}" متاح الآن`]
+               SELECT $1, unnest($2::int[]), $3, $4, 'new_recitation', 'platform'`,
+              [rec.teacher_id, studentIds, 'تسميع جديد 📖', `تسميع "${rec.title}" متاح الآن`]
             ).catch(() => {});
           }
 

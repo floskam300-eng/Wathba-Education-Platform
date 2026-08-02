@@ -17,7 +17,7 @@ function initFCM() {
   }
 }
 
-async function sendFCMToTokens(tokens, title, body, data = {}) {
+async function sendFCMToTokens(tokens, title, body, data = {}, pool = null) {
   if (!messaging) return;
   const validTokens = (tokens || []).filter(Boolean);
   if (!validTokens.length) return;
@@ -28,7 +28,7 @@ async function sendFCMToTokens(tokens, title, body, data = {}) {
         stringData[k] = typeof v === 'object' ? JSON.stringify(v) : String(v);
       }
     }
-    await messaging.sendEachForMulticast({
+    const result = await messaging.sendEachForMulticast({
       data: { title, body, ...stringData },
       webpush: {
         headers: { Urgency: 'high' },
@@ -36,6 +36,33 @@ async function sendFCMToTokens(tokens, title, body, data = {}) {
       },
       tokens: validTokens,
     });
+
+    // [NOTIF-FIX] Remove stale / invalid tokens so future sends don't silently fail.
+    // Tokens become invalid when the user uninstalls the app, revokes notification
+    // permission, or the FCM registration expires. Without cleanup, every subsequent
+    // push to that student is a guaranteed no-op.
+    if (pool && result.responses) {
+      const staleTokens = [];
+      result.responses.forEach((resp, i) => {
+        if (!resp.success) {
+          const code = resp.error?.code || '';
+          if (
+            code === 'messaging/registration-token-not-registered' ||
+            code === 'messaging/invalid-registration-token' ||
+            code === 'messaging/invalid-argument'
+          ) {
+            staleTokens.push(validTokens[i]);
+          }
+        }
+      });
+      if (staleTokens.length > 0) {
+        pool.query(
+          'UPDATE students SET fcm_token = NULL WHERE fcm_token = ANY($1)',
+          [staleTokens]
+        ).catch(err => console.error('[FCM] stale token cleanup error:', err.message));
+        console.log(`[FCM] Removed ${staleTokens.length} stale token(s)`);
+      }
+    }
   } catch (err) {
     console.error('[FCM] sendEachForMulticast error:', err.message);
   }
@@ -49,10 +76,12 @@ async function sendFCMToStudents(pool, studentIds, title, body, data = {}) {
       [studentIds]
     );
     const tokens = result.rows.map(r => r.fcm_token).filter(Boolean);
-    if (tokens.length) await sendFCMToTokens(tokens, title, body, data);
+    // Pass pool so sendFCMToTokens can clean up stale tokens automatically
+    if (tokens.length) await sendFCMToTokens(tokens, title, body, data, pool);
   } catch (err) {
     console.error('[FCM] sendFCMToStudents error:', err.message);
   }
 }
+
 
 module.exports = { initFCM, sendFCMToTokens, sendFCMToStudents };

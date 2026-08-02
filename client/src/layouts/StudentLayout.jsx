@@ -99,12 +99,15 @@ function NotificationBell({ dark }) {
   }, []);
 
   useEffect(() => {
-    const onPlatformNotif = () => {
-      qc.invalidateQueries({ queryKey: ['my-notifications'] });
-    };
+    // [NOTIF-FIX] Removed duplicate invalidateQueries call — useSSE already
+    // invalidates ['my-notifications'] when it receives platform_notification,
+    // then immediately dispatches this custom event. Doing it again here caused
+    // a redundant refetch with every platform notification.
+    // The listener is kept as a no-op safety net in case other code dispatches it.
+    const onPlatformNotif = () => {};
     window.addEventListener('wathba_platform_notification', onPlatformNotif);
     return () => window.removeEventListener('wathba_platform_notification', onPlatformNotif);
-  }, [qc]);
+  }, []);
 
   const { notifications, unread } = data;
   const preview = notifications.slice(0, BELL_LIMIT);
