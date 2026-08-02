@@ -722,7 +722,7 @@ export default function TeacherAnalytics() {
   );
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 max-w-full overflow-x-hidden">
       {selectedStudentId && (
         <StudentProfileModal studentId={selectedStudentId} onClose={() => setSelectedStudentId(null)} />
       )}
@@ -771,7 +771,7 @@ export default function TeacherAnalytics() {
                       <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">متوسط وأعلى درجة % لكل اختبار</p>
                     </div>
                   </div>
-                  <div className="flex gap-2 flex-shrink-0">
+                  <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                     <div className="text-center px-2.5 py-1.5 bg-slate-50 dark:bg-gray-700/50 rounded-xl border border-slate-100 dark:border-gray-600">
                       <p className="text-xs font-black text-slate-700 dark:text-gray-200">{totalAttempts}</p>
                       <p className="text-[9px] text-slate-400 dark:text-gray-400 font-semibold">محاولة</p>
@@ -947,7 +947,7 @@ export default function TeacherAnalytics() {
           <ChartCard title="نجاح مقابل رسوب" subtitle="توزيع النتائج الكلية"
             icon={Trophy} iconBg="bg-emerald-50" iconColor="text-emerald-500">
             {passFailData.length > 0 ? (
-              <div className="flex items-center gap-4">
+              <div className="flex flex-col sm:flex-row items-center gap-4">
                 <div className="flex-shrink-0 relative" style={{ width: '200px' }}>
                   <ReactECharts option={passFailOption} style={{ height: '200px', width: '200px' }} notMerge opts={{ renderer: 'svg' }} />
                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
@@ -994,7 +994,7 @@ export default function TeacherAnalytics() {
         iconBg="bg-indigo-50"
         iconColor="text-indigo-500"
         headerAction={
-          <div className="flex items-center gap-1 bg-gray-50 dark:bg-gray-700/50 rounded-xl p-1">
+          <div className="flex items-center gap-1 bg-gray-50 dark:bg-gray-700/50 rounded-xl p-1 overflow-x-auto max-w-full scrollbar-none">
             {TREND_PERIODS.map(p => (
               <button
                 key={p.value}
@@ -1034,11 +1034,11 @@ export default function TeacherAnalytics() {
 
           {/* summary stat cards */}
           {courseStatsLoading ? (
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {[...Array(3)].map((_, i) => <div key={i} className="h-20 rounded-xl bg-gray-100 animate-pulse" />)}
             </div>
           ) : (
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {[
                 {
                   label: 'إجمالي الكورسات',
@@ -1349,11 +1349,11 @@ export default function TeacherAnalytics() {
 
           {/* Recitations stat mini-cards */}
           {recLoading ? (
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {[...Array(3)].map((_, i) => <div key={i} className="h-20 rounded-xl bg-gray-100 animate-pulse" />)}
             </div>
           ) : (
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {[
                 { label: 'إجمالي المذاكرات', value: recData?.summary?.total_recitations ?? 0, icon: BookOpen, color: '#10b981', bg: 'bg-emerald-50' },
                 { label: 'إجمالي الجلسات', value: recData?.summary?.total_results ?? 0, icon: Target, color: '#6366f1', bg: 'bg-indigo-50' },
@@ -1617,7 +1617,7 @@ export default function TeacherAnalytics() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-gray-800 leading-relaxed mb-2"><MathText text={q.question_text} /></p>
-                        <div className="grid grid-cols-2 gap-1.5 mb-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mb-3">
                           {optionLetters.map((letter, li) => (
                             optionTexts[li] ? (
                               <div key={letter}
@@ -1765,7 +1765,7 @@ export default function TeacherAnalytics() {
             <Download className="w-3.5 h-3.5" /> تصدير CSV
           </button>
         </div>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto w-full max-w-full">
           <table className="w-full" style={{ minWidth: '600px' }}>
             <thead>
               <tr className="bg-gray-50/50">
@@ -1884,7 +1884,7 @@ export default function TeacherAnalytics() {
           ))}
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto w-full max-w-full">
           <table className="w-full" style={{ minWidth: '560px' }}>
             <thead>
               <tr className="bg-gray-50/50">

@@ -118,7 +118,7 @@ export default function AssistantLayout() {
           <div className="flex-1 bg-black/60 backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
         </div>
       )}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <header className={`app-header-safe border-b px-4 py-3 flex items-center justify-between gap-2 flex-shrink-0 ${dark ? '' : 'bg-white border-gray-200 shadow-sm'}`}
                 style={dark ? { backgroundColor: 'var(--dk-surface)', borderColor: 'var(--dk-border)', boxShadow: '0 1px 0 var(--dk-border)' } : {}}>
           <button className={`lg:hidden flex-shrink-0 p-2 rounded-lg transition-colors ${dark ? 'text-[var(--dk-text-2)] hover:bg-[var(--dk-elevated)]' : 'text-navy-600 hover:bg-gray-100'}`}
@@ -133,7 +133,7 @@ export default function AssistantLayout() {
             {dark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
           </button>
         </header>
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6"
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 lg:p-6 min-w-0"
               style={dark ? { backgroundColor: 'var(--dk-bg)' } : {}}>
           <React.Suspense fallback={
             <div className="flex items-center justify-center h-64">

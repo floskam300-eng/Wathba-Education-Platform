@@ -555,7 +555,7 @@ export default function AssistantAnalytics() {
   );
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 max-w-full overflow-x-hidden">
       {selectedStudentId && (
         <StudentProfileModal studentId={selectedStudentId} onClose={() => setSelectedStudentId(null)} />
       )}
@@ -648,7 +648,7 @@ export default function AssistantAnalytics() {
               </div>
             </div>
             {pieData.length > 0 ? (
-              <div className="flex items-center gap-4 px-5 pb-5">
+              <div className="flex flex-col sm:flex-row items-center gap-4 px-5 pb-5">
                 <div className="flex-shrink-0 relative" style={{ width: '180px' }}>
                   <ReactECharts option={attemptsDonutOption} style={{ height: '180px', width: '180px' }} notMerge opts={{ renderer: 'svg' }} />
                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
@@ -703,7 +703,7 @@ export default function AssistantAnalytics() {
               </div>
             </div>
             {passFailData.length > 0 ? (
-              <div className="flex items-center gap-4 px-5 pb-5">
+              <div className="flex flex-col sm:flex-row items-center gap-4 px-5 pb-5">
                 <div className="flex-shrink-0 relative" style={{ width: '190px' }}>
                   <ReactECharts option={passFailOption} style={{ height: '190px', width: '190px' }} notMerge opts={{ renderer: 'svg' }} />
                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
@@ -844,11 +844,11 @@ export default function AssistantAnalytics() {
           </div>
 
           {courseStatsLoading ? (
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {[...Array(3)].map((_, i) => <div key={i} className="h-20 rounded-xl bg-gray-100 animate-pulse" />)}
             </div>
           ) : (
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {[
                 { label: 'إجمالي الكورسات',  value: courseStatsData.length, icon: Layers, color: '#6366f1', bg: 'bg-indigo-50' },
                 { label: 'إجمالي المشتركين', value: courseStatsData.reduce((s, c) => s + (c.enrolled_count || 0), 0), icon: Users, color: '#f97316', bg: 'bg-orange-50' },
@@ -1371,7 +1371,7 @@ export default function AssistantAnalytics() {
             <p className="text-[11px] text-gray-400 mt-0.5">{filteredStudents.length} طالب{activeFiltersCount > 0 || searchQuery ? ' (بعد الفلترة)' : ''}</p>
           </div>
         </div>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto w-full max-w-full">
           <table className="w-full" style={{ minWidth: '560px' }}>
             <thead>
               <tr className="bg-gray-50/50">
@@ -1483,7 +1483,7 @@ export default function AssistantAnalytics() {
               }`}>{s}</button>
           ))}
         </div>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto w-full max-w-full">
           <table className="w-full" style={{ minWidth: '520px' }}>
             <thead>
               <tr className="bg-gray-50/50">

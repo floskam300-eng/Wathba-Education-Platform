@@ -151,7 +151,7 @@ export default function TeacherLayout() {
         </div>
       )}
 
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <div className="flex-shrink-0 w-full"
              style={{ height: 'env(safe-area-inset-top)', backgroundColor: dark ? 'var(--dk-surface)' : 'white' }} />
         <header className={`app-header-safe border-b px-4 lg:px-6 py-3 flex items-center justify-between gap-2 flex-shrink-0 ${dark ? '' : 'bg-white border-gray-200 shadow-sm'}`}
@@ -196,7 +196,7 @@ export default function TeacherLayout() {
           </div>
         )}
 
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6"
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 lg:p-6 min-w-0"
               style={dark ? { backgroundColor: 'var(--dk-bg)' } : {}}>
           {isCurrentPageDisabled ? (
             <div className="flex flex-col items-center justify-center min-h-[60vh] text-center" dir="rtl">

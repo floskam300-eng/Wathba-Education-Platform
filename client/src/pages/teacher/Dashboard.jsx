@@ -119,7 +119,7 @@ export default function TeacherDashboard() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-full overflow-x-hidden">
       {/* Header */}
       <div className="page-header">
         <div>
@@ -236,7 +236,7 @@ export default function TeacherDashboard() {
           </div>
 
           {/* Legend */}
-          <div className="px-5 py-2.5 bg-gray-50/60 border-b border-gray-100 flex items-center gap-4 text-[10px] font-bold text-gray-400">
+          <div className="px-5 py-2.5 bg-gray-50/60 border-b border-gray-100 flex items-center gap-2 sm:gap-4 text-[10px] font-bold text-gray-400 flex-wrap overflow-x-auto">
             <span className="flex items-center gap-1"><ClipboardList className="w-3 h-3 text-rose-400" /> متوسط الامتحانات &lt; 60%</span>
             <span className="flex items-center gap-1"><Video className="w-3 h-3 text-orange-400" /> متابعة الفيديوهات &lt; 30%</span>
             <span className="flex items-center gap-1"><Clock className="w-3 h-3 text-yellow-400" /> غياب +14 يوم</span>
@@ -278,7 +278,7 @@ export default function TeacherDashboard() {
                     </div>
 
                     {/* Risk Badges */}
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap justify-end">
                       {/* Exam badge */}
                       {examPct !== null && (
                         <span className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-black ${
@@ -487,7 +487,7 @@ export default function TeacherDashboard() {
             <p className="text-[11px] text-gray-400">أحدث نتائج الطلاب</p>
           </div>
         </div>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto w-full max-w-full">
           <table className="w-full mobile-card-table" style={{ minWidth: 0 }}>
             <thead>
               <tr className="bg-gray-50/50">
