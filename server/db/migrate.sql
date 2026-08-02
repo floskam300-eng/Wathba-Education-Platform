@@ -1,5 +1,5 @@
-Done: 195 statements written
-===================================
+-- Done: 195 statements written
+-- ===================================
 -- Wathba Platform — Incremental Migration Script
 -- Safe to run on any existing production DB.
 -- All ADD COLUMN statements use IF NOT EXISTS.
