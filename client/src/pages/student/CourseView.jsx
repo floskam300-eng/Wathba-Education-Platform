@@ -1446,7 +1446,7 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
 
   if (recitations.length === 0) {
     return (
-      <div className="flex flex-col h-full" dir="rtl">
+      <div className="flex-1 flex flex-col min-h-0 h-full" dir="rtl">
         <div className="flex flex-col items-center justify-center flex-1 min-h-[180px] p-4 text-center">
           <BookOpen className="w-10 h-10 text-gray-400 dark:text-gray-700 mb-2" />
           <p className="text-gray-500 dark:text-gray-600 text-sm font-semibold">لا توجد تسميعات مرتبطة بهذا الكورس</p>
@@ -1466,7 +1466,7 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
   if (pendingRecitations.length === 0) {
     // All recitations passed — celebrate and link to the full history page
     return (
-      <div className="flex flex-col h-full" dir="rtl">
+      <div className="flex-1 flex flex-col min-h-0 h-full" dir="rtl">
         <div className="flex flex-col items-center justify-center flex-1 min-h-[200px] p-4 text-center">
           <div className="w-14 h-14 rounded-2xl bg-green-500/15 flex items-center justify-center mb-3">
             <CheckCircle className="w-7 h-7 text-green-400" />
@@ -1487,7 +1487,7 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
   }
 
   return (
-    <div className="flex flex-col h-full" dir="rtl">
+    <div className="flex-1 flex flex-col min-h-0 h-full" dir="rtl">
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
         {pendingRecitations.map((rec, idx) => {
           const hasResult = !!rec.result_id;
@@ -1587,7 +1587,7 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
       </div>
       {/* Link to the full recitations page — shows ALL recitations
           (pending + completed) so the student can review past results. */}
-      <div className="px-3 pb-3 border-t border-gray-200 dark:border-white/10 pt-2 flex-shrink-0">
+      <div className="px-3 pb-3 border-t border-gray-200 dark:border-white/10 pt-2 flex-shrink-0 bg-white dark:bg-gray-900">
         <button
           onClick={() => navigate('/student/recitations')}
           className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[11px] font-black text-purple-600 dark:text-purple-300 bg-purple-50 dark:bg-purple-500/10 hover:bg-purple-100 dark:hover:bg-purple-500/20 transition-all border border-purple-300 dark:border-purple-500/40 shadow-sm hover:shadow-purple-200 dark:hover:shadow-none active:scale-95">
@@ -2202,7 +2202,7 @@ export default function CourseView() {
             </>
           ) : null}
           {/* Recitations tab — always mounted so in-progress state survives tab switches */}
-          <div className={activeTab === 'recitations' ? 'contents' : 'hidden'}>
+          <div className={activeTab === 'recitations' ? 'flex-1 flex flex-col min-h-0 overflow-hidden' : 'hidden'}>
             <RecitationsTabPanel
               recitations={courseRecitations}
               courseId={courseId}
