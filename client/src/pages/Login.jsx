@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 import {
   Eye, EyeOff, LogIn, Lock, User,
   BookOpen, BarChart2, Award, Video, Target, Users, Sparkles,
-  ShieldAlert, CheckCircle, ArrowRight,
+  ShieldAlert, ShieldX, CheckCircle, ArrowRight, Smartphone,
 } from 'lucide-react';
 import WathbaLogo from '../assets/wathba_logo_new.png';
 import { useForceLightMode } from '../hooks/useForceLightMode';
@@ -108,6 +108,87 @@ function DeviceWarningModal({ onAccept }) {
   );
 }
 
+// Shown when a student attempts login from an unregistered second device
+function DeviceBlockedModal({ onClose }) {
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 9999,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: 'rgba(0,0,0,0.55)', padding: '1rem',
+      animation: 'lg-fade-up .3s ease both',
+    }}>
+      <div style={{
+        background: '#FFFFFF',
+        border: '2px solid rgba(239,68,68,.3)',
+        borderRadius: 20,
+        width: '100%', maxWidth: 420,
+        padding: '2rem',
+        boxShadow: '0 10px 40px rgba(239,68,68,0.12)',
+      }}>
+        {/* Header */}
+        <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+          <div style={{
+            width: 68, height: 68, borderRadius: 20,
+            background: 'rgba(239,68,68,.08)',
+            border: '2px solid rgba(239,68,68,.25)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto 1rem',
+          }}>
+            <ShieldX size={32} color="#ef4444" />
+          </div>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 900, color: '#7f1d1d', marginBottom: '.4rem' }}>
+            تم رصد جهاز جديد
+          </h2>
+          <p style={{ fontSize: '.82rem', color: 'rgba(127,29,29,0.65)', lineHeight: 1.6 }}>
+            تم إشعار المدرس بهذه المحاولة
+          </p>
+        </div>
+
+        {/* Details box */}
+        <div style={{
+          background: 'rgba(239,68,68,.04)',
+          border: '1px solid rgba(239,68,68,.2)',
+          borderRadius: 14, padding: '1.2rem',
+          marginBottom: '1.5rem',
+        }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {[
+              { icon: <Smartphone size={17} color="#ef4444" />, title: 'جهاز غير مسجّل', text: 'هذا الجهاز لم يسبق تسجيله في حسابك. لكل حساب جهاز واحد فقط.' },
+              { icon: <ShieldAlert size={17} color="#f97316" />, title: 'المدرس تم إشعاره', text: 'تلقّى المدرس تنبيهاً فورياً بهذه المحاولة وسيراجعها.' },
+              { icon: <CheckCircle size={17} color="#16a34a" />, title: 'ماذا تفعل؟', text: 'تواصل مع المدرس لطلب السماح لك بتسجيل هذا الجهاز الجديد، أو استخدم جهازك الأصلي.' },
+            ].map((item, i) => (
+              <div key={i} style={{ display: 'flex', gap: '.75rem', alignItems: 'flex-start' }}>
+                <div style={{ flexShrink: 0, marginTop: 2 }}>{item.icon}</div>
+                <div>
+                  <div style={{ fontSize: '.8rem', fontWeight: 800, color: '#7f1d1d', marginBottom: 2 }}>{item.title}</div>
+                  <div style={{ fontSize: '.76rem', color: 'rgba(127,29,29,0.7)', lineHeight: 1.6 }}>{item.text}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <button
+          onClick={onClose}
+          style={{
+            width: '100%', border: '2px solid rgba(239,68,68,.3)', borderRadius: 12,
+            padding: '.85rem', fontSize: '.9rem', fontWeight: 700,
+            fontFamily: "'Cairo', sans-serif", cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.5rem',
+            background: 'rgba(239,68,68,.06)',
+            color: '#dc2626',
+            transition: 'all .2s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background='rgba(239,68,68,.12)'; }}
+          onMouseLeave={e => { e.currentTarget.style.background='rgba(239,68,68,.06)'; }}
+        >
+          حسناً — فهمت الأمر
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function Login() {
   useForceLightMode();
   const [username, setUsername]       = useState('');
@@ -117,6 +198,7 @@ export default function Login() {
   const [focused, setFocused]         = useState(null);
   const [pendingUser, setPendingUser] = useState(null);
   const [showWarning, setShowWarning] = useState(false);
+  const [showDeviceBlocked, setShowDeviceBlocked] = useState(false);
 
   const isPwa = window.matchMedia('(display-mode: standalone)').matches
     || window.navigator.standalone === true;
@@ -147,7 +229,15 @@ export default function Login() {
         navigate(`/${user.role}`);
       }
     } catch (err) {
-      toast.error(err.response?.data?.error || 'بيانات الدخول غير صحيحة');
+      const code = err.response?.data?.code;
+      if (code === 'NEW_DEVICE_BLOCKED') {
+        // Show the dedicated device-blocked modal instead of a toast
+        setShowDeviceBlocked(true);
+      } else if (code === 'DEVICE_ID_REQUIRED') {
+        toast.error('يرجى تسجيل الدخول عبر متصفح وثبة الرسمي');
+      } else {
+        toast.error(err.response?.data?.error || 'بيانات الدخول غير صحيحة');
+      }
     } finally {
       setLoading(false);
     }
@@ -193,8 +283,11 @@ export default function Login() {
         }
       `}</style>
 
-      {/* Device security warning modal */}
+      {/* Device security warning modal (first login on any device) */}
       {showWarning && <DeviceWarningModal onAccept={handleWarningAccept} />}
+
+      {/* Device blocked modal (attempt from unregistered second device) */}
+      {showDeviceBlocked && <DeviceBlockedModal onClose={() => setShowDeviceBlocked(false)} />}
 
       {/* ═══ LEFT PANEL ═══ */}
       <div className="lg-left" style={{
