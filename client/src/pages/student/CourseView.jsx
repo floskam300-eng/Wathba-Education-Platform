@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowRight, Play, FileText, BookOpen, Video, Clock,
-  CheckCircle2, Lock, ChevronRight, AlertCircle,
+  CheckCircle2, Lock, ChevronRight, ChevronLeft, AlertCircle,
   Pause, Volume2, VolumeX, Maximize2, Minimize2, RotateCcw, RotateCw,
   Settings, Gauge, CheckCircle, XCircle, RefreshCw, Trophy, Eye, ZoomIn
 } from 'lucide-react';
@@ -1150,6 +1150,7 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
   const [result, setResult] = useState(null);
   const [showCountdown, setShowCountdown] = useState(false);
   const [countdown, setCountdown] = useState(3);
+  const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
 
   const timerRef = useRef(null);
   const timerEpochRef = useRef(null);
@@ -1258,6 +1259,7 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
       timerEpochRef.current = startedAt;
       timerDurationRef.current = durationMs;
       setTimeLeft(Math.floor(remaining / 1000));
+      setCurrentQuestionIdx(0);
       if (data.resumed) {
         setView('take');
       } else {
@@ -1323,6 +1325,7 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
     setView('list');
     setResult(null);
     setExamData(null);
+    setCurrentQuestionIdx(0);
     submittedRef.current = false;
     onRefresh?.();
   };
@@ -1349,6 +1352,18 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
       return !!answers[q.id];
     }).length;
 
+    const safeIdx = Math.min(currentQuestionIdx, questions.length - 1);
+    const q = questions[safeIdx];
+    const isFirst = safeIdx === 0;
+    const isLast = safeIdx === questions.length - 1;
+    const nextQ = !isLast ? questions[safeIdx + 1] : null;
+
+    const isQAnswered = (qid) => {
+      const a = answers[qid];
+      if (a && typeof a === 'object') return Object.keys(a).length > 0;
+      return !!a;
+    };
+
     return (
       <div className="flex flex-col h-full overflow-hidden" dir="rtl">
         {/* Timer bar */}
@@ -1364,21 +1379,88 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
             {mins}:{String(secs).padStart(2, '0')}
           </div>
         </div>
-        {/* Questions scroll area */}
-        <div className="flex-1 overflow-y-auto p-3 space-y-3">
-          {questions.map((q, idx) => (
-            <SidebarQuestionCard key={q.id} q={q} idx={idx} answers={answers} setAnswers={setAnswers} />
-          ))}
+
+        {/* Question number grid */}
+        <div className="flex flex-wrap gap-1 justify-center py-2 px-1 border-b border-gray-200 dark:border-white/10 flex-shrink-0 bg-gray-50 dark:bg-white/5">
+          {questions.map((qq, idx) => {
+            const isAnswered = isQAnswered(qq.id);
+            const isCurrent = idx === safeIdx;
+            return (
+              <button
+                key={qq.id}
+                onClick={() => setCurrentQuestionIdx(idx)}
+                className={`w-7 h-7 rounded-lg text-xs font-black transition-all border ${
+                  isCurrent
+                    ? 'bg-purple-500 text-white border-purple-500 shadow scale-105'
+                    : isAnswered
+                    ? 'bg-purple-500/20 text-purple-600 dark:text-purple-300 border-purple-400/40'
+                    : 'bg-gray-100 dark:bg-white/5 text-gray-500 border-gray-200 dark:border-white/10 hover:border-purple-300'
+                }`}
+              >
+                {idx + 1}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Question separator badge */}
+        {q && (
+          <div className="flex items-center gap-2 my-2 px-3 flex-shrink-0">
+            <div className="flex-1 h-px bg-purple-500/20" />
+            <span className="text-[11px] font-black text-purple-600 dark:text-purple-300 bg-purple-500/10 border border-purple-500/20 px-2.5 py-0.5 rounded-full whitespace-nowrap">
+              السؤال {safeIdx + 1} من {questions.length}
+              <span className="opacity-40 mx-1">·</span>
+              <span className="font-medium text-[10px]">
+                {q.question_type === 'true_false' ? 'صح / خطأ' : q.question_type === 'image_multi' ? 'صورة + أسئلة' : 'اختيار من متعدد'}
+              </span>
+            </span>
+            <div className="flex-1 h-px bg-purple-500/20" />
+          </div>
+        )}
+
+        {/* Current question view */}
+        <div className="flex-1 overflow-y-auto p-3">
+          {q && (
+            <SidebarQuestionCard key={q.id} q={q} idx={safeIdx} answers={answers} setAnswers={setAnswers} />
+          )}
+        </div>
+
+        {/* Prefetch next question's images silently */}
+        {nextQ?.question_image_url && (
+          <img key={`prefetch-${nextQ.id}`} src={withToken(nextQ.question_image_url)} alt="" aria-hidden="true" className="hidden" />
+        )}
+
+        {/* Prev / Next navigation footer */}
+        <div className="p-3 border-t border-gray-200 dark:border-white/10 flex-shrink-0 flex gap-2 bg-white dark:bg-gray-900">
           <button
-            onClick={() => {
-              if (window.confirm(`هل أنت متأكد من تسليم التسميع؟\nأجبت على ${answered} من ${questions.length} أسئلة`)) {
-                handleSubmit(false);
-              }
-            }}
-            disabled={submitting}
-            className="w-full py-3 rounded-2xl font-black text-sm text-white bg-purple-500 hover:bg-purple-600 disabled:opacity-60 transition-colors mt-2">
-            {submitting ? <><RefreshCw className="w-4 h-4 inline ml-1.5 animate-spin" />جاري التسليم...</> : 'تسليم التسميع'}
+            onClick={() => setCurrentQuestionIdx(safeIdx - 1)}
+            disabled={isFirst}
+            className="flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-xs font-black bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-300 disabled:opacity-40 transition-colors"
+          >
+            <ChevronRight className="w-4 h-4" />
+            السابق
           </button>
+          {isLast ? (
+            <button
+              onClick={() => {
+                if (window.confirm(`هل أنت متأكد من تسليم التسميع؟\nأجبت على ${answered} من ${questions.length} أسئلة`)) {
+                  handleSubmit(false);
+                }
+              }}
+              disabled={submitting}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-black text-white bg-purple-500 hover:bg-purple-600 disabled:opacity-60 transition-colors shadow-sm"
+            >
+              {submitting ? <><RefreshCw className="w-3.5 h-3.5 inline animate-spin" />جاري التسليم...</> : `تسليم التسميع (${answered}/${questions.length})`}
+            </button>
+          ) : (
+            <button
+              onClick={() => setCurrentQuestionIdx(safeIdx + 1)}
+              className="flex-1 flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-black text-white bg-purple-500 hover:bg-purple-600 transition-colors shadow-sm"
+            >
+              التالي
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
     );
