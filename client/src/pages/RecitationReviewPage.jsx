@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, Clock, CheckCircle, XCircle, Minus, Award, BarChart2 } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Clock, CheckCircle, XCircle, Minus, Award, BarChart2 } from 'lucide-react';
 import api from '../lib/api';
 import MathText from '../components/MathText';
 import ImageLightbox from '../components/ImageLightbox';
@@ -38,25 +38,207 @@ export default function RecitationReviewPage() {
   const questions = data?.review || [];
 
   const correct    = questions.filter(q => q.is_correct).length;
-  // For image_multi, student_answer is a JSON string — check sub_results for actual answered state
   const hasAnswer  = q => q.question_type === 'image_multi'
     ? (Array.isArray(q.sub_results) && q.sub_results.some(s => !!s.student_answer))
     : !!q.student_answer;
   const wrong      = questions.filter(q => !q.is_correct && hasAnswer(q)).length;
   const unanswered = questions.filter(q => !hasAnswer(q)).length;
   const pct        = questions.length > 0 ? Math.round((correct / questions.length) * 100) : 0;
+
   const [lightboxSrc, setLightboxSrc] = useState(null);
+  const [currentIdx, setCurrentIdx]   = useState(0);
 
   const goBack = () => {
-    // If opened from a course page, go back to it directly instead of -1
-    // so the browser history stack doesn't lose the course context.
     if (location.state?.backTo) return navigate(location.state.backTo);
-    // [RRP-3 FIX] Fallback route when user navigates directly to this URL
-    // (e.g. via notification link) — history.length ≤ 1 means no back-stack.
     if (window.history.length > 1) navigate(-1);
     else if (user?.role === 'teacher' || user?.role === 'assistant') navigate('/teacher/recitations');
     else navigate('/student/recitations');
   };
+
+  const goPrev = () => setCurrentIdx(i => Math.max(0, i - 1));
+  const goNext = () => setCurrentIdx(i => Math.min(questions.length - 1, i + 1));
+
+  const q  = questions[currentIdx];
+  const qi = currentIdx;
+
+  function renderQuestion(q, qi) {
+    const isImgMulti = q.question_type === 'image_multi';
+    const answered   = !!q.student_answer;
+    const opts = ['A','B','C','D'].filter(o => q[`option_${o.toLowerCase()}`]);
+
+    return (
+      <div key={q.id || qi} className={`bg-white dark:bg-[var(--dk-surface)] rounded-2xl border-2 shadow-sm overflow-hidden ${
+        !answered
+          ? 'border-gray-200 dark:border-[var(--dk-border)]'
+          : q.is_correct
+            ? 'border-green-300 dark:border-green-700/50'
+            : 'border-red-300 dark:border-red-700/50'
+      }`}>
+        {/* Question header */}
+        <div className={`px-5 py-3 flex items-center gap-3 border-b ${
+          !answered
+            ? 'bg-gray-50 dark:bg-[var(--dk-elevated)] border-gray-100 dark:border-[var(--dk-border)]'
+            : q.is_correct
+              ? 'bg-green-50 dark:bg-green-900/20 border-green-100 dark:border-green-800/30'
+              : 'bg-red-50 dark:bg-red-900/20 border-red-100 dark:border-red-800/30'
+        }`}>
+          <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm font-black text-white flex-shrink-0 ${
+            !answered ? 'bg-gray-400 dark:bg-gray-600' : q.is_correct ? 'bg-green-500' : 'bg-red-500'
+          }`}>{qi + 1}</div>
+          <div className="flex items-center gap-2 text-xs font-bold flex-wrap">
+            {isImgMulti && <span className="text-indigo-700 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/30 px-2 py-0.5 rounded-full">صورة+أسئلة</span>}
+            {!answered && <span className="flex items-center gap-1 text-gray-400 dark:text-[var(--dk-text-2)] bg-gray-100 dark:bg-[var(--dk-hover)] px-2 py-0.5 rounded-full"><Clock className="w-3 h-3" /> لم تُجَب</span>}
+            {answered && q.is_correct && <span className="flex items-center gap-1 text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-2 py-0.5 rounded-full"><CheckCircle className="w-3 h-3" /> صحيحة ✓</span>}
+            {answered && !q.is_correct && <span className="flex items-center gap-1 text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30 px-2 py-0.5 rounded-full"><XCircle className="w-3 h-3" /> خاطئة ✗</span>}
+          </div>
+        </div>
+
+        {/* Question body */}
+        <div className="px-5 py-4">
+          {q.question_text && (
+            <p className="font-bold text-navy-700 dark:text-[var(--dk-text-1)] text-base leading-relaxed mb-2">
+              <MathText text={q.question_text} />
+            </p>
+          )}
+          {q.question_image_url && (
+            <img
+              src={withToken(q.question_image_url)}
+              alt=""
+              className="mt-1 mb-3 w-full max-h-64 object-contain rounded-xl border border-gray-200 dark:border-[var(--dk-border)] bg-gray-50 dark:bg-[var(--dk-elevated)] cursor-zoom-in"
+              onClick={() => setLightboxSrc(withToken(q.question_image_url))}
+            />
+          )}
+
+          {/* image_multi sub-results */}
+          {isImgMulti && (
+            <div className="space-y-1.5 mt-2">
+              {(q.sub_results || q.sub_questions || []).map(sub => {
+                const subResult    = q.sub_results ? sub : null;
+                const rawSubSa        = subResult?.student_answer || null;
+                const rawSubCorrect   = subResult?.correct || sub.correct;
+                const subIsCorrect = subResult?.is_correct ?? false;
+                const hasSubAns    = !!rawSubSa;
+                const isTF = sub.type === 'true_false';
+                const subSa = isTF ? (rawSubSa === 'T' ? 'A' : rawSubSa === 'F' ? 'B' : rawSubSa) : rawSubSa;
+                const subCorrect = isTF ? (rawSubCorrect === 'T' ? 'A' : rawSubCorrect === 'F' ? 'B' : rawSubCorrect) : rawSubCorrect;
+                const listLetters = isTF ? ['A', 'B'] : ['A', 'B', 'C', 'D'].slice(0, sub.option_labels?.length || 4);
+                return (
+                  <div key={sub.label} className={`flex items-center gap-2 p-2.5 rounded-xl border-2 ${
+                    !hasSubAns
+                      ? 'border-gray-200 dark:border-[var(--dk-border)] bg-gray-50 dark:bg-[var(--dk-elevated)]'
+                      : subIsCorrect
+                        ? 'border-green-300 dark:border-green-700/50 bg-green-50 dark:bg-green-900/20'
+                        : 'border-red-300 dark:border-red-700/50 bg-red-50 dark:bg-red-900/20'
+                  }`}>
+                    <span className="text-xs font-black text-gray-600 dark:text-[var(--dk-text-2)] w-24 flex-shrink-0">
+                      {sub.label} <span className="text-[10px] text-gray-400 font-normal">({sub.points || 1} د)</span>
+                    </span>
+                    <div className="flex gap-1 flex-1">
+                      {listLetters.map(letter => (
+                        <span key={letter} className={`flex-1 text-center py-0.5 rounded text-xs font-bold border ${
+                          letter === subCorrect && letter === subSa
+                            ? 'bg-green-600 text-white border-green-600'
+                            : letter === subSa && !subIsCorrect
+                              ? 'bg-red-500 text-white border-red-500'
+                              : letter === subCorrect
+                                ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400 border-green-300 dark:border-green-700/50'
+                                : 'bg-white dark:bg-[var(--dk-elevated)] text-gray-400 dark:text-[var(--dk-text-3)] border-gray-200 dark:border-[var(--dk-border)]'
+                        }`}>{isTF ? (letter === 'A' ? 'صح' : 'خطأ') : (sub.option_labels?.[['A', 'B', 'C', 'D'].indexOf(letter)] || letter)}</span>
+                      ))}
+                    </div>
+                    {!hasSubAns && <span className="text-[10px] text-gray-400 dark:text-[var(--dk-text-3)] flex-shrink-0">لم تُجَب</span>}
+                    {hasSubAns && subIsCorrect && <CheckCircle className="w-3.5 h-3.5 text-green-600 dark:text-green-400 flex-shrink-0" />}
+                    {hasSubAns && !subIsCorrect && <XCircle className="w-3.5 h-3.5 text-red-500 dark:text-red-400 flex-shrink-0" />}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* MCQ / True-False options */}
+          {!isImgMulti && opts.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
+              {opts.map(opt => {
+                const text          = q[`option_${opt.toLowerCase()}`];
+                if (!text) return null;
+                const isTF = q.question_type === 'true_false';
+                const studentAnsNormalized = isTF ? (q.student_answer === 'T' ? 'A' : q.student_answer === 'F' ? 'B' : q.student_answer) : q.student_answer;
+                const correctLetterNormalized = isTF ? (q.correct_answer_letter === 'T' ? 'A' : q.correct_answer_letter === 'F' ? 'B' : q.correct_answer_letter) : q.correct_answer_letter;
+                const correctAnswerNormalized = isTF ? (q.correct_answer === 'T' ? 'A' : q.correct_answer === 'F' ? 'B' : q.correct_answer) : q.correct_answer;
+
+                const isStudentChoice = studentAnsNormalized === opt;
+                const isCorrectOpt    = correctAnswerNormalized === opt || correctLetterNormalized === opt;
+                return (
+                  <div key={opt} className={`flex items-center gap-3 p-3 rounded-xl border-2 ${
+                    isCorrectOpt && isStudentChoice
+                      ? 'border-green-500 bg-green-50 dark:bg-green-900/20 dark:border-green-600/60'
+                      : isStudentChoice && !isCorrectOpt
+                        ? 'border-red-400 bg-red-50 dark:bg-red-900/20 dark:border-red-600/60'
+                        : isCorrectOpt
+                          ? 'border-green-300 bg-green-50/50 dark:bg-green-900/10 dark:border-green-700/40'
+                          : 'border-gray-100 dark:border-[var(--dk-border)] bg-gray-50 dark:bg-[var(--dk-elevated)]'
+                  }`}>
+                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 ${
+                      isCorrectOpt && isStudentChoice ? 'bg-green-600 text-white'
+                      : isStudentChoice ? 'bg-red-500 text-white'
+                      : isCorrectOpt ? 'bg-green-200 dark:bg-green-800/50 text-green-800 dark:text-green-300'
+                      : 'bg-gray-200 dark:bg-[var(--dk-hover)] text-gray-600 dark:text-[var(--dk-text-2)]'
+                    }`}>{q.option_labels?.[['A', 'B', 'C', 'D'].indexOf(opt)] || opt}</span>
+                    <span className={`text-sm flex-1 ${
+                      isCorrectOpt
+                        ? 'text-green-800 dark:text-green-300 font-semibold'
+                        : isStudentChoice
+                          ? 'text-red-700 dark:text-red-400 font-semibold'
+                          : 'text-gray-600 dark:text-[var(--dk-text-2)]'
+                    }`}>{text}</span>
+                    {isCorrectOpt && <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />}
+                    {isStudentChoice && !isCorrectOpt && <XCircle className="w-4 h-4 text-red-500 dark:text-red-400 flex-shrink-0" />}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {!isImgMulti && opts.length === 0 && (q.correct_answer || q.student_answer) && (
+            <div className="flex gap-3 mt-3">
+              {(() => {
+                const isTF = q.question_type === 'true_false';
+                const studentAns = isTF ? (q.student_answer === 'T' ? 'A' : q.student_answer === 'F' ? 'B' : q.student_answer) : q.student_answer;
+                const correctAns = isTF ? ((q.correct_answer || q.correct_answer_letter) === 'T' ? 'A' : (q.correct_answer || q.correct_answer_letter) === 'F' ? 'B' : (q.correct_answer || q.correct_answer_letter)) : (q.correct_answer || q.correct_answer_letter);
+                return [
+                  { opt: correctAns, label: studentAns === correctAns ? '✅ صح — إجابتك' : '✅ الإجابة الصحيحة' },
+                  ...(studentAns && studentAns !== correctAns
+                    ? [{ opt: studentAns, label: '❌ إجابتك' }]
+                    : [])
+                ].map(({ opt, label }) => (
+                  <div key={opt} className={`flex-1 py-2.5 rounded-xl text-sm font-bold text-center border-2 ${
+                    label.includes('صح')
+                      ? 'border-green-400 bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-400'
+                      : 'border-red-400 bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-400'
+                  }`}>{label}</div>
+                ));
+              })()}
+            </div>
+          )}
+
+          {/* Correction note for unanswered */}
+          {!isImgMulti && !answered && (q.correct_answer_letter || q.correct_answer) && (
+            <div className="mt-3 flex items-center gap-2 text-xs font-semibold bg-gray-50 dark:bg-[var(--dk-elevated)] border border-gray-200 dark:border-[var(--dk-border)] rounded-xl px-4 py-2.5">
+              <Minus className="w-3.5 h-3.5 text-gray-400" />
+              <span className="text-gray-500 dark:text-[var(--dk-text-2)]">لم تُجِب</span>
+              <span className="mx-1 text-gray-300 dark:text-[var(--dk-text-3)]">—</span>
+              <CheckCircle className="w-3.5 h-3.5 text-green-600" />
+              <span className="text-green-800 dark:text-green-400">الصحيح: <strong>{
+                q.option_labels && ['A','B','C','D'].includes(q.correct_answer_letter || q.correct_answer)
+                  ? q.option_labels[['A','B','C','D'].indexOf(q.correct_answer_letter || q.correct_answer)]
+                  : (q.correct_answer_letter || q.correct_answer)
+              }</strong></span>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -64,7 +246,6 @@ export default function RecitationReviewPage() {
 
       {/* ── Page header ────────────────────────────────────────────────────── */}
       <div className="bg-white dark:bg-[var(--dk-surface)] rounded-2xl border border-gray-100 dark:border-[var(--dk-border)] shadow-sm overflow-hidden">
-        {/* Coloured top stripe */}
         <div className={`h-1.5 w-full ${pct >= 50 ? 'bg-gradient-to-l from-emerald-400 to-teal-500' : 'bg-gradient-to-l from-red-400 to-rose-500'}`} />
         <div className="px-5 py-4 flex items-center gap-3">
           <button
@@ -127,196 +308,93 @@ export default function RecitationReviewPage() {
             <span className="flex items-center gap-1.5"><BarChart2 className="w-3.5 h-3.5 text-blue-500" /> {questions.length} سؤال</span>
           </div>
 
-          {/* Questions */}
-          <div className="space-y-4">
-            {questions.map((q, qi) => {
-              const isImgMulti = q.question_type === 'image_multi';
-              const answered   = !!q.student_answer;
-              const opts = ['A','B','C','D'].filter(o => q[`option_${o.toLowerCase()}`]);
-
-              return (
-                <div key={q.id || qi} className={`bg-white dark:bg-[var(--dk-surface)] rounded-2xl border-2 shadow-sm overflow-hidden ${
-                  !answered
-                    ? 'border-gray-200 dark:border-[var(--dk-border)]'
-                    : q.is_correct
-                      ? 'border-green-300 dark:border-green-700/50'
-                      : 'border-red-300 dark:border-red-700/50'
-                }`}>
-                  {/* Question header */}
-                  <div className={`px-5 py-3 flex items-center gap-3 border-b ${
-                    !answered
-                      ? 'bg-gray-50 dark:bg-[var(--dk-elevated)] border-gray-100 dark:border-[var(--dk-border)]'
-                      : q.is_correct
-                        ? 'bg-green-50 dark:bg-green-900/20 border-green-100 dark:border-green-800/30'
-                        : 'bg-red-50 dark:bg-red-900/20 border-red-100 dark:border-red-800/30'
-                  }`}>
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm font-black text-white flex-shrink-0 ${
-                      !answered ? 'bg-gray-400 dark:bg-gray-600' : q.is_correct ? 'bg-green-500' : 'bg-red-500'
-                    }`}>{qi + 1}</div>
-                    <div className="flex items-center gap-2 text-xs font-bold flex-wrap">
-                      {isImgMulti && <span className="text-indigo-700 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/30 px-2 py-0.5 rounded-full">صورة+أسئلة</span>}
-                      {!answered && <span className="flex items-center gap-1 text-gray-400 dark:text-[var(--dk-text-2)] bg-gray-100 dark:bg-[var(--dk-hover)] px-2 py-0.5 rounded-full"><Clock className="w-3 h-3" /> لم تُجَب</span>}
-                      {answered && q.is_correct && <span className="flex items-center gap-1 text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-2 py-0.5 rounded-full"><CheckCircle className="w-3 h-3" /> صحيحة ✓</span>}
-                      {answered && !q.is_correct && <span className="flex items-center gap-1 text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30 px-2 py-0.5 rounded-full"><XCircle className="w-3 h-3" /> خاطئة ✗</span>}
-                    </div>
-                  </div>
-
-                  {/* Question body */}
-                  <div className="px-5 py-4">
-                    {q.question_text && (
-                      <p className="font-bold text-navy-700 dark:text-[var(--dk-text-1)] text-base leading-relaxed mb-2">
-                        <MathText text={q.question_text} />
-                      </p>
-                    )}
-                    {q.question_image_url && (
-                      <img
-                        src={withToken(q.question_image_url)}
-                        alt=""
-                        className="mt-1 mb-3 w-full max-h-64 object-contain rounded-xl border border-gray-200 dark:border-[var(--dk-border)] bg-gray-50 dark:bg-[var(--dk-elevated)] cursor-zoom-in"
-                        onClick={() => setLightboxSrc(withToken(q.question_image_url))}
+          {/* ── Question navigator dots ── */}
+          {questions.length > 0 && (
+            <div className="bg-white dark:bg-[var(--dk-surface)] rounded-2xl border border-gray-100 dark:border-[var(--dk-border)] p-4">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-bold text-gray-400 dark:text-[var(--dk-text-2)]">
+                  السؤال {currentIdx + 1} من {questions.length}
+                </span>
+                <div className="flex gap-1.5">
+                  {questions.map((qq, i) => {
+                    const qAnswered = qq.question_type === 'image_multi'
+                      ? (Array.isArray(qq.sub_results) && qq.sub_results.some(s => !!s.student_answer))
+                      : !!qq.student_answer;
+                    const dotColor = i === currentIdx
+                      ? 'bg-purple-500 scale-125'
+                      : !qAnswered
+                        ? 'bg-gray-300 dark:bg-gray-600'
+                        : qq.is_correct
+                          ? 'bg-emerald-400'
+                          : 'bg-red-400';
+                    return (
+                      <button
+                        key={i}
+                        onClick={() => setCurrentIdx(i)}
+                        title={`سؤال ${i + 1}`}
+                        className={`w-3 h-3 rounded-full transition-all duration-200 ${dotColor} hover:opacity-80`}
                       />
-                    )}
-
-                    {/* image_multi sub-results */}
-                    {isImgMulti && (
-                      <div className="space-y-1.5 mt-2">
-                        {(q.sub_results || q.sub_questions || []).map(sub => {
-                          const subResult    = q.sub_results ? sub : null;
-                          const rawSubSa        = subResult?.student_answer || null;
-                          const rawSubCorrect   = subResult?.correct || sub.correct;
-                          const subIsCorrect = subResult?.is_correct ?? false;
-                          const hasSubAns    = !!rawSubSa;
-                          const isTF = sub.type === 'true_false';
-                          const subSa = isTF ? (rawSubSa === 'T' ? 'A' : rawSubSa === 'F' ? 'B' : rawSubSa) : rawSubSa;
-                          const subCorrect = isTF ? (rawSubCorrect === 'T' ? 'A' : rawSubCorrect === 'F' ? 'B' : rawSubCorrect) : rawSubCorrect;
-                          const listLetters = isTF ? ['A', 'B'] : ['A', 'B', 'C', 'D'].slice(0, sub.option_labels?.length || 4);
-                          return (
-                            <div key={sub.label} className={`flex items-center gap-2 p-2.5 rounded-xl border-2 ${
-                              !hasSubAns
-                                ? 'border-gray-200 dark:border-[var(--dk-border)] bg-gray-50 dark:bg-[var(--dk-elevated)]'
-                                : subIsCorrect
-                                  ? 'border-green-300 dark:border-green-700/50 bg-green-50 dark:bg-green-900/20'
-                                  : 'border-red-300 dark:border-red-700/50 bg-red-50 dark:bg-red-900/20'
-                            }`}>
-                              <span className="text-xs font-black text-gray-600 dark:text-[var(--dk-text-2)] w-24 flex-shrink-0">
-                                {sub.label} <span className="text-[10px] text-gray-400 font-normal">({sub.points || 1} د)</span>
-                              </span>
-                              <div className="flex gap-1 flex-1">
-                                {listLetters.map(letter => (
-                                  <span key={letter} className={`flex-1 text-center py-0.5 rounded text-xs font-bold border ${
-                                    letter === subCorrect && letter === subSa
-                                      ? 'bg-green-600 text-white border-green-600'
-                                      : letter === subSa && !subIsCorrect
-                                        ? 'bg-red-500 text-white border-red-500'
-                                        : letter === subCorrect
-                                          ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400 border-green-300 dark:border-green-700/50'
-                                          : 'bg-white dark:bg-[var(--dk-elevated)] text-gray-400 dark:text-[var(--dk-text-3)] border-gray-200 dark:border-[var(--dk-border)]'
-                                  }`}>{isTF ? (letter === 'A' ? 'صح' : 'خطأ') : (sub.option_labels?.[['A', 'B', 'C', 'D'].indexOf(letter)] || letter)}</span>
-                                ))}
-                              </div>
-                              {!hasSubAns && <span className="text-[10px] text-gray-400 dark:text-[var(--dk-text-3)] flex-shrink-0">لم تُجَب</span>}
-                              {hasSubAns && subIsCorrect && <CheckCircle className="w-3.5 h-3.5 text-green-600 dark:text-green-400 flex-shrink-0" />}
-                              {hasSubAns && !subIsCorrect && <XCircle className="w-3.5 h-3.5 text-red-500 dark:text-red-400 flex-shrink-0" />}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    {/* MCQ / True-False options */}
-                    {!isImgMulti && opts.length > 0 && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
-                        {opts.map(opt => {
-                          const text          = q[`option_${opt.toLowerCase()}`];
-                          if (!text) return null;
-                          const isTF = q.question_type === 'true_false';
-                          const studentAnsNormalized = isTF ? (q.student_answer === 'T' ? 'A' : q.student_answer === 'F' ? 'B' : q.student_answer) : q.student_answer;
-                          const correctLetterNormalized = isTF ? (q.correct_answer_letter === 'T' ? 'A' : q.correct_answer_letter === 'F' ? 'B' : q.correct_answer_letter) : q.correct_answer_letter;
-                          const correctAnswerNormalized = isTF ? (q.correct_answer === 'T' ? 'A' : q.correct_answer === 'F' ? 'B' : q.correct_answer) : q.correct_answer;
-
-                          const isStudentChoice = studentAnsNormalized === opt;
-                          const isCorrectOpt    = correctAnswerNormalized === opt || correctLetterNormalized === opt;
-                          return (
-                            <div key={opt} className={`flex items-center gap-3 p-3 rounded-xl border-2 ${
-                              isCorrectOpt && isStudentChoice
-                                ? 'border-green-500 bg-green-50 dark:bg-green-900/20 dark:border-green-600/60'
-                                : isStudentChoice && !isCorrectOpt
-                                  ? 'border-red-400 bg-red-50 dark:bg-red-900/20 dark:border-red-600/60'
-                                  : isCorrectOpt
-                                    ? 'border-green-300 bg-green-50/50 dark:bg-green-900/10 dark:border-green-700/40'
-                                    : 'border-gray-100 dark:border-[var(--dk-border)] bg-gray-50 dark:bg-[var(--dk-elevated)]'
-                            }`}>
-                              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 ${
-                                isCorrectOpt && isStudentChoice ? 'bg-green-600 text-white'
-                                : isStudentChoice ? 'bg-red-500 text-white'
-                                : isCorrectOpt ? 'bg-green-200 dark:bg-green-800/50 text-green-800 dark:text-green-300'
-                                : 'bg-gray-200 dark:bg-[var(--dk-hover)] text-gray-600 dark:text-[var(--dk-text-2)]'
-                              }`}>{q.option_labels?.[['A', 'B', 'C', 'D'].indexOf(opt)] || opt}</span>
-                              <span className={`text-sm flex-1 ${
-                                isCorrectOpt
-                                  ? 'text-green-800 dark:text-green-300 font-semibold'
-                                  : isStudentChoice
-                                    ? 'text-red-700 dark:text-red-400 font-semibold'
-                                    : 'text-gray-600 dark:text-[var(--dk-text-2)]'
-                              }`}>{text}</span>
-                              {isCorrectOpt && <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />}
-                              {isStudentChoice && !isCorrectOpt && <XCircle className="w-4 h-4 text-red-500 dark:text-red-400 flex-shrink-0" />}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    {!isImgMulti && opts.length === 0 && (q.correct_answer || q.student_answer) && (
-                      <div className="flex gap-3 mt-3">
-                        {(() => {
-                          const isTF = q.question_type === 'true_false';
-                          const studentAns = isTF ? (q.student_answer === 'T' ? 'A' : q.student_answer === 'F' ? 'B' : q.student_answer) : q.student_answer;
-                          const correctAns = isTF ? ((q.correct_answer || q.correct_answer_letter) === 'T' ? 'A' : (q.correct_answer || q.correct_answer_letter) === 'F' ? 'B' : (q.correct_answer || q.correct_answer_letter)) : (q.correct_answer || q.correct_answer_letter);
-                          return [
-                            { opt: correctAns, label: studentAns === correctAns ? '✅ صح — إجابتك' : '✅ الإجابة الصحيحة' },
-                            ...(studentAns && studentAns !== correctAns
-                              ? [{ opt: studentAns, label: '❌ إجابتك' }]
-                              : [])
-                          ].map(({ opt, label }) => (
-                            <div key={opt} className={`flex-1 py-2.5 rounded-xl text-sm font-bold text-center border-2 ${
-                              label.includes('صح')
-                                ? 'border-green-400 bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-400'
-                                : 'border-red-400 bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-400'
-                            }`}>{label}</div>
-                          ));
-                        })()}
-                      </div>
-                    )}
-
-                    {/* Correction note for unanswered */}
-                    {!isImgMulti && !answered && (q.correct_answer_letter || q.correct_answer) && (
-                      <div className="mt-3 flex items-center gap-2 text-xs font-semibold bg-gray-50 dark:bg-[var(--dk-elevated)] border border-gray-200 dark:border-[var(--dk-border)] rounded-xl px-4 py-2.5">
-                        <Minus className="w-3.5 h-3.5 text-gray-400" />
-                        <span className="text-gray-500 dark:text-[var(--dk-text-2)]">لم تُجِب</span>
-                        <span className="mx-1 text-gray-300 dark:text-[var(--dk-text-3)]">—</span>
-                        <CheckCircle className="w-3.5 h-3.5 text-green-600" />
-                        <span className="text-green-800 dark:text-green-400">الصحيح: <strong>{
-                          q.option_labels && ['A','B','C','D'].includes(q.correct_answer_letter || q.correct_answer)
-                            ? q.option_labels[['A','B','C','D'].indexOf(q.correct_answer_letter || q.correct_answer)]
-                            : (q.correct_answer_letter || q.correct_answer)
-                        }</strong></span>
-                      </div>
-                    )}
-                  </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
-          </div>
+              </div>
+              {/* Progress bar */}
+              <div className="h-1.5 rounded-full bg-gray-100 dark:bg-[var(--dk-elevated)] overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-gradient-to-l from-purple-400 to-purple-600 transition-all duration-300"
+                  style={{ width: `${((currentIdx + 1) / questions.length) * 100}%` }}
+                />
+              </div>
+            </div>
+          )}
 
-          {/* Bottom CTA */}
-          <div className="flex justify-center py-2">
-            <button onClick={goBack}
-              className="flex items-center gap-2 px-8 py-3 rounded-2xl bg-navy-500 hover:bg-navy-600 dark:bg-[var(--dk-elevated)] dark:hover:bg-[var(--dk-hover)] dark:border dark:border-[var(--dk-border)] text-white dark:text-[var(--dk-text-1)] font-bold transition-colors shadow-md">
-              <ArrowRight className="w-5 h-5" />
-              العودة للخلف
-            </button>
-          </div>
+          {/* ── Current question ── */}
+          {q && renderQuestion(q, qi)}
+
+          {/* ── Navigation buttons ── */}
+          {questions.length > 0 && (
+            <div className="flex items-center gap-3">
+              {/* Previous */}
+              <button
+                onClick={goPrev}
+                disabled={currentIdx === 0}
+                className={`flex items-center gap-2 px-5 py-3 rounded-2xl font-bold text-sm transition-all ${
+                  currentIdx === 0
+                    ? 'bg-gray-100 dark:bg-[var(--dk-elevated)] text-gray-300 dark:text-gray-600 cursor-not-allowed'
+                    : 'bg-white dark:bg-[var(--dk-surface)] border border-gray-200 dark:border-[var(--dk-border)] text-gray-700 dark:text-[var(--dk-text-1)] hover:bg-gray-50 dark:hover:bg-[var(--dk-hover)] shadow-sm'
+                }`}
+              >
+                <ArrowRight className="w-4 h-4" />
+                السابق
+              </button>
+
+              {/* Counter */}
+              <div className="flex-1 text-center">
+                <span className="text-sm font-black text-gray-500 dark:text-[var(--dk-text-2)]">
+                  {currentIdx + 1} / {questions.length}
+                </span>
+              </div>
+
+              {/* Next or Back button on last question */}
+              {currentIdx < questions.length - 1 ? (
+                <button
+                  onClick={goNext}
+                  className="flex items-center gap-2 px-5 py-3 rounded-2xl font-bold text-sm bg-purple-500 hover:bg-purple-600 text-white shadow-sm transition-all"
+                >
+                  التالي
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
+              ) : (
+                <button
+                  onClick={goBack}
+                  className="flex items-center gap-2 px-5 py-3 rounded-2xl font-bold text-sm bg-navy-500 hover:bg-navy-600 dark:bg-[var(--dk-elevated)] dark:hover:bg-[var(--dk-hover)] dark:border dark:border-[var(--dk-border)] text-white dark:text-[var(--dk-text-1)] shadow-md transition-colors"
+                >
+                  إنهاء المراجعة
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          )}
         </>
       )}
     </div>
