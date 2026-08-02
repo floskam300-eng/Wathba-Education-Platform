@@ -612,3 +612,52 @@ ALTER TABLE live_streams ALTER COLUMN scheduled_at TYPE TIMESTAMPTZ;
 ALTER TABLE questions ADD COLUMN IF NOT EXISTS option_labels JSONB DEFAULT NULL;
 ALTER TABLE bank_questions ADD COLUMN IF NOT EXISTS option_labels JSONB DEFAULT NULL;
 ALTER TABLE recitation_questions ADD COLUMN IF NOT EXISTS option_labels JSONB DEFAULT NULL;
+
+-- ── Device-based account protection ──────────────────────────────────────────
+-- [MIGRATION FIX] These tables were added to schema.sql for fresh installs but
+-- were never included in migrate.sql, causing a 500 error on any production DB
+-- that predates this feature when a student tries to log in from a second device.
+ALTER TABLE students ADD COLUMN IF NOT EXISTS is_suspended BOOLEAN DEFAULT false;
+
+CREATE TABLE IF NOT EXISTS student_devices (
+  id          SERIAL PRIMARY KEY,
+  student_id  INTEGER REFERENCES students(id) ON DELETE CASCADE,
+  device_id   VARCHAR(128) NOT NULL,
+  device_name VARCHAR(300),
+  user_agent  TEXT,
+  ip_address  VARCHAR(45),
+  first_seen  TIMESTAMP DEFAULT NOW(),
+  last_seen   TIMESTAMP DEFAULT NOW(),
+  UNIQUE(student_id, device_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_student_devices_student ON student_devices(student_id);
+
+CREATE TABLE IF NOT EXISTS device_alerts (
+  id          SERIAL PRIMARY KEY,
+  teacher_id  INTEGER REFERENCES teachers(id) ON DELETE CASCADE,
+  student_id  INTEGER REFERENCES students(id) ON DELETE CASCADE,
+  alert_type  VARCHAR(50) DEFAULT 'device_limit_exceeded',
+  device_id   VARCHAR(128),
+  device_name VARCHAR(300),
+  ip_address  VARCHAR(45),
+  status      VARCHAR(20) DEFAULT 'pending',
+  created_at  TIMESTAMP DEFAULT NOW(),
+  resolved_at TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_device_alerts_teacher ON device_alerts(teacher_id, status);
+CREATE INDEX IF NOT EXISTS idx_device_alerts_student ON device_alerts(student_id);
+
+DO $$ BEGIN
+  ALTER TABLE device_alerts ADD CONSTRAINT chk_alert_type CHECK (alert_type IN ('device_limit_exceeded', 'capture_attempt'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE device_alerts DROP CONSTRAINT IF EXISTS chk_alert_status;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE device_alerts ADD CONSTRAINT chk_alert_status CHECK (status IN ('pending', 'resolved', 'reactivated', 'dismissed'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
