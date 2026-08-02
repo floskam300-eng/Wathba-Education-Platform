@@ -86,8 +86,8 @@ export default function StudentExams() {
   const [retryModal, setRetryModal] = useState(null);
   const [retryMessage, setRetryMessage] = useState('');
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
-  // Start expanded — history is now the primary place for taken exams
-  const [showHistory, setShowHistory] = useState(true);
+  // Collapsed by default — student taps the button to expand and review past attempts
+  const [showHistory, setShowHistory] = useState(false);
   // Question-by-question navigation
   const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
 
@@ -832,23 +832,37 @@ export default function StudentExams() {
 
         {/* ── My Exam History (all attempts + absent records) ─────────────────── */}
         {myResults.length > 0 && (
-          <div className="card !p-0 overflow-hidden">
+          <div className={`overflow-hidden rounded-2xl border transition-all duration-200 ${
+            showHistory
+              ? 'border-amber-300 dark:border-amber-500/40 shadow-sm shadow-amber-100 dark:shadow-none'
+              : 'border-gray-200 dark:border-[var(--dk-border)]'
+          }`}>
             <button
               onClick={() => setShowHistory(v => !v)}
-              className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-[var(--dk-elevated)] transition-colors"
+              className={`w-full flex items-center justify-between px-4 py-3 transition-colors ${
+                showHistory
+                  ? 'bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30'
+                  : 'bg-white dark:bg-[var(--dk-surface)] hover:bg-gray-50 dark:hover:bg-[var(--dk-elevated)]'
+              }`}
             >
               <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-gray-400" />
-                <span className="text-sm font-bold text-navy-700 dark:text-[var(--dk-text-1)]">سجل اختباراتي</span>
-                <span className="text-[10px] bg-gray-100 dark:bg-[var(--dk-elevated)] text-gray-500 dark:text-[var(--dk-text-2)] rounded-full px-2 py-0.5 font-bold">
+                <Clock className={`w-4 h-4 ${ showHistory ? 'text-amber-500' : 'text-gray-400'}`} />
+                <span className={`text-sm font-bold ${ showHistory ? 'text-amber-700 dark:text-amber-300' : 'text-navy-700 dark:text-[var(--dk-text-1)]'}`}>سجل اختباراتي</span>
+                <span className={`text-[10px] rounded-full px-2 py-0.5 font-bold ${
+                  showHistory
+                    ? 'bg-amber-200 dark:bg-amber-800/50 text-amber-800 dark:text-amber-300'
+                    : 'bg-gray-100 dark:bg-[var(--dk-elevated)] text-gray-500 dark:text-[var(--dk-text-2)]'
+                }`}>
                   {myResults.length}
                 </span>
               </div>
-              {showHistory ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+              {showHistory
+                ? <ChevronUp className="w-4 h-4 text-amber-500" />
+                : <ChevronDown className="w-4 h-4 text-gray-400" />}
             </button>
 
             {showHistory && (
-              <div className="divide-y divide-gray-100 dark:divide-[var(--dk-border)]">
+              <div className="divide-y divide-amber-100 dark:divide-amber-900/20 bg-amber-50/40 dark:bg-amber-900/10">
                 {myResults.map(r => {
                   const isAbsent = r.is_absent === true || r.is_absent === 'true';
                   const passed = !isAbsent && Number(r.score) >= Number(r.pass_score);
