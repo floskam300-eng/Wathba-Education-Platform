@@ -56,14 +56,14 @@ const checkStudentLimit = async (teacherId, toAddCount = 1, dbPool = pool) => {
 
 // ── Stage → username prefix map ──
 const STAGE_PREFIXES = {
-  'الصف الأول الثانوي عام':   'HA',
+  'الصف الأول الثانوي عام': 'HA',
   'الصف الأول الثانوي بكالوريا': 'HB',
-  'الصف الثاني الثانوي عام':  'NA',
+  'الصف الثاني الثانوي عام': 'NA',
   'الصف الثاني الثانوي بكالوريا': 'NB',
-  'الصف الأول الثانوي':   'H',
-  'الصف الثاني الثانوي':  'N',
-  'الصف الثالث الثانوي':  'T',
-  'الصف الأول الإعدادي':  'A',
+  'الصف الأول الثانوي': 'H',
+  'الصف الثاني الثانوي': 'N',
+  'الصف الثالث الثانوي': 'T',
+  'الصف الأول الإعدادي': 'A',
   'الصف الثاني الإعدادي': 'B',
   'الصف الثالث الإعدادي': 'C',
 };
@@ -141,17 +141,22 @@ router.get('/next-username', requireRole('teacher', 'assistant'), async (req, re
 // PII without any student-management permission at all is.
 router.get('/', requireRole('teacher', 'assistant'), (req, res, next) => checkAnyPermission(req, res, next, ['can_view_analytics', 'can_add_students', 'can_edit_students', 'can_delete_students']), async (req, res) => {
   const teacherId = getTeacherId(req);
-  const { search } = req.query;
+  const { search, stage } = req.query;
   try {
     const params = [teacherId];
     let searchClause = '';
+    let stageClause = '';
+    if (stage && stage.trim() && stage.trim() !== 'الكل') {
+      params.push(stage.trim());
+      stageClause = `AND s.academic_stage = $${params.length}`;
+    }
     if (search && search.trim()) {
       const escaped = search.trim()
         .replace(/\\/g, '\\\\')
         .replace(/%/g, '\\%')
         .replace(/_/g, '\\_');
       params.push(`%${escaped}%`);
-      searchClause = `AND (s.name ILIKE $2 ESCAPE '\\' OR s.username ILIKE $2 ESCAPE '\\' OR s.phone ILIKE $2 ESCAPE '\\')`;
+      searchClause = `AND (s.name ILIKE $${params.length} ESCAPE '\\' OR s.username ILIKE $${params.length} ESCAPE '\\' OR s.phone ILIKE $${params.length} ESCAPE '\\')`;
     }
     if (req.query.page) {
       const page = Math.max(1, parseInt(req.query.page, 10) || 1);
@@ -160,7 +165,7 @@ router.get('/', requireRole('teacher', 'assistant'), (req, res, next) => checkAn
       params.push(pageSize, offset);
       const countParams = params.slice(0, -2);
       const countRes = await pool.query(
-        `SELECT COUNT(*)::int AS total FROM students s WHERE s.teacher_id = $1 AND s.deleted_at IS NULL ${searchClause}`,
+        `SELECT COUNT(*)::int AS total FROM students s WHERE s.teacher_id = $1 AND s.deleted_at IS NULL ${stageClause} ${searchClause}`,
         countParams
       );
       const result = await pool.query(
@@ -170,7 +175,7 @@ router.get('/', requireRole('teacher', 'assistant'), (req, res, next) => checkAn
                 COUNT(CASE WHEN sce.status = 'active' THEN sce.course_id END)::int as enrolled_courses
          FROM students s
          LEFT JOIN student_course_enrollment sce ON s.id = sce.student_id
-         WHERE s.teacher_id = $1 AND s.deleted_at IS NULL ${searchClause}
+         WHERE s.teacher_id = $1 AND s.deleted_at IS NULL ${stageClause} ${searchClause}
          GROUP BY s.id ORDER BY s.created_at DESC
          LIMIT $${countParams.length + 1} OFFSET $${countParams.length + 2}`,
         params
@@ -184,7 +189,7 @@ router.get('/', requireRole('teacher', 'assistant'), (req, res, next) => checkAn
               COUNT(CASE WHEN sce.status = 'active' THEN sce.course_id END)::int as enrolled_courses
        FROM students s
        LEFT JOIN student_course_enrollment sce ON s.id = sce.student_id
-       WHERE s.teacher_id = $1 AND s.deleted_at IS NULL ${searchClause}
+       WHERE s.teacher_id = $1 AND s.deleted_at IS NULL ${stageClause} ${searchClause}
        GROUP BY s.id ORDER BY s.created_at DESC`,
       params
     );
@@ -380,7 +385,7 @@ router.post('/import-model', requireRole('teacher', 'assistant'), async (req, re
   const { headers, sample_row, mappings } = req.body;
   if (!Array.isArray(headers) || !headers.length) return res.status(400).json({ error: 'يجب توفير أعمدة الملف' });
   if (!mappings?.name) return res.status(400).json({ error: 'يجب ربط عمود اسم الطالب على الأقل' });
-  const ALLOWED = ['name','phone','parent_phone','username','password','gender','academic_stage'];
+  const ALLOWED = ['name', 'phone', 'parent_phone', 'username', 'password', 'gender', 'academic_stage'];
   const clean = {};
   for (const f of ALLOWED) { if (mappings[f] && typeof mappings[f] === 'string') clean[f] = mappings[f].slice(0, 200); }
   try {
@@ -389,7 +394,7 @@ router.post('/import-model', requireRole('teacher', 'assistant'), async (req, re
        VALUES ($1,$2,$3,$4)
        ON CONFLICT (teacher_id) DO UPDATE SET
          headers=EXCLUDED.headers, sample_row=EXCLUDED.sample_row, mappings=EXCLUDED.mappings, updated_at=NOW()`,
-      [teacherId, JSON.stringify(headers.map(h=>String(h).slice(0,200))), JSON.stringify(sample_row||{}), JSON.stringify(clean)]
+      [teacherId, JSON.stringify(headers.map(h => String(h).slice(0, 200))), JSON.stringify(sample_row || {}), JSON.stringify(clean)]
     );
     res.json({ success: true });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
@@ -748,23 +753,23 @@ router.get('/me/stats', requireRole('student'), async (req, res) => {
 
     if (!studentRes.rows.length) return res.status(404).json({ error: 'Student not found' });
 
-    const student   = studentRes.rows[0];
-    const exams     = examsRes.rows;
-    const payments  = paymentsRes.rows;
+    const student = studentRes.rows[0];
+    const exams = examsRes.rows;
+    const payments = paymentsRes.rows;
 
     // Aggregate totals — exclude absent records from pass/fail and avg calculations
     // so that absent rows don't inflate the fail count or depress the average score.
-    const totalPaid    = payments.filter(p => p.status === 'verified').reduce((s, p) => s + parseFloat(p.amount), 0);
+    const totalPaid = payments.filter(p => p.status === 'verified').reduce((s, p) => s + parseFloat(p.amount), 0);
     const totalPending = payments.filter(p => p.status === 'pending').reduce((s, p) => s + parseFloat(p.amount), 0);
-    const absentCount  = exams.filter(e => e.is_absent === true || e.is_absent === 'true').length;
-    const takenExams   = exams.filter(e => e.is_absent !== true && e.is_absent !== 'true');
-    const passCount    = takenExams.filter(e => parseInt(e.score) >= parseInt(e.pass_score)).length;
-    const avgScore     = takenExams.length ? Math.round(takenExams.reduce((s, e) => s + (e.score / e.total_score * 100), 0) / takenExams.length) : 0;
+    const absentCount = exams.filter(e => e.is_absent === true || e.is_absent === 'true').length;
+    const takenExams = exams.filter(e => e.is_absent !== true && e.is_absent !== 'true');
+    const passCount = takenExams.filter(e => parseInt(e.score) >= parseInt(e.pass_score)).length;
+    const avgScore = takenExams.length ? Math.round(takenExams.reduce((s, e) => s + (e.score / e.total_score * 100), 0) / takenExams.length) : 0;
     const totalWatchedMinutes = videoProgressRes.rows.reduce((s, v) => s + v.watched_minutes, 0);
 
     // Rank among teacher's students by points (#1 = most points)
-    const rankRow  = rankRes.rows[0];
-    const myRank   = parseInt(rankRow.above) + 1;
+    const rankRow = rankRes.rows[0];
+    const myRank = parseInt(rankRow.above) + 1;
 
     res.json({
       student,
@@ -832,24 +837,24 @@ router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => ch
 
   const prepared = [];
   for (const [idx, s] of students.entries()) {
-    const name           = (s['الاسم'] || s['name'] || '').toString().trim().replace(/[\x00-\x1f\x7f-\x9f<>]/g, '').slice(0, 100);
+    const name = (s['الاسم'] || s['name'] || '').toString().trim().replace(/[\x00-\x1f\x7f-\x9f<>]/g, '').slice(0, 100);
     const manualUsername = (s['اسم المستخدم'] || s['username'] || '').toString().trim().replace(/[\x00-\x1f\x7f-\x9f<>]/g, '');
     const manualPassword = (s['كلمة المرور'] || s['password'] || '').toString().trim();
-    const rawPhone       = (s['الهاتف'] || s['phone'] || '').toString().trim();
+    const rawPhone = (s['الهاتف'] || s['phone'] || '').toString().trim();
     const rawParentPhone = (s['هاتف ولي الأمر'] || s['parent_phone'] || '').toString().trim();
-    const cleanPhone       = rawPhone ? rawPhone.replace(/[\s\-]/g, '') : '';
+    const cleanPhone = rawPhone ? rawPhone.replace(/[\s\-]/g, '') : '';
     const cleanParentPhone = rawParentPhone ? rawParentPhone.replace(/[\s\-]/g, '') : '';
-    const phone          = cleanPhone && EGYPTIAN_PHONE_RE.test(cleanPhone) ? cleanPhone : null;
-    const parent_phone   = cleanParentPhone && EGYPTIAN_PHONE_RE.test(cleanParentPhone) ? cleanParentPhone : null;
-    if (rawPhone && !phone)       results.errors.push(`${name || '?'}: رقم الهاتف "${rawPhone}" غير صحيح — تم تجاهله`);
+    const phone = cleanPhone && EGYPTIAN_PHONE_RE.test(cleanPhone) ? cleanPhone : null;
+    const parent_phone = cleanParentPhone && EGYPTIAN_PHONE_RE.test(cleanParentPhone) ? cleanParentPhone : null;
+    if (rawPhone && !phone) results.errors.push(`${name || '?'}: رقم الهاتف "${rawPhone}" غير صحيح — تم تجاهله`);
     if (rawParentPhone && !parent_phone) results.errors.push(`${name || '?'}: هاتف ولي الأمر "${rawParentPhone}" غير صحيح — تم تجاهله`);
     const academic_stage = (s['المرحلة'] || s['academic_stage'] || '').toString().trim() || null;
-    const rawGender      = (s['الجنس'] || s['gender'] || '').toString().trim();
+    const rawGender = (s['الجنس'] || s['gender'] || '').toString().trim();
     // Normalize gender to match DB CHECK constraint (ذكر / أنثى)
     const gender = (() => {
       if (!rawGender) return null;
       const g = rawGender.normalize('NFC').replace(/\s/g, '');
-      if (/^(ذكر|male|m|boy)$/i.test(g))   return 'ذكر';
+      if (/^(ذكر|male|m|boy)$/i.test(g)) return 'ذكر';
       if (/^(أنثى|انثى|أنثي|انثي|female|f|girl)$/i.test(g)) return 'أنثى';
       return null; // unknown value → NULL (avoids CHECK violation)
     })();
@@ -862,7 +867,7 @@ router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => ch
     }
 
     const finalPassword = manualPassword || String(100000 + crypto.randomInt(0, 900000));
-    const hashed        = await bcrypt.hash(finalPassword, 12); // OUTSIDE transaction — intentional (increased from 10 to 12 rounds)
+    const hashed = await bcrypt.hash(finalPassword, 12); // OUTSIDE transaction — intentional (increased from 10 to 12 rounds)
     prepared.push({ name, manualUsername, manualPassword, finalPassword, hashed, phone, parent_phone, academic_stage, gender });
   }
 
@@ -913,7 +918,7 @@ router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => ch
         }
       } catch (err) {
         // Roll back this student's savepoint so the transaction stays usable
-        await client.query(`ROLLBACK TO SAVEPOINT ${sp}`).catch(() => {});
+        await client.query(`ROLLBACK TO SAVEPOINT ${sp}`).catch(() => { });
         results.failed++;
         let reason = 'خطأ في الحفظ';
         if (err.code === '23505') reason = 'اسم المستخدم موجود مسبقاً';
@@ -1199,7 +1204,7 @@ router.get('/device-alerts', requireRole('teacher', 'assistant'), async (req, re
 // MUST be before POST /:id/… routes to avoid Express path ambiguity
 router.post('/device-alerts/:alertId/action', requireRole('teacher', 'assistant'), async (req, res) => {
   const teacherId = getTeacherId(req);
-  const alertId   = parseInt(req.params.alertId, 10);
+  const alertId = parseInt(req.params.alertId, 10);
   if (isNaN(alertId)) return res.status(400).json({ error: 'Invalid alert ID' });
 
   const { action } = req.body;

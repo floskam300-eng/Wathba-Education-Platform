@@ -559,8 +559,8 @@ export default function TeacherStudents() {
   const PAGE_SIZE = 20;
 
   const { data: students = [], isLoading, isFetching } = useQuery({
-    queryKey: ['students', debouncedSearch, page],
-    queryFn: () => api.get('/students', { params: { page, pageSize: PAGE_SIZE, ...(debouncedSearch ? { search: debouncedSearch } : {}) } }).then(r => { setTotalCount(r.data.total); return r.data.students || []; }),
+    queryKey: ['students', debouncedSearch, page, stageFilter],
+    queryFn: () => api.get('/students', { params: { page, pageSize: PAGE_SIZE, ...(debouncedSearch ? { search: debouncedSearch } : {}), ...(stageFilter !== 'الكل' ? { stage: stageFilter } : {}) } }).then(r => { setTotalCount(r.data.total); return r.data.students || []; }),
     placeholderData: (prev) => prev,
   });
 
@@ -575,19 +575,19 @@ export default function TeacherStudents() {
 
   const createMut = useMutation({
     mutationFn: (data) => api.post('/students', data),
-    onSuccess: (res) => { qc.invalidateQueries({ queryKey: ['students'] }); setCreatedStudent(res.data); closeModal(); },
+    onSuccess: (res) => { qc.invalidateQueries({ queryKey: ['students'] }); qc.invalidateQueries({ queryKey: ['stage-counts'] }); setCreatedStudent(res.data); closeModal(); },
     onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
   });
 
   const updateMut = useMutation({
     mutationFn: ({ id, data }) => api.put(`/students/${id}`, data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['students'] }); toast.success('تم تحديث بيانات الطالب'); closeModal(); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['students'] }); qc.invalidateQueries({ queryKey: ['stage-counts'] }); toast.success('تم تحديث بيانات الطالب'); closeModal(); },
     onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
   });
 
   const deleteMut = useMutation({
     mutationFn: (id) => api.delete(`/students/${id}`),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['students'] }); toast.success('تم حذف الطالب'); setDeleteId(null); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['students'] }); qc.invalidateQueries({ queryKey: ['stage-counts'] }); toast.success('تم حذف الطالب'); setDeleteId(null); },
     onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
   });
 
@@ -952,7 +952,7 @@ export default function TeacherStudents() {
       }));
       const res = await api.post('/students/bulk', { students: normalized });
       const { success, failed, errors, created } = res.data;
-      if (success > 0) { qc.invalidateQueries({ queryKey: ['students'] }); toast.success(`تم إضافة ${success} طالب بنجاح${failed > 0 ? ` (${failed} فشل)` : ''}`); }
+      if (success > 0) { qc.invalidateQueries({ queryKey: ['students'] }); qc.invalidateQueries({ queryKey: ['stage-counts'] }); toast.success(`تم إضافة ${success} طالب بنجاح${failed > 0 ? ` (${failed} فشل)` : ''}`); }
       if (failed > 0 && success === 0) toast.error(`فشل استيراد جميع الصفوف (${failed})`);
       // Show the FULL error list in a persistent panel instead of only the first
       // few toasts — with 100+ rows, silently-dropped students (e.g. duplicate
@@ -1052,11 +1052,16 @@ export default function TeacherStudents() {
   };
 
   const stageCounts = ['الكل', ...STAGES].reduce((acc, s) => {
-    acc[s] = s === 'الكل' ? totalCount : students.filter(st => st.academic_stage === s).length;
+    if (s === 'الكل') {
+      acc[s] = stageCountsData.reduce((sum, sc) => sum + (sc.count ?? 0), 0);
+    } else {
+      const matched = stageCountsData.find(sc => sc.stage === s);
+      acc[s] = matched ? (matched.count ?? 0) : 0;
+    }
     return acc;
   }, {});
 
-  const filtered = students.filter(s => stageFilter === 'الكل' || s.academic_stage === stageFilter);
+  const filtered = students;
 
   const handlePrint = () => {
     const headers = ['الاسم', 'اسم المستخدم', 'الهاتف', 'هاتف ولي الأمر', 'المرحلة', 'الجنس', 'الكورسات المسجّلة', 'النقاط'];
