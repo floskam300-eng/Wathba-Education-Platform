@@ -209,7 +209,7 @@ async function runAuditSuite() {
     // Method B: Bulk Import API
     const batchStudentsPayload = [
       { username: `std_bulk1_${Fixtures.suffix}`, name: 'فاطمة الزهراء (استيراد دُفعة)', phone: '01122223333', parent_phone: '01144445555', academic_stage: 'الصف الثالث الثانوي', gender: 'أنثى', password: 'BulkPass123!' },
-      { username: `std_bulk2_${Fixtures.suffix}`, name: 'عمر خالد (استيراد دُفعة)', phone: '01233334444', parent_phone: '01255556666', academic_stage: 'الصف الثاني الثانوي', gender: 'ذكر', password: 'BulkPass123!' },
+      { username: `std_bulk2_${Fixtures.suffix}`, name: 'عمر خالد (استيراد دُفعة)', phone: '01233334444', parent_phone: '01255556666', academic_stage: 'الصف الثاني الثانوي عام', gender: 'ذكر', password: 'BulkPass123!' },
     ];
 
     const bulkRes = await request('POST', '/api/students/bulk', {
@@ -256,7 +256,7 @@ async function runAuditSuite() {
       name: 'حسن محمود (مركز السنتر)',
       phone: '01099998888',
       parent_phone: '01077776666',
-      academic_stage: 'الصف الأول الثانوي',
+      academic_stage: 'الصف الأول الثانوي عام',
       gender: 'ذكر',
       points: 250,
     }, Fixtures.teacherToken, { 'x-tenant-slug': Fixtures.teacherSlug });

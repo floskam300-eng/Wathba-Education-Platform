@@ -722,7 +722,7 @@ async function testPublishingRules(teacherToken, studentToken) {
         description : 'Automated test course',
         price       : 0,
         is_free     : true,
-        target_stage: 'الصف الأول الثانوي',
+        target_stage: 'الصف الأول الثانوي عام',
       },
     });
     assert(newCourse.status === 201, 'G-1: Teacher creates a new course → 201');

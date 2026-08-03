@@ -135,10 +135,10 @@ async function setup() {
 
   // Create students with different stages and genders
   const studentData = [
-    { name: 'Student A', stage: 'الصف الأول الثانوي', gender: 'ذكر'  },
-    { name: 'Student B', stage: 'الصف الأول الثانوي', gender: 'ذكر'  },
-    { name: 'Student C', stage: 'الصف الثاني الثانوي', gender: 'أنثى' },
-    { name: 'Student D', stage: 'الصف الثاني الثانوي', gender: 'أنثى' },
+    { name: 'Student A', stage: 'الصف الأول الثانوي عام', gender: 'ذكر'  },
+    { name: 'Student B', stage: 'الصف الأول الثانوي عام', gender: 'ذكر'  },
+    { name: 'Student C', stage: 'الصف الثاني الثانوي عام', gender: 'أنثى' },
+    { name: 'Student D', stage: 'الصف الثاني الثانوي عام', gender: 'أنثى' },
     { name: 'Student E', stage: 'الصف الثالث الثانوي', gender: 'ذكر'  },
   ];
   T.studentIds = [];
@@ -156,7 +156,7 @@ async function setup() {
   const cRes = await pool.query(
     `INSERT INTO courses (name, teacher_id, target_stage, price, is_published)
      VALUES ($1, $2, $3, 0, true) RETURNING id`,
-    ['Analytics Test Course', T.teacherId, 'الصف الأول الثانوي']
+    ['Analytics Test Course', T.teacherId, 'الصف الأول الثانوي عام']
   );
   T.courseId = cRes.rows[0].id;
 
@@ -365,11 +365,11 @@ async function testTeacherAnalyticsDistribution() {
   await test('BUG-ANA-DIST-T: correct stage distribution (2/2/1)', async () => {
     const r = await get('/api/teachers/analytics', T.teacherToken);
     const rows = r.body.stageDistribution || [];
-    const s1 = rows.find(x => x.stage === 'الصف الأول الثانوي');
-    const s2 = rows.find(x => x.stage === 'الصف الثاني الثانوي');
+    const s1 = rows.find(x => x.stage === 'الصف الأول الثانوي عام');
+    const s2 = rows.find(x => x.stage === 'الصف الثاني الثانوي عام');
     const s3 = rows.find(x => x.stage === 'الصف الثالث الثانوي');
-    assert(s1, 'الصف الأول الثانوي must appear');
-    assert(s2, 'الصف الثاني الثانوي must appear');
+    assert(s1, 'الصف الأول الثانوي عام must appear');
+    assert(s2, 'الصف الثاني الثانوي عام must appear');
     assert(s3, 'الصف الثالث الثانوي must appear');
     assertEqual(s1.count, 2, `s1.count should be 2, got ${s1?.count}`);
     assertEqual(s2.count, 2, `s2.count should be 2, got ${s2?.count}`);
