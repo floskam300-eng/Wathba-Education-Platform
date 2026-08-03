@@ -74,6 +74,7 @@ function DeviceAlertsPanel({ canEdit }) {
   const [alertSearch, setAlertSearch]     = useState('');
   const [statusFilter, setStatusFilter]   = useState('all');   // 'all' | 'pending' | 'resolved'
   const [stageFilterA, setStageFilterA]   = useState('الكل');
+  const [deviceChoiceOpen, setDeviceChoiceOpen] = useState(null); // student_id of open dropdown
 
   const { data: alerts = [], isLoading } = useQuery({
     queryKey: ['device-alerts'],
@@ -94,6 +95,7 @@ function DeviceAlertsPanel({ canEdit }) {
       qc.invalidateQueries({ queryKey: ['students'] });
       toast.success('تم تنفيذ الإجراء بنجاح');
       setActionAlert(null);
+      setDeviceChoiceOpen(null);
     },
     onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
   });
@@ -330,6 +332,52 @@ function DeviceAlertsPanel({ canEdit }) {
                     </button>
                     {canEdit && (
                       <>
+                        {/* Device Choice Dropdown */}
+                        <div className="relative">
+                          <button
+                            onClick={() => setDeviceChoiceOpen(deviceChoiceOpen === alert.student_id ? null : alert.student_id)}
+                            disabled={actionMut.isPending}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-50 text-purple-700 text-xs font-bold hover:bg-purple-100 transition-colors"
+                            title="اختيار الجهاز المسموح للطالب"
+                          >
+                            <Monitor className="w-3.5 h-3.5" /> اختيار الجهاز <ChevronRight className={`w-3 h-3 transition-transform ${deviceChoiceOpen === alert.student_id ? 'rotate-90' : ''}`} />
+                          </button>
+                          {deviceChoiceOpen === alert.student_id && (
+                            <div className="absolute top-full right-0 mt-1.5 bg-white rounded-xl shadow-xl border border-gray-200 p-1.5 z-30 min-w-[260px] animate-in fade-in slide-in-from-top-1 duration-150">
+                              <p className="text-[10px] text-gray-400 font-semibold px-2.5 py-1 mb-0.5">اختر الجهاز اللي الطالب يفتح منه:</p>
+                              <button
+                                onClick={() => actionMut.mutate({ alertId: alert.id, action: 'keep_original_device' })}
+                                disabled={actionMut.isPending}
+                                className="flex items-center gap-2 w-full px-2.5 py-2 rounded-lg text-right text-xs font-bold text-green-700 hover:bg-green-50 transition-colors"
+                              >
+                                <div className="w-7 h-7 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
+                                  <Smartphone className="w-3.5 h-3.5 text-green-600" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <span className="block">إبقاء الجهاز الأول (الأصلي)</span>
+                                  <span className="block text-[10px] text-gray-400 font-medium mt-0.5">الطالب يفتح من جهازه الأولاني بس</span>
+                                </div>
+                              </button>
+                              <button
+                                onClick={() => actionMut.mutate({ alertId: alert.id, action: 'switch_to_new_device' })}
+                                disabled={actionMut.isPending}
+                                className="flex items-center gap-2 w-full px-2.5 py-2 rounded-lg text-right text-xs font-bold text-orange-700 hover:bg-orange-50 transition-colors"
+                              >
+                                <div className="w-7 h-7 rounded-lg bg-orange-100 flex items-center justify-center flex-shrink-0">
+                                  <RefreshCw className="w-3.5 h-3.5 text-orange-600" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <span className="block">التبديل للجهاز الجديد</span>
+                                  <span className="block text-[10px] text-gray-400 font-medium mt-0.5">
+                                    {alert.count > 1
+                                      ? `الأجهزة: ${[...new Set(alert.devices)].join(' · ')}`
+                                      : `${alert.device_name || 'جهاز جديد'}`}
+                                  </span>
+                                </div>
+                              </button>
+                            </div>
+                          )}
+                        </div>
                         <button
                           onClick={() => actionMut.mutate({ alertId: alert.id, action: 'reset_devices' })}
                           disabled={actionMut.isPending}

@@ -1116,7 +1116,7 @@ router.post('/device-alerts/:alertId/action', requireRole('teacher', 'assistant'
   if (isNaN(alertId)) return res.status(400).json({ error: 'Invalid alert ID' });
 
   const { action } = req.body;
-  if (!['reactivate', 'reactivate_reset_devices', 'reset_devices', 'dismiss'].includes(action)) {
+  if (!['reactivate', 'reactivate_reset_devices', 'reset_devices', 'dismiss', 'keep_original_device', 'switch_to_new_device'].includes(action)) {
     return res.status(400).json({ error: 'Invalid action' });
   }
   // Assistants need can_edit_students to act on alerts
@@ -1165,6 +1165,29 @@ router.post('/device-alerts/:alertId/action', requireRole('teacher', 'assistant'
       // Dismiss ALL pending alerts for this student at once
       await pool.query(
         "UPDATE device_alerts SET status='dismissed', resolved_at=NOW() WHERE student_id=$1 AND teacher_id=$2 AND status='pending'",
+        [alert.student_id, teacherId]
+      );
+    } else if (action === 'keep_original_device') {
+      // Teacher chose to keep the original device — dismiss all pending alerts
+      await pool.query(
+        "UPDATE device_alerts SET status='dismissed', resolved_at=NOW() WHERE student_id=$1 AND teacher_id=$2 AND status='pending'",
+        [alert.student_id, teacherId]
+      );
+    } else if (action === 'switch_to_new_device') {
+      // Teacher chose the new device — remove old devices and register the new one
+      await pool.query('DELETE FROM student_devices WHERE student_id=$1', [alert.student_id]);
+      // Register the new device from the alert data
+      if (alert.device_id) {
+        await pool.query(
+          `INSERT INTO student_devices (student_id, device_id, device_name, ip_address)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (student_id, device_id) DO UPDATE SET last_seen = NOW(), device_name = EXCLUDED.device_name`,
+          [alert.student_id, alert.device_id, alert.device_name, alert.ip_address]
+        );
+      }
+      // Resolve all pending alerts for this student
+      await pool.query(
+        "UPDATE device_alerts SET status='reactivated', resolved_at=NOW() WHERE student_id=$1 AND teacher_id=$2 AND status='pending'",
         [alert.student_id, teacherId]
       );
     }
