@@ -52,3 +52,4 @@
 - [image_multi shuffle & review audit](image-multi-shuffle-review.md) — 8 bugs fixed: bank exam shuffle gap, recitation review missing option_labels, phantom option buttons (3 UI files), wrong answered count, CRITICAL no-buttons bug in Recitations.jsx, answer-key leak in /take, diverged seededShuffle (exams vs recitations); 33/33 tests pass
 - [Teacher profile bio preservation](teacher-profile-bio-preservation.md) — admin teacher detail responses must include bio or saving unrelated profile fields can erase the landing-page biography
 - [Landing page three bios](landing-three-bios.md) — separate hero, about, and profile-card copy with legacy bio fallback
+- [Bulk import fill-down bleed](bulk-import-fill-down-bleed.md) — carry-forward-blank-cells is dangerous once merges are expanded upstream; reusable fixed-stage models need re-confirmation on every reuse, not just at creation
