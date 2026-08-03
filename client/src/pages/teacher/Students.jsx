@@ -517,6 +517,8 @@ export default function TeacherStudents() {
   const [importModal, setImportModal]   = useState(false);
   const [importRows, setImportRows]     = useState([]);
   const [importLoading, setImportLoading] = useState(false);
+  const [confirmFixedStage, setConfirmFixedStage] = useState(false);
+  const [importResults, setImportResults] = useState(null); // { success, failed, errors } shown after a bulk import
   const importFileRef                   = useRef();
   const [previewUsername, setPreviewUsername] = useState('');
   const [previewLoading, setPreviewLoading]   = useState(false);
@@ -750,6 +752,13 @@ export default function TeacherStudents() {
   // Fixed-value prefix used when a field is hardcoded (not mapped from a column)
   const FIXED_PREFIX = '__fixed__:';
 
+  // Surfaced whenever the saved model pins academic_stage to a fixed value —
+  // reusing that model for a different class/grade file would silently
+  // mislabel every imported student with the stale stage, so the UI must warn.
+  const fixedStageValue = activeModel?.mappings?.academic_stage?.startsWith(FIXED_PREFIX)
+    ? activeModel.mappings.academic_stage.slice(FIXED_PREFIX.length)
+    : null;
+
   const applyModelToRows = (rows, mappings) => {
     const normKey = (s) => String(s).trim().normalize('NFC');
 
@@ -777,28 +786,18 @@ export default function TeacherStudents() {
       return mapped;
     };
 
-    // First pass: map all rows
+    // Map every row independently — do NOT carry values down from the row above.
+    // True Excel-merged cells are already expanded onto every cell they cover by
+    // parseSheetSmart() (via ws['!merges']) before we ever reach this function, so
+    // a field that is still blank here is genuinely blank for THIS student, not a
+    // merge continuation. An earlier version of this function filled such blanks
+    // from the previous row's value, which silently copied one student's name,
+    // phone, username or academic_stage onto the next unrelated student whenever
+    // their sheet simply had an empty cell — misassigning academic stages and
+    // causing duplicate-username failures that looked like students disappearing.
     const mapped = rows.map((row) => mapRow(row));
-
-    // Fill-down: Excel merged cells only store the value in the first cell of the merge.
-    // XLSX returns '' for the subsequent merged cells. We carry forward the last seen
-    // non-empty value for ALL identifying fields so every sub-row gets the student's info.
-    const FILL_FIELDS = ['name', 'phone', 'parent_phone', 'username', 'password', 'gender', 'academic_stage'];
-    const lastSeen = {};
-    const filled = mapped.map(row => {
-      const out = { ...row };
-      for (const f of FILL_FIELDS) {
-        if (out[f] && out[f].trim()) {
-          lastSeen[f] = out[f].trim();  // update carry
-        } else if (lastSeen[f]) {
-          out[f] = lastSeen[f];         // fill from carry
-        }
-      }
-      return out;
-    });
-
-    const result = filled.filter(r => r.name && r.name.trim());
-    return result;
+    const withName = mapped.filter(r => r.name && r.name.trim());
+    return { rows: withName, skipped: mapped.length - withName.length };
   };
 
   const suspendMut = useMutation({
@@ -839,17 +838,25 @@ export default function TeacherStudents() {
         if (!headers.length) { toast.error('لم يتم العثور على أعمدة صالحة في الملف'); return; }
         const rows = dataRowsToObjects(headerMap, dataRows);
 
+        const notifySkipped = (skipped) => {
+          if (skipped > 0) {
+            toast(`تم تجاهل ${skipped} صف بلا اسم طالب — لن يُستورد لتفادي خلطه ببيانات طالب آخر`, { icon: 'ℹ️', duration: 6000 });
+          }
+        };
+
         if (activeModel?.mappings) {
-          const mapped = applyModelToRows(rows, activeModel.mappings);
+          const { rows: mapped, skipped } = applyModelToRows(rows, activeModel.mappings);
           if (mapped.length) {
+            notifySkipped(skipped);
             setImportRows(mapped);
           } else {
             // النموذج غير متطابق — نحاول الكشف التلقائي للأعمدة كبديل
             const autoMappings = autoDetectMappings(headers);
             if (autoMappings.name) {
-              const autoMapped = applyModelToRows(rows, autoMappings);
+              const { rows: autoMapped, skipped: autoSkipped } = applyModelToRows(rows, autoMappings);
               if (autoMapped.length) {
                 toast(`تنبيه: أعمدة الملف تختلف عن النموذج المحفوظ — تم الاستيراد بالكشف التلقائي`, { icon: '⚠️', duration: 5000 });
+                notifySkipped(autoSkipped);
                 setImportRows(autoMapped);
               } else {
                 toast.error('لم يُعثر على بيانات طلاب صالحة في الملف', { duration: 5000 });
@@ -877,10 +884,12 @@ export default function TeacherStudents() {
             );
             return;
           }
-          const mapped = applyModelToRows(rows, autoMappings);
+          const { rows: mapped, skipped } = applyModelToRows(rows, autoMappings);
           if (!mapped.length) { toast.error('لم يُعثر على بيانات طلاب في الملف'); return; }
+          notifySkipped(skipped);
           setImportRows(mapped);
         }
+        setConfirmFixedStage(false);
         setImportModal(true);
       } catch {
         toast.error('تعذّر قراءة الملف — تأكد أنه Excel أو CSV');
@@ -910,7 +919,10 @@ export default function TeacherStudents() {
       const { success, failed, errors, created } = res.data;
       if (success > 0) { qc.invalidateQueries({ queryKey: ['students'] }); toast.success(`تم إضافة ${success} طالب بنجاح${failed > 0 ? ` (${failed} فشل)` : ''}`); }
       if (failed > 0 && success === 0) toast.error(`فشل استيراد جميع الصفوف (${failed})`);
-      if (errors?.length) errors.slice(0, 3).forEach(e => toast.error(e, { duration: 4000 }));
+      // Show the FULL error list in a persistent panel instead of only the first
+      // few toasts — with 100+ rows, silently-dropped students (e.g. duplicate
+      // username) were easy to miss when only 3 error toasts flashed by.
+      if (failed > 0) setImportResults({ success, failed, errors: errors || [] });
       if (created?.length) {
         const XLSX = await import('xlsx');
         const exportData = created.map(s => ({ 'الاسم': s.name, 'اسم المستخدم': s.username, 'كلمة المرور': s.generated_password }));
@@ -1153,11 +1165,29 @@ export default function TeacherStudents() {
                     <h2 className="font-black text-gray-800">معاينة الاستيراد</h2>
                     <p className="text-xs text-gray-500 mt-0.5">{importRows.length} صف سيتم استيراده</p>
                   </div>
-                  <button onClick={() => { setImportModal(false); setImportRows([]); }} className="text-gray-400 hover:text-gray-600">
+                  <button onClick={() => { setImportModal(false); setImportRows([]); setConfirmFixedStage(false); }} className="text-gray-400 hover:text-gray-600">
                     <X className="w-5 h-5" />
                   </button>
                 </div>
                 <div className="overflow-auto flex-1 p-4">
+                  {fixedStageValue && (
+                    <div className="text-xs text-orange-800 mb-3 bg-orange-50 border border-orange-300 rounded-lg p-3 space-y-2">
+                      <p className="font-bold flex items-center gap-1.5">
+                        <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                        النموذج المحفوظ يحدد المرحلة الدراسية بقيمة ثابتة: «{fixedStageValue}»
+                      </p>
+                      <p>سيتم تسجيل <strong>كل</strong> طلاب هذا الملف تحت هذه المرحلة، حتى لو كان الملف يحتوي على طلاب من مرحلة مختلفة. إذا كان هذا الملف لمرحلة أخرى، أغلق هذه النافذة وعدّل النموذج أولاً (زر "نموذج").</p>
+                      <label className="flex items-center gap-2 font-bold cursor-pointer pt-1">
+                        <input
+                          type="checkbox"
+                          checked={confirmFixedStage}
+                          onChange={e => setConfirmFixedStage(e.target.checked)}
+                          className="w-4 h-4 accent-orange-600"
+                        />
+                        أؤكد أن جميع طلاب هذا الملف فعلاً من مرحلة «{fixedStageValue}»
+                      </label>
+                    </div>
+                  )}
                   {(() => {
                     const hasUsername = importRows.some(r => r.username?.trim());
                     const hasPassword = importRows.some(r => r.password?.trim());
@@ -1192,7 +1222,7 @@ export default function TeacherStudents() {
                     return (
                   <table className="w-full text-xs border-collapse">
                     <thead>
-                      <tr className="bg-gray-50">
+                      <tr className="bg-gray-50 sticky top-0">
                         {cols.map(k => (
                           <th key={k} className="border border-gray-200 px-2 py-1.5 text-right font-semibold text-gray-600">
                             {FIELD_LABELS_MAP[k] || k}
@@ -1201,7 +1231,9 @@ export default function TeacherStudents() {
                       </tr>
                     </thead>
                     <tbody>
-                      {importRows.slice(0, 10).map((row, i) => (
+                      {/* Show every row (not just the first few) so mistakes like a wrong
+                          fixed stage or a mis-mapped column are visible before confirming. */}
+                      {importRows.map((row, i) => (
                         <tr key={i} className="hover:bg-gray-50">
                           {Object.values(row).map((v, j) => (
                             <td key={j} className="border border-gray-200 px-2 py-1.5 text-gray-700">{String(v)}</td>
@@ -1212,15 +1244,56 @@ export default function TeacherStudents() {
                   </table>
                     );
                   })()}
-                  {importRows.length > 10 && (
-                    <p className="text-center text-xs text-gray-400 mt-2">... و {importRows.length - 10} صف آخر</p>
-                  )}
                 </div>
                 <div className="p-4 border-t border-gray-100 flex gap-3 justify-end">
-                  <button onClick={() => { setImportModal(false); setImportRows([]); }} className="btn-secondary">إلغاء</button>
-                  <button onClick={handleBulkImport} disabled={importLoading} className="btn-primary flex items-center gap-2">
+                  <button onClick={() => { setImportModal(false); setImportRows([]); setConfirmFixedStage(false); }} className="btn-secondary">إلغاء</button>
+                  <button
+                    onClick={handleBulkImport}
+                    disabled={importLoading || importRows.length === 0 || (fixedStageValue && !confirmFixedStage)}
+                    title={fixedStageValue && !confirmFixedStage ? 'أكّد أولاً أن الملف يخص هذه المرحلة' : undefined}
+                    className="btn-primary flex items-center gap-2 disabled:opacity-50"
+                  >
                     {importLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> جاري الاستيراد...</> : <><Upload className="w-4 h-4" /> استيراد {importRows.length} طالب</>}
                   </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Import Results Modal — full success/failure breakdown, not just a few toasts */}
+          {importResults && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
+                <div className="flex items-center justify-between p-5 border-b border-gray-100">
+                  <h2 className="font-black text-gray-800">نتيجة الاستيراد</h2>
+                  <button onClick={() => setImportResults(null)} className="text-gray-400 hover:text-gray-600">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="overflow-auto flex-1 p-5 space-y-4">
+                  <div className="flex gap-3">
+                    <div className="flex-1 bg-green-50 border border-green-200 rounded-xl p-3 text-center">
+                      <p className="text-2xl font-black text-green-700">{importResults.success}</p>
+                      <p className="text-xs font-bold text-green-700">تمت إضافتهم</p>
+                    </div>
+                    <div className="flex-1 bg-red-50 border border-red-200 rounded-xl p-3 text-center">
+                      <p className="text-2xl font-black text-red-700">{importResults.failed}</p>
+                      <p className="text-xs font-bold text-red-700">فشلوا</p>
+                    </div>
+                  </div>
+                  {importResults.errors.length > 0 && (
+                    <div>
+                      <p className="text-xs font-bold text-gray-500 mb-2">تفاصيل الأخطاء ({importResults.errors.length}):</p>
+                      <ul className="space-y-1.5">
+                        {importResults.errors.map((e, i) => (
+                          <li key={i} className="text-xs text-red-700 bg-red-50 border border-red-100 rounded-lg px-2.5 py-1.5">{e}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+                <div className="p-4 border-t border-gray-100 flex justify-end">
+                  <button onClick={() => setImportResults(null)} className="btn-primary">حسناً</button>
                 </div>
               </div>
             </div>
@@ -1635,17 +1708,25 @@ export default function TeacherStudents() {
 
             {/* Active model banner */}
             {activeModel && modelStep === 1 && (
-              <div className="mx-6 mt-4 p-3 rounded-xl bg-orange-50 border border-orange-200 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2 text-sm text-orange-800 font-semibold">
-                  <CheckCircle className="w-4 h-4 text-orange-500 flex-shrink-0" />
-                  يوجد نموذج محفوظ بـ {activeModel.headers?.length || 0} عمود
+              <div className="mx-6 mt-4 p-3 rounded-xl bg-orange-50 border border-orange-200 space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-sm text-orange-800 font-semibold">
+                    <CheckCircle className="w-4 h-4 text-orange-500 flex-shrink-0" />
+                    يوجد نموذج محفوظ بـ {activeModel.headers?.length || 0} عمود
+                  </div>
+                  <button
+                    onClick={() => { setModelModal(false); setDeleteModelConfirm(true); }}
+                    className="flex items-center gap-1 text-xs text-red-600 hover:text-red-800 font-bold transition-colors"
+                  >
+                    <Trash className="w-3.5 h-3.5" /> حذف
+                  </button>
                 </div>
-                <button
-                  onClick={() => { setModelModal(false); setDeleteModelConfirm(true); }}
-                  className="flex items-center gap-1 text-xs text-red-600 hover:text-red-800 font-bold transition-colors"
-                >
-                  <Trash className="w-3.5 h-3.5" /> حذف
-                </button>
+                {fixedStageValue && (
+                  <p className="flex items-start gap-1.5 text-xs text-red-700 font-bold bg-red-50 border border-red-200 rounded-lg p-2">
+                    <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                    تنبيه: هذا النموذج يسجّل كل الطلاب المستوردين تحت مرحلة ثابتة «{fixedStageValue}» — لا تستخدمه لملف يخص مرحلة أخرى إلا بعد تعديله.
+                  </p>
+                )}
               </div>
             )}
 
