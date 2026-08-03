@@ -28,7 +28,7 @@ const PrintReportButton = ({
       columns.map(col => {
         let value = col.accessor ? row[col.accessor] : col.render ? col.render(row) : '';
         if (col.accessor === 'created_at' || col.accessor === 'updated_at' || col.accessor?.includes('date')) {
-          try { value = new Date(value).toLocaleDateString('ar-EG'); } catch (e) {}
+          try { value = new Date(value).toLocaleDateString('ar-EG'); } catch (e) { }
         }
         if (typeof value === 'number' && !Number.isInteger(value)) value = value.toFixed(2);
         return value ?? '—';
@@ -132,15 +132,27 @@ const PrintReportButton = ({
   </table>
   <div class="report-footer">تقرير صادر آلياً من منصة وثبة التعليمية — ${now}</div>
   <div class="no-print">
-    <button class="btn-print" onclick="window.print()">🖨️ طباعة / حفظ PDF</button>
-    <button class="btn-close" onclick="window.close()">إغلاق</button>
+    <button id="print-report-btn" class="btn-print">🖨️ طباعة / حفظ PDF</button>
+    <button id="close-report-btn" class="btn-close">إغلاق</button>
   </div>
 </body>
 </html>`;
 
     printWindow.document.write(htmlContent);
     printWindow.document.close();
-    setTimeout(() => printWindow.focus(), 200);
+
+    // Attach handlers AFTER document is fully parsed — inline onclick can fail
+    // when HTML is written via document.write() into a fresh _blank window
+    const wireButtons = () => {
+      try {
+        const printBtn = printWindow.document.getElementById('print-report-btn');
+        const closeBtn = printWindow.document.getElementById('close-report-btn');
+        if (printBtn) printBtn.addEventListener('click', () => printWindow.print());
+        if (closeBtn) closeBtn.addEventListener('click', () => printWindow.close());
+      } catch (_) { /* ignore */ }
+    };
+    if (printWindow.document.readyState === 'complete') wireButtons();
+    else printWindow.addEventListener('load', wireButtons);
   };
 
   return (

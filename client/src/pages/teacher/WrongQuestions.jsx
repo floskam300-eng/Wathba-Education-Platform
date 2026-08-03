@@ -288,14 +288,25 @@ export default function WrongQuestionsPage() {
       ${sections || '<p style="text-align:center;color:#94a3b8;padding:40px">لا توجد أسئلة تطابق الفلتر الحالي</p>'}
       <div class="footer">تقرير صادر آلياً من منصة وثبة التعليمية — ${now}</div>
       <div class="no-print">
-        <button class="btn" style="background:#dc2626;color:#fff" onclick="window.print()">🖨️ طباعة / حفظ PDF</button>
-        <button class="btn" style="background:#64748b;color:#fff" onclick="window.close()">إغلاق</button>
+        <button id="print-report-btn" class="btn" style="background:#dc2626;color:#fff">🖨️ طباعة / حفظ PDF</button>
+        <button id="close-report-btn" class="btn" style="background:#64748b;color:#fff">إغلاق</button>
       </div>
     </body></html>`;
 
     printWindow.document.write(html);
     printWindow.document.close();
-    setTimeout(() => printWindow.focus(), 200);
+
+    // Attach handlers AFTER document is parsed
+    const wireButtons = () => {
+      try {
+        const printBtn = printWindow.document.getElementById('print-report-btn');
+        const closeBtn = printWindow.document.getElementById('close-report-btn');
+        if (printBtn) printBtn.addEventListener('click', () => printWindow.print());
+        if (closeBtn) closeBtn.addEventListener('click', () => printWindow.close());
+      } catch (_) { /* ignore */ }
+    };
+    if (printWindow.document.readyState === 'complete') wireButtons();
+    else printWindow.addEventListener('load', wireButtons);
   };
 
   return (

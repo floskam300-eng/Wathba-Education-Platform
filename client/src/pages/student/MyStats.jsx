@@ -271,8 +271,8 @@ function printStatsPDF({ student, summary, examResults, courses, badges, payment
   </div>
 
   <div class="no-print" style="margin-top:24px">
-    <button class="print-btn" onclick="window.print()">🖨️ طباعة / حفظ PDF</button>
-    <button class="close-btn" onclick="window.close()">إغلاق</button>
+    <button id="print-report-btn" class="print-btn">🖨️ طباعة / حفظ PDF</button>
+    <button id="close-report-btn" class="close-btn">إغلاق</button>
   </div>
 </div>
 </body>
@@ -282,7 +282,18 @@ function printStatsPDF({ student, summary, examResults, courses, badges, payment
   if (!win) { alert('يرجى السماح بالنوافذ المنبثقة لاستخدام ميزة الطباعة'); return; }
   win.document.write(html);
   win.document.close();
-  setTimeout(() => win.focus(), 300);
+
+  // Attach handlers AFTER document is parsed
+  const wireButtons = () => {
+    try {
+      const printBtn = win.document.getElementById('print-report-btn');
+      const closeBtn = win.document.getElementById('close-report-btn');
+      if (printBtn) printBtn.addEventListener('click', () => win.print());
+      if (closeBtn) closeBtn.addEventListener('click', () => win.close());
+    } catch (_) { /* ignore */ }
+  };
+  if (win.document.readyState === 'complete') wireButtons();
+  else win.addEventListener('load', wireButtons);
 }
 
 const fmt = (n) => new Intl.NumberFormat('ar-EG').format(n);

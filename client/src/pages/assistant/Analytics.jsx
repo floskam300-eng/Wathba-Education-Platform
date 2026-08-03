@@ -18,7 +18,7 @@ import api from '../../lib/api';
 
 const CHART_COLORS = ['#6366f1','#f97316','#10b981','#f59e0b','#8b5cf6','#06b6d4','#ec4899'];
 const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-const STAGES = ['الكل', 'الصف الأول الثانوي', 'الصف الثاني الثانوي', 'الصف الثالث الثانوي', 'الصف الأول الإعدادي', 'الصف الثاني الإعدادي', 'الصف الثالث الإعدادي', 'جامعي'];
+const STAGES = ['الكل', 'الصف الأول الثانوي عام', 'الصف الأول الثانوي بكالوريا', 'الصف الثاني الثانوي عام', 'الصف الثاني الثانوي بكالوريا', 'الصف الثالث الثانوي', 'الصف الأول الإعدادي', 'الصف الثاني الإعدادي', 'الصف الثالث الإعدادي', 'جامعي'];
 const GENDERS = ['الكل', 'ذكر', 'أنثى'];
 const PERF_LEVELS = [
   { label: 'الكل',   min: 0,  max: 100 },
@@ -282,7 +282,8 @@ export default function AssistantAnalytics() {
   const stageDistData = useMemo(() => {
     return (data?.stageDistribution || []).map(row => ({
       name: (row.stage || 'غير محدد')
-        .replace('الصف ', '').replace(' الثانوي', ' ث').replace(' الإعدادي', ' إع'),
+        .replace('الصف الأول', '1').replace('الصف الثاني', '2').replace('الصف الثالث', '3')
+        .replace('الصف ', '').replace(' الثانوي', 'ث').replace(' الإعدادي', 'إع'),
       value: row.count,
     }));
   }, [data]);

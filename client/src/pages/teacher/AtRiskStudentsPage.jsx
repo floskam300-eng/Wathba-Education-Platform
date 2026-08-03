@@ -11,8 +11,10 @@ import { useAuth } from '../../context/AuthContext';
 
 const STAGES = [
   'الكل',
-  'الصف الأول الثانوي','الصف الثاني الثانوي','الصف الثالث الثانوي',
-  'الصف الأول الإعدادي','الصف الثاني الإعدادي','الصف الثالث الإعدادي',
+  'الصف الأول الثانوي عام', 'الصف الأول الثانوي بكالوريا',
+  'الصف الثاني الثانوي عام', 'الصف الثاني الثانوي بكالوريا',
+  'الصف الثالث الثانوي',
+  'الصف الأول الإعدادي', 'الصف الثاني الإعدادي', 'الصف الثالث الإعدادي',
   'جامعي'
 ];
 
@@ -173,14 +175,25 @@ export default function AtRiskStudentsPage() {
       </table>
       <div class="footer">تقرير صادر آلياً من منصة وثبة التعليمية — ${now}</div>
       <div class="no-print">
-        <button class="btn" style="background:#ef4444;color:#fff" onclick="window.print()">🖨️ طباعة / حفظ PDF</button>
-        <button class="btn" style="background:#64748b;color:#fff" onclick="window.close()">إغلاق</button>
+        <button id="print-report-btn" class="btn" style="background:#ef4444;color:#fff">🖨️ طباعة / حفظ PDF</button>
+        <button id="close-report-btn" class="btn" style="background:#64748b;color:#fff">إغلاق</button>
       </div>
     </body></html>`;
 
     printWindow.document.write(html);
     printWindow.document.close();
-    setTimeout(() => printWindow.focus(), 200);
+
+    // Attach handlers AFTER document is parsed
+    const wireButtons = () => {
+      try {
+        const printBtn = printWindow.document.getElementById('print-report-btn');
+        const closeBtn = printWindow.document.getElementById('close-report-btn');
+        if (printBtn) printBtn.addEventListener('click', () => printWindow.print());
+        if (closeBtn) closeBtn.addEventListener('click', () => printWindow.close());
+      } catch (_) { /* ignore */ }
+    };
+    if (printWindow.document.readyState === 'complete') wireButtons();
+    else printWindow.addEventListener('load', wireButtons);
   };
 
   return (

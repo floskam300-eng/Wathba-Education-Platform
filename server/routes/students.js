@@ -56,6 +56,10 @@ const checkStudentLimit = async (teacherId, toAddCount = 1, dbPool = pool) => {
 
 // ── Stage → username prefix map ──
 const STAGE_PREFIXES = {
+  'الصف الأول الثانوي عام':   'HA',
+  'الصف الأول الثانوي بكالوريا': 'HB',
+  'الصف الثاني الثانوي عام':  'NA',
+  'الصف الثاني الثانوي بكالوريا': 'NB',
   'الصف الأول الثانوي':   'H',
   'الصف الثاني الثانوي':  'N',
   'الصف الثالث الثانوي':  'T',

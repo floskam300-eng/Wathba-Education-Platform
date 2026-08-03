@@ -22,7 +22,7 @@ function FieldError({ error }) {
   );
 }
 
-const STAGES = ['الصف الأول الثانوي', 'الصف الثاني الثانوي', 'الصف الثالث الثانوي', 'الصف الأول الإعدادي', 'الصف الثاني الإعدادي', 'الصف الثالث الإعدادي'];
+const STAGES = ['الصف الأول الثانوي عام', 'الصف الأول الثانوي بكالوريا', 'الصف الثاني الثانوي عام', 'الصف الثاني الثانوي بكالوريا', 'الصف الثالث الثانوي', 'الصف الأول الإعدادي', 'الصف الثاني الإعدادي', 'الصف الثالث الإعدادي'];
 const emptyForm = { name: '', description: '', price: '', thumbnail_url: '', target_stage: '', is_free: false, points_on_complete: 1 };
 
 const COVER_GRADIENTS = [
@@ -51,6 +51,10 @@ function ThumbnailImg({ url, name }) {
 }
 
 const STAGE_COLORS = {
+  'الصف الأول الثانوي عام': 'bg-blue-50 text-blue-700',
+  'الصف الأول الثانوي بكالوريا': 'bg-sky-50 text-sky-700',
+  'الصف الثاني الثانوي عام': 'bg-indigo-50 text-indigo-700',
+  'الصف الثاني الثانوي بكالوريا': 'bg-violet-50 text-violet-700',
   'الصف الأول الثانوي': 'bg-blue-50 text-blue-700',
   'الصف الثاني الثانوي': 'bg-indigo-50 text-indigo-700',
   'الصف الثالث الثانوي': 'bg-purple-50 text-purple-700',

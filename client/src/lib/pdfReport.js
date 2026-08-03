@@ -23,10 +23,10 @@ export const generatePDFReport = (title, headers, data, filename = 'report.pdf',
     const cell = escapeHtml(raw);
 
     const STATUS = [
-      [/(ناجح|نجاح|مؤكدة|مؤكد|مفعّل|نشط|مقبول|مكتمل|منشور|مفتوح)/,  '#16a34a', '#f0fdf4', '#bbf7d0'],
-      [/(راسب|رسوب|مرفوضة|مرفوض|محذوف|غير نشط)/,                      '#dc2626', '#fef2f2', '#fecaca'],
-      [/(قيد الانتظار|في الانتظار|انتظار|معلّق|معلق)/,                 '#d97706', '#fffbeb', '#fde68a'],
-      [/(مسودة|غير منشور|مغلق|منتهي)/,                                  '#64748b', '#f8fafc', '#e2e8f0'],
+      [/(ناجح|نجاح|مؤكدة|مؤكد|مفعّل|نشط|مقبول|مكتمل|منشور|مفتوح)/, '#16a34a', '#f0fdf4', '#bbf7d0'],
+      [/(راسب|رسوب|مرفوضة|مرفوض|محذوف|غير نشط)/, '#dc2626', '#fef2f2', '#fecaca'],
+      [/(قيد الانتظار|في الانتظار|انتظار|معلّق|معلق)/, '#d97706', '#fffbeb', '#fde68a'],
+      [/(مسودة|غير منشور|مغلق|منتهي)/, '#64748b', '#f8fafc', '#e2e8f0'],
     ];
     for (const [rx, color, bg, border] of STATUS) {
       if (rx.test(cell)) {
@@ -78,7 +78,7 @@ export const generatePDFReport = (title, headers, data, filename = 'report.pdf',
     ? opts.sections.map(sec => `
         <div class="section-bar" style="margin-top:28px">
           <div class="section-title">${escapeHtml(sec.title || 'بيانات')}</div>
-          <span style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:20px;padding:3px 12px;font-size:12px;font-weight:700;color:#64748b">${(sec.data||[]).length} سجل</span>
+          <span style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:20px;padding:3px 12px;font-size:12px;font-weight:700;color:#64748b">${(sec.data || []).length} سجل</span>
         </div>
         ${renderTable(sec.headers || [], sec.data || [])}`).join('')
     : null;
@@ -226,12 +226,12 @@ export const generatePDFReport = (title, headers, data, filename = 'report.pdf',
   </div>
 
   ${sectionsHtml !== null
-    ? sectionsHtml
-    : (data.length === 0
-      ? `<div style="text-align:center;padding:40px;color:#94a3b8;font-size:14px;border:2px dashed #e2e8f0;border-radius:12px">
+      ? sectionsHtml
+      : (data.length === 0
+        ? `<div style="text-align:center;padding:40px;color:#94a3b8;font-size:14px;border:2px dashed #e2e8f0;border-radius:12px">
            لا توجد بيانات لعرضها
          </div>`
-      : `<table>
+        : `<table>
           <thead>
             <tr>
               <th>#</th>
@@ -242,7 +242,7 @@ export const generatePDFReport = (title, headers, data, filename = 'report.pdf',
             ${tableRows}
           </tbody>
          </table>`)
-  }
+    }
 
   ${opts.note ? `<div class="note">💡 ${escapeHtml(opts.note)}</div>` : ''}
 
@@ -251,8 +251,8 @@ export const generatePDFReport = (title, headers, data, filename = 'report.pdf',
   </div>
 
   <div class="no-print">
-    <button class="btn-print" onclick="window.print()">🖨️ طباعة / حفظ PDF</button>
-    <button class="btn-close" onclick="window.close()">إغلاق</button>
+    <button id="print-report-btn" class="btn-print">🖨️ طباعة / حفظ PDF</button>
+    <button id="close-report-btn" class="btn-close">إغلاق</button>
   </div>
 
 </div>
@@ -266,5 +266,17 @@ export const generatePDFReport = (title, headers, data, filename = 'report.pdf',
   }
   win.document.write(html);
   win.document.close();
-  setTimeout(() => win.focus(), 200);
+
+  // Attach handlers AFTER document is parsed — inline onclick can fail
+  // when HTML is written via document.write() into a fresh _blank window
+  const wireButtons = () => {
+    try {
+      const printBtn = win.document.getElementById('print-report-btn');
+      const closeBtn = win.document.getElementById('close-report-btn');
+      if (printBtn) printBtn.addEventListener('click', () => win.print());
+      if (closeBtn) closeBtn.addEventListener('click', () => win.close());
+    } catch (_) { /* ignore */ }
+  };
+  if (win.document.readyState === 'complete') wireButtons();
+  else win.addEventListener('load', wireButtons);
 };

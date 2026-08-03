@@ -134,6 +134,7 @@ export function TeacherProvider({ children }) {
     question_banks:  fe.question_banks  !== false,
     requests:        fe.requests        !== false,
     attendance:      fe.attendance      !== false,
+    class_attendance: fe.class_attendance !== false,
     assistants:      fe.assistants      !== false,
     analytics:       fe.analytics       !== false,
     payments:        fe.payments        !== false,
