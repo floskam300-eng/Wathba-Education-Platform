@@ -56,14 +56,14 @@ function PasswordCell({ password, onCopy }) {
 const emptyForm = { name: '', phone: '', parent_phone: '', academic_stage: '', gender: '', manualUsername: '', manualPassword: '' };
 
 const STAGE_PREFIX_LABELS = {
-  'الصف الأول الثانوي عام':   'HA',
+  'الصف الأول الثانوي عام': 'HA',
   'الصف الأول الثانوي بكالوريا': 'HB',
-  'الصف الثاني الثانوي عام':  'NA',
+  'الصف الثاني الثانوي عام': 'NA',
   'الصف الثاني الثانوي بكالوريا': 'NB',
-  'الصف الأول الثانوي':   'H',
-  'الصف الثاني الثانوي':  'N',
-  'الصف الثالث الثانوي':  'T',
-  'الصف الأول الإعدادي':  'A',
+  'الصف الأول الثانوي': 'H',
+  'الصف الثاني الثانوي': 'N',
+  'الصف الثالث الثانوي': 'T',
+  'الصف الأول الإعدادي': 'A',
   'الصف الثاني الإعدادي': 'B',
   'الصف الثالث الإعدادي': 'C',
 };
@@ -72,12 +72,12 @@ const STAGE_PREFIX_LABELS = {
 function DeviceAlertsPanel({ canEdit }) {
   const qc = useQueryClient();
   const [devicesModal, setDevicesModal] = useState(null); // student object for viewing devices
-  const [actionAlert, setActionAlert]   = useState(null); // alert being actioned
+  const [actionAlert, setActionAlert] = useState(null); // alert being actioned
 
   // Search & filter state
-  const [alertSearch, setAlertSearch]     = useState('');
-  const [statusFilter, setStatusFilter]   = useState('all');   // 'all' | 'pending' | 'resolved'
-  const [stageFilterA, setStageFilterA]   = useState('الكل');
+  const [alertSearch, setAlertSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');   // 'all' | 'pending' | 'resolved'
+  const [stageFilterA, setStageFilterA] = useState('الكل');
   const [deviceChoiceOpen, setDeviceChoiceOpen] = useState(null); // student_id of open dropdown
 
   const { data: alerts = [], isLoading } = useQuery({
@@ -104,8 +104,8 @@ function DeviceAlertsPanel({ canEdit }) {
     onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
   });
 
-  const pending   = alerts.filter(a => a.status === 'pending');
-  const resolved  = alerts.filter(a => a.status !== 'pending');
+  const pending = alerts.filter(a => a.status === 'pending');
+  const resolved = alerts.filter(a => a.status !== 'pending');
 
   // Group pending alerts by student so the same student never appears twice.
   // Each group uses the latest alert's id (for the action) and collects all device names.
@@ -137,7 +137,7 @@ function DeviceAlertsPanel({ canEdit }) {
     if (stageFilterA !== 'الكل' && a.academic_stage !== stageFilterA) return false;
     if (!q) return true;
     return (
-      (a.student_name   || '').toLowerCase().includes(q) ||
+      (a.student_name || '').toLowerCase().includes(q) ||
       (a.student_username || '').toLowerCase().includes(q) ||
       a.devices.some(d => (d || '').toLowerCase().includes(q)) ||
       (a.ip_address || '').includes(q)
@@ -149,10 +149,10 @@ function DeviceAlertsPanel({ canEdit }) {
     if (stageFilterA !== 'الكل' && a.academic_stage !== stageFilterA) return false;
     if (!q) return true;
     return (
-      (a.student_name   || '').toLowerCase().includes(q) ||
+      (a.student_name || '').toLowerCase().includes(q) ||
       (a.student_username || '').toLowerCase().includes(q) ||
-      (a.device_name    || '').toLowerCase().includes(q) ||
-      (a.ip_address     || '').includes(q)
+      (a.device_name || '').toLowerCase().includes(q) ||
+      (a.ip_address || '').includes(q)
     );
   });
 
@@ -160,9 +160,9 @@ function DeviceAlertsPanel({ canEdit }) {
   const availableStages = ['الكل', ...Array.from(new Set(alerts.map(a => a.academic_stage).filter(Boolean)))];
 
   const statusLabel = (s) => {
-    if (s === 'pending')     return { text: 'معلّق', cls: 'bg-red-100 text-red-700' };
+    if (s === 'pending') return { text: 'معلّق', cls: 'bg-red-100 text-red-700' };
     if (s === 'reactivated') return { text: 'تم السماح بجهاز جديد', cls: 'bg-green-100 text-green-700' };
-    if (s === 'dismissed')   return { text: 'تم التجاهل', cls: 'bg-gray-100 text-gray-600' };
+    if (s === 'dismissed') return { text: 'تم التجاهل', cls: 'bg-gray-100 text-gray-600' };
     return { text: s, cls: 'bg-gray-100 text-gray-600' };
   };
 
@@ -238,18 +238,17 @@ function DeviceAlertsPanel({ canEdit }) {
             {/* Status filter */}
             <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
               {[
-                { value: 'all',      label: 'الكل' },
-                { value: 'pending',  label: 'معلّقة' },
+                { value: 'all', label: 'الكل' },
+                { value: 'pending', label: 'معلّقة' },
                 { value: 'resolved', label: 'تم معالجتها' },
               ].map(opt => (
                 <button
                   key={opt.value}
                   onClick={() => setStatusFilter(opt.value)}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                    statusFilter === opt.value
-                      ? 'bg-white text-orange-600 shadow-sm'
-                      : 'text-gray-500 hover:text-gray-700'
-                  }`}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${statusFilter === opt.value
+                    ? 'bg-white text-orange-600 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                    }`}
                 >
                   {opt.label}
                 </button>
@@ -500,12 +499,12 @@ export default function TeacherStudents() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const location = useLocation();
-  const [mainView, setMainView]           = useState('students'); // 'students' | 'alerts'
-  const [search, setSearch]               = useState('');
+  const [mainView, setMainView] = useState('students'); // 'students' | 'alerts'
+  const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [stageFilter, setStageFilter]     = useState('الكل');
-  const [page, setPage]                   = useState(1);
-  const [totalCount, setTotalCount]       = useState(0);
+  const [stageFilter, setStageFilter] = useState('الكل');
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
 
   useEffect(() => {
     const t = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 400);
@@ -514,33 +513,48 @@ export default function TeacherStudents() {
 
   useEffect(() => { setPage(1); }, [stageFilter]);
 
-  const [modal, setModal]               = useState(false);
-  const [editData, setEditData]         = useState(null);
-  const [form, setForm]                 = useState(emptyForm);
-  const [deleteId, setDeleteId]         = useState(null);
-  const [importModal, setImportModal]   = useState(false);
-  const [importRows, setImportRows]     = useState([]);
+  const [modal, setModal] = useState(false);
+  const [editData, setEditData] = useState(null);
+  const [form, setForm] = useState(emptyForm);
+  const [deleteId, setDeleteId] = useState(null);
+  const [importModal, setImportModal] = useState(false);
+  const [importRows, setImportRows] = useState([]);
   const [importLoading, setImportLoading] = useState(false);
   const [confirmFixedStage, setConfirmFixedStage] = useState(false);
   const [importResults, setImportResults] = useState(null); // { success, failed, errors } shown after a bulk import
-  const importFileRef                   = useRef();
+  const importFileRef = useRef();
   const [previewUsername, setPreviewUsername] = useState('');
-  const [previewLoading, setPreviewLoading]   = useState(false);
-  const [createdStudent, setCreatedStudent]   = useState(null);
-  const [credMode, setCredMode]               = useState('auto'); // 'auto' | 'manual'
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [createdStudent, setCreatedStudent] = useState(null);
+  const [credMode, setCredMode] = useState('auto'); // 'auto' | 'manual'
 
   // Suspend / unsuspend state
   const [suspendTarget, setSuspendTarget] = useState(null); // { id, name, is_suspended }
 
+  // Bulk delete-by-stage modal state
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleteStage, setBulkDeleteStage] = useState(stageFilter !== 'الكل' ? stageFilter : '');
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState('');
+
+  // Active-student count per stage — drives the bulk-delete picker.
+  // Query is declared before canDelete intentionally so the count list is
+  // available as soon as the page mounts; the delete button itself is gated
+  // by canDelete so non-permitted users can never trigger the modal.
+  const { data: stageCountsData = [] } = useQuery({
+    queryKey: ['stage-counts'],
+    queryFn: () => api.get('/students/stage-counts').then(r => r.data.counts || []),
+  });
+  const stageCountFor = (stage) => stageCountsData.find(s => s.stage === stage)?.count ?? 0;
+
   // ── Import Model state ────────────────────────────────────────────────────
-  const [modelModal, setModelModal]             = useState(false);
-  const [modelStep, setModelStep]               = useState(1);
-  const [modelHeaders, setModelHeaders]         = useState([]);
-  const [modelSample, setModelSample]           = useState({});
-  const [modelMappings, setModelMappings]       = useState({});
-  const [modelSaving, setModelSaving]           = useState(false);
+  const [modelModal, setModelModal] = useState(false);
+  const [modelStep, setModelStep] = useState(1);
+  const [modelHeaders, setModelHeaders] = useState([]);
+  const [modelSample, setModelSample] = useState({});
+  const [modelMappings, setModelMappings] = useState({});
+  const [modelSaving, setModelSaving] = useState(false);
   const [deleteModelConfirm, setDeleteModelConfirm] = useState(false);
-  const modelFileRef                            = useRef();
+  const modelFileRef = useRef();
 
   const PAGE_SIZE = 20;
 
@@ -577,6 +591,23 @@ export default function TeacherStudents() {
     onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
   });
 
+  // Bulk delete every active student in one academic stage. Requires a stage
+  // selected in the modal; the modal itself enforces type-to-confirm before
+  // firing the mutation.
+  const bulkDeleteMut = useMutation({
+    mutationFn: (stage) => api.post('/students/bulk-delete-stage', { stage }),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['students'] });
+      qc.invalidateQueries({ queryKey: ['stage-counts'] });
+      qc.invalidateQueries({ queryKey: ['device-alerts'] });
+      toast.success(`تم حذف ${res.data.count} طالب من مرحلة «${res.data.stage}»`);
+      setBulkDeleteOpen(false);
+      setBulkDeleteStage('');
+      setBulkDeleteConfirm('');
+    },
+    onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ في الحذف'),
+  });
+
   // ── Import Model query & mutations ────────────────────────────────────────
   const { data: importModelData } = useQuery({
     queryKey: ['import-model'],
@@ -586,22 +617,22 @@ export default function TeacherStudents() {
   const activeModel = importModelData || null;
 
   const SYSTEM_FIELDS = [
-    { key: 'name',           label: 'اسم الطالب *',     required: true },
-    { key: 'phone',          label: 'رقم الهاتف',        required: false },
-    { key: 'parent_phone',   label: 'هاتف ولي الأمر',   required: false },
-    { key: 'username',       label: 'اسم المستخدم',      required: false },
-    { key: 'password',       label: 'كلمة المرور',       required: false },
-    { key: 'gender',         label: 'الجنس',             required: false },
-    { key: 'academic_stage', label: 'المرحلة الدراسية',  required: false },
+    { key: 'name', label: 'اسم الطالب *', required: true },
+    { key: 'phone', label: 'رقم الهاتف', required: false },
+    { key: 'parent_phone', label: 'هاتف ولي الأمر', required: false },
+    { key: 'username', label: 'اسم المستخدم', required: false },
+    { key: 'password', label: 'كلمة المرور', required: false },
+    { key: 'gender', label: 'الجنس', required: false },
+    { key: 'academic_stage', label: 'المرحلة الدراسية', required: false },
   ];
 
   const FIELD_KEYWORDS = {
-    name:           ['اسم', 'name', 'student', 'طالب'],
-    phone:          ['هاتف', 'موبايل', 'phone', 'mobile', 'تليفون'],
-    parent_phone:   ['ولي', 'parent', 'أب', 'أم', 'guardian'],
-    username:       ['username', 'user', 'يوزر', 'مستخدم'],
-    password:       ['password', 'pass', 'كلمة', 'سر', 'باسورد', 'رمز', 'مرور', 'دخول', 'pin', 'code'],
-    gender:         ['جنس', 'gender', 'نوع'],
+    name: ['اسم', 'name', 'student', 'طالب'],
+    phone: ['هاتف', 'موبايل', 'phone', 'mobile', 'تليفون'],
+    parent_phone: ['ولي', 'parent', 'أب', 'أم', 'guardian'],
+    username: ['username', 'user', 'يوزر', 'مستخدم'],
+    password: ['password', 'pass', 'كلمة', 'سر', 'باسورد', 'رمز', 'مرور', 'دخول', 'pin', 'code'],
+    gender: ['جنس', 'gender', 'نوع'],
     academic_stage: ['مرحلة', 'stage', 'grade', 'صف', 'سنة'],
   };
 
@@ -650,7 +681,7 @@ export default function TeacherStudents() {
       for (const merge of ws['!merges']) {
         if (merge.s.r <= headerRowIdx) continue; // skip header & metadata rows
         const topLeftAddr = XLSX.utils.encode_cell({ r: merge.s.r, c: merge.s.c });
-        const sourceCell  = ws[topLeftAddr];
+        const sourceCell = ws[topLeftAddr];
         if (!sourceCell) continue;
         for (let r = merge.s.r; r <= merge.e.r; r++) {
           for (let c = merge.s.c; c <= merge.e.c; c++) {
@@ -782,8 +813,8 @@ export default function TeacherStudents() {
           mapped[field] = col.slice(FIXED_PREFIX.length);
         } else {
           const exactVal = row[col];
-          const normVal  = normalizedRow[normKey(col)];
-          const val      = exactVal !== undefined ? exactVal : normVal;
+          const normVal = normalizedRow[normKey(col)];
+          const val = exactVal !== undefined ? exactVal : normVal;
           if (val !== undefined) mapped[field] = String(val ?? '').trim();
         }
       }
@@ -906,7 +937,7 @@ export default function TeacherStudents() {
   const normalizeGender = (raw) => {
     if (!raw) return '';
     const g = String(raw).trim().normalize('NFC').replace(/\s/g, '');
-    if (/^(ذكر|male|m|boy)$/i.test(g))                       return 'ذكر';
+    if (/^(ذكر|male|m|boy)$/i.test(g)) return 'ذكر';
     if (/^(أنثى|انثى|أنثي|انثي|female|f|girl|انثي|أنثي)$/i.test(g)) return 'أنثى';
     return g; // pass through so server logs show the unrecognized value
   };
@@ -968,12 +999,12 @@ export default function TeacherStudents() {
     toast.success(`تم تصدير ${exportData.length} طالب`);
   };
 
-  const canAdd    = user?.role === 'teacher' || user?.can_add_students;
-  const canEdit   = user?.role === 'teacher' || user?.can_edit_students;
+  const canAdd = user?.role === 'teacher' || user?.can_add_students;
+  const canEdit = user?.role === 'teacher' || user?.can_edit_students;
   const canDelete = user?.role === 'teacher' || user?.can_delete_students;
-  const canPrint  = user?.role === 'teacher' || user?.can_view_analytics;
+  const canPrint = user?.role === 'teacher' || user?.can_view_analytics;
 
-  const openAdd  = () => { setEditData(null); setForm(emptyForm); setPreviewUsername(''); setFormErrors({}); setCredMode('auto'); setModal(true); };
+  const openAdd = () => { setEditData(null); setForm(emptyForm); setPreviewUsername(''); setFormErrors({}); setCredMode('auto'); setModal(true); };
   const openEdit = (s) => { setEditData(s); setForm({ ...s, password: '' }); setPreviewUsername(''); setFormErrors({}); setCredMode('auto'); setModal(true); };
   const closeModal = () => { setModal(false); setEditData(null); setForm(emptyForm); setPreviewUsername(''); setFormErrors({}); setCredMode('auto'); };
 
@@ -1084,6 +1115,19 @@ export default function TeacherStudents() {
               </button>
             </>
           )}
+          {canDelete && (
+            <button
+              onClick={() => {
+                setBulkDeleteStage(stageFilter !== 'الكل' ? stageFilter : '');
+                setBulkDeleteConfirm('');
+                setBulkDeleteOpen(true);
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 text-sm font-semibold transition-all border border-red-200"
+              title="حذف كل طلاب مرحلة دراسية واحدة"
+            >
+              <Trash2 className="w-4 h-4" /> حذف دفعة
+            </button>
+          )}
         </div>
       </div>
 
@@ -1091,28 +1135,25 @@ export default function TeacherStudents() {
       <div className="flex gap-2">
         <button
           onClick={() => setMainView('students')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-            mainView === 'students'
-              ? 'bg-navy-600 text-white shadow-sm'
-              : 'bg-white border border-slate-200 text-gray-600 hover:bg-gray-50'
-          }`}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${mainView === 'students'
+            ? 'bg-navy-600 text-white shadow-sm'
+            : 'bg-white border border-slate-200 text-gray-600 hover:bg-gray-50'
+            }`}
         >
           <Users className="w-4 h-4" /> قائمة الطلاب
         </button>
         <button
           onClick={() => setMainView('alerts')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all relative ${
-            mainView === 'alerts'
-              ? 'bg-red-600 text-white shadow-sm'
-              : 'bg-white border border-slate-200 text-gray-600 hover:bg-red-50'
-          }`}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all relative ${mainView === 'alerts'
+            ? 'bg-red-600 text-white shadow-sm'
+            : 'bg-white border border-slate-200 text-gray-600 hover:bg-red-50'
+            }`}
         >
           <ShieldAlert className="w-4 h-4" />
           التحذيرات الأمنية
           {pendingAlertsCount > 0 && (
-            <span className={`text-xs font-black px-1.5 py-0.5 rounded-full ${
-              mainView === 'alerts' ? 'bg-white text-red-600' : 'bg-red-600 text-white'
-            }`}>
+            <span className={`text-xs font-black px-1.5 py-0.5 rounded-full ${mainView === 'alerts' ? 'bg-white text-red-600' : 'bg-red-600 text-white'
+              }`}>
               {pendingAlertsCount}
             </span>
           )}
@@ -1195,7 +1236,7 @@ export default function TeacherStudents() {
                   {(() => {
                     const hasUsername = importRows.some(r => r.username?.trim());
                     const hasPassword = importRows.some(r => r.password?.trim());
-                    const fromFile    = hasUsername || hasPassword;
+                    const fromFile = hasUsername || hasPassword;
                     return (
                       <div className="text-xs text-gray-600 mb-3 bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-1.5">
                         <p><strong>الأعمدة المدعومة:</strong> الاسم، الهاتف، هاتف ولي الأمر، المرحلة، الجنس</p>
@@ -1224,28 +1265,28 @@ export default function TeacherStudents() {
                     };
                     const cols = importRows[0] ? Object.keys(importRows[0]) : [];
                     return (
-                  <table className="w-full text-xs border-collapse">
-                    <thead>
-                      <tr className="bg-gray-50 sticky top-0">
-                        {cols.map(k => (
-                          <th key={k} className="border border-gray-200 px-2 py-1.5 text-right font-semibold text-gray-600">
-                            {FIELD_LABELS_MAP[k] || k}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {/* Show every row (not just the first few) so mistakes like a wrong
+                      <table className="w-full text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-gray-50 sticky top-0">
+                            {cols.map(k => (
+                              <th key={k} className="border border-gray-200 px-2 py-1.5 text-right font-semibold text-gray-600">
+                                {FIELD_LABELS_MAP[k] || k}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {/* Show every row (not just the first few) so mistakes like a wrong
                           fixed stage or a mis-mapped column are visible before confirming. */}
-                      {importRows.map((row, i) => (
-                        <tr key={i} className="hover:bg-gray-50">
-                          {Object.values(row).map((v, j) => (
-                            <td key={j} className="border border-gray-200 px-2 py-1.5 text-gray-700">{String(v)}</td>
+                          {importRows.map((row, i) => (
+                            <tr key={i} className="hover:bg-gray-50">
+                              {Object.values(row).map((v, j) => (
+                                <td key={j} className="border border-gray-200 px-2 py-1.5 text-gray-700">{String(v)}</td>
+                              ))}
+                            </tr>
                           ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                        </tbody>
+                      </table>
                     );
                   })()}
                 </div>
@@ -1327,17 +1368,15 @@ export default function TeacherStudents() {
                 <button
                   key={stage}
                   onClick={() => setStageFilter(stage)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all duration-200 ${
-                    stageFilter === stage
-                      ? 'bg-navy-600 text-white shadow-sm'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all duration-200 ${stageFilter === stage
+                    ? 'bg-navy-600 text-white shadow-sm'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
                 >
                   {stage}
                   {stageCounts[stage] > 0 && (
-                    <span className={`text-xs rounded-full px-1.5 py-0.5 font-black ${
-                      stageFilter === stage ? 'bg-white/20 text-white' : 'bg-white text-gray-700'
-                    }`}>
+                    <span className={`text-xs rounded-full px-1.5 py-0.5 font-black ${stageFilter === stage ? 'bg-white/20 text-white' : 'bg-white text-gray-700'
+                      }`}>
                       {stageCounts[stage]}
                     </span>
                   )}
@@ -1410,11 +1449,10 @@ export default function TeacherStudents() {
                           {canEdit && (
                             <button
                               onClick={() => setSuspendTarget(s)}
-                              className={`p-1.5 rounded-lg transition-colors ${
-                                s.is_suspended
-                                  ? 'text-red-600 hover:bg-red-50'
-                                  : 'text-green-600 hover:bg-green-50'
-                              }`}
+                              className={`p-1.5 rounded-lg transition-colors ${s.is_suspended
+                                ? 'text-red-600 hover:bg-red-50'
+                                : 'text-green-600 hover:bg-green-50'
+                                }`}
                               title={s.is_suspended ? 'إعادة تفعيل الحساب' : 'إيقاف الحساب'}
                               aria-label={s.is_suspended ? `إعادة تفعيل حساب ${s.name}` : `إيقاف حساب ${s.name}`}
                             >
@@ -1483,22 +1521,20 @@ export default function TeacherStudents() {
                 <button
                   type="button"
                   onClick={() => { setCredMode('auto'); setFormErrors(prev => { const n = { ...prev }; delete n.manualUsername; delete n.manualPassword; return n; }); }}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-bold transition-colors ${
-                    credMode === 'auto'
-                      ? 'bg-orange-500 text-white'
-                      : 'bg-white text-gray-500 hover:bg-gray-50'
-                  }`}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-bold transition-colors ${credMode === 'auto'
+                    ? 'bg-orange-500 text-white'
+                    : 'bg-white text-gray-500 hover:bg-gray-50'
+                    }`}
                 >
                   <RefreshCw className="w-4 h-4" /> توليد تلقائي
                 </button>
                 <button
                   type="button"
                   onClick={() => setCredMode('manual')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-bold transition-colors border-r border-gray-200 ${
-                    credMode === 'manual'
-                      ? 'bg-navy-600 text-white'
-                      : 'bg-white text-gray-500 hover:bg-gray-50'
-                  }`}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-bold transition-colors border-r border-gray-200 ${credMode === 'manual'
+                    ? 'bg-navy-600 text-white'
+                    : 'bg-white text-gray-500 hover:bg-gray-50'
+                    }`}
                 >
                   <Pencil className="w-4 h-4" /> إدخال يدوي
                 </button>
@@ -1629,9 +1665,8 @@ export default function TeacherStudents() {
       {suspendTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
-            <div className={`w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-4 ${
-              suspendTarget.is_suspended ? 'bg-green-100' : 'bg-red-100'
-            }`}>
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-4 ${suspendTarget.is_suspended ? 'bg-green-100' : 'bg-red-100'
+              }`}>
               {suspendTarget.is_suspended
                 ? <Unlock className="w-6 h-6 text-green-600" />
                 : <Lock className="w-6 h-6 text-red-600" />
@@ -1895,6 +1930,100 @@ export default function TeacherStudents() {
         message="سيتم حذف التعيينات المحفوظة. ستحتاج لرفع ملف نموذجي مرة أخرى لإعادة الضبط."
         danger
       />
+
+      {/* Bulk delete by stage — soft delete every active student in a single stage */}
+      {bulkDeleteOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-red-100 flex items-center justify-center">
+                  <Trash2 className="w-5 h-5 text-red-600" />
+                </div>
+                <h2 className="font-black text-gray-800">حذف دفعة (مرحلة دراسية كاملة)</h2>
+              </div>
+              <button
+                onClick={() => setBulkDeleteOpen(false)}
+                className="text-gray-400 hover:text-gray-600"
+                aria-label="إغلاق"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-800 leading-relaxed">
+                <p className="font-bold mb-1">⚠️ تحذير — هذا الإجراء لا يمكن التراجع عنه</p>
+                <p>سيتم حذف <span className="font-black">جميع</span> طلاب المرحلة المختارة نهائياً (مع كل بياناتهم: كورسات، امتحانات، أجهزة). المرحلة فقط هي التي تُحذف — باقي المراحل تظل كما هي.</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-600 mb-1.5">المرحلة الدراسية</label>
+                <select
+                  value={bulkDeleteStage}
+                  onChange={e => { setBulkDeleteStage(e.target.value); setBulkDeleteConfirm(''); }}
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-transparent"
+                  dir="rtl"
+                >
+                  <option value="">— اختر المرحلة —</option>
+                  {stageCountsData.length === 0 && (
+                    <option value="" disabled>لا توجد مراحل فيها طلاب حالياً</option>
+                  )}
+                  {stageCountsData.map(s => (
+                    <option key={s.stage} value={s.stage}>
+                      {s.stage}  ({s.count} طالب)
+                    </option>
+                  ))}
+                </select>
+                {bulkDeleteStage && (
+                  <p className="mt-2 text-xs font-bold text-red-700">
+                    سيتم حذف {stageCountFor(bulkDeleteStage)} طالب من مرحلة «{bulkDeleteStage}»
+                  </p>
+                )}
+              </div>
+
+              {bulkDeleteStage && stageCountFor(bulkDeleteStage) > 0 && (
+                <div>
+                  <label className="block text-xs font-bold text-gray-600 mb-1.5">
+                    للتأكيد: اكتب اسم المرحلة <span className="font-mono text-red-600">"{bulkDeleteStage}"</span> بالضبط
+                  </label>
+                  <input
+                    type="text"
+                    value={bulkDeleteConfirm}
+                    onChange={e => setBulkDeleteConfirm(e.target.value)}
+                    placeholder={bulkDeleteStage}
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-transparent"
+                    dir="rtl"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-gray-100 flex gap-3 justify-end">
+              <button
+                onClick={() => setBulkDeleteOpen(false)}
+                className="btn-secondary"
+              >
+                إلغاء
+              </button>
+              <button
+                onClick={() => bulkDeleteMut.mutate(bulkDeleteStage)}
+                disabled={
+                  bulkDeleteMut.isPending
+                  || !bulkDeleteStage
+                  || stageCountFor(bulkDeleteStage) === 0
+                  || bulkDeleteConfirm.trim() !== bulkDeleteStage
+                }
+                className="inline-flex items-center gap-2 bg-red-500 hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold px-4 py-2.5 rounded-lg transition-all"
+              >
+                {bulkDeleteMut.isPending
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> جاري الحذف...</>
+                  : <><Trash2 className="w-4 h-4" /> حذف {stageCountFor(bulkDeleteStage)} طالب نهائياً</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -103,6 +103,25 @@ router.get('/stages', requireRole('teacher', 'assistant'), async (req, res) => {
   }
 });
 
+// Active-student count grouped by academic stage (used by the bulk-delete UI).
+router.get('/stage-counts', requireRole('teacher', 'assistant'), async (req, res) => {
+  const teacherId = getTeacherId(req);
+  try {
+    const result = await pool.query(
+      `SELECT academic_stage AS stage, COUNT(*)::int AS count
+         FROM students
+        WHERE teacher_id=$1 AND deleted_at IS NULL AND academic_stage IS NOT NULL
+        GROUP BY academic_stage
+        ORDER BY academic_stage`,
+      [teacherId]
+    );
+    res.json({ counts: result.rows });
+  } catch (err) {
+    console.error('[students/stage-counts]', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 router.get('/next-username', requireRole('teacher', 'assistant'), async (req, res) => {
   const teacherId = getTeacherId(req);
   const { stage } = req.query;
@@ -382,6 +401,70 @@ router.delete('/import-model', requireRole('teacher', 'assistant'), async (req, 
     const result = await pool.query('DELETE FROM teacher_import_models WHERE teacher_id=$1 RETURNING id', [teacherId]);
     res.json({ success: true, deleted: result.rowCount });
   } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Bulk delete all active students of a single academic stage (soft delete).
+// Mirrors the single-student DELETE logic but scopes by stage + teacher.
+router.post('/bulk-delete-stage', requireRole('teacher', 'assistant'), (req, res, next) => checkPermission(req, res, next, 'can_delete_students'), async (req, res) => {
+  const teacherId = getTeacherId(req);
+  const { stage } = req.body || {};
+  if (!stage || typeof stage !== 'string' || !stage.trim()) {
+    return res.status(400).json({ error: 'المرحلة الدراسية مطلوبة' });
+  }
+  const stageName = stage.trim();
+  try {
+    const idsRes = await pool.query(
+      'SELECT id FROM students WHERE teacher_id=$1 AND academic_stage=$2 AND deleted_at IS NULL',
+      [teacherId, stageName]
+    );
+    const studentIds = idsRes.rows.map(r => r.id);
+    if (studentIds.length === 0) {
+      return res.status(404).json({ error: 'لا يوجد طلاب نشطون في هذه المرحلة' });
+    }
+    await pool.query(
+      'UPDATE students SET deleted_at=NOW() WHERE teacher_id=$1 AND academic_stage=$2 AND deleted_at IS NULL',
+      [teacherId, stageName]
+    );
+    // Best-effort cleanup, matching single-student DELETE behaviour
+    await pool.query(
+      "UPDATE student_course_enrollment SET status='inactive' WHERE student_id = ANY($1::int[])",
+      [studentIds]
+    ).catch(err => console.warn('[bulk-delete-stage] enrollment:', err.message));
+    await pool.query(
+      'DELETE FROM student_devices WHERE student_id = ANY($1::int[])',
+      [studentIds]
+    ).catch(err => console.warn('[bulk-delete-stage] devices:', err.message));
+    await pool.query(
+      'DELETE FROM exam_sessions WHERE student_id = ANY($1::int[])',
+      [studentIds]
+    ).catch(err => console.warn('[bulk-delete-stage] exam_sessions:', err.message));
+    await pool.query(
+      "UPDATE live_stream_viewers SET is_active=false, left_at=NOW() WHERE student_id = ANY($1::int[]) AND is_active=true",
+      [studentIds]
+    ).catch(err => console.warn('[bulk-delete-stage] live viewers:', err.message));
+    await pool.query(
+      'DELETE FROM video_progress WHERE student_id = ANY($1::int[])',
+      [studentIds]
+    ).catch(err => console.warn('[bulk-delete-stage] video_progress:', err.message));
+    await pool.query(
+      'UPDATE exam_results SET is_latest=false WHERE student_id = ANY($1::int[])',
+      [studentIds]
+    ).catch(err => console.warn('[bulk-delete-stage] exam_results:', err.message));
+
+    invalidateCache(teacherId);
+    studentIds.forEach(id => invalidateStudentAuthCache(id));
+
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'bulk_delete_students_by_stage',
+      entity: { type: 'stage', name: stageName, count: studentIds.length },
+    });
+
+    res.json({ message: 'Students deleted', stage: stageName, count: studentIds.length });
+  } catch (err) {
+    console.error('[bulk-delete-stage] error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

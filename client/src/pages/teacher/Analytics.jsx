@@ -18,26 +18,27 @@ const ReactECharts = (props) => (
 import { useNavigate } from 'react-router-dom';
 import api from '../../lib/api';
 import StudentProfileModal from '../../components/ui/StudentProfileModal';
+import PrintReportButton from '../../components/ui/PrintReportButton';
 
-const CHART_COLORS = ['#6366f1','#f97316','#10b981','#f59e0b','#8b5cf6','#06b6d4','#ec4899','#f43f5e'];
+const CHART_COLORS = ['#6366f1', '#f97316', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899', '#f43f5e'];
 const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 const TREND_PERIODS = [
-  { label: 'شهر',    value: 1  },
-  { label: '3 أشهر', value: 3  },
-  { label: '6 أشهر', value: 6  },
-  { label: 'سنة',    value: 12 },
-  { label: 'الكل',   value: 0  },
+  { label: 'شهر', value: 1 },
+  { label: '3 أشهر', value: 3 },
+  { label: '6 أشهر', value: 6 },
+  { label: 'سنة', value: 12 },
+  { label: 'الكل', value: 0 },
 ];
 
 const STAGES = ['الكل', 'الصف الأول الثانوي عام', 'الصف الأول الثانوي بكالوريا', 'الصف الثاني الثانوي عام', 'الصف الثاني الثانوي بكالوريا', 'الصف الثالث الثانوي', 'الصف الأول الإعدادي', 'الصف الثاني الإعدادي', 'الصف الثالث الإعدادي', 'جامعي'];
 const GENDERS = ['الكل', 'ذكر', 'أنثى'];
 const PERF_LEVELS = [
-  { label: 'الكل',   min: 0,  max: 100 },
-  { label: 'ممتاز',  min: 80, max: 100 },
-  { label: 'جيد',    min: 60, max: 79  },
-  { label: 'متوسط',  min: 40, max: 59  },
-  { label: 'ضعيف',   min: 0,  max: 39  },
+  { label: 'الكل', min: 0, max: 100 },
+  { label: 'ممتاز', min: 80, max: 100 },
+  { label: 'جيد', min: 60, max: 79 },
+  { label: 'متوسط', min: 40, max: 59 },
+  { label: 'ضعيف', min: 0, max: 39 },
 ];
 
 const EmptyState = ({ icon: Icon, text }) => (
@@ -90,20 +91,20 @@ const tooltipBase = {
 export default function TeacherAnalytics() {
   const navigate = useNavigate();
   const { dark } = useTheme();
-  const [stageFilter, setStageFilter]   = useState('الكل');
-  const [sortField, setSortField]       = useState('points');
-  const [sortDir, setSortDir]           = useState('desc');
+  const [stageFilter, setStageFilter] = useState('الكل');
+  const [sortField, setSortField] = useState('points');
+  const [sortDir, setSortDir] = useState('desc');
   const [selectedStudentId, setSelectedStudentId] = useState(null);
-  const [searchQuery, setSearchQuery]   = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [genderFilter, setGenderFilter] = useState('الكل');
-  const [perfFilter, setPerfFilter]     = useState('الكل');
-  const [showFilters, setShowFilters]   = useState(false);
-  const [resultsSearch, setResultsSearch]         = useState('');
+  const [perfFilter, setPerfFilter] = useState('الكل');
+  const [showFilters, setShowFilters] = useState(false);
+  const [resultsSearch, setResultsSearch] = useState('');
   const [resultsExamFilter, setResultsExamFilter] = useState('الكل');
-  const [resultsStatus, setResultsStatus]         = useState('الكل');
-  const [resultsPage, setResultsPage]             = useState(10);
+  const [resultsStatus, setResultsStatus] = useState('الكل');
+  const [resultsPage, setResultsPage] = useState(10);
   const [studentsPage, setStudentsPage] = useState(10);
-  const [trendMonths, setTrendMonths]   = useState(6);
+  const [trendMonths, setTrendMonths] = useState(6);
   const [examSearch, setExamSearch] = useState('');
   const [examStageFilter, setExamStageFilter] = useState('الكل');
   const [examSort, setExamSort] = useState('newest');
@@ -145,8 +146,8 @@ export default function TeacherAnalytics() {
     // Filter by search
     if (examSearch.trim()) {
       const q = examSearch.trim().toLowerCase();
-      list = list.filter(e => 
-        e.title?.toLowerCase().includes(q) || 
+      list = list.filter(e =>
+        e.title?.toLowerCase().includes(q) ||
         (e.course_name && e.course_name.toLowerCase().includes(q))
       );
     }
@@ -208,8 +209,8 @@ export default function TeacherAnalytics() {
     name: e.title?.length > 14 ? e.title.substring(0, 14) + '…' : e.title,
     fullName: e.title,
     avg: Math.round(parseFloat(e.avg_pct) || 0),
-    max: Math.round(parseFloat(e.max_pct)  || 0),
-    min: Math.round(parseFloat(e.min_pct)  || 0),
+    max: Math.round(parseFloat(e.max_pct) || 0),
+    min: Math.round(parseFloat(e.min_pct) || 0),
     attempts: parseInt(e.attempt_count) || 0,
   })), [data]);
 
@@ -270,18 +271,18 @@ export default function TeacherAnalytics() {
     const fail = results.length - pass;
     if (!results.length) return [];
     return [
-      { name: 'ناجح', value: pass,  fill: '#10b981' },
-      { name: 'راسب', value: fail,  fill: '#f43f5e' },
+      { name: 'ناجح', value: pass, fill: '#10b981' },
+      { name: 'راسب', value: fail, fill: '#f43f5e' },
     ];
   }, [data]);
 
   const scoreDistData = useMemo(() => {
     const results = data?.recentResults || [];
     return [
-      { name: '0–39',   min: 0,  max: 39,  fill: '#f43f5e', count: 0 },
-      { name: '40–59',  min: 40, max: 59,  fill: '#f59e0b', count: 0 },
-      { name: '60–74',  min: 60, max: 74,  fill: '#06b6d4', count: 0 },
-      { name: '75–89',  min: 75, max: 89,  fill: '#6366f1', count: 0 },
+      { name: '0–39', min: 0, max: 39, fill: '#f43f5e', count: 0 },
+      { name: '40–59', min: 40, max: 59, fill: '#f59e0b', count: 0 },
+      { name: '60–74', min: 60, max: 74, fill: '#06b6d4', count: 0 },
+      { name: '75–89', min: 75, max: 89, fill: '#6366f1', count: 0 },
       { name: '90–100', min: 90, max: 100, fill: '#10b981', count: 0 },
     ].map(b => ({
       ...b,
@@ -325,11 +326,11 @@ export default function TeacherAnalytics() {
   }, [trendData, trendMonths]);
 
   const stats = [
-    { label: 'الاختبارات النشطة',  value: data?.examResults?.length || 0,  icon: BarChart3,  gradient: 'linear-gradient(135deg,#3b82f6,#6366f1)', lightBg: 'bg-blue-50',    textColor: '#3b82f6' },
-    { label: 'إجمالي المحاولات',   value: totalAttempts,                    icon: Target,    gradient: 'linear-gradient(135deg,#f97316,#ef4444)', lightBg: 'bg-orange-50',  textColor: '#f97316' },
-    { label: 'متوسط الدرجات',      value: `${avgScore}%`,                   icon: TrendingUp,gradient: 'linear-gradient(135deg,#10b981,#06b6d4)', lightBg: 'bg-emerald-50', textColor: '#10b981' },
-    { label: 'نسبة النجاح',         value: `${passRate}%`,                   icon: Award,     gradient: 'linear-gradient(135deg,#8b5cf6,#ec4899)', lightBg: 'bg-purple-50',  textColor: '#8b5cf6' },
-    { label: 'إجمالي الطلاب',       value: data?.totalStudents ?? 0,          icon: Users,     gradient: 'linear-gradient(135deg,#f59e0b,#f97316)', lightBg: 'bg-amber-50',   textColor: '#f59e0b' },
+    { label: 'الاختبارات النشطة', value: data?.examResults?.length || 0, icon: BarChart3, gradient: 'linear-gradient(135deg,#3b82f6,#6366f1)', lightBg: 'bg-blue-50', textColor: '#3b82f6' },
+    { label: 'إجمالي المحاولات', value: totalAttempts, icon: Target, gradient: 'linear-gradient(135deg,#f97316,#ef4444)', lightBg: 'bg-orange-50', textColor: '#f97316' },
+    { label: 'متوسط الدرجات', value: `${avgScore}%`, icon: TrendingUp, gradient: 'linear-gradient(135deg,#10b981,#06b6d4)', lightBg: 'bg-emerald-50', textColor: '#10b981' },
+    { label: 'نسبة النجاح', value: `${passRate}%`, icon: Award, gradient: 'linear-gradient(135deg,#8b5cf6,#ec4899)', lightBg: 'bg-purple-50', textColor: '#8b5cf6' },
+    { label: 'إجمالي الطلاب', value: data?.totalStudents ?? 0, icon: Users, gradient: 'linear-gradient(135deg,#f59e0b,#f97316)', lightBg: 'bg-amber-50', textColor: '#f59e0b' },
   ];
 
   const exportCSV = () => {
@@ -360,9 +361,9 @@ export default function TeacherAnalytics() {
 
   const filteredStudents = useMemo(() => {
     let list = data?.topStudents || [];
-    if (stageFilter !== 'الكل')  list = list.filter(s => s.academic_stage === stageFilter);
+    if (stageFilter !== 'الكل') list = list.filter(s => s.academic_stage === stageFilter);
     if (genderFilter !== 'الكل') list = list.filter(s => s.gender === genderFilter);
-    if (perfFilter !== 'الكل')   list = list.filter(s => {
+    if (perfFilter !== 'الكل') list = list.filter(s => {
       const avg = Math.round(parseFloat(s.avg_score) || 0);
       return avg >= selectedPerf.min && avg <= selectedPerf.max;
     });
@@ -384,7 +385,7 @@ export default function TeacherAnalytics() {
       list = list.filter(r => r.student_name?.toLowerCase().includes(q) || r.exam_title?.toLowerCase().includes(q));
     }
     if (resultsExamFilter !== 'الكل') list = list.filter(r => r.exam_title === resultsExamFilter);
-    if (resultsStatus === 'ناجح')  list = list.filter(r => r.score >= r.pass_score);
+    if (resultsStatus === 'ناجح') list = list.filter(r => r.score >= r.pass_score);
     if (resultsStatus === 'راسب') list = list.filter(r => r.score < r.pass_score);
     return list;
   }, [data, stageFilter, resultsSearch, resultsExamFilter, resultsStatus]);
@@ -427,22 +428,22 @@ export default function TeacherAnalytics() {
         name: 'متوسط الدرجات',
         type: 'bar', barMaxWidth: 18,
         data: examChartData.map(e => e.avg),
-        itemStyle: { borderRadius: [6,6,0,0], color: { type:'linear',x:0,y:0,x2:0,y2:1, colorStops:[{offset:0,color:'#6366f1'},{offset:1,color:'#4f46e5'}] } },
-        emphasis: { itemStyle: { color: { type:'linear',x:0,y:0,x2:0,y2:1, colorStops:[{offset:0,color:'#818cf8'},{offset:1,color:'#6366f1'}] } } }
+        itemStyle: { borderRadius: [6, 6, 0, 0], color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#6366f1' }, { offset: 1, color: '#4f46e5' }] } },
+        emphasis: { itemStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#818cf8' }, { offset: 1, color: '#6366f1' }] } } }
       },
       {
         name: 'أعلى درجة',
         type: 'bar', barMaxWidth: 18,
         data: examChartData.map(e => e.max),
-        itemStyle: { borderRadius: [6,6,0,0], color: { type:'linear',x:0,y:0,x2:0,y2:1, colorStops:[{offset:0,color:'#10b981'},{offset:1,color:'#059669'}] } },
-        emphasis: { itemStyle: { color: { type:'linear',x:0,y:0,x2:0,y2:1, colorStops:[{offset:0,color:'#34d399'},{offset:1,color:'#10b981'}] } } }
+        itemStyle: { borderRadius: [6, 6, 0, 0], color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#10b981' }, { offset: 1, color: '#059669' }] } },
+        emphasis: { itemStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#34d399' }, { offset: 1, color: '#10b981' }] } } }
       },
       {
         name: 'أدنى درجة',
         type: 'bar', barMaxWidth: 18,
         data: examChartData.map(e => e.min),
-        itemStyle: { borderRadius: [6,6,0,0], color: { type:'linear',x:0,y:0,x2:0,y2:1, colorStops:[{offset:0,color:'#f43f5e'},{offset:1,color:'#e11d48'}] } },
-        emphasis: { itemStyle: { color: { type:'linear',x:0,y:0,x2:0,y2:1, colorStops:[{offset:0,color:'#fb7185'},{offset:1,color:'#f43f5e'}] } } }
+        itemStyle: { borderRadius: [6, 6, 0, 0], color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#f43f5e' }, { offset: 1, color: '#e11d48' }] } },
+        emphasis: { itemStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#fb7185' }, { offset: 1, color: '#f43f5e' }] } } }
       }
     ]
   }), [examChartData]);
@@ -464,7 +465,7 @@ export default function TeacherAnalytics() {
       type: 'bar', name: 'طلاب', barMaxWidth: 20,
       data: stageDistData.map((d, i) => ({
         value: d.value,
-        itemStyle: { borderRadius: [0,6,6,0], color: { type:'linear',x:0,y:0,x2:1,y2:0, colorStops:[{offset:0,color:CHART_COLORS[i%CHART_COLORS.length]+'99'},{offset:1,color:CHART_COLORS[i%CHART_COLORS.length]}] } }
+        itemStyle: { borderRadius: [0, 6, 6, 0], color: { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: CHART_COLORS[i % CHART_COLORS.length] + '99' }, { offset: 1, color: CHART_COLORS[i % CHART_COLORS.length] }] } }
       })),
       label: { show: true, position: 'right', fontFamily: 'Cairo', fontSize: 10, fontWeight: 'bold', color: '#64748b', formatter: '{c}' }
     }]
@@ -477,7 +478,7 @@ export default function TeacherAnalytics() {
       formatter: params => `<div style="font-family:Cairo"><b>${params.name}</b><br/>${params.marker} ${params.value} طالب <b style="color:${params.color}">(${params.percent}%)</b></div>`,
     },
     series: [{
-      type: 'pie', radius: ['50%','78%'], center: ['50%','50%'], padAngle: 4,
+      type: 'pie', radius: ['50%', '78%'], center: ['50%', '50%'], padAngle: 4,
       data: genderDistData.map((d, i) => ({
         value: d.value, name: d.name,
         itemStyle: { color: d.name === 'ذكر' ? '#6366f1' : d.name === 'أنثى' ? '#ec4899' : '#94a3b8' }
@@ -515,8 +516,8 @@ export default function TeacherAnalytics() {
       {
         name: 'متوسط الدرجات', type: 'bar', barMaxWidth: 22,
         data: recRecentChartData.map(r => r.avg),
-        itemStyle: { borderRadius: [6,6,0,0], color: { type:'linear',x:0,y:0,x2:0,y2:1, colorStops:[{offset:0,color:'#10b981'},{offset:1,color:'#059669'}] } },
-        emphasis: { itemStyle: { color: { type:'linear',x:0,y:0,x2:0,y2:1, colorStops:[{offset:0,color:'#34d399'},{offset:1,color:'#10b981'}] } } }
+        itemStyle: { borderRadius: [6, 6, 0, 0], color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#10b981' }, { offset: 1, color: '#059669' }] } },
+        emphasis: { itemStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#34d399' }, { offset: 1, color: '#10b981' }] } } }
       },
       {
         name: 'نسبة النجاح', type: 'line',
@@ -542,15 +543,15 @@ export default function TeacherAnalytics() {
         }
       },
       grid: { left: 8, right: 32, top: 6, bottom: 4, containLabel: true },
-      xAxis: { type: 'value', minInterval: 1, axisLine:{ show:false }, axisTick:{ show:false }, splitLine:{ lineStyle:{ color:'#f1f5f9', type:'dashed' } }, axisLabel:{ fontFamily:'Cairo', color:'#94a3b8', fontSize:10 } },
-      yAxis: { type: 'category', data: top.map(c => c.name?.length > 18 ? c.name.substring(0,18)+'…' : c.name), axisLine:{ show:false }, axisTick:{ show:false }, axisLabel:{ fontFamily:'Cairo', color:'#64748b', fontSize:10 } },
+      xAxis: { type: 'value', minInterval: 1, axisLine: { show: false }, axisTick: { show: false }, splitLine: { lineStyle: { color: '#f1f5f9', type: 'dashed' } }, axisLabel: { fontFamily: 'Cairo', color: '#94a3b8', fontSize: 10 } },
+      yAxis: { type: 'category', data: top.map(c => c.name?.length > 18 ? c.name.substring(0, 18) + '…' : c.name), axisLine: { show: false }, axisTick: { show: false }, axisLabel: { fontFamily: 'Cairo', color: '#64748b', fontSize: 10 } },
       series: [{
         type: 'bar', name: 'طلاب', barMaxWidth: 20,
         data: top.map((c, i) => ({
           value: c.enrolled_count,
-          itemStyle: { borderRadius:[0,6,6,0], color:{ type:'linear',x:0,y:0,x2:1,y2:0, colorStops:[{offset:0,color:CHART_COLORS[i%CHART_COLORS.length]+'70'},{offset:1,color:CHART_COLORS[i%CHART_COLORS.length]}] } }
+          itemStyle: { borderRadius: [0, 6, 6, 0], color: { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: CHART_COLORS[i % CHART_COLORS.length] + '70' }, { offset: 1, color: CHART_COLORS[i % CHART_COLORS.length] }] } }
         })),
-        label: { show: true, position:'right', fontFamily:'Cairo', fontSize:10, fontWeight:'bold', color:'#64748b', formatter:'{c}' }
+        label: { show: true, position: 'right', fontFamily: 'Cairo', fontSize: 10, fontWeight: 'bold', color: '#64748b', formatter: '{c}' }
       }]
     };
   }, [courseStatsData]);
@@ -569,16 +570,16 @@ export default function TeacherAnalytics() {
         }
       },
       grid: { left: 8, right: 40, top: 6, bottom: 4, containLabel: true },
-      xAxis: { type: 'value', max: 100, axisLine:{ show:false }, axisTick:{ show:false }, splitLine:{ lineStyle:{ color:'#f1f5f9', type:'dashed' } }, axisLabel:{ fontFamily:'Cairo', color:'#94a3b8', formatter:'{value}%', fontSize:10 } },
-      yAxis: { type: 'category', data: top.map(c => c.name?.length > 18 ? c.name.substring(0,18)+'…' : c.name), axisLine:{ show:false }, axisTick:{ show:false }, axisLabel:{ fontFamily:'Cairo', color:'#64748b', fontSize:10 } },
+      xAxis: { type: 'value', max: 100, axisLine: { show: false }, axisTick: { show: false }, splitLine: { lineStyle: { color: '#f1f5f9', type: 'dashed' } }, axisLabel: { fontFamily: 'Cairo', color: '#94a3b8', formatter: '{value}%', fontSize: 10 } },
+      yAxis: { type: 'category', data: top.map(c => c.name?.length > 18 ? c.name.substring(0, 18) + '…' : c.name), axisLine: { show: false }, axisTick: { show: false }, axisLabel: { fontFamily: 'Cairo', color: '#64748b', fontSize: 10 } },
       series: [{
         type: 'bar', name: 'تقدم', barMaxWidth: 20,
         data: top.map(c => {
           const v = c.avg_progress;
           const color = v >= 70 ? '#10b981' : v >= 40 ? '#f59e0b' : '#f43f5e';
-          return { value: v, itemStyle: { borderRadius:[0,6,6,0], color:{ type:'linear',x:0,y:0,x2:1,y2:0, colorStops:[{offset:0,color:color+'70'},{offset:1,color}] } } };
+          return { value: v, itemStyle: { borderRadius: [0, 6, 6, 0], color: { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: color + '70' }, { offset: 1, color }] } } };
         }),
-        label: { show: true, position:'right', fontFamily:'Cairo', fontSize:10, fontWeight:'bold', color:'#64748b', formatter:'{c}%' }
+        label: { show: true, position: 'right', fontFamily: 'Cairo', fontSize: 10, fontWeight: 'bold', color: '#64748b', formatter: '{c}%' }
       }]
     };
   }, [courseStatsData]);
@@ -591,8 +592,8 @@ export default function TeacherAnalytics() {
     },
     series: [{
       type: 'pie',
-      radius: ['52%','80%'],
-      center: ['50%','50%'],
+      radius: ['52%', '80%'],
+      center: ['50%', '50%'],
       padAngle: 3,
       data: pieData.map((item, i) => ({ value: item.value, name: item.name, itemStyle: { color: CHART_COLORS[i % CHART_COLORS.length] } })),
       label: { show: false },
@@ -612,8 +613,8 @@ export default function TeacherAnalytics() {
     },
     series: [{
       type: 'pie',
-      radius: ['50%','78%'],
-      center: ['50%','50%'],
+      radius: ['50%', '78%'],
+      center: ['50%', '50%'],
       padAngle: 4,
       data: passFailData.map(d => ({ value: d.value, name: d.name, itemStyle: { color: d.fill } })),
       label: { show: false },
@@ -651,7 +652,7 @@ export default function TeacherAnalytics() {
       type: 'bar', name: 'عدد الطلاب', barMaxWidth: 52,
       data: scoreDistData.map(d => ({
         value: d.count,
-        itemStyle: { borderRadius: [8,8,0,0], color: { type:'linear',x:0,y:0,x2:0,y2:1, colorStops:[{offset:0,color:d.fill},{offset:1,color:d.fill+'99'}] } }
+        itemStyle: { borderRadius: [8, 8, 0, 0], color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: d.fill }, { offset: 1, color: d.fill + '99' }] } }
       })),
       emphasis: { itemStyle: { shadowBlur: 12, shadowColor: 'rgba(0,0,0,0.12)' } }
     }]
@@ -699,7 +700,7 @@ export default function TeacherAnalytics() {
         smooth: true, symbol: 'circle', symbolSize: 8,
         lineStyle: { color: '#6366f1', width: 2.5 },
         itemStyle: { color: '#6366f1', borderColor: '#fff', borderWidth: 2.5 },
-        areaStyle: { color: { type:'linear',x:0,y:0,x2:0,y2:1, colorStops:[{offset:0,color:'rgba(99,102,241,0.22)'},{offset:1,color:'rgba(99,102,241,0.01)'}] } }
+        areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(99,102,241,0.22)' }, { offset: 1, color: 'rgba(99,102,241,0.01)' }] } }
       },
       {
         name: 'محاولات', type: 'line', yAxisIndex: 1,
@@ -707,7 +708,7 @@ export default function TeacherAnalytics() {
         smooth: true, symbol: 'circle', symbolSize: 7,
         lineStyle: { color: '#f97316', width: 2 },
         itemStyle: { color: '#f97316', borderColor: '#fff', borderWidth: 2 },
-        areaStyle: { color: { type:'linear',x:0,y:0,x2:0,y2:1, colorStops:[{offset:0,color:'rgba(249,115,22,0.16)'},{offset:1,color:'rgba(249,115,22,0.01)'}] } }
+        areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(249,115,22,0.16)' }, { offset: 1, color: 'rgba(249,115,22,0.01)' }] } }
       }
     ]
   }), [trendChartData]);
@@ -808,7 +809,7 @@ export default function TeacherAnalytics() {
               <div className="border-t border-gray-50 dark:border-gray-700 flex-1 overflow-y-auto">
                 {examChartData.slice(0, 5).map((e, i) => {
                   const avg = e.avg;
-                  const sc = avg >= 70 ? { text:'#10b981', bg: dark ? 'rgba(16,185,129,0.15)' : '#dcfce7' } : avg >= 50 ? { text:'#6366f1', bg: dark ? 'rgba(99,102,241,0.15)' : '#ede9fe' } : { text:'#f43f5e', bg: dark ? 'rgba(244,63,94,0.15)' : '#ffe4e6' };
+                  const sc = avg >= 70 ? { text: '#10b981', bg: dark ? 'rgba(16,185,129,0.15)' : '#dcfce7' } : avg >= 50 ? { text: '#6366f1', bg: dark ? 'rgba(99,102,241,0.15)' : '#ede9fe' } : { text: '#f43f5e', bg: dark ? 'rgba(244,63,94,0.15)' : '#ffe4e6' };
                   return (
                     <div key={i} className="flex items-center justify-between px-5 py-2.5 hover:bg-gray-50/70 dark:hover:bg-gray-700/40 transition-colors border-b border-gray-50 dark:border-gray-700 last:border-0">
                       <div className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -952,7 +953,7 @@ export default function TeacherAnalytics() {
                 <div className="flex-shrink-0 relative" style={{ width: '200px' }}>
                   <ReactECharts option={passFailOption} style={{ height: '200px', width: '200px' }} notMerge opts={{ renderer: 'svg' }} />
                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <p className="text-lg font-black text-gray-700">{passFailData.reduce((s,x)=>s+x.value,0)}</p>
+                    <p className="text-lg font-black text-gray-700">{passFailData.reduce((s, x) => s + x.value, 0)}</p>
                     <p className="text-[10px] text-gray-400 font-semibold">نتيجة</p>
                   </div>
                 </div>
@@ -966,8 +967,8 @@ export default function TeacherAnalytics() {
                       <div className="text-left">
                         <p className="text-lg font-black" style={{ color: d.fill }}>{d.value}</p>
                         <p className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">
-                          {passFailData.reduce((s,x)=>s+x.value,0) > 0
-                            ? Math.round(d.value / passFailData.reduce((s,x)=>s+x.value,0) * 100) : 0}%
+                          {passFailData.reduce((s, x) => s + x.value, 0) > 0
+                            ? Math.round(d.value / passFailData.reduce((s, x) => s + x.value, 0) * 100) : 0}%
                         </p>
                       </div>
                     </div>
@@ -1000,11 +1001,10 @@ export default function TeacherAnalytics() {
               <button
                 key={p.value}
                 onClick={() => setTrendMonths(p.value)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 ${
-                  trendMonths === p.value
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 ${trendMonths === p.value
                     ? 'bg-white dark:bg-gray-600 text-indigo-600 dark:text-indigo-400 shadow-sm border border-indigo-100 dark:border-indigo-800'
                     : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-                }`}>
+                  }`}>
                 {p.label}
               </button>
             ))}
@@ -1274,8 +1274,8 @@ export default function TeacherAnalytics() {
                   const avg = Math.round(parseFloat(e.avg_pct) || 0);
                   const attempts = parseInt(e.attempt_count) || 0;
                   const sc = avg >= 70 ? { text: '#10b981', bg: dark ? 'rgba(16,185,129,0.15)' : '#dcfce7', border: dark ? 'border-emerald-800' : 'border-emerald-100' }
-                           : avg >= 50 ? { text: '#6366f1', bg: dark ? 'rgba(99,102,241,0.15)' : '#ede9fe', border: dark ? 'border-indigo-800' : 'border-indigo-100' }
-                           : { text: '#f43f5e', bg: dark ? 'rgba(244,63,94,0.15)' : '#ffe4e6', border: dark ? 'border-rose-800' : 'border-rose-100' };
+                    : avg >= 50 ? { text: '#6366f1', bg: dark ? 'rgba(99,102,241,0.15)' : '#ede9fe', border: dark ? 'border-indigo-800' : 'border-indigo-100' }
+                      : { text: '#f43f5e', bg: dark ? 'rgba(244,63,94,0.15)' : '#ffe4e6', border: dark ? 'border-rose-800' : 'border-rose-100' };
                   return (
                     <button
                       key={e.id}
@@ -1536,7 +1536,7 @@ export default function TeacherAnalytics() {
                 <div className="flex-shrink-0 relative w-[160px] sm:w-[180px]">
                   <ReactECharts option={genderDonutOption} style={{ height: '160px', width: '160px' }} notMerge opts={{ renderer: 'svg' }} />
                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <p className="text-base font-black text-gray-700 dark:text-gray-200">{genderDistData.reduce((s,d)=>s+d.value,0)}</p>
+                    <p className="text-base font-black text-gray-700 dark:text-gray-200">{genderDistData.reduce((s, d) => s + d.value, 0)}</p>
                     <p className="text-[10px] text-gray-400 font-semibold">طالب</p>
                   </div>
                 </div>
@@ -1622,11 +1622,10 @@ export default function TeacherAnalytics() {
                           {optionLetters.map((letter, li) => (
                             optionTexts[li] ? (
                               <div key={letter}
-                                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                                  letter === q.correct_answer_letter?.toUpperCase()
+                                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${letter === q.correct_answer_letter?.toUpperCase()
                                     ? 'bg-green-50 border-green-200 text-green-700'
                                     : 'bg-gray-50 border-gray-100 text-gray-600'
-                                }`}>
+                                  }`}>
                                 <span className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black flex-shrink-0"
                                   style={{ background: letterColors[letter] || '#94a3b8', color: '#fff' }}>
                                   {letter}
@@ -1680,11 +1679,10 @@ export default function TeacherAnalytics() {
             )}
           </div>
           <button onClick={() => setShowFilters(f => !f)}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-bold transition-all ${
-              showFilters || activeFiltersCount > 0
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-bold transition-all ${showFilters || activeFiltersCount > 0
                 ? 'bg-orange-500 border-orange-500 text-white shadow-md'
                 : 'border-gray-200 text-gray-600 hover:border-orange-300 hover:text-orange-500'
-            }`}>
+              }`}>
             <Filter className="w-4 h-4" />
             فلاتر
             {activeFiltersCount > 0 && (
@@ -1710,11 +1708,10 @@ export default function TeacherAnalytics() {
               <div className="flex flex-wrap gap-2">
                 {STAGES.map(stage => (
                   <button key={stage} onClick={() => setStageFilter(stage)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
-                      stageFilter === stage
+                    className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${stageFilter === stage
                         ? 'bg-indigo-600 text-white shadow'
                         : 'bg-gray-50 border border-gray-200 text-gray-500 hover:border-indigo-300 hover:text-indigo-600'
-                    }`}>{stage}</button>
+                      }`}>{stage}</button>
                 ))}
               </div>
             </div>
@@ -1724,9 +1721,8 @@ export default function TeacherAnalytics() {
                 <div className="flex gap-2">
                   {GENDERS.map(g => (
                     <button key={g} onClick={() => setGenderFilter(g)}
-                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                        genderFilter === g ? 'bg-indigo-600 text-white shadow' : 'bg-gray-50 border border-gray-200 text-gray-500'
-                      }`}>{g}</button>
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${genderFilter === g ? 'bg-indigo-600 text-white shadow' : 'bg-gray-50 border border-gray-200 text-gray-500'
+                        }`}>{g}</button>
                   ))}
                 </div>
               </div>
@@ -1735,9 +1731,8 @@ export default function TeacherAnalytics() {
                 <div className="flex flex-wrap gap-1.5">
                   {PERF_LEVELS.map(p => (
                     <button key={p.label} onClick={() => setPerfFilter(p.label)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                        perfFilter === p.label ? 'bg-indigo-600 text-white shadow' : 'bg-gray-50 border border-gray-200 text-gray-500'
-                      }`}>{p.label}</button>
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${perfFilter === p.label ? 'bg-indigo-600 text-white shadow' : 'bg-gray-50 border border-gray-200 text-gray-500'
+                        }`}>{p.label}</button>
                   ))}
                 </div>
               </div>
@@ -1794,7 +1789,7 @@ export default function TeacherAnalytics() {
                 ))
               ) : filteredStudents.slice(0, studentsPage).map((s, i) => {
                 const avg = Math.round(parseFloat(s.avg_score) || 0);
-                const sc = avg >= 70 ? { text:'#10b981', bg: dark ? 'rgba(16,185,129,0.15)' : '#dcfce7' } : avg >= 50 ? { text:'#6366f1', bg: dark ? 'rgba(99,102,241,0.15)' : '#ede9fe' } : { text:'#f43f5e', bg: dark ? 'rgba(244,63,94,0.15)' : '#ffe4e6' };
+                const sc = avg >= 70 ? { text: '#10b981', bg: dark ? 'rgba(16,185,129,0.15)' : '#dcfce7' } : avg >= 50 ? { text: '#6366f1', bg: dark ? 'rgba(99,102,241,0.15)' : '#ede9fe' } : { text: '#f43f5e', bg: dark ? 'rgba(244,63,94,0.15)' : '#ffe4e6' };
                 return (
                   <tr key={s.id} className="border-t border-gray-50 hover:bg-gray-50/60 transition-colors group">
                     <td className="px-4 py-3">
@@ -1861,6 +1856,24 @@ export default function TeacherAnalytics() {
               <p className="text-[11px] text-gray-400 mt-0.5">{filteredResults.length} نتيجة</p>
             </div>
           </div>
+          {filteredResults.length > 0 && (
+            <PrintReportButton
+              title="سجل النتائج"
+              fileName="results_log.pdf"
+              data={filteredResults}
+              columns={[
+                { header: 'الطالب', accessor: 'student_name' },
+                { header: 'كود الطالب', accessor: 'student_username' },
+                { header: 'الاختبار', accessor: 'exam_title' },
+                { header: 'الدرجة', render: (r) => `${r.score} / ${r.total_score}` },
+                { header: 'النسبة', render: (r) => (r.total_score ? Math.round((r.score / r.total_score) * 100) : 0) + '%' },
+                { header: 'الحالة', render: (r) => (r.score >= r.pass_score ? 'ناجح' : 'راسب') },
+                { header: 'صواب', accessor: 'correct_count' },
+                { header: 'خطأ', accessor: 'wrong_count' },
+                { header: 'التاريخ', accessor: 'created_at' },
+              ]}
+            />
+          )}
         </div>
 
         {/* Results Filters */}
@@ -1875,13 +1888,12 @@ export default function TeacherAnalytics() {
             className="py-2 px-3 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600 focus:outline-none focus:border-orange-300 transition">
             {examOptions.map(o => <option key={o} value={o}>{o}</option>)}
           </select>
-          {['الكل','ناجح','راسب'].map(s => (
+          {['الكل', 'ناجح', 'راسب'].map(s => (
             <button key={s} onClick={() => setResultsStatus(s)}
-              className={`px-3 py-2 rounded-lg text-xs font-bold transition-all ${
-                resultsStatus === s
+              className={`px-3 py-2 rounded-lg text-xs font-bold transition-all ${resultsStatus === s
                   ? s === 'ناجح' ? 'bg-emerald-500 text-white' : s === 'راسب' ? 'bg-rose-500 text-white' : 'bg-gray-700 text-white'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}>{s}</button>
+                }`}>{s}</button>
           ))}
         </div>
 
