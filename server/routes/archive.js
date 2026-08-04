@@ -471,12 +471,10 @@ router.get('/filters', requireRole('teacher', 'assistant'), checkAnyPerm, async 
              WHEN 'الصف الأول الإعدادي'               THEN 1
              WHEN 'الصف الثاني الإعدادي'               THEN 2
              WHEN 'الصف الثالث الإعدادي'               THEN 3
-             WHEN 'الصف الأول الثانوي'                 THEN 4
-             WHEN 'الصف الأول الثانوي عام'             THEN 5
-             WHEN 'الصف الأول الثانوي بكالوريا'        THEN 6
-             WHEN 'الصف الثاني الثانوي'                THEN 7
-             WHEN 'الصف الثاني الثانوي عام'            THEN 8
-             WHEN 'الصف الثاني الثانوي بكالوريا'       THEN 9
+             WHEN 'الصف الأول الثانوي عام'             THEN 4
+             WHEN 'الصف الأول الثانوي بكالوريا'        THEN 5
+             WHEN 'الصف الثاني الثانوي عام'            THEN 6
+             WHEN 'الصف الثاني الثانوي بكالوريا'       THEN 7
              WHEN 'الصف الثالث الثانوي'                THEN 10
              ELSE 99
            END ASC, academic_stage ASC`,

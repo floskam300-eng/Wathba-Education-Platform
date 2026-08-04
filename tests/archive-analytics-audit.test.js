@@ -201,7 +201,7 @@ async function setup() {
   const rRes = await pool.query(
     `INSERT INTO recitations (title, teacher_id, total_score, is_published, academic_stage)
      VALUES ($1, $2, 10, true, $3) RETURNING id`,
-    ['Test Recitation', T.teacherId, 'الصف الأول الثانوي']
+    ['Test Recitation', T.teacherId, 'الصف الأول الثانوي عام']
   );
   T.recitationId = rRes.rows[0].id;
 

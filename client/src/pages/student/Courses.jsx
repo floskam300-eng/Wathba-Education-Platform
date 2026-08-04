@@ -15,8 +15,6 @@ const STAGE_COLORS = {
   'الصف الأول الثانوي بكالوريا': 'bg-sky-50 text-sky-700 border-sky-200',
   'الصف الثاني الثانوي عام': 'bg-indigo-50 text-indigo-700 border-indigo-200',
   'الصف الثاني الثانوي بكالوريا': 'bg-violet-50 text-violet-700 border-violet-200',
-  'الصف الأول الثانوي': 'bg-blue-50 text-blue-700 border-blue-200',
-  'الصف الثاني الثانوي': 'bg-indigo-50 text-indigo-700 border-indigo-200',
   'الصف الثالث الثانوي': 'bg-purple-50 text-purple-700 border-purple-200',
   'الصف الأول الإعدادي': 'bg-green-50 text-green-700 border-green-200',
   'الصف الثاني الإعدادي': 'bg-teal-50 text-teal-700 border-teal-200',

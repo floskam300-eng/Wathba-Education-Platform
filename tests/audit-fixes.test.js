@@ -226,7 +226,7 @@ async function runTests() {
     // 2. Create first student (should succeed, count = 1)
     const st1 = await request('POST', '/api/students', {
       name: 'First Student',
-      academic_stage: 'الصف الأول الثانوي',
+      academic_stage: 'الصف الأول الثانوي عام',
       gender: 'ذكر',
     }, Fixtures.teacherToken, { 'x-tenant-slug': Fixtures.teacherSlug });
     if (st1.status !== 201) {
@@ -237,7 +237,7 @@ async function runTests() {
     // 3. Create second student (should fail with 403 Forbidden because limit is 1)
     const st2 = await request('POST', '/api/students', {
       name: 'Second Student',
-      academic_stage: 'الصف الأول الثانوي',
+      academic_stage: 'الصف الأول الثانوي عام',
       gender: 'ذكر',
     }, Fixtures.teacherToken, { 'x-tenant-slug': Fixtures.teacherSlug });
     assertEqual(st2.status, 403, 'Should reject student creation over subscription limit');
