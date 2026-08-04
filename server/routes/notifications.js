@@ -7,6 +7,15 @@ const { sendFCMToStudents } = require('../lib/fcm');
 const { getPermissions } = require('../lib/permissionsCache');
 const { logActivity, getActor, getIp } = require('../lib/activityLog');
 
+// ── Delay helper for staggered SSE delivery ──────────────────────────────────
+// A short pause between SSE pushes prevents event-loop saturation when sending
+// to thousands of students at once. 50 ms per student gives ~25 seconds total
+// for 500 students — well within acceptable background processing time.
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Chunk size: send N SSE events, then yield to the event-loop
+const SSE_CHUNK_SIZE = 50;
+const SSE_CHUNK_DELAY_MS = 100;
+
 const router = express.Router();
 router.use(authenticate);
 
@@ -132,31 +141,44 @@ router.post('/platform', requireRole('teacher', 'assistant'), checkNotifPermissi
       [teacherId, validIds, personalMsgs, type, resolvedTitle]
     );
 
-    // Push real-time SSE events
-    for (const row of insertRes.rows) {
-      sendEvent(`student_${row.student_id}`, 'platform_notification', {
-        id:      row.id,
-        title:   resolvedTitle,
-        message: row.message,
-        type,
-        sent_at: row.sent_at,
-      });
-    }
+    // Respond immediately — SSE delivery happens in background to avoid
+    // holding the HTTP connection open for large recipient lists.
+    res.status(201).json({ sent: validIds.length });
 
-    const fcmBody = message.replace(/\{name\}/g, '').replace(/\s+/g, ' ').trim();
-    sendFCMToStudents(pool, validIds, resolvedTitle, fcmBody, { type }).catch(err =>
-      console.error('[FCM] platform notification send error:', err.message)
-    );
     logActivity({
       teacherId, actor: getActor(req), ip: getIp(req),
       action: 'send_notification',
       entity: { type: 'notification' },
       details: { type, title: resolvedTitle, recipients: validIds.length },
     });
-    res.status(201).json({ sent: validIds.length });
+
+    const fcmBody = message.replace(/\{name\}/g, '').replace(/\s+/g, ' ').trim();
+    sendFCMToStudents(pool, validIds, resolvedTitle, fcmBody, { type }).catch(err =>
+      console.error('[FCM] platform notification send error:', err.message)
+    );
+
+    // Push real-time SSE events in chunks with a small delay between chunks
+    // to prevent event-loop starvation when sending to thousands of students.
+    setImmediate(async () => {
+      const rows = insertRes.rows;
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        sendEvent(`student_${row.student_id}`, 'platform_notification', {
+          id:      row.id,
+          title:   resolvedTitle,
+          message: row.message,
+          type,
+          sent_at: row.sent_at,
+        });
+        // Yield every SSE_CHUNK_SIZE events to keep the event-loop responsive
+        if ((i + 1) % SSE_CHUNK_SIZE === 0) {
+          await sleep(SSE_CHUNK_DELAY_MS);
+        }
+      }
+    });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Server error' });
+    if (!res.headersSent) res.status(500).json({ error: 'Server error' });
   }
 });
 
@@ -166,16 +188,32 @@ router.post('/platform', requireRole('teacher', 'assistant'), checkNotifPermissi
 // can_send_notifications.
 router.get('/log', requireRole('teacher', 'assistant'), checkNotifPermission, async (req, res) => {
   const teacherId = getTeacherId(req);
+  const pageNum  = Math.max(1, parseInt(req.query.page,  10) || 1);
+  const limitNum = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
+  const offset   = (pageNum - 1) * limitNum;
   try {
-    const result = await pool.query(
-      `SELECT nl.id, nl.recipient_phone, nl.recipient_type, nl.message, nl.sent_at, nl.type, nl.is_read, nl.source, nl.title, s.name as student_name
-       FROM notification_log nl
-       LEFT JOIN students s ON nl.student_id = s.id
-       WHERE nl.teacher_id = $1
-       ORDER BY nl.sent_at DESC LIMIT 100`,
-      [teacherId]
-    );
-    res.json(result.rows);
+    const [countQ, dataQ] = await Promise.all([
+      pool.query(
+        `SELECT COUNT(*) AS total FROM notification_log WHERE teacher_id = $1`,
+        [teacherId]
+      ),
+      pool.query(
+        `SELECT nl.id, nl.recipient_phone, nl.recipient_type, nl.message, nl.sent_at,
+                nl.type, nl.is_read, nl.source, nl.title, s.name as student_name
+         FROM notification_log nl
+         LEFT JOIN students s ON nl.student_id = s.id
+         WHERE nl.teacher_id = $1
+         ORDER BY nl.sent_at DESC
+         LIMIT $2 OFFSET $3`,
+        [teacherId, limitNum, offset]
+      ),
+    ]);
+    res.json({
+      total: parseInt(countQ.rows[0].total, 10),
+      page:  pageNum,
+      limit: limitNum,
+      logs:  dataQ.rows,
+    });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }

@@ -461,10 +461,25 @@ router.get('/filters', requireRole('teacher', 'assistant'), checkAnyPerm, async 
         `SELECT id, title FROM recitations WHERE teacher_id=$1 AND deleted_at IS NULL ORDER BY title`,
         [teacherId]
       ),
+      // ORDER stages logically: إعدادي first (1st→2nd→3rd), then ثانوي (1st→2nd→3rd),
+      // with عام before بكالوريا within the same year, using a CASE sort key.
       pool.query(
         `SELECT DISTINCT academic_stage FROM students
          WHERE teacher_id=$1 AND deleted_at IS NULL AND academic_stage IS NOT NULL
-         ORDER BY academic_stage`,
+         ORDER BY
+           CASE academic_stage
+             WHEN 'الصف الأول الإعدادي'               THEN 1
+             WHEN 'الصف الثاني الإعدادي'               THEN 2
+             WHEN 'الصف الثالث الإعدادي'               THEN 3
+             WHEN 'الصف الأول الثانوي'                 THEN 4
+             WHEN 'الصف الأول الثانوي عام'             THEN 5
+             WHEN 'الصف الأول الثانوي بكالوريا'        THEN 6
+             WHEN 'الصف الثاني الثانوي'                THEN 7
+             WHEN 'الصف الثاني الثانوي عام'            THEN 8
+             WHEN 'الصف الثاني الثانوي بكالوريا'       THEN 9
+             WHEN 'الصف الثالث الثانوي'                THEN 10
+             ELSE 99
+           END ASC, academic_stage ASC`,
         [teacherId]
       ),
     ]);

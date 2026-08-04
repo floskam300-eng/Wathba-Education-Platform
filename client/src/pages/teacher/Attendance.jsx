@@ -1,11 +1,15 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Users, Video, CheckCircle2, Circle, XCircle, BookOpen, Download, Info } from 'lucide-react';
+import {
+  Users, Video, CheckCircle2, Circle, XCircle, BookOpen, Download, Info,
+  Search, ChevronLeft, ChevronRight,
+} from 'lucide-react';
 import api from '../../lib/api';
 import { useTheme } from '../../context/ThemeContext';
 
 const PRESENT_THRESHOLD = 70;
 const PARTIAL_THRESHOLD = 20;
+const STUDENTS_PER_PAGE = 25;
 
 /**
  * الحساب الصحيح لنسبة المشاهدة الفعلية لفيديو واحد.
@@ -42,6 +46,8 @@ const StatusIcon = ({ status }) => {
 export default function Attendance() {
   const { dark } = useTheme();
   const [selectedCourse, setSelectedCourse] = useState('');
+  const [searchQ, setSearchQ] = useState('');
+  const [page, setPage] = useState(1);
 
   const { data: courses, isLoading: loadingCourses } = useQuery({
     queryKey: ['courses-list'],
@@ -63,8 +69,6 @@ export default function Attendance() {
 
   /**
    * متوسط نسبة المشاهدة الفعلية للطالب على كل فيديوهات الكورس.
-   * المتوسط المُرجَّح يعطي نتيجة أدق من العدّ الثنائي (حاضر/غائب فقط).
-   * مثال: طالب شاهد 10 فيديوهات كلها بنسبة 65% يظهر 65% (لا 0%).
    */
   const getStudentAttendancePct = (studentId) => {
     if (!attendance?.videos?.length) return 0;
@@ -75,7 +79,7 @@ export default function Attendance() {
     return Math.round(total / attendance.videos.length);
   };
 
-  /* إحصائيات الصف: متوسط حضور جميع الطلاب */
+  /* إحصائيات الصف (على كل الطلاب، مش الصفحة الحالية) */
   const avgAttendance = useMemo(() => {
     if (!attendance?.students?.length) return 0;
     const sum = attendance.students.reduce((s, st) => s + getStudentAttendancePct(st.id), 0);
@@ -83,12 +87,28 @@ export default function Attendance() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attendance, durMap]);
 
-  /* كم طالب حضور فعلي ≥70% في أكثر من نصف الفيديوهات */
   const fullyPresentCount = useMemo(() => {
     if (!attendance?.students?.length) return 0;
     return attendance.students.filter(st => getStudentAttendancePct(st.id) >= PRESENT_THRESHOLD).length;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attendance, durMap]);
+
+  /* فلترة الطلاب بالبحث + pagination */
+  const filteredStudents = useMemo(() => {
+    if (!attendance?.students) return [];
+    const q = searchQ.trim().toLowerCase();
+    if (!q) return attendance.students;
+    return attendance.students.filter(s =>
+      s.name?.toLowerCase().includes(q) || s.username?.toLowerCase().includes(q)
+    );
+  }, [attendance?.students, searchQ]);
+
+  const totalPages   = Math.ceil(filteredStudents.length / STUDENTS_PER_PAGE) || 1;
+  const pagedStudents = filteredStudents.slice((page - 1) * STUDENTS_PER_PAGE, page * STUDENTS_PER_PAGE);
+
+  // Reset page on course change or search
+  const handleCourseChange = (val) => { setSelectedCourse(val); setPage(1); setSearchQ(''); };
+  const handleSearch = (val) => { setSearchQ(val); setPage(1); };
 
   const exportCSV = () => {
     if (!attendance) return;
@@ -142,7 +162,7 @@ export default function Attendance() {
         ) : (
           <select
             value={selectedCourse}
-            onChange={e => setSelectedCourse(e.target.value)}
+            onChange={e => handleCourseChange(e.target.value)}
             className="input-field"
           >
             <option value="">— اختر كورساً —</option>
@@ -174,7 +194,7 @@ export default function Attendance() {
 
       {attendance && !loadingAttendance && (
         <>
-          {/* ── الإحصائيات الإجمالية ── */}
+          {/* ── الإحصائيات الإجمالية (كل الطلاب — ليس الصفحة الحالية) ── */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
             <div className="card text-center !p-3 sm:!p-4 bg-navy-50">
               <p className="text-xl sm:text-2xl font-black text-navy-700">{attendance.students.length}</p>
@@ -194,7 +214,7 @@ export default function Attendance() {
             </div>
           </div>
 
-          {/* ── مفتاح الألوان + ملاحظة المنهجية ── */}
+          {/* ── مفتاح الألوان ── */}
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
             <span className="flex items-center gap-1.5 text-xs font-semibold text-green-700">
               <CheckCircle2 className="w-4 h-4" /> حاضر (≥{PRESENT_THRESHOLD}% مشاهدة فعلية)
@@ -223,6 +243,30 @@ export default function Attendance() {
             </div>
           ) : (
             <div className="card !p-0 overflow-hidden">
+              {/* ── شريط البحث والمعلومات ── */}
+              <div className={`flex items-center gap-3 px-4 py-3 border-b ${dark ? 'border-[var(--dk-border)]' : 'border-gray-100'}`}>
+                <div className="relative flex-1 max-w-xs">
+                  <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                  <input
+                    type="text"
+                    value={searchQ}
+                    onChange={e => handleSearch(e.target.value)}
+                    placeholder="بحث باسم الطالب..."
+                    className={`w-full pr-9 pl-3 py-2 text-xs rounded-xl border focus:outline-none focus:ring-2 focus:ring-orange-400 ${
+                      dark
+                        ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text-1)] placeholder-gray-500'
+                        : 'bg-white border-gray-200 text-gray-800 placeholder-gray-400'
+                    }`}
+                  />
+                </div>
+                <p className={`text-xs font-medium ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-500'}`}>
+                  {filteredStudents.length !== attendance.students.length
+                    ? `${filteredStudents.length} من ${attendance.students.length} طالب`
+                    : `${attendance.students.length} طالب`}
+                  {totalPages > 1 && ` — صفحة ${page} من ${totalPages}`}
+                </p>
+              </div>
+
               <p className="text-[10px] text-gray-400 font-semibold px-4 pt-2 text-center sm:hidden">
                 ← اسحب للجانب لرؤية كل الفيديوهات →
               </p>
@@ -250,7 +294,7 @@ export default function Attendance() {
                     </tr>
                   </thead>
                   <tbody>
-                    {attendance.students.map((student, idx) => {
+                    {pagedStudents.map((student, idx) => {
                       const avgPct = getStudentAttendancePct(student.id);
                       const overallStatus = getStatus(avgPct);
                       return (
@@ -325,6 +369,48 @@ export default function Attendance() {
                   </tbody>
                 </table>
               </div>
+
+              {/* ── Pagination ── */}
+              {totalPages > 1 && (
+                <div className={`flex items-center justify-between px-5 py-4 border-t ${dark ? 'border-[var(--dk-border)]' : 'border-gray-100'}`}>
+                  <p className={`text-xs ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-500'}`}>
+                    صفحة {page} من {totalPages} ({filteredStudents.length} طالب)
+                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => setPage(p => Math.max(1, p - 1))}
+                      disabled={page <= 1}
+                      className={`p-1.5 rounded-lg transition-colors disabled:opacity-40 ${dark ? 'hover:bg-[var(--dk-elevated)] text-[var(--dk-text-1)]' : 'hover:bg-gray-100 text-gray-600'}`}
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      const pg = page <= 3 ? i + 1 : page + i - 2;
+                      if (pg < 1 || pg > totalPages) return null;
+                      return (
+                        <button
+                          key={pg}
+                          onClick={() => setPage(pg)}
+                          className={`w-8 h-8 rounded-lg text-xs font-bold transition-colors ${
+                            pg === page
+                              ? 'bg-orange-500 text-white shadow-sm'
+                              : (dark ? 'hover:bg-[var(--dk-elevated)] text-[var(--dk-text-1)]' : 'hover:bg-gray-100 text-gray-600')
+                          }`}
+                        >
+                          {pg}
+                        </button>
+                      );
+                    })}
+                    <button
+                      onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                      disabled={page >= totalPages}
+                      className={`p-1.5 rounded-lg transition-colors disabled:opacity-40 ${dark ? 'hover:bg-[var(--dk-elevated)] text-[var(--dk-text-1)]' : 'hover:bg-gray-100 text-gray-600'}`}
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </>

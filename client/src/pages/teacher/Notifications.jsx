@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   MessageCircle, Clock, Users, Search,
   ChevronDown, GraduationCap, Filter, Bell, CheckCircle, Megaphone,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
@@ -32,11 +33,63 @@ const PLATFORM_TEMPLATES = [
 const fmtDate = (d) =>
   new Date(d).toLocaleDateString('ar-EG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
+const STUDENTS_PER_PAGE = 20;
+const LOG_PER_PAGE = 20;
+
+// ── Pagination Controls ─────────────────────────────────────────────────────
+function PaginationBar({ page, totalPages, onPageChange }) {
+  if (totalPages <= 1) return null;
+  const pages = [];
+  const start = Math.max(1, page - 2);
+  const end   = Math.min(totalPages, start + 4);
+  for (let i = start; i <= end; i++) pages.push(i);
+
+  return (
+    <div className="flex items-center justify-center gap-1 pt-2 pb-1">
+      <button
+        onClick={() => onPageChange(page - 1)}
+        disabled={page <= 1}
+        className="p-1.5 rounded-lg disabled:opacity-30 hover:bg-gray-100 transition-colors"
+      >
+        <ChevronRight className="w-3.5 h-3.5 text-gray-600" />
+      </button>
+      {pages.map(pg => (
+        <button
+          key={pg}
+          onClick={() => onPageChange(pg)}
+          className={`w-7 h-7 rounded-lg text-xs font-bold transition-all ${
+            pg === page ? 'bg-orange-500 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          {pg}
+        </button>
+      ))}
+      <button
+        onClick={() => onPageChange(page + 1)}
+        disabled={page >= totalPages}
+        className="p-1.5 rounded-lg disabled:opacity-30 hover:bg-gray-100 transition-colors"
+      >
+        <ChevronLeft className="w-3.5 h-3.5 text-gray-600" />
+      </button>
+    </div>
+  );
+}
+
+// ── StudentPicker (with client-side pagination) ─────────────────────────────
 function StudentPicker({
   search = '', setSearch, stageFilter = 'الكل', setStageFilter,
   selectedStudents = [], setSelectedStudents, students = [], filtered = [],
   stages = [], selectAll, selectStageAll, toggleStudent,
 }) {
+  const [page, setPage] = useState(1);
+
+  // Reset to page 1 whenever search or stage filter changes
+  const handleSearch = (val) => { setSearch(val); setPage(1); };
+  const handleStage  = (stage) => { setStageFilter(stage); setPage(1); };
+
+  const totalPages  = Math.ceil(filtered.length / STUDENTS_PER_PAGE);
+  const paginated   = filtered.slice((page - 1) * STUDENTS_PER_PAGE, page * STUDENTS_PER_PAGE);
+
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
       <div className="p-4 border-b border-slate-100 space-y-3">
@@ -58,7 +111,7 @@ function StudentPicker({
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={e => handleSearch(e.target.value)}
             className="input-field pr-9 text-sm"
             placeholder="بحث باسم الطالب..."
           />
@@ -76,7 +129,7 @@ function StudentPicker({
                 return (
                   <button
                     key={stage}
-                    onClick={() => stage !== 'الكل' ? selectStageAll(stage) : (setStageFilter('الكل'), setSelectedStudents([]))}
+                    onClick={() => stage !== 'الكل' ? (selectStageAll(stage), setPage(1)) : (handleStage('الكل'), setSelectedStudents([]))}
                     className={`flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full transition-all border ${isActive ? 'bg-navy-600 text-white border-navy-600' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'}`}
                   >
                     {stage !== 'الكل' && <GraduationCap className="w-3 h-3" />}
@@ -88,11 +141,18 @@ function StudentPicker({
             </div>
           </div>
         )}
+
+        {/* نص إجمالي */}
+        <p className="text-[10px] text-gray-400">
+          عرض {paginated.length} من {filtered.length} طالب
+          {totalPages > 1 && ` — صفحة ${page} من ${totalPages}`}
+        </p>
       </div>
-      <div className="overflow-y-auto max-h-80 divide-y divide-slate-100">
+
+      <div className="divide-y divide-slate-100">
         {filtered.length === 0 ? (
           <p className="text-center text-gray-400 py-8 text-sm">لا توجد نتائج</p>
-        ) : filtered.map(s => {
+        ) : paginated.map(s => {
           const selected = selectedStudents.includes(s.id);
           return (
             <label key={s.id} className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-all ${selected ? 'bg-orange-50' : 'hover:bg-gray-50'}`}>
@@ -106,10 +166,18 @@ function StudentPicker({
           );
         })}
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="border-t border-slate-100 px-4">
+          <PaginationBar page={page} totalPages={totalPages} onPageChange={setPage} />
+        </div>
+      )}
     </div>
   );
 }
 
+// ── Main Component ──────────────────────────────────────────────────────────
 export default function Notifications() {
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
@@ -121,21 +189,32 @@ export default function Notifications() {
   const [platformType, setPlatformType] = useState('general');
   const [platformTemplateOpen, setPlatformTemplateOpen] = useState(false);
 
+  // Pagination state for history log
+  const [logPage, setLogPage] = useState(1);
+
   const { data: students = [] } = useQuery({
     queryKey: ['notif-students'],
     queryFn: () => api.get('/notifications/students').then(r => r.data),
   });
 
-  const { data: logs = [] } = useQuery({
-    queryKey: ['notif-logs'],
-    queryFn: () => api.get('/notifications/log').then(r => r.data),
+  const { data: logsData } = useQuery({
+    queryKey: ['notif-logs', logPage],
+    queryFn: () => api.get('/notifications/log', { params: { page: logPage, limit: LOG_PER_PAGE } }).then(r => r.data),
     enabled: tab === 'history',
+    keepPreviousData: true,
   });
+
+  const logs       = logsData?.logs   || logsData || [];
+  const logTotal   = logsData?.total  ?? (Array.isArray(logsData) ? logsData.length : 0);
+  const logPages   = Math.ceil(logTotal / LOG_PER_PAGE) || 1;
+  // backward-compat: if server returns plain array (old API), use it directly
+  const logItems   = Array.isArray(logsData) ? logsData : (logsData?.logs || []);
 
   const platformMut = useMutation({
     mutationFn: (data) => api.post('/notifications/platform', data),
     onSuccess: (res) => {
       qc.invalidateQueries(['notif-logs']);
+      setLogPage(1);
       toast.success(`تم إرسال الإشعار لـ ${res.data.sent} طالب بنجاح ✅`);
       setSelectedStudents([]);
       setMessage('');
@@ -262,6 +341,14 @@ export default function Notifications() {
               )}
             </div>
 
+            {/* Delay notice for large sends */}
+            {selectedStudents.length > 50 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800">
+                <p className="font-bold mb-0.5">⏱ إرسال تدريجي</p>
+                <p>سيتم إرسال الإشعارات لـ {selectedStudents.length} طالب بشكل تدريجي لضمان استقرار السيرفر. ستصل جميعاً خلال ثوانٍ.</p>
+              </div>
+            )}
+
             <button onClick={sendPlatform} disabled={platformMut.isPending}
               className="w-full btn-primary flex items-center justify-center gap-2 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60">
               {platformMut.isPending ? (
@@ -279,38 +366,82 @@ export default function Notifications() {
 
       {tab === 'history' && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="p-4 border-b border-slate-100">
+          <div className="p-4 border-b border-slate-100 flex items-center justify-between">
             <h2 className="font-black text-navy-600 flex items-center gap-2">
               <Clock className="w-4 h-4 text-gray-500" /> سجل الإشعارات المرسلة
             </h2>
+            {logTotal > 0 && (
+              <span className="text-xs text-gray-400 font-medium">{logTotal} إشعار</span>
+            )}
           </div>
-          {logs.length === 0 ? (
+
+          {logItems.length === 0 ? (
             <div className="text-center py-12">
               <Bell className="w-12 h-12 mx-auto text-gray-300 mb-3" />
               <p className="text-gray-500 font-medium">لم يتم إرسال أي إشعارات بعد</p>
             </div>
           ) : (
-            <div className="divide-y divide-slate-100">
-              {logs.map(log => (
-                <div key={log.id} className="px-5 py-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <span className="font-bold text-navy-700 text-sm">{log.student_name || 'طالب'}</span>
-                        <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-indigo-100 text-indigo-700">
-                          🔔 إشعار داخلي
-                        </span>
-                        {log.title && (
-                          <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-purple-100 text-purple-700">{log.title}</span>
-                        )}
+            <>
+              <div className="divide-y divide-slate-100">
+                {logItems.map(log => (
+                  <div key={log.id} className="px-5 py-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <span className="font-bold text-navy-700 text-sm">{log.student_name || 'طالب'}</span>
+                          <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-indigo-100 text-indigo-700">
+                            🔔 إشعار داخلي
+                          </span>
+                          {log.title && (
+                            <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-purple-100 text-purple-700">{log.title}</span>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-600 line-clamp-2">{log.message}</p>
                       </div>
-                      <p className="text-sm text-gray-600 line-clamp-2">{log.message}</p>
+                      <p className="text-xs text-gray-400 flex-shrink-0 whitespace-nowrap">{fmtDate(log.sent_at)}</p>
                     </div>
-                    <p className="text-xs text-gray-400 flex-shrink-0 whitespace-nowrap">{fmtDate(log.sent_at)}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Log Pagination */}
+              {logPages > 1 && (
+                <div className="border-t border-slate-100 px-5 py-3 flex items-center justify-between">
+                  <p className="text-xs text-gray-400">صفحة {logPage} من {logPages}</p>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setLogPage(p => Math.max(1, p - 1))}
+                      disabled={logPage <= 1}
+                      className="p-1.5 rounded-lg disabled:opacity-30 hover:bg-gray-100 transition-colors"
+                    >
+                      <ChevronRight className="w-4 h-4 text-gray-600" />
+                    </button>
+                    {Array.from({ length: Math.min(5, logPages) }, (_, i) => {
+                      const pg = logPage <= 3 ? i + 1 : logPage + i - 2;
+                      if (pg < 1 || pg > logPages) return null;
+                      return (
+                        <button
+                          key={pg}
+                          onClick={() => setLogPage(pg)}
+                          className={`w-8 h-8 rounded-lg text-xs font-bold transition-colors ${
+                            pg === logPage ? 'bg-indigo-500 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'
+                          }`}
+                        >
+                          {pg}
+                        </button>
+                      );
+                    })}
+                    <button
+                      onClick={() => setLogPage(p => Math.min(logPages, p + 1))}
+                      disabled={logPage >= logPages}
+                      className="p-1.5 rounded-lg disabled:opacity-30 hover:bg-gray-100 transition-colors"
+                    >
+                      <ChevronLeft className="w-4 h-4 text-gray-600" />
+                    </button>
                   </div>
                 </div>
-              ))}
-            </div>
+              )}
+            </>
           )}
         </div>
       )}
