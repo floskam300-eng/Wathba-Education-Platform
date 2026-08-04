@@ -251,8 +251,8 @@ router.post('/', addStudentLimiter, requireRole('teacher', 'assistant'), (req, r
   if (isManualMode) {
     if (!manualUsername || !String(manualUsername).trim())
       return res.status(400).json({ error: 'اسم المستخدم مطلوب في وضع الإدخال اليدوي' });
-    if (!manualPassword || String(manualPassword).length < 6)
-      return res.status(400).json({ error: 'كلمة المرور مطلوبة ويجب أن تكون 6 أحرف على الأقل' });
+    if (!manualPassword || String(manualPassword).length < 5)
+      return res.status(400).json({ error: 'كلمة المرور مطلوبة ويجب أن تكون 5 أحرف على الأقل' });
   }
 
   // Password: manual or auto-generated

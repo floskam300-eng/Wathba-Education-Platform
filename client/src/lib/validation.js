@@ -33,7 +33,7 @@ export function validateUsername(username) {
 
 export function validatePassword(password, required = true) {
   if (!password || !password.trim()) return required ? 'كلمة المرور مطلوبة' : null;
-  if (password.length < 6) return 'كلمة المرور يجب أن تكون 6 أحرف على الأقل';
+  if (password.length < 5) return 'كلمة المرور يجب أن تكون 5 أحرف على الأقل';
   return null;
 }
 

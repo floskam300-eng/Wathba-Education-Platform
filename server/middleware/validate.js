@@ -61,7 +61,7 @@ function validateStudent(req, res, next) {
 
   // password only required on edit when provided
   if (password !== undefined && password !== '') {
-    if (String(password).length < 6) errors.password = 'كلمة المرور يجب أن تكون 6 أحرف على الأقل';
+    if (String(password).length < 5) errors.password = 'كلمة المرور يجب أن تكون 5 أحرف على الأقل';
   }
 
   // Manual credentials (create only — validated when provided)
@@ -74,7 +74,7 @@ function validateStudent(req, res, next) {
     else if (!/^[a-zA-Z0-9_\-.]+$/.test(mu)) errors.manualUsername = 'اسم المستخدم يجب أن يحتوي على أحرف إنجليزية وأرقام والرموز _ - . فقط';
   }
   if (manualPassword !== undefined && manualPassword !== '') {
-    if (String(manualPassword).length < 6) errors.manualPassword = 'كلمة المرور يجب أن تكون 6 أحرف على الأقل';
+    if (String(manualPassword).length < 5) errors.manualPassword = 'كلمة المرور يجب أن تكون 5 أحرف على الأقل';
   }
 
   if (Object.keys(errors).length > 0) return fail(res, errors);

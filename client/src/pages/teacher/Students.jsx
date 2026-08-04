@@ -1592,7 +1592,7 @@ export default function TeacherStudents() {
                       value={form.manualPassword}
                       onChange={e => { setForm({ ...form, manualPassword: e.target.value }); clearError('manualPassword'); }}
                       className={`input-field ${formErrors.manualPassword ? 'border-red-400 focus:ring-red-300' : ''}`}
-                      placeholder="6 أحرف أو أرقام على الأقل"
+                      placeholder="5 أحرف أو أرقام على الأقل"
                       dir="ltr"
                       autoComplete="new-password"
                     />
