@@ -180,6 +180,31 @@ router.get('/parent-lookup', parentLookupLimiter, async (req, res) => {
            AND c.teacher_id = $2`,
         [sid, teacherId]
       ),
+      // Detailed video watching progress per video
+      pool.query(
+        `SELECT vp.video_id, vp.watched_minutes, vp.progress_percentage, vp.last_watched_at, vp.watch_count,
+                v.title AS video_title, v.duration_minutes,
+                c.name AS course_name
+         FROM video_progress vp
+         JOIN videos v ON v.id = vp.video_id
+         JOIN courses c ON c.id = v.course_id
+         WHERE vp.student_id = $1
+           AND c.teacher_id = $2
+         ORDER BY vp.last_watched_at DESC
+         LIMIT 100`,
+        [sid, teacherId]
+      ),
+      // Total published videos in student's enrolled courses
+      pool.query(
+        `SELECT COUNT(v.id) AS total_course_videos
+         FROM student_course_enrollment sce
+         JOIN videos v ON v.course_id = sce.course_id
+         JOIN courses c ON c.id = sce.course_id
+         WHERE sce.student_id = $1
+           AND c.teacher_id = $2
+           AND c.is_published = true`,
+        [sid, teacherId]
+      ),
       // [P-1] Recitation results — missing entirely before this fix
       pool.query(
         `SELECT rr.id, rr.score, rr.correct_count, rr.wrong_count, rr.unanswered_count,
@@ -216,13 +241,16 @@ router.get('/parent-lookup', parentLookupLimiter, async (req, res) => {
       );
     }
 
-    const [coursesRes, examsRes, videoProgressRes, recitationsRes, classAttendanceRes, rankRes] = await Promise.all(queries);
+    const [coursesRes, examsRes, videoProgressRes, videoDetailsRes, totalVideosRes, recitationsRes, classAttendanceRes, rankRes] = await Promise.all(queries);
 
     const rank = cachedRank ?? (() => {
       const r = parseInt(rankRes.rows[0].rank);
       _pubSet(rankCacheKey, r);
       return r;
     })();
+
+    const vpSummary = videoProgressRes.rows[0] || {};
+    vpSummary.total_course_videos = parseInt(totalVideosRes.rows[0]?.total_course_videos || 0);
 
     res.json({
       student: {
@@ -236,7 +264,8 @@ router.get('/parent-lookup', parentLookupLimiter, async (req, res) => {
       courses: coursesRes.rows,
       exam_results: examsRes.rows,
       recitation_results: recitationsRes.rows,
-      video_progress: videoProgressRes.rows[0],
+      video_progress: vpSummary,
+      video_details: videoDetailsRes.rows,
       class_attendance: attendanceEnabled ? classAttendanceRes.rows : null,
       attendance_enabled: attendanceEnabled,
     });
