@@ -1,25 +1,23 @@
 /**
- * SecurePdfViewer — renders PDFs on <canvas> via PDF.js.
+ * SecurePdfViewer — renders PDFs vertically on <canvas> via PDF.js.
  *
- * Security measures:
- *  1. PDF rendered page-by-page to <canvas> — browser never sees a raw PDF
- *     file so its built-in "Save as PDF" / download toolbar never appears.
- *  2. Diagonal watermark (student name + ID) burned into every canvas frame.
- *  3. Right-click disabled on the viewer container.
- *  4. Ctrl+S / Ctrl+P / Ctrl+U keyboard shortcuts blocked.
- *  5. CSS user-select:none + pointer-events:none on the canvas element.
- *  6. No download / open-in-new-tab button is rendered.
- *  7. Loading task cancelled on component unmount (no memory leak).
- *  8. Rendering is blocked until user identity is confirmed (no watermark-less frames).
+ * Key Features & Fixes:
+ *  1. Vertical scroll layout — pages stacked vertically in natural sequence.
+ *  2. Default Fit-to-Width — auto-calculates scale based on device / container width.
+ *  3. Dynamic container resize tracking via ResizeObserver (adapts to phone orientation & window resize).
+ *  4. Pinch-to-zoom & Ctrl+scroll zoom support with manual +/- and "Fit Width" reset.
+ *  5. Diagonal watermark (student name + ID) burned into every canvas frame.
+ *  6. Viewport rendering via IntersectionObserver for instant scrolling & high performance.
+ *  7. Full security: canvas pointer-events:none, user-select:none, no download buttons, key shortcuts blocked.
  */
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import {
-  FileText, ChevronRight, ChevronLeft,
+  FileText, ChevronUp, ChevronDown,
   ZoomIn, ZoomOut, Loader2, AlertTriangle, RefreshCw,
-  Maximize2, Minimize2,
+  Maximize2, Minimize2, Maximize
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { withToken } from '../lib/mediaAccess';
@@ -27,56 +25,199 @@ import { withToken } from '../lib/mediaAccess';
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
 
 /* ─── Constants ─────────────────────────────────────────────── */
-const DEFAULT_SCALE = 1.3;
-const MIN_SCALE     = 0.5;
-const MAX_SCALE     = 3.0;
+const MIN_SCALE = 0.4;
+const MAX_SCALE = 3.0;
 
+/* ─── Sub-component: Single PDF Page Canvas ─────────────────── */
+const PdfPageItem = React.memo(function PdfPageItem({
+  doc,
+  pageNum,
+  scale,
+  watermarkLabel,
+  drawWatermark,
+  defaultAspect = 0.707,
+  defaultWidth = 595,
+  registerRef,
+}) {
+  const containerRef = useRef(null);
+  const canvasRef = useRef(null);
+  const renderTaskRef = useRef(null);
+
+  const [isVisible, setIsVisible] = useState(false);
+  const [isRendering, setIsRendering] = useState(false);
+  const [pageAspect, setPageAspect] = useState(defaultAspect);
+  const [originalWidth, setOriginalWidth] = useState(defaultWidth);
+
+  // Pre-render pages when they approach the viewport (600px margin)
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+        }
+      },
+      {
+        rootMargin: '600px 0px 600px 0px',
+        threshold: 0.01,
+      }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // Render canvas when page becomes visible or scale / doc changes
+  useEffect(() => {
+    if (!doc || !isVisible) return;
+    let cancelled = false;
+
+    const render = async () => {
+      if (renderTaskRef.current) {
+        try { renderTaskRef.current.cancel(); } catch (_) {}
+        renderTaskRef.current = null;
+      }
+
+      setIsRendering(true);
+      try {
+        const page = await doc.getPage(pageNum);
+        if (cancelled) return;
+
+        const unscaledViewport = page.getViewport({ scale: 1.0 });
+        if (unscaledViewport.width && unscaledViewport.height) {
+          setOriginalWidth(unscaledViewport.width);
+          setPageAspect(unscaledViewport.width / unscaledViewport.height);
+        }
+
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const viewport = page.getViewport({ scale: scale * dpr });
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const ctx = canvas.getContext('2d');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+
+        const cssW = Math.round(viewport.width / dpr);
+        const cssH = Math.round(viewport.height / dpr);
+        canvas.style.width = `${cssW}px`;
+        canvas.style.height = `${cssH}px`;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const task = page.render({ canvasContext: ctx, viewport });
+        renderTaskRef.current = task;
+        await task.promise;
+
+        if (cancelled) return;
+        drawWatermark(canvas, watermarkLabel);
+      } catch (err) {
+        if (err?.name !== 'RenderingCancelledException') {
+          console.error(`[SecurePdfViewer] Page ${pageNum} render error`, err);
+        }
+      } finally {
+        if (!cancelled) setIsRendering(false);
+      }
+    };
+
+    render();
+
+    return () => {
+      cancelled = true;
+      if (renderTaskRef.current) {
+        try { renderTaskRef.current.cancel(); } catch (_) {}
+        renderTaskRef.current = null;
+      }
+    };
+  }, [doc, pageNum, scale, isVisible, watermarkLabel, drawWatermark]);
+
+  const cssW = Math.round(originalWidth * scale);
+  const cssH = Math.round(cssW / (pageAspect || 0.707));
+
+  return (
+    <div
+      ref={(el) => {
+        containerRef.current = el;
+        registerRef(pageNum, el);
+      }}
+      data-page={pageNum}
+      className="relative mx-auto my-3 sm:my-5 bg-white dark:bg-gray-800 shadow-md sm:shadow-lg rounded-lg overflow-hidden transition-shadow"
+      style={{
+        width: `${cssW}px`,
+        height: `${cssH}px`,
+      }}
+    >
+      {/* Page number badge */}
+      <div className="absolute top-2 right-2 bg-gray-900/80 backdrop-blur-md text-white text-[11px] font-bold px-2 py-0.5 rounded-full z-10 pointer-events-none select-none">
+        صفحة {pageNum}
+      </div>
+
+      {(!isVisible || isRendering) && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900/50 z-0">
+          <Loader2 className="w-6 h-6 animate-spin text-orange-400 mb-1.5" />
+          <span className="text-xs text-gray-400 font-medium">جاري العرض... ({pageNum})</span>
+        </div>
+      )}
+
+      <canvas
+        ref={canvasRef}
+        className="block w-full h-full shadow-sm rounded-lg"
+        style={{
+          imageRendering: 'auto',
+          pointerEvents: 'none',
+          WebkitUserSelect: 'none',
+          userSelect: 'none',
+        }}
+        draggable={false}
+        onDragStart={(e) => e.preventDefault()}
+      />
+    </div>
+  );
+});
+
+/* ─── Main Component ────────────────────────────────────────── */
 export default function SecurePdfViewer({ pdf }) {
   const { user } = useAuth();
 
-  const [numPages,    setNumPages]    = useState(0);
+  const [numPages, setNumPages] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
-  const [scale,       setScale]       = useState(DEFAULT_SCALE);
-  const [isLoading,   setIsLoading]   = useState(true);
-  const [pageLoading, setPageLoading] = useState(false);
-  const [error,       setError]       = useState(null);
-  const [retryKey,    setRetryKey]    = useState(0);
+  const [pageInputValue, setPageInputValue] = useState('1');
+  const [scale, setScale] = useState(1.0);
+  const [scaleMode, setScaleMode] = useState('fit'); // 'fit' | 'custom'
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [retryKey, setRetryKey] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  const canvasRef          = useRef(null);
-  // Root container ref — used to enter fullscreen so the toolbar + canvas both
-  // expand together and stay usable while studying.
-  const containerRef       = useRef(null);
-  // Ref for the scrollable canvas area — used to attach non-passive wheel/touch
-  // listeners for pinch-to-zoom and Ctrl+scroll zoom.
-  const canvasAreaRef      = useRef(null);
-  const pdfDocRef          = useRef(null);
-  const renderTaskRef      = useRef(null);
-  const loadTaskRef        = useRef(null);
-  const mountedRef         = useRef(true);
-  // [P-2 fix] store latest label in a ref so renderPage never re-creates
-  // just because the user object identity changed.
-  const watermarkLabelRef  = useRef('');
-  // [B-4 fix] keep current page and scale in refs for the watermark re-draw
-  // effect so it always reads the latest values (no stale closure).
-  const currentPageRef     = useRef(1);
-  const scaleRef           = useRef(DEFAULT_SCALE);
+  const containerRef = useRef(null);
+  const canvasAreaRef = useRef(null);
+  const pdfDocRef = useRef(null);
+  const loadTaskRef = useRef(null);
+  const mountedRef = useRef(true);
+  const watermarkLabelRef = useRef('');
+  const scaleRef = useRef(1.0);
+  const scaleModeRef = useRef('fit');
+  const pageWidthRef = useRef(595);
+  const pageRefs = useRef({});
 
   useEffect(() => {
     mountedRef.current = true;
     return () => { mountedRef.current = false; };
   }, []);
 
-  // [P-1 fix] memoize label — recomputes only when name/id actually change
   const watermarkLabel = useMemo(
     () => (user ? `${user.name}   |   #${String(user.id).padStart(6, '0')}` : ''),
-    [user?.name, user?.id],
+    [user?.name, user?.id]
   );
 
-  // Keep the ref in sync with the memoized string
   useEffect(() => {
     watermarkLabelRef.current = watermarkLabel;
   }, [watermarkLabel]);
+
+  useEffect(() => { scaleRef.current = scale; }, [scale]);
+  useEffect(() => { scaleModeRef.current = scaleMode; }, [scaleMode]);
 
   /* ── Watermark ─────────────────────────────────────────────── */
   const drawWatermark = useCallback((canvas, label) => {
@@ -85,17 +226,17 @@ export default function SecurePdfViewer({ pdf }) {
     ctx.save();
 
     const fontSize = Math.max(12, Math.round(canvas.width / 30));
-    ctx.font        = `bold ${fontSize}px Arial, sans-serif`;
-    ctx.fillStyle   = '#1a1a1a';
+    ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+    ctx.fillStyle = '#1a1a1a';
     ctx.globalAlpha = 0.11;
-    ctx.textAlign   = 'center';
+    ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
     ctx.translate(canvas.width / 2, canvas.height / 2);
     ctx.rotate(-Math.PI / 7);
 
-    const stepX  = canvas.width  * 0.55;
-    const stepY  = canvas.height * 0.17;
+    const stepX = canvas.width * 0.55;
+    const stepY = canvas.height * 0.17;
     const startX = -canvas.width * 1.5;
     const startY = -canvas.height * 1.5;
 
@@ -107,88 +248,27 @@ export default function SecurePdfViewer({ pdf }) {
     ctx.restore();
   }, []);
 
-  /* ── Page render ────────────────────────────────────────────── */
-  // [P-2 fix] renderPage reads label from ref — no dependency on watermarkLabel
-  const renderPage = useCallback(async (doc, pageNum, sc) => {
-    if (!doc || !canvasRef.current || !mountedRef.current) return;
+  /* ── Calculate Fit-to-Width Scale ───────────────────────────── */
+  const calculateFitScale = useCallback((pWidth) => {
+    const el = canvasAreaRef.current;
+    if (!el) return 1.0;
+    const containerW = el.clientWidth;
+    // On mobile (<640px): 16px padding (8px per side). Desktop: 32px padding.
+    const padding = containerW < 640 ? 16 : 32;
+    const availableW = Math.max(280, containerW - padding);
+    const targetWidth = pWidth || pageWidthRef.current || 595;
+    const fit = parseFloat((availableW / targetWidth).toFixed(2));
+    return Math.min(MAX_SCALE, Math.max(MIN_SCALE, fit));
+  }, []);
 
-    if (renderTaskRef.current) {
-      try { renderTaskRef.current.cancel(); } catch (_) {}
-      renderTaskRef.current = null;
-    }
-
-    setPageLoading(true);
-    let wasCancelled = false;
-    try {
-      const page = await doc.getPage(pageNum);
-      if (!mountedRef.current) return;
-
-      // Cap DPR to 2.  On high-DPI mobile (DPR=3) at 300% zoom the canvas
-      // would be 595 × 3 × 3 = 5 355 px wide (≈40 MP) — enough to freeze or
-      // OOM the device GPU.  DPR=2 still gives crisp text on retina screens
-      // while capping canvas area to ≈16 MP in the worst case.
-      const dpr      = Math.min(window.devicePixelRatio || 1, 2);
-      const viewport = page.getViewport({ scale: sc * dpr });
-      const canvas   = canvasRef.current;
-      if (!canvas || !mountedRef.current) return;
-
-      const ctx = canvas.getContext('2d');
-      canvas.width  = viewport.width;
-      canvas.height = viewport.height;
-
-      // Set the CSS display size explicitly so that:
-      //  • At ≥ default zoom the page fills the container (no smaller)
-      //  • At higher zoom levels the canvas grows beyond the container
-      //    and becomes scrollable — this is what "zoom in" actually means.
-      // Previously `width: '100%'` in the JSX style forced the canvas to
-      // always stay at container width regardless of zoom, so 300% zoom
-      // looked identical to 100% zoom to the user.
-      const cssW = Math.round(viewport.width  / dpr);
-      const cssH = Math.round(viewport.height / dpr);
-      canvas.style.width     = `${cssW}px`;
-      canvas.style.height    = `${cssH}px`;
-      canvas.style.maxWidth  = '';
-      canvas.style.maxHeight = '';
-
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      const task = page.render({ canvasContext: ctx, viewport });
-      renderTaskRef.current = task;
-      await task.promise;
-
-      if (!mountedRef.current) return;
-      drawWatermark(canvas, watermarkLabelRef.current);
-    } catch (err) {
-      if (err?.name === 'RenderingCancelledException') {
-        wasCancelled = true;
-        return;
-      }
-      console.error('[SecurePdfViewer] render error', err);
-    } finally {
-      if (mountedRef.current && !wasCancelled) setPageLoading(false);
-    }
-  }, [drawWatermark]);
-
-  /* ── Keep currentPage/scale refs in sync with state ─────────── */
-  // [B-4 fix] so the watermark re-draw effect always reads the latest page/zoom
-  useEffect(() => { currentPageRef.current = currentPage; }, [currentPage]);
-  useEffect(() => { scaleRef.current = scale; }, [scale]);
-
-  /* ── PDF load ───────────────────────────────────────────────── */
+  /* ── PDF Load ───────────────────────────────────────────────── */
   useEffect(() => {
-    // [F-1 fix] If there is nothing to load, reset stale state immediately.
-    // Without this, isLoading starts as `true` and stays there forever when
-    // pdf.file_url is absent or user has not loaded yet.
     if (!pdf?.file_url || !user?.id) {
       setIsLoading(false);
       setError(null);
       setNumPages(0);
       setCurrentPage(1);
-      setPageLoading(false);
-      if (renderTaskRef.current) {
-        try { renderTaskRef.current.cancel(); } catch (_) {}
-        renderTaskRef.current = null;
-      }
+      setPageInputValue('1');
       if (pdfDocRef.current) {
         try { pdfDocRef.current.destroy(); } catch (_) {}
         pdfDocRef.current = null;
@@ -197,51 +277,49 @@ export default function SecurePdfViewer({ pdf }) {
     }
 
     let cancelled = false;
-
-    // [B-2 fix] reset ALL loading/navigation state when switching PDFs
     setIsLoading(true);
     setError(null);
     setNumPages(0);
     setCurrentPage(1);
-    setPageLoading(false);    // ← was missing; prevented stale spinner
-    setScale(DEFAULT_SCALE);  // [B-3 fix] reset zoom per-document
+    setPageInputValue('1');
+    pageRefs.current = {};
 
-    if (renderTaskRef.current) {
-      try { renderTaskRef.current.cancel(); } catch (_) {}
-      renderTaskRef.current = null;
-    }
     if (pdfDocRef.current) {
       try { pdfDocRef.current.destroy(); } catch (_) {}
       pdfDocRef.current = null;
     }
 
-    const url  = withToken(pdf.file_url);
-    // cMapUrl + standardFontDataUrl fix Arabic/non-Latin text rendering in PDF.js.
-    // Without cMaps, Arabic characters from embedded fonts appear as garbled symbols.
-    // We serve these assets locally (via Express /pdfjs/*) instead of hitting a CDN,
-    // so there is zero external-network latency before the first page appears.
+    const url = withToken(pdf.file_url);
     const task = pdfjsLib.getDocument({
       url,
       cMapUrl: '/pdfjs/cmaps/',
       cMapPacked: true,
       standardFontDataUrl: '/pdfjs/standard_fonts/',
-      // Some Arabic PDFs (especially exports from older Arabic word processors)
-      // embed fonts whose glyphs get mis-shaped/disconnected when the browser's
-      // native @font-face engine applies its own ligature/shaping rules on top
-      // of glyphs the PDF already positioned explicitly. Disabling @font-face
-      // forces PDF.js to rasterize each glyph itself from the parsed outline
-      // data, which renders the letters exactly as the PDF's content stream
-      // intends (properly joined, correct order) instead of double-shaped.
       disableFontFace: true,
     });
     loadTaskRef.current = task;
 
     task.promise
-      .then((doc) => {
+      .then(async (doc) => {
         if (cancelled) { doc.destroy(); return; }
         pdfDocRef.current = doc;
         setNumPages(doc.numPages);
-        setIsLoading(false);
+
+        // Fetch page 1 dimensions to calculate fit scale
+        try {
+          const page1 = await doc.getPage(1);
+          if (!cancelled) {
+            const vp = page1.getViewport({ scale: 1.0 });
+            pageWidthRef.current = vp.width || 595;
+            const fit = calculateFitScale(vp.width);
+            setScale(fit);
+            setScaleMode('fit');
+          }
+        } catch (_) {
+          if (!cancelled) setScale(1.0);
+        }
+
+        if (!cancelled) setIsLoading(false);
       })
       .catch((err) => {
         if (cancelled) return;
@@ -254,66 +332,66 @@ export default function SecurePdfViewer({ pdf }) {
       cancelled = true;
       try { loadTaskRef.current?.destroy(); } catch (_) {}
       loadTaskRef.current = null;
-      if (renderTaskRef.current) {
-        try { renderTaskRef.current.cancel(); } catch (_) {}
-        renderTaskRef.current = null;
-      }
     };
-  // [B-2 fix] depend on user?.id not the full user object reference
-  }, [pdf?.file_url, pdf?.id, retryKey, user?.id]);
+  }, [pdf?.file_url, pdf?.id, retryKey, user?.id, calculateFitScale]);
 
-  /* ── Re-render page when doc / page / zoom changes ──────────── */
-  // Page changes render immediately; zoom changes are debounced 250 ms so
-  // that tapping the +/- button rapidly (or pinch-settling) doesn't queue
-  // up multiple heavy PDF re-renders before the previous one even finishes.
-  const lastRenderedPage  = useRef(0);
-  const zoomDebounceTimer = useRef(null);
+  /* ── ResizeObserver for Auto-Fit on Container Resize ────────── */
   useEffect(() => {
-    if (isLoading || error || !pdfDocRef.current) return;
+    const el = canvasAreaRef.current;
+    if (!el) return;
 
-    const pageChanged = lastRenderedPage.current !== currentPage;
-    lastRenderedPage.current = currentPage;
-
-    clearTimeout(zoomDebounceTimer.current);
-    if (pageChanged) {
-      // Immediate — don't keep the user waiting when flipping pages.
-      renderPage(pdfDocRef.current, currentPage, scale);
-    } else {
-      // Debounced — scale changed; wait for the user to settle.
-      zoomDebounceTimer.current = setTimeout(() => {
-        if (pdfDocRef.current && mountedRef.current) {
-          renderPage(pdfDocRef.current, currentPage, scale);
+    let resizeTimer = null;
+    const handleResize = () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        if (scaleModeRef.current === 'fit' && pageWidthRef.current) {
+          const fit = calculateFitScale(pageWidthRef.current);
+          setScale(fit);
         }
-      }, 250);
-    }
-    return () => clearTimeout(zoomDebounceTimer.current);
-  }, [currentPage, scale, isLoading, error, renderPage]);
+      }, 100);
+    };
 
-  /* ── Prefetch next page ─────────────────────────────────────── */
-  // After the current page renders, call getPage() for the next page.
-  // PDF.js internally caches parsed page data, so the subsequent render
-  // when the user navigates forward skips the parsing step entirely and
-  // starts painting immediately.
+    const resizeObserver = new ResizeObserver(handleResize);
+    resizeObserver.observe(el);
+
+    return () => {
+      clearTimeout(resizeTimer);
+      resizeObserver.disconnect();
+    };
+  }, [calculateFitScale]);
+
+  /* ── Scroll Tracking to Sync Page Number Indicator ─────────── */
   useEffect(() => {
-    if (isLoading || error || !pdfDocRef.current) return;
-    const nextPageNum = currentPage + 1;
-    if (nextPageNum <= numPages) {
-      pdfDocRef.current.getPage(nextPageNum).catch(() => {});
-    }
-  }, [currentPage, numPages, isLoading, error]);
+    const container = canvasAreaRef.current;
+    if (!container || numPages === 0) return;
 
-  /* ── Re-draw watermark when label changes (user data update) ── */
-  // [B-4 fix] read page/scale from refs so we never have a stale closure —
-  // if the user's name is updated while they're on page 7 at 200% zoom, the
-  // watermark re-draws correctly on page 7 at 200%, not on page 1 at 130%.
-  useEffect(() => {
-    const doc = pdfDocRef.current;
-    if (doc && watermarkLabel) {
-      renderPage(doc, currentPageRef.current, scaleRef.current);
-    }
-  }, [watermarkLabel, renderPage]);
+    const handleScroll = () => {
+      const containerRect = container.getBoundingClientRect();
+      const containerTop = containerRect.top;
 
-  /* ── Block download / print keyboard shortcuts ──────────────── */
+      let closestPage = 1;
+      let minDistance = Infinity;
+
+      for (let p = 1; p <= numPages; p++) {
+        const el = pageRefs.current[p];
+        if (!el) continue;
+        const rect = el.getBoundingClientRect();
+        const dist = Math.abs(rect.top - containerTop);
+        if (dist < minDistance) {
+          minDistance = dist;
+          closestPage = p;
+        }
+      }
+
+      setCurrentPage(closestPage);
+      setPageInputValue(String(closestPage));
+    };
+
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [numPages]);
+
+  /* ── Keyboard Shortcuts Security ───────────────────────────── */
   useEffect(() => {
     const block = (e) => {
       if (
@@ -328,8 +406,7 @@ export default function SecurePdfViewer({ pdf }) {
     return () => window.removeEventListener('keydown', block, { capture: true });
   }, []);
 
-  /* ── Fullscreen ──────────────────────────────────────────────────
-     Keep state in sync when the user exits fullscreen via ESC / browser UI. */
+  /* ── Fullscreen Sync ────────────────────────────────────────── */
   useEffect(() => {
     const onFsChange = () => {
       setIsFullscreen(!!(document.fullscreenElement || document.webkitFullscreenElement));
@@ -345,7 +422,6 @@ export default function SecurePdfViewer({ pdf }) {
   const toggleFullscreen = () => {
     const el = containerRef.current;
     if (!el) return;
-    // If already fullscreen (native or state), exit.
     if (document.fullscreenElement || document.webkitFullscreenElement) {
       try { (document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen)?.call(document); } catch (_) {}
       return;
@@ -356,17 +432,14 @@ export default function SecurePdfViewer({ pdf }) {
     }
   };
 
-  /* ── Pinch-to-zoom (mobile) + Ctrl+scroll (desktop) ────────── */
-  // Listeners are attached directly (non-passive) so we can call
-  // preventDefault() and block the browser's native page-scroll/zoom.
+  /* ── Pinch Zoom & Ctrl+Wheel Zoom ──────────────────────────── */
   useEffect(() => {
     const el = canvasAreaRef.current;
     if (!el) return;
 
-    // --- Pinch tracking (closure variables, reset on every touchstart) ---
-    let pinchStartDist  = null;
+    let pinchStartDist = null;
     let pinchStartScale = null;
-    let pendingScale    = null; // committed on touchend
+    let pendingScale = null;
 
     const getTouchDist = (t) => {
       const dx = t[0].clientX - t[1].clientX;
@@ -376,68 +449,96 @@ export default function SecurePdfViewer({ pdf }) {
 
     const onTouchStart = (e) => {
       if (e.touches.length === 2) {
-        pinchStartDist  = getTouchDist(e.touches);
+        pinchStartDist = getTouchDist(e.touches);
         pinchStartScale = scaleRef.current;
-        pendingScale    = null;
+        pendingScale = null;
       }
     };
 
     const onTouchMove = (e) => {
       if (e.touches.length !== 2 || pinchStartDist === null) return;
-      e.preventDefault(); // stop page zoom/scroll during pinch
+      e.preventDefault();
       const ratio = getTouchDist(e.touches) / pinchStartDist;
       pendingScale = parseFloat(
-        Math.min(MAX_SCALE, Math.max(MIN_SCALE, pinchStartScale * ratio)).toFixed(1)
+        Math.min(MAX_SCALE, Math.max(MIN_SCALE, pinchStartScale * ratio)).toFixed(2)
       );
     };
 
     const onTouchEnd = () => {
-      // Commit the scale only when the user lifts their fingers to avoid
-      // kicking off a heavy PDF re-render on every pixel of movement.
       if (pendingScale !== null) {
+        setScaleMode('custom');
+        scaleModeRef.current = 'custom';
         setScale(pendingScale);
       }
-      pinchStartDist  = null;
+      pinchStartDist = null;
       pinchStartScale = null;
-      pendingScale    = null;
+      pendingScale = null;
     };
 
-    // --- Ctrl+scroll (desktop) ---
     const onWheel = (e) => {
       if (!e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
-      const delta = e.deltaY > 0 ? -0.2 : 0.2;
-      setScale(s => parseFloat(
-        Math.min(MAX_SCALE, Math.max(MIN_SCALE, s + delta)).toFixed(1)
-      ));
+      const delta = e.deltaY > 0 ? -0.15 : 0.15;
+      setScaleMode('custom');
+      scaleModeRef.current = 'custom';
+      setScale(s => parseFloat(Math.min(MAX_SCALE, Math.max(MIN_SCALE, s + delta)).toFixed(2)));
     };
 
-    el.addEventListener('touchstart', onTouchStart, { passive: true  });
-    el.addEventListener('touchmove',  onTouchMove,  { passive: false });
-    el.addEventListener('touchend',   onTouchEnd,   { passive: true  });
-    el.addEventListener('touchcancel',onTouchEnd,   { passive: true  });
-    el.addEventListener('wheel',      onWheel,      { passive: false });
+    el.addEventListener('touchstart', onTouchStart, { passive: true });
+    el.addEventListener('touchmove', onTouchMove, { passive: false });
+    el.addEventListener('touchend', onTouchEnd, { passive: true });
+    el.addEventListener('touchcancel', onTouchEnd, { passive: true });
+    el.addEventListener('wheel', onWheel, { passive: false });
 
     return () => {
-      el.removeEventListener('touchstart',  onTouchStart);
-      el.removeEventListener('touchmove',   onTouchMove);
-      el.removeEventListener('touchend',    onTouchEnd);
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchmove', onTouchMove);
+      el.removeEventListener('touchend', onTouchEnd);
       el.removeEventListener('touchcancel', onTouchEnd);
-      el.removeEventListener('wheel',       onWheel);
+      el.removeEventListener('wheel', onWheel);
     };
-  }, []); // scaleRef always has the latest value — no deps needed
+  }, []);
 
-  /* ── Navigation helpers ─────────────────────────────────────── */
-  const prevPage = () => setCurrentPage(p => Math.max(1, p - 1));
-  const nextPage = () => setCurrentPage(p => Math.min(numPages, p + 1));
-  const zoomIn   = () => setScale(s => Math.min(MAX_SCALE, parseFloat((s + 0.2).toFixed(1))));
-  const zoomOut  = () => setScale(s => Math.max(MIN_SCALE, parseFloat((s - 0.2).toFixed(1))));
-  const retry    = () => { setError(null); setRetryKey(k => k + 1); };
+  /* ── Action Handlers ────────────────────────────────────────── */
+  const scrollToPage = useCallback((pageNum) => {
+    const target = Math.max(1, Math.min(numPages, pageNum));
+    setCurrentPage(target);
+    setPageInputValue(String(target));
+    const el = pageRefs.current[target];
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [numPages]);
 
-  /* ── Empty state ────────────────────────────────────────────── */
+  const handleZoomIn = () => {
+    setScaleMode('custom');
+    scaleModeRef.current = 'custom';
+    setScale(s => Math.min(MAX_SCALE, parseFloat((s + 0.15).toFixed(2))));
+  };
+
+  const handleZoomOut = () => {
+    setScaleMode('custom');
+    scaleModeRef.current = 'custom';
+    setScale(s => Math.max(MIN_SCALE, parseFloat((s - 0.15).toFixed(2))));
+  };
+
+  const handleFitWidth = () => {
+    setScaleMode('fit');
+    scaleModeRef.current = 'fit';
+    const fit = calculateFitScale(pageWidthRef.current);
+    setScale(fit);
+  };
+
+  const registerPageRef = useCallback((pageNum, el) => {
+    if (el) pageRefs.current[pageNum] = el;
+  }, []);
+
+  const retry = () => { setError(null); setRetryKey(k => k + 1); };
+
+  /* ── Empty & Auth States ────────────────────────────────────── */
   if (!pdf) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-gray-50">
+      <div className="w-full h-full flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-center text-gray-400">
           <FileText className="w-20 h-20 mx-auto mb-4 opacity-20" />
           <p className="font-semibold text-lg">اختر ملفاً للعرض</p>
@@ -446,109 +547,143 @@ export default function SecurePdfViewer({ pdf }) {
     );
   }
 
-  // [B-4 fix + B-2 fix] Block rendering until user identity is confirmed
   if (!user?.id) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-gray-50">
+      <div className="w-full h-full flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <Loader2 className="w-10 h-10 animate-spin text-orange-400" />
       </div>
     );
   }
 
-  /* ── Main render ────────────────────────────────────────────── */
+  /* ── Main View ──────────────────────────────────────────────── */
   return (
     <div
       ref={containerRef}
-      className="flex flex-col w-full h-full bg-gray-100 select-none"
+      className="flex flex-col w-full h-full bg-gray-100 dark:bg-gray-900 select-none overflow-hidden"
       onContextMenu={e => e.preventDefault()}
       style={{ WebkitUserSelect: 'none', MozUserSelect: 'none', userSelect: 'none' }}
     >
-      {/* ── Toolbar ── */}
-      <div className="flex-shrink-0 bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-3 flex-wrap">
-        <div className="flex items-center gap-2 min-w-0 flex-1">
+      {/* ── Sticky Control Toolbar ── */}
+      <div className="flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-3 sm:px-4 py-2 flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap shadow-sm z-20">
+        
+        {/* Document Title */}
+        <div className="flex items-center gap-2 min-w-0 max-w-[200px] sm:max-w-xs">
           <FileText className="w-4 h-4 text-orange-500 flex-shrink-0" />
-          <span className="font-bold text-sm text-gray-800 truncate">{pdf.title}</span>
-        </div>
-
-        {/* Zoom controls */}
-        <div className="flex items-center gap-1 bg-gray-100 rounded-lg px-1 py-0.5">
-          <button
-            onClick={zoomOut}
-            disabled={scale <= MIN_SCALE || isLoading}
-            className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-40 transition-colors"
-            title="تصغير"
-            aria-label="تصغير"
-          >
-            <ZoomOut className="w-3.5 h-3.5 text-gray-600" />
-          </button>
-          <span className="text-xs font-bold text-gray-600 w-10 text-center">
-            {Math.round(scale * 100)}%
+          <span className="font-bold text-xs sm:text-sm text-gray-800 dark:text-gray-100 truncate">
+            {pdf.title}
           </span>
-          <button
-            onClick={zoomIn}
-            disabled={scale >= MAX_SCALE || isLoading}
-            className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-40 transition-colors"
-            title="تكبير"
-            aria-label="تكبير"
-          >
-            <ZoomIn className="w-3.5 h-3.5 text-gray-600" />
-          </button>
         </div>
 
-        {/* Page controls */}
-        {numPages > 0 && (
-          <div className="flex items-center gap-1">
+        {/* Center Controls: Page Jumping + Zoom + Fit */}
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+
+          {/* Page Jumper */}
+          {numPages > 0 && (
+            <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg px-1.5 py-0.5">
+              <button
+                onClick={() => scrollToPage(currentPage - 1)}
+                disabled={currentPage <= 1 || isLoading}
+                className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-30 transition-colors"
+                title="الصفحة السابقة (أعلى)"
+                aria-label="الصفحة السابقة"
+              >
+                <ChevronUp className="w-3.5 h-3.5 text-gray-700 dark:text-gray-200" />
+              </button>
+              <div className="flex items-center gap-1 text-xs font-bold text-gray-700 dark:text-gray-200">
+                <input
+                  type="number"
+                  min={1}
+                  max={numPages}
+                  value={pageInputValue}
+                  onChange={(e) => setPageInputValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const p = parseInt(pageInputValue, 10);
+                      if (p >= 1 && p <= numPages) scrollToPage(p);
+                    }
+                  }}
+                  onBlur={() => {
+                    const p = parseInt(pageInputValue, 10);
+                    if (p >= 1 && p <= numPages) scrollToPage(p);
+                    else setPageInputValue(String(currentPage));
+                  }}
+                  className="w-9 text-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded py-0.5 text-xs font-bold text-gray-800 dark:text-gray-100 focus:outline-none focus:border-orange-500"
+                />
+                <span className="whitespace-nowrap">/ {numPages}</span>
+              </div>
+              <button
+                onClick={() => scrollToPage(currentPage + 1)}
+                disabled={currentPage >= numPages || isLoading}
+                className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-30 transition-colors"
+                title="الصفحة التالية (أسفل)"
+                aria-label="الصفحة التالية"
+              >
+                <ChevronDown className="w-3.5 h-3.5 text-gray-700 dark:text-gray-200" />
+              </button>
+            </div>
+          )}
+
+          {/* Zoom Controls */}
+          <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg px-1 py-0.5">
             <button
-              onClick={nextPage}
-              disabled={currentPage >= numPages || pageLoading}
-              className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-40 transition-colors"
-              title="الصفحة التالية"
-              aria-label="الصفحة التالية"
+              onClick={handleZoomOut}
+              disabled={scale <= MIN_SCALE || isLoading}
+              className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-40 transition-colors"
+              title="تصغير"
+              aria-label="تصغير"
             >
-              <ChevronRight className="w-4 h-4 text-gray-600" />
+              <ZoomOut className="w-3.5 h-3.5 text-gray-600 dark:text-gray-200" />
             </button>
-            <span className="text-xs font-bold text-gray-600 whitespace-nowrap px-1">
-              {currentPage} / {numPages}
+            <span className="text-xs font-bold text-gray-600 dark:text-gray-200 w-11 text-center select-none">
+              {Math.round(scale * 100)}%
             </span>
             <button
-              onClick={prevPage}
-              disabled={currentPage <= 1 || pageLoading}
-              className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-40 transition-colors"
-              title="الصفحة السابقة"
-              aria-label="الصفحة السابقة"
+              onClick={handleZoomIn}
+              disabled={scale >= MAX_SCALE || isLoading}
+              className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-40 transition-colors"
+              title="تكبير"
+              aria-label="تكبير"
             >
-              <ChevronLeft className="w-4 h-4 text-gray-600" />
+              <ZoomIn className="w-3.5 h-3.5 text-gray-600 dark:text-gray-200" />
             </button>
           </div>
-        )}
 
-        {/* Fullscreen toggle — lets the student enlarge the page for studying */}
+          {/* Fit Width Button */}
+          <button
+            onClick={handleFitWidth}
+            disabled={isLoading}
+            className={`px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+              scaleMode === 'fit'
+                ? 'bg-orange-500 text-white shadow-sm'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
+            }`}
+            title="احتواء للشاشة (العرض الطبيعي)"
+            aria-label="احتواء للشاشة"
+          >
+            <Maximize className="w-3 h-3" />
+            <span>احتواء الشاشة</span>
+          </button>
+        </div>
+
+        {/* Right Controls: Fullscreen */}
         <button
           onClick={toggleFullscreen}
-          className="p-1.5 rounded hover:bg-gray-200 transition-colors flex-shrink-0"
+          className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-200 transition-colors flex-shrink-0"
           title={isFullscreen ? 'إنهاء الشاشة الكاملة' : 'شاشة كاملة'}
           aria-label={isFullscreen ? 'إنهاء الشاشة الكاملة' : 'شاشة كاملة'}
         >
           {isFullscreen
-            ? <Minimize2 className="w-4 h-4 text-gray-600" />
-            : <Maximize2 className="w-4 h-4 text-gray-600" />}
+            ? <Minimize2 className="w-4 h-4" />
+            : <Maximize2 className="w-4 h-4" />}
         </button>
       </div>
 
-      {/* ── Canvas area ── */}
-      {/*
-        overflow-auto is on this element so zoom-in makes the canvas scrollable.
-        We intentionally do NOT use `flex items-center` here because centering a
-        child that is wider than the container pushes it equally left and right —
-        the left overflow is unreachable (can't scroll past x=0), so the user
-        sees the right half of the page disappear.  Instead we let the wrapper
-        div be exactly as wide as the canvas (`width: fit-content`) and use
-        `mx-auto` to center it when it fits.  When it overflows, scroll starts
-        at x=0 (left edge) and the whole page is reachable.
-      */}
-      <div ref={canvasAreaRef} className="flex-1 overflow-auto py-4 px-2">
-
-        {/* Loading */}
+      {/* ── Scrollable Multi-Page Canvas Area ── */}
+      <div
+        ref={canvasAreaRef}
+        className="flex-1 overflow-auto py-2 sm:py-4 px-2 sm:px-4"
+      >
+        {/* Loading state */}
         {isLoading && (
           <div className="flex flex-col items-center justify-center h-64 gap-3 text-gray-400">
             <Loader2 className="w-10 h-10 animate-spin text-orange-400" />
@@ -563,63 +698,30 @@ export default function SecurePdfViewer({ pdf }) {
             <p className="text-sm font-bold text-red-500">{error}</p>
             <button
               onClick={retry}
-              className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold rounded-xl transition-colors active:scale-95"
-            >
-              <RefreshCw className="w-4 h-4" /> إعادة المحاولة
+              className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold rounded-xl transition-colors active:scale-95 shadow-md"
             </button>
           </div>
         )}
 
-        {/* Canvas (always mounted once loaded, hidden during load/error) */}
-        {!isLoading && !error && (
-          <div className="relative mx-auto" style={{ width: 'fit-content' }}>
-            {pageLoading && (
-              <div className="absolute inset-0 flex items-center justify-center bg-white/50 z-10 rounded">
-                <Loader2 className="w-8 h-8 animate-spin text-orange-400" />
-              </div>
-            )}
-            <canvas
-              ref={canvasRef}
-              className="shadow-xl rounded block"
-              style={{
-                imageRendering: 'auto',
-                pointerEvents: 'none',
-                // width/height are set imperatively in renderPage so that:
-                //  • The canvas grows with zoom (enabling horizontal scroll)
-                //  • Physical pixel size = cssSize × min(DPR, 2) — not more
-                // DO NOT add width/height/maxWidth CSS here; it overrides that.
-              }}
-              draggable={false}
-              onDragStart={e => e.preventDefault()}
-            />
+        {/* Vertical Pages List */}
+        {!isLoading && !error && numPages > 0 && (
+          <div className="flex flex-col items-center min-w-max mx-auto">
+            {Array.from({ length: numPages }, (_, i) => i + 1).map((pNum) => (
+              <PdfPageItem
+                key={pNum}
+                doc={pdfDocRef.current}
+                pageNum={pNum}
+                scale={scale}
+                watermarkLabel={watermarkLabelRef.current}
+                drawWatermark={drawWatermark}
+                defaultWidth={pageWidthRef.current || 595}
+                registerRef={registerPageRef}
+              />
+            ))}
           </div>
         )}
       </div>
-
-      {/* ── Bottom page nav (only for multi-page docs) ── */}
-      {numPages > 1 && (
-        <div className="flex-shrink-0 bg-white border-t border-gray-200 px-4 py-2 flex items-center justify-center gap-3">
-          <button
-            onClick={nextPage}
-            disabled={currentPage >= numPages || pageLoading}
-            aria-label="الصفحة التالية"
-            className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-orange-50 text-orange-600 hover:bg-orange-100 disabled:opacity-40 transition-colors"
-          >
-            التالية <ChevronRight className="w-3.5 h-3.5" />
-          </button>
-          <span className="text-sm font-bold text-gray-500">
-            صفحة {currentPage} من {numPages}
-          </span>
-          <button
-            onClick={prevPage}
-            disabled={currentPage <= 1 || pageLoading}
-            aria-label="الصفحة السابقة"
-            className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-orange-50 text-orange-600 hover:bg-orange-100 disabled:opacity-40 transition-colors"
-          >
-            <ChevronLeft className="w-3.5 h-3.5" /> السابقة
-          </button>
-        </div>
-      )}
     </div>
   );
 }
+
