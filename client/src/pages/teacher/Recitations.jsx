@@ -89,6 +89,11 @@ export default function Recitations() {
     queryFn: () => api.get('/courses').then(r => r.data),
   });
 
+  const filteredCourses = useMemo(() => {
+    if (!form.academic_stage) return courses;
+    return courses.filter(c => !c.target_stage || c.target_stage === form.academic_stage);
+  }, [courses, form.academic_stage]);
+
   const { data: courseVideos = [] } = useQuery({
     queryKey: ['course-videos-for-rec', form.course_id],
     queryFn: () => form.course_id
@@ -393,20 +398,61 @@ export default function Recitations() {
                   className={`w-full rounded-xl px-3 py-2.5 border text-sm resize-none ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`} />
               </div>
 
-              {/* Course + video linking */}
+              {/* Target Stage + Course + Video linking */}
               <div className={`rounded-2xl border p-4 space-y-3 ${dark ? 'border-[var(--dk-border)] bg-[var(--dk-elevated)]' : 'border-purple-100 bg-purple-50/40'}`}>
-                <p className={`text-xs font-black uppercase tracking-wide ${dark ? 'text-purple-400' : 'text-purple-600'}`}>🔗 ربط بكورس وفيديوهات (اختياري)</p>
-                <div>
-                  <label className={`block text-xs font-bold mb-1 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-600'}`}>الكورس</label>
-                  <select
-                    value={form.course_id}
-                    onChange={e => setForm(f => ({ ...f, course_id: e.target.value, video_ids: [] }))}
-                    className={`w-full rounded-xl px-3 py-2 border text-sm ${dark ? 'bg-[var(--dk-surface)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`}
-                  >
-                    <option value="">بدون ربط بكورس</option>
-                    {courses.map(c => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
-                  </select>
+                <p className={`text-xs font-black uppercase tracking-wide ${dark ? 'text-purple-400' : 'text-purple-600'}`}>🎯 النطاق الموجه له التسميع والربط الكورسي</p>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className={`block text-xs font-bold mb-1 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-600'}`}>السنة الدراسية / المرحلة</label>
+                    <select
+                      value={form.academic_stage}
+                      onChange={e => {
+                        const newStage = e.target.value;
+                        setForm(f => {
+                          const selectedCourse = courses.find(c => String(c.id) === String(f.course_id));
+                          const isCourseValid = !newStage || !selectedCourse || !selectedCourse.target_stage || selectedCourse.target_stage === newStage;
+                          return {
+                            ...f,
+                            academic_stage: newStage,
+                            course_id: isCourseValid ? f.course_id : '',
+                            video_ids: isCourseValid ? f.video_ids : [],
+                          };
+                        });
+                      }}
+                      className={`w-full rounded-xl px-3 py-2 border text-sm ${dark ? 'bg-[var(--dk-surface)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`}
+                    >
+                      <option value="">كل المراحل الدراسية</option>
+                      {PG_STAGES.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className={`block text-xs font-bold mb-1 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-600'}`}>الكورس (اختياري)</label>
+                    <select
+                      value={form.course_id}
+                      onChange={e => {
+                        const selectedCourseId = e.target.value;
+                        const selectedCourse = courses.find(c => String(c.id) === String(selectedCourseId));
+                        setForm(f => ({
+                          ...f,
+                          course_id: selectedCourseId,
+                          video_ids: [],
+                          academic_stage: selectedCourse?.target_stage || f.academic_stage,
+                        }));
+                      }}
+                      className={`w-full rounded-xl px-3 py-2 border text-sm ${dark ? 'bg-[var(--dk-surface)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`}
+                    >
+                      <option value="">بدون ربط بكورس</option>
+                      {filteredCourses.map(c => (
+                        <option key={c.id} value={String(c.id)}>
+                          {c.name}{c.target_stage ? ` (${c.target_stage})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
+
                 {form.course_id && (
                   <div>
                     <label className={`block text-xs font-bold mb-1.5 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-600'}`}>
@@ -470,24 +516,14 @@ export default function Recitations() {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={`block text-sm font-bold mb-1 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>المرحلة الدراسية</label>
-                  <select value={form.academic_stage} onChange={e => setForm(f => ({ ...f, academic_stage: e.target.value }))}
-                    className={`w-full rounded-xl px-3 py-2.5 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`}>
-                    <option value="">كل الطلاب</option>
-                    {PG_STAGES.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className={`block text-sm font-bold mb-1 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>الجدولة</label>
-                  <select value={form.schedule_type} onChange={e => setForm(f => ({ ...f, schedule_type: e.target.value }))}
-                    className={`w-full rounded-xl px-3 py-2.5 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`}>
-                    <option value="once">مرة واحدة</option>
-                    <option value="daily">يومي (تلقائي)</option>
-                    <option value="weekly">أسبوعي (تلقائي)</option>
-                  </select>
-                </div>
+              <div>
+                <label className={`block text-sm font-bold mb-1 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>الجدولة</label>
+                <select value={form.schedule_type} onChange={e => setForm(f => ({ ...f, schedule_type: e.target.value }))}
+                  className={`w-full rounded-xl px-3 py-2.5 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`}>
+                  <option value="once">مرة واحدة</option>
+                  <option value="daily">يومي (تلقائي)</option>
+                  <option value="weekly">أسبوعي (تلقائي)</option>
+                </select>
               </div>
 
               {form.schedule_type === 'weekly' && (
