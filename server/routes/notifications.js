@@ -99,7 +99,8 @@ router.post('/fcm-token', requireRole('student'), async (req, res) => {
 
 
 // ── Send platform (in-app) notification to selected students ────────
-const MAX_NOTIFICATION_STUDENTS = 500;
+const MAX_NOTIFICATION_STUDENTS = 30000;
+const DB_INSERT_CHUNK_SIZE     = 500;
 
 router.post('/platform', requireRole('teacher', 'assistant'), checkNotifPermission, sendNotifLimiter, async (req, res) => {
   const teacherId = getTeacherId(req);
@@ -132,17 +133,28 @@ router.post('/platform', requireRole('teacher', 'assistant'), checkNotifPermissi
     // Build personalised messages per student
     const personalMsgs = validIds.map(sid => message.replace(/\{name\}/g, nameMap[sid] || ''));
 
-    // Batch INSERT all notifications in one query using unnest
-    const insertRes = await pool.query(
-      `INSERT INTO notification_log
-         (teacher_id, student_id, recipient_type, message, type, is_read, source, title)
-       SELECT $1, unnest($2::int[]), 'student', unnest($3::text[]), $4, false, 'platform', $5
-       RETURNING id, student_id, message, sent_at`,
-      [teacherId, validIds, personalMsgs, type, resolvedTitle]
-    );
+    // Batch INSERT notifications in chunks of 500 to keep queries fast and lightweight
+    const insertedRows = [];
+    for (let i = 0; i < validIds.length; i += DB_INSERT_CHUNK_SIZE) {
+      const chunkIds  = validIds.slice(i, i + DB_INSERT_CHUNK_SIZE);
+      const chunkMsgs = personalMsgs.slice(i, i + DB_INSERT_CHUNK_SIZE);
 
-    // Respond immediately — SSE delivery happens in background to avoid
-    // holding the HTTP connection open for large recipient lists.
+      const insertRes = await pool.query(
+        `INSERT INTO notification_log
+           (teacher_id, student_id, recipient_type, message, type, is_read, source, title)
+         SELECT $1, unnest($2::int[]), 'student', unnest($3::text[]), $4, false, 'platform', $5
+         RETURNING id, student_id, message, sent_at`,
+        [teacherId, chunkIds, chunkMsgs, type, resolvedTitle]
+      );
+      insertedRows.push(...insertRes.rows);
+
+      // Micro-pause between DB chunks if sending to large numbers of students (>500)
+      if (i + DB_INSERT_CHUNK_SIZE < validIds.length) {
+        await sleep(10);
+      }
+    }
+
+    // Respond immediately to the frontend — HTTP call finishes in milliseconds!
     res.status(201).json({ sent: validIds.length });
 
     logActivity({
@@ -152,17 +164,26 @@ router.post('/platform', requireRole('teacher', 'assistant'), checkNotifPermissi
       details: { type, title: resolvedTitle, recipients: validIds.length },
     });
 
-    const fcmBody = message.replace(/\{name\}/g, '').replace(/\s+/g, ' ').trim();
-    sendFCMToStudents(pool, validIds, resolvedTitle, fcmBody, { type }).catch(err =>
-      console.error('[FCM] platform notification send error:', err.message)
-    );
-
-    // Push real-time SSE events in chunks with a small delay between chunks
-    // to prevent event-loop starvation when sending to thousands of students.
+    // FCM and SSE push delivery run asynchronously in background with staggered chunking
     setImmediate(async () => {
-      const rows = insertRes.rows;
-      for (let i = 0; i < rows.length; i++) {
-        const row = rows[i];
+      const fcmBody = message.replace(/\{name\}/g, '').replace(/\s+/g, ' ').trim();
+
+      // 1. Dispatch FCM push notifications in chunks of 500
+      for (let i = 0; i < validIds.length; i += 500) {
+        const chunkIds = validIds.slice(i, i + 500);
+        try {
+          await sendFCMToStudents(pool, chunkIds, resolvedTitle, fcmBody, { type });
+        } catch (err) {
+          console.error('[FCM] platform notification send error:', err.message);
+        }
+        if (i + 500 < validIds.length) {
+          await sleep(50);
+        }
+      }
+
+      // 2. Push real-time SSE events in chunks of 50 with small delays to keep event loop free
+      for (let i = 0; i < insertedRows.length; i++) {
+        const row = insertedRows[i];
         sendEvent(`student_${row.student_id}`, 'platform_notification', {
           id:      row.id,
           title:   resolvedTitle,
@@ -170,7 +191,6 @@ router.post('/platform', requireRole('teacher', 'assistant'), checkNotifPermissi
           type,
           sent_at: row.sent_at,
         });
-        // Yield every SSE_CHUNK_SIZE events to keep the event-loop responsive
         if ((i + 1) % SSE_CHUNK_SIZE === 0) {
           await sleep(SSE_CHUNK_DELAY_MS);
         }

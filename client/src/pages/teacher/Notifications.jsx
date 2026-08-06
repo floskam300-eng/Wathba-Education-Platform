@@ -219,7 +219,10 @@ export default function Notifications() {
       setSelectedStudents([]);
       setMessage('');
     },
-    onError: () => toast.error('حدث خطأ أثناء الإرسال'),
+    onError: (err) => {
+      const msg = err?.response?.data?.error || 'حدث خطأ أثناء الإرسال';
+      toast.error(msg);
+    },
   });
 
   const stages = ['الكل', ...new Set(students.map(s => s.academic_stage).filter(Boolean))];
@@ -344,8 +347,8 @@ export default function Notifications() {
             {/* Delay notice for large sends */}
             {selectedStudents.length > 50 && (
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800">
-                <p className="font-bold mb-0.5">⏱ إرسال تدريجي</p>
-                <p>سيتم إرسال الإشعارات لـ {selectedStudents.length} طالب بشكل تدريجي لضمان استقرار السيرفر. ستصل جميعاً خلال ثوانٍ.</p>
+                <p className="font-bold mb-0.5 flex items-center gap-1">⏱ إرسال تدريجي وآمن</p>
+                <p>سيتم معالجة الإشعارات لـ {selectedStudents.length} طالب عبر دفعات خفيفة ومجعدة لضمان سرعة الإرسال واستقرار السيرفر دون أي تعليق للمنصة.</p>
               </div>
             )}
 

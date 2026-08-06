@@ -76,8 +76,16 @@ async function sendFCMToStudents(pool, studentIds, title, body, data = {}) {
       [studentIds]
     );
     const tokens = result.rows.map(r => r.fcm_token).filter(Boolean);
-    // Pass pool so sendFCMToTokens can clean up stale tokens automatically
-    if (tokens.length) await sendFCMToTokens(tokens, title, body, data, pool);
+    if (!tokens.length) return;
+
+    // sendEachForMulticast in Firebase supports at most 500 tokens per call.
+    for (let i = 0; i < tokens.length; i += 500) {
+      const chunk = tokens.slice(i, i + 500);
+      await sendFCMToTokens(chunk, title, body, data, pool);
+      if (i + 500 < tokens.length) {
+        await new Promise(r => setTimeout(r, 50));
+      }
+    }
   } catch (err) {
     console.error('[FCM] sendFCMToStudents error:', err.message);
   }
