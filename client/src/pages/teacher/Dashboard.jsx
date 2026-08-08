@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Users, BookOpen, FileText, UserCog, TrendingUp, Eye, Star, Activity,
   UserPlus, Bell, Inbox, CreditCard, RotateCcw, ArrowLeft,
-  AlertTriangle, Video, ClipboardList, Clock, ChevronLeft,
+  AlertTriangle, Video, ClipboardList, Clock, ChevronLeft, GraduationCap,
 } from 'lucide-react';
 // Lazy-load echarts so it doesn't block the initial Dashboard paint.
 // Self-contained Suspense wrapper: each chart shows a skeleton while loading.
@@ -19,6 +19,17 @@ import StudentProfileModal from '../../components/ui/StudentProfileModal';
 import api from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 import { useTeacher } from '../../context/TeacherContext';
+
+const STAGE_COLORS = {
+  'الصف الأول الثانوي عام': 'bg-blue-50 text-blue-700 border-blue-100',
+  'الصف الأول الثانوي بكالوريا': 'bg-sky-50 text-sky-700 border-sky-100',
+  'الصف الثاني الثانوي عام': 'bg-indigo-50 text-indigo-700 border-indigo-100',
+  'الصف الثاني الثانوي بكالوريا': 'bg-violet-50 text-violet-700 border-violet-100',
+  'الصف الثالث الثانوي': 'bg-purple-50 text-purple-700 border-purple-100',
+  'الصف الأول الإعدادي': 'bg-emerald-50 text-emerald-700 border-emerald-100',
+  'الصف الثاني الإعدادي': 'bg-teal-50 text-teal-700 border-teal-100',
+  'الصف الثالث الإعدادي': 'bg-cyan-50 text-cyan-700 border-cyan-100',
+};
 
 
 export default function TeacherDashboard() {
@@ -456,8 +467,16 @@ export default function TeacherDashboard() {
                     <BookOpen className="w-4 h-4 text-navy-600" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-1">
-                      <p className="text-sm font-bold text-navy-700 truncate">{c.name}</p>
+                    <div className="flex items-center justify-between mb-1 gap-2">
+                      <div className="flex items-center gap-2 min-w-0 flex-wrap sm:flex-nowrap">
+                        <p className="text-sm font-bold text-navy-700 truncate">{c.name}</p>
+                        {c.target_stage && (
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex-shrink-0 inline-flex items-center gap-1 ${STAGE_COLORS[c.target_stage] || 'bg-gray-50 text-gray-700 border-gray-200'}`}>
+                            <GraduationCap className="w-2.5 h-2.5" />
+                            {c.target_stage}
+                          </span>
+                        )}
+                      </div>
                       <span className="text-xs font-black text-gray-600 flex-shrink-0 mr-2">{prog}%</span>
                     </div>
                     <div className="flex items-center gap-2">
