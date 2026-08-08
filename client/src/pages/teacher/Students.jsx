@@ -1002,6 +1002,7 @@ export default function TeacherStudents() {
   const canDelete = user?.role === 'teacher' || user?.can_delete_students;
   const canPrint = user?.role === 'teacher' || user?.can_view_analytics;
 
+  const openAdd = () => { setEditData(null); setForm(emptyForm); setPreviewUsername(''); setFormErrors({}); setCredMode('auto'); setModal(true); };
   const openEdit = (s) => { setEditData(s); setForm({ ...s, username: s.username || '', password: '' }); setPreviewUsername(''); setFormErrors({}); setCredMode('auto'); setModal(true); };
   const closeModal = () => { setModal(false); setEditData(null); setForm(emptyForm); setPreviewUsername(''); setFormErrors({}); setCredMode('auto'); };
 
