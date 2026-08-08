@@ -134,7 +134,16 @@
   }
 
   .btn-secondary {
-    @apply border-2 border-navy-600 text-navy-600 hover:bg-navy-600 hover:text-white font-semibold px-6 py-2.5 rounded-lg transition-all duration-200;
+    @apply border-2 border-navy-600 text-navy-600 font-semibold px-6 py-2.5 rounded-lg transition-all duration-200;
+    background-color: #ffffff;
+  }
+  .btn-secondary:hover {
+    background-color: #152540 !important;
+    color: #ffffff !important;
+    border-color: #152540 !important;
+  }
+  .btn-secondary:hover * {
+    color: #ffffff !important;
   }
 
   .btn-danger {
@@ -240,15 +249,32 @@ html.dark .btn-primary:hover {
 }
 
 /* ── btn-secondary ── */
+html:not(.dark) .btn-secondary {
+  border-color: #152540;
+  color: #152540;
+  background-color: #ffffff;
+}
+html:not(.dark) .btn-secondary:hover {
+  background-color: #152540 !important;
+  color: #ffffff !important;
+  border-color: #152540 !important;
+}
+html:not(.dark) .btn-secondary:hover * {
+  color: #ffffff !important;
+}
+
 html.dark .btn-secondary {
-  border-color: var(--dk-border-md);
-  color: var(--dk-text-2);
-  background-color: transparent;
+  border-color: var(--dk-border-md) !important;
+  color: var(--dk-text-2) !important;
+  background-color: transparent !important;
 }
 html.dark .btn-secondary:hover {
-  background-color: var(--dk-hover);
-  color: var(--dk-text-1);
-  border-color: var(--dk-orange);
+  background-color: var(--dk-hover) !important;
+  color: var(--dk-text-1) !important;
+  border-color: var(--dk-orange) !important;
+}
+html.dark .btn-secondary:hover * {
+  color: var(--dk-text-1) !important;
 }
 
 /* ── card ── */
