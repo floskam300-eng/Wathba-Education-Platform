@@ -285,7 +285,9 @@ export default function Attendance() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `سجل_مشاهدة_${attendance.course?.name || 'كورس'}${onlyFiltered ? '_مصفى' : ''}.csv`;
+    const courseStage = attendance.course?.target_stage || courses?.find(c => String(c.id) === String(selectedCourse))?.target_stage;
+    const courseStageLabel = courseStage ? `_${courseStage}` : '';
+    a.download = `سجل_مشاهدة_${attendance.course?.name || 'كورس'}${courseStageLabel}${onlyFiltered ? '_مصفى' : ''}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -339,11 +341,14 @@ export default function Attendance() {
             className="input-field cursor-pointer font-bold text-sm"
           >
             <option value="">— اختر كورساً لعرض سجل مشاهدة الفيديوهات —</option>
-            {courses?.map(c => (
-              <option key={c.id} value={c.id}>
-                {c.name} {c.academic_stage ? `(${c.academic_stage})` : ''} — {c.enrolled_count || 0} طالب
-              </option>
-            ))}
+            {courses?.map(c => {
+              const stage = c.target_stage || c.academic_stage;
+              return (
+                <option key={c.id} value={c.id}>
+                  {c.name}{stage ? ` (${stage})` : ''} — {c.enrolled_count || 0} طالب
+                </option>
+              );
+            })}
           </select>
         )}
       </div>

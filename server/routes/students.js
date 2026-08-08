@@ -1145,7 +1145,7 @@ router.get('/attendance/:courseId', requireRole('teacher', 'assistant'), async (
   const { courseId } = req.params;
   try {
     const courseCheck = await pool.query(
-      'SELECT id, name FROM courses WHERE id=$1 AND teacher_id=$2',
+      'SELECT id, name, target_stage FROM courses WHERE id=$1 AND teacher_id=$2',
       [courseId, teacherId]
     );
     if (!courseCheck.rows.length) return res.status(403).json({ error: 'Access denied' });

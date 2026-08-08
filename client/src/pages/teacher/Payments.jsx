@@ -469,7 +469,7 @@ export default function TeacherPayments() {
             <label className="block text-sm font-bold text-navy-700 mb-1">الكورس (اختياري)</label>
             <select value={form.course_id} onChange={e => setForm({ ...form, course_id: e.target.value })} className="input-field">
               <option value="">—</option>
-              {courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {courses.map(c => <option key={c.id} value={c.id}>{c.name}{c.target_stage ? ` (${c.target_stage})` : ''}</option>)}
             </select>
           </div>
           <div>
