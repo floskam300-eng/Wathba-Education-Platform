@@ -19,6 +19,7 @@ const router = express.Router();
 router.use(authenticate);
 
 const PG_INT_MAX = 2147483647;
+const MAX_RETRIES_PER_EXAM = 3;
 const parseParamId = (raw) => {
   const n = parseInt(raw, 10);
   if (isNaN(n) || n <= 0 || n > PG_INT_MAX || String(n) !== String(raw).trim()) return null;
