@@ -62,6 +62,16 @@ function validateStudent(req, res, next) {
     if (String(password).length < 5) errors.password = 'كلمة المرور يجب أن تكون 5 أحرف على الأقل';
   }
 
+  // username on edit when provided
+  const { username } = req.body;
+  if (username !== undefined && username !== null && username !== '') {
+    const u = String(username).trim();
+    if (u.length < 3) errors.username = 'كود الطالب (اسم المستخدم) يجب أن يكون 3 أحرف على الأقل';
+    else if (u.length > 50) errors.username = 'كود الطالب (اسم المستخدم) طويل جداً (الحد الأقصى 50 حرف)';
+    else if (/\s/.test(u)) errors.username = 'كود الطالب (اسم المستخدم) لا يجب أن يحتوي على مسافات';
+    else if (!/^[a-zA-Z0-9_\-.]+$/.test(u)) errors.username = 'كود الطالب يجب أن يحتوي على أحرف إنجليزية وأرقام والرموز _ - . فقط';
+  }
+
   // Manual credentials (create only — validated when provided)
   const { manualUsername, manualPassword } = req.body;
   if (manualUsername !== undefined && manualUsername !== '') {

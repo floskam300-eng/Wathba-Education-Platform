@@ -1002,8 +1002,7 @@ export default function TeacherStudents() {
   const canDelete = user?.role === 'teacher' || user?.can_delete_students;
   const canPrint = user?.role === 'teacher' || user?.can_view_analytics;
 
-  const openAdd = () => { setEditData(null); setForm(emptyForm); setPreviewUsername(''); setFormErrors({}); setCredMode('auto'); setModal(true); };
-  const openEdit = (s) => { setEditData(s); setForm({ ...s, password: '' }); setPreviewUsername(''); setFormErrors({}); setCredMode('auto'); setModal(true); };
+  const openEdit = (s) => { setEditData(s); setForm({ ...s, username: s.username || '', password: '' }); setPreviewUsername(''); setFormErrors({}); setCredMode('auto'); setModal(true); };
   const closeModal = () => { setModal(false); setEditData(null); setForm(emptyForm); setPreviewUsername(''); setFormErrors({}); setCredMode('auto'); };
 
   // Auto-open add modal when navigating from Dashboard quick action
@@ -1512,10 +1511,22 @@ export default function TeacherStudents() {
         <form onSubmit={handleSubmit} className="space-y-4">
 
           {editData ? (
-            /* ── Edit mode: show current username (read-only) ── */
-            <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
-              <span className="text-xs font-bold text-slate-500">كود الطالب</span>
-              <span className="font-mono font-black text-navy-700 tracking-widest text-lg">{editData.username}</span>
+            /* ── Edit mode: editable student code / username ── */
+            <div>
+              <label className="block text-sm font-bold text-navy-700 mb-1">
+                كود الطالب (اسم المستخدم) *
+              </label>
+              <input
+                type="text"
+                value={form.username || ''}
+                onChange={e => { setForm({ ...form, username: e.target.value }); clearError('username'); }}
+                className={`input-field font-mono font-bold text-navy-700 tracking-wider ${formErrors.username ? 'border-red-400 focus:ring-red-300' : ''}`}
+                placeholder="مثال: HA001 أو أي كود تريده"
+                dir="ltr"
+                autoComplete="off"
+              />
+              <FieldError error={formErrors.username} />
+              <p className="text-xs text-gray-400 mt-1">كود الطالب هو اسم المستخدم الذي يستخدمه الطالب لتسجيل الدخول</p>
             </div>
           ) : (
             <>

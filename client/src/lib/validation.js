@@ -117,7 +117,10 @@ export function validateStudentForm(form, isEdit = false, credMode = 'auto') {
     const cleanParent = String(form.parent_phone).replace(/[\s\-]/g, '');
     if (cleanPhone === cleanParent) errors.parent_phone = 'رقم ولي الأمر يجب أن يكون مختلفاً عن رقم الطالب';
   }
-  if (isEdit && form.password) e('password', validatePassword(form.password, false));
+  if (isEdit) {
+    e('username', validateUsername(form.username));
+    if (form.password) e('password', validatePassword(form.password, false));
+  }
   // Manual credentials — only validated on create in manual mode
   if (!isEdit && credMode === 'manual') {
     e('manualUsername', validateUsername(form.manualUsername));

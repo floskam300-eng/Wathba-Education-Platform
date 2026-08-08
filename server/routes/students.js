@@ -337,30 +337,60 @@ router.put('/:id', requireRole('teacher', 'assistant'), (req, res, next) => chec
   const teacherId = getTeacherId(req);
   const studentId = parseInt(req.params.id, 10);
   if (isNaN(studentId) || studentId <= 0) return res.status(400).json({ error: 'Invalid student ID' });
-  const { name, phone, parent_phone, academic_stage, gender, password } = req.body;
+  const { name, phone, parent_phone, academic_stage, gender, password, username } = req.body;
   // Sanitize gender: empty string violates CHECK constraint, convert to NULL
   const safeGender = gender || null;
   try {
+    const existingRes = await pool.query(
+      'SELECT id, username FROM students WHERE id = $1 AND teacher_id = $2 AND deleted_at IS NULL',
+      [studentId, teacherId]
+    );
+    if (!existingRes.rows.length) return res.status(404).json({ error: 'Student not found' });
+    const currentStudent = existingRes.rows[0];
+
+    // Determine target username (if provided, use new one; otherwise keep existing)
+    let newUsername = currentStudent.username;
+    if (username !== undefined && username !== null && String(username).trim() !== '') {
+      newUsername = String(username).trim();
+    }
+
+    // Check duplicate username across this teacher's active students (or globally if constraint exists)
+    if (newUsername !== currentStudent.username) {
+      const duplicateCheck = await pool.query(
+        'SELECT id FROM students WHERE username = $1 AND teacher_id = $2 AND id <> $3 AND deleted_at IS NULL',
+        [newUsername, teacherId, studentId]
+      );
+      if (duplicateCheck.rows.length > 0) {
+        return res.status(409).json({ error: `كود الطالب (اسم المستخدم) "${newUsername}" مستخدم بالفعل لدى طالب آخر` });
+      }
+    }
+
     let query, params;
     if (password) {
       const hashed = await bcrypt.hash(password, 10);
-      query = 'UPDATE students SET name=$1,phone=$2,parent_phone=$3,academic_stage=$4,gender=$5,password=$6,plain_password=$7 WHERE id=$8 AND teacher_id=$9 RETURNING *';
-      params = [name, phone, parent_phone, academic_stage, safeGender, hashed, password, studentId, teacherId];
+      query = 'UPDATE students SET name=$1,phone=$2,parent_phone=$3,academic_stage=$4,gender=$5,password=$6,plain_password=$7,username=$8 WHERE id=$9 AND teacher_id=$10 RETURNING *';
+      params = [name, phone, parent_phone, academic_stage, safeGender, hashed, password, newUsername, studentId, teacherId];
     } else {
-      query = 'UPDATE students SET name=$1,phone=$2,parent_phone=$3,academic_stage=$4,gender=$5 WHERE id=$6 AND teacher_id=$7 RETURNING *';
-      params = [name, phone, parent_phone, academic_stage, safeGender, studentId, teacherId];
+      query = 'UPDATE students SET name=$1,phone=$2,parent_phone=$3,academic_stage=$4,gender=$5,username=$6 WHERE id=$7 AND teacher_id=$8 RETURNING *';
+      params = [name, phone, parent_phone, academic_stage, safeGender, newUsername, studentId, teacherId];
     }
     const result = await pool.query(query, params);
     if (!result.rows.length) return res.status(404).json({ error: 'Student not found' });
+    invalidateStudentAuthCache(studentId);
     invalidateCache(teacherId);
     const { password: _, plain_password: __, ...safe } = result.rows[0];
     logActivity({
       teacherId, actor: getActor(req), ip: getIp(req),
       action: 'edit_student',
       entity: { type: 'student', id: safe.id, name: safe.name },
+      details: { username: safe.username, academic_stage, gender },
     });
     res.json(safe);
   } catch (err) {
+    if (err.code === '23505') {
+      return res.status(409).json({ error: `كود الطالب (اسم المستخدم) "${username}" مستخدم بالفعل لدى طالب آخر` });
+    }
+    console.error('[PUT /students/:id]', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
