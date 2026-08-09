@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Users, Plus, Pencil, Trash2, Search, Eye, EyeOff, Printer,
   GraduationCap, Upload, FileSpreadsheet, Download, X, Loader2,
@@ -503,6 +503,8 @@ export default function TeacherStudents() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
+  const baseRole = user?.role === 'assistant' ? 'assistant' : 'teacher';
   const [mainView, setMainView] = useState('students'); // 'students' | 'alerts'
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -1012,15 +1014,12 @@ export default function TeacherStudents() {
   const openEdit = (s) => { setEditData(s); setForm({ ...s, username: s.username || '', password: '' }); setPreviewUsername(''); setFormErrors({}); setCredMode('auto'); setModal(true); };
   const closeModal = () => { setModal(false); setEditData(null); setForm(emptyForm); setPreviewUsername(''); setFormErrors({}); setCredMode('auto'); };
 
-  // Auto-open add modal when navigating from Dashboard quick action
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // Auto-redirect to dedicated add page when navigating from Dashboard quick action
   useEffect(() => {
     if (location.state?.openAdd) {
-      openAdd();
-      // Clear navigation state so re-renders don't re-trigger the modal
-      window.history.replaceState({}, document.title, window.location.pathname);
+      navigate(`/${baseRole}/students/add`, { replace: true });
     }
-  }, []); // intentionally empty — runs once on mount to consume route state
+  }, [location.state, baseRole, navigate]);
   const copyToClipboard = (text) => { navigator.clipboard.writeText(text).then(() => toast.success('تم النسخ!')); };
 
   useEffect(() => {
@@ -1119,7 +1118,7 @@ export default function TeacherStudents() {
               <button onClick={() => importFileRef.current?.click()} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-all shadow-sm">
                 <FileSpreadsheet className="w-4 h-4" /> استيراد Excel
               </button>
-              <button onClick={openAdd} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold transition-all shadow-sm">
+              <button onClick={() => navigate(`/${baseRole}/students/add`)} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold transition-all shadow-sm">
                 <Plus className="w-4 h-4" /> إضافة طالب
               </button>
             </>

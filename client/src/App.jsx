@@ -14,6 +14,7 @@ const AssistantLayout = React.lazy(() => import('./layouts/AssistantLayout'));
 const StudentLayout = React.lazy(() => import('./layouts/StudentLayout'));
 const TeacherDashboard = React.lazy(() => import('./pages/teacher/Dashboard'));
 const TeacherStudents = React.lazy(() => import('./pages/teacher/Students'));
+const TeacherAddStudent = React.lazy(() => import('./pages/teacher/AddStudent'));
 const TeacherCourses = React.lazy(() => import('./pages/teacher/Courses'));
 const TeacherExams = React.lazy(() => import('./pages/teacher/Exams'));
 const TeacherAssistants = React.lazy(() => import('./pages/teacher/Assistants'));
@@ -198,6 +199,7 @@ const TenantRoutes = () => {
         }>
           <Route index element={<TeacherDashboard />} />
           <Route path="students" element={<TeacherStudents />} />
+          <Route path="students/add" element={<TeacherAddStudent />} />
           <Route path="courses" element={<TeacherCourses />} />
           <Route path="exams" element={<TeacherExams />} />
           <Route path="assistants" element={<TeacherAssistants />} />
@@ -236,6 +238,9 @@ const TenantRoutes = () => {
         }>
           <Route index element={<AssistantDashboard />} />
           <Route path="students" element={<AssistantStudents />} />
+          <Route path="students/add" element={
+            <AssistantPermissionRoute permission="can_add_students"><TeacherAddStudent /></AssistantPermissionRoute>
+          } />
           <Route path="exams" element={
             <AssistantPermissionRoute permission="can_manage_exams"><AssistantExams /></AssistantPermissionRoute>
           } />

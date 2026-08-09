@@ -78,7 +78,7 @@ export default function TeacherDashboard() {
       border: 'border-blue-200 hover:border-blue-400',
       text: 'text-blue-700',
       badge: null,
-      onClick: () => navigate('/teacher/students', { state: { openAdd: true } }),
+      onClick: () => navigate('/teacher/students/add'),
     },
     {
       icon: Bell,
