@@ -15,7 +15,7 @@ import { validateStudentForm, hasErrors } from '../../lib/validation';
 function FieldError({ error }) {
   if (!error) return null;
   return (
-    <p className="flex items-center gap-1 text-red-600 text-xs font-semibold mt-1">
+    <p className="flex items-center gap-1 text-red-500 text-xs font-semibold mt-1">
       <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />{error}
     </p>
   );
@@ -44,14 +44,14 @@ const STAGE_PREFIX_LABELS = {
 };
 
 const STAGE_COLORS = {
-  'الصف الأول الثانوي عام': 'bg-blue-50 text-blue-700 border-blue-200',
-  'الصف الأول الثانوي بكالوريا': 'bg-sky-50 text-sky-700 border-sky-200',
-  'الصف الثاني الثانوي عام': 'bg-indigo-50 text-indigo-700 border-indigo-200',
-  'الصف الثاني الثانوي بكالوريا': 'bg-violet-50 text-violet-700 border-violet-200',
-  'الصف الثالث الثانوي': 'bg-purple-50 text-purple-700 border-purple-200',
-  'الصف الأول الإعدادي': 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  'الصف الثاني الإعدادي': 'bg-teal-50 text-teal-700 border-teal-200',
-  'الصف الثالث الإعدادي': 'bg-cyan-50 text-cyan-700 border-cyan-200',
+  'الصف الأول الثانوي عام': 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800/50',
+  'الصف الأول الثانوي بكالوريا': 'bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800/50',
+  'الصف الثاني الثانوي عام': 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800/50',
+  'الصف الثاني الثانوي بكالوريا': 'bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 border-violet-200 dark:border-violet-800/50',
+  'الصف الثالث الثانوي': 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800/50',
+  'الصف الأول الإعدادي': 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/50',
+  'الصف الثاني الإعدادي': 'bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800/50',
+  'الصف الثالث الإعدادي': 'bg-cyan-50 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-300 border-cyan-200 dark:border-cyan-800/50',
 };
 
 const emptyForm = {
@@ -216,34 +216,34 @@ export default function AddStudent() {
   };
 
   return (
-    <div className="-m-4 lg:-m-6 h-[calc(100%+2rem)] lg:h-[calc(100%+3rem)] flex flex-col overflow-hidden bg-slate-50/50" dir="rtl">
+    <div className="-m-4 lg:-m-6 h-[calc(100%+2rem)] lg:h-[calc(100%+3rem)] flex flex-col overflow-hidden bg-slate-50/60 dark:bg-transparent" dir="rtl">
       
       {/* ── Fixed Top Header ── */}
-      <div className="flex-shrink-0 bg-white border-b border-gray-200 shadow-sm z-10">
-        <div className="px-4 lg:px-6 py-3 flex items-center justify-between gap-3">
+      <div className="flex-shrink-0 bg-white dark:bg-[#17151F] border-b border-gray-200 dark:border-amber-500/10 shadow-sm z-10">
+        <div className="px-3 sm:px-4 lg:px-6 py-3 flex items-center justify-between gap-2 sm:gap-3">
           
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <button
               type="button"
               onClick={() => navigate(`/${baseRole}/students`)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-gray-600 hover:bg-gray-100 transition-all font-bold text-sm flex-shrink-0"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-xl text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#272439] transition-all font-bold text-xs sm:text-sm flex-shrink-0"
               title="العودة لقائمة الطلاب"
             >
-              <ArrowRight className="w-4 h-4 text-gray-500" />
-              <span className="hidden sm:inline">رجوع للطلاب</span>
+              <ArrowRight className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+              <span className="inline">رجوع للطلاب</span>
             </button>
 
-            <div className="h-5 w-px bg-gray-200 flex-shrink-0" />
+            <div className="h-5 w-px bg-gray-200 dark:bg-amber-500/20 flex-shrink-0" />
 
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-xl bg-orange-100 flex items-center justify-center flex-shrink-0">
-                <UserPlus className="w-4 h-4 text-orange-600" />
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-orange-100 dark:bg-orange-500/20 flex items-center justify-center flex-shrink-0">
+                <UserPlus className="w-4 h-4 text-orange-600 dark:text-orange-400" />
               </div>
               <div className="min-w-0">
-                <h1 className="font-black text-navy-700 text-sm sm:text-base truncate flex items-center gap-2">
+                <h1 className="font-black text-navy-800 dark:text-gray-100 text-xs sm:text-base truncate flex items-center gap-2">
                   إضافة طالب جديد
                 </h1>
-                <p className="text-[11px] text-gray-400 font-medium hidden sm:block">
+                <p className="text-[10px] sm:text-[11px] text-gray-500 dark:text-gray-400 font-medium hidden sm:block">
                   تسجيل بيانات الطالب وتوليد كود تسجيل الدخول وكلمة المرور
                 </p>
               </div>
@@ -251,15 +251,16 @@ export default function AddStudent() {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-            <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-100 text-blue-700 text-xs font-bold">
+            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/40 text-blue-700 dark:text-blue-300 text-xs font-bold">
               <Users className="w-3.5 h-3.5 text-blue-500" />
               <span>إجمالي الطلاب: <strong>{totalStudentsCount}</strong></span>
             </div>
 
             {sessionStudents.length > 0 && (
-              <span className="inline-flex items-center gap-1 bg-green-50 border border-green-200 text-green-700 px-3 py-1.5 rounded-xl text-xs font-bold animate-in fade-in duration-200">
-                <CheckCircle className="w-3.5 h-3.5 text-green-600" />
-                أُضيف في هذه الجلسة: <strong>{sessionStudents.length}</strong>
+              <span className="inline-flex items-center gap-1 bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800/40 text-green-700 dark:text-green-300 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold animate-in fade-in duration-200">
+                <CheckCircle className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
+                <span className="hidden sm:inline">أُضيف في هذه الجلسة:</span>
+                <strong>{sessionStudents.length}</strong>
               </span>
             )}
           </div>
@@ -267,25 +268,26 @@ export default function AddStudent() {
       </div>
 
       {/* ── Scrollable Workspace Content ── */}
-      <div className="flex-1 overflow-y-auto min-h-0 p-4 lg:p-6">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <div className="flex-1 overflow-y-auto min-h-0 p-3 sm:p-4 lg:p-6">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-start">
           
-          {/* ════════════ Left Column: Student Creation Form (7 cols) ════════════ */}
-          <div className="lg:col-span-7 space-y-5">
+          {/* ════════════ Left Column (RTL Form Workspace): 7 cols ════════════ */}
+          <div className="lg:col-span-7 space-y-4 sm:space-y-5 order-1">
             
             {/* Main Form Card */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 shadow-sm">
-              <div className="flex items-center justify-between border-b border-gray-100 pb-4 mb-5">
+            <div className="card !p-4 sm:!p-6 bg-white dark:bg-[#17151F] border border-gray-200 dark:border-amber-500/10 rounded-2xl shadow-sm">
+              
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 dark:border-amber-500/10 pb-4 mb-5">
                 <div>
-                  <h2 className="text-base font-black text-navy-700 flex items-center gap-2">
+                  <h2 className="text-sm sm:text-base font-black text-navy-800 dark:text-gray-100 flex items-center gap-2">
                     <Sparkles className="w-4 h-4 text-orange-500" />
                     بيانات الطالب الجديد
                   </h2>
-                  <p className="text-xs text-gray-400 mt-0.5">املأ البيانات المطلوبة بالأسفل</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">املأ البيانات المطلوبة بالأسفل</p>
                 </div>
 
                 {/* Stay on stage toggle checkbox */}
-                <label className="flex items-center gap-2 text-xs font-bold text-gray-600 cursor-pointer select-none bg-gray-50 hover:bg-gray-100 border border-gray-200 px-3 py-1.5 rounded-xl transition-colors">
+                <label className="flex items-center gap-2 text-xs font-bold text-gray-700 dark:text-gray-300 cursor-pointer select-none bg-gray-50 dark:bg-[#1F1C2C] hover:bg-gray-100 dark:hover:bg-[#272439] border border-gray-200 dark:border-amber-500/10 px-3 py-1.5 rounded-xl transition-colors">
                   <input
                     type="checkbox"
                     checked={stayOnStage}
@@ -296,12 +298,12 @@ export default function AddStudent() {
                 </label>
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-5">
+              <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
                 
                 {/* ── Mode Switcher Tabs ── */}
                 <div>
-                  <label className="block text-xs font-bold text-navy-700 mb-2">طريقة إنشاء كود وبيانات الدخول</label>
-                  <div className="grid grid-cols-2 gap-2 p-1 bg-gray-100 rounded-xl border border-gray-200">
+                  <label className="block text-xs font-black text-navy-800 dark:text-gray-200 mb-2">طريقة إنشاء كود وبيانات الدخول</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-1 bg-gray-100 dark:bg-[#1F1C2C] rounded-xl border border-gray-200 dark:border-amber-500/10">
                     <button
                       type="button"
                       onClick={() => {
@@ -313,10 +315,10 @@ export default function AddStudent() {
                           return n;
                         });
                       }}
-                      className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-black transition-all ${
+                      className={`flex items-center justify-center gap-2 py-2.5 px-2 rounded-lg text-xs transition-all ${
                         credMode === 'auto'
-                          ? 'bg-white text-orange-600 shadow-sm'
-                          : 'text-gray-500 hover:text-gray-800'
+                          ? 'bg-orange-500 text-white shadow-sm font-black'
+                          : 'text-gray-600 dark:text-gray-400 hover:text-navy-800 dark:hover:text-white font-bold'
                       }`}
                     >
                       <RefreshCw className="w-3.5 h-3.5" />
@@ -325,10 +327,10 @@ export default function AddStudent() {
                     <button
                       type="button"
                       onClick={() => setCredMode('manual')}
-                      className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-black transition-all ${
+                      className={`flex items-center justify-center gap-2 py-2.5 px-2 rounded-lg text-xs transition-all ${
                         credMode === 'manual'
-                          ? 'bg-white text-navy-700 shadow-sm'
-                          : 'text-gray-500 hover:text-gray-800'
+                          ? 'bg-navy-600 dark:bg-amber-600 text-white shadow-sm font-black'
+                          : 'text-gray-600 dark:text-gray-400 hover:text-navy-800 dark:hover:text-white font-bold'
                       }`}
                     >
                       <Pencil className="w-3.5 h-3.5" />
@@ -339,28 +341,28 @@ export default function AddStudent() {
 
                 {/* ── Mode 1: Auto Mode Preview Banner ── */}
                 {credMode === 'auto' && (
-                  <div className="bg-gradient-to-r from-orange-50 to-amber-50/50 border border-orange-200/80 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="bg-amber-50/80 dark:bg-amber-950/25 border border-amber-200 dark:border-amber-700/40 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="flex items-start gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-orange-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <ShieldCheck className="w-5 h-5 text-orange-600" />
+                      <div className="w-9 h-9 rounded-xl bg-amber-500/10 dark:bg-amber-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <ShieldCheck className="w-5 h-5 text-amber-600 dark:text-amber-400" />
                       </div>
                       <div>
-                        <p className="text-xs font-black text-navy-700">كود الدخول التلقائي المتوقع:</p>
+                        <p className="text-xs font-black text-navy-800 dark:text-amber-200">كود الدخول التلقائي المتوقع:</p>
                         {form.academic_stage ? (
                           previewLoading ? (
-                            <span className="font-mono text-sm text-orange-400 font-bold animate-pulse inline-block mt-0.5">جاري استخراج الكود...</span>
+                            <span className="font-mono text-sm text-amber-500 dark:text-amber-400 font-bold animate-pulse inline-block mt-0.5">جاري استخراج الكود...</span>
                           ) : (
                             <div className="flex items-center gap-2 mt-0.5">
-                              <span className="font-mono font-black text-orange-700 text-lg tracking-widest">{previewUsername || '...'}</span>
-                              <span className="text-[10px] bg-orange-200/60 text-orange-800 font-bold px-2 py-0.5 rounded-md">متاح</span>
+                              <span className="font-mono font-black text-orange-600 dark:text-amber-400 text-lg tracking-widest">{previewUsername || '...'}</span>
+                              <span className="text-[10px] bg-amber-200/70 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200 font-bold px-2 py-0.5 rounded-md">متاح</span>
                             </div>
                           )
                         ) : (
-                          <span className="text-xs text-orange-700/80 font-medium block mt-0.5">اختر المرحلة الدراسية بالأسفل لاحتساب الكود التسلسلي تلقائياً</span>
+                          <span className="text-xs text-amber-700 dark:text-amber-300/80 font-medium block mt-0.5">اختر المرحلة الدراسية بالأسفل لاحتساب الكود التسلسلي تلقائياً</span>
                         )}
                       </div>
                     </div>
-                    <div className="text-[11px] text-gray-500 bg-white/80 border border-orange-100 rounded-xl px-3 py-2 sm:max-w-[210px]">
+                    <div className="text-[11px] text-gray-600 dark:text-gray-300 bg-white/90 dark:bg-[#1F1C2C] border border-amber-200/80 dark:border-amber-800/40 rounded-xl px-3 py-2 sm:max-w-[210px]">
                       🔒 سيتم توليد كلمة مرور عشوائية من 6 أرقام وسيعرضها النظام فور الحفظ
                     </div>
                   </div>
@@ -368,14 +370,14 @@ export default function AddStudent() {
 
                 {/* ── Mode 2: Manual Credentials Inputs ── */}
                 {credMode === 'manual' && (
-                  <div className="space-y-3 bg-blue-50/60 border border-blue-200 rounded-2xl p-4">
-                    <p className="text-xs font-black text-blue-800 flex items-center gap-1.5">
-                      <Pencil className="w-3.5 h-3.5 text-blue-600" />
+                  <div className="space-y-3 bg-blue-50/70 dark:bg-blue-950/25 border border-blue-200 dark:border-blue-800/40 rounded-2xl p-4">
+                    <p className="text-xs font-black text-blue-800 dark:text-blue-300 flex items-center gap-1.5">
+                      <Pencil className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
                       إدخال كود الدخول وكلمة المرور يدوياً:
                     </p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs font-bold text-navy-700 mb-1">اسم المستخدم (الكود) <span className="text-red-500">*</span></label>
+                        <label className="block text-xs font-bold text-navy-800 dark:text-gray-200 mb-1">اسم المستخدم (الكود) <span className="text-red-500">*</span></label>
                         <input
                           type="text"
                           value={form.manualUsername}
@@ -388,7 +390,7 @@ export default function AddStudent() {
                         <FieldError error={formErrors.manualUsername} />
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-navy-700 mb-1">كلمة المرور <span className="text-red-500">*</span></label>
+                        <label className="block text-xs font-bold text-navy-800 dark:text-gray-200 mb-1">كلمة المرور <span className="text-red-500">*</span></label>
                         <input
                           type="text"
                           value={form.manualPassword}
@@ -406,7 +408,7 @@ export default function AddStudent() {
 
                 {/* ── Field: Student Name ── */}
                 <div>
-                  <label className="block text-xs font-black text-navy-700 mb-1.5">
+                  <label className="block text-xs font-black text-navy-800 dark:text-gray-200 mb-1.5">
                     اسم الطالب الكامل <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -424,7 +426,7 @@ export default function AddStudent() {
                 {/* ── Field: Stage + Gender ── */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-black text-navy-700 mb-1.5">
+                    <label className="block text-xs font-black text-navy-800 dark:text-gray-200 mb-1.5">
                       المرحلة الدراسية <span className="text-red-500">*</span>
                     </label>
                     <select
@@ -441,17 +443,17 @@ export default function AddStudent() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-black text-navy-700 mb-1.5">
+                    <label className="block text-xs font-black text-navy-800 dark:text-gray-200 mb-1.5">
                       الجنس (النوع)
                     </label>
                     <div className="grid grid-cols-2 gap-2">
                       <button
                         type="button"
                         onClick={() => setForm({ ...form, gender: 'ذكر' })}
-                        className={`py-2 rounded-xl text-xs font-bold border transition-all ${
+                        className={`py-2 px-3 rounded-xl text-xs transition-all border ${
                           form.gender === 'ذكر'
-                            ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                            : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-sm font-bold'
+                            : 'bg-white dark:bg-[#1F1C2C] text-gray-700 dark:text-gray-300 border-gray-200 dark:border-amber-500/10 hover:bg-gray-50 dark:hover:bg-[#272439] font-bold'
                         }`}
                       >
                         👨 ذكر
@@ -459,10 +461,10 @@ export default function AddStudent() {
                       <button
                         type="button"
                         onClick={() => setForm({ ...form, gender: 'أنثى' })}
-                        className={`py-2 rounded-xl text-xs font-bold border transition-all ${
+                        className={`py-2 px-3 rounded-xl text-xs transition-all border ${
                           form.gender === 'أنثى'
-                            ? 'bg-pink-600 text-white border-pink-600 shadow-sm'
-                            : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                            ? 'bg-pink-600 text-white border-pink-600 shadow-sm font-bold'
+                            : 'bg-white dark:bg-[#1F1C2C] text-gray-700 dark:text-gray-300 border-gray-200 dark:border-amber-500/10 hover:bg-gray-50 dark:hover:bg-[#272439] font-bold'
                         }`}
                       >
                         👩 أنثى
@@ -474,7 +476,7 @@ export default function AddStudent() {
                 {/* ── Field: Phones ── */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold text-navy-700 mb-1">
+                    <label className="block text-xs font-bold text-navy-800 dark:text-gray-200 mb-1">
                       هاتف الطالب <span className="text-gray-400 font-normal">(اختياري)</span>
                     </label>
                     <div className="relative">
@@ -492,7 +494,7 @@ export default function AddStudent() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-navy-700 mb-1">
+                    <label className="block text-xs font-bold text-navy-800 dark:text-gray-200 mb-1">
                       هاتف ولي الأمر <span className="text-gray-400 font-normal">(اختياري)</span>
                     </label>
                     <div className="relative">
@@ -511,11 +513,11 @@ export default function AddStudent() {
                 </div>
 
                 {/* ── Submit & Action Buttons ── */}
-                <div className="pt-3 border-t border-gray-100 flex flex-col sm:flex-row items-center gap-3">
+                <div className="pt-3 border-t border-gray-100 dark:border-amber-500/10 flex flex-col sm:flex-row items-center gap-3">
                   <button
                     type="submit"
                     disabled={createMut.isPending}
-                    className="w-full sm:flex-1 py-3 px-5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-black text-sm transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 disabled:opacity-50"
+                    className="btn-primary w-full sm:flex-1 py-3 px-5 rounded-xl font-black text-sm flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all disabled:opacity-50"
                   >
                     {createMut.isPending ? (
                       <>
@@ -537,7 +539,7 @@ export default function AddStudent() {
                       setFormErrors({});
                       nameInputRef.current?.focus();
                     }}
-                    className="w-full sm:w-auto px-4 py-3 rounded-xl border border-gray-200 bg-white hover:bg-gray-100 text-gray-600 text-xs font-bold transition-colors"
+                    className="btn-secondary w-full sm:w-auto px-4 py-3 rounded-xl text-xs font-bold transition-colors"
                   >
                     مسح الحقول
                   </button>
@@ -546,20 +548,20 @@ export default function AddStudent() {
             </div>
 
             {/* Quick Tips & Excel Shortcut */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm flex items-center justify-between gap-4">
+            <div className="card !p-4 bg-white dark:bg-[#17151F] border border-gray-200 dark:border-amber-500/10 rounded-2xl shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center flex-shrink-0">
-                  <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center flex-shrink-0">
+                  <FileSpreadsheet className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className="font-bold text-navy-700 text-xs sm:text-sm">هل لديك ملف إكسيل يحتوي على مئات الطلاب؟</p>
-                  <p className="text-[11px] text-gray-400">يمكنك استخدام ميزة استيراد الإكسيل لرفع جميع الطلاب دفعة واحدة</p>
+                  <p className="font-bold text-navy-800 dark:text-gray-100 text-xs sm:text-sm">هل لديك ملف إكسيل يحتوي على مئات الطلاب؟</p>
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400">يمكنك استخدام ميزة استيراد الإكسيل لرفع جميع الطلاب دفعة واحدة</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => navigate(`/${baseRole}/students`)}
-                className="flex-shrink-0 inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold transition-colors border border-emerald-200"
+                className="btn-secondary text-xs !py-2 !px-3 font-bold flex items-center gap-1.5 flex-shrink-0"
               >
                 <Layers className="w-3.5 h-3.5" />
                 استيراد من صفحة الطلاب
@@ -569,20 +571,20 @@ export default function AddStudent() {
           </div>
 
           {/* ════════════ Right Column: Session Students & Credentials (5 cols) ════════════ */}
-          <div className="lg:col-span-5 space-y-5">
+          <div className="lg:col-span-5 space-y-4 sm:space-y-5 order-2 lg:sticky lg:top-0">
             
             {/* Session Card Panel */}
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
+            <div className="card !p-0 bg-white dark:bg-[#17151F] border border-gray-200 dark:border-amber-500/10 rounded-2xl shadow-sm overflow-hidden flex flex-col">
               
               {/* Header */}
-              <div className="p-4 sm:p-5 border-b border-gray-100 flex items-center justify-between gap-2 bg-slate-50/50">
+              <div className="p-4 sm:p-5 border-b border-gray-100 dark:border-amber-500/10 flex items-center justify-between gap-2 bg-slate-50/70 dark:bg-[#17151F]">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-xl bg-orange-100 flex items-center justify-center">
-                    <Users className="w-4 h-4 text-orange-600" />
+                  <div className="w-8 h-8 rounded-xl bg-orange-100 dark:bg-orange-500/20 flex items-center justify-center">
+                    <Users className="w-4 h-4 text-orange-600 dark:text-orange-400" />
                   </div>
                   <div>
-                    <h3 className="font-black text-navy-700 text-sm">سجل طلاب الجلسة الحالية</h3>
-                    <p className="text-[11px] text-gray-400">بيانات دخول الطلاب المضافين الآن</p>
+                    <h3 className="font-black text-navy-800 dark:text-gray-100 text-sm">سجل طلاب الجلسة الحالية</h3>
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400">بيانات دخول الطلاب المضافين الآن</p>
                   </div>
                 </div>
 
@@ -590,7 +592,7 @@ export default function AddStudent() {
                   <button
                     type="button"
                     onClick={handleCopyAllSession}
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 text-xs font-bold transition-colors border border-orange-200"
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-orange-50 dark:bg-orange-950/40 hover:bg-orange-100 dark:hover:bg-orange-900/60 text-orange-700 dark:text-orange-300 text-xs font-bold transition-colors border border-orange-200 dark:border-orange-800/40"
                     title="نسخ جميع بيانات الدخول المضافة في هذه الجلسة"
                   >
                     <Copy className="w-3.5 h-3.5" />
@@ -600,14 +602,14 @@ export default function AddStudent() {
               </div>
 
               {/* Student Cards List */}
-              <div className="p-4 sm:p-5 space-y-3 max-h-[600px] overflow-y-auto">
+              <div className="p-3 sm:p-5 space-y-3 max-h-[500px] sm:max-h-[600px] overflow-y-auto">
                 {sessionStudents.length === 0 ? (
-                  <div className="text-center py-12 px-4">
-                    <div className="w-14 h-14 rounded-2xl bg-orange-50 flex items-center justify-center mx-auto mb-3 text-orange-400">
+                  <div className="text-center py-10 sm:py-14 px-4">
+                    <div className="w-14 h-14 rounded-2xl bg-orange-50 dark:bg-orange-950/30 flex items-center justify-center mx-auto mb-3 text-orange-500 dark:text-orange-400">
                       <UserPlus className="w-7 h-7" />
                     </div>
-                    <h4 className="font-black text-navy-700 text-sm mb-1">لم يتم إضافة طلاب بعد في هذه الجلسة</h4>
-                    <p className="text-xs text-gray-400 leading-relaxed max-w-xs mx-auto">
+                    <h4 className="font-black text-navy-800 dark:text-gray-100 text-sm mb-1">لم يتم إضافة طلاب بعد في هذه الجلسة</h4>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed max-w-xs mx-auto">
                       بمجرد إضافة أي طالب من النموذج، ستظهر بطاقة بيانات الدخول الخاصة به هنا مباشرة لنسخها أو مشاركتها عبر واتساب.
                     </p>
                   </div>
@@ -620,24 +622,24 @@ export default function AddStudent() {
                     return (
                       <div
                         key={s.id || idx}
-                        className="bg-gray-50/80 hover:bg-orange-50/20 border border-gray-200 rounded-2xl p-4 transition-all duration-200 animate-in fade-in slide-in-from-top-2"
+                        className="bg-gray-50/90 dark:bg-[#1F1C2C] hover:bg-orange-50/30 dark:hover:bg-[#272439] border border-gray-200 dark:border-amber-500/10 rounded-2xl p-3.5 sm:p-4 transition-all duration-200 animate-in fade-in slide-in-from-top-2"
                       >
                         <div className="flex items-start justify-between gap-2 mb-3">
                           <div>
                             <span className="text-[10px] font-bold text-gray-400 ml-1">#{sessionStudents.length - idx}</span>
-                            <h4 className="font-black text-navy-700 text-sm inline-block">{s.name}</h4>
+                            <h4 className="font-black text-navy-800 dark:text-white text-sm inline-block">{s.name}</h4>
                             {s.academic_stage && (
-                              <span className={`block sm:inline-block sm:mr-2 text-[10px] font-bold px-2 py-0.5 rounded-full border ${STAGE_COLORS[s.academic_stage] || 'bg-gray-100 text-gray-700 border-gray-200'}`}>
+                              <span className={`block sm:inline-block sm:mr-2 text-[10px] font-bold px-2 py-0.5 rounded-full border mt-1 sm:mt-0 ${STAGE_COLORS[s.academic_stage] || 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200'}`}>
                                 {s.academic_stage}
                               </span>
                             )}
                           </div>
 
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
                             <button
                               type="button"
                               onClick={() => handleWhatsAppShare(s)}
-                              className="p-1.5 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 transition-colors"
+                              className="p-1.5 rounded-lg bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-900/60 border border-green-200/50 dark:border-green-800/40 transition-colors"
                               title="إرسال البيانات عبر واتساب"
                             >
                               <Send className="w-3.5 h-3.5" />
@@ -645,10 +647,10 @@ export default function AddStudent() {
                             <button
                               type="button"
                               onClick={() => copyToClipboard(`كود الطالب: ${s.username}\nكلمة المرور: ${pwd}`, s.id)}
-                              className={`p-1.5 rounded-lg transition-colors ${
+                              className={`p-1.5 rounded-lg transition-colors border ${
                                 isCopied
-                                  ? 'bg-green-500 text-white'
-                                  : 'bg-orange-50 text-orange-700 hover:bg-orange-100'
+                                  ? 'bg-green-600 text-white border-green-600'
+                                  : 'bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 hover:bg-orange-100 dark:hover:bg-orange-900/60 border-orange-200/50 dark:border-orange-800/40'
                               }`}
                               title="نسخ كود الطالب وكلمة المرور"
                             >
@@ -658,15 +660,15 @@ export default function AddStudent() {
                         </div>
 
                         {/* Credentials box */}
-                        <div className="bg-white rounded-xl border border-gray-200 p-3 space-y-2 text-xs">
+                        <div className="bg-white dark:bg-[#17151F] border border-gray-200 dark:border-amber-500/10 p-3 rounded-xl space-y-2 text-xs">
                           <div className="flex items-center justify-between">
-                            <span className="text-gray-500 font-bold">كود الطالب (اسم المستخدم):</span>
-                            <div className="flex items-center gap-1.5 font-mono font-black text-orange-600 tracking-wider">
+                            <span className="text-gray-500 dark:text-gray-400 font-bold">كود الطالب (اسم المستخدم):</span>
+                            <div className="flex items-center gap-1.5 font-mono font-black text-orange-600 dark:text-orange-400 tracking-wider">
                               <span>{s.username}</span>
                               <button
                                 type="button"
                                 onClick={() => copyToClipboard(s.username)}
-                                className="text-gray-400 hover:text-orange-600 transition-colors"
+                                className="text-gray-400 hover:text-orange-600 dark:hover:text-orange-400 transition-colors"
                                 title="نسخ الكود"
                               >
                                 <Copy className="w-3 h-3" />
@@ -674,24 +676,24 @@ export default function AddStudent() {
                             </div>
                           </div>
 
-                          <div className="flex items-center justify-between pt-1 border-t border-gray-100">
-                            <span className="text-gray-500 font-bold">كلمة المرور:</span>
+                          <div className="flex items-center justify-between pt-1 border-t border-gray-100 dark:border-amber-500/10">
+                            <span className="text-gray-500 dark:text-gray-400 font-bold">كلمة المرور:</span>
                             <div className="flex items-center gap-1.5">
-                              <span className="font-mono font-black text-green-700 tracking-widest text-sm">
+                              <span className="font-mono font-black text-green-700 dark:text-green-400 tracking-widest text-sm">
                                 {isPwdVisible ? pwd : '••••••'}
                               </span>
                               <button
                                 type="button"
                                 onClick={() => togglePasswordVisibility(s.id)}
-                                className="text-gray-400 hover:text-navy-600 transition-colors"
+                                className="text-gray-400 hover:text-navy-700 dark:hover:text-white transition-colors"
                                 title={isPwdVisible ? 'إخفاء' : 'إظهار'}
                               >
-                                {isPwdVisible ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                                {isPwdVisible ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                               </button>
                               <button
                                 type="button"
                                 onClick={() => copyToClipboard(pwd)}
-                                className="text-gray-400 hover:text-green-600 transition-colors"
+                                className="text-gray-400 hover:text-green-600 dark:hover:text-green-400 transition-colors"
                                 title="نسخ كلمة المرور"
                               >
                                 <Copy className="w-3 h-3" />
@@ -707,21 +709,21 @@ export default function AddStudent() {
             </div>
 
             {/* Stages Distribution Card */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-              <h4 className="font-black text-navy-700 text-xs sm:text-sm flex items-center gap-2 mb-3">
+            <div className="card !p-4 sm:!p-5 bg-white dark:bg-[#17151F] border border-gray-200 dark:border-amber-500/10 rounded-2xl shadow-sm">
+              <h4 className="font-black text-navy-800 dark:text-gray-100 text-xs sm:text-sm flex items-center gap-2 mb-3">
                 <GraduationCap className="w-4 h-4 text-orange-500" />
                 توزيع الطلاب حسب المراحل الدراسية
               </h4>
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 {STAGES.map(stage => {
                   const count = stageCountsData.find(s => s.stage === stage)?.count ?? 0;
                   return (
                     <div
                       key={stage}
-                      className="flex items-center justify-between text-xs py-1.5 px-2.5 rounded-xl hover:bg-gray-50 transition-colors"
+                      className="flex items-center justify-between text-xs py-1.5 px-2.5 rounded-xl hover:bg-gray-50 dark:hover:bg-[#1F1C2C] transition-colors"
                     >
-                      <span className="text-gray-700 font-medium truncate">{stage}</span>
-                      <span className="font-mono font-bold bg-gray-100 text-navy-700 px-2 py-0.5 rounded-full text-[11px]">
+                      <span className="text-gray-700 dark:text-gray-300 font-medium truncate">{stage}</span>
+                      <span className="font-mono font-bold bg-gray-100 dark:bg-[#1F1C2C] text-navy-800 dark:text-gray-200 border border-gray-200/60 dark:border-amber-500/10 px-2.5 py-0.5 rounded-full text-[11px]">
                         {count} طالب
                       </span>
                     </div>
