@@ -37,13 +37,17 @@ export default function RecitationReviewPage() {
   const result    = data?.result;
   const questions = data?.review || [];
 
-  const correct    = questions.filter(q => q.is_correct).length;
   const hasAnswer  = q => q.question_type === 'image_multi'
     ? (Array.isArray(q.sub_results) && q.sub_results.some(s => !!s.student_answer))
     : !!q.student_answer;
-  const wrong      = questions.filter(q => !q.is_correct && hasAnswer(q)).length;
-  const unanswered = questions.filter(q => !hasAnswer(q)).length;
-  const pct        = questions.length > 0 ? Math.round((correct / questions.length) * 100) : 0;
+
+  const correct    = result?.correct_count !== undefined ? result.correct_count : questions.filter(q => q.is_correct).length;
+  const wrong      = result?.wrong_count !== undefined ? result.wrong_count : questions.filter(q => !q.is_correct && hasAnswer(q)).length;
+  const unanswered = result?.unanswered_count !== undefined ? result.unanswered_count : questions.filter(q => !hasAnswer(q)).length;
+  const totalScore = result?.total_score || questions.length;
+  const pct        = result?.score !== undefined && totalScore > 0
+    ? Math.round((result.score / totalScore) * 100)
+    : (questions.length > 0 ? Math.round((correct / questions.length) * 100) : 0);
 
   const [lightboxSrc, setLightboxSrc] = useState(null);
   const [currentIdx, setCurrentIdx]   = useState(0);
@@ -66,6 +70,12 @@ export default function RecitationReviewPage() {
     const answered   = !!q.student_answer;
     const opts = ['A','B','C','D'].filter(o => q[`option_${o.toLowerCase()}`]);
 
+    const defaultArabic = ['أ', 'ب', 'ج', 'د'];
+    const rawLabels = Array.isArray(q.option_labels) && q.option_labels.length > 0 ? q.option_labels : defaultArabic;
+    const displayLabels = Object.fromEntries(
+      ['A', 'B', 'C', 'D'].map((l, i) => [l, rawLabels[i] || defaultArabic[i] || l])
+    );
+
     return (
       <div key={q.id || qi} className={`bg-white dark:bg-[var(--dk-surface)] rounded-2xl border-2 shadow-sm overflow-hidden ${
         !answered
@@ -87,9 +97,9 @@ export default function RecitationReviewPage() {
           }`}>{qi + 1}</div>
           <div className="flex items-center gap-2 text-xs font-bold flex-wrap">
             {isImgMulti && <span className="text-indigo-700 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/30 px-2 py-0.5 rounded-full">صورة+أسئلة</span>}
-            {!answered && <span className="flex items-center gap-1 text-gray-400 dark:text-[var(--dk-text-2)] bg-gray-100 dark:bg-[var(--dk-hover)] px-2 py-0.5 rounded-full"><Clock className="w-3 h-3" /> لم تُجَب</span>}
-            {answered && q.is_correct && <span className="flex items-center gap-1 text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-2 py-0.5 rounded-full"><CheckCircle className="w-3 h-3" /> صحيحة ✓</span>}
-            {answered && !q.is_correct && <span className="flex items-center gap-1 text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30 px-2 py-0.5 rounded-full"><XCircle className="w-3 h-3" /> خاطئة ✗</span>}
+            {!answered && <span className="flex items-center gap-1 text-gray-400 dark:text-[var(--dk-text-2)] bg-gray-100 dark:bg-[var(--dk-hover)] px-2 py-0.5 rounded-full"><Clock className="w-3.5 h-3.5" /> لم تُجَب</span>}
+            {answered && q.is_correct && <span className="flex items-center gap-1 text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-2 py-0.5 rounded-full"><CheckCircle className="w-3.5 h-3.5" /> صحيحة ✓</span>}
+            {answered && !q.is_correct && <span className="flex items-center gap-1 text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30 px-2 py-0.5 rounded-full"><XCircle className="w-3.5 h-3.5" /> خاطئة ✗</span>}
           </div>
         </div>
 
@@ -143,7 +153,7 @@ export default function RecitationReviewPage() {
                               : letter === subCorrect
                                 ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400 border-green-300 dark:border-green-700/50'
                                 : 'bg-white dark:bg-[var(--dk-elevated)] text-gray-400 dark:text-[var(--dk-text-3)] border-gray-200 dark:border-[var(--dk-border)]'
-                        }`}>{isTF ? (letter === 'A' ? 'صح' : 'خطأ') : (sub.option_labels?.[['A', 'B', 'C', 'D'].indexOf(letter)] || letter)}</span>
+                        }`}>{isTF ? (letter === 'A' ? 'صح' : 'خطأ') : (sub.option_labels?.[['A', 'B', 'C', 'D'].indexOf(letter)] || ['أ', 'ب', 'ج', 'د'][['A', 'B', 'C', 'D'].indexOf(letter)] || letter)}</span>
                       ))}
                     </div>
                     {!hasSubAns && <span className="text-[10px] text-gray-400 dark:text-[var(--dk-text-3)] flex-shrink-0">لم تُجَب</span>}
@@ -183,7 +193,7 @@ export default function RecitationReviewPage() {
                       : isStudentChoice ? 'bg-red-500 text-white'
                       : isCorrectOpt ? 'bg-green-200 dark:bg-green-800/50 text-green-800 dark:text-green-300'
                       : 'bg-gray-200 dark:bg-[var(--dk-hover)] text-gray-600 dark:text-[var(--dk-text-2)]'
-                    }`}>{q.option_labels?.[['A', 'B', 'C', 'D'].indexOf(opt)] || opt}</span>
+                    }`}>{displayLabels[opt] || opt}</span>
                     <span className={`text-sm flex-1 ${
                       isCorrectOpt
                         ? 'text-green-800 dark:text-green-300 font-semibold'
@@ -229,9 +239,7 @@ export default function RecitationReviewPage() {
               <span className="mx-1 text-gray-300 dark:text-[var(--dk-text-3)]">—</span>
               <CheckCircle className="w-3.5 h-3.5 text-green-600" />
               <span className="text-green-800 dark:text-green-400">الصحيح: <strong>{
-                q.option_labels && ['A','B','C','D'].includes(q.correct_answer_letter || q.correct_answer)
-                  ? q.option_labels[['A','B','C','D'].indexOf(q.correct_answer_letter || q.correct_answer)]
-                  : (q.correct_answer_letter || q.correct_answer)
+                displayLabels[q.correct_answer_letter || q.correct_answer] || (q.correct_answer_letter || q.correct_answer)
               }</strong></span>
             </div>
           )}
@@ -303,7 +311,7 @@ export default function RecitationReviewPage() {
               <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> {fmt(result.created_at)}</span>
             )}
             {result.score !== undefined && (
-              <span className="flex items-center gap-1.5"><Award className="w-3.5 h-3.5 text-amber-500" /> الدرجة: {Math.round(result.score)}%</span>
+              <span className="flex items-center gap-1.5"><Award className="w-3.5 h-3.5 text-amber-500" /> الدرجة: {result.score} / {result.total_score || questions.length}</span>
             )}
             <span className="flex items-center gap-1.5"><BarChart2 className="w-3.5 h-3.5 text-blue-500" /> {questions.length} سؤال</span>
           </div>

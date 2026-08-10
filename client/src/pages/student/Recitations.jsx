@@ -778,11 +778,13 @@ function Section({ title, items, dark, cardCls, onStart, navigate, startingId = 
 }
 
 function QuestionCard({ q, idx, answers, setAnswers, dark, onImagePress }) {
+  const defaultArabic = ['أ', 'ب', 'ج', 'د'];
+  const rawLabels = Array.isArray(q.option_labels) && q.option_labels.length > 0 ? q.option_labels : defaultArabic;
   const options = [
-    q.option_a && { letter: 'A', text: q.option_a, displayLabel: q.option_labels?.[0] || 'A' },
-    q.option_b && { letter: 'B', text: q.option_b, displayLabel: q.option_labels?.[1] || 'B' },
-    q.option_c && { letter: 'C', text: q.option_c, displayLabel: q.option_labels?.[2] || 'C' },
-    q.option_d && { letter: 'D', text: q.option_d, displayLabel: q.option_labels?.[3] || 'D' },
+    q.option_a && { letter: 'A', text: q.option_a, displayLabel: rawLabels[0] || defaultArabic[0] || 'أ' },
+    q.option_b && { letter: 'B', text: q.option_b, displayLabel: rawLabels[1] || defaultArabic[1] || 'ب' },
+    q.option_c && { letter: 'C', text: q.option_c, displayLabel: rawLabels[2] || defaultArabic[2] || 'ج' },
+    q.option_d && { letter: 'D', text: q.option_d, displayLabel: rawLabels[3] || defaultArabic[3] || 'د' },
   ].filter(Boolean);
 
   const isImgMulti = q.question_type === 'image_multi';
@@ -847,7 +849,7 @@ function QuestionCard({ q, idx, answers, setAnswers, dark, onImagePress }) {
             const subOptions = isTF
               ? [{ letter: 'A', label: 'صح' }, { letter: 'B', label: 'خطأ' }]
               : ['A', 'B', 'C', 'D'].slice(0, sub.option_labels?.length || 4)
-                  .map((letter, i) => ({ letter, label: sub.option_labels?.[i] || letter }));
+                  .map((letter, i) => ({ letter, label: sub.option_labels?.[i] || defaultArabic[i] || letter }));
             return (
               <div key={sub.label} className={`rounded-xl p-3 border ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)]' : 'bg-gray-50 border-gray-200'}`}>
                 <p className={`text-sm font-bold mb-2 flex items-center justify-between ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>

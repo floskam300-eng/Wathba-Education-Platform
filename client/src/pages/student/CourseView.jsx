@@ -1686,11 +1686,13 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
 function SidebarQuestionCard({ q, idx, answers, setAnswers }) {
   const [lightboxSrc, setLightboxSrc] = useState(null);
 
+  const defaultArabic = ['أ', 'ب', 'ج', 'د'];
+  const rawLabels = Array.isArray(q.option_labels) && q.option_labels.length > 0 ? q.option_labels : defaultArabic;
   const options = [
-    q.option_a && { letter: 'A', text: q.option_a },
-    q.option_b && { letter: 'B', text: q.option_b },
-    q.option_c && { letter: 'C', text: q.option_c },
-    q.option_d && { letter: 'D', text: q.option_d },
+    q.option_a && { letter: 'A', text: q.option_a, displayLabel: rawLabels[0] || 'أ' },
+    q.option_b && { letter: 'B', text: q.option_b, displayLabel: rawLabels[1] || 'ب' },
+    q.option_c && { letter: 'C', text: q.option_c, displayLabel: rawLabels[2] || 'ج' },
+    q.option_d && { letter: 'D', text: q.option_d, displayLabel: rawLabels[3] || 'د' },
   ].filter(Boolean);
 
   const isImgMulti = q.question_type === 'image_multi';
@@ -1728,8 +1730,8 @@ function SidebarQuestionCard({ q, idx, answers, setAnswers }) {
         <div className="space-y-1.5">
           {options.some(o => o.text !== o.letter) && (
             <div className="flex flex-wrap gap-1 mb-1.5">
-              {options.map(({ letter, text }) => (
-                <span key={letter} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 dark:bg-white/10 text-gray-600 dark:text-gray-400">{letter}: {text}</span>
+              {options.map(({ letter, text, displayLabel }) => (
+                <span key={letter} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 dark:bg-white/10 text-gray-600 dark:text-gray-400">{displayLabel || letter}: {text}</span>
               ))}
             </div>
           )}
@@ -1752,7 +1754,7 @@ function SidebarQuestionCard({ q, idx, answers, setAnswers }) {
                           ? 'bg-purple-500 text-white border-purple-500'
                           : 'bg-gray-100 dark:bg-white/5 border-gray-300 dark:border-white/20 text-gray-700 dark:text-gray-300 hover:border-purple-500 dark:hover:border-purple-400'
                       }`}>
-                      {isTF ? opt.label : opt.letter}
+                      {isTF ? opt.label : (opt.displayLabel || opt.letter)}
                     </button>
                   ))}
                 </div>
@@ -1762,7 +1764,7 @@ function SidebarQuestionCard({ q, idx, answers, setAnswers }) {
         </div>
       ) : (
         <div className="space-y-1.5">
-          {options.map(({ letter, text }) => (
+          {options.map(({ letter, text, displayLabel }) => (
             <button key={letter}
               onClick={() => setAnswers(a => ({ ...a, [q.id]: letter }))}
               className={`w-full text-right flex items-center gap-2 px-2.5 py-2 rounded-lg border text-[11px] font-semibold transition-all ${
@@ -1770,7 +1772,7 @@ function SidebarQuestionCard({ q, idx, answers, setAnswers }) {
                   ? 'bg-purple-500 text-white border-purple-500'
                   : 'bg-gray-100 dark:bg-white/5 border-gray-200 dark:border-white/15 text-gray-700 dark:text-gray-300 hover:border-purple-500 dark:hover:border-purple-400'
               }`}>
-              <span className={`w-4.5 h-4.5 rounded-full flex items-center justify-center text-[9px] font-black flex-shrink-0 ${selected === letter ? 'bg-white/20' : 'bg-gray-200 dark:bg-white/10 text-purple-600 dark:text-purple-400'}`}>{letter}</span>
+              <span className={`w-4.5 h-4.5 rounded-full flex items-center justify-center text-[9px] font-black flex-shrink-0 ${selected === letter ? 'bg-white/20' : 'bg-gray-200 dark:bg-white/10 text-purple-600 dark:text-purple-400'}`}>{displayLabel || letter}</span>
               {text}
             </button>
           ))}

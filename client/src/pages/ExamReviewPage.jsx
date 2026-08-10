@@ -258,8 +258,15 @@ export default function ExamReviewPage() {
                 const displayLabels = isTrueFalse
                   ? { A: '✅ صح', B: '❌ خطأ' }
                   : (() => {
-                      const labels = q.option_labels && q.option_labels.length === 4 ? q.option_labels : ['أ', 'ب', 'ج', 'د'];
-                      return Object.fromEntries(displayOpts.map((o, i) => [o, labels[i]]));
+                      // [LABEL-FIX] Build label map keyed by the ORIGINAL option letter (A/B/C/D),
+                      // not by shuffled position. option_labels[0] is always the label for A,
+                      // option_labels[1] for B, etc., regardless of display order.
+                      const ALL_LETTERS = ['A', 'B', 'C', 'D'];
+                      const defaultArabic = ['أ', 'ب', 'ج', 'د'];
+                      const rawLabels = Array.isArray(q.option_labels) && q.option_labels.length > 0 ? q.option_labels : defaultArabic;
+                      return Object.fromEntries(
+                        ALL_LETTERS.map((letter, i) => [letter, rawLabels?.[i] || defaultArabic[i] || letter])
+                      );
                     })();
 
                 return (
@@ -354,7 +361,7 @@ export default function ExamReviewPage() {
                                       : letter === subCorrect
                                         ? dark ? 'bg-green-900/30 text-green-300 border-green-700/50' : 'bg-green-100 text-green-800 border-green-300'
                                         : dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)] border-[var(--dk-border)]' : 'bg-white text-gray-400 border-gray-200'
-                                    }`}>{isTF ? (letter === 'A' ? 'صح' : 'خطأ') : (sub.option_labels?.[['A', 'B', 'C', 'D'].indexOf(letter)] || letter)}</span>
+                                    }`}>{isTF ? (letter === 'A' ? 'صح' : 'خطأ') : (sub.option_labels?.[['A', 'B', 'C', 'D'].indexOf(letter)] || ['أ', 'ب', 'ج', 'د'][['A', 'B', 'C', 'D'].indexOf(letter)] || letter)}</span>
                                   ))}
                                 </div>
                                 {!hasSubAnswer && <span className={`text-[10px] flex-shrink-0 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>لم تُجَب</span>}

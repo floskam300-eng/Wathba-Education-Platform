@@ -1764,6 +1764,7 @@ router.get('/results/:resultId/review', authenticate, async (req, res) => {
           student_answer: studentAns,
           is_correct: storedIsCorrect != null ? storedIsCorrect : (subResults.length > 0 && subResults.every(s => s.is_correct)),
           points: q.points,
+          option_labels: q.option_labels || null,
         };
       }
 
@@ -1788,6 +1789,7 @@ router.get('/results/:resultId/review', authenticate, async (req, res) => {
         student_answer: studentAnsNormalized,
         is_correct: isCorrect,
         points: q.points,
+        option_labels: q.option_labels || null,
       };
     });
 

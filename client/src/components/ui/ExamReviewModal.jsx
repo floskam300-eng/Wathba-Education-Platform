@@ -130,11 +130,9 @@ export default function ExamReviewModal({ resultId, onClose }) {
                 <span className="flex items-center gap-1 text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30 px-2 py-1 rounded-lg">
                   <XCircle className="w-3.5 h-3.5" /> {wrongCount} غلط
                 </span>
-                {skippedCount > 0 && (
-                  <span className="flex items-center gap-1 text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-lg">
-                    <Minus className="w-3.5 h-3.5" /> {skippedCount} متروك
-                  </span>
-                )}
+                <span className="flex items-center gap-1 text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-lg">
+                  <Minus className="w-3.5 h-3.5" /> {skippedCount} لم يُجب
+                </span>
                 {result.points_earned > 0 && (
                   <span className="flex items-center gap-1 text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30 px-2 py-1 rounded-lg">
                     ⭐ +{result.points_earned} نقطة
@@ -186,8 +184,14 @@ export default function ExamReviewModal({ resultId, onClose }) {
             const displayLabels = isTrueFalse
               ? { A: '✅ صح', B: '❌ خطأ' }
               : (() => {
-                  const labels = ['أ', 'ب', 'ج', 'د'];
-                  return Object.fromEntries(displayOpts.map((o, i) => [o, labels[i]]));
+                  // [LABEL-FIX] Build label map from the ORIGINAL letter position.
+                  // option_labels[0] → A, [1] → B, etc. — independent of shuffle order.
+                  const ALL_LETTERS = ['A', 'B', 'C', 'D'];
+                  const defaultArabic = ['أ', 'ب', 'ج', 'د'];
+                  const rawLabels = Array.isArray(q.option_labels) && q.option_labels.length > 0 ? q.option_labels : defaultArabic;
+                  return Object.fromEntries(
+                    ALL_LETTERS.map((letter, i) => [letter, rawLabels?.[i] || defaultArabic[i] || letter])
+                  );
                 })();
 
             // Card border + background per state
@@ -289,7 +293,7 @@ export default function ExamReviewModal({ resultId, onClose }) {
                                 <span key={letter} className={`flex-1 text-center py-0.5 rounded text-xs font-bold border ${letterCls}`}>
                                   {isTF
                                     ? (letter === 'A' ? 'صح' : 'خطأ')
-                                    : (sub.option_labels?.[['A','B','C','D'].indexOf(letter)] || letter)}
+                                    : (sub.option_labels?.[['A','B','C','D'].indexOf(letter)] || ['أ', 'ب', 'ج', 'د'][['A','B','C','D'].indexOf(letter)] || letter)}
                                 </span>
                               );
                             })}
