@@ -1068,6 +1068,8 @@ ALTER TABLE recitations       ADD COLUMN IF NOT EXISTS absent_marked BOOLEAN DEF
 
 -- Allow retry: teacher controls whether students can retake after failing
 ALTER TABLE recitations ADD COLUMN IF NOT EXISTS allow_retry BOOLEAN NOT NULL DEFAULT true;
+-- Max retry attempts: NULL = unlimited, 1 = one attempt total (no retries), 2 = first + one retry, etc.
+ALTER TABLE recitations ADD COLUMN IF NOT EXISTS max_retry_attempts INT DEFAULT NULL;
 
 -- Support contacts shown on the teacher's public landing page (independent of assistant accounts)
 CREATE TABLE IF NOT EXISTS teacher_support_contacts (

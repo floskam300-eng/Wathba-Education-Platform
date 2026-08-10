@@ -86,6 +86,7 @@ const emptyForm = {
   shuffle_questions: false, shuffle_options: false,
   course_id: '', video_ids: [],
   allow_retry: true,
+  max_retry_attempts: '',
 };
 
 const emptyQ = { question_text: '', question_image_url: '', question_type: 'mcq', option_a: '', option_b: '', option_c: '', option_d: '', correct_answer_letter: 'A', points: 1, sub_questions: [] };
@@ -195,6 +196,7 @@ export default function Recitations() {
       course_id: rec.course_id ? String(rec.course_id) : '',
       video_ids: Array.isArray(rec.video_ids) ? rec.video_ids.map(Number) : [],
       allow_retry: rec.allow_retry !== false,
+      max_retry_attempts: rec.max_retry_attempts != null ? String(rec.max_retry_attempts) : '',
     });
     setFormErrors({});
     setModal(true);
@@ -757,6 +759,30 @@ export default function Recitations() {
                 </div>
               </button>
 
+              {/* Max retry attempts — shown only when allow_retry is enabled */}
+              {form.allow_retry && (
+                <div className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl border ${dark ? 'border-[var(--dk-border)] bg-[var(--dk-elevated)]' : 'border-green-200 bg-green-50/50'}`}>
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0 bg-green-100">🔢</div>
+                  <div className="flex-1 min-w-0">
+                    <label className={`block text-xs sm:text-sm font-black mb-0.5 ${dark ? 'text-[var(--dk-text)]' : 'text-green-800'}`}>
+                      عدد المحاولات المسموحة
+                    </label>
+                    <p className={`text-[10px] sm:text-xs ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-500'}`}>
+                      فارغ = غير محدود — مثال: 2 = محاولة أولى + إعادة واحدة
+                    </p>
+                  </div>
+                  <input
+                    type="number"
+                    min="1"
+                    max="99"
+                    placeholder="∞"
+                    value={form.max_retry_attempts}
+                    onChange={e => setForm(f => ({ ...f, max_retry_attempts: e.target.value }))}
+                    className={`w-16 text-center rounded-xl px-2 py-1.5 border text-sm font-bold ${dark ? 'bg-[var(--dk-surface)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-green-300 text-navy-700'}`}
+                  />
+                </div>
+              )}
+
               <div className="flex gap-3 pt-2">
                 <button onClick={() => {
                   const errs = validateRecitationForm(form);
@@ -766,10 +792,12 @@ export default function Recitations() {
                     return;
                   }
                   setFormErrors({});
+                  const rawMax = parseInt(form.max_retry_attempts, 10);
                   const payload = {
                     ...form,
                     start_date: toUTCIso(form.start_date),
                     end_date: toUTCIso(form.end_date),
+                    max_retry_attempts: form.allow_retry && !isNaN(rawMax) && rawMax >= 1 ? rawMax : null,
                   };
                   createMut.mutate(payload);
                 }} disabled={createMut.isPending || !form.title.trim()}
@@ -1184,17 +1212,23 @@ function ResultsPanel({ results, rec, dark, cardCls, navigate, baseRole = 'teach
   }
   const grouped = Array.from(studentMap.values());
 
-  const uniqueStudents = grouped.length;
-  const avgScore = Math.round(grouped.reduce((s, g) => s + g.latest.score, 0) / uniqueStudents);
-  const passedCount = grouped.filter(g => g.latest.passed).length;
+  // [STATS-FIX] Exclude absent students from avg/pass-rate stats
+  // (absent students have is_absent=true and score=0 which skews numbers down).
+  const nonAbsent = grouped.filter(g => !g.latest.is_absent);
+  const absentCount = grouped.length - nonAbsent.length;
+  const uniqueStudents = nonAbsent.length;
+  const avgScore = uniqueStudents > 0
+    ? Math.round(nonAbsent.reduce((s, g) => s + g.latest.score, 0) / uniqueStudents)
+    : 0;
+  const passedCount = nonAbsent.filter(g => g.latest.passed).length;
 
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-3 gap-2">
         {[
           { label: 'شاركوا', value: uniqueStudents, color: 'purple' },
-          { label: 'متوسط الدرجة', value: `${avgScore}/${rec.total_score}`, color: 'blue' },
-          { label: 'نسبة النجاح', value: `${Math.round(passedCount/uniqueStudents*100)}%`, color: 'green' },
+          { label: 'متوسط الدرجة', value: uniqueStudents > 0 ? `${avgScore}/${rec.total_score}` : '-', color: 'blue' },
+          { label: 'نسبة النجاح', value: uniqueStudents > 0 ? `${Math.round(passedCount/uniqueStudents*100)}%` : '-', color: 'green' },
         ].map(({ label, value, color }) => (
           <div key={label} className={`rounded-xl p-3 text-center ${dark ? 'bg-[var(--dk-elevated)]' : `bg-${color}-50`}`}>
             <div className={`text-xl font-black text-${color}-600`}>{value}</div>
@@ -1202,6 +1236,11 @@ function ResultsPanel({ results, rec, dark, cardCls, navigate, baseRole = 'teach
           </div>
         ))}
       </div>
+      {absentCount > 0 && (
+        <div className={`text-xs font-semibold px-3 py-1.5 rounded-xl flex items-center gap-1.5 ${dark ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>
+          <span>⚠️</span> {absentCount} طالب غائب (مستبعد من الإحصائيات)
+        </div>
+      )}
       {grouped.map(({ latest: r, all }) => {
         const attemptCount = parseInt(r.attempt_count) || all.length;
         const isExpanded = expandedStudent === r.student_id;

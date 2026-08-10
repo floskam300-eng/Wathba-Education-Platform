@@ -206,7 +206,7 @@ router.post('/', requireRole('teacher', 'assistant'), checkManageRecitationsPerm
     total_score, pass_score, points_on_attempt, points_on_pass,
     schedule_type, schedule_day, start_date, end_date,
     shuffle_questions, shuffle_options,
-    course_id, video_ids, allow_retry,
+    course_id, video_ids, allow_retry, max_retry_attempts,
   } = req.body;
 
   if (!title || !String(title).trim())
@@ -287,13 +287,18 @@ router.post('/', requireRole('teacher', 'assistant'), checkManageRecitationsPerm
       }
     }
 
+    // Parse max_retry_attempts: null/undefined/0/''/negative → NULL (unlimited)
+    const parsedMaxRetry = max_retry_attempts !== undefined && max_retry_attempts !== null && max_retry_attempts !== ''
+      ? (parseInt(max_retry_attempts, 10) >= 1 ? parseInt(max_retry_attempts, 10) : null)
+      : null;
+
     const { rows } = await pool.query(
       `INSERT INTO recitations
          (teacher_id, title, description, academic_stage, duration_minutes,
           total_score, pass_score, points_on_attempt, points_on_pass,
           schedule_type, schedule_day, start_date, end_date,
-          shuffle_questions, shuffle_options, course_id, video_ids, allow_retry)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+          shuffle_questions, shuffle_options, course_id, video_ids, allow_retry, max_retry_attempts)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
        RETURNING *`,
       [
         teacherId,
@@ -314,6 +319,7 @@ router.post('/', requireRole('teacher', 'assistant'), checkManageRecitationsPerm
         parsedCourseId,
         JSON.stringify(parsedVideoIds),
         allow_retry !== false,
+        parsedMaxRetry,
       ]
     );
     logActivity({
@@ -358,12 +364,16 @@ router.get('/analytics', requireRole('teacher', 'assistant'), async (req, res) =
 
     const [totalRec, totalResults, avgScore, byStage, topStudents, recentActivity] = await Promise.all([
       pool.query('SELECT COUNT(*) AS cnt FROM recitations WHERE teacher_id=$1 AND deleted_at IS NULL', [teacherId]),
+      // [STATS-FIX] Exclude absent rows from result count so the number reflects
+      // actual participants, not students marked absent after unpublishing.
       pool.query(
-        'SELECT COUNT(*) AS cnt FROM recitation_results rr JOIN recitations r ON rr.recitation_id=r.id WHERE r.teacher_id=$1',
+        `SELECT COUNT(*) AS cnt FROM recitation_results rr
+           JOIN recitations r ON rr.recitation_id=r.id
+          WHERE r.teacher_id=$1 AND (rr.is_absent IS NULL OR rr.is_absent=false)`,
         [teacherId]
       ),
       // [N3-FIX] Normalize score to percentage (0–100) so the UI's "%" display is correct.
-      // Without normalization, a score of 7/10 would show as "7%" instead of "70%".
+      // [STATS-FIX] Exclude absent rows so their score=0 doesn't skew the average down.
       pool.query(
         `SELECT COALESCE(
            AVG(CASE WHEN r.total_score > 0
@@ -372,7 +382,7 @@ router.get('/analytics', requireRole('teacher', 'assistant'), async (req, res) =
          )::numeric(5,1) AS avg
            FROM recitation_results rr
            JOIN recitations r ON rr.recitation_id=r.id
-          WHERE r.teacher_id=$1`,
+          WHERE r.teacher_id=$1 AND (rr.is_absent IS NULL OR rr.is_absent=false)`,
         [teacherId]
       ),
       pool.query(
@@ -385,7 +395,7 @@ router.get('/analytics', requireRole('teacher', 'assistant'), async (req, res) =
            FROM recitation_results rr
            JOIN recitations r ON rr.recitation_id=r.id
            JOIN students s ON rr.student_id=s.id
-          WHERE r.teacher_id=$1
+          WHERE r.teacher_id=$1 AND (rr.is_absent IS NULL OR rr.is_absent=false)
           GROUP BY s.academic_stage
           ORDER BY total_attempts DESC`,
         [teacherId]
@@ -402,6 +412,7 @@ router.get('/analytics', requireRole('teacher', 'assistant'), async (req, res) =
            JOIN recitation_results rr ON s.id=rr.student_id
            JOIN recitations rec ON rr.recitation_id=rec.id
           WHERE rec.teacher_id=$1 AND s.deleted_at IS NULL
+            AND (rr.is_absent IS NULL OR rr.is_absent=false)
           GROUP BY s.id, s.name, s.academic_stage
           ORDER BY total_completed DESC, avg_score DESC
           LIMIT 20`,
@@ -411,13 +422,17 @@ router.get('/analytics', requireRole('teacher', 'assistant'), async (req, res) =
       // global summary.avg_score and by_stage.avg_score.  Before this fix
       // recent_recitations.avg_score was the raw score (e.g. 7) while others
       // returned a percentage (e.g. 70).
+      // [STATS-FIX] Exclude absent rows from all per-recitation stats.
       pool.query(
         `SELECT r.id, r.title, r.academic_stage,
-                COUNT(rr.id) AS participant_count,
-                COALESCE(AVG(CASE WHEN r.total_score > 0
+                COUNT(CASE WHEN rr.is_absent IS NULL OR rr.is_absent=false THEN 1 END) AS participant_count,
+                COALESCE(AVG(CASE WHEN (rr.is_absent IS NULL OR rr.is_absent=false) AND r.total_score > 0
                                   THEN rr.score::float / r.total_score * 100
-                                  ELSE 0 END), 0)::numeric(5,1) AS avg_score,
-                COALESCE(AVG(CASE WHEN rr.passed THEN 1 ELSE 0 END)*100,0)::numeric(5,1) AS pass_rate
+                                  END), 0)::numeric(5,1) AS avg_score,
+                COALESCE(
+                  AVG(CASE WHEN (rr.is_absent IS NULL OR rr.is_absent=false) AND rr.passed THEN 1
+                           WHEN (rr.is_absent IS NULL OR rr.is_absent=false) THEN 0
+                           END)*100, 0)::numeric(5,1) AS pass_rate
            FROM recitations r
            LEFT JOIN recitation_results rr ON r.id=rr.recitation_id
           WHERE r.teacher_id=$1 AND r.deleted_at IS NULL
@@ -478,20 +493,16 @@ router.get('/student/course/:courseId', requireRole('student'), async (req, res)
     );
     if (!enrRows.length) return res.status(403).json({ error: 'غير مسجل في هذا الكورس' });
 
-    // Fetch published recitations RELATED to this course: either directly linked via
-    // course_id, OR stage-linked (course_id IS NULL but academic_stage matches the
-    // student's stage). Previously only course-linked recitations showed up, so
-    // stage-linked ones were invisible — "all recitations fail to load".
-    // Recitations are ORDERED by the minimum sort_order of their linked videos, so
-    // each recitation appears right before the video it gates — giving the student
-    // a logical, sequential order.
-    // [H5-FIX] LATERAL best-result uses passed DESC so an ever-passed attempt opens
-    // the gate even if a later re-attempt failed.
+    // Fetch published recitations RELATED to this course
     const { rows } = await pool.query(
       `SELECT r.id, r.title, r.description, r.duration_minutes, r.total_score, r.pass_score,
-              r.start_date, r.end_date,
+              r.start_date, r.end_date, r.allow_retry, r.max_retry_attempts,
               r.video_ids,
               (SELECT COUNT(*) FROM recitation_questions WHERE recitation_id=r.id) AS question_count,
+              (SELECT COUNT(*) FROM recitation_results rr_cnt
+                WHERE rr_cnt.student_id=$1 AND rr_cnt.recitation_id=r.id
+                  AND (r.start_date IS NULL OR rr_cnt.created_at >= r.start_date)
+                  AND (rr_cnt.is_absent IS NULL OR rr_cnt.is_absent=false)) AS my_attempt_count,
               rr.id AS result_id, rr.score AS my_score, rr.passed AS my_passed, rr.ever_passed AS my_ever_passed,
               rr.correct_count AS my_correct, rr.wrong_count AS my_wrong,
               rr.created_at AS my_submitted_at,
@@ -501,18 +512,17 @@ router.get('/student/course/:courseId', requireRole('student'), async (req, res)
          LEFT JOIN LATERAL (
            SELECT rr2.id, rr2.score, rr2.passed,
                   (SELECT bool_or(rr3.passed) FROM recitation_results rr3
-                    WHERE rr3.student_id=$1 AND rr3.recitation_id=r.id) AS ever_passed,
+                    WHERE rr3.student_id=$1 AND rr3.recitation_id=r.id
+                      AND (rr3.is_absent IS NULL OR rr3.is_absent=false)) AS ever_passed,
                   rr2.correct_count, rr2.wrong_count, rr2.created_at
-            FROM recitation_results rr2
+             FROM recitation_results rr2
             WHERE rr2.student_id=$1
               AND rr2.recitation_id=r.id
+              AND (rr2.is_absent IS NULL OR rr2.is_absent=false)
             ORDER BY rr2.created_at DESC
             LIMIT 1
          ) rr ON true
          LEFT JOIN LATERAL (
-           -- Resolve the FIRST linked video (lowest sort_order) for ordering + label.
-           -- video_ids is a JSONB array of video ids; we pick the one that appears
-           -- earliest in the course playlist.
            SELECT v.sort_order AS min_sort_order, v.title AS linked_video_title
              FROM videos v
             WHERE v.course_id = $2
@@ -553,25 +563,25 @@ router.get('/student/list', requireRole('student'), async (req, res) => {
     if (!stRows.length) return res.status(404).json({ error: 'الطالب غير موجود' });
     const { teacher_id: teacherId, academic_stage } = stRows[0];
 
-    // [N2-FIX] Use LATERAL join so we only fetch the most recent result
-    // WITHIN THE CURRENT WINDOW (created_at >= r.start_date).
-    // Without this fix, for recurring recitations a student who completed
-    // week-1 would still show "done" in week-2's fresh window.
     const { rows } = await pool.query(
       `SELECT r.*,
               (SELECT COUNT(*) FROM recitation_questions WHERE recitation_id=r.id) AS question_count,
+              (SELECT COUNT(*) FROM recitation_results rr_cnt
+                WHERE rr_cnt.student_id=$1 AND rr_cnt.recitation_id=r.id
+                  AND (r.start_date IS NULL OR rr_cnt.created_at >= r.start_date)
+                  AND (rr_cnt.is_absent IS NULL OR rr_cnt.is_absent=false)) AS my_attempt_count,
               rr.id AS result_id, rr.score AS my_score, rr.passed AS my_passed,
               rr.correct_count AS my_correct, rr.wrong_count AS my_wrong,
               rr.created_at AS my_submitted_at,
               rs2.id AS session_id
          FROM recitations r
          LEFT JOIN LATERAL (
-           -- R-9 OPT: explicit columns instead of SELECT * in LATERAL subquery
            SELECT id, score, passed, correct_count, wrong_count, created_at
              FROM recitation_results rr2
             WHERE rr2.student_id=$1
               AND rr2.recitation_id=r.id
               AND (r.start_date IS NULL OR rr2.created_at >= r.start_date)
+              AND (rr2.is_absent IS NULL OR rr2.is_absent=false)
             ORDER BY rr2.created_at DESC
             LIMIT 1
          ) rr ON true
@@ -659,7 +669,7 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageRecitationsPe
     total_score, pass_score, points_on_attempt, points_on_pass,
     schedule_type, schedule_day, start_date, end_date,
     shuffle_questions, shuffle_options,
-    course_id, video_ids, allow_retry,
+    course_id, video_ids, allow_retry, max_retry_attempts,
   } = req.body;
 
   if (!title || !String(title).trim())
@@ -740,14 +750,19 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageRecitationsPe
       }
     }
 
+    // Parse max_retry_attempts: null/undefined/0/''/negative → NULL (unlimited)
+    const parsedMaxRetryPut = max_retry_attempts !== undefined && max_retry_attempts !== null && max_retry_attempts !== ''
+      ? (parseInt(max_retry_attempts, 10) >= 1 ? parseInt(max_retry_attempts, 10) : null)
+      : null;
+
     const { rows } = await pool.query(
       `UPDATE recitations SET
          title=$1, description=$2, academic_stage=$3, duration_minutes=$4,
          total_score=$5, pass_score=$6, points_on_attempt=$7, points_on_pass=$8,
          schedule_type=$9, schedule_day=$10, start_date=$11, end_date=$12,
          shuffle_questions=$13, shuffle_options=$14, course_id=$15, video_ids=$16,
-         allow_retry=$17
-       WHERE id=$18 AND teacher_id=$19 RETURNING *`,
+         allow_retry=$17, max_retry_attempts=$18
+       WHERE id=$19 AND teacher_id=$20 RETURNING *`,
       [
         String(title).trim(), description || null, academic_stage || null, dur,
         totalSc, passSc,
@@ -759,6 +774,7 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageRecitationsPe
         !!shuffle_questions, !!shuffle_options,
         parsedCourseId, JSON.stringify(parsedVideoIds),
         allow_retry !== false,
+        parsedMaxRetryPut,
         id, teacherId,
       ]
     );
@@ -1275,16 +1291,17 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
     // WITHIN the current window (start_date). This allows retaking in a new window.
     // [allow_retry] When allow_retry=true, only FAILED students may retake.
     // Passed students are never allowed to retake (regardless of allow_retry).
+    // [max_retry_attempts] When set, block once the student has reached the total attempt limit.
     const { rows: existing } = await pool.query(
       `SELECT id, passed FROM recitation_results
         WHERE student_id=$1 AND recitation_id=$2
           AND ($3::timestamp IS NULL OR created_at >= $3::timestamp)
-        ORDER BY created_at DESC
-        LIMIT 1`,
+          AND (is_absent IS NULL OR is_absent=false)
+        ORDER BY created_at DESC`,
       [studentId, id, rec.start_date]
     );
     if (existing.length) {
-      const everPassed = existing[0].passed === true;
+      const everPassed = existing.some(r => r.passed === true);
       if (everPassed) {
         // Student already passed — never allow retake
         return res.status(409).json({ error: 'لقد نجحت في هذا التسميع بالفعل', already_submitted: true });
@@ -1293,7 +1310,17 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
         // Student failed but retries are disabled
         return res.status(409).json({ error: 'لقد أديت هذا التسميع بالفعل', already_submitted: true });
       }
-      // Student failed + allow_retry=true → allow retake (fall through)
+      // [max_retry_attempts] Check total attempt count against the limit
+      if (rec.max_retry_attempts !== null && rec.max_retry_attempts !== undefined) {
+        if (existing.length >= rec.max_retry_attempts) {
+          return res.status(409).json({
+            error: `لقد استنفدت عدد المحاولات المتاحة (${rec.max_retry_attempts})`,
+            already_submitted: true,
+            max_attempts_reached: true,
+          });
+        }
+      }
+      // Student failed + allow_retry=true + within attempt limit → allow retake (fall through)
     }
 
     // Create new session — load and snapshot questions
@@ -1520,10 +1547,25 @@ router.post('/:id/submit', recitationSubmitLimiter, requireRole('student'), asyn
       }
     }
 
-    // Normalize score against total_score
-    const totalPoints = snapshot.reduce((s, q) => s + (q.points || 1), 0);
+    // [IMGMULTI-FIX] Compute totalPoints correctly for image_multi questions:
+    // each sub-question has its own points; using q.points alone underestimates
+    // the total, which can cause rawScore > totalPoints → finalScore > total_score.
+    const totalPoints = snapshot.reduce((s, q) => {
+      if (q.question_type === 'image_multi') {
+        const subQs = Array.isArray(q.sub_questions) ? q.sub_questions : [];
+        if (subQs.length > 0) {
+          const subTotal = subQs.reduce((sp, sub) => {
+            return sp + (sub.points !== undefined && parseInt(sub.points) >= 0
+              ? (parseInt(sub.points) || 1)
+              : ((q.points || 1) / subQs.length));
+          }, 0);
+          return s + subTotal;
+        }
+      }
+      return s + (q.points || 1);
+    }, 0);
     const finalScore = totalPoints > 0
-      ? Math.round((rawScore / totalPoints) * rec.total_score)
+      ? Math.min(rec.total_score, Math.round((rawScore / totalPoints) * rec.total_score))
       : 0;
     const passed = finalScore >= rec.pass_score;
 
@@ -1552,17 +1594,20 @@ router.post('/:id/submit', recitationSubmitLimiter, requireRole('student'), asyn
       }
 
       // Re-check for duplicate INSIDE the locked transaction
-      // [RETRY-FIX] Mirror the fast-path check: block if passed OR allow_retry=false.
+      // [RETRY-FIX] Mirror the fast-path check: block if passed OR allow_retry=false OR max_attempts reached.
       const { rows: dupeRows } = await client.query(
         `SELECT id, passed FROM recitation_results
           WHERE student_id=$1 AND recitation_id=$2
             AND ($3::timestamp IS NULL OR created_at >= $3::timestamp)
+            AND (is_absent IS NULL OR is_absent=false)
           ORDER BY created_at DESC`,
         [studentId, id, rec.start_date]
       );
       if (dupeRows.length) {
         const everPassedTx = dupeRows.some(r => r.passed === true);
-        if (everPassedTx || !rec.allow_retry) {
+        const maxReached = rec.max_retry_attempts !== null && rec.max_retry_attempts !== undefined
+          && dupeRows.length >= rec.max_retry_attempts;
+        if (everPassedTx || !rec.allow_retry || maxReached) {
           await client.query('ROLLBACK');
           client.release();
           return res.status(409).json({ error: 'لقد أديت هذا التسميع بالفعل', already_submitted: true });

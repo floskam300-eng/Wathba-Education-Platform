@@ -362,9 +362,11 @@ export default function StudentRecitations() {
                 {history.map(r => {
                   const isAbsent = r.is_absent === true || r.is_absent === 'true';
                   const passed = !isAbsent && r.passed;
-                  // Find the matching recitation from the list to get allow_retry
+                  // Find the matching recitation from the list to get allow_retry and max attempts
                   const recInfo = recitations.find(rc => rc.id === r.recitation_id);
-                  const canRetry = !isAbsent && !passed && recInfo?.allow_retry && recInfo;
+                  const attemptCount = recInfo ? (parseInt(recInfo.my_attempt_count, 10) || 1) : 1;
+                  const maxReached = recInfo?.max_retry_attempts && attemptCount >= recInfo.max_retry_attempts;
+                  const canRetry = !isAbsent && !passed && recInfo?.allow_retry && !maxReached && recInfo;
                   return (
                     <div key={r.id} className="flex items-center gap-3 px-4 py-3">
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
@@ -752,17 +754,32 @@ function Section({ title, items, dark, cardCls, onStart, navigate, startingId = 
                       مراجعة
                     </button>
                   )}
-                  {/* Show retry button only for FAILED students when allow_retry=true */}
-                  {rec.allow_retry && !rec.my_passed && onStart && (
-                    <button
-                      onClick={() => onStart(rec)}
-                      disabled={!!startingId}
-                      className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${dark ? 'bg-purple-900/30 text-purple-300 hover:bg-purple-900/50' : 'bg-purple-50 text-purple-600 hover:bg-purple-100'}`}
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                      إعادة المحاولة
-                    </button>
-                  )}
+                  {/* Show retry button only for FAILED students when allow_retry=true and limit not reached */}
+                  {(() => {
+                    const attempts = parseInt(rec.my_attempt_count, 10) || 1;
+                    const maxAttempts = rec.max_retry_attempts ? parseInt(rec.max_retry_attempts, 10) : null;
+                    const maxReached = maxAttempts && attempts >= maxAttempts;
+                    if (rec.allow_retry && !rec.my_passed && !maxReached && onStart) {
+                      return (
+                        <button
+                          onClick={() => onStart(rec)}
+                          disabled={!!startingId}
+                          className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${dark ? 'bg-purple-900/30 text-purple-300 hover:bg-purple-900/50' : 'bg-purple-50 text-purple-600 hover:bg-purple-100'}`}
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" />
+                          إعادة المحاولة {maxAttempts ? `(${attempts}/${maxAttempts})` : ''}
+                        </button>
+                      );
+                    }
+                    if (rec.allow_retry && !rec.my_passed && maxReached) {
+                      return (
+                        <span className={`text-[10px] font-bold px-2 py-1 rounded-lg ${dark ? 'bg-red-900/20 text-red-400' : 'bg-red-50 text-red-600'}`}>
+                          استنفدت المحاولات ({maxAttempts})
+                        </span>
+                      );
+                    }
+                    return null;
+                  })()}
                   <CheckCircle className="w-5 h-5 text-green-500" />
                 </div>
               )}

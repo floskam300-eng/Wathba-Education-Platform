@@ -661,3 +661,6 @@ DO $$ BEGIN
   ALTER TABLE device_alerts ADD CONSTRAINT chk_alert_status CHECK (status IN ('pending', 'resolved', 'reactivated', 'dismissed'));
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
+-- Max retry attempts for recitations (NULL = unlimited, 1 = one attempt total, 2 = first + one retry, etc.)
+ALTER TABLE recitations ADD COLUMN IF NOT EXISTS max_retry_attempts INT DEFAULT NULL;
+

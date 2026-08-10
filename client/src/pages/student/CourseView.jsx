@@ -1580,7 +1580,12 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
           const status = getRecStatus(rec); // [M1-FIX]
           const isExpired = status === 'expired';
           const isUpcoming = status === 'upcoming';
-          const canStart = !passed && !isExpired && !isUpcoming;
+          const attempts = parseInt(rec.my_attempt_count, 10) || (hasResult ? 1 : 0);
+          const maxAttempts = rec.max_retry_attempts ? parseInt(rec.max_retry_attempts, 10) : null;
+          const maxReached = maxAttempts && attempts >= maxAttempts;
+          const canRetry = rec.allow_retry !== false && !maxReached;
+          const canStart = !passed && !isExpired && !isUpcoming && (!hasResult || canRetry);
+
           // A recitation gates the next video only when it has linked videos AND
           // the student hasn't passed it yet — surface this clearly so the student
           // knows exactly what to do to proceed.
@@ -1637,7 +1642,11 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
                   {gatesVideo && (
                     <p className="text-[10px] font-black mt-1 flex items-center gap-1 text-orange-300 bg-orange-500/10 border border-orange-500/20 rounded-lg px-2 py-1">
                       <Lock className="w-3 h-3 inline" />
-                      أجب هذا التسميع لفتح المحاضرة التالية
+                      {!hasResult
+                        ? 'أجب هذا التسميع لفتح المحاضرة التالية'
+                        : canRetry
+                        ? 'أعد المحاولة لفتح المحاضرة التالية'
+                        : 'يجب النجاح في التسميع لفتح المحاضرة التالية'}
                     </p>
                   )}
                 </div>
@@ -1650,8 +1659,15 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
                     className="flex-1 py-1.5 rounded-lg text-[11px] font-black text-white bg-purple-500 hover:bg-purple-600 disabled:opacity-60 transition-colors">
                     {startingId === rec.id ? ( // [M3-FIX]
                       <RefreshCw className="w-3 h-3 inline animate-spin" />
-                    ) : hasResult ? 'أعد المحاولة' : 'ابدأ التسميع'}
+                    ) : hasResult ? (
+                      `أعد المحاولة${maxAttempts ? ` (${attempts}/${maxAttempts})` : ''}`
+                    ) : 'ابدأ التسميع'}
                   </button>
+                )}
+                {hasResult && !passed && !canRetry && (
+                  <div className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-bold text-red-400 bg-red-500/10 border border-red-500/20">
+                    {maxReached ? `استنفدت المحاولات (${maxAttempts})` : 'إعادة المحاولة مغلقة'}
+                  </div>
                 )}
                 {rec.result_id && (
                   <button
