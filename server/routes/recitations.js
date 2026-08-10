@@ -19,10 +19,10 @@ fs.mkdirSync(REC_Q_IMG_DIR, { recursive: true });
 
 // [C4] Allowed image magic bytes — JPEG, PNG, GIF, WEBP
 const ALLOWED_MAGIC = [
-  { ext: '.jpg',  magic: [0xFF, 0xD8, 0xFF] },
+  { ext: '.jpg', magic: [0xFF, 0xD8, 0xFF] },
   { ext: '.jpeg', magic: [0xFF, 0xD8, 0xFF] },
-  { ext: '.png',  magic: [0x89, 0x50, 0x4E, 0x47] },
-  { ext: '.gif',  magic: [0x47, 0x49, 0x46] },
+  { ext: '.png', magic: [0x89, 0x50, 0x4E, 0x47] },
+  { ext: '.gif', magic: [0x47, 0x49, 0x46] },
   { ext: '.webp', magic: [0x52, 0x49, 0x46, 0x46] },
 ];
 const ALLOWED_IMG_EXTS = new Set(ALLOWED_MAGIC.map(m => m.ext));
@@ -155,8 +155,8 @@ function shuffleImgMultiSubQs(subQs, baseSeed, questionId) {
     const shuffled = seededShuffle(origPositions, subSeed || 1);
     // shuffled[newIdx] = origIdx — the original slot that occupies each new position
     const origCorrectIdx = LETTERS.indexOf(String(sub.correct || '').toUpperCase());
-    const newCorrectIdx  = shuffled.indexOf(origCorrectIdx);
-    const newCorrect     = (origCorrectIdx >= 0 && newCorrectIdx >= 0) ? LETTERS[newCorrectIdx] : sub.correct;
+    const newCorrectIdx = shuffled.indexOf(origCorrectIdx);
+    const newCorrect = (origCorrectIdx >= 0 && newCorrectIdx >= 0) ? LETTERS[newCorrectIdx] : sub.correct;
     const newOptionLabels = sub.option_labels
       ? shuffled.map(origIdx => sub.option_labels[origIdx] !== undefined ? sub.option_labels[origIdx] : null)
       : null;
@@ -219,7 +219,7 @@ router.post('/', requireRole('teacher', 'assistant'), checkManageRecitationsPerm
     return res.status(400).json({ error: 'المدة يجب أن تكون بين 1 و60 دقيقة' });
 
   const totalSc = parseInt(total_score, 10) || 10;
-  const passSc  = parseInt(pass_score, 10)  || 5;
+  const passSc = parseInt(pass_score, 10) || 5;
   if (passSc > totalSc)
     return res.status(400).json({ error: 'درجة النجاح لا يمكن أن تتجاوز الدرجة الكلية' });
   if (passSc < 0 || totalSc < 1)
@@ -539,7 +539,13 @@ router.get('/student/course/:courseId', requireRole('student'), async (req, res)
         WHERE r.teacher_id=$3
           AND r.is_published=true
           AND r.deleted_at IS NULL
-          AND (r.course_id=$2 OR (r.course_id IS NULL AND r.academic_stage=$4))
+          -- [BUG-FIX] Match the main list filter exactly: a standalone recitation
+          -- (no course) is available to every student regardless of stage when its
+          -- academic_stage is NULL, OR when its academic_stage matches the student.
+          -- Previously the course view required academic_stage = student_stage,
+          -- which silently hid recitations that have no course AND no stage from
+          -- every course view even though they appeared on the main list.
+          AND (r.course_id=$2 OR (r.course_id IS NULL AND (r.academic_stage IS NULL OR r.academic_stage=$4)))
         ORDER BY COALESCE(lv.min_sort_order, 999999) ASC, r.created_at ASC`,
       [studentId, courseId, teacherId, academic_stage]
     );
@@ -637,7 +643,7 @@ router.post('/upload-image', requireRole('teacher', 'assistant'), checkManageRec
     // [C4] Verify magic bytes — reject if file content doesn't match extension
     const ext = path.extname(req.file.filename).toLowerCase();
     if (!(await verifyMagicBytes(req.file.path, ext))) {
-      fs.unlink(req.file.path, () => {});
+      fs.unlink(req.file.path, () => { });
       return res.status(400).json({ error: 'الملف تالف أو غير صالح' });
     }
 
@@ -649,7 +655,7 @@ router.post('/upload-image', requireRole('teacher', 'assistant'), checkManageRec
       console.error('[recitations] WebP conversion error:', convErr.message);
       // convertToWebp throws without deleting the original on sharp failure,
       // so we must clean it up here to avoid orphan files on disk.
-      try { await fs.promises.unlink(req.file.path); } catch (_) {}
+      try { await fs.promises.unlink(req.file.path); } catch (_) { }
       return res.status(500).json({ error: 'خطأ أثناء معالجة الصورة' });
     }
   });
@@ -680,7 +686,7 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageRecitationsPe
     return res.status(400).json({ error: 'المدة يجب أن تكون بين 1 و60 دقيقة' });
 
   const totalSc = parseInt(total_score, 10) || 10;
-  const passSc  = parseInt(pass_score, 10)  || 5;
+  const passSc = parseInt(pass_score, 10) || 5;
   if (passSc > totalSc)
     return res.status(400).json({ error: 'درجة النجاح لا يمكن أن تتجاوز الدرجة الكلية' });
   if (passSc < 0 || totalSc < 1)
@@ -919,13 +925,13 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageRecit
             `INSERT INTO notification_log (teacher_id, student_id, title, message, type, source)
              VALUES ($1,$2,$3,$4,'new_recitation','platform')`,
             [teacherId, sid, 'تسميع جديد 📖', `تم نشر تسميع جديد: "${rec2.title}"`]
-          ).catch(() => {});
+          ).catch(() => { });
         }
         sendFCMToStudents(pool, studentIds,
           'تسميع جديد 📖',
           `تم نشر تسميع: "${rec2.title}"`,
           { recitationId: String(rec2.id) }
-        ).catch(() => {});
+        ).catch(() => { });
       }
 
       logActivity({
@@ -999,14 +1005,14 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageRe
   let finalPoints = parseInt(points, 10) || 1;
   let subQs = null;
   if (!isImgMulti) {
-    if (!correct_answer_letter || !['A','B','C','D','T','F'].includes(correct_answer_letter))
+    if (!correct_answer_letter || !['A', 'B', 'C', 'D', 'T', 'F'].includes(correct_answer_letter))
       return res.status(400).json({ error: 'الإجابة الصحيحة غير صالحة' });
   } else {
     if (!Array.isArray(sub_questions) || sub_questions.length === 0)
       return res.status(400).json({ error: 'سؤال الصورة يحتاج إلى أسئلة فرعية' });
     if (sub_questions.length > 50)
       return res.status(400).json({ error: 'الحد الأقصى للأسئلة الفرعية هو 50' });
-    
+
     let calculatedPoints = 0;
     const sanitizedSubs = [];
     for (const sub of sub_questions) {
@@ -1017,7 +1023,7 @@ router.post('/:id/questions', requireRole('teacher', 'assistant'), checkManageRe
       const allowed = subType === 'true_false' ? ['A', 'B'] : ['A', 'B', 'C', 'D'];
       if (!allowed.includes(String(sub.correct || '').toUpperCase()))
         return res.status(400).json({ error: `الإجابة الصحيحة للبند ${sub.label} غير صالحة` });
-      
+
       const subPoints = parseInt(sub.points) >= 1 ? parseInt(sub.points) : 1;
       calculatedPoints += subPoints;
       sanitizedSubs.push({
@@ -1095,14 +1101,14 @@ router.put('/:id/questions/:qid', requireRole('teacher', 'assistant'), checkMana
   let finalPoints = parseInt(points, 10) || 1;
   let subQs = null;
   if (!isImgMulti) {
-    if (!correct_answer_letter || !['A','B','C','D','T','F'].includes(correct_answer_letter))
+    if (!correct_answer_letter || !['A', 'B', 'C', 'D', 'T', 'F'].includes(correct_answer_letter))
       return res.status(400).json({ error: 'الإجابة الصحيحة غير صالحة' });
   } else {
     if (!Array.isArray(sub_questions) || sub_questions.length === 0)
       return res.status(400).json({ error: 'سؤال الصورة يحتاج إلى أسئلة فرعية' });
     if (sub_questions.length > 50)
       return res.status(400).json({ error: 'الحد الأقصى للأسئلة الفرعية هو 50' });
-    
+
     let calculatedPoints = 0;
     const sanitizedSubs = [];
     for (const sub of sub_questions) {
@@ -1113,7 +1119,7 @@ router.put('/:id/questions/:qid', requireRole('teacher', 'assistant'), checkMana
       const allowed = subType === 'true_false' ? ['A', 'B'] : ['A', 'B', 'C', 'D'];
       if (!allowed.includes(String(sub.correct || '').toUpperCase()))
         return res.status(400).json({ error: `الإجابة الصحيحة للبند ${sub.label} غير صالحة` });
-      
+
       const subPoints = parseInt(sub.points) >= 1 ? parseInt(sub.points) : 1;
       calculatedPoints += subPoints;
       sanitizedSubs.push({
@@ -1192,7 +1198,7 @@ router.delete('/:id/questions/:qid', requireRole('teacher', 'assistant'), checkM
     // [H2] Delete orphaned image files from disk (best-effort, ignore errors)
     if (qRows[0].question_image_url && VALID_Q_IMG_RE.test(qRows[0].question_image_url)) {
       const imgPath = path.join(__dirname, '../..', qRows[0].question_image_url);
-      fs.unlink(imgPath, () => {});
+      fs.unlink(imgPath, () => { });
     }
     // Also clean up sub_questions images (image_multi type)
     extractSubQuestionImages(qRows[0].sub_questions).forEach(deleteUploadFile);
@@ -1346,7 +1352,7 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
           ].filter(Boolean);
           const shuffledOpts = seededShuffle(opts, seed ^ q.id);
           const letterMap = {};
-          ['A','B','C','D'].forEach((l, i) => {
+          ['A', 'B', 'C', 'D'].forEach((l, i) => {
             if (shuffledOpts[i]) letterMap[shuffledOpts[i].letter] = l;
           });
           return {
@@ -1413,7 +1419,7 @@ router.post('/:id/submit', recitationSubmitLimiter, requireRole('student'), asyn
   if (answers.length > 500)
     return res.status(400).json({ error: 'عدد الإجابات تجاوز الحد المسموح' });
 
-  const VALID_ANSWER_LETTERS = new Set(['A','B','C','D','T','F']);
+  const VALID_ANSWER_LETTERS = new Set(['A', 'B', 'C', 'D', 'T', 'F']);
 
   try {
     const studentId = req.user.id;
@@ -1615,7 +1621,7 @@ router.post('/:id/submit', recitationSubmitLimiter, requireRole('student'), asyn
       }
 
       // Insert result
-       const storedAnswers = answers.map(a => {
+      const storedAnswers = answers.map(a => {
         const q = snapshot.find(sq => sq.id === a.question_id);
         const ans = answerMap[a.question_id] || null;
         let isCorrect = false;
@@ -1623,7 +1629,7 @@ router.post('/:id/submit', recitationSubmitLimiter, requireRole('student'), asyn
           const subQs = Array.isArray(q.sub_questions) ? q.sub_questions : [];
           if (subQs.length > 0 && ans) {
             let parsed = {};
-            try { parsed = JSON.parse(ans); } catch {}
+            try { parsed = JSON.parse(ans); } catch { }
             isCorrect = subQs.every(sub => {
               const rawSubSa = String(parsed[sub.label] || '').toUpperCase();
               const rawSubCorrect = String(sub.correct || '').toUpperCase();
@@ -1755,7 +1761,7 @@ router.get('/results/:resultId/review', authenticate, async (req, res) => {
           if (a.correct != null) storedCorrectMap[a.question_id] = !!a.correct;
         }
       });
-    } catch (_) {}
+    } catch (_) { }
 
     // [SH-1] Priority: 1) snapshot stored in result row (since session is deleted post-submit)
     //                  2) active session snapshot (edge case: re-take after retry)
@@ -1788,7 +1794,7 @@ router.get('/results/:resultId/review', authenticate, async (req, res) => {
       if (q.question_type === 'image_multi') {
         const subQs = Array.isArray(q.sub_questions) ? q.sub_questions : [];
         let parsedAns = {};
-        try { if (studentAns) parsedAns = JSON.parse(studentAns); } catch {}
+        try { if (studentAns) parsedAns = JSON.parse(studentAns); } catch { }
         const subResults = subQs.map(sub => {
           const rawSubSa = parsedAns[sub.label] || null;
           const rawSubCorrect = sub.correct;
@@ -1848,10 +1854,10 @@ router.get('/results/:resultId/review', authenticate, async (req, res) => {
       };
     });
 
-    const correct    = review.filter(q => q.is_correct).length;
+    const correct = review.filter(q => q.is_correct).length;
     // [SRV-2 FIX] Removed redundant ternary — both branches were identical.
     // "Wrong" = answered but not correct.
-    const wrong      = review.filter(q => !q.is_correct && !!q.student_answer).length;
+    const wrong = review.filter(q => !q.is_correct && !!q.student_answer).length;
     const unanswered = review.filter(q => !q.student_answer).length;
 
     res.json({
