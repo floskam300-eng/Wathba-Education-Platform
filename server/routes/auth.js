@@ -249,9 +249,14 @@ router.post('/login', loginLimiter, async (req, res) => {
             console.log(`[LOGIN] student id=${user.id} known_devices=${knownIds.length} is_known=${isKnown}`);
 
             if (!isKnown) {
-              if (knownIds.length >= 1) {
+              // Max 2 registered devices per student (matches the warning shown at
+              // login: "حسابك مسجّل على عدد محدود من الأجهزة (جهازان كحد أقصى)").
+              // If both slots are full and this is a brand-new device_id, alert the
+              // teacher but do NOT auto-suspend. Hard suspension is reserved for
+              // repeated / confirmed abuse via the teacher dashboard.
+              if (knownIds.length >= 2) {
                 console.log(`[LOGIN] NEW_DEVICE_BLOCKED for student id=${user.id}: inserting device_alert`);
-                // 2nd (new) device → alert teacher but do NOT suspend.
+                // 3rd (new) device → alert teacher but do NOT suspend.
                 // [BUG FIX] Split INSERT...SELECT...WHERE NOT EXISTS into two separate
                 // queries to avoid "inconsistent types deduced for parameter $3" error
                 // that occurs when the same placeholder is used in both the SELECT list
