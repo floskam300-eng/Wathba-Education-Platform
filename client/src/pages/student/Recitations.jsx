@@ -362,6 +362,9 @@ export default function StudentRecitations() {
                 {history.map(r => {
                   const isAbsent = r.is_absent === true || r.is_absent === 'true';
                   const passed = !isAbsent && r.passed;
+                  // Find the matching recitation from the list to get allow_retry
+                  const recInfo = recitations.find(rc => rc.id === r.recitation_id);
+                  const canRetry = !isAbsent && !passed && recInfo?.allow_retry && recInfo;
                   return (
                     <div key={r.id} className="flex items-center gap-3 px-4 py-3">
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
@@ -407,6 +410,16 @@ export default function StudentRecitations() {
                             >
                               <Eye className="w-3.5 h-3.5" />
                             </button>
+                            {canRetry && (
+                              <button
+                                onClick={() => startRec(recInfo)}
+                                disabled={!!startingId}
+                                className={`p-1.5 rounded-lg transition-colors ${dark ? 'text-gray-500 hover:text-purple-400 hover:bg-purple-900/20 disabled:opacity-40' : 'text-gray-400 hover:text-purple-500 hover:bg-purple-50 disabled:opacity-40'}`}
+                                title="إعادة التسميع"
+                              >
+                                <RefreshCw className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                           </>
                         )}
                       </div>
@@ -437,7 +450,7 @@ export default function StudentRecitations() {
                   <Section title="قادم قريباً ⏳" items={upcoming} dark={dark} cardCls={cardCls} onStart={null} navigate={navigate} onExpire={() => qc.invalidateQueries({ queryKey: ['student-recitations'] })} />
                 )}
                 {done.length > 0 && (
-                  <Section title="أديته ✅" items={done} dark={dark} cardCls={cardCls} onStart={null} navigate={navigate} />
+                  <Section title="أديته ✅" items={done} dark={dark} cardCls={cardCls} onStart={startRec} navigate={navigate} startingId={startingId} />
                 )}
                 {expired.length > 0 && (
                   <Section title="منتهي ❌" items={expired} dark={dark} cardCls={cardCls} onStart={null} navigate={navigate} />
@@ -739,14 +752,15 @@ function Section({ title, items, dark, cardCls, onStart, navigate, startingId = 
                       مراجعة
                     </button>
                   )}
-                  {rec.allow_retry && onStart && (
+                  {/* Show retry button only for FAILED students when allow_retry=true */}
+                  {rec.allow_retry && !rec.my_passed && onStart && (
                     <button
                       onClick={() => onStart(rec)}
                       disabled={!!startingId}
                       className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${dark ? 'bg-purple-900/30 text-purple-300 hover:bg-purple-900/50' : 'bg-purple-50 text-purple-600 hover:bg-purple-100'}`}
                     >
                       <RefreshCw className="w-3.5 h-3.5" />
-                      إعادة
+                      إعادة المحاولة
                     </button>
                   )}
                   <CheckCircle className="w-5 h-5 text-green-500" />

@@ -1263,16 +1263,28 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
 
     // [R5-FIX] For recurring recitations: only block if student already submitted
     // WITHIN the current window (start_date). This allows retaking in a new window.
-    // [allow_retry] Skip the block entirely when allow_retry=true — students may retake freely.
+    // [allow_retry] When allow_retry=true, only FAILED students may retake.
+    // Passed students are never allowed to retake (regardless of allow_retry).
     const { rows: existing } = await pool.query(
-      `SELECT id FROM recitation_results
+      `SELECT id, passed FROM recitation_results
         WHERE student_id=$1 AND recitation_id=$2
           AND ($3::timestamp IS NULL OR created_at >= $3::timestamp)
+        ORDER BY created_at DESC
         LIMIT 1`,
       [studentId, id, rec.start_date]
     );
-    if (existing.length && !rec.allow_retry)
-      return res.status(409).json({ error: 'لقد أديت هذا التسميع بالفعل', already_submitted: true });
+    if (existing.length) {
+      const everPassed = existing[0].passed === true;
+      if (everPassed) {
+        // Student already passed — never allow retake
+        return res.status(409).json({ error: 'لقد نجحت في هذا التسميع بالفعل', already_submitted: true });
+      }
+      if (!rec.allow_retry) {
+        // Student failed but retries are disabled
+        return res.status(409).json({ error: 'لقد أديت هذا التسميع بالفعل', already_submitted: true });
+      }
+      // Student failed + allow_retry=true → allow retake (fall through)
+    }
 
     // Create new session — load and snapshot questions
     const { rows: questions } = await pool.query(
@@ -1390,14 +1402,20 @@ router.post('/:id/submit', recitationSubmitLimiter, requireRole('student'), asyn
     // [R5-FIX] Fast-path duplicate check OUTSIDE the transaction to avoid
     // unnecessary TX overhead for the common case.  A second in-TX check
     // (T1-FIX below) protects against the rare concurrent-submit race.
+    // [RETRY-FIX] Block if: (a) student passed before, OR (b) allow_retry=false.
+    // Only a student who FAILED with allow_retry=true may resubmit.
     const { rows: existingResult } = await pool.query(
-      `SELECT id FROM recitation_results
+      `SELECT id, passed FROM recitation_results
         WHERE student_id=$1 AND recitation_id=$2
-          AND ($3::timestamp IS NULL OR created_at >= $3::timestamp)`,
+          AND ($3::timestamp IS NULL OR created_at >= $3::timestamp)
+        ORDER BY created_at DESC`,
       [studentId, id, rec.start_date]
     );
-    if (existingResult.length)
-      return res.status(409).json({ error: 'لقد أديت هذا التسميع بالفعل', already_submitted: true });
+    if (existingResult.length) {
+      const everPassed = existingResult.some(r => r.passed === true);
+      if (everPassed || !rec.allow_retry)
+        return res.status(409).json({ error: 'لقد أديت هذا التسميع بالفعل', already_submitted: true });
+    }
 
     // Load session (with server-side snapshot)
     const { rows: sessRows } = await pool.query(
@@ -1524,16 +1542,21 @@ router.post('/:id/submit', recitationSubmitLimiter, requireRole('student'), asyn
       }
 
       // Re-check for duplicate INSIDE the locked transaction
+      // [RETRY-FIX] Mirror the fast-path check: block if passed OR allow_retry=false.
       const { rows: dupeRows } = await client.query(
-        `SELECT id FROM recitation_results
+        `SELECT id, passed FROM recitation_results
           WHERE student_id=$1 AND recitation_id=$2
-            AND ($3::timestamp IS NULL OR created_at >= $3::timestamp)`,
+            AND ($3::timestamp IS NULL OR created_at >= $3::timestamp)
+          ORDER BY created_at DESC`,
         [studentId, id, rec.start_date]
       );
       if (dupeRows.length) {
-        await client.query('ROLLBACK');
-        client.release();
-        return res.status(409).json({ error: 'لقد أديت هذا التسميع بالفعل', already_submitted: true });
+        const everPassedTx = dupeRows.some(r => r.passed === true);
+        if (everPassedTx || !rec.allow_retry) {
+          await client.query('ROLLBACK');
+          client.release();
+          return res.status(409).json({ error: 'لقد أديت هذا التسميع بالفعل', already_submitted: true });
+        }
       }
 
       // Insert result
