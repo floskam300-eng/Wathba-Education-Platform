@@ -324,7 +324,7 @@ router.post('/:id/questions/import', requireRole('teacher', 'assistant'), checkM
           'INSERT INTO bank_questions (bank_id,question_text,option_a,option_b,option_c,option_d,correct_answer_letter,points,question_type,difficulty,sub_questions,option_labels) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',
           [
             bankId,
-            (q.question_text || '').trim() || null,
+            q.question_text || null,
             optA,
             optB,
             q.option_c || null,

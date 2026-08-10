@@ -782,7 +782,7 @@ router.post('/:id/questions/import', requireRole('teacher', 'assistant'), checkM
         await client.query(
           'INSERT INTO questions (question_text,option_a,option_b,option_c,option_d,correct_answer_letter,points,exam_id,question_type,sub_questions,option_labels) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',
           [
-            (q.question_text || '').trim() || null,
+            q.question_text || null,
             optA,
             optB,
             q.option_c || null,

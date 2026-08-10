@@ -77,14 +77,14 @@ export default function MathText({ text, className = '' }) {
   const hasMath = parts.some(p => p.type !== 'text');
 
   if (!hasMath) {
-    return <span className={className}>{text}</span>;
+    return <span className={className} style={{ whiteSpace: 'pre-wrap' }}>{text}</span>;
   }
 
   return (
     <span className={`math-text ${className}`} dir="rtl">
       {parts.map((part, i) => {
         if (part.type === 'text') {
-          return <span key={i}>{part.content}</span>;
+          return <span key={i} style={{ whiteSpace: 'pre-wrap' }}>{part.content}</span>;
         }
         if (part.type === 'block') {
           return (
