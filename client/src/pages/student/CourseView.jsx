@@ -180,7 +180,11 @@ function isYoutubeUrl(url) {
 let _ytApiReady = false;
 const _ytApiQueue = [];
 function ensureYTApi(cb) {
-  if (_ytApiReady && window.YT?.Player) { cb(); return; }
+  if (window.YT && window.YT.Player) {
+    _ytApiReady = true;
+    cb();
+    return;
+  }
   _ytApiQueue.push(cb);
   if (!document.getElementById('yt-api-script')) {
     const s = document.createElement('script');
@@ -190,10 +194,14 @@ function ensureYTApi(cb) {
   }
   const prevReady = window.onYouTubeIframeAPIReady;
   window.onYouTubeIframeAPIReady = () => {
-    if (prevReady) prevReady();
+    if (prevReady) {
+      try { prevReady(); } catch (_) {}
+    }
     _ytApiReady = true;
-    _ytApiQueue.forEach(fn => fn());
-    _ytApiQueue.length = 0;
+    while (_ytApiQueue.length > 0) {
+      const fn = _ytApiQueue.shift();
+      try { fn(); } catch (_) {}
+    }
   };
 }
 
@@ -214,7 +222,7 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
   const initialPositionRef  = useRef(initialPosition);
 
   const [playing,      setPlaying]      = useState(false);
-  const [buffering,    setBuffering]    = useState(true);
+  const [buffering,    setBuffering]    = useState(false);
   const [ytError,      setYtError]      = useState(null);
   const [progress,     setProgress]     = useState(0);
   const [duration,     setDuration]     = useState(0);
@@ -259,7 +267,7 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
     maxPct.current = 0;
     actualWatched.current = 0;
     playStart.current = null;
-    setBuffering(true);
+    setBuffering(false);
     setPlaying(false);
     setProgress(0);
     setCurrentTime(0);
@@ -285,7 +293,6 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
     if (!ytId) return;
 
     setYtError(null);
-    setBuffering(true);
     const startPos = initialPositionRef.current > 5 ? Math.floor(initialPositionRef.current) : 0;
     const savedVol   = loadVolume();
     const savedSpeed = loadSpeed();
@@ -301,14 +308,7 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
         videoId: ytId,
         playerVars: {
           autoplay: 1,
-          // mute=1 lets autoplay succeed on mobile (browsers block unmuted autoplay).
-          // We unmute immediately in onReady (unless the user explicitly chose muted).
-          // This prevents YouTube from showing its large "tap-to-play" overlay that
-          // appears when autoplay is blocked — that overlay is what was leaking through.
           mute: 1,
-          // controls=0 hides YouTube's native control bar (progress, time, fullscreen).
-          // The chapter/branding overlay (~60px) that remains is covered by the gradient
-          // masks below. Requires muted autoplay above to avoid the tap-to-play overlay.
           controls: 0,
           disablekb: 1,
           fs: 0,
@@ -317,29 +317,24 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
           iv_load_policy: 3,
           playsinline: 1,
           cc_load_policy: 0,
+          enablejsapi: 1,
           origin: window.location.origin,
           start: startPos,
-          host: 'https://www.youtube-nocookie.com',
         },
         events: {
           onReady: (e) => {
             setBuffering(false);
             const d = e.target.getDuration();
             if (d > 0) setDuration(d);
-            // Apply pointer-events:none to the actual iframe now that YouTube
-            // has created it (the original div no longer exists at this point).
+            // Apply pointer-events:none to the actual iframe so clicks don't leak to YouTube native controls
             try {
               const iframe = e.target.getIframe();
               if (iframe) {
                 iframe.style.pointerEvents = 'none';
-                // sandbox attribute restricts YouTube from opening pop-ups /
-                // navigation that would escape our player chrome.
-                iframe.setAttribute('sandbox',
-                  'allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox');
               }
             } catch (_) {}
-            // Player started muted (mute:1 in playerVars) so autoplay works on
-            // mobile. Immediately restore the user's preferred volume/mute state.
+            // Player started muted (mute:1 in playerVars) so autoplay works on mobile.
+            // Restore user's preferred volume state.
             try {
               if (loadMuted()) {
                 e.target.mute();
@@ -448,7 +443,23 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
   /* ── controls helpers ── */
   const toggle = () => {
     if (!playerRef.current) return;
-    playing ? playerRef.current.pauseVideo() : playerRef.current.playVideo();
+    try {
+      const d = playerRef.current.getDuration?.() || 0;
+      const ct = playerRef.current.getCurrentTime?.() || 0;
+      // If video is at or near the end, restart from beginning
+      if (d > 0 && ct >= d - 2) {
+        playerRef.current.seekTo(0, true);
+        setCurrentTime(0);
+        setProgress(0);
+        playerRef.current.playVideo();
+        return;
+      }
+      if (playing) {
+        playerRef.current.pauseVideo();
+      } else {
+        playerRef.current.playVideo();
+      }
+    } catch (_) {}
   };
 
   const onSeekChange = (e) => {
@@ -552,9 +563,6 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
   const pctStr = `${progress}%`;
   const volStr = `${muted ? 0 : volume}%`;
 
-  // Only fake-rotate with CSS when the device itself is still portrait —
-  // if it's already physically landscape, a plain fullscreen is correct
-  // and an extra 90° rotate would turn the video sideways.
   const fsStyle = cssLandscape
     ? (deviceIsLandscape
         ? { position: 'fixed', inset: 0, zIndex: 9999, width: '100vw', height: '100vh' }
@@ -580,21 +588,7 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
     >
       <FloatingWatermark name={studentName} code={studentCode} />
 
-      {/* ── YouTube iframe wrapper ────────────────────────────────────────────
-          CRITICAL: new YT.Player(divId) *replaces* the target div with an
-          iframe.  Any CSS positioning on that div disappears once YouTube
-          swaps it out, because the iframe inherits its dimensions from its
-          *new* parent — the container — not from the original div's styles.
-
-          Fix: put the CSS extension on a permanent WRAPPER div.  YouTube
-          replaces only the inner #playerDivId div, so the iframe ends up as
-          a child of the wrapper and `height="100%"` resolves to the wrapper's
-          extended height (containerH + 60 + 100 px), not the container.
-
-          The wrapper extends 60 px above and 100 px below the container.
-          YouTube's chrome (chapter bar, branding, controls) sits at the very
-          bottom of the iframe → outside the container → clipped by
-          overflow-hidden and invisible to the user.                           */}
+      {/* ── YouTube iframe wrapper ── */}
       <div
         className="absolute"
         style={{ top: -60, left: 0, right: 0, bottom: -100 }}
@@ -602,11 +596,7 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
         <div id={playerDivId} className="w-full h-full" />
       </div>
 
-      {/* ── YouTube UI gradient masks (same technique as reference platform) ──
-          controls=0 hides the main control bar.  A ~60px chapter/branding bar
-          can still appear at the top and bottom edges of the iframe.
-          80px opaque-to-transparent gradients cover it completely, same as
-          the reference platform's ::before / ::after on .plyr__video-wrapper.  */}
+      {/* ── YouTube UI gradient masks ── */}
       <div
         className="absolute top-0 left-0 right-0 pointer-events-none"
         style={{ height: 80, background: 'linear-gradient(to bottom, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.6) 50%, transparent 100%)', zIndex: 9 }}
@@ -616,18 +606,17 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
         style={{ height: 80, background: 'linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.6) 50%, transparent 100%)', zIndex: 9 }}
       />
 
-      {/* Click interceptor — captures taps to toggle controls without letting
-          any click reach the iframe. */}
+      {/* Click interceptor — captures taps to toggle controls */}
       <div className="absolute inset-0" style={{ zIndex: 10 }} onClick={handleScreenTap} onContextMenu={(e) => e.preventDefault()} />
 
-      {/* Centered play/pause overlay — shows on hover (showControls) or when paused */}
-      {!buffering && (showControls || !playing) && (
+      {/* Centered play/pause overlay — shows on hover (showControls) or when not playing */}
+      {!ytError && (showControls || !playing) && (
         <div
-          className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 ${showControls || !playing ? 'opacity-100' : 'opacity-0'}`}
+          className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 ${showControls || !playing ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
           style={{ zIndex: 20, pointerEvents: 'none' }}
         >
           <div
-            className="w-20 h-20 rounded-full bg-black/40 border-2 border-white/30 flex items-center justify-center shadow-2xl hover:bg-orange-500/80 hover:border-orange-400/50 hover:scale-110 transition-all cursor-pointer backdrop-blur-sm"
+            className="w-20 h-20 rounded-full bg-black/50 border-2 border-white/40 flex items-center justify-center shadow-2xl hover:bg-orange-500 hover:border-orange-400 hover:scale-110 transition-all cursor-pointer backdrop-blur-md"
             style={{ pointerEvents: 'auto' }}
             onClick={(e) => { e.stopPropagation(); toggle(); }}
           >
@@ -639,8 +628,8 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
         </div>
       )}
 
-      {/* Buffering spinner */}
-      {buffering && !ytError && (
+      {/* Buffering spinner while playing and buffering */}
+      {buffering && playing && !ytError && (
         <div className="absolute inset-0 flex items-center justify-center" style={{ zIndex: 20, pointerEvents: 'none' }}>
           <div className="w-12 h-12 border-4 border-white/20 border-t-orange-500 rounded-full animate-spin" />
         </div>
@@ -831,8 +820,15 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
 
   const toggle = () => {
     if (!videoRef.current) return;
-    if (playing) videoRef.current.pause();
-    else         videoRef.current.play();
+    try {
+      if (videoRef.current.ended || (duration > 0 && videoRef.current.currentTime >= duration - 2)) {
+        videoRef.current.currentTime = 0;
+        videoRef.current.play();
+        return;
+      }
+      if (playing) videoRef.current.pause();
+      else         videoRef.current.play();
+    } catch (_) {}
   };
 
   const fmtSec = (s) => {
@@ -1813,7 +1809,12 @@ export default function CourseView() {
     if (!video) return 0;
     const serverPos = parseFloat(video.saved_position) || 0;
     const localPos  = loadVidPos(video.id);
-    return Math.max(serverPos, localPos);
+    const pos = Math.max(serverPos, localPos);
+    // If video was completed (progress >= 95% or position within 10s of duration), restart from 0
+    const durSec = (video.duration_minutes || 0) * 60;
+    if (durSec > 0 && pos >= durSec - 10) return 0;
+    if (video.saved_progress >= 95) return 0;
+    return pos;
   };
 
   // Keep a ref to latest content so auto-advance in handleProgressUpdate always uses current data
