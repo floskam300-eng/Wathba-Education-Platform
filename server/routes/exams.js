@@ -1582,35 +1582,38 @@ router.post('/:id/submit', submitLimiter, requireRole('student'), async (req, re
       else { try { parsedAns = JSON.parse(rawAnswer || '{}'); } catch {} }
       const hasAnswer = Object.keys(parsedAns).length > 0;
       const studentAnswerStr = hasAnswer ? JSON.stringify(parsedAns) : null;
-      if (!hasAnswer) {
-        unanswered++;
-      } else {
-        let questionEarnedPoints = 0;
-        let allCorrect = subQs.length > 0;
-        for (const sub of subQs) {
-          const rawSubCorrect = String(sub.correct || '').toUpperCase();
-          const rawStudentSubAns = String(parsedAns[sub.label] || '').toUpperCase();
-          const subCorrect = (sub.type === 'true_false' || rawSubCorrect === 'T' || rawSubCorrect === 'F')
-            ? (rawSubCorrect === 'T' ? 'A' : rawSubCorrect === 'F' ? 'B' : rawSubCorrect)
-            : rawSubCorrect;
-          const studentSubAns = (sub.type === 'true_false' || rawStudentSubAns === 'T' || rawStudentSubAns === 'F')
-            ? (rawStudentSubAns === 'T' ? 'A' : rawStudentSubAns === 'F' ? 'B' : rawStudentSubAns)
-            : rawStudentSubAns;
 
-          const isSubCorrect = studentSubAns === subCorrect;
-          if (isSubCorrect) {
-            const subPoints = sub.points !== undefined ? (parseInt(sub.points) || 1) : (q.points / (subQs.length || 1));
-            questionEarnedPoints += subPoints;
-          } else {
-            allCorrect = false;
-          }
+      // Count each sub-question individually so the stats (صحيح/خطأ/بلا إجابة)
+      // match the sub-question breakdown shown in the review page.
+      let questionEarnedPoints = 0;
+      let allCorrect = subQs.length > 0;
+      for (const sub of subQs) {
+        const rawSubCorrect = String(sub.correct || '').toUpperCase();
+        const rawStudentSubAns = String(parsedAns[sub.label] || '').toUpperCase();
+        const subCorrect = (sub.type === 'true_false' || rawSubCorrect === 'T' || rawSubCorrect === 'F')
+          ? (rawSubCorrect === 'T' ? 'A' : rawSubCorrect === 'F' ? 'B' : rawSubCorrect)
+          : rawSubCorrect;
+        const studentSubAns = (sub.type === 'true_false' || rawStudentSubAns === 'T' || rawStudentSubAns === 'F')
+          ? (rawStudentSubAns === 'T' ? 'A' : rawStudentSubAns === 'F' ? 'B' : rawStudentSubAns)
+          : rawStudentSubAns;
+
+        if (!studentSubAns) {
+          unanswered++;
+          allCorrect = false;
+        } else if (studentSubAns === subCorrect) {
+          correct++;
+          const subPoints = sub.points !== undefined ? (parseInt(sub.points) || 1) : (q.points / (subQs.length || 1));
+          questionEarnedPoints += subPoints;
+        } else {
+          wrong++;
+          allCorrect = false;
         }
-        score += questionEarnedPoints;
-        if (allCorrect) { correct++; isCorrect = true; }
-        else wrong++;
       }
+      score += questionEarnedPoints;
+      isCorrect = allCorrect && subQs.length > 0;
       return { question_id: q.id, student_answer: studentAnswerStr, correct_answer: null, is_correct: isCorrect, question_type: qType };
     }
+
 
     let studentAnswer = rawAnswer ? String(rawAnswer).toUpperCase() : null;
     let correctLetter = q.correct_answer_letter ? q.correct_answer_letter.toUpperCase() : null;
@@ -2027,8 +2030,35 @@ router.get('/results/:resultId/review', requireRole('teacher', 'assistant', 'stu
       };
     });
 
+    // [IMGMULTI-STATS-FIX] Recompute correct/wrong/unanswered at the sub-question level
+    // so image_multi questions are counted accurately. Always use the recomputed values
+    // so historical records with stale DB counts are also corrected for the review page.
+    let recomputedCorrect = 0, recomputedWrong = 0, recomputedUnanswered = 0;
+    for (const q of questions) {
+      if (q.question_type === 'image_multi' && Array.isArray(q.sub_results) && q.sub_results.length > 0) {
+        for (const sub of q.sub_results) {
+          if (!sub.student_answer) recomputedUnanswered++;
+          else if (sub.is_correct) recomputedCorrect++;
+          else recomputedWrong++;
+        }
+      } else {
+        if (!q.student_answer) recomputedUnanswered++;
+        else if (q.is_correct) recomputedCorrect++;
+        else recomputedWrong++;
+      }
+    }
+
     const { answers, exam_teacher_id, ...resultClean } = row;
-    res.json({ result: resultClean, questions });
+    res.json({
+      result: {
+        ...resultClean,
+        correct_count: recomputedCorrect,
+        wrong_count: recomputedWrong,
+        unanswered_count: recomputedUnanswered,
+      },
+      questions,
+    });
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });

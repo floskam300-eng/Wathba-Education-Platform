@@ -1501,36 +1501,38 @@ router.post('/:id/submit', recitationSubmitLimiter, requireRole('student'), asyn
 
       if (q.question_type === 'image_multi') {
         const subQs = Array.isArray(q.sub_questions) ? q.sub_questions : [];
-        if (!subQs.length || !studentAns) { unanswered++; continue; }
+        if (!subQs.length) { unanswered++; continue; }
 
         let parsedAns = {};
-        try { parsedAns = JSON.parse(studentAns); } catch { parsedAns = {}; }
-
-        const hasAnyAnswer = Object.keys(parsedAns).length > 0;
-        if (!hasAnyAnswer) { unanswered++; continue; }
+        if (studentAns) {
+          try { parsedAns = JSON.parse(studentAns); } catch { parsedAns = {}; }
+        }
 
         let questionEarnedPoints = 0;
-        let subCorrectCount = 0;
+        // Count each sub-question individually so the stats (صحيح/خطأ/بلا إجابة)
+        // match the sub-question breakdown shown in the review page.
         for (const sub of subQs) {
           const rawStudentSubAns = String(parsedAns[sub.label] || '').toUpperCase();
           const rawSubCorrect = String(sub.correct || '').toUpperCase();
           const a = (sub.type === 'true_false' || rawStudentSubAns === 'T' || rawStudentSubAns === 'F')
             ? (rawStudentSubAns === 'T' ? 'A' : rawStudentSubAns === 'F' ? 'B' : rawStudentSubAns)
             : rawStudentSubAns;
-          const subCorrect = (sub.type === 'true_false' || rawSubCorrect === 'T' || rawSubCorrect === 'F')
+          const subCorrectNorm = (sub.type === 'true_false' || rawSubCorrect === 'T' || rawSubCorrect === 'F')
             ? (rawSubCorrect === 'T' ? 'A' : rawSubCorrect === 'F' ? 'B' : rawSubCorrect)
             : rawSubCorrect;
 
-          if (VALID_ANSWER_LETTERS.has(a) && a === subCorrect) {
-            subCorrectCount++;
+          if (!a || !VALID_ANSWER_LETTERS.has(a)) {
+            unanswered++;
+          } else if (a === subCorrectNorm) {
+            correct++;
             const subPoints = sub.points !== undefined ? (parseInt(sub.points) || 1) : ((q.points || 1) / subQs.length);
             questionEarnedPoints += subPoints;
+          } else {
+            wrong++;
           }
         }
 
         rawScore += questionEarnedPoints;
-        if (subCorrectCount === subQs.length) correct++;
-        else wrong++;
         continue;
       }
 
@@ -1854,11 +1856,22 @@ router.get('/results/:resultId/review', authenticate, async (req, res) => {
       };
     });
 
-    const correct = review.filter(q => q.is_correct).length;
-    // [SRV-2 FIX] Removed redundant ternary — both branches were identical.
-    // "Wrong" = answered but not correct.
-    const wrong = review.filter(q => !q.is_correct && !!q.student_answer).length;
-    const unanswered = review.filter(q => !q.student_answer).length;
+    // [IMGMULTI-STATS-FIX] Count image_multi questions at the sub-question level so
+    // the displayed stats match the score percentage and the review breakdown.
+    let correct = 0, wrong = 0, unanswered = 0;
+    for (const q of review) {
+      if (q.question_type === 'image_multi' && Array.isArray(q.sub_results) && q.sub_results.length > 0) {
+        for (const sub of q.sub_results) {
+          if (!sub.student_answer) unanswered++;
+          else if (sub.is_correct) correct++;
+          else wrong++;
+        }
+      } else {
+        if (!q.student_answer) unanswered++;
+        else if (q.is_correct) correct++;
+        else wrong++;
+      }
+    }
 
     res.json({
       result: {
@@ -1871,9 +1884,11 @@ router.get('/results/:resultId/review', authenticate, async (req, res) => {
         total_score: row.total_score,
         pass_score: row.pass_score,
         passed: row.passed,
-        correct_count: row.correct_count ?? correct,
-        wrong_count: row.wrong_count ?? wrong,
-        unanswered_count: row.unanswered_count ?? unanswered,
+        // Always use the freshly recomputed counts — they correctly handle
+        // image_multi at the sub-question level, fixing historical records too.
+        correct_count: correct,
+        wrong_count: wrong,
+        unanswered_count: unanswered,
         points_earned: row.points_earned || 0,
         created_at: row.created_at,
       },
