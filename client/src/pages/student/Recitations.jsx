@@ -11,27 +11,41 @@ import toast from 'react-hot-toast';
 import { useTheme } from '../../context/ThemeContext';
 import ImageLightbox from '../../components/ImageLightbox';
 import { withToken } from '../../lib/mediaAccess';
+import { toUTCDate } from '../../lib/dateUtils';
 
 function getStatus(rec) {
   const now = new Date();
-  // [N2-FIX] For recurring recitations: only mark "done" if the student
-  // submitted WITHIN the current window (my_submitted_at >= start_date).
-  // Without this check a student who completed week-1 would still show
-  // "done" in week-2's fresh window.
-  const doneInCurrentWindow = rec.my_submitted_at &&
-    (!rec.start_date || new Date(rec.my_submitted_at) >= new Date(rec.start_date));
+  const startDate = toUTCDate(rec.start_date);
+  const endDate = toUTCDate(rec.end_date);
+  const mySubmittedAt = toUTCDate(rec.my_submitted_at);
+
+  // For recurring recitations: only mark "done" if the student submitted within current window
+  const doneInCurrentWindow = mySubmittedAt && (!startDate || mySubmittedAt >= startDate);
   if (doneInCurrentWindow) return 'done';
-  if (rec.start_date && new Date(rec.start_date) > now) return 'upcoming';
-  if (rec.end_date && new Date(rec.end_date) < now) return 'expired';
+  if (startDate && startDate > now) return 'upcoming';
+  if (endDate && endDate < now) return 'expired';
   return 'open';
 }
 
-function CountdownBadge({ target }) {
-  const [diff, setDiff] = useState(new Date(target) - new Date());
+function CountdownBadge({ target, onExpire }) {
+  const targetDate = toUTCDate(target);
+  const calcDiff = () => targetDate ? targetDate.getTime() - Date.now() : 0;
+  const [diff, setDiff] = useState(calcDiff);
+
   useEffect(() => {
-    const id = setInterval(() => setDiff(new Date(target) - new Date()), 1000);
+    if (!targetDate) return;
+    const update = () => {
+      const remaining = calcDiff();
+      setDiff(remaining);
+      if (remaining <= 0) {
+        if (onExpire) onExpire();
+      }
+    };
+    update();
+    const id = setInterval(update, 1000);
     return () => clearInterval(id);
   }, [target]);
+
   if (diff <= 0) return null;
   const h = Math.floor(diff / 3600000);
   const m = Math.floor((diff % 3600000) / 60000);
@@ -74,6 +88,11 @@ export default function StudentRecitations() {
   const { data: recitations = [], isLoading } = useQuery({
     queryKey: ['student-recitations'],
     queryFn: () => api.get('/recitations/student/list').then(r => r.data),
+    refetchInterval: (query) => {
+      const recs = query.state.data || [];
+      const hasUpcoming = recs.some(r => getStatus(r) === 'upcoming');
+      return hasUpcoming ? 30000 : false;
+    },
   });
 
   const [showHistory, setShowHistory] = useState(false);
@@ -415,7 +434,7 @@ export default function StudentRecitations() {
                   <Section title="متاح الآن 🟢" items={open} dark={dark} cardCls={cardCls} onStart={startRec} navigate={navigate} startingId={startingId} />
                 )}
                 {upcoming.length > 0 && (
-                  <Section title="قادم قريباً ⏳" items={upcoming} dark={dark} cardCls={cardCls} onStart={null} navigate={navigate} />
+                  <Section title="قادم قريباً ⏳" items={upcoming} dark={dark} cardCls={cardCls} onStart={null} navigate={navigate} onExpire={() => qc.invalidateQueries({ queryKey: ['student-recitations'] })} />
                 )}
                 {done.length > 0 && (
                   <Section title="أديته ✅" items={done} dark={dark} cardCls={cardCls} onStart={null} navigate={navigate} />
@@ -659,7 +678,7 @@ export default function StudentRecitations() {
   return null;
 }
 
-function Section({ title, items, dark, cardCls, onStart, navigate, startingId = null }) {
+function Section({ title, items, dark, cardCls, onStart, navigate, startingId = null, onExpire = null }) {
   return (
     <div>
       <h2 className={`font-black mb-3 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>{title}</h2>
@@ -687,7 +706,7 @@ function Section({ title, items, dark, cardCls, onStart, navigate, startingId = 
                     <span><Clock className="w-3 h-3 inline ml-0.5" />{rec.duration_minutes} دقيقة</span>
                     <span>{rec.question_count} سؤال</span>
                     {rec.academic_stage && <span className="bg-purple-100 text-purple-700 px-1.5 rounded font-semibold">{rec.academic_stage}</span>}
-                    {status === 'upcoming' && rec.start_date && <CountdownBadge target={rec.start_date} />}
+                    {status === 'upcoming' && rec.start_date && <CountdownBadge target={rec.start_date} onExpire={onExpire} />}
                     {status === 'done' && (
                       <span className={`font-black ${rec.my_passed ? 'text-green-600' : 'text-red-500'}`}>
                         {rec.my_score}/{rec.total_score}

@@ -11,7 +11,7 @@ import toast from 'react-hot-toast';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { withToken } from '../../lib/mediaAccess';
-import { fmtDateLocal } from '../../lib/dateUtils';
+import { fmtDateLocal, toUTCDate } from '../../lib/dateUtils';
 
 const PG_STAGES = ['الصف الأول الثانوي عام', 'الصف الأول الثانوي بكالوريا', 'الصف الثاني الثانوي عام', 'الصف الثاني الثانوي بكالوريا', 'الصف الثالث الثانوي',
   'الصف الأول الإعدادي', 'الصف الثاني الإعدادي', 'الصف الثالث الإعدادي',
@@ -23,9 +23,42 @@ const DAY_NAMES = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأر
 function getStatus(rec) {
   const now = new Date();
   if (!rec.is_published) return { label: 'مسودة', color: 'gray', icon: Edit3 };
-  if (rec.start_date && new Date(rec.start_date) > now) return { label: 'قادم', color: 'blue', icon: Clock };
-  if (rec.end_date && new Date(rec.end_date) < now) return { label: 'منتهي', color: 'red', icon: XCircle };
+  const sDate = toUTCDate(rec.start_date);
+  const eDate = toUTCDate(rec.end_date);
+  if (sDate && sDate > now) return { label: 'قادم', color: 'blue', icon: Clock };
+  if (eDate && eDate < now) return { label: 'منتهي', color: 'red', icon: XCircle };
   return { label: 'مفتوح', color: 'green', icon: CheckCircle };
+}
+
+function validateRecitationForm(f) {
+  const errors = {};
+  if (!f.title || !f.title.trim()) errors.title = 'عنوان التسميع مطلوب';
+  const dur = parseInt(f.duration_minutes, 10);
+  if (isNaN(dur) || dur < 1 || dur > 60) errors.duration_minutes = 'المدة يجب أن تكون بين 1 و60 دقيقة';
+  const tot = parseInt(f.total_score, 10);
+  if (isNaN(tot) || tot < 1) errors.total_score = 'الدرجة الكلية يجب أن تكون 1 على الأقل';
+  const pass = parseInt(f.pass_score, 10);
+  if (isNaN(pass) || pass < 0) errors.pass_score = 'درجة النجاح غير صالحة';
+  if (!isNaN(tot) && !isNaN(pass) && pass > tot) errors.pass_score = 'درجة النجاح لا يمكن أن تتجاوز الدرجة الكلية';
+
+  if (f.end_date) {
+    const eDate = new Date(f.end_date);
+    if (isNaN(eDate.getTime())) {
+      errors.end_date = 'تاريخ الانتهاء غير صالح';
+    } else if (eDate.getTime() <= Date.now()) {
+      errors.end_date = 'تاريخ الانتهاء يجب أن يكون في المستقبل ولا يمكن تحديد موعد قد فات';
+    }
+  }
+
+  if (f.start_date && f.end_date) {
+    const sDate = new Date(f.start_date);
+    const eDate = new Date(f.end_date);
+    if (!isNaN(sDate.getTime()) && !isNaN(eDate.getTime()) && eDate <= sDate) {
+      errors.end_date = 'تاريخ الانتهاء يجب أن يكون بعد تاريخ البداية';
+    }
+  }
+
+  return errors;
 }
 
 function StatusBadge({ rec }) {
@@ -74,6 +107,7 @@ export default function Recitations() {
   const [modal, setModal] = useState(false);
   const [editRec, setEditRec] = useState(null);
   const [form, setForm] = useState(emptyForm);
+  const [formErrors, setFormErrors] = useState({});
   const [selectedId, setSelectedId] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
   const [search, setSearch] = useState('');
@@ -119,7 +153,7 @@ export default function Recitations() {
     onSuccess: () => {
       qc.invalidateQueries(['recitations']);
       toast.success(editRec ? 'تم تحديث التسميع' : 'تم إنشاء التسميع');
-      setModal(false); setEditRec(null); setForm(emptyForm);
+      setModal(false); setEditRec(null); setForm(emptyForm); setFormErrors({});
     },
     onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
   });
@@ -162,6 +196,7 @@ export default function Recitations() {
       video_ids: Array.isArray(rec.video_ids) ? rec.video_ids.map(Number) : [],
       allow_retry: rec.allow_retry !== false,
     });
+    setFormErrors({});
     setModal(true);
   };
 
@@ -386,9 +421,17 @@ export default function Recitations() {
             <div className="p-6 space-y-4">
               <div>
                 <label className={`block text-sm font-bold mb-1 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>العنوان *</label>
-                <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+                <input value={form.title} onChange={e => {
+                  setForm(f => ({ ...f, title: e.target.value }));
+                  if (formErrors.title) setFormErrors(prev => { const n = { ...prev }; delete n.title; return n; });
+                }}
                   placeholder="مثال: تسميع الأحكام النحوية"
-                  className={`w-full rounded-xl px-3 py-2.5 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`} />
+                  className={`w-full rounded-xl px-3 py-2.5 border text-sm transition-colors ${
+                    formErrors.title
+                      ? 'border-red-500 bg-red-50/10'
+                      : dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'
+                  }`} />
+                {formErrors.title && <p className="text-xs text-red-500 font-bold mt-1">{formErrors.title}</p>}
               </div>
 
               <div>
@@ -539,31 +582,79 @@ export default function Recitations() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={`block text-sm font-bold mb-1 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>تاريخ البداية</label>
-                  <input type="datetime-local" value={form.start_date} onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))}
-                    className={`w-full rounded-xl px-3 py-2.5 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`} />
+                  <input type="datetime-local"
+                    value={form.start_date}
+                    onChange={e => {
+                      setForm(f => ({ ...f, start_date: e.target.value }));
+                      if (formErrors.start_date || formErrors.end_date) setFormErrors(prev => { const n = { ...prev }; delete n.start_date; delete n.end_date; return n; });
+                    }}
+                    className={`w-full rounded-xl px-3 py-2.5 border text-sm transition-colors ${
+                      formErrors.start_date
+                        ? 'border-red-500 bg-red-50/10'
+                        : dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'
+                    }`} />
+                  {formErrors.start_date && <p className="text-xs text-red-500 font-bold mt-1">{formErrors.start_date}</p>}
                 </div>
                 <div>
                   <label className={`block text-sm font-bold mb-1 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>تاريخ الانتهاء</label>
-                  <input type="datetime-local" value={form.end_date} onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))}
-                    className={`w-full rounded-xl px-3 py-2.5 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`} />
+                  <input type="datetime-local"
+                    min={fmtDateLocal(new Date().toISOString())}
+                    value={form.end_date}
+                    onChange={e => {
+                      setForm(f => ({ ...f, end_date: e.target.value }));
+                      if (formErrors.end_date) setFormErrors(prev => { const n = { ...prev }; delete n.end_date; return n; });
+                    }}
+                    className={`w-full rounded-xl px-3 py-2.5 border text-sm transition-colors ${
+                      formErrors.end_date
+                        ? 'border-red-500 bg-red-50/10'
+                        : dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'
+                    }`} />
+                  {formErrors.end_date && <p className="text-xs text-red-500 font-bold mt-1">{formErrors.end_date}</p>}
                 </div>
               </div>
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className={`block text-sm font-bold mb-1 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>المدة (دقائق)</label>
-                  <input type="number" min="1" max="60" value={form.duration_minutes} onChange={e => setForm(f => ({ ...f, duration_minutes: parseInt(e.target.value) || 10 }))}
-                    className={`w-full rounded-xl px-3 py-2.5 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`} />
+                  <input type="number" min="1" max="60" value={form.duration_minutes}
+                    onChange={e => {
+                      setForm(f => ({ ...f, duration_minutes: parseInt(e.target.value) || 10 }));
+                      if (formErrors.duration_minutes) setFormErrors(prev => { const n = { ...prev }; delete n.duration_minutes; return n; });
+                    }}
+                    className={`w-full rounded-xl px-3 py-2.5 border text-sm transition-colors ${
+                      formErrors.duration_minutes
+                        ? 'border-red-500 bg-red-50/10'
+                        : dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'
+                    }`} />
+                  {formErrors.duration_minutes && <p className="text-xs text-red-500 font-bold mt-1">{formErrors.duration_minutes}</p>}
                 </div>
                 <div>
                   <label className={`block text-sm font-bold mb-1 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>الدرجة الكلية</label>
-                  <input type="number" min="1" value={form.total_score} onChange={e => setForm(f => ({ ...f, total_score: parseInt(e.target.value) || 10 }))}
-                    className={`w-full rounded-xl px-3 py-2.5 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`} />
+                  <input type="number" min="1" value={form.total_score}
+                    onChange={e => {
+                      setForm(f => ({ ...f, total_score: parseInt(e.target.value) || 10 }));
+                      if (formErrors.total_score || formErrors.pass_score) setFormErrors(prev => { const n = { ...prev }; delete n.total_score; delete n.pass_score; return n; });
+                    }}
+                    className={`w-full rounded-xl px-3 py-2.5 border text-sm transition-colors ${
+                      formErrors.total_score
+                        ? 'border-red-500 bg-red-50/10'
+                        : dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'
+                    }`} />
+                  {formErrors.total_score && <p className="text-xs text-red-500 font-bold mt-1">{formErrors.total_score}</p>}
                 </div>
                 <div>
                   <label className={`block text-sm font-bold mb-1 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>درجة النجاح</label>
-                  <input type="number" min="0" value={form.pass_score} onChange={e => setForm(f => ({ ...f, pass_score: parseInt(e.target.value) || 5 }))}
-                    className={`w-full rounded-xl px-3 py-2.5 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`} />
+                  <input type="number" min="0" value={form.pass_score}
+                    onChange={e => {
+                      setForm(f => ({ ...f, pass_score: parseInt(e.target.value) || 0 }));
+                      if (formErrors.pass_score) setFormErrors(prev => { const n = { ...prev }; delete n.pass_score; return n; });
+                    }}
+                    className={`w-full rounded-xl px-3 py-2.5 border text-sm transition-colors ${
+                      formErrors.pass_score
+                        ? 'border-red-500 bg-red-50/10'
+                        : dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'
+                    }`} />
+                  {formErrors.pass_score && <p className="text-xs text-red-500 font-bold mt-1">{formErrors.pass_score}</p>}
                 </div>
               </div>
 
@@ -668,6 +759,13 @@ export default function Recitations() {
 
               <div className="flex gap-3 pt-2">
                 <button onClick={() => {
+                  const errs = validateRecitationForm(form);
+                  if (Object.keys(errs).length > 0) {
+                    setFormErrors(errs);
+                    toast.error(Object.values(errs)[0]);
+                    return;
+                  }
+                  setFormErrors({});
                   const payload = {
                     ...form,
                     start_date: toUTCIso(form.start_date),
@@ -678,7 +776,7 @@ export default function Recitations() {
                   className="flex-1 bg-purple-500 hover:bg-purple-600 disabled:opacity-50 text-white py-2.5 rounded-xl font-bold text-sm transition-colors">
                   {createMut.isPending ? 'جاري الحفظ...' : editRec ? 'حفظ التعديلات' : 'إنشاء التسميع'}
                 </button>
-                <button onClick={() => { setModal(false); setEditRec(null); setForm(emptyForm); }}
+                <button onClick={() => { setModal(false); setEditRec(null); setForm(emptyForm); setFormErrors({}); }}
                   className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-colors ${dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-600'}`}>
                   إلغاء
                 </button>

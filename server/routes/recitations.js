@@ -225,8 +225,39 @@ router.post('/', requireRole('teacher', 'assistant'), checkManageRecitationsPerm
   if (passSc < 0 || totalSc < 1)
     return res.status(400).json({ error: 'الدرجات غير صالحة' });
 
-  if (start_date && end_date && new Date(end_date) <= new Date(start_date))
-    return res.status(400).json({ error: 'تاريخ الانتهاء يجب أن يكون بعد تاريخ البداية' });
+  const schedType = ['once', 'daily', 'weekly'].includes(schedule_type) ? schedule_type : 'once';
+  let schedDay = null;
+  if (schedType === 'weekly') {
+    const rawDay = parseInt(schedule_day, 10);
+    if (isNaN(rawDay) || rawDay < 0 || rawDay > 6) {
+      return res.status(400).json({ error: 'يوم التسميع الأسبوعي غير صالح' });
+    }
+    schedDay = rawDay;
+  }
+
+  let parsedStartDate = null;
+  if (start_date) {
+    const sDate = new Date(start_date);
+    if (isNaN(sDate.getTime())) {
+      return res.status(400).json({ error: 'تاريخ البداية غير صالح' });
+    }
+    parsedStartDate = sDate.toISOString();
+  }
+
+  let parsedEndDate = null;
+  if (end_date) {
+    const eDate = new Date(end_date);
+    if (isNaN(eDate.getTime())) {
+      return res.status(400).json({ error: 'تاريخ الانتهاء غير صالح' });
+    }
+    if (eDate.getTime() <= Date.now()) {
+      return res.status(400).json({ error: 'تاريخ الانتهاء يجب أن يكون في المستقبل ولا يمكن تحديد موعد قد فات' });
+    }
+    if (parsedStartDate && eDate <= new Date(parsedStartDate)) {
+      return res.status(400).json({ error: 'تاريخ الانتهاء يجب أن يكون بعد تاريخ البداية' });
+    }
+    parsedEndDate = eDate.toISOString();
+  }
 
   // [M2-FIX] Guard against NaN from parseInt when course_id is non-numeric
   const rawCourseId = parseInt(course_id, 10);
@@ -274,10 +305,10 @@ router.post('/', requireRole('teacher', 'assistant'), checkManageRecitationsPerm
         passSc,
         parseInt(points_on_attempt, 10) || 0,
         parseInt(points_on_pass, 10) || 5,
-        schedule_type || 'once',
-        schedule_day != null ? parseInt(schedule_day, 10) : null,
-        start_date || null,
-        end_date || null,
+        schedType,
+        schedDay,
+        parsedStartDate,
+        parsedEndDate,
         !!shuffle_questions,
         !!shuffle_options,
         parsedCourseId,
@@ -645,8 +676,39 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageRecitationsPe
   if (passSc < 0 || totalSc < 1)
     return res.status(400).json({ error: 'الدرجات غير صالحة' });
 
-  if (start_date && end_date && new Date(end_date) <= new Date(start_date))
-    return res.status(400).json({ error: 'تاريخ الانتهاء يجب أن يكون بعد تاريخ البداية' });
+  const schedType = ['once', 'daily', 'weekly'].includes(schedule_type) ? schedule_type : 'once';
+  let schedDay = null;
+  if (schedType === 'weekly') {
+    const rawDay = parseInt(schedule_day, 10);
+    if (isNaN(rawDay) || rawDay < 0 || rawDay > 6) {
+      return res.status(400).json({ error: 'يوم التسميع الأسبوعي غير صالح' });
+    }
+    schedDay = rawDay;
+  }
+
+  let parsedStartDate = null;
+  if (start_date) {
+    const sDate = new Date(start_date);
+    if (isNaN(sDate.getTime())) {
+      return res.status(400).json({ error: 'تاريخ البداية غير صالح' });
+    }
+    parsedStartDate = sDate.toISOString();
+  }
+
+  let parsedEndDate = null;
+  if (end_date) {
+    const eDate = new Date(end_date);
+    if (isNaN(eDate.getTime())) {
+      return res.status(400).json({ error: 'تاريخ الانتهاء غير صالح' });
+    }
+    if (eDate.getTime() <= Date.now()) {
+      return res.status(400).json({ error: 'تاريخ الانتهاء يجب أن يكون في المستقبل ولا يمكن تحديد موعد قد فات' });
+    }
+    if (parsedStartDate && eDate <= new Date(parsedStartDate)) {
+      return res.status(400).json({ error: 'تاريخ الانتهاء يجب أن يكون بعد تاريخ البداية' });
+    }
+    parsedEndDate = eDate.toISOString();
+  }
 
   // [M2-FIX] Guard against NaN from parseInt when course_id is non-numeric
   const rawCourseIdPut = parseInt(course_id, 10);
@@ -690,9 +752,10 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageRecitationsPe
         String(title).trim(), description || null, academic_stage || null, dur,
         totalSc, passSc,
         parseInt(points_on_attempt, 10) || 0, parseInt(points_on_pass, 10) || 5,
-        schedule_type || 'once',
-        schedule_day != null ? parseInt(schedule_day, 10) : null,
-        start_date || null, end_date || null,
+        schedType,
+        schedDay,
+        parsedStartDate,
+        parsedEndDate,
         !!shuffle_questions, !!shuffle_options,
         parsedCourseId, JSON.stringify(parsedVideoIds),
         allow_retry !== false,
@@ -811,7 +874,13 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageRecit
       const isAvailableNow = !recStartDate || recStartDate <= new Date();
 
       let studentQuery, params;
-      if (rec2.academic_stage) {
+      if (rec2.course_id) {
+        studentQuery = `SELECT s.id FROM students s
+          JOIN student_course_enrollment sce ON s.id = sce.student_id
+          WHERE sce.course_id = $1 AND sce.status = 'active'
+            AND s.teacher_id = $2 AND s.deleted_at IS NULL AND s.is_suspended = false`;
+        params = [rec2.course_id, teacherId];
+      } else if (rec2.academic_stage) {
         studentQuery = 'SELECT id FROM students WHERE teacher_id=$1 AND academic_stage=$2 AND deleted_at IS NULL AND is_suspended = false';
         params = [teacherId, rec2.academic_stage];
       } else {

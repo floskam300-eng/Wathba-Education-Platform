@@ -220,27 +220,20 @@ async function runRecitationSchedule() {
     for (const rec of recs) {
       try {
         const now = new Date();
-        let newStart, newEnd;
+        const dur = (rec.start_date && rec.end_date)
+          ? (new Date(rec.end_date) - new Date(rec.start_date))
+          : (rec.schedule_type === 'daily' ? 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000);
+        const stepMs = rec.schedule_type === 'daily' ? 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
+        let nextEnd = new Date(rec.end_date);
 
-        if (rec.schedule_type === 'daily') {
-          // Advance by 1 day from current end_date
-          const next = new Date(rec.end_date);
-          next.setDate(next.getDate() + 1);
-          const dur = new Date(rec.end_date) - new Date(rec.start_date);
-          newStart = new Date(next.getTime() - dur);
-          newEnd = next;
-        } else if (rec.schedule_type === 'weekly') {
-          // Advance by 7 days from current end_date
-          const next = new Date(rec.end_date);
-          next.setDate(next.getDate() + 7);
-          const dur = new Date(rec.end_date) - new Date(rec.start_date);
-          newStart = new Date(next.getTime() - dur);
-          newEnd = next;
+        // Advance until nextEnd is in the future
+        while (nextEnd <= now) {
+          nextEnd = new Date(nextEnd.getTime() + stepMs);
         }
+        const newEnd = nextEnd;
+        const newStart = new Date(newEnd.getTime() - dur);
 
         // [R3-FIX] Reset: use a dedicated client for the transaction.
-        // pool.query('BEGIN') is unsafe with connection pools — each call can
-        // land on a different connection. pool.connect() pins to one connection.
         const txClient = await _pool.connect();
         try {
           await txClient.query('BEGIN');
@@ -256,18 +249,26 @@ async function runRecitationSchedule() {
           txClient.release();
 
           // Notify eligible students
-          let studentQuery, params;
-          // [T3-FIX] Exclude suspended students — they cannot take recitations
-        // and should not receive notifications about new windows.
-        if (rec.academic_stage) {
-            studentQuery = 'SELECT id FROM students WHERE teacher_id=$1 AND academic_stage=$2 AND deleted_at IS NULL AND is_suspended = false';
-            params = [rec.teacher_id, rec.academic_stage];
+          let studentIds = [];
+          if (rec.course_id) {
+            const r = await _pool.query(
+              "SELECT student_id AS id FROM student_course_enrollment WHERE course_id=$1 AND status='active'",
+              [rec.course_id]
+            );
+            studentIds = r.rows.map(row => row.id);
+          } else if (rec.academic_stage) {
+            const r = await _pool.query(
+              'SELECT id FROM students WHERE teacher_id=$1 AND academic_stage=$2 AND deleted_at IS NULL AND is_suspended = false',
+              [rec.teacher_id, rec.academic_stage]
+            );
+            studentIds = r.rows.map(row => row.id);
           } else {
-            studentQuery = 'SELECT id FROM students WHERE teacher_id=$1 AND deleted_at IS NULL AND is_suspended = false';
-            params = [rec.teacher_id];
+            const r = await _pool.query(
+              'SELECT id FROM students WHERE teacher_id=$1 AND deleted_at IS NULL AND is_suspended = false',
+              [rec.teacher_id]
+            );
+            studentIds = r.rows.map(row => row.id);
           }
-          const { rows: students } = await _pool.query(studentQuery, params);
-          const studentIds = students.map(s => s.id);
 
           for (const sid of studentIds) {
             sendEvent(`student_${sid}`, 'new_recitation', {
@@ -275,15 +276,15 @@ async function runRecitationSchedule() {
               recitationId: rec.id,
             });
           }
-          // [NOTIF-FIX] Batch INSERT all notification_log rows in one query instead
-          // of N+1 fire-and-forget inserts. Avoids partial writes if the loop was
-          // interrupted and reduces race risk if the scheduler ticks twice quickly.
+
           if (studentIds.length > 0) {
             _pool.query(
               `INSERT INTO notification_log (teacher_id, student_id, title, message, type, source)
                SELECT $1, unnest($2::int[]), $3, $4, 'new_recitation', 'platform'`,
               [rec.teacher_id, studentIds, 'تسميع جديد 📖', `تسميع "${rec.title}" متاح الآن`]
             ).catch(() => {});
+
+            sendFCMToStudents(_pool, studentIds, 'تسميع جديد 📖', `تسميع "${rec.title}" متاح الآن للبدء`, { recitationId: String(rec.id) }).catch(() => {});
           }
 
           console.log(`[Scheduler] Recitation "${rec.title}" (id=${rec.id}) window reset — notified ${studentIds.length} students`);
@@ -298,9 +299,6 @@ async function runRecitationSchedule() {
     }
 
     // [N4-FIX] Clean up orphaned sessions from expired 'once' recitations.
-    // For recurring recitations the window-reset code already deletes sessions.
-    // For 'once' recitations that have ended, sessions from students who never
-    // submitted just pile up in the DB forever — clean them here.
     try {
       const { rowCount: cleanedSessions } = await _pool.query(`
         DELETE FROM recitation_sessions rs
@@ -310,9 +308,6 @@ async function runRecitationSchedule() {
              AND (
                -- Expired 'once' recitations whose window has passed
                (r.schedule_type = 'once' AND r.end_date IS NOT NULL AND r.end_date < NOW())
-               -- BUG-3 FIX: Also clean sessions for soft-deleted recitations.
-               -- The soft-delete endpoint now cleans sessions immediately, but
-               -- this acts as a safety net for any that slipped through.
                OR r.deleted_at IS NOT NULL
              )
         )
@@ -334,27 +329,48 @@ async function runRecitationSchedule() {
          AND start_date <= NOW()
          AND start_notified = false
          AND (end_date IS NULL OR end_date > NOW())
-      RETURNING id, title, teacher_id, academic_stage
+      RETURNING id, title, teacher_id, academic_stage, course_id
     `);
 
     for (const rec of toNotify) {
       try {
-        let studentQuery, params;
-        // [T3-FIX] Also exclude suspended students for start notifications
-        if (rec.academic_stage) {
-          studentQuery = 'SELECT id FROM students WHERE teacher_id=$1 AND academic_stage=$2 AND deleted_at IS NULL AND is_suspended = false';
-          params = [rec.teacher_id, rec.academic_stage];
+        let studentIds = [];
+        if (rec.course_id) {
+          const r = await _pool.query(
+            "SELECT student_id AS id FROM student_course_enrollment WHERE course_id=$1 AND status='active'",
+            [rec.course_id]
+          );
+          studentIds = r.rows.map(row => row.id);
+        } else if (rec.academic_stage) {
+          const r = await _pool.query(
+            'SELECT id FROM students WHERE teacher_id=$1 AND academic_stage=$2 AND deleted_at IS NULL AND is_suspended = false',
+            [rec.teacher_id, rec.academic_stage]
+          );
+          studentIds = r.rows.map(row => row.id);
         } else {
-          studentQuery = 'SELECT id FROM students WHERE teacher_id=$1 AND deleted_at IS NULL AND is_suspended = false';
-          params = [rec.teacher_id];
+          const r = await _pool.query(
+            'SELECT id FROM students WHERE teacher_id=$1 AND deleted_at IS NULL AND is_suspended = false',
+            [rec.teacher_id]
+          );
+          studentIds = r.rows.map(row => row.id);
         }
-        const { rows: students } = await _pool.query(studentQuery, params);
-        const studentIds = students.map(s => s.id);
+
         for (const sid of studentIds) {
           sendEvent(`student_${sid}`, 'new_recitation', {
             title: rec.title, recitationId: rec.id,
           });
         }
+
+        if (studentIds.length > 0) {
+          _pool.query(
+            `INSERT INTO notification_log (teacher_id, student_id, title, message, type, source)
+             SELECT $1, unnest($2::int[]), $3, $4, 'new_recitation', 'platform'`,
+            [rec.teacher_id, studentIds, 'تسميع جديد 📖', `بدأ موعد تسميع: "${rec.title}" الآن — يمكنك الدخول لأدائه`]
+          ).catch(() => {});
+
+          sendFCMToStudents(_pool, studentIds, 'بدأ التسميع الآن! 📖', `⏰ يمكنك الدخول الآن لأداء تسميع: "${rec.title}"`, { recitationId: String(rec.id) }).catch(() => {});
+        }
+
         console.log(`[Scheduler] Recitation "${rec.title}" (id=${rec.id}) started — notified ${studentIds.length} students`);
       } catch (e) {
         console.error(`[Scheduler] Error notifying recitation ${rec.id}:`, e.message);
@@ -485,9 +501,9 @@ function startScheduler(pool) {
   _intervalId = setInterval(runCheck, 30 * 1000);
   // Check WhatsApp schedules every 5 minutes
   _waIntervalId = setInterval(runWhatsAppSchedules, 5 * 60 * 1000);
-  // Check recitation windows every 5 minutes
+  // Check recitation windows & scheduled starts every 30 seconds
   runRecitationSchedule();
-  _recIntervalId = setInterval(runRecitationSchedule, 5 * 60 * 1000);
+  _recIntervalId = setInterval(runRecitationSchedule, 30 * 1000);
   // Check for ended exams and mark absent students every 5 minutes
   runEndedExamCheck();
   _examEndIntervalId = setInterval(runEndedExamCheck, 5 * 60 * 1000);
@@ -500,7 +516,7 @@ function startScheduler(pool) {
 
   console.log('[Scheduler] Exam start scheduler running (30s interval)');
   console.log('[Scheduler] WhatsApp schedule checker running (5min interval)');
-  console.log('[Scheduler] Recitation window scheduler running (5min interval)');
+  console.log('[Scheduler] Recitation window scheduler running (30s interval)');
   console.log('[Scheduler] Ended-exam absent marker running (5min interval)');
   console.log('[Scheduler] Ended-recitation absent marker running (5min interval)');
   console.log('[Scheduler] Data retention logs cleanup running (24h interval)');

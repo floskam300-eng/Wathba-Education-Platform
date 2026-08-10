@@ -13,6 +13,7 @@ import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 import { withToken } from '../../lib/mediaAccess';
+import { toUTCDate } from '../../lib/dateUtils';
 
 /* ─── helpers ─────────────────────────────────────────── */
 const fmt = (min) => min >= 60
@@ -1516,8 +1517,10 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
   // [M1-FIX] Determine schedule status for each recitation
   const getRecStatus = (rec) => {
     const now = new Date();
-    if (rec.start_date && new Date(rec.start_date) > now) return 'upcoming';
-    if (rec.end_date && new Date(rec.end_date) < now) return 'expired';
+    const startDate = toUTCDate(rec.start_date);
+    const endDate = toUTCDate(rec.end_date);
+    if (startDate && startDate > now) return 'upcoming';
+    if (endDate && endDate < now) return 'expired';
     return 'open';
   };
 

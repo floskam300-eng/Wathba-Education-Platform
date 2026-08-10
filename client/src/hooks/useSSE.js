@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 const EVENT_ICONS = {
   notification:        '🔔',
   new_exam:            '📝',
+  new_recitation:      '📖',
   new_course:          '📚',
   enrollment_approved: '✅',
   enrollment_rejected: '❌',
@@ -107,6 +108,17 @@ export function useSSE(enabled, role) {
           // causing a redundant refetch. The invalidation above is sufficient.
           toast.success(`${EVENT_ICONS.new_exam} اختبار جديد متاح الآن: ${data.title}`,
             { duration: 6000, style: { fontFamily: 'inherit', direction: 'rtl' } });
+        });
+
+        es.addEventListener('new_recitation', (e) => {
+          let data; try { data = JSON.parse(e.data); } catch { return; }
+          qc.invalidateQueries({ queryKey: ['student-recitations'] });
+          qc.invalidateQueries({ queryKey: ['student-dashboard'] });
+          qc.invalidateQueries({ queryKey: ['my-notifications'] });
+          qc.invalidateQueries({ queryKey: ['course-recitations'] });
+          window.dispatchEvent(new CustomEvent('wathba_recitation_started', { detail: data }));
+          toast.success(`📖 تسميع متاح الآن: ${data.title} — يمكنك الدخول لأدائه!`,
+            { duration: 8000, style: { fontFamily: 'inherit', direction: 'rtl', background: '#7c3aed', color: '#fff' } });
         });
 
         es.addEventListener('exam_started', (e) => {
@@ -267,6 +279,13 @@ export function useSSE(enabled, role) {
             ? `📝 تم نشر الاختبار: ${data.title}`
             : `🔕 تم إلغاء نشر الاختبار: ${data.title}`;
           toast(msg, { duration: 5000, style: { fontFamily: 'inherit', direction: 'rtl' } });
+        });
+
+        es.addEventListener('recitation_submitted', (e) => {
+          let data; try { data = JSON.parse(e.data); } catch { return; }
+          qc.invalidateQueries({ queryKey: ['recitations'] });
+          qc.invalidateQueries({ queryKey: ['recitation-results'] });
+          qc.invalidateQueries({ queryKey: ['recitations-analytics'] });
         });
 
         es.addEventListener('live_hand_raise', (e) => {
