@@ -30,6 +30,19 @@ const emptyQ = {
 const qTypeLabel = (t) => ({ mcq: 'MCQ', true_false: 'صح/خطأ', image_multi: 'صورة+أسئلة' })[t] || 'MCQ';
 
 
+const PREF_LABELS_KEY = 'wathba_preferred_option_labels';
+
+function getSavedPreferredLabels() {
+  try {
+    const saved = localStorage.getItem(PREF_LABELS_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) || parsed === null) return parsed;
+    }
+  } catch {}
+  return null;
+}
+
 export default function ExamQuestions() {
   const { examId } = useParams();
   const navigate = useNavigate();
@@ -38,7 +51,8 @@ export default function ExamQuestions() {
   const baseRole = user?.role === 'assistant' ? 'assistant' : 'teacher';
 
   // ── form state ────────────────────────────────────────────────────────────
-  const [qForm, setQForm] = useState(emptyQ);
+  const [preferredOptionLabels, setPreferredOptionLabels] = useState(() => getSavedPreferredLabels());
+  const [qForm, setQForm] = useState(() => ({ ...emptyQ, option_labels: getSavedPreferredLabels() }));
   const [editQ, setEditQ] = useState(null);
   const [deleteQId, setDeleteQId] = useState(null);
   const [imageInputMode, setImageInputMode] = useState('url');
@@ -70,9 +84,33 @@ export default function ExamQuestions() {
     queryFn: () => api.get(`/exams/${examId}/questions`).then(r => r.data),
   });
 
+  // Sync preferred option labels from existing questions if not explicitly customized yet
+  React.useEffect(() => {
+    if (questions?.length > 0 && preferredOptionLabels === null) {
+      for (let i = questions.length - 1; i >= 0; i--) {
+        if (questions[i]?.option_labels) {
+          setPreferredOptionLabels(questions[i].option_labels);
+          setQForm(f => f.option_labels === null && !editQ ? { ...f, option_labels: questions[i].option_labels } : f);
+          break;
+        }
+      }
+    }
+  }, [questions]);
+
+  const handleOptionLabelsChange = (labels) => {
+    setQForm(f => ({ ...f, option_labels: labels }));
+    setPreferredOptionLabels(labels);
+    try {
+      localStorage.setItem(PREF_LABELS_KEY, JSON.stringify(labels));
+    } catch {}
+  };
+
   const resetQForm = () => {
     setEditQ(null);
-    setQForm(emptyQ);
+    setQForm({
+      ...emptyQ,
+      option_labels: preferredOptionLabels,
+    });
     setImageFile(null);
     setImagePreview('');
     setImageInputMode('url');
@@ -368,10 +406,10 @@ export default function ExamQuestions() {
                       }
                       onChange={e => {
                         const val = e.target.value;
-                        if (val === 'default') setQForm(f => ({ ...f, option_labels: null }));
-                        else if (val === 'arabic') setQForm(f => ({ ...f, option_labels: ['أ', 'ب', 'ج', 'د'] }));
-                        else if (val === 'numbers') setQForm(f => ({ ...f, option_labels: ['1', '2', '3', '4'] }));
-                        else setQForm(f => ({ ...f, option_labels: ['A', 'B', 'C', 'D'] }));
+                        if (val === 'default') handleOptionLabelsChange(null);
+                        else if (val === 'arabic') handleOptionLabelsChange(['أ', 'ب', 'ج', 'د']);
+                        else if (val === 'numbers') handleOptionLabelsChange(['1', '2', '3', '4']);
+                        else handleOptionLabelsChange(['A', 'B', 'C', 'D']);
                       }}
                       className="text-[10px] rounded border border-gray-300 px-1.5 py-0.5 bg-white text-gray-700 focus:outline-none"
                     >
@@ -410,7 +448,7 @@ export default function ExamQuestions() {
                             onChange={e => {
                               const newLabels = [...(qForm.option_labels || ['A', 'B', 'C', 'D'])];
                               newLabels[idx] = e.target.value;
-                              setQForm(f => ({ ...f, option_labels: newLabels }));
+                              handleOptionLabelsChange(newLabels);
                             }}
                             className="w-full text-center text-xs rounded border border-gray-300 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-orange-500"
                             maxLength={20}
@@ -451,7 +489,8 @@ export default function ExamQuestions() {
                     <button type="button"
                       onClick={() => {
                         const subs = Array.from({ length: imgMultiCount }, (_, i) => ({
-                          label: String(i + 1), correct: 'A', type: 'mcq', points: 1
+                          label: String(i + 1), correct: 'A', type: 'mcq', points: 1,
+                          option_labels: preferredOptionLabels || qForm.option_labels || null,
                         }));
                         updateSubQuestions(subs);
                       }}
@@ -501,6 +540,7 @@ export default function ExamQuestions() {
                                     else if (val === 'custom') labels = ['A', 'B', 'C', 'D'];
                                     updated[idx] = { ...updated[idx], option_labels: labels };
                                     updateSubQuestions(updated);
+                                    if (labels) handleOptionLabelsChange(labels);
                                   }}
                                   className="text-[9px] rounded border border-gray-300 px-1 py-0.5 bg-white text-gray-700 focus:outline-none"
                                 >
