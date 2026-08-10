@@ -36,10 +36,22 @@ fs.mkdirSync(QUESTION_IMG_DIR, { recursive: true });
 async function markAbsentStudents(poolOrClient, examId, teacherId) {
   try {
     const examInfo = await poolOrClient.query(
-      'SELECT course_id FROM exams WHERE id=$1 AND deleted_at IS NULL', [examId]
+      'SELECT course_id, start_date FROM exams WHERE id=$1 AND deleted_at IS NULL', [examId]
     );
     if (!examInfo.rows.length) return 0;
-    const courseId = examInfo.rows[0].course_id;
+    const { course_id: courseId, start_date: startDate } = examInfo.rows[0];
+
+    // [SCHED-FIX] If the exam was scheduled for the future and has NOT started yet (start_date > NOW()),
+    // students were never able to enter or take it. Do NOT mark anyone absent.
+    // Also clean up any accidental is_absent=true records for this un-started exam.
+    if (startDate && new Date(startDate) > new Date()) {
+      await poolOrClient.query(
+        'DELETE FROM exam_results WHERE exam_id=$1 AND is_absent=true',
+        [examId]
+      );
+      console.log(`[markAbsentStudents] exam=${examId} start_date is in the future (${startDate}) — skipped absent marking and cleaned any phantom records`);
+      return 0;
+    }
 
     // [ABS-1 FIX] Use is_latest=true in NOT EXISTS to avoid blocking absent-marking
     // for students who have only archived (is_latest=false) results from a previous
@@ -559,10 +571,21 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExams
           title: exam.title,
         });
       }
-      // Mark absent for every eligible student who never took this exam
-      markAbsentStudents(pool, exam.id, teacherId).catch(e =>
-        console.error('[unpublish] markAbsentStudents error:', e.message)
-      );
+      // [SCHED-FIX] Only mark absent if the exam has actually started (start_date is null or <= NOW()).
+      // If it was an upcoming scheduled exam that never opened, delete any phantom absent records.
+      const now = new Date();
+      const startDate = exam.start_date ? new Date(exam.start_date) : null;
+      if (startDate && startDate > now) {
+        await pool.query(
+          'DELETE FROM exam_results WHERE exam_id=$1 AND is_absent=true',
+          [exam.id]
+        );
+      } else {
+        // Mark absent for every eligible student who never took this exam
+        markAbsentStudents(pool, exam.id, teacherId).catch(e =>
+          console.error('[unpublish] markAbsentStudents error:', e.message)
+        );
+      }
     }
 
     // Notify the teacher (and any logged-in assistants) in real-time

@@ -918,10 +918,20 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageRecit
         entity: { type: 'recitation', id, name: rec2.title },
       });
     } else {
-      // Unpublishing — mark absent for every eligible student who never submitted
-      markAbsentRecitationStudents(pool, id, teacherId).catch(e =>
-        console.error('[unpublish recitation] markAbsentRecitationStudents error:', e.message)
-      );
+      // [SCHED-FIX] Only mark absent if the recitation has actually started (start_date is null or <= NOW())
+      const now = new Date();
+      const startDate = rec2.start_date ? new Date(rec2.start_date) : null;
+      if (startDate && startDate > now) {
+        await pool.query(
+          'DELETE FROM recitation_results WHERE recitation_id=$1 AND is_absent=true',
+          [id]
+        );
+      } else {
+        // Unpublishing — mark absent for every eligible student who never submitted
+        markAbsentRecitationStudents(pool, id, teacherId).catch(e =>
+          console.error('[unpublish recitation] markAbsentRecitationStudents error:', e.message)
+        );
+      }
     }
 
     res.json(rows[0]);
@@ -1832,10 +1842,22 @@ router.get('/results/:resultId/review', authenticate, async (req, res) => {
 async function markAbsentRecitationStudents(poolOrClient, recitationId, teacherId) {
   try {
     const recInfo = await poolOrClient.query(
-      'SELECT academic_stage FROM recitations WHERE id=$1 AND deleted_at IS NULL', [recitationId]
+      'SELECT academic_stage, start_date FROM recitations WHERE id=$1 AND deleted_at IS NULL', [recitationId]
     );
     if (!recInfo.rows.length) return 0;
-    const { academic_stage } = recInfo.rows[0];
+    const { academic_stage, start_date: startDate } = recInfo.rows[0];
+
+    // [SCHED-FIX] If the recitation was scheduled for the future and has NOT started yet (start_date > NOW()),
+    // students were never able to enter or take it. Do NOT mark anyone absent.
+    // Also clean up any accidental is_absent=true records for this un-started recitation.
+    if (startDate && new Date(startDate) > new Date()) {
+      await poolOrClient.query(
+        'DELETE FROM recitation_results WHERE recitation_id=$1 AND is_absent=true',
+        [recitationId]
+      );
+      console.log(`[markAbsentRecitationStudents] recitation=${recitationId} start_date is in the future (${startDate}) — skipped absent marking and cleaned any phantom records`);
+      return 0;
+    }
 
     let eligibleRows;
     if (academic_stage) {
