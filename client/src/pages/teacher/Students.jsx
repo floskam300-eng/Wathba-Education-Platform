@@ -6,7 +6,7 @@ import {
   GraduationCap, Upload, FileSpreadsheet, Download, X, Loader2,
   Copy, CheckCircle, AlertCircle, Ban, Lock, Unlock, ShieldAlert,
   Smartphone, Monitor, RefreshCw, AlertTriangle, ChevronRight,
-  Layers, Trash, ArrowLeft,
+  Layers, Trash, ArrowLeft, ShieldCheck, PlusCircle,
 } from 'lucide-react';
 // Removed static XLSX import to decrease initial chunk size
 import Modal from '../../components/ui/Modal';
@@ -95,11 +95,22 @@ function DeviceAlertsPanel({ canEdit }) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['device-alerts'] });
       qc.invalidateQueries({ queryKey: ['students'] });
+      qc.invalidateQueries({ queryKey: ['student-devices'] });
       toast.success('تم تنفيذ الإجراء بنجاح');
       setActionAlert(null);
       setDeviceChoiceOpen(null);
     },
     onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
+  });
+
+  const deleteDeviceMut = useMutation({
+    mutationFn: ({ studentId, deviceId }) => api.delete(`/students/${studentId}/devices/${deviceId}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['student-devices'] });
+      qc.invalidateQueries({ queryKey: ['device-alerts'] });
+      toast.success('تم حذف الجهاز بنجاح');
+    },
+    onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ أثناء حذف الجهاز'),
   });
 
   const pending = alerts.filter(a => a.status === 'pending');
@@ -159,8 +170,8 @@ function DeviceAlertsPanel({ canEdit }) {
 
   const statusLabel = (s) => {
     if (s === 'pending') return { text: 'معلّق', cls: 'bg-red-100 text-red-700' };
-    if (s === 'reactivated') return { text: 'تم السماح بجهاز جديد', cls: 'bg-green-100 text-green-700' };
-    if (s === 'dismissed') return { text: 'تم التجاهل', cls: 'bg-gray-100 text-gray-600' };
+    if (s === 'reactivated') return { text: 'تمت الموافقة والسماح', cls: 'bg-green-100 text-green-700' };
+    if (s === 'dismissed') return { text: 'تم إبقاء القديم ورفض الجديد', cls: 'bg-gray-100 text-gray-600' };
     return { text: s, cls: 'bg-gray-100 text-gray-600' };
   };
 
@@ -324,24 +335,55 @@ function DeviceAlertsPanel({ canEdit }) {
                       </p>
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-2 flex-shrink-0">
+                  <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
                     <button
                       onClick={() => setDevicesModal({ id: alert.student_id, student_id: alert.student_id, name: alert.student_name })}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 text-xs font-bold hover:bg-blue-100 transition-colors"
+                      title="عرض الأجهزة المسجّلة للطالب حالياً"
                     >
                       <Smartphone className="w-3.5 h-3.5" /> الأجهزة
                     </button>
                     {canEdit && (
                       <>
-                        {/* Device Choice Dropdown */}
+                        {/* Option 3: Add new device alongside old device (Allow both) */}
+                        <button
+                          onClick={() => actionMut.mutate({ alertId: alert.id, action: 'add_new_device' })}
+                          disabled={actionMut.isPending}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-50 text-green-700 text-xs font-bold hover:bg-green-100 border border-green-200 transition-colors"
+                          title="إضافة الجهاز الجديد كجهاز مصرّح به مع الاحتفاظ بالأجهزة القديمة"
+                        >
+                          <PlusCircle className="w-3.5 h-3.5 text-green-600" /> إضافة جهاز إضافي
+                        </button>
+
+                        {/* Option 1: Switch to new device (Delete old, set new) */}
+                        <button
+                          onClick={() => actionMut.mutate({ alertId: alert.id, action: 'switch_to_new_device' })}
+                          disabled={actionMut.isPending}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-50 text-orange-700 text-xs font-bold hover:bg-orange-100 border border-orange-200 transition-colors"
+                          title="مسح الأجهزة القديمة وتعيين الجهاز الجديد فقط كجهاز وحيد للطالب"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5 text-orange-600" /> استبدال بالجديد
+                        </button>
+
+                        {/* Option 2: Keep original device only (Reject new) */}
+                        <button
+                          onClick={() => actionMut.mutate({ alertId: alert.id, action: 'keep_original_device' })}
+                          disabled={actionMut.isPending}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-50 text-gray-700 text-xs font-bold hover:bg-gray-100 border border-gray-200 transition-colors"
+                          title="رفض محاولة الدخول من الجهاز الجديد وإبقاء الجهاز القديم فقط"
+                        >
+                          <ShieldCheck className="w-3.5 h-3.5 text-gray-500" /> إبقاء القديم فقط
+                        </button>
+
+                        {/* Choice Dropdown */}
                         <div className="relative">
                           <button
                             onClick={() => setDeviceChoiceOpen(deviceChoiceOpen === alert.student_id ? null : alert.student_id)}
                             disabled={actionMut.isPending}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-50 text-purple-700 text-xs font-bold hover:bg-purple-100 transition-colors"
-                            title="اختيار الجهاز المسموح للطالب"
+                            className="p-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+                            title="خيارات إضافية"
                           >
-                            <Monitor className="w-3.5 h-3.5" /> اختيار الجهاز <ChevronRight className={`w-3 h-3 transition-transform ${deviceChoiceOpen === alert.student_id ? 'rotate-90' : ''}`} />
+                            <ChevronRight className={`w-3.5 h-3.5 transition-transform ${deviceChoiceOpen === alert.student_id ? 'rotate-90' : ''}`} />
                           </button>
                           {deviceChoiceOpen === alert.student_id && (
                             <>
@@ -349,21 +391,23 @@ function DeviceAlertsPanel({ canEdit }) {
                                 className="fixed inset-0 z-40 cursor-default"
                                 onClick={() => setDeviceChoiceOpen(null)}
                               />
-                              <div className="absolute top-full right-0 mt-1.5 bg-white dark:bg-navy-800 rounded-xl shadow-2xl border border-gray-200 dark:border-navy-700 p-2 z-50 min-w-[280px] animate-in fade-in slide-in-from-top-1 duration-150">
-                                <p className="text-[11px] text-gray-500 font-bold px-2.5 py-1 mb-1 border-b border-gray-100 dark:border-navy-700">اختر الجهاز اللي الطالب يفتح منه:</p>
+                              <div className="absolute top-full right-0 mt-1.5 bg-white dark:bg-navy-800 rounded-xl shadow-2xl border border-gray-200 dark:border-navy-700 p-2 z-50 min-w-[290px] animate-in fade-in slide-in-from-top-1 duration-150">
+                                <p className="text-[11px] text-gray-500 font-bold px-2.5 py-1 mb-1 border-b border-gray-100 dark:border-navy-700">اختر الإجراء المناسب:</p>
+                                
                                 <button
-                                  onClick={() => actionMut.mutate({ alertId: alert.id, action: 'keep_original_device' })}
+                                  onClick={() => actionMut.mutate({ alertId: alert.id, action: 'add_new_device' })}
                                   disabled={actionMut.isPending}
                                   className="flex items-center gap-2 w-full px-2.5 py-2 rounded-lg text-right text-xs font-bold text-green-700 hover:bg-green-50 dark:hover:bg-green-950/30 transition-colors"
                                 >
                                   <div className="w-7 h-7 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
-                                    <Smartphone className="w-3.5 h-3.5 text-green-600" />
+                                    <PlusCircle className="w-3.5 h-3.5 text-green-600" />
                                   </div>
                                   <div className="flex-1 min-w-0">
-                                    <span className="block">إبقاء الجهاز الأول (الأصلي)</span>
-                                    <span className="block text-[10px] text-gray-400 font-medium mt-0.5">الطالب يفتح من جهازه الأولاني بس</span>
+                                    <span className="block">إضافة الجهاز الجديد (السماح بالاثنين)</span>
+                                    <span className="block text-[10px] text-gray-400 font-medium mt-0.5">يضيف الجهاز مع الاحتفاظ بالجهاز الأصلي</span>
                                   </div>
                                 </button>
+
                                 <button
                                   onClick={() => actionMut.mutate({ alertId: alert.id, action: 'switch_to_new_device' })}
                                   disabled={actionMut.isPending}
@@ -373,7 +417,7 @@ function DeviceAlertsPanel({ canEdit }) {
                                     <RefreshCw className="w-3.5 h-3.5 text-orange-600" />
                                   </div>
                                   <div className="flex-1 min-w-0">
-                                    <span className="block">التبديل للجهاز الجديد</span>
+                                    <span className="block">استبدال الجهاز بالجديد (مسح القديم)</span>
                                     <span className="block text-[10px] text-gray-400 font-medium mt-0.5">
                                       {alert.count > 1
                                         ? `الأجهزة: ${[...new Set(alert.devices)].join(' · ')}`
@@ -381,26 +425,24 @@ function DeviceAlertsPanel({ canEdit }) {
                                     </span>
                                   </div>
                                 </button>
+
+                                <button
+                                  onClick={() => actionMut.mutate({ alertId: alert.id, action: 'keep_original_device' })}
+                                  disabled={actionMut.isPending}
+                                  className="flex items-center gap-2 w-full px-2.5 py-2 rounded-lg text-right text-xs font-bold text-gray-700 hover:bg-gray-100 dark:hover:bg-navy-700 transition-colors mt-1"
+                                >
+                                  <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+                                    <ShieldCheck className="w-3.5 h-3.5 text-gray-600" />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <span className="block">إبقاء القديم فقط (رفض الجديد)</span>
+                                    <span className="block text-[10px] text-gray-400 font-medium mt-0.5">يرفض محاولة الدخول من الجهاز الجديد</span>
+                                  </div>
+                                </button>
                               </div>
                             </>
                           )}
                         </div>
-                        <button
-                          onClick={() => actionMut.mutate({ alertId: alert.id, action: 'reset_devices' })}
-                          disabled={actionMut.isPending}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-50 text-orange-700 text-xs font-bold hover:bg-orange-100 transition-colors"
-                          title="مسح الجهاز المسجّل والسماح للطالب بتسجيل جهاز جديد"
-                        >
-                          <RefreshCw className="w-3.5 h-3.5" /> السماح بجهاز جديد
-                        </button>
-                        <button
-                          onClick={() => actionMut.mutate({ alertId: alert.id, action: 'dismiss' })}
-                          disabled={actionMut.isPending}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-50 text-gray-600 text-xs font-bold hover:bg-gray-100 transition-colors"
-                          title="تجاهل التنبيه مع إبقاء الجهاز الأصلي مسجّلاً"
-                        >
-                          <X className="w-3.5 h-3.5" /> تجاهل
-                        </button>
                       </>
                     )}
                   </div>
@@ -474,22 +516,36 @@ function DeviceAlertsPanel({ canEdit }) {
           {devices.length === 0 ? (
             <p className="text-center text-gray-500 py-6 text-sm">لم يُسجَّل أي جهاز بعد</p>
           ) : devices.map((d, i) => (
-            <div key={d.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
-              <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
-                {d.device_name?.includes('Android') || d.device_name?.includes('iOS') || d.device_name?.includes('iPhone')
-                  ? <Smartphone className="w-4 h-4 text-blue-600" />
-                  : <Monitor className="w-4 h-4 text-blue-600" />
-                }
+            <div key={d.id || d.device_id} className="flex items-center justify-between gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
+              <div className="flex items-start gap-3 flex-1 min-w-0">
+                <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                  {d.device_name?.includes('Android') || d.device_name?.includes('iOS') || d.device_name?.includes('iPhone')
+                    ? <Smartphone className="w-4 h-4 text-blue-600" />
+                    : <Monitor className="w-4 h-4 text-blue-600" />
+                  }
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-sm text-navy-700">{d.device_name || 'جهاز غير معروف'}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    أول دخول: {new Date(d.first_seen).toLocaleDateString('ar-EG')}
+                    &nbsp;·&nbsp;آخر دخول: {new Date(d.last_seen).toLocaleDateString('ar-EG')}
+                  </p>
+                  {d.ip_address && <p className="text-xs text-gray-400 font-mono mt-0.5">IP: {d.ip_address}</p>}
+                </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-bold text-sm text-navy-700">{d.device_name || 'جهاز غير معروف'}</p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  أول دخول: {new Date(d.first_seen).toLocaleDateString('ar-EG')}
-                  &nbsp;·&nbsp;آخر دخول: {new Date(d.last_seen).toLocaleDateString('ar-EG')}
-                </p>
-                {d.ip_address && <p className="text-xs text-gray-400 font-mono mt-0.5">IP: {d.ip_address}</p>}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <span className="text-xs bg-navy-100 text-navy-700 font-black px-2 py-0.5 rounded-full">جهاز {i + 1}</span>
+                {canEdit && (
+                  <button
+                    onClick={() => deleteDeviceMut.mutate({ studentId: devicesModal.student_id || devicesModal.id, deviceId: d.device_id || d.id })}
+                    disabled={deleteDeviceMut.isPending}
+                    className="p-1.5 text-red-500 hover:bg-red-50 hover:text-red-700 rounded-lg transition-colors"
+                    title="حذف هذا الجهاز من حساب الطالب"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
               </div>
-              <span className="text-xs bg-navy-100 text-navy-700 font-black px-2 py-0.5 rounded-full flex-shrink-0">جهاز {i + 1}</span>
             </div>
           ))}
         </div>

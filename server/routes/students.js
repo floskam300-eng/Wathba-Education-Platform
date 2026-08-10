@@ -1236,7 +1236,7 @@ router.post('/device-alerts/:alertId/action', requireRole('teacher', 'assistant'
   if (isNaN(alertId)) return res.status(400).json({ error: 'Invalid alert ID' });
 
   const { action } = req.body;
-  if (!['reactivate', 'reactivate_reset_devices', 'reset_devices', 'dismiss', 'keep_original_device', 'switch_to_new_device'].includes(action)) {
+  if (!['reactivate', 'reactivate_reset_devices', 'reset_devices', 'dismiss', 'keep_original_device', 'switch_to_new_device', 'add_new_device'].includes(action)) {
     return res.status(400).json({ error: 'Invalid action' });
   }
   // Assistants need can_edit_students to act on alerts
@@ -1281,22 +1281,15 @@ router.post('/device-alerts/:alertId/action', requireRole('teacher', 'assistant'
         "UPDATE device_alerts SET status='reactivated', resolved_at=NOW() WHERE student_id=$1 AND teacher_id=$2 AND status='pending'",
         [alert.student_id, teacherId]
       );
-    } else if (action === 'dismiss') {
-      // Dismiss ALL pending alerts for this student at once
-      await pool.query(
-        "UPDATE device_alerts SET status='dismissed', resolved_at=NOW() WHERE student_id=$1 AND teacher_id=$2 AND status='pending'",
-        [alert.student_id, teacherId]
-      );
-    } else if (action === 'keep_original_device') {
-      // Teacher chose to keep the original device — dismiss all pending alerts
+    } else if (action === 'dismiss' || action === 'keep_original_device') {
+      // Option 2: Keep original device only (reject new device attempt) — dismiss pending alerts
       await pool.query(
         "UPDATE device_alerts SET status='dismissed', resolved_at=NOW() WHERE student_id=$1 AND teacher_id=$2 AND status='pending'",
         [alert.student_id, teacherId]
       );
     } else if (action === 'switch_to_new_device') {
-      // Teacher chose the new device — remove old devices and register the new one
+      // Option 1: Replace old device with new device — remove old devices and register the new one
       await pool.query('DELETE FROM student_devices WHERE student_id=$1', [alert.student_id]);
-      // Register the new device from the alert data
       if (alert.device_id) {
         await pool.query(
           `INSERT INTO student_devices (student_id, device_id, device_name, ip_address)
@@ -1305,11 +1298,28 @@ router.post('/device-alerts/:alertId/action', requireRole('teacher', 'assistant'
           [alert.student_id, alert.device_id, alert.device_name, alert.ip_address]
         );
       }
-      // Resolve all pending alerts for this student
+      await pool.query('UPDATE students SET is_suspended=false WHERE id=$1', [alert.student_id]);
       await pool.query(
         "UPDATE device_alerts SET status='reactivated', resolved_at=NOW() WHERE student_id=$1 AND teacher_id=$2 AND status='pending'",
         [alert.student_id, teacherId]
       );
+      invalidateStudentAuthCache(alert.student_id);
+    } else if (action === 'add_new_device') {
+      // Option 3: Add new device alongside existing devices (allow both old and new devices)
+      if (alert.device_id) {
+        await pool.query(
+          `INSERT INTO student_devices (student_id, device_id, device_name, ip_address)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (student_id, device_id) DO UPDATE SET last_seen = NOW(), device_name = EXCLUDED.device_name`,
+          [alert.student_id, alert.device_id, alert.device_name, alert.ip_address]
+        );
+      }
+      await pool.query('UPDATE students SET is_suspended=false WHERE id=$1', [alert.student_id]);
+      await pool.query(
+        "UPDATE device_alerts SET status='reactivated', resolved_at=NOW() WHERE student_id=$1 AND teacher_id=$2 AND status='pending'",
+        [alert.student_id, teacherId]
+      );
+      invalidateStudentAuthCache(alert.student_id);
     }
 
     const studentName = (await pool.query('SELECT name FROM students WHERE id=$1', [alert.student_id]).catch(() => ({ rows: [] }))).rows[0]?.name;
@@ -1352,6 +1362,33 @@ router.get('/:id/devices', requireRole('teacher', 'assistant'), async (req, res)
     res.status(500).json({ error: 'Server error' });
   }
 });
+
+// ── DELETE /students/:id/devices/:deviceId ────────────────────────────────────
+router.delete('/:id/devices/:deviceId',
+  requireRole('teacher', 'assistant'),
+  (req, res, next) => checkPermission(req, res, next, 'can_edit_students'),
+  async (req, res) => {
+    const teacherId = getTeacherId(req);
+    const studentId = parseInt(req.params.id, 10);
+    const deviceId = req.params.deviceId;
+    if (isNaN(studentId)) return res.status(400).json({ error: 'Invalid student ID' });
+    try {
+      const check = await pool.query(
+        'SELECT id FROM students WHERE id=$1 AND teacher_id=$2 AND deleted_at IS NULL',
+        [studentId, teacherId]
+      );
+      if (!check.rows.length) return res.status(403).json({ error: 'Access denied' });
+      await pool.query(
+        'DELETE FROM student_devices WHERE student_id=$1 AND (device_id=$2 OR id::text=$2)',
+        [studentId, deviceId]
+      );
+      invalidateStudentAuthCache(studentId);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: 'Server error' });
+    }
+  }
+);
 
 // ── POST /students/:id/suspend ───────────────────────────────────────────────
 router.post('/:id/suspend',
