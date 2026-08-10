@@ -803,15 +803,20 @@ export default function TeacherExams() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-bold text-navy-700 mb-1">تاريخ البداية</label>
-              <input type="datetime-local" value={form.start_date}
-                onChange={e => { setForm({ ...form, start_date: e.target.value }); clearError('end_date'); }}
-                className="input-field text-sm" />
+              <input type="datetime-local"
+                min={fmtDateLocal(new Date().toISOString())}
+                value={form.start_date}
+                onChange={e => { setForm({ ...form, start_date: e.target.value }); clearError('start_date'); clearError('end_date'); }}
+                className={`input-field text-sm ${formErrors.start_date ? 'border-red-400 focus:ring-red-300' : ''}`} />
+              <FieldError error={formErrors.start_date} />
             </div>
             <div>
               <label className="block text-sm font-bold text-navy-700 mb-1">تاريخ النهاية</label>
-              <input type="datetime-local" value={form.end_date}
+              <input type="datetime-local"
+                min={fmtDateLocal(new Date().toISOString())}
+                value={form.end_date}
                 onChange={e => { setForm({ ...form, end_date: e.target.value }); clearError('end_date'); }}
-                className="input-field text-sm" />
+                className={`input-field text-sm ${formErrors.end_date ? 'border-red-400 focus:ring-red-300' : ''}`} />
               <FieldError error={formErrors.end_date} />
             </div>
           </div>

@@ -90,16 +90,25 @@ export function validatePassScore(passScore, totalScore) {
 }
 
 export function validateDates(startDate, endDate, durationMinutes) {
-  if (!startDate || !endDate) return null;
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-  if (end <= start)
-    return 'تاريخ الانتهاء يجب أن يكون بعد تاريخ البداية';
-  if (durationMinutes) {
-    const diffMin = (end - start) / 60000;
-    const dur = parseInt(durationMinutes);
-    if (!isNaN(dur) && diffMin < dur)
-      return `الفترة بين البداية والنهاية (${Math.round(diffMin)} دقيقة) أقل من مدة الاختبار (${dur} دقيقة)`;
+  if (endDate) {
+    const end = new Date(endDate);
+    if (isNaN(end.getTime())) return 'تاريخ الانتهاء غير صالح';
+    if (end.getTime() <= Date.now()) {
+      return 'تاريخ الانتهاء يجب أن يكون في المستقبل ولا يمكن تحديد موعد قد فات';
+    }
+  }
+  if (startDate && endDate) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    if (isNaN(start.getTime())) return 'تاريخ البداية غير صالح';
+    if (end <= start)
+      return 'تاريخ الانتهاء يجب أن يكون بعد تاريخ البداية';
+    if (durationMinutes) {
+      const diffMin = (end - start) / 60000;
+      const dur = parseInt(durationMinutes, 10);
+      if (!isNaN(dur) && diffMin < dur)
+        return `الفترة بين البداية والنهاية (${Math.round(diffMin)} دقيقة) أقل من مدة الاختبار (${dur} دقيقة)`;
+    }
   }
   return null;
 }

@@ -33,8 +33,6 @@ async function runCheck() {
   _isRunning = true;
   try {
     // [M-14] FIX: Atomic claim via UPDATE...WHERE start_notified=false RETURNING.
-    // This prevents duplicate notifications when multiple instances (or rapid restarts)
-    // race on the same exams — only the instance that claims the row will notify students.
     const { rows: exams } = await _pool.query(`
       UPDATE exams
          SET start_notified = true
@@ -42,6 +40,7 @@ async function runCheck() {
          AND start_date IS NOT NULL
          AND start_date <= NOW()
          AND start_notified = false
+         AND (end_date IS NULL OR end_date > NOW())
       RETURNING id, title, course_id, teacher_id
     `);
 
@@ -50,15 +49,15 @@ async function runCheck() {
         let studentIds = [];
         if (exam.course_id) {
           const r = await _pool.query(
-            "SELECT student_id AS id FROM student_course_enrollment WHERE course_id=$1 AND status='active'",
+            `SELECT s.id FROM students s
+               JOIN student_course_enrollment sce ON s.id = sce.student_id
+              WHERE sce.course_id=$1 AND sce.status='active'
+                AND s.deleted_at IS NULL AND s.is_suspended = false`,
             [exam.course_id]
           );
           studentIds = r.rows.map(row => row.id);
         } else {
-          // [SC1-FIX] Exclude suspended students — they cannot take exams and
-          // must not receive start-notifications (same pattern applied to the
-          // recitation scheduler in T3-FIX; was only fixed for course-enrolled
-          // students previously, not for the teacher-wide fallback branch).
+          // [SC1-FIX] Exclude suspended students
           const r = await _pool.query(
             'SELECT id FROM students WHERE teacher_id=$1 AND deleted_at IS NULL AND is_suspended = false',
             [exam.teacher_id]
@@ -73,7 +72,15 @@ async function runCheck() {
           });
         }
 
-        sendFCMToStudents(_pool, studentIds, 'بدأ الاختبار الآن!', `⏰ يمكنك الدخول الآن لأداء اختبار: "${exam.title}"`, { examId: String(exam.id) }).catch(() => {});
+        if (studentIds.length > 0) {
+          _pool.query(
+            `INSERT INTO notification_log (teacher_id, student_id, recipient_type, message, type, is_read, source, title)
+             SELECT $1, unnest($2::int[]), 'student', $3, 'exam_started', false, 'platform', $4`,
+            [exam.teacher_id, studentIds, `بدأ موعد اختبار: "${exam.title}" الآن — يمكنك الدخول لأدائه`, 'بدأ الاختبار الآن! 📝']
+          ).catch(() => {});
+        }
+
+        sendFCMToStudents(_pool, studentIds, 'بدأ الاختبار الآن! 📝', `⏰ يمكنك الدخول الآن لأداء اختبار: "${exam.title}"`, { examId: String(exam.id) }).catch(() => {});
 
         console.log(`[Scheduler] Notified ${studentIds.length} students: exam "${exam.title}" (id=${exam.id}) started`);
       } catch (examErr) {

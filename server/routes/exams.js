@@ -227,11 +227,26 @@ router.post('/', requireRole('teacher', 'assistant'), checkManageExamsPerm, vali
       const bankCheck = await pool.query('SELECT id FROM question_banks WHERE id=$1 AND teacher_id=$2', [bank_id, teacherId]);
       if (!bankCheck.rows.length) return res.status(403).json({ error: 'Access denied: bank not yours' });
     }
+    if (end_date) {
+      const endDt = new Date(end_date);
+      if (isNaN(endDt.getTime())) {
+        return res.status(400).json({ error: 'تنسيق تاريخ الانتهاء غير صالح' });
+      }
+      if (endDt.getTime() <= Date.now()) {
+        return res.status(400).json({ error: 'تاريخ الانتهاء يجب أن يكون في المستقبل ولا يمكن تحديد موعد قد فات' });
+      }
+    }
+    if (start_date) {
+      const startDt = new Date(start_date);
+      if (isNaN(startDt.getTime())) {
+        return res.status(400).json({ error: 'تنسيق تاريخ البداية غير صالح' });
+      }
+    }
     if (start_date && end_date) {
       const startDt = new Date(start_date);
       const endDt = new Date(end_date);
-      if (isNaN(startDt.getTime()) || isNaN(endDt.getTime())) {
-        return res.status(400).json({ error: 'تنسيق التاريخ غير صالح' });
+      if (endDt <= startDt) {
+        return res.status(400).json({ error: 'تاريخ الانتهاء يجب أن يكون بعد تاريخ البداية' });
       }
       const diffMin = (endDt - startDt) / 60000;
       if (diffMin < parseInt(duration_minutes || 60))
@@ -293,11 +308,26 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageExamsPerm, va
       const bankCheck = await pool.query('SELECT id FROM question_banks WHERE id=$1 AND teacher_id=$2', [bank_id, teacherId]);
       if (!bankCheck.rows.length) return res.status(403).json({ error: 'Access denied: bank not yours' });
     }
+    if (end_date) {
+      const endDt = new Date(end_date);
+      if (isNaN(endDt.getTime())) {
+        return res.status(400).json({ error: 'تنسيق تاريخ الانتهاء غير صالح' });
+      }
+      if (endDt.getTime() <= Date.now()) {
+        return res.status(400).json({ error: 'تاريخ الانتهاء يجب أن يكون في المستقبل ولا يمكن تحديد موعد قد فات' });
+      }
+    }
+    if (start_date) {
+      const startDt = new Date(start_date);
+      if (isNaN(startDt.getTime())) {
+        return res.status(400).json({ error: 'تنسيق تاريخ البداية غير صالح' });
+      }
+    }
     if (start_date && end_date) {
       const startDt = new Date(start_date);
       const endDt = new Date(end_date);
-      if (isNaN(startDt.getTime()) || isNaN(endDt.getTime())) {
-        return res.status(400).json({ error: 'تنسيق التاريخ غير صالح' });
+      if (endDt <= startDt) {
+        return res.status(400).json({ error: 'تاريخ الانتهاء يجب أن يكون بعد تاريخ البداية' });
       }
       const diffMin = (endDt - startDt) / 60000;
       if (diffMin < parseInt(duration_minutes || 60))
@@ -465,7 +495,10 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExams
       let studentIds = [];
       if (exam.course_id) {
         const sRes = await pool.query(
-          "SELECT student_id AS id FROM student_course_enrollment WHERE course_id=$1 AND status='active'",
+          `SELECT s.id FROM students s
+             JOIN student_course_enrollment sce ON s.id = sce.student_id
+            WHERE sce.course_id = $1 AND sce.status = 'active'
+              AND s.deleted_at IS NULL AND s.is_suspended = false`,
           [exam.course_id]
         );
         studentIds = sRes.rows.map(r => r.id);
@@ -506,13 +539,16 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExams
       let unpubStudentIds = [];
       if (exam.course_id) {
         const sRes = await pool.query(
-          "SELECT student_id AS id FROM student_course_enrollment WHERE course_id=$1 AND status='active'",
+          `SELECT s.id FROM students s
+             JOIN student_course_enrollment sce ON s.id = sce.student_id
+            WHERE sce.course_id = $1 AND sce.status = 'active'
+              AND s.deleted_at IS NULL AND s.is_suspended = false`,
           [exam.course_id]
         );
         unpubStudentIds = sRes.rows.map(r => r.id);
       } else {
         const sRes = await pool.query(
-          'SELECT id FROM students WHERE teacher_id=$1 AND deleted_at IS NULL',
+          'SELECT id FROM students WHERE teacher_id=$1 AND deleted_at IS NULL AND is_suspended = false',
           [teacherId]
         );
         unpubStudentIds = sRes.rows.map(r => r.id);

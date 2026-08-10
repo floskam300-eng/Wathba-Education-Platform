@@ -162,7 +162,11 @@ function validateExam(req, res, next) {
   }
   if (end_date) {
     const ed = new Date(end_date);
-    if (isNaN(ed.getTime())) errors.end_date = 'تاريخ الانتهاء غير صالح';
+    if (isNaN(ed.getTime())) {
+      errors.end_date = 'تاريخ الانتهاء غير صالح';
+    } else if (ed.getTime() <= Date.now()) {
+      errors.end_date = 'تاريخ الانتهاء يجب أن يكون في المستقبل ولا يمكن تحديد موعد قد فات';
+    }
   }
   if (!errors.start_date && !errors.end_date && start_date && end_date &&
       new Date(end_date) <= new Date(start_date))

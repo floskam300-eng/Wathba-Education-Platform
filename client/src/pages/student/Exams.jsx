@@ -42,14 +42,21 @@ const getExamScheduleStatus = (ex) => {
 };
 
 // Isolated countdown badge — manages its own 1s timer to avoid re-rendering the whole page
-const ExamCountdownBadge = React.memo(function ExamCountdownBadge({ targetDate }) {
+const ExamCountdownBadge = React.memo(function ExamCountdownBadge({ targetDate, onExpire }) {
   const targetMs = toUTCDate(targetDate)?.getTime() ?? Infinity;
   const [display, setDisplay] = useState(() => formatCountdown(targetMs - Date.now()));
   useEffect(() => {
-    const id = setInterval(() => {
+    const update = () => {
       const msLeft = targetMs - Date.now();
-      setDisplay(msLeft > 0 ? formatCountdown(msLeft) : null);
-    }, 1000);
+      if (msLeft <= 0) {
+        setDisplay(null);
+        if (onExpire) onExpire();
+      } else {
+        setDisplay(formatCountdown(msLeft));
+      }
+    };
+    update();
+    const id = setInterval(update, 1000);
     return () => clearInterval(id);
   }, [targetMs]);
   if (!display) return null;
@@ -111,6 +118,11 @@ export default function StudentExams() {
   const { data: exams = [], isLoading } = useQuery({
     queryKey: ['student-exams'],
     queryFn: () => api.get('/exams/student/available').then(r => r.data),
+    refetchInterval: (query) => {
+      const list = query.state.data || [];
+      const hasUpcoming = list.some(ex => getExamScheduleStatus(ex) === 'upcoming');
+      return hasUpcoming ? 30000 : false;
+    },
   });
 
   // Mounted ref + submittedRef reset on unmount
@@ -1144,7 +1156,7 @@ export default function StudentExams() {
                         <span className="text-xs text-yellow-800 font-bold">
                           يبدأ في: {toUTCDate(ex.start_date)?.toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }) ?? ''}
                         </span>
-                        <ExamCountdownBadge targetDate={ex.start_date} />
+                        <ExamCountdownBadge targetDate={ex.start_date} onExpire={() => qc.invalidateQueries({ queryKey: ['student-exams'] })} />
                       </div>
                     </div>
                   )}
