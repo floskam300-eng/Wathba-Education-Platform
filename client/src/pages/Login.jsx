@@ -20,16 +20,7 @@ const FEATURES = [
   { icon: Video,     title: 'بث مباشر',         desc: 'حصص تفاعلية أونلاين' },
 ];
 
-// Generate or retrieve a persistent device ID stored in localStorage
-function getOrCreateDeviceId() {
-  const key = 'wathba_device_id';
-  let id = localStorage.getItem(key);
-  if (!id) {
-    id = 'dev_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 10);
-    localStorage.setItem(key, id);
-  }
-  return id;
-}
+import { getOrCreateDeviceId } from '../lib/deviceId';
 
 // Security warning modal shown on every student login
 function DeviceWarningModal({ onAccept }) {
@@ -214,7 +205,7 @@ export default function Login() {
     if (!username.trim() || !password) return toast.error('يرجى إدخال اسم المستخدم وكلمة المرور');
     setLoading(true);
     try {
-      const deviceId = getOrCreateDeviceId();
+      const deviceId = await getOrCreateDeviceId();
       const { user, force_password_change } = await login(username.trim(), password, undefined, undefined, deviceId);
       if (force_password_change && user.role === 'teacher') {
         toast('يرجى تغيير كلمة المرور الافتراضية قبل المتابعة', { icon: '🔑', duration: 5000 });
