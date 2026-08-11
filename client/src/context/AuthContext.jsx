@@ -30,12 +30,22 @@ export const AuthProvider = ({ children }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const initAuth = async () => {
+      const initAuth = async () => {
       const token = localStorage.getItem('wathba_token');
       if (token) {
         try {
           const res = await api.get('/auth/me');
           const userData = res.data;
+          // [CACHE-FIX] Detect cross-user cache contamination on app startup.
+          // If the user ID stored in the cache doesn't match the authenticated user
+          // (e.g. a different student logged in on a shared device and the cache
+          // was not cleared), discard the stale cache before hydrating the new user.
+          try {
+            const storedUser = JSON.parse(localStorage.getItem('wathba_user') || 'null');
+            if (storedUser && storedUser.id && storedUser.id !== userData.id) {
+              localStorage.removeItem('WATHBA_QUERY_CACHE');
+            }
+          } catch (_) {}
           setUser(userData);
           localStorage.setItem('wathba_user', JSON.stringify(pickStorable(userData)));
           if (userData.teacher_slug) {
@@ -47,6 +57,7 @@ export const AuthProvider = ({ children }) => {
       }
       setLoading(false);
     };
+
 
     initAuth();
 
@@ -64,6 +75,11 @@ export const AuthProvider = ({ children }) => {
     if (deviceId) body.device_id = deviceId;
     const res = await api.post('/auth/login', body);
     const { token, user, force_password_change } = res.data;
+    // [CACHE-FIX] Clear any previously cached query data from a different user
+    // before setting the new token. This prevents cross-user data contamination
+    // when two different students log in from the same browser without an
+    // explicit logout (e.g. shared device, tab reuse).
+    localStorage.removeItem('WATHBA_QUERY_CACHE');
     localStorage.setItem('wathba_token', token);
     localStorage.setItem('wathba_user', JSON.stringify(pickStorable(user)));
     if (user.teacher_slug) {

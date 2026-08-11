@@ -1890,6 +1890,10 @@ export default function CourseView() {
     queryKey: ['course-recitations', courseId],
     queryFn: () => api.get(`/recitations/student/course/${courseId}`).then(r => r.data),
     enabled: !!courseId && !coursesLoading,
+    // Always fetch fresh recitations — teacher can add/remove them any time.
+    // staleTime:0 means the cache is immediately considered stale and refetched
+    // on mount without waiting for the global 15-minute window.
+    staleTime: 0,
   });
 
   // Keep recitationsRef in sync so handleProgressUpdate auto-advance lock check uses latest data
