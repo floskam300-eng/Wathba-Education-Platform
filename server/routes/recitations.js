@@ -889,9 +889,10 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageRecit
       [newPublished, id, teacherId]
     );
 
+    const rec2 = rows[0];
+
     // Notify eligible students on publish
     if (newPublished) {
-      const rec2 = rows[0];
       const recStartDate = rec2.start_date ? new Date(rec2.start_date) : null;
       const isAvailableNow = !recStartDate || recStartDate <= new Date();
 
@@ -954,6 +955,12 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageRecit
           console.error('[unpublish recitation] markAbsentRecitationStudents error:', e.message)
         );
       }
+
+      logActivity({
+        teacherId, actor: getActor(req), ip: getIp(req),
+        action: 'unpublish_recitation',
+        entity: { type: 'recitation', id, name: rec2.title },
+      });
     }
 
     res.json(rows[0]);
@@ -1908,10 +1915,10 @@ router.get('/results/:resultId/review', authenticate, async (req, res) => {
 async function markAbsentRecitationStudents(poolOrClient, recitationId, teacherId) {
   try {
     const recInfo = await poolOrClient.query(
-      'SELECT academic_stage, start_date FROM recitations WHERE id=$1 AND deleted_at IS NULL', [recitationId]
+      'SELECT academic_stage, start_date, course_id FROM recitations WHERE id=$1 AND deleted_at IS NULL', [recitationId]
     );
     if (!recInfo.rows.length) return 0;
-    const { academic_stage, start_date: startDate } = recInfo.rows[0];
+    const { academic_stage, start_date: startDate, course_id: courseId } = recInfo.rows[0];
 
     // [SCHED-FIX] If the recitation was scheduled for the future and has NOT started yet (start_date > NOW()),
     // students were never able to enter or take it. Do NOT mark anyone absent.
@@ -1926,7 +1933,21 @@ async function markAbsentRecitationStudents(poolOrClient, recitationId, teacherI
     }
 
     let eligibleRows;
-    if (academic_stage) {
+    if (courseId) {
+      const r = await poolOrClient.query(
+        `SELECT s.id
+           FROM students s
+           JOIN student_course_enrollment sce ON s.id = sce.student_id
+          WHERE sce.course_id = $1 AND sce.status = 'active'
+            AND s.teacher_id = $2 AND s.deleted_at IS NULL AND s.is_suspended = false
+            AND NOT EXISTS (
+              SELECT 1 FROM recitation_results rr
+               WHERE rr.student_id = s.id AND rr.recitation_id = $3
+            )`,
+        [courseId, teacherId, recitationId]
+      );
+      eligibleRows = r.rows;
+    } else if (academic_stage) {
       const r = await poolOrClient.query(
         `SELECT s.id
            FROM students s

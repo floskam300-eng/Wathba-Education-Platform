@@ -88,6 +88,7 @@ export default function StudentRecitations() {
   const { data: recitations = [], isLoading } = useQuery({
     queryKey: ['student-recitations'],
     queryFn: () => api.get('/recitations/student/list').then(r => r.data),
+    staleTime: 0,
     refetchInterval: (query) => {
       const recs = query.state.data || [];
       const hasUpcoming = recs.some(r => getStatus(r) === 'upcoming');
@@ -100,6 +101,7 @@ export default function StudentRecitations() {
   const { data: history = [] } = useQuery({
     queryKey: ['student-recitation-results'],
     queryFn: () => api.get('/recitations/student/results').then(r => r.data),
+    staleTime: 0,
   });
 
   const startRec = async (rec) => {
@@ -696,96 +698,176 @@ export default function StudentRecitations() {
 function Section({ title, items, dark, cardCls, onStart, navigate, startingId = null, onExpire = null }) {
   return (
     <div>
-      <h2 className={`font-black mb-3 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>{title}</h2>
+      <h2 className={`font-black mb-3 text-base sm:text-lg flex items-center gap-2 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>
+        <span>{title}</span>
+        <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-500'}`}>
+          {items.length}
+        </span>
+      </h2>
       <div className="space-y-3">
         {items.map(rec => {
           const status = getStatus(rec);
           const isStarting = startingId === rec.id;
           return (
-            <div key={rec.id} className={`${cardCls} flex items-center justify-between gap-3`}>
-              <div className="flex items-center gap-3 min-w-0 flex-1">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                  status === 'open' ? 'bg-purple-100' :
-                  status === 'done' ? 'bg-green-100' :
-                  status === 'upcoming' ? 'bg-blue-100' : 'bg-gray-100'
-                }`}>
-                  <BookOpen className={`w-5 h-5 ${
-                    status === 'open' ? 'text-purple-600' :
-                    status === 'done' ? 'text-green-600' :
-                    status === 'upcoming' ? 'text-blue-600' : 'text-gray-400'
-                  }`} />
+            <div
+              key={rec.id}
+              className={`${cardCls} flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 transition-all`}
+            >
+              {/* Header & Meta Section */}
+              <div className="flex items-start gap-3 min-w-0 flex-1">
+                <div
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 sm:mt-0 ${
+                    status === 'open'
+                      ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
+                      : status === 'done'
+                      ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
+                      : status === 'upcoming'
+                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                      : 'bg-gray-100 dark:bg-gray-800 text-gray-400'
+                  }`}
+                >
+                  <BookOpen className="w-5 h-5" />
                 </div>
+
                 <div className="min-w-0 flex-1">
-                  <p className={`font-bold text-sm truncate ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>{rec.title}</p>
-                  <div className={`flex items-center gap-2 text-xs ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'} flex-wrap`}>
-                    <span><Clock className="w-3 h-3 inline ml-0.5" />{rec.duration_minutes} دقيقة</span>
-                    <span>{rec.question_count} سؤال</span>
-                    {rec.academic_stage && <span className="bg-purple-100 text-purple-700 px-1.5 rounded font-semibold">{rec.academic_stage}</span>}
-                    {status === 'upcoming' && rec.start_date && <CountdownBadge target={rec.start_date} onExpire={onExpire} />}
-                    {status === 'done' && (
-                      <span className={`font-black ${rec.my_passed ? 'text-green-600' : 'text-red-500'}`}>
-                        {rec.my_score}/{rec.total_score}
+                  <div className="flex items-center justify-between gap-2">
+                    <p className={`font-bold text-sm sm:text-base leading-snug ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>
+                      {rec.title}
+                    </p>
+                    {/* Status badge/icon on mobile top-left */}
+                    <div className="sm:hidden flex-shrink-0">
+                      {status === 'done' && (
+                        <div className="flex items-center gap-1">
+                          <CheckCircle className="w-4 h-4 text-green-500" />
+                        </div>
+                      )}
+                      {status === 'expired' && <XCircle className="w-4 h-4 text-red-400" />}
+                      {status === 'upcoming' && <Lock className={`w-4 h-4 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-300'}`} />}
+                    </div>
+                  </div>
+
+                  <div className={`flex items-center gap-2 mt-2 text-xs ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-500'} flex-wrap`}>
+                    <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                      <Clock className="w-3.5 h-3.5 inline" />
+                      {rec.duration_minutes} دقيقة
+                    </span>
+                    <span>•</span>
+                    <span className="whitespace-nowrap">{rec.question_count} سؤال</span>
+                    {rec.academic_stage && (
+                      <span className={`px-2 py-0.5 rounded-md font-semibold text-[11px] ${
+                        dark
+                          ? 'bg-purple-900/30 text-purple-300 border border-purple-800/40'
+                          : 'bg-purple-50 text-purple-700 border border-purple-100'
+                      }`}>
+                        {rec.academic_stage}
                       </span>
                     )}
-                    {status === 'expired' && <span className="text-red-500 font-semibold">انتهى الوقت</span>}
+                    {status === 'upcoming' && rec.start_date && (
+                      <CountdownBadge target={rec.start_date} onExpire={onExpire} />
+                    )}
+                    {status === 'done' && (
+                      <span className={`font-black text-xs px-2 py-0.5 rounded-md ${
+                        rec.my_passed
+                          ? 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400'
+                          : 'bg-red-50 dark:bg-red-900/20 text-red-500 dark:text-red-400'
+                      }`}>
+                        الدرجة: {rec.my_score}/{rec.total_score}
+                      </span>
+                    )}
+                    {status === 'expired' && (
+                      <span className="text-red-500 font-bold text-[11px] bg-red-50 dark:bg-red-900/20 px-2 py-0.5 rounded-md">
+                        انتهى الوقت
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
 
-              {status === 'open' && onStart && (
-                <button onClick={() => onStart(rec)}
-                  disabled={!!startingId}
-                  className="flex-shrink-0 px-4 py-2 bg-purple-500 hover:bg-purple-600 disabled:opacity-60 text-white rounded-xl text-sm font-black transition-colors flex items-center gap-1.5">
-                  {isStarting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-                  {isStarting ? 'جاري...' : 'ابدأ'}
-                </button>
-              )}
-              {status === 'upcoming' && (
-                <Lock className={`w-4 h-4 flex-shrink-0 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-300'}`} />
-              )}
-              {status === 'done' && (
-                <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
-                  {rec.result_id && navigate && (
-                    <button
-                      onClick={() => navigate(`/student/recitation-review/${rec.result_id}`)}
-                      className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${dark ? 'bg-indigo-900/30 text-indigo-300 hover:bg-indigo-900/50' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                      مراجعة
-                    </button>
-                  )}
-                  {/* Show retry button only for FAILED students when allow_retry=true and limit not reached */}
-                  {(() => {
-                    const attempts = parseInt(rec.my_attempt_count, 10) || 1;
-                    const maxAttempts = rec.max_retry_attempts ? parseInt(rec.max_retry_attempts, 10) : null;
-                    const maxReached = maxAttempts && attempts >= maxAttempts;
-                    if (rec.allow_retry && !rec.my_passed && !maxReached && onStart) {
-                      return (
-                        <button
-                          onClick={() => onStart(rec)}
-                          disabled={!!startingId}
-                          className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${dark ? 'bg-purple-900/30 text-purple-300 hover:bg-purple-900/50' : 'bg-purple-50 text-purple-600 hover:bg-purple-100'}`}
-                        >
-                          <RefreshCw className="w-3.5 h-3.5" />
-                          إعادة المحاولة {maxAttempts ? `(${attempts}/${maxAttempts})` : ''}
-                        </button>
-                      );
-                    }
-                    if (rec.allow_retry && !rec.my_passed && maxReached) {
-                      return (
-                        <span className={`text-[10px] font-bold px-2 py-1 rounded-lg ${dark ? 'bg-red-900/20 text-red-400' : 'bg-red-50 text-red-600'}`}>
-                          استنفدت المحاولات ({maxAttempts})
-                        </span>
-                      );
-                    }
-                    return null;
-                  })()}
-                  <CheckCircle className="w-5 h-5 text-green-500" />
-                </div>
-              )}
-              {status === 'expired' && (
-                <XCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
-              )}
+              {/* Actions Section */}
+              <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-end pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-100 dark:border-gray-800/60 sm:flex-shrink-0">
+                {status === 'open' && onStart && (
+                  <button
+                    onClick={() => onStart(rec)}
+                    disabled={!!startingId}
+                    className="w-full sm:w-auto px-5 py-2.5 bg-purple-500 hover:bg-purple-600 disabled:opacity-60 text-white rounded-xl text-xs sm:text-sm font-black transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-95"
+                  >
+                    {isStarting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                    {isStarting ? 'جاري التحميل...' : 'ابدأ التسميع'}
+                  </button>
+                )}
+
+                {status === 'upcoming' && (
+                  <div className="hidden sm:flex items-center gap-1 text-xs font-semibold text-gray-400">
+                    <Lock className="w-4 h-4" />
+                    <span>مغلق حالياً</span>
+                  </div>
+                )}
+
+                {status === 'done' && (
+                  <div className="w-full sm:w-auto flex items-center gap-2 flex-wrap sm:flex-nowrap justify-end">
+                    {rec.result_id && navigate && (
+                      <button
+                        onClick={() => navigate(`/student/recitation-review/${rec.result_id}`)}
+                        className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all active:scale-95 ${
+                          dark
+                            ? 'bg-indigo-900/30 text-indigo-300 hover:bg-indigo-900/50 border border-indigo-700/30'
+                            : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-100'
+                        }`}
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        مراجعة
+                      </button>
+                    )}
+
+                    {/* Show retry button only for FAILED students when allow_retry=true and limit not reached */}
+                    {(() => {
+                      const attempts = parseInt(rec.my_attempt_count, 10) || 1;
+                      const maxAttempts = rec.max_retry_attempts ? parseInt(rec.max_retry_attempts, 10) : null;
+                      const maxReached = maxAttempts && attempts >= maxAttempts;
+                      if (rec.allow_retry && !rec.my_passed && !maxReached && onStart) {
+                        return (
+                          <button
+                            onClick={() => onStart(rec)}
+                            disabled={!!startingId}
+                            className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all active:scale-95 ${
+                              dark
+                                ? 'bg-purple-900/30 text-purple-300 hover:bg-purple-900/50 border border-purple-700/30'
+                                : 'bg-purple-50 text-purple-600 hover:bg-purple-100 border border-purple-100'
+                            }`}
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                            إعادة المحاولة {maxAttempts ? `(${attempts}/${maxAttempts})` : ''}
+                          </button>
+                        );
+                      }
+                      if (rec.allow_retry && !rec.my_passed && maxReached) {
+                        return (
+                          <span
+                            className={`text-[11px] font-bold px-2.5 py-1.5 rounded-lg ${
+                              dark
+                                ? 'bg-red-900/20 text-red-400 border border-red-800/30'
+                                : 'bg-red-50 text-red-600 border border-red-100'
+                            }`}
+                          >
+                            استنفدت المحاولات ({maxAttempts})
+                          </span>
+                        );
+                      }
+                      return null;
+                    })()}
+
+                    <div className="hidden sm:block">
+                      <CheckCircle className="w-5 h-5 text-green-500" />
+                    </div>
+                  </div>
+                )}
+
+                {status === 'expired' && (
+                  <div className="hidden sm:block">
+                    <XCircle className="w-5 h-5 text-red-400" />
+                  </div>
+                )}
+              </div>
             </div>
           );
         })}
