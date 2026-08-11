@@ -1238,6 +1238,8 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
     if (startingId) return; // [M3-FIX] prevent double-start across all recs
     setStartingId(rec.id);
     submittedRef.current = false;
+    setSubmitting(false);
+    setResult(null);
     try {
       const { data } = await api.get(`/recitations/${rec.id}/take`);
       setExamData(data);
@@ -1289,6 +1291,8 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
       localStorage.removeItem(`recitation_answers_${selectedRec.id}`);
       setResult(data);
       setView('result');
+      setSubmitting(false);
+      submittedRef.current = false;
       await Promise.all([
         qc.invalidateQueries({ queryKey: ['course-recitations', courseId] }),
         qc.invalidateQueries({ queryKey: ['student-recitations'] }),
@@ -1335,6 +1339,7 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
     setExamData(null);
     setCurrentQuestionIdx(0);
     submittedRef.current = false;
+    setSubmitting(false);
     onRefresh?.();
   };
 
@@ -1507,12 +1512,20 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
             <Eye className="w-3.5 h-3.5" /> مراجعة مفصّلة
           </button>
         )}
-        {!passed && (
-          <button onClick={() => startRec(selectedRec)}
-            className="w-full flex items-center justify-center gap-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 font-bold text-xs py-2.5 rounded-xl transition-colors border border-purple-500/30">
-            <RefreshCw className="w-3.5 h-3.5" /> أعد المحاولة
-          </button>
-        )}
+        {!passed && selectedRec && Boolean(selectedRec.allow_retry) && (() => {
+          const attempts = parseInt(selectedRec.my_attempt_count, 10) || 1;
+          const maxAttempts = selectedRec.max_retry_attempts ? parseInt(selectedRec.max_retry_attempts, 10) : null;
+          const maxReached = maxAttempts && attempts >= maxAttempts;
+          if (maxReached) return null;
+          return (
+            <button
+              onClick={() => startRec(selectedRec)}
+              className="w-full flex items-center justify-center gap-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 font-bold text-xs py-2.5 rounded-xl transition-colors border border-purple-500/30"
+            >
+              <RefreshCw className="w-3.5 h-3.5" /> أعد المحاولة {maxAttempts ? `(${attempts + 1}/${maxAttempts})` : ''}
+            </button>
+          );
+        })()}
         <button onClick={backToList}
           className="w-full py-2.5 rounded-xl font-bold text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5 transition-colors">
           العودة للقائمة →
@@ -1560,8 +1573,8 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
     return (
       <div className="flex-1 flex flex-col min-h-0 h-full" dir="rtl">
         <div className="flex flex-col items-center justify-center flex-1 min-h-[200px] p-4 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-green-500/15 flex items-center justify-center mb-3">
-            <CheckCircle className="w-7 h-7 text-green-400" />
+          <div className="w-12 h-12 rounded-2xl bg-green-500/10 border border-green-500/20 flex items-center justify-center text-green-500 mb-2">
+            <CheckCircle className="w-6 h-6" />
           </div>
           <p className="text-gray-900 dark:text-white text-sm font-black mb-1">أحسنت! 🎉</p>
           <p className="text-gray-600 dark:text-gray-400 text-xs font-semibold">اجتزت كل التسميعات المطلوبة في هذا الكورس</p>
@@ -1590,7 +1603,7 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
           const attempts = parseInt(rec.my_attempt_count, 10) || (hasResult ? 1 : 0);
           const maxAttempts = rec.max_retry_attempts ? parseInt(rec.max_retry_attempts, 10) : null;
           const maxReached = maxAttempts && attempts >= maxAttempts;
-          const canRetry = rec.allow_retry !== false && !maxReached;
+          const canRetry = Boolean(rec.allow_retry) && !maxReached;
           const canStart = !passed && !isExpired && !isUpcoming && (!hasResult || canRetry);
 
           // A recitation gates the next video only when it has linked videos AND

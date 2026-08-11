@@ -111,6 +111,8 @@ export default function StudentRecitations() {
     if (startingId || showCountdown || view === 'take') return;
     setStartingId(rec.id);
     submittedRef.current = false;
+    setSubmitting(false);
+    setResult(null);
     try {
       const { data } = await api.get(`/recitations/${rec.id}/take`);
       setExamData(data);
@@ -198,6 +200,8 @@ export default function StudentRecitations() {
     setExamData(null);
     setSelectedRec(null);
     setAnswers({});
+    setSubmitting(false);
+    submittedRef.current = false;
   };
 
   // Main exam timer — [CL2-FIX] drift-corrected using server epoch
@@ -298,6 +302,8 @@ export default function StudentRecitations() {
       localStorage.removeItem(`recitation_answers_${selectedRec.id}`);
       setResult(data);
       setView('result');
+      setSubmitting(false);
+      submittedRef.current = false;
       await Promise.all([
         qc.invalidateQueries({ queryKey: ['student-recitations'] }),
         qc.invalidateQueries({ queryKey: ['student-recitation-results'] }),
@@ -386,7 +392,7 @@ export default function StudentRecitations() {
                     ? parseInt(recInfo.max_retry_attempts ?? r.max_retry_attempts, 10)
                     : null;
                   const maxReached = maxAttempts && attemptCount >= maxAttempts;
-                  const allowRetry = recInfo.allow_retry !== false && r.allow_retry !== false;
+                  const allowRetry = Boolean(recInfo?.allow_retry ?? r.allow_retry);
                   const canRetry = !isAbsent && !passed && allowRetry && !maxReached;
                   return (
                     <div key={r.id} className="flex items-center gap-3 px-4 py-3">
@@ -704,7 +710,7 @@ export default function StudentRecitations() {
                 مراجعة مفصّلة
               </button>
             )}
-            {!passed && selectedRec && (selectedRec.allow_retry !== false) && (() => {
+            {!passed && selectedRec && Boolean(selectedRec.allow_retry) && (() => {
               const attempts = parseInt(selectedRec.my_attempt_count, 10) || 1;
               const maxAttempts = selectedRec.max_retry_attempts ? parseInt(selectedRec.max_retry_attempts, 10) : null;
               const maxReached = maxAttempts && attempts >= maxAttempts;
@@ -714,6 +720,7 @@ export default function StudentRecitations() {
                   onClick={() => {
                     setView('list');
                     setResult(null);
+                    setSubmitting(false);
                     submittedRef.current = false;
                     startRec(selectedRec);
                   }}
@@ -727,6 +734,7 @@ export default function StudentRecitations() {
             <button onClick={() => {
               setView('list');
               setResult(null);
+              setSubmitting(false);
               submittedRef.current = false;
               qc.invalidateQueries({ queryKey: ['student-recitations'] });
               qc.invalidateQueries({ queryKey: ['student-recitation-results'] });
@@ -875,7 +883,7 @@ function Section({ title, items, dark, cardCls, onStart, navigate, startingId = 
                       const attempts = parseInt(rec.my_attempt_count, 10) || 1;
                       const maxAttempts = rec.max_retry_attempts ? parseInt(rec.max_retry_attempts, 10) : null;
                       const maxReached = maxAttempts && attempts >= maxAttempts;
-                      const allowRetry = rec.allow_retry !== false;
+                      const allowRetry = Boolean(rec.allow_retry);
                       if (allowRetry && !isPassed && !maxReached && onStart) {
                         return (
                           <button
