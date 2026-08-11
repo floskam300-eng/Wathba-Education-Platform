@@ -113,12 +113,23 @@ export function useSSE(enabled, role) {
         es.addEventListener('new_recitation', (e) => {
           let data; try { data = JSON.parse(e.data); } catch { return; }
           qc.invalidateQueries({ queryKey: ['student-recitations'] });
+          qc.invalidateQueries({ queryKey: ['student-recitation-results'] });
           qc.invalidateQueries({ queryKey: ['student-dashboard'] });
           qc.invalidateQueries({ queryKey: ['my-notifications'] });
           qc.invalidateQueries({ queryKey: ['course-recitations'] });
           window.dispatchEvent(new CustomEvent('wathba_recitation_started', { detail: data }));
           toast.success(`📖 تسميع متاح الآن: ${data.title} — يمكنك الدخول لأدائه!`,
             { duration: 8000, style: { fontFamily: 'inherit', direction: 'rtl', background: '#7c3aed', color: '#fff' } });
+        });
+
+        es.addEventListener('recitation_unpublished', (e) => {
+          let data; try { data = JSON.parse(e.data); } catch { return; }
+          qc.invalidateQueries({ queryKey: ['student-recitations'] });
+          qc.invalidateQueries({ queryKey: ['student-recitation-results'] });
+          qc.invalidateQueries({ queryKey: ['student-dashboard'] });
+          qc.invalidateQueries({ queryKey: ['course-recitations'] });
+          toast(`🔕 التسميع "${data.title}" لم يعد متاحاً حالياً`,
+            { duration: 6000, style: { fontFamily: 'inherit', direction: 'rtl' } });
         });
 
         es.addEventListener('exam_started', (e) => {

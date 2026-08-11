@@ -94,12 +94,12 @@ export default function Backup() {
       toast.success('تم استيراد البيانات بنجاح!');
       setImportFile(null);
       setImportPreview(null);
-      qc.invalidateQueries(['teacher-dashboard']);
-      qc.invalidateQueries(['students']);
-      qc.invalidateQueries(['courses']);
-      qc.invalidateQueries(['exams']);
-      qc.invalidateQueries(['recitations']);
-      qc.invalidateQueries(['question-banks']);
+      qc.invalidateQueries({ queryKey: ['teacher-dashboard'] });
+      qc.invalidateQueries({ queryKey: ['students'] });
+      qc.invalidateQueries({ queryKey: ['courses'] });
+      qc.invalidateQueries({ queryKey: ['exams'] });
+      qc.invalidateQueries({ queryKey: ['recitations'] });
+      qc.invalidateQueries({ queryKey: ['question-banks'] });
     } catch (err) {
       toast.error(err.response?.data?.error || 'حدث خطأ أثناء الاستيراد');
     } finally {

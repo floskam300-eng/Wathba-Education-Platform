@@ -133,9 +133,9 @@ export default function RecitationQuestions() {
       ? api.put(`/recitations/${recitationId}/questions/${editQ.id}`, d)
       : api.post(`/recitations/${recitationId}/questions`, d),
     onSuccess: () => {
-      qc.invalidateQueries(['recitation-questions', recitationId]);
-      qc.invalidateQueries(['recitation-single', recitationId]);
-      qc.invalidateQueries(['recitations']);
+      qc.invalidateQueries({ queryKey: ['recitation-questions', recitationId] });
+      qc.invalidateQueries({ queryKey: ['recitation-single', recitationId] });
+      qc.invalidateQueries({ queryKey: ['recitations'] });
       toast.success(editQ ? 'تم تعديل السؤال ✅' : 'تم إضافة السؤال ✅');
       resetForm();
     },
@@ -145,9 +145,9 @@ export default function RecitationQuestions() {
   const deleteQMut = useMutation({
     mutationFn: (qid) => api.delete(`/recitations/${recitationId}/questions/${qid}`),
     onSuccess: () => {
-      qc.invalidateQueries(['recitation-questions', recitationId]);
-      qc.invalidateQueries(['recitation-single', recitationId]);
-      qc.invalidateQueries(['recitations']);
+      qc.invalidateQueries({ queryKey: ['recitation-questions', recitationId] });
+      qc.invalidateQueries({ queryKey: ['recitation-single', recitationId] });
+      qc.invalidateQueries({ queryKey: ['recitations'] });
       toast.success('تم حذف السؤال');
       setDeleteQId(null);
     },
@@ -698,28 +698,42 @@ function QuestionCard({ q, idx, isPublished, isEditing, onEdit, onDelete }) {
 
           {isImgMulti ? (
             <div className="flex flex-wrap gap-1.5">
-              {(q.sub_questions || []).map(sub => (
-                <span key={sub.label} className="text-xs px-2 py-1 rounded-lg bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 font-bold">
-                  {sub.label}: {sub.type === 'true_false' ? (sub.correct === 'A' ? 'صح' : 'خطأ') : sub.correct} ({sub.points || 1} د)
-                </span>
-              ))}
+              {(q.sub_questions || []).map(sub => {
+                const subLabels = Array.isArray(sub.option_labels) && sub.option_labels.length > 0
+                  ? sub.option_labels
+                  : (Array.isArray(q.option_labels) && q.option_labels.length > 0 ? q.option_labels : ['أ', 'ب', 'ج', 'د']);
+                const letterIdx = ['A', 'B', 'C', 'D'].indexOf(String(sub.correct || '').toUpperCase());
+                const displayCorrect = sub.type === 'true_false'
+                  ? (sub.correct === 'A' ? 'صح' : 'خطأ')
+                  : (letterIdx !== -1 && subLabels[letterIdx] ? subLabels[letterIdx] : sub.correct);
+                return (
+                  <span key={sub.label} className="text-xs px-2.5 py-1 rounded-lg bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 font-bold border border-purple-200 dark:border-purple-800/40">
+                    {sub.label}: {displayCorrect} ({sub.points || 1} د)
+                  </span>
+                );
+              })}
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-1 text-xs">
-              {(isTF ? ['A', 'B'] : ['A', 'B', 'C', 'D']).map((opt, oidx) =>
-                q[`option_${opt.toLowerCase()}`] && q[`option_${opt.toLowerCase()}`] !== '-' && (
-                  <div key={opt} className={`p-1.5 rounded-lg font-semibold flex items-center gap-1 ${
-                    q.correct_answer_letter === opt
-                      ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'
-                      : 'bg-gray-100 dark:bg-[var(--dk-elevated)] text-gray-700 dark:text-[var(--dk-text-2)]'
-                  }`}>
-                    <span className={`w-4 h-4 rounded-full text-[10px] flex items-center justify-center font-black flex-shrink-0 ${
-                      q.correct_answer_letter === opt ? 'bg-green-600 text-white' : 'bg-gray-300 dark:bg-[var(--dk-hover)] text-gray-600 dark:text-[var(--dk-text-2)]'
-                    }`}>{q.option_labels?.[oidx] || opt}</span>
-                    {q[`option_${opt.toLowerCase()}`]}
-                  </div>
-                )
-              )}
+              {(() => {
+                const qLabels = Array.isArray(q.option_labels) && q.option_labels.length > 0
+                  ? q.option_labels
+                  : ['أ', 'ب', 'ج', 'د'];
+                return (isTF ? ['A', 'B'] : ['A', 'B', 'C', 'D']).map((opt, oidx) =>
+                  q[`option_${opt.toLowerCase()}`] && q[`option_${opt.toLowerCase()}`] !== '-' && (
+                    <div key={opt} className={`p-1.5 rounded-lg font-semibold flex items-center gap-1 ${
+                      q.correct_answer_letter === opt
+                        ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'
+                        : 'bg-gray-100 dark:bg-[var(--dk-elevated)] text-gray-700 dark:text-[var(--dk-text-2)]'
+                    }`}>
+                      <span className={`w-4 h-4 rounded-full text-[10px] flex items-center justify-center font-black flex-shrink-0 ${
+                        q.correct_answer_letter === opt ? 'bg-green-600 text-white' : 'bg-gray-300 dark:bg-[var(--dk-hover)] text-gray-600 dark:text-[var(--dk-text-2)]'
+                      }`}>{isTF ? (opt === 'A' ? 'صح' : 'خطأ') : (qLabels[oidx] || opt)}</span>
+                      {q[`option_${opt.toLowerCase()}`]}
+                    </div>
+                  )
+                );
+              })()}
             </div>
           )}
         </div>

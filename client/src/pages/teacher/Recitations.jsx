@@ -152,7 +152,7 @@ export default function Recitations() {
   const createMut = useMutation({
     mutationFn: (d) => editRec ? api.put(`/recitations/${editRec.id}`, d) : api.post('/recitations', d),
     onSuccess: () => {
-      qc.invalidateQueries(['recitations']);
+      qc.invalidateQueries({ queryKey: ['recitations'] });
       toast.success(editRec ? 'تم تحديث التسميع' : 'تم إنشاء التسميع');
       setModal(false); setEditRec(null); setForm(emptyForm); setFormErrors({});
     },
@@ -162,7 +162,7 @@ export default function Recitations() {
   const deleteMut = useMutation({
     mutationFn: (id) => api.delete(`/recitations/${id}`),
     onSuccess: () => {
-      qc.invalidateQueries(['recitations']);
+      qc.invalidateQueries({ queryKey: ['recitations'] });
       toast.success('تم حذف التسميع');
       if (selectedId === deleteId) setSelectedId(null);
       setDeleteId(null);
@@ -172,7 +172,7 @@ export default function Recitations() {
 
   const publishMut = useMutation({
     mutationFn: (id) => api.put(`/recitations/${id}/publish`),
-    onSuccess: () => { qc.invalidateQueries(['recitations']); toast.success('تم تحديث حالة النشر'); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['recitations'] }); toast.success('تم تحديث حالة النشر'); },
     onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
   });
 

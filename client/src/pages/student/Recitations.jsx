@@ -298,7 +298,12 @@ export default function StudentRecitations() {
       localStorage.removeItem(`recitation_answers_${selectedRec.id}`);
       setResult(data);
       setView('result');
-      qc.invalidateQueries(['student-recitations']);
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['student-recitations'] }),
+        qc.invalidateQueries({ queryKey: ['student-recitation-results'] }),
+        qc.invalidateQueries({ queryKey: ['course-recitations'] }),
+        qc.invalidateQueries({ queryKey: ['student-courses'] }),
+      ]);
     } catch (e) {
       if (!mountedRef.current) return;
       submittedRef.current = false;
@@ -309,13 +314,15 @@ export default function StudentRecitations() {
         toast('تم تسليم التسميع بالفعل', { icon: 'ℹ️' });
         localStorage.removeItem(`recitation_answers_${selectedRec?.id}`);
         setView('list');
-        qc.invalidateQueries(['student-recitations']);
+        qc.invalidateQueries({ queryKey: ['student-recitations'] });
+        qc.invalidateQueries({ queryKey: ['student-recitation-results'] });
       } else if (data.timer_expired) {
         // [R8-FIX] Server rejected because time ran out — don't leave student stuck
         toast.error('انتهى وقت التسميع');
         localStorage.removeItem(`recitation_answers_${selectedRec?.id}`);
         setView('list');
-        qc.invalidateQueries(['student-recitations']);
+        qc.invalidateQueries({ queryKey: ['student-recitations'] });
+        qc.invalidateQueries({ queryKey: ['student-recitation-results'] });
       } else {
         toast.error(msg);
       }
@@ -363,12 +370,24 @@ export default function StudentRecitations() {
               <div className={`divide-y ${dark ? 'divide-[var(--dk-border)]' : 'divide-gray-100'}`}>
                 {history.map(r => {
                   const isAbsent = r.is_absent === true || r.is_absent === 'true';
-                  const passed = !isAbsent && r.passed;
-                  // Find the matching recitation from the list to get allow_retry and max attempts
-                  const recInfo = recitations.find(rc => rc.id === r.recitation_id);
-                  const attemptCount = recInfo ? (parseInt(recInfo.my_attempt_count, 10) || 1) : 1;
-                  const maxReached = recInfo?.max_retry_attempts && attemptCount >= recInfo.max_retry_attempts;
-                  const canRetry = !isAbsent && !passed && recInfo?.allow_retry && !maxReached && recInfo;
+                  const passed = !isAbsent && (r.passed === true || r.passed === 'true');
+                  // Find the matching recitation from the list to get allow_retry and max attempts, fallback to row metadata
+                  const matchedRec = recitations.find(rc => rc.id === r.recitation_id);
+                  const recInfo = matchedRec || {
+                    id: r.recitation_id,
+                    title: r.title,
+                    allow_retry: r.allow_retry,
+                    max_retry_attempts: r.max_retry_attempts,
+                    duration_minutes: r.duration_minutes,
+                    my_attempt_count: r.my_attempt_count,
+                  };
+                  const attemptCount = parseInt(recInfo.my_attempt_count ?? r.my_attempt_count, 10) || 1;
+                  const maxAttempts = (recInfo.max_retry_attempts ?? r.max_retry_attempts)
+                    ? parseInt(recInfo.max_retry_attempts ?? r.max_retry_attempts, 10)
+                    : null;
+                  const maxReached = maxAttempts && attemptCount >= maxAttempts;
+                  const allowRetry = recInfo.allow_retry !== false && r.allow_retry !== false;
+                  const canRetry = !isAbsent && !passed && allowRetry && !maxReached;
                   return (
                     <div key={r.id} className="flex items-center gap-3 px-4 py-3">
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
@@ -418,10 +437,15 @@ export default function StudentRecitations() {
                               <button
                                 onClick={() => startRec(recInfo)}
                                 disabled={!!startingId}
-                                className={`p-1.5 rounded-lg transition-colors ${dark ? 'text-gray-500 hover:text-purple-400 hover:bg-purple-900/20 disabled:opacity-40' : 'text-gray-400 hover:text-purple-500 hover:bg-purple-50 disabled:opacity-40'}`}
+                                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-colors ${
+                                  dark
+                                    ? 'bg-purple-900/30 text-purple-300 hover:bg-purple-900/50 border border-purple-700/40 disabled:opacity-40'
+                                    : 'bg-purple-50 text-purple-600 hover:bg-purple-100 border border-purple-200 disabled:opacity-40'
+                                }`}
                                 title="إعادة التسميع"
                               >
-                                <RefreshCw className="w-3.5 h-3.5" />
+                                <RefreshCw className="w-3 h-3" />
+                                <span>إعادة</span>
                               </button>
                             )}
                           </>
@@ -680,7 +704,33 @@ export default function StudentRecitations() {
                 مراجعة مفصّلة
               </button>
             )}
-            <button onClick={() => { setView('list'); setResult(null); submittedRef.current = false; }}
+            {!passed && selectedRec && (selectedRec.allow_retry !== false) && (() => {
+              const attempts = parseInt(selectedRec.my_attempt_count, 10) || 1;
+              const maxAttempts = selectedRec.max_retry_attempts ? parseInt(selectedRec.max_retry_attempts, 10) : null;
+              const maxReached = maxAttempts && attempts >= maxAttempts;
+              if (maxReached) return null;
+              return (
+                <button
+                  onClick={() => {
+                    setView('list');
+                    setResult(null);
+                    submittedRef.current = false;
+                    startRec(selectedRec);
+                  }}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-black text-sm bg-purple-600 hover:bg-purple-700 text-white transition-colors shadow-lg shadow-purple-500/20"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  أعد المحاولة {maxAttempts ? `(${attempts + 1}/${maxAttempts})` : ''}
+                </button>
+              );
+            })()}
+            <button onClick={() => {
+              setView('list');
+              setResult(null);
+              submittedRef.current = false;
+              qc.invalidateQueries({ queryKey: ['student-recitations'] });
+              qc.invalidateQueries({ queryKey: ['student-recitation-results'] });
+            }}
               className="flex-1 py-3 rounded-2xl font-black text-sm bg-purple-500 hover:bg-purple-600 text-white transition-colors">
               العودة للقائمة
             </button>
@@ -767,7 +817,7 @@ function Section({ title, items, dark, cardCls, onStart, navigate, startingId = 
                     )}
                     {status === 'done' && (
                       <span className={`font-black text-xs px-2 py-0.5 rounded-md ${
-                        rec.my_passed
+                        (rec.my_ever_passed ?? (rec.my_passed === true || rec.my_passed === 'true'))
                           ? 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400'
                           : 'bg-red-50 dark:bg-red-900/20 text-red-500 dark:text-red-400'
                       }`}>
@@ -821,10 +871,12 @@ function Section({ title, items, dark, cardCls, onStart, navigate, startingId = 
 
                     {/* Show retry button only for FAILED students when allow_retry=true and limit not reached */}
                     {(() => {
+                      const isPassed = rec.my_ever_passed ?? (rec.my_passed === true || rec.my_passed === 'true');
                       const attempts = parseInt(rec.my_attempt_count, 10) || 1;
                       const maxAttempts = rec.max_retry_attempts ? parseInt(rec.max_retry_attempts, 10) : null;
                       const maxReached = maxAttempts && attempts >= maxAttempts;
-                      if (rec.allow_retry && !rec.my_passed && !maxReached && onStart) {
+                      const allowRetry = rec.allow_retry !== false;
+                      if (allowRetry && !isPassed && !maxReached && onStart) {
                         return (
                           <button
                             onClick={() => onStart(rec)}
@@ -840,7 +892,7 @@ function Section({ title, items, dark, cardCls, onStart, navigate, startingId = 
                           </button>
                         );
                       }
-                      if (rec.allow_retry && !rec.my_passed && maxReached) {
+                      if (allowRetry && !isPassed && maxReached) {
                         return (
                           <span
                             className={`text-[11px] font-bold px-2.5 py-1.5 rounded-lg ${

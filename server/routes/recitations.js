@@ -576,13 +576,17 @@ router.get('/student/list', requireRole('student'), async (req, res) => {
                 WHERE rr_cnt.student_id=$1 AND rr_cnt.recitation_id=r.id
                   AND (r.start_date IS NULL OR rr_cnt.created_at >= r.start_date)
                   AND (rr_cnt.is_absent IS NULL OR rr_cnt.is_absent=false)) AS my_attempt_count,
-              rr.id AS result_id, rr.score AS my_score, rr.passed AS my_passed,
+              rr.id AS result_id, rr.score AS my_score, rr.passed AS my_passed, rr.ever_passed AS my_ever_passed,
               rr.correct_count AS my_correct, rr.wrong_count AS my_wrong,
               rr.created_at AS my_submitted_at,
               rs2.id AS session_id
          FROM recitations r
          LEFT JOIN LATERAL (
-           SELECT id, score, passed, correct_count, wrong_count, created_at
+           SELECT id, score, passed,
+                  (SELECT bool_or(rr3.passed) FROM recitation_results rr3
+                    WHERE rr3.student_id=$1 AND rr3.recitation_id=r.id
+                      AND (rr3.is_absent IS NULL OR rr3.is_absent=false)) AS ever_passed,
+                  correct_count, wrong_count, created_at
              FROM recitation_results rr2
             WHERE rr2.student_id=$1
               AND rr2.recitation_id=r.id
@@ -595,7 +599,17 @@ router.get('/student/list', requireRole('student'), async (req, res) => {
         WHERE r.teacher_id=$2
           AND r.is_published=true
           AND r.deleted_at IS NULL
-          AND (r.academic_stage IS NULL OR r.academic_stage=$3)
+          AND (
+            r.academic_stage IS NULL
+            OR r.academic_stage=$3
+            OR (
+              r.course_id IS NOT NULL
+              AND EXISTS (
+                SELECT 1 FROM student_course_enrollment sce
+                WHERE sce.student_id=$1 AND sce.course_id=r.course_id AND sce.status='active'
+              )
+            )
+          )
         ORDER BY r.start_date DESC NULLS LAST, r.created_at DESC`,
       [studentId, teacherId, academic_stage]
     );
@@ -621,7 +635,13 @@ router.get('/student/results', requireRole('student'), async (req, res) => {
     const teacherId = stRows[0].teacher_id;
 
     const { rows } = await pool.query(
-      `SELECT rr.*, r.title, r.total_score, r.pass_score, r.academic_stage
+      `SELECT rr.*, r.title, r.total_score, r.pass_score, r.academic_stage,
+              r.allow_retry, r.max_retry_attempts, r.duration_minutes, r.is_published,
+              r.start_date, r.end_date, r.course_id,
+              (SELECT COUNT(*) FROM recitation_results rr2
+                WHERE rr2.student_id=$1 AND rr2.recitation_id=r.id
+                  AND (r.start_date IS NULL OR rr2.created_at >= r.start_date)
+                  AND (rr2.is_absent IS NULL OR rr2.is_absent=false)) AS my_attempt_count
          FROM recitation_results rr
          JOIN recitations r ON rr.recitation_id=r.id
         WHERE rr.student_id=$1 AND r.teacher_id=$2
@@ -941,6 +961,29 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageRecit
         entity: { type: 'recitation', id, name: rec2.title },
       });
     } else {
+      let studentQuery, params;
+      if (rec2.course_id) {
+        studentQuery = `SELECT s.id FROM students s
+          JOIN student_course_enrollment sce ON s.id = sce.student_id
+          WHERE sce.course_id = $1 AND sce.status = 'active'
+            AND s.teacher_id = $2 AND s.deleted_at IS NULL AND s.is_suspended = false`;
+        params = [rec2.course_id, teacherId];
+      } else if (rec2.academic_stage) {
+        studentQuery = 'SELECT id FROM students WHERE teacher_id=$1 AND academic_stage=$2 AND deleted_at IS NULL AND is_suspended = false';
+        params = [teacherId, rec2.academic_stage];
+      } else {
+        studentQuery = 'SELECT id FROM students WHERE teacher_id=$1 AND deleted_at IS NULL AND is_suspended = false';
+        params = [teacherId];
+      }
+      pool.query(studentQuery, params).then(({ rows: students }) => {
+        for (const s of students) {
+          sendEvent(`student_${s.id}`, 'recitation_unpublished', {
+            title: rec2.title,
+            recitationId: rec2.id,
+          });
+        }
+      }).catch(() => {});
+
       // [SCHED-FIX] Only mark absent if the recitation has actually started (start_date is null or <= NOW())
       const now = new Date();
       const startDate = rec2.start_date ? new Date(rec2.start_date) : null;

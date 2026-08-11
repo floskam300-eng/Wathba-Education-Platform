@@ -1289,8 +1289,13 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
       localStorage.removeItem(`recitation_answers_${selectedRec.id}`);
       setResult(data);
       setView('result');
-      qc.invalidateQueries(['course-recitations', courseId]);
-      qc.invalidateQueries(['student-recitations']);
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['course-recitations', courseId] }),
+        qc.invalidateQueries({ queryKey: ['student-recitations'] }),
+        qc.invalidateQueries({ queryKey: ['student-recitation-results'] }),
+        qc.invalidateQueries({ queryKey: ['student-courses'] }),
+      ]);
+      onRefresh?.();
       // [M4-FIX] If the student just passed, notify parent to switch to videos tab
       if (data.passed) onPassed?.();
     } catch (e) {
@@ -1302,17 +1307,23 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
         toast('تم تسليم التسميع بالفعل', { icon: 'ℹ️' });
         localStorage.removeItem(`recitation_answers_${selectedRec?.id}`);
         setView('list');
-        qc.invalidateQueries(['course-recitations', courseId]);
+        qc.invalidateQueries({ queryKey: ['course-recitations', courseId] });
+        qc.invalidateQueries({ queryKey: ['student-recitations'] });
+        qc.invalidateQueries({ queryKey: ['student-recitation-results'] });
+        onRefresh?.();
       } else if (errData.timer_expired) {
         toast.error('انتهى وقت التسميع');
         localStorage.removeItem(`recitation_answers_${selectedRec?.id}`);
         setView('list');
-        qc.invalidateQueries(['course-recitations', courseId]);
+        qc.invalidateQueries({ queryKey: ['course-recitations', courseId] });
+        qc.invalidateQueries({ queryKey: ['student-recitations'] });
+        qc.invalidateQueries({ queryKey: ['student-recitation-results'] });
+        onRefresh?.();
       } else {
         toast.error(errData.error || 'حدث خطأ أثناء التسليم');
       }
     }
-  }, [examData, answers, selectedRec, submitting, qc, courseId, onPassed]);
+  }, [examData, answers, selectedRec, submitting, qc, courseId, onPassed, onRefresh]);
 
   // [H3-FIX] Keep handleSubmitRef always pointing to the latest handleSubmit.
   // Assigned in render so the timer effect never captures a stale closure.
@@ -1750,7 +1761,13 @@ function SidebarQuestionCard({ q, idx, answers, setAnswers }) {
           {(q.sub_questions || []).map(sub => {
             const subSel = subAnswers[sub.label];
             const isTF = sub.type === 'true_false';
-            const subOptions = isTF ? [{ letter: 'A', label: 'صح' }, { letter: 'B', label: 'خطأ' }] : options;
+            const subOptionLabels = Array.isArray(sub.option_labels) && sub.option_labels.length > 0 ? sub.option_labels : rawLabels;
+            const subOptions = isTF
+              ? [{ letter: 'A', label: 'صح' }, { letter: 'B', label: 'خطأ' }]
+              : ['A', 'B', 'C', 'D'].slice(0, sub.option_labels?.length || 4).map((letter, i) => ({
+                  letter,
+                  label: subOptionLabels[i] || defaultArabic[i] || letter,
+                }));
             return (
               <div key={sub.label} className="rounded-lg p-2 bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10">
                 <p className="text-[10px] font-bold text-gray-700 dark:text-gray-300 mb-1 flex items-center justify-between">
@@ -1763,10 +1780,10 @@ function SidebarQuestionCard({ q, idx, answers, setAnswers }) {
                       onClick={() => setAnswers(a => ({ ...a, [q.id]: { ...(a[q.id] || {}), [sub.label]: opt.letter } }))}
                       className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all ${
                         subSel === opt.letter
-                          ? 'bg-purple-500 text-white border-purple-500'
+                          ? 'bg-purple-500 text-white border-purple-500 shadow-sm'
                           : 'bg-gray-100 dark:bg-white/5 border-gray-300 dark:border-white/20 text-gray-700 dark:text-gray-300 hover:border-purple-500 dark:hover:border-purple-400'
                       }`}>
-                      {isTF ? opt.label : (opt.displayLabel || opt.letter)}
+                      {opt.label}
                     </button>
                   ))}
                 </div>
