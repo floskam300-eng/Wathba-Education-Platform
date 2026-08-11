@@ -664,3 +664,10 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 -- Max retry attempts for recitations (NULL = unlimited, 1 = one attempt total, 2 = first + one retry, etc.)
 ALTER TABLE recitations ADD COLUMN IF NOT EXISTS max_retry_attempts INT DEFAULT NULL;
 
+-- Max retry attempts for exams (same semantics as recitations)
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS max_retry_attempts INT DEFAULT NULL;
+
+-- ever_passed: cached flag set to true once a student ever passes the recitation/exam,
+-- even if subsequent attempts fail. Used to unlock videos and track lifetime progress.
+ALTER TABLE recitation_results ADD COLUMN IF NOT EXISTS ever_passed BOOLEAN DEFAULT NULL;
+ALTER TABLE exam_results ADD COLUMN IF NOT EXISTS ever_passed BOOLEAN DEFAULT NULL;
