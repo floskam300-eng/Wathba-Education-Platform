@@ -748,6 +748,13 @@ CREATE INDEX IF NOT EXISTS idx_active_sessions_student     ON student_active_ses
 CREATE INDEX IF NOT EXISTS idx_active_sessions_last_active ON student_active_sessions(last_active_at);
 CREATE INDEX IF NOT EXISTS idx_active_sessions_device      ON student_active_sessions(student_id, device_id);
 
+-- [H-4 / drift-fix] Back-fill device_origin on tables that may have been
+-- created before the column was added. CREATE TABLE IF NOT EXISTS is a
+-- no-op when the table already exists, so any column introduced later
+-- needs an explicit ADD COLUMN IF NOT EXISTS after CREATE TABLE.
+ALTER TABLE student_devices         ADD COLUMN IF NOT EXISTS device_origin VARCHAR(20) DEFAULT 'browser';
+ALTER TABLE student_active_sessions ADD COLUMN IF NOT EXISTS device_origin VARCHAR(20) DEFAULT 'browser';
+
 CREATE TABLE IF NOT EXISTS device_alerts (
   id          SERIAL PRIMARY KEY,
   teacher_id  INTEGER REFERENCES teachers(id) ON DELETE CASCADE,
