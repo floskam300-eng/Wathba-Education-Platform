@@ -519,19 +519,41 @@ CREATE INDEX IF NOT EXISTS idx_question_banks_course ON question_banks(course_id
 CREATE INDEX IF NOT EXISTS idx_leaderboard_history_teacher ON leaderboard_history(teacher_id);
 
 -- ── Partial unique index: allow username reuse after soft-delete ──────────────
--- Drop the old global UNIQUE constraint so the partial index below can take over
-DO $$
-BEGIN
+-- DROP the old global UNIQUE constraint and the old single-column partial index
+-- so the tenant-scoped composite index below can take over.
+DO $$ BEGIN
   IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'students_username_key') THEN
     ALTER TABLE students DROP CONSTRAINT students_username_key;
   END IF;
-END $$;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
 
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'uq_students_username_active') THEN
-    CREATE UNIQUE INDEX uq_students_username_active ON students(username) WHERE deleted_at IS NULL;
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'uq_students_username') THEN
+    DROP INDEX uq_students_username;
   END IF;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'uq_students_username_active') THEN
+    DROP INDEX uq_students_username_active;
+  END IF;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- [H-3] Tenant-scoped (teacher_id, username) partial unique index. Two
+-- teachers may legitimately have students with the same auto-generated
+-- username (e.g. "C007") — only the (teacher_id, username) pair must be
+-- unique within the set of non-deleted rows.
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'uq_students_username_teacher_active') THEN
+    CREATE UNIQUE INDEX uq_students_username_teacher_active
+      ON students(teacher_id, username) WHERE deleted_at IS NULL;
+  END IF;
+EXCEPTION WHEN duplicate_table THEN NULL;
+WHEN OTHERS THEN
+  -- If the index creation fails because duplicate data already exists for the
+  -- (teacher_id, username) pair, log the error but DO NOT abort the rest of
+  -- the schema. A subsequent deploy can resolve duplicates safely.
+  RAISE WARNING 'Could not create uq_students_username_teacher_active: %', SQLERRM;
 END $$;
 
 -- ── Missing performance indexes (audit fix) ────────────────────────────────
