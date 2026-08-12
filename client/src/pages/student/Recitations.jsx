@@ -104,6 +104,8 @@ export default function StudentRecitations() {
     staleTime: 0,
   });
 
+  const handleSubmitRef = useRef(null);
+
   const startRec = async (rec) => {
     // Block if any start is in progress OR countdown is showing OR already in take view.
     // startingId is NOT cleared until the view actually transitions to 'take' so there
@@ -129,19 +131,25 @@ export default function StudentRecitations() {
         setAnswers({});
       }
 
-      // [REC-2 FIX] Validate server_started_at before using it — an invalid/null
-      // value would produce NaN from getTime(), causing setTimeLeft(NaN) and the
-      // timer to render "NaN:aN".
-      const startedAt = data.server_started_at ? new Date(data.server_started_at).getTime() : null;
-      if (!startedAt || isNaN(startedAt)) {
-        throw new Error('server_started_at مفقود أو غير صالح من الخادم');
+      // Safe fallback for duration (at least 1 min, default 10)
+      const durationSecs = (data.recitation?.duration_minutes || rec.duration_minutes || 10) * 60;
+      let remainingSecs = durationSecs;
+
+      if (typeof data.remaining_seconds === 'number' && !isNaN(data.remaining_seconds)) {
+        remainingSecs = Math.max(0, data.remaining_seconds);
+      } else if (data.server_started_at) {
+        const serverNowMs = data.server_now ? new Date(data.server_now).getTime() : Date.now();
+        const startedAtMs = new Date(data.server_started_at).getTime();
+        if (!isNaN(startedAtMs)) {
+          const elapsedSecs = Math.max(0, Math.floor((serverNowMs - startedAtMs) / 1000));
+          remainingSecs = Math.max(0, durationSecs - elapsedSecs);
+        }
       }
-      const durationMs = (rec.duration_minutes || 0) * 60 * 1000;
-      const remaining = Math.max(0, durationMs - (Date.now() - startedAt));
-      // [CL2-FIX] Record epoch + duration so the tick loop can self-correct drift.
-      timerEpochRef.current = startedAt;
-      timerDurationRef.current = durationMs;
-      setTimeLeft(Math.floor(remaining / 1000));
+
+      // Record monotonic baseline + initial remaining seconds to completely eliminate clock skew
+      timerEpochRef.current = performance.now();
+      timerDurationRef.current = remainingSecs;
+      setTimeLeft(remainingSecs);
 
       if (data.resumed) {
         // Resuming: go directly to take view; clear the lock immediately.
@@ -204,18 +212,17 @@ export default function StudentRecitations() {
     submittedRef.current = false;
   };
 
-  // Main exam timer — [CL2-FIX] drift-corrected using server epoch
-  // Simple setTimeout(…, 1000) drifts noticeably when the tab is backgrounded
-  // (Chrome throttles timers to 1Hz in background tabs). We instead compute
-  // the true remaining seconds from the original server_started_at epoch on
-  // every tick, so accumulated drift is self-correcting rather than additive.
+  // Main exam timer — drift-corrected using monotonic performance.now()
   useEffect(() => {
     if (view !== 'take' || timeLeft === null) return;
-    if (timeLeft <= 0) { handleSubmit(true); return; }
+    if (timeLeft <= 0) {
+      handleSubmitRef.current?.(true);
+      return;
+    }
     timerRef.current = setTimeout(() => {
       if (timerEpochRef.current !== null && timerDurationRef.current !== null) {
-        const elapsed = Date.now() - timerEpochRef.current;
-        const trueLeft = Math.max(0, Math.floor((timerDurationRef.current - elapsed) / 1000));
+        const elapsedSecs = Math.floor((performance.now() - timerEpochRef.current) / 1000);
+        const trueLeft = Math.max(0, timerDurationRef.current - elapsedSecs);
         setTimeLeft(trueLeft);
       } else {
         setTimeLeft(t => Math.max(0, t - 1));
@@ -334,6 +341,8 @@ export default function StudentRecitations() {
       }
     }
   }, [examData, answers, selectedRec, submitting, qc]);
+
+  handleSubmitRef.current = handleSubmit;
 
   const cardCls = dark
     ? 'bg-[var(--dk-surface)] border border-[var(--dk-border)] rounded-2xl p-4'

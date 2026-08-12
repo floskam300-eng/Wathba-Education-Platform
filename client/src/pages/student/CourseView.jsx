@@ -1181,15 +1181,15 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
     return () => clearTimeout(id);
   }, [showCountdown, countdown]);
 
-  // Drift-corrected server timer
+  // Drift-corrected server timer using monotonic performance.now()
   useEffect(() => {
     if (view !== 'take' || timeLeft === null) return;
     // [H3-FIX] Use ref to avoid stale closure — handleSubmitRef.current is always the latest handleSubmit
     if (timeLeft <= 0) { handleSubmitRef.current?.(true); return; }
     timerRef.current = setTimeout(() => {
       if (timerEpochRef.current !== null && timerDurationRef.current !== null) {
-        const elapsed = Date.now() - timerEpochRef.current;
-        const trueLeft = Math.max(0, Math.floor((timerDurationRef.current - elapsed) / 1000));
+        const elapsedSecs = Math.floor((performance.now() - timerEpochRef.current) / 1000);
+        const trueLeft = Math.max(0, timerDurationRef.current - elapsedSecs);
         setTimeLeft(trueLeft);
       } else {
         setTimeLeft(t => Math.max(0, t - 1));
@@ -1264,12 +1264,24 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
         catch { localStorage.removeItem(`recitation_answers_${rec.id}`); }
       }
       setAnswers(restoredAnswers);
-      const startedAt = new Date(data.server_started_at).getTime();
-      const durationMs = rec.duration_minutes * 60 * 1000;
-      const remaining = Math.max(0, durationMs - (Date.now() - startedAt));
-      timerEpochRef.current = startedAt;
-      timerDurationRef.current = durationMs;
-      setTimeLeft(Math.floor(remaining / 1000));
+
+      const durationSecs = (data.recitation?.duration_minutes || rec.duration_minutes || 10) * 60;
+      let remainingSecs = durationSecs;
+
+      if (typeof data.remaining_seconds === 'number' && !isNaN(data.remaining_seconds)) {
+        remainingSecs = Math.max(0, data.remaining_seconds);
+      } else if (data.server_started_at) {
+        const serverNowMs = data.server_now ? new Date(data.server_now).getTime() : Date.now();
+        const startedAtMs = new Date(data.server_started_at).getTime();
+        if (!isNaN(startedAtMs)) {
+          const elapsedSecs = Math.max(0, Math.floor((serverNowMs - startedAtMs) / 1000));
+          remainingSecs = Math.max(0, durationSecs - elapsedSecs);
+        }
+      }
+
+      timerEpochRef.current = performance.now();
+      timerDurationRef.current = remainingSecs;
+      setTimeLeft(remainingSecs);
       setCurrentQuestionIdx(0);
       if (data.resumed) {
         setView('take');

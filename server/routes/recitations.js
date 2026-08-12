@@ -1324,6 +1324,11 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
     if (rec.end_date && new Date(rec.end_date) < now)
       return res.status(400).json({ error: 'انتهى وقت التسميع' });
 
+    // Set a safe fallback for duration_minutes (at least 1 minute, default 10)
+    const durationMinutes = Math.max(1, parseInt(rec.duration_minutes, 10) || 10);
+    const maxDurationMs = (durationMinutes * 60 + 30) * 1000;
+    const serverNow = new Date();
+
     // Check for existing session first (resume in-progress attempt, even when retrying)
     const { rows: sessRows } = await pool.query(
       'SELECT student_id, recitation_id, started_at, questions_snapshot FROM recitation_sessions WHERE student_id=$1 AND recitation_id=$2',
@@ -1331,16 +1336,31 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
     );
 
     if (sessRows.length) {
-      // Resume existing session
       const sess = sessRows[0];
-      // [C1] Strip correct_answer_letter AND sub_questions[*].correct before sending to client
-      const clientSnapshot = (sess.questions_snapshot || []).map(stripClientQuestion);
-      return res.json({
-        recitation: rec,
-        questions: clientSnapshot,
-        server_started_at: sess.started_at,
-        resumed: true,
-      });
+      const sessStartedAt = new Date(sess.started_at).getTime();
+      const elapsedMs = serverNow.getTime() - sessStartedAt;
+
+      // If the session has already exceeded duration + grace period,
+      // it was an abandoned/expired session from a previous visit. Clean it up!
+      if (elapsedMs > maxDurationMs) {
+        await pool.query(
+          'DELETE FROM recitation_sessions WHERE student_id=$1 AND recitation_id=$2',
+          [studentId, id]
+        );
+        // Fall through to retry/start check below
+      } else {
+        // Resume existing active session within time window
+        const clientSnapshot = (sess.questions_snapshot || []).map(stripClientQuestion);
+        const remainingSeconds = Math.max(0, Math.floor(((durationMinutes * 60 * 1000) - elapsedMs) / 1000));
+        return res.json({
+          recitation: { ...rec, duration_minutes: durationMinutes },
+          questions: clientSnapshot,
+          server_started_at: sess.started_at,
+          server_now: serverNow.toISOString(),
+          remaining_seconds: remainingSeconds,
+          resumed: true,
+        });
+      }
     }
 
     // [R5-FIX] For recurring recitations: only block if student already submitted
@@ -1439,9 +1459,11 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
     );
 
     res.json({
-      recitation: rec,
+      recitation: { ...rec, duration_minutes: durationMinutes },
       questions: clientSnapshot,
       server_started_at: sessionRows[0].started_at,
+      server_now: serverNow.toISOString(),
+      remaining_seconds: durationMinutes * 60,
       resumed: false,
     });
   } catch (err) {
@@ -1519,10 +1541,13 @@ router.post('/:id/submit', recitationSubmitLimiter, requireRole('student'), asyn
     const session = sessRows[0];
 
     // Timer check — server authoritative (+ 30s grace)
+    const durationMinutes = Math.max(1, parseInt(rec.duration_minutes, 10) || 10);
     const elapsedMs = Date.now() - new Date(session.started_at).getTime();
-    const maxMs = (rec.duration_minutes * 60 + 30) * 1000;
-    if (elapsedMs > maxMs)
+    const maxMs = (durationMinutes * 60 + 30) * 1000;
+    if (elapsedMs > maxMs) {
+      await pool.query('DELETE FROM recitation_sessions WHERE student_id=$1 AND recitation_id=$2', [studentId, id]).catch(() => {});
       return res.status(400).json({ error: 'انتهى وقت التسميع', timer_expired: true });
+    }
 
     // Build raw answer map — image_multi answers are JSON strings; others are letters
     const snapshot = session.questions_snapshot;
