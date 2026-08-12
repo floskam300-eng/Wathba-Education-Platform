@@ -39,6 +39,20 @@ const errors = [];
 function req(method, path, body, token = null, extraHeaders = {}) {
   return new Promise((resolve, reject) => {
     const data = body ? JSON.stringify(body) : null;
+
+    // [production-safe tenant] On prod (NODE_ENV=production, hard-coded in
+    // docker-compose.yml) the `X-Tenant-Slug` header is INTENTIONALLY
+    // ignored — only subdomains are honored (M-7 fix). Since the test runs
+    // inside the container against localhost and can't rely on real DNS,
+    // we route the student requests through a fake subdomain via the
+    // `Host` header: `<slug>.example.com`. The middleware extracts the
+    // leftmost label, looks it up in the DB, and resolves the tenant —
+    // works the same in dev and prod.
+    const tenantSlug = extraHeaders?.tenantSlug;
+    const hostHeader = tenantSlug ? `${tenantSlug}.example.com` : 'localhost';
+    const finalHeaders = { ...(extraHeaders || {}) };
+    delete finalHeaders.tenantSlug; // not a real HTTP header
+
     const opts = {
       hostname: 'localhost',
       port:      process.env.PORT || 3001,
@@ -46,11 +60,10 @@ function req(method, path, body, token = null, extraHeaders = {}) {
       method,
       headers: {
         'Content-Type': 'application/json',
+        'Host':         hostHeader,
         ...(data ? { 'Content-Length': Buffer.byteLength(data) } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(extraHeaders && extraHeaders['X-Tenant-Slug'] ? { 'X-Tenant-Slug': extraHeaders['X-Tenant-Slug'] } : {}),
-        ...(extraHeaders && !extraHeaders['X-Tenant-Slug'] && extraHeaders.studentTenant ? { 'X-Tenant-Slug': extraHeaders.studentTenant } : {}),
-        ...(extraHeaders || {}),
+        ...finalHeaders,
       },
     };
     const r = http.request(opts, res => {
@@ -129,7 +142,7 @@ async function loginStudent() {
   const r = await req('POST', '/api/auth/login', {
     username: STUDENT_USER, password: STUDENT_PASS, role: 'student',
     device_id: `test_device_${STUDENT_USER}_${Date.now()}`,
-  }, null, { 'X-Tenant-Slug': TEACHER_SLUG });
+  }, null, { tenantSlug: TEACHER_SLUG });
   assert(r.status === 200 && r.body.token, `Student login failed: ${r.status} ${JSON.stringify(r.body)}`);
   return r.body.token;
 }
@@ -184,20 +197,20 @@ async function publishRecitation(token, recId) {
 }
 
 async function startSession(token, recId) {
-  const r = await req('GET', `/api/recitations/${recId}/take`, null, token);
+  const r = await req('GET', `/api/recitations/${recId}/take`, null, token, { tenantSlug: TEACHER_SLUG });
   assert(r.status === 200 && Array.isArray(r.body.questions), `Take failed: ${r.status} ${JSON.stringify(r.body)}`);
   return r.body.questions;
 }
 
 async function submitAllCorrect(token, recId, questions) {
   const answers = questions.map(q => ({ question_id: q.id, answer: 'A' }));
-  const r = await req('POST', `/api/recitations/${recId}/submit`, { answers }, token);
+  const r = await req('POST', `/api/recitations/${recId}/submit`, { answers }, token, { tenantSlug: TEACHER_SLUG });
   assert(r.status === 200, `Submit failed: ${r.status} ${JSON.stringify(r.body)}`);
   return r.body;
 }
 
 async function fetchCourseContent(token, courseId) {
-  const r = await req('GET', `/api/courses/${courseId}/content`, null, token);
+  const r = await req('GET', `/api/courses/${courseId}/content`, null, token, { tenantSlug: TEACHER_SLUG });
   assert(r.status === 200, `Fetch content failed: ${r.status} ${JSON.stringify(r.body)}`);
   return r.body;
 }
