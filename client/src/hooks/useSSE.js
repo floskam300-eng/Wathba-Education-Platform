@@ -132,6 +132,32 @@ export function useSSE(enabled, role) {
             { duration: 6000, style: { fontFamily: 'inherit', direction: 'rtl' } });
         });
 
+        // [Phase 4] The student just passed a recitation. Refetch the
+        // course-scoped recitation list so the next CourseView render
+        // re-evaluates video lock state. The server already broadcatches
+        // `video_lock_changed` to other students in the same course
+        // (we listen for that too, below).
+        es.addEventListener('recitation_passed', (e) => {
+          let data; try { data = JSON.parse(e.data); } catch { return; }
+          qc.invalidateQueries({ queryKey: ['course-recitations'] });
+          qc.invalidateQueries({ queryKey: ['student-recitations'] });
+          qc.invalidateQueries({ queryKey: ['student-recitation-results'] });
+          qc.invalidateQueries({ queryKey: ['student-dashboard'] });
+          if (data?.courseId) {
+            qc.invalidateQueries({ queryKey: ['course-content', data.courseId] });
+          }
+        });
+
+        // [Phase 4] A peer student passed a recitation in this course.
+        // The lock badge on locked videos may need to clear.
+        es.addEventListener('video_lock_changed', (e) => {
+          let data; try { data = JSON.parse(e.data); } catch { return; }
+          if (data?.courseId) {
+            qc.invalidateQueries({ queryKey: ['course-content', data.courseId] });
+          }
+          qc.invalidateQueries({ queryKey: ['course-recitations'] });
+        });
+
         es.addEventListener('exam_started', (e) => {
           let data; try { data = JSON.parse(e.data); } catch { return; }
           qc.invalidateQueries({ queryKey: ['student-exams'] });

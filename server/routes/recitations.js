@@ -9,7 +9,7 @@ const { deleteUploadFile, extractSubQuestionImages } = require('../lib/validateF
 const pool = require('../db/connection');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { getPermissions } = require('../lib/permissionsCache');
-const { sendEvent } = require('../sse');
+const { sendEvent, broadcastToCourseStudents } = require('../sse');
 const { sendFCMToStudents } = require('../lib/fcm');
 const { logActivity, getActor, getIp } = require('../lib/activityLog');
 const { getCached, setCache, invalidateCache } = require('../lib/analyticsCache');
@@ -503,7 +503,7 @@ router.get('/student/course/:courseId', requireRole('student'), async (req, res)
                 WHERE rr_cnt.student_id=$1 AND rr_cnt.recitation_id=r.id
                   AND (r.start_date IS NULL OR rr_cnt.created_at >= r.start_date)
                   AND (rr_cnt.is_absent IS NULL OR rr_cnt.is_absent=false)) AS my_attempt_count,
-              rr.id AS result_id, rr.score AS my_score, rr.passed AS my_passed, rr.ever_passed AS my_ever_passed,
+              rr.id AS result_id, rr.score AS my_score, rr.passed AS my_passed,
               rr.correct_count AS my_correct, rr.wrong_count AS my_wrong,
               rr.created_at AS my_submitted_at,
               lv.min_sort_order,
@@ -576,7 +576,7 @@ router.get('/student/list', requireRole('student'), async (req, res) => {
                 WHERE rr_cnt.student_id=$1 AND rr_cnt.recitation_id=r.id
                   AND (r.start_date IS NULL OR rr_cnt.created_at >= r.start_date)
                   AND (rr_cnt.is_absent IS NULL OR rr_cnt.is_absent=false)) AS my_attempt_count,
-              rr.id AS result_id, rr.score AS my_score, rr.passed AS my_passed, rr.ever_passed AS my_ever_passed,
+              rr.id AS result_id, rr.score AS my_score, rr.passed AS my_passed,
               rr.correct_count AS my_correct, rr.wrong_count AS my_wrong,
               rr.created_at AS my_submitted_at,
               rs2.id AS session_id
@@ -1747,6 +1747,24 @@ router.post('/:id/submit', recitationSubmitLimiter, requireRole('student'), asyn
         score: finalScore,
         passed,
       });
+
+      // [Phase 4] Notify the student themselves (and other enrolled devices)
+      // when a recitation is passed, so any open CourseView re-evaluates the
+      // video lock state without waiting for a manual page reload.
+      // • `recitation_passed` is fired only when this attempt unlocks something.
+      // • `video_lock_changed` is broadcast to ALL students in the course so a
+      //   peer unlocking a video also refreshes every other student's view.
+      if (passed && rec.course_id) {
+        sendEvent(`student_${studentId}`, 'recitation_passed', {
+          recitationId: id,
+          courseId: rec.course_id,
+        });
+        broadcastToCourseStudents(pool, rec.course_id, 'video_lock_changed', {
+          recitationId: id,
+          courseId: rec.course_id,
+          studentId,
+        }).catch(() => {});
+      }
 
       res.json({
         result: resultRows[0],

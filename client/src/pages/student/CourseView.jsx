@@ -24,6 +24,18 @@ const fmt = (min) => min >= 60
 // regardless of whether a later retry attempt failed.
 const isRecPassed = (rec) => rec.my_ever_passed ?? rec.my_passed ?? false;
 
+// Compute the per-video lock progress: which recitations lock this video,
+// and how many have been passed. Returns null when the video is unlocked.
+function computeLockProgress(video, courseRecitations) {
+  if (!video || video.is_locked === false) return null;
+  const linkedRecs = courseRecitations.filter(r =>
+    Array.isArray(r.video_ids) && r.video_ids.map(Number).includes(video.id)
+  );
+  if (linkedRecs.length === 0) return null;
+  const passed = linkedRecs.filter(r => isRecPassed(r)).length;
+  return { linkedRecs, passed, total: linkedRecs.length };
+}
+
 /* ─── Player settings persistence (localStorage) ─────── */
 const STORAGE_VOLUME   = 'wathba_player_volume';
 const STORAGE_MUTED    = 'wathba_player_muted';
@@ -1659,16 +1671,33 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
                     </p>
                   )}
                   {/* Prominent gate hint for unpassed recitations that block the next video */}
-                  {gatesVideo && (
-                    <p className="text-[10px] font-black mt-1 flex items-center gap-1 text-orange-300 bg-orange-500/10 border border-orange-500/20 rounded-lg px-2 py-1">
-                      <Lock className="w-3 h-3 inline" />
-                      {!hasResult
-                        ? 'أجب هذا التسميع لفتح المحاضرة التالية'
-                        : canRetry
-                        ? 'أعد المحاولة لفتح المحاضرة التالية'
-                        : 'يجب النجاح في التسميع لفتح المحاضرة التالية'}
-                    </p>
-                  )}
+                  {gatesVideo && (() => {
+                    const siblingCount = recitations.filter(r =>
+                      !isRecPassed(r) &&
+                      Array.isArray(r.video_ids) &&
+                      r.video_ids.map(Number).some(id => (rec.video_ids || []).map(Number).includes(id))
+                    ).length;
+                    const primary = !hasResult
+                      ? 'أجب هذا التسميع لفتح المحاضرة'
+                      : canRetry
+                      ? 'أعد المحاولة لفتح المحاضرة'
+                      : 'يجب النجاح لفتح المحاضرة';
+                    return (
+                      <div className="mt-1 space-y-1">
+                        <p className="text-[10px] font-black flex items-center gap-1 text-orange-300 bg-orange-500/10 border border-orange-500/20 rounded-lg px-2 py-1">
+                          <Lock className="w-3 h-3 inline" />
+                          {primary}
+                          {rec.linked_video_title ? ` «${rec.linked_video_title}»` : ' التالية'}
+                        </p>
+                        {siblingCount > 1 && (
+                          <p className="text-[10px] font-bold flex items-center gap-1 text-amber-600 dark:text-amber-400">
+                            <BookOpen className="w-3 h-3 inline" />
+                            هذا واحد من {siblingCount} تسميع/ات مطلوبة لفتح نفس المحاضرة
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
               <div className="flex gap-1.5">
@@ -1847,9 +1876,12 @@ export default function CourseView() {
     return pos;
   };
 
-  // Keep a ref to latest content so auto-advance in handleProgressUpdate always uses current data
+  // [Phase 5] Auto-advance uses these refs because handleProgressUpdate fires
+  // from inside a video player callback chain that may run during a tab switch
+  // before React re-renders. BOTH refs MUST be updated whenever their state
+  // changes (see the useEffects at the bottom of the hook), otherwise the lock
+  // check could run against a stale snapshot.
   const contentRef = useRef(null);
-  // Keep a ref to latest courseRecitations so auto-advance respects lock state
   const recitationsRef = useRef([]);
 
   const handleProgressUpdate = (videoId, watchedMinutes, progressPct, completed, lastPosition = 0, actualWatchedSec = 0) => {
@@ -1952,6 +1984,14 @@ export default function CourseView() {
      The client falls back to the recitations data only when is_locked is not present
      (e.g. teacher preview where the content endpoint returns no is_locked field).
      [H6-FIX] Memoize the locked-id set so isVideoLocked is O(1) per call.
+
+     [Phase 5] CONTRACT for the `videoIndex === 0` short-circuit:
+       The FIRST video is always free by design so a student can begin a course
+       without first solving a recitation they've never seen. The server
+       enforces this in server/routes/courses.js (the `i > 0` check on
+       is_locked annotation). The teacher UI now warns about it (see
+       client/src/pages/teacher/Recitations.jsx).
+       DO NOT remove this without coordinating with the server-side carve-out.
   ── */
   const isVideoLocked = useCallback((video, videoIndex) => {
     if (videoIndex === 0) return false;
@@ -2092,12 +2132,37 @@ export default function CourseView() {
                         <p className={`font-bold text-sm truncate ${isActive ? 'text-white' : locked ? 'text-gray-500 dark:text-gray-600' : 'text-gray-700 dark:text-gray-300'}`}>
                           {v.title}
                         </p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          {locked && (
-                            <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-400/10 px-1.5 py-0.5 rounded-full">
-                              🔒 يتطلب تسميع
-                            </span>
-                          )}
+                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                          {locked && (() => {
+                            const p = computeLockProgress(v, courseRecitations);
+                            if (!p) return (
+                              <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-400/10 px-1.5 py-0.5 rounded-full">
+                                🔒 يتطلب تسميع
+                              </span>
+                            );
+                            const allPassed = p.passed >= p.total;
+                            return (
+                              <>
+                                <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-400/10 px-1.5 py-0.5 rounded-full">
+                                  🔒 {p.passed}/{p.total} تسميع
+                                </span>
+                                <span className="flex gap-0.5">
+                                  {p.linkedRecs.map(r => (
+                                    <span
+                                      key={r.id}
+                                      title={r.title}
+                                      className={`w-2 h-2 rounded-full ${isRecPassed(r) ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                                    />
+                                  ))}
+                                </span>
+                                {allPassed && (
+                                  <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                                    ✓ جاهز للعرض
+                                  </span>
+                                )}
+                              </>
+                            );
+                          })()}
                           {!locked && v.duration_minutes > 0 && (
                             <p className={`text-xs flex items-center gap-1 ${isActive ? 'text-white/60' : 'text-gray-500 dark:text-gray-600'}`}>
                               <Clock className="w-3 h-3" /> {fmt(v.duration_minutes)}

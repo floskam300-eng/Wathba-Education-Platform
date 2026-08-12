@@ -129,6 +129,22 @@ export default function Recitations() {
     return courses.filter(c => !c.target_stage || c.target_stage === form.academic_stage);
   }, [courses, form.academic_stage]);
 
+  // [Phase 3] Inverse lock map: how many OTHER recitations already lock each
+  // course video? Source: recitations on the same course, excluding the one
+  // being edited (avoid double-counting self). Used to show the teacher
+  // "this video is also locked by N other recitations".
+  const videoLockCounts = useMemo(() => {
+    const m = new Map();
+    if (!form.course_id) return m;
+    recitations.forEach(r => {
+      if (String(r.course_id) !== String(form.course_id)) return;
+      if (editRec && r.id === editRec.id) return;
+      if (!Array.isArray(r.video_ids)) return;
+      r.video_ids.forEach(vid => m.set(vid, (m.get(vid) || 0) + 1));
+    });
+    return m;
+  }, [recitations, form.course_id, editRec]);
+
   const { data: courseVideos = [] } = useQuery({
     queryKey: ['course-videos-for-rec', form.course_id],
     queryFn: () => form.course_id
@@ -552,6 +568,20 @@ export default function Recitations() {
                                   ? dark ? 'text-purple-300' : 'text-purple-700'
                                   : dark ? 'text-[var(--dk-text)]' : 'text-gray-700'
                               }`}>{v.title}</span>
+                              {(() => {
+                                const others = videoLockCounts.get(v.id) || 0;
+                                if (others === 0) return null;
+                                return (
+                                  <span className="flex-shrink-0 text-[10px] font-black text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-500/15 px-1.5 py-0.5 rounded-full" title="عدد التسميعات الأخرى التي تقفل نفس المحاضرة">
+                                    🔒 يقفلها أيضاً {others} تسميع
+                                  </span>
+                                );
+                              })()}
+                              {i === 0 && courseVideos.length > 1 && (
+                                <span className="flex-shrink-0 text-[10px] font-bold text-gray-500 dark:text-gray-400 italic" title="المحاضرة الأولى — إن ربطت تسميعاً بها فلن يستطيع الطالب بدء الكورس قبل حلّه">
+                                  المحاضرة الأولى
+                                </span>
+                              )}
                             </button>
                           );
                         })}
