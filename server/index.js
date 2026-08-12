@@ -755,6 +755,14 @@ const initDB = async () => {
     await pool.query('ALTER TABLE students ADD COLUMN IF NOT EXISTS plain_password VARCHAR(255)');
     await pool.query('ALTER TABLE students ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP');
 
+    // [recitation_locks] Drop the dead `ever_passed` column from
+    // recitation_results and exam_results. The column was added in migrate.sql
+    // but never written by any code path — both INSERT sites omit it and there
+    // is no UPDATE … SET ever_passed = true anywhere. Readers silently fall
+    // back to bool_or(passed) subqueries, so dropping is safe (no data loss).
+    await pool.query('ALTER TABLE recitation_results DROP COLUMN IF EXISTS ever_passed');
+    await pool.query('ALTER TABLE exam_results       DROP COLUMN IF EXISTS ever_passed');
+
     // Add indexes for optimization if not exists
     await pool.query('CREATE INDEX IF NOT EXISTS idx_live_streams_status ON live_streams(status)');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_live_chat_stream_sent ON live_chat_messages(stream_id, sent_at)');

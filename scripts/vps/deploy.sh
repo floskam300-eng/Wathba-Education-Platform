@@ -20,16 +20,24 @@ git fetch origin
 git reset --hard origin/main
 
 echo ""
-echo "[2/4] Building app & admin images..."
+echo "[2/5] Building app & admin images..."
 sudo docker compose build app admin
 
 echo ""
-echo "[3/4] Restarting containers..."
+echo "[3/5] Running incremental DB migrations (idempotent, safe to re-run)..."
+bash scripts/vps/run-migrations.sh || {
+  echo "[deploy] WARNING: migrations script failed. The new code expects the"
+  echo "         schema changes to be in place. Re-run 'bash scripts/vps/run-migrations.sh'"
+  echo "         manually once the issue is resolved."
+}
+
+echo ""
+echo "[4/5] Restarting containers..."
 echo "  NOTE: Site will be unavailable for ~2-5 seconds..."
 sudo docker compose up -d --force-recreate app admin
 
 echo ""
-echo "[4/4] Checking status..."
+echo "[5/5] Checking status..."
 sudo docker compose ps
 
 echo ""
