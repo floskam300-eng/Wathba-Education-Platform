@@ -8,6 +8,7 @@ const { invalidateCache } = require('../lib/analyticsCache');
 const { getPermissions } = require('../lib/permissionsCache');
 const { validateStudent } = require('../middleware/validate');
 const { logActivity, getActor, getIp } = require('../lib/activityLog');
+const { pushSessionKicked } = require('../sse');
 
 const router = express.Router();
 router.use(authenticate);
@@ -1263,7 +1264,13 @@ router.post('/device-alerts/:alertId/action', requireRole('teacher', 'assistant'
         "UPDATE device_alerts SET status='reactivated', resolved_at=NOW() WHERE student_id=$1 AND teacher_id=$2 AND status='pending'",
         [alert.student_id, teacherId]
       );
-      // Invalidate auth cache so student can immediately access the app
+      await pool.query(
+        `UPDATE student_active_sessions
+            SET kicked_at = NOW(),
+                kicked_reason = 'teacher_reactivated_account'
+          WHERE student_id = $1 AND kicked_at IS NULL`,
+        [alert.student_id]
+      );
       invalidateStudentAuthCache(alert.student_id);
     } else if (action === 'reactivate_reset_devices') {
       await pool.query('UPDATE students SET is_suspended=false WHERE id=$1', [alert.student_id]);
@@ -1272,23 +1279,47 @@ router.post('/device-alerts/:alertId/action', requireRole('teacher', 'assistant'
         "UPDATE device_alerts SET status='reactivated', resolved_at=NOW() WHERE student_id=$1 AND teacher_id=$2 AND status='pending'",
         [alert.student_id, teacherId]
       );
+      await pool.query(
+        `UPDATE student_active_sessions
+            SET kicked_at = NOW(),
+                kicked_reason = 'teacher_reset_devices'
+          WHERE student_id = $1 AND kicked_at IS NULL`,
+        [alert.student_id]
+      );
       invalidateStudentAuthCache(alert.student_id);
     } else if (action === 'reset_devices') {
       // Clear all registered devices so the student can log in fresh from any device.
-      // Does NOT suspend the account — the student's current session keeps working.
+      // Also end any active sessions — they are now invalid because their device_id
+      // no longer exists in the registered list.
       await pool.query('DELETE FROM student_devices WHERE student_id=$1', [alert.student_id]);
       await pool.query(
         "UPDATE device_alerts SET status='reactivated', resolved_at=NOW() WHERE student_id=$1 AND teacher_id=$2 AND status='pending'",
         [alert.student_id, teacherId]
       );
+      await pool.query(
+        `UPDATE student_active_sessions
+            SET kicked_at = NOW(),
+                kicked_reason = 'teacher_reset_devices'
+          WHERE student_id = $1 AND kicked_at IS NULL`,
+        [alert.student_id]
+      );
     } else if (action === 'dismiss' || action === 'keep_original_device') {
       // Option 2: Keep original device only (reject new device attempt) — dismiss pending alerts
+      // and force-close any active session that came from the rejected new device.
       await pool.query(
         "UPDATE device_alerts SET status='dismissed', resolved_at=NOW() WHERE student_id=$1 AND teacher_id=$2 AND status='pending'",
         [alert.student_id, teacherId]
       );
+      if (alert.device_id) {
+        await pool.query(
+          `UPDATE student_active_sessions
+              SET kicked_at = NOW(),
+                  kicked_reason = 'teacher_kept_original_device'
+            WHERE student_id = $1 AND device_id = $2 AND kicked_at IS NULL`,
+          [alert.student_id, alert.device_id]
+        );
+      }
     } else if (action === 'switch_to_new_device') {
-      // Option 1: Replace old device with new device — remove old devices and register the new one
       await pool.query('DELETE FROM student_devices WHERE student_id=$1', [alert.student_id]);
       if (alert.device_id) {
         await pool.query(
@@ -1303,9 +1334,16 @@ router.post('/device-alerts/:alertId/action', requireRole('teacher', 'assistant'
         "UPDATE device_alerts SET status='reactivated', resolved_at=NOW() WHERE student_id=$1 AND teacher_id=$2 AND status='pending'",
         [alert.student_id, teacherId]
       );
+      // Switch: kick every previously-live session; the new device can start fresh.
+      await pool.query(
+        `UPDATE student_active_sessions
+            SET kicked_at = NOW(),
+                kicked_reason = 'teacher_switched_to_new_device'
+          WHERE student_id = $1 AND kicked_at IS NULL`,
+        [alert.student_id]
+      );
       invalidateStudentAuthCache(alert.student_id);
     } else if (action === 'add_new_device') {
-      // Option 3: Add new device alongside existing devices (allow both old and new devices)
       if (alert.device_id) {
         await pool.query(
           `INSERT INTO student_devices (student_id, device_id, device_name, ip_address)
@@ -1319,6 +1357,19 @@ router.post('/device-alerts/:alertId/action', requireRole('teacher', 'assistant'
         "UPDATE device_alerts SET status='reactivated', resolved_at=NOW() WHERE student_id=$1 AND teacher_id=$2 AND status='pending'",
         [alert.student_id, teacherId]
       );
+      // Add: keep previously-live sessions alive, only kick sessions on the
+      // now-banned new device that the alert was about — though there should
+      // be none since the alert was triggered when the student tried to log
+      // in from it and was blocked. Defensive kick anyway.
+      if (alert.device_id) {
+        await pool.query(
+          `UPDATE student_active_sessions
+              SET kicked_at = NOW(),
+                  kicked_reason = 'teacher_added_new_device'
+            WHERE student_id = $1 AND device_id = $2 AND kicked_at IS NULL`,
+          [alert.student_id, alert.device_id]
+        );
+      }
       invalidateStudentAuthCache(alert.student_id);
     }
 
@@ -1329,6 +1380,25 @@ router.post('/device-alerts/:alertId/action', requireRole('teacher', 'assistant'
       entity: { type: 'student', id: alert.student_id, name: studentName },
       details: { alert_action: action },
     });
+
+    // [Phase 2] Push SSE notification so the kicked tab logs out instantly.
+    if (['switch_to_new_device', 'reactivate', 'reactivate_reset_devices', 'reset_devices'].includes(action)) {
+      setImmediate(() => pushSessionKicked(
+        alert.student_id,
+        `teacher_${action}`,
+        action === 'switch_to_new_device'
+          ? 'تم استبدال جهازك بجهاز جديد من قِبل المدرس.'
+          : 'تم تعديل إعدادات جهازك من قِبل المدرس. سيتم تسجيل الخروج.'
+      ));
+    } else if (action === 'keep_original_device' || action === 'dismiss') {
+      if (alert.device_id) {
+        setImmediate(() => pushSessionKicked(
+          alert.student_id,
+          'teacher_kept_original_device',
+          'الإبقاء على جهازك الأصلي فقط — تم رفض طلب الجهاز الجديد.'
+        ));
+      }
+    }
 
     res.json({ success: true });
   } catch (err) {
@@ -1354,7 +1424,7 @@ router.get('/:id/devices', requireRole('teacher', 'assistant'), async (req, res)
     );
     if (!check.rows.length) return res.status(403).json({ error: 'Access denied' });
     const result = await pool.query(
-      'SELECT id, device_id, device_name, ip_address, first_seen, last_seen FROM student_devices WHERE student_id=$1 ORDER BY last_seen DESC',
+      'SELECT id, device_id, device_name, ip_address, device_origin, first_seen, last_seen FROM student_devices WHERE student_id=$1 ORDER BY last_seen DESC',
       [studentId]
     );
     res.json(result.rows);
@@ -1382,6 +1452,20 @@ router.delete('/:id/devices/:deviceId',
         'DELETE FROM student_devices WHERE student_id=$1 AND (device_id=$2 OR id::text=$2)',
         [studentId, deviceId]
       );
+      // Also kick any active session that was tied to this device — the
+      // student can no longer use it.
+      await pool.query(
+        `UPDATE student_active_sessions
+            SET kicked_at = NOW(),
+                kicked_reason = 'teacher_removed_device'
+          WHERE student_id = $1 AND device_id = $2 AND kicked_at IS NULL`,
+        [studentId, deviceId]
+      );
+      setImmediate(() => pushSessionKicked(
+        studentId,
+        'teacher_removed_device',
+        'تم إزالة هذا الجهاز من حسابك من قِبل المدرس.'
+      ));
       invalidateStudentAuthCache(studentId);
       res.json({ success: true });
     } catch (err) {
@@ -1412,7 +1496,21 @@ router.post('/:id/suspend',
 
       if (action === 'suspend') {
         await pool.query('UPDATE students SET is_suspended=true WHERE id=$1', [studentId]);
-        // Immediately block the student's active sessions
+        // Mark all live sessions for this student as kicked so they get a
+        // 403 session_kicked on their next request, then the frontend shows
+        // the suspended-account modal.
+        await pool.query(
+          `UPDATE student_active_sessions
+              SET kicked_at = NOW(),
+                  kicked_reason = 'teacher_suspended_account'
+            WHERE student_id = $1 AND kicked_at IS NULL`,
+          [studentId]
+        );
+        setImmediate(() => pushSessionKicked(
+          studentId,
+          'teacher_suspended_account',
+          'تم إيقاف حسابك من قِبل المدرس.'
+        ));
         invalidateStudentAuthCache(studentId);
       } else if (action === 'reactivate') {
         await pool.query('UPDATE students SET is_suspended=false WHERE id=$1', [studentId]);

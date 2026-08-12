@@ -680,6 +680,9 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- ── Device-based account protection ──────────────────────────────────────────
 ALTER TABLE students ADD COLUMN IF NOT EXISTS is_suspended BOOLEAN DEFAULT false;
+-- [H-2] Counter that auto-suspends a student after exceeding the 1-device limit
+-- 3 times in a row. Resets on every successful login.
+ALTER TABLE students ADD COLUMN IF NOT EXISTS failed_device_attempts INTEGER DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS student_devices (
   id         SERIAL PRIMARY KEY,
@@ -688,11 +691,40 @@ CREATE TABLE IF NOT EXISTS student_devices (
   device_name VARCHAR(300),
   user_agent TEXT,
   ip_address VARCHAR(45),
+  -- [H-4] How the platform was opened on this device: 'browser',
+  -- 'pwa_ios', 'pwa_android', 'twa', 'unknown'. The hardware fingerprint
+  -- alone is enough to deduplicate (same phone via Chrome vs PWA = same
+  -- device_id), but the origin helps the teacher dashboard show context
+  -- without affecting the 1-device limit.
+  device_origin VARCHAR(20) DEFAULT 'browser',
   first_seen TIMESTAMP DEFAULT NOW(),
   last_seen  TIMESTAMP DEFAULT NOW(),
   UNIQUE(student_id, device_id)
 );
 CREATE INDEX IF NOT EXISTS idx_student_devices_student ON student_devices(student_id);
+
+-- ── Live Session Tracking (Phase 2) ──────────────────────────────────────────
+-- Stores every JWT issued to a student so the server can know whether the
+-- student is currently "active" elsewhere. Combined with last_active_at
+-- heartbeats this lets us enforce the 1-device policy and force-logout
+-- the old session when a new login happens on a different device.
+CREATE TABLE IF NOT EXISTS student_active_sessions (
+  id              SERIAL PRIMARY KEY,
+  student_id      INTEGER REFERENCES students(id) ON DELETE CASCADE,
+  jti             VARCHAR(64) NOT NULL,
+  device_id       VARCHAR(128) NOT NULL,
+  device_origin   VARCHAR(20)  DEFAULT 'browser',
+  ip_address      VARCHAR(45),
+  user_agent      TEXT,
+  logged_in_at    TIMESTAMPTZ  DEFAULT NOW(),
+  last_active_at  TIMESTAMPTZ  DEFAULT NOW(),
+  kicked_at       TIMESTAMPTZ,
+  kicked_reason   VARCHAR(100),
+  UNIQUE(jti)
+);
+CREATE INDEX IF NOT EXISTS idx_active_sessions_student     ON student_active_sessions(student_id);
+CREATE INDEX IF NOT EXISTS idx_active_sessions_last_active ON student_active_sessions(last_active_at);
+CREATE INDEX IF NOT EXISTS idx_active_sessions_device      ON student_active_sessions(student_id, device_id);
 
 CREATE TABLE IF NOT EXISTS device_alerts (
   id          SERIAL PRIMARY KEY,
@@ -709,7 +741,7 @@ CREATE TABLE IF NOT EXISTS device_alerts (
 CREATE INDEX IF NOT EXISTS idx_device_alerts_teacher ON device_alerts(teacher_id, status);
 CREATE INDEX IF NOT EXISTS idx_device_alerts_student ON device_alerts(student_id);
 DO $$ BEGIN
-  ALTER TABLE device_alerts ADD CONSTRAINT chk_alert_type CHECK (alert_type IN ('device_limit_exceeded', 'capture_attempt'));
+  ALTER TABLE device_alerts ADD CONSTRAINT chk_alert_type CHECK (alert_type IN ('device_limit_exceeded', 'capture_attempt', 'auto_suspended', 'concurrent_session_kick'));
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   ALTER TABLE device_alerts DROP CONSTRAINT IF EXISTS chk_alert_status;

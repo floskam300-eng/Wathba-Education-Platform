@@ -149,7 +149,7 @@ async function testDeviceRegistration(t1Id) {
   const teacher = await loginAsTeacher('test_teacher_1');
   const tToken  = teacher.body.token;
 
-  // A1 — first device registers successfully
+  // A1 — first (only) device registers successfully
   const r1 = await loginAs(`test_std_dev_reg`, 'pass123', 'device-aaa');
   assert('A1: 1st device login succeeds (200)', r1.status === 200);
   assert('A1: returns token', !!r1.body.token);
@@ -159,9 +159,18 @@ async function testDeviceRegistration(t1Id) {
   );
   assert('A1: device registered in DB', devs1.some(d => d.device_id === 'device-aaa'));
 
-  // A2 — second device registers
+  // A2 — 2nd device is BLOCKED immediately + teacher alerted (1-device policy)
   const r2 = await loginAs(`test_std_dev_reg`, 'pass123', 'device-bbb');
-  assert('A2: 2nd device login succeeds (200)', r2.status === 200);
+  assert('A2: 2nd device attempt blocked (403)', r2.status === 403,
+    `got ${r2.status}`);
+  assert('A2: code = NEW_DEVICE_BLOCKED', r2.body.code === 'NEW_DEVICE_BLOCKED');
+  assert('A2: failed_device_attempts counter = 1', r2.body.failed_device_attempts === 1);
+
+  const { rows: alerts2 } = await pool.query(
+    'SELECT * FROM device_alerts WHERE student_id=$1', [stdId]
+  );
+  assert('A2: pending alert created for teacher review',
+    alerts2.length === 1 && alerts2[0].status === 'pending');
 
   // A3 — same device re-login updates last_seen (not a new device)
   const beforeTs = new Date();
@@ -172,14 +181,17 @@ async function testDeviceRegistration(t1Id) {
   const { rows: devs3 } = await pool.query(
     'SELECT device_id, last_seen FROM student_devices WHERE student_id=$1', [stdId]
   );
-  assert('A3: still only 2 devices in DB', devs3.length === 2,
+  assert('A3: still only 1 device in DB', devs3.length === 1,
     `found ${devs3.length}`);
 
-  // A4 — third DIFFERENT device → suspension
-  const r4 = await loginAs(`test_std_dev_reg`, 'pass123', 'device-ccc');
-  assert('A4: 3rd device returns 403', r4.status === 403,
+  // A4 — 4th distinct 2nd-device attempt triggers hard cap (counter hits 3 → auto-suspend)
+  await loginAs(`test_std_dev_reg`, 'pass123', 'device-ccc'); // count → 2
+  const r4 = await loginAs(`test_std_dev_reg`, 'pass123', 'device-ccc'); // count → 3 → suspend
+  assert('A4: 3rd blocked attempt returns 403', r4.status === 403,
     `got ${r4.status}`);
-  assert('A4: account_suspended flag in response', !!r4.body.account_suspended);
+  assert('A4: auto-suspended code returned', r4.body.code === 'STUDENT_AUTO_SUSPENDED',
+    `code=${r4.body.code}`);
+  assert('A4: auto_suspended flag true', r4.body.auto_suspended === true);
 
   const { rows: [std4] } = await pool.query(
     'SELECT is_suspended FROM students WHERE id=$1', [stdId]
@@ -187,22 +199,19 @@ async function testDeviceRegistration(t1Id) {
   assert('A4: student is_suspended=true in DB', std4.is_suspended === true);
 
   const { rows: alerts } = await pool.query(
-    'SELECT * FROM device_alerts WHERE student_id=$1', [stdId]
+    "SELECT * FROM device_alerts WHERE student_id=$1 AND alert_type='auto_suspended'", [stdId]
   );
-  assert('A4: exactly 1 pending alert created', alerts.length === 1 && alerts[0].status === 'pending');
+  assert('A4: auto_suspended alert created', alerts.length === 1);
 
-  // A5 — subsequent login from the SAME 3rd device also blocked (not doubled alert)
-  const r5 = await loginAs(`test_std_dev_reg`, 'pass123', 'device-ccc');
-  assert('A5: subsequent 3rd-device attempt blocked (403)', r5.status === 403);
-  const { rows: alerts5 } = await pool.query(
-    'SELECT * FROM device_alerts WHERE student_id=$1', [stdId]
-  );
-  assert('A5: still only 1 alert (no duplicate)', alerts5.length === 1);
+  // A5 — even the original device is now blocked because account is suspended
+  const r5 = await loginAs(`test_std_dev_reg`, 'pass123', 'device-aaa');
+  assert('A5: original device blocked after auto-suspend (403)', r5.status === 403);
 
-  // A6 — login without device_id is allowed but no device is tracked
+  // A6 — login without device_id is rejected for students (device_id is mandatory)
   const stdId2  = await createStudent(t1Id, 'no_dev_id');
   const r6 = await loginAs(`test_std_no_dev_id`, 'pass123', null);
-  assert('A6: login without device_id succeeds', r6.status === 200);
+  assert('A6: login without device_id blocked (400)', r6.status === 400,
+    `got ${r6.status}`);
   const { rows: devs6 } = await pool.query(
     'SELECT id FROM student_devices WHERE student_id=$1', [stdId2]
   );
@@ -216,10 +225,12 @@ async function testSuspensionFlow(t1Id) {
   const teacher = await loginAsTeacher('test_teacher_1');
   const tToken  = teacher.body.token;
 
-  // Register 2 devices, then trigger suspension via 3rd device
+  // Register the single allowed device, then trigger auto-suspend via the
+  // Hard Cap (3 blocked 2nd-device attempts on the 1-device policy).
   await loginAs(`test_std_susp`, 'pass123', 'dev-s1');
-  await loginAs(`test_std_susp`, 'pass123', 'dev-s2');
-  await loginAs(`test_std_susp`, 'pass123', 'dev-s3');   // triggers suspension
+  await loginAs(`test_std_susp`, 'pass123', 'dev-s2'); // block + counter=1
+  await loginAs(`test_std_susp`, 'pass123', 'dev-s3'); // block + counter=2
+  await loginAs(`test_std_susp`, 'pass123', 'dev-s4'); // block + counter=3 → suspend
 
   // B1 — suspended student can't login
   const rLogin = await loginAs(`test_std_susp`, 'pass123', 'dev-s1');
@@ -286,10 +297,11 @@ async function testMultiTenantIsolation(t1Id, t2Id) {
   const t1Token = t1Login.body.token;
   const t2Token = t2Login.body.token;
 
-  // Trigger suspension for t2's student
+  // Trigger suspension for t2's student (1-device policy: 1 device registered, then 3 blocked attempts)
   await loginAs('test_std_iso_t2', 'pass123', 'dev-x1');
-  await loginAs('test_std_iso_t2', 'pass123', 'dev-x2');
-  await loginAs('test_std_iso_t2', 'pass123', 'dev-x3');
+  await loginAs('test_std_iso_t2', 'pass123', 'dev-x2'); // block + counter=1
+  await loginAs('test_std_iso_t2', 'pass123', 'dev-x3'); // block + counter=2
+  await loginAs('test_std_iso_t2', 'pass123', 'dev-x4'); // block + counter=3 → auto-suspend
 
   // C1 — Teacher 1 sees only their own device alerts
   const r1 = await req('GET', '/api/students/device-alerts', null, t1Token);

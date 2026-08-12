@@ -32,6 +32,7 @@ const ACTION_LABELS = {
   reset_leaderboard:         'تصفير المتصدرين',
   login_teacher:             'تسجيل دخول معلم',
   login_assistant:           'تسجيل دخول مساعد',
+  login_student:             'تسجيل دخول طالب',
   whatsapp_connect:          'ربط واتساب',
   whatsapp_disconnect:       'قطع اتصال واتساب',
   whatsapp_send:             'إرسال رسائل واتساب',

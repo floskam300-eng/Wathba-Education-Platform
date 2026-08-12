@@ -156,6 +156,20 @@ const authenticate = async (req, res, next) => {
       }
     }
 
+    // [Phase 2] Phase 2 heartbeat/kick check for students. Detects when a
+    // newer login (or teacher action) has marked this JWT's session row as
+    // kicked, and proactively updates last_active_at so "active" is fresh.
+    if (decoded.role === 'student') {
+      const sessionStatus = await checkAndHeartbeatSession(decoded);
+      if (!sessionStatus.ok) {
+        return res.status(403).json({
+          error: 'تم إنهاء جلستك لأن حسابك مفتوح من جهاز آخر. يرجى تسجيل الدخول مرة أخرى.',
+          session_kicked: true,
+          kick_reason: sessionStatus.reason,
+        });
+      }
+    }
+
     req.user = decoded;
     next();
   } catch (err) {
@@ -170,6 +184,49 @@ const authenticate = async (req, res, next) => {
 // the next request, which correctly populates both valid and suspended.
 const invalidateStudentAuthCache = (studentId) => {
   _studentCache.delete(studentId);
+};
+
+// ── Phase 2: heartbeat / kicked-session detection ───────────────────────────
+// On every authenticated student request we (a) refresh last_active_at on the
+// matching row in student_active_sessions, and (b) refuse the request if the
+// matching row has been marked kicked_at.  Throttling keeps the DB load low
+// (the JWT is valid for a week; we don't want one UPDATE per request).
+const SESSION_HB_MIN_GAP_MS = 30_000;
+const _lastSessionHeartbeat = new Map();
+
+const checkAndHeartbeatSession = async (decoded) => {
+  if (!decoded?.jti) return { ok: true };
+  const jti = decoded.jti;
+  const last = _lastSessionHeartbeat.get(jti) || 0;
+  const now  = Date.now();
+  const fresh = now - last > SESSION_HB_MIN_GAP_MS;
+  try {
+    const sel = await pool.query(
+      `SELECT id, kicked_at, kicked_reason
+         FROM student_active_sessions
+        WHERE jti = $1
+        LIMIT 1`,
+      [jti]
+    );
+    const row = sel.rows[0];
+    if (row?.kicked_at) {
+      return {
+        ok: false,
+        reason: row.kicked_reason || 'session_kicked',
+        kicked_at: row.kicked_at,
+      };
+    }
+    if (row && fresh) {
+      await pool.query(
+        'UPDATE student_active_sessions SET last_active_at = NOW() WHERE id = $1',
+        [row.id]
+      );
+      _lastSessionHeartbeat.set(jti, now);
+    }
+    return { ok: true };
+  } catch (_) {
+    return { ok: true };
+  }
 };
 
 const invalidateAssistantAuthCache = (assistantId) => {
@@ -192,6 +249,15 @@ const generateToken = (payload) => jwt.sign(
   JWT_SECRET,
   { expiresIn: '7d' }
 );
+
+const extractJti = (token) => {
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    return decoded.jti || null;
+  } catch (_) {
+    return null;
+  }
+};
 
 // Revoke a token: store hash in memory immediately, persist to DB (fire-and-forget)
 const blacklistToken = (token, expiresAt) => {
@@ -351,4 +417,5 @@ module.exports = {
   invalidateTeacherAuthCache,
   requireAdminAuth,
   ADMIN_JWT_SECRET,
+  extractJti,
 };

@@ -1,16 +1,28 @@
 /**
  * Deterministic Device Identification for Wathba Education Platform
  *
- * Generates a stable, unique device identifier based on physical hardware characteristics
- * (Screen geometry, GPU renderer, CPU cores, Canvas 2D rasterization, OS/Platform, Timezone).
+ * Generates a stable, unique device identifier based on PHYSICAL hardware
+ * characteristics only — screen geometry, CPU cores, memory, OS platform,
+ * timezone. Browser-engine signals (canvas rasterizer, WebGL renderer,
+ * full User-Agent) are intentionally excluded so the same physical phone
+ * produces the same ID whether the student opens the platform from
+ * Chrome, Firefox or the installed PWA.
  *
- * Guarantees that:
- * 1. The exact same physical device generates the identical device ID across:
- *    - Regular Web Browser (Chrome, Safari, Edge, Firefox, Samsung Internet)
- *    - Installed PWA (Standalone WebApp mode on iOS / Android / Desktop)
- *    - After browser cache/localStorage clearing
- * 2. Different physical devices generate distinct IDs.
+ * Guarantees:
+ * 1. The same physical device → same ID across:
+ *    - Regular browsers (Chrome, Safari, Edge, Firefox, Samsung Internet)
+ *    - Installed PWA (standalone display mode on iOS / Android / Desktop)
+ *    - Different browser engines on the same machine (cross-browser)
+ * 2. Different physical devices → distinct IDs (with extremely rare
+ *    collision risk only if two devices share screen, CPU, RAM, timezone
+ *    and platform — unlikely in practice).
  * 3. Persists across localStorage and long-lived cookies (5 years).
+ *
+ * The fingerprint is split into two parts:
+ *   - `hardware`     → hashed into the persistent device_id
+ *   - `origin`       → returned separately so the teacher dashboard can
+ *                      show "PWA vs Browser" without burning the single
+ *                      device slot allotted to this student
  */
 
 function getCookie(name) {
@@ -77,89 +89,84 @@ function normalizeUA(ua) {
 }
 
 /**
- * Collect stable hardware and environment metrics
+ * Detect the "origin" of the current session — i.e. how the platform is
+ * being opened. Independent of the device_id, this is sent along with the
+ * login request so the teacher dashboard can see "Chrome on Laptop" vs
+ * "PWA on Phone" without burning a separate device slot.
+ */
+function detectDeviceOrigin() {
+  if (typeof window === 'undefined') return 'unknown';
+  // 1. iOS standalone PWA
+  if (window.navigator.standalone === true) return 'pwa_ios';
+  // 2. Android / Desktop / ChromeOS PWA
+  const isStandalone = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches;
+  if (isStandalone) return 'pwa_android';
+  // 3. TwA (Trusted Web Activity)
+  if (document.referrer && document.referrer.includes('android-app://')) return 'twa';
+  // 4. Otherwise it's just a regular browser tab
+  return 'browser';
+}
+
+/**
+ * Collect ONLY physical hardware signals that are stable across:
+ *   - Browsers (Chrome, Firefox, Safari, Edge, …)
+ *   - PWA display modes (standalone, fullscreen, browser)
+ *   - Cache/localStorage clears (the values are recomputed deterministically)
+ *
+ * Excluded intentionally:
+ *   - User-Agent (it changes between PWA and Browser for the same device)
+ *   - WebGL renderer (changes per browser engine)
+ *   - Canvas 2D rasterizer (changes per browser engine)
  */
 function collectHardwareFingerprint() {
   if (typeof window === 'undefined') return {};
 
-  // 1. Screen geometry (orientation-invariant: max of width/height and min of width/height)
+  // 1. Screen geometry (orientation-invariant)
   const s = window.screen || {};
   const maxScreenDim = Math.max(s.width || 0, s.height || 0);
   const minScreenDim = Math.min(s.width || 0, s.height || 0);
   const colorDepth = s.colorDepth || 24;
   const pixelRatio = Math.round((window.devicePixelRatio || 1) * 100) / 100;
 
-  // 2. CPU & Memory
+  // 2. CPU & Memory hardware probes
   const cores = navigator.hardwareConcurrency || 0;
   const memory = navigator.deviceMemory || 0;
   const maxTouchPoints = navigator.maxTouchPoints || 0;
   const platform = navigator.platform || '';
 
-  // 3. Timezone & Locale
+  // 3. Locale & timezone
+  let lang = '';
   let timeZone = '';
-  try {
-    timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
-  } catch (_) {}
-
-  // 4. WebGL GPU unmasked renderer info
-  let gpuVendor = '';
-  let gpuRenderer = '';
-  try {
-    const canvas = document.createElement('canvas');
-    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-    if (gl) {
-      const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
-      if (debugInfo) {
-        gpuVendor = gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL) || '';
-        gpuRenderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) || '';
-      }
-    }
-  } catch (_) {}
-
-  // 5. Canvas 2D rasterizer signature
-  let canvasSig = '';
-  try {
-    const canvas = document.createElement('canvas');
-    canvas.width = 160;
-    canvas.height = 40;
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      ctx.textBaseline = 'top';
-      ctx.font = "14px 'Arial', sans-serif";
-      ctx.textBaseline = 'alphabetic';
-      ctx.fillStyle = '#f97316';
-      ctx.fillRect(100, 1, 50, 18);
-      ctx.fillStyle = '#0284c7';
-      ctx.fillText('Wathba#2026', 2, 15);
-      ctx.fillStyle = 'rgba(16, 185, 129, 0.7)';
-      ctx.fillText('Wathba#2026', 4, 17);
-      canvasSig = canvas.toDataURL().slice(-40);
-    }
-  } catch (_) {}
+  try { lang = (navigator.languages && navigator.languages[0]) || navigator.language || ''; } catch (_) {}
+  try { timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (_) {}
 
   return {
     dim: `${maxScreenDim}x${minScreenDim}`,
-    cd: colorDepth,
-    pr: pixelRatio,
+    cd:  colorDepth,
+    pr:  pixelRatio,
     cpu: cores,
     mem: memory,
-    tp: maxTouchPoints,
+    tp:  maxTouchPoints,
     plt: platform,
-    tz: timeZone,
-    gpu: `${gpuVendor}~${gpuRenderer}`,
-    cvs: canvasSig,
-    ua: normalizeUA(navigator.userAgent || ''),
+    lang,
+    tz:  timeZone,
   };
 }
 
-const DEVICE_KEY = 'wathba_device_id';
+const DEVICE_KEY   = 'wathba_device_id';
+const ORIGIN_KEY   = 'wathba_device_origin';
 
 /**
- * Get or compute the persistent, deterministic device ID.
- * Returns a stable string like 'dev_fp_a1b2c3d4e5f6...'
+ * Get or compute the persistent, deterministic device ID AND the origin.
+ * Returns { device_id, origin } where origin is one of:
+ *   "browser" | "pwa_ios" | "pwa_android" | "twa" | "unknown"
+ *
+ * `device_id` is a stable string like 'dev_fp_a1b2c3d4e5f6...' — the
+ * same physical phone produces the same ID regardless of whether the
+ * student logs in from Chrome, Firefox or the installed PWA.
  */
 export async function getOrCreateDeviceId() {
-  if (typeof window === 'undefined') return 'dev_server';
+  if (typeof window === 'undefined') return { device_id: 'dev_server', origin: 'unknown' };
 
   // 1. Check localStorage first
   let localId = null;
@@ -170,27 +177,49 @@ export async function getOrCreateDeviceId() {
   // 2. Check Cookie
   const cookieId = getCookie(DEVICE_KEY);
 
-  // 3. Compute deterministic hardware fingerprint
+  // 3. Compute deterministic HARDWARE-ONLY fingerprint
   const hardware = collectHardwareFingerprint();
   const hash = await hashComponents(hardware);
   const deterministicId = `dev_fp_${hash}`;
 
-  // If local or cookie already has the deterministic format dev_fp_*, ensure consistency
+  // If local or cookie already has the deterministic format dev_fp_*, ensure consistency.
+  // Even if `localId` happens to match the regenerated hardware hash we keep it
+  // (cross-browser / PWA should produce the same hash anyway now).
   if (localId && localId.startsWith('dev_fp_') && localId === deterministicId) {
     if (!cookieId) setCookie(DEVICE_KEY, localId);
-    return localId;
+    return { device_id: deterministicId, origin: getStoredOrigin() };
   }
 
-  // Use the deterministic ID as canonical device ID
-  const finalId = deterministicId;
+  // Persist the new ID. If the previous localId was a different (older,
+  // browser-engine-dependent) ID we *do* overwrite it so the student
+  // converges to the hardware-only fingerprint on next login.
+  try { localStorage.setItem(DEVICE_KEY, deterministicId); } catch (_) {}
+  setCookie(DEVICE_KEY, deterministicId);
 
-  // Persist to both localStorage and Cookie
+  // Compute and persist the origin tag
+  const origin = detectDeviceOrigin();
+  try { localStorage.setItem(ORIGIN_KEY, origin); } catch (_) {}
+
+  return { device_id: deterministicId, origin };
+}
+
+function getStoredOrigin() {
   try {
-    localStorage.setItem(DEVICE_KEY, finalId);
+    const stored = localStorage.getItem(ORIGIN_KEY);
+    if (stored) return stored;
   } catch (_) {}
-  setCookie(DEVICE_KEY, finalId);
+  return detectDeviceOrigin();
+}
 
-  return finalId;
+/**
+ * Backwards-compatible helper for callers that only need the device_id
+ * string (the legacy API). Internally still calls getOrCreateDeviceId.
+ *
+ * @deprecated prefer getOrCreateDeviceId().device_id going forward
+ */
+export async function getOrCreateDeviceIdLegacy() {
+  const { device_id } = await getOrCreateDeviceId();
+  return device_id;
 }
 
 export default getOrCreateDeviceId;

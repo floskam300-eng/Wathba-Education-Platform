@@ -120,11 +120,25 @@ async function broadcastToCourseStudents(pool, courseId, event, payload) {
   } catch (_) {}
 }
 
+/**
+ * [Phase 2] Push a force-logout event to every SSE connection of the given
+ * student so the kicked tab signs out instantly rather than waiting for
+ * their next request. Safe to call when the student has no SSE connection
+ * open — the next request will hit the 403 path instead.
+ */
+function pushSessionKicked(studentId, reason, message) {
+  sendEvent(`student_${studentId}`, 'force_logout', {
+    reason: reason || 'session_kicked',
+    message: message || 'تم إنهاء جلستك لأن حسابك مفتوح من جهاز آخر.',
+  });
+}
+
 module.exports = {
   addClient,
   removeClient,
   sendEvent,
   broadcastToTeacherStudents,
   broadcastToCourseStudents,
+  pushSessionKicked,
   getTotalConnections,
 };

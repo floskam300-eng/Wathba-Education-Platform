@@ -22,6 +22,7 @@ let _recIntervalId = null;
 let _examEndIntervalId = null;
 let _recEndIntervalId = null;
 let _cleanupIntervalId = null;
+let _sessionCleanupIntervalId = null;
 let _isRunning = false;
 let _isWaRunning = false;
 let _isRecRunning = false;
@@ -502,6 +503,35 @@ async function runDataRetentionCleanup() {
   }
 }
 
+// [Phase 2] Trim dead / expired student sessions so the student_active_sessions
+// table doesn't grow unbounded. Sessions that have not been "alive" for 1 hour
+// and are not currently being kicked are considered gone. Anything older than
+// 7 days (the JWT TTL) is purged wholesale because the corresponding token
+// can no longer authenticate anyway.
+async function runSessionCleanup() {
+  if (!_pool) return;
+  try {
+    const stale = await _pool.query(
+      `UPDATE student_active_sessions
+          SET kicked_at = COALESCE(kicked_at, NOW()),
+              kicked_reason = COALESCE(kicked_reason, 'idle_timeout')
+        WHERE kicked_at IS NULL
+          AND last_active_at < NOW() - INTERVAL '1 hour'`
+    );
+    const purged = await _pool.query(
+      `DELETE FROM student_active_sessions
+        WHERE logged_in_at < NOW() - INTERVAL '7 days'`
+    );
+    const sCount = stale.rowCount || 0;
+    const pCount = purged.rowCount || 0;
+    if (sCount > 0 || pCount > 0) {
+      console.log(`[Scheduler] Session cleanup: idle-kicked=${sCount} purged=${pCount}`);
+    }
+  } catch (err) {
+    console.error('[Scheduler] Session cleanup error:', err.message);
+  }
+}
+
 function startScheduler(pool) {
   _pool = pool;
   runCheck();
@@ -520,6 +550,9 @@ function startScheduler(pool) {
   // Run database log retention cleanup daily
   runDataRetentionCleanup();
   _cleanupIntervalId = setInterval(runDataRetentionCleanup, 24 * 60 * 60 * 1000);
+  // [Phase 2] Trim dead student sessions every 5 minutes.
+  runSessionCleanup();
+  _sessionCleanupIntervalId = setInterval(runSessionCleanup, 5 * 60 * 1000);
 
   console.log('[Scheduler] Exam start scheduler running (30s interval)');
   console.log('[Scheduler] WhatsApp schedule checker running (5min interval)');
@@ -527,6 +560,7 @@ function startScheduler(pool) {
   console.log('[Scheduler] Ended-exam absent marker running (5min interval)');
   console.log('[Scheduler] Ended-recitation absent marker running (5min interval)');
   console.log('[Scheduler] Data retention logs cleanup running (24h interval)');
+  console.log('[Scheduler] Student session cleanup running (5min interval)');
 }
 
 function stopScheduler() {
@@ -536,6 +570,7 @@ function stopScheduler() {
   if (_examEndIntervalId) { clearInterval(_examEndIntervalId); _examEndIntervalId = null; }
   if (_recEndIntervalId)  { clearInterval(_recEndIntervalId);  _recEndIntervalId  = null; }
   if (_cleanupIntervalId) { clearInterval(_cleanupIntervalId); _cleanupIntervalId = null; }
+  if (_sessionCleanupIntervalId) { clearInterval(_sessionCleanupIntervalId); _sessionCleanupIntervalId = null; }
 }
 
 module.exports = { startScheduler, stopScheduler };

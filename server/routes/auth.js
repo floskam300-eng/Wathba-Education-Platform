@@ -3,8 +3,9 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const pool = require('../db/connection');
-const { generateToken, authenticate, blacklistToken } = require('../middleware/auth');
+const { generateToken, authenticate, blacklistToken, invalidateStudentAuthCache, extractJti } = require('../middleware/auth');
 const { logActivity, getIp } = require('../lib/activityLog');
+const { pushSessionKicked } = require('../sse');
 
 const router = express.Router();
 
@@ -109,7 +110,12 @@ function parseDeviceName(userAgent) {
 
 // ── POST /api/auth/login ────────────────────────────────────────────────────
 router.post('/login', loginLimiter, async (req, res) => {
-  const { username, password, role, device_id } = req.body;
+  const { username, password, role, device_id, device_origin } = req.body;
+  // [H-3] Mutable session-wide flag set inside the student device-check
+  // transaction. The Login page uses it to decide whether to show the
+  // DeviceWarningModal ("first time on this device") — so the warning is
+  // only surfaced when it is actually new, not on every successful login.
+  const loginMeta = { is_new_device: false };
 
   console.log(`[LOGIN] attempt: user="${username}" role="${role || 'auto'}" device_id="${device_id ? device_id.slice(0,12)+'...' : 'MISSING'}" tenant_id="${req.tenantTeacherId || 'none'}"`);
 
@@ -249,14 +255,17 @@ router.post('/login', loginLimiter, async (req, res) => {
             console.log(`[LOGIN] student id=${user.id} known_devices=${knownIds.length} is_known=${isKnown}`);
 
             if (!isKnown) {
-              // Max 2 registered devices per student (matches the warning shown at
-              // login: "حسابك مسجّل على عدد محدود من الأجهزة (جهازان كحد أقصى)").
-              // If both slots are full and this is a brand-new device_id, alert the
-              // teacher but do NOT auto-suspend. Hard suspension is reserved for
-              // repeated / confirmed abuse via the teacher dashboard.
-              if (knownIds.length >= 2) {
+              // 1-device policy (matches the warning shown at login:
+              // "حسابك مسجّل على جهاز واحد فقط").
+              // If a device slot is already taken and this is a brand-new
+              // device_id, block immediately, alert the teacher, AND
+              // increment the failure counter. After 3 blocked attempts the
+              // account is auto-suspended and the teacher is notified. This
+              // makes the security warning deterministic rather than
+              // dependent on the teacher manually checking the dashboard.
+              if (knownIds.length >= 1) {
                 console.log(`[LOGIN] NEW_DEVICE_BLOCKED for student id=${user.id}: inserting device_alert`);
-                // 3rd (new) device → alert teacher but do NOT suspend.
+                // 2nd (new) device → alert teacher; do NOT suspend on the first hit.
                 // [BUG FIX] Split INSERT...SELECT...WHERE NOT EXISTS into two separate
                 // queries to avoid "inconsistent types deduced for parameter $3" error
                 // that occurs when the same placeholder is used in both the SELECT list
@@ -277,29 +286,127 @@ router.post('/login', loginLimiter, async (req, res) => {
                 } else {
                   console.log(`[LOGIN] device_alert already exists for student id=${user.id}, skipping insert`);
                 }
+
+                // [H-2] Increment the failure counter so that a student cannot
+                // keep trying new devices forever. After 3 blocked attempts
+                // the account is auto-suspended (handled below).
+                const counterRes = await client.query(
+                  `UPDATE students
+                     SET failed_device_attempts = COALESCE(failed_device_attempts, 0) + 1
+                   WHERE id = $1
+                   RETURNING failed_device_attempts`,
+                  [user.id]
+                );
+                const attemptCount = counterRes.rows[0]?.failed_device_attempts || 0;
+                console.log(`[LOGIN] student id=${user.id} failed_device_attempts=${attemptCount}`);
+
+                let autoSuspended = false;
+                if (attemptCount >= 3) {
+                  // Auto-suspend + flush auth cache so subsequent requests fail.
+                  await client.query(
+                    'UPDATE students SET is_suspended = true WHERE id = $1',
+                    [user.id]
+                  );
+                  await client.query(
+                    `INSERT INTO device_alerts
+                       (teacher_id, student_id, alert_type, device_id, device_name, ip_address, status)
+                     VALUES ($1, $2, 'auto_suspended', $3, $4, $5, 'pending')`,
+                    [user.teacher_id, user.id, device_id, deviceName, ip]
+                  );
+                  autoSuspended = true;
+                  console.log(`[LOGIN] AUTO-SUSPENDED student id=${user.id} after ${attemptCount} blocked attempts`);
+                  invalidateStudentAuthCache(user.id);
+                }
+
                 await client.query('COMMIT');
                 console.log(`[LOGIN] NEW_DEVICE_BLOCKED committed for student id=${user.id}`);
                 return res.status(403).json({
-                  error: 'تم رصد محاولة دخول من جهاز جديد. تم إشعار المدرس — يمكنك الاستمرار من جهازك الأصلي، أو تواصل مع المدرس للسماح لك بتسجيل جهاز جديد.',
-                  code: 'NEW_DEVICE_BLOCKED',
+                  error: autoSuspended
+                    ? 'تم رصد محاولات متكررة من أجهزة مختلفة. تم إيقاف حسابك تلقائياً — يرجى التواصل مع المدرس لإعادة التفعيل.'
+                    : 'تم رصد محاولة دخول من جهاز جديد. تم إشعار المدرس — يمكنك الاستمرار من جهازك الأصلي، أو تواصل مع المدرس للسماح لك بتسجيل جهاز جديد.',
+                  code: autoSuspended ? 'STUDENT_AUTO_SUSPENDED' : 'NEW_DEVICE_BLOCKED',
+                  failed_device_attempts: attemptCount,
+                  auto_suspended: autoSuspended,
                 });
               }
               // No registered device yet → register this one as the primary device
               console.log(`[LOGIN] registering first device for student id=${user.id}`);
+              // [H-4] device_origin is informational only — never used as a
+              // dedup key for the 1-device quota. Same phone in Chrome and as
+              // a PWA still counts as ONE device.
+              const safeOrigin = ['browser','pwa_ios','pwa_android','twa','unknown'].includes(device_origin)
+                ? device_origin : 'browser';
               await client.query(
-                `INSERT INTO student_devices (student_id, device_id, device_name, user_agent, ip_address)
-                 VALUES ($1, $2, $3, $4, $5)
+                `INSERT INTO student_devices (student_id, device_id, device_name, user_agent, ip_address, device_origin)
+                 VALUES ($1, $2, $3, $4, $5, $6)
                  ON CONFLICT (student_id, device_id) DO UPDATE
-                   SET last_seen = NOW(), device_name = $3`,
-                [user.id, device_id, deviceName, ua, ip]
+                   SET last_seen = NOW(), device_name = $3, device_origin = $6`,
+                [user.id, device_id, deviceName, ua, ip, safeOrigin]
               );
-            } else {
-              // Known device → just update last_seen
-              console.log(`[LOGIN] known device — updating last_seen for student id=${user.id}`);
+              // [H-2] First-time registration wipes the failure counter.
               await client.query(
-                'UPDATE student_devices SET last_seen = NOW() WHERE student_id = $1 AND device_id = $2',
-                [user.id, device_id]
+                'UPDATE students SET failed_device_attempts = 0 WHERE id = $1',
+                [user.id]
               );
+              // [H-3] Surface "first time on this device" only when at least one
+              // device slot was previously empty. If the student replaces an
+              // existing registration we keep the warning since they explicitly
+              // lost the previous slot.
+              loginMeta.is_new_device = true;
+            } else {
+              // Known device → just update last_seen / device_origin and reset
+              // the failure counter so a previously-blocked student can recover
+              // after registering the new device through the teacher dashboard.
+              console.log(`[LOGIN] known device — updating last_seen for student id=${user.id}`);
+              const safeOrigin = ['browser','pwa_ios','pwa_android','twa','unknown'].includes(device_origin)
+                ? device_origin : 'browser';
+              await client.query(
+                `UPDATE student_devices
+                    SET last_seen = NOW(),
+                        device_origin = $3
+                  WHERE student_id = $1 AND device_id = $2`,
+                [user.id, device_id, safeOrigin]
+              );
+              await client.query(
+                'UPDATE students SET failed_device_attempts = 0 WHERE id = $1',
+                [user.id]
+              );
+            }
+
+            // [Phase 2] Enforce single-active-session policy. Any live session
+            // on a *different* device must be force-closed so the student is
+            // only ever logged in on one physical machine at a time. We treat
+            // a row as "live" if last_active_at was within the last 10 minutes
+            // (anything older is most likely a stale JWT left open by a closed
+            // tab and can be reaped by the cleanup cron later). The same
+            // device's prior JWT is also kicked to prevent two tabs on the
+            // same phone staying open simultaneously.
+            const otherSessions = await client.query(
+              `SELECT id, jti
+                 FROM student_active_sessions
+                WHERE student_id = $1
+                  AND kicked_at IS NULL
+                  AND last_active_at > NOW() - INTERVAL '10 minutes'`,
+              [user.id]
+            );
+            for (const sess of otherSessions.rows) {
+              await client.query(
+                `UPDATE student_active_sessions
+                    SET kicked_at = NOW(),
+                        kicked_reason = 'new_login_replaced_session'
+                  WHERE id = $1`,
+                [sess.id]
+              );
+              console.log(`[LOGIN] KICKED prior session jti=${sess.jti.slice(0,8)}... for student id=${user.id}`);
+            }
+            if (otherSessions.rows.length > 0) {
+              // Push the SSE force_logout event so the kicked tab signs out
+              // instantly without waiting for its next API request.
+              setImmediate(() => pushSessionKicked(
+                user.id,
+                'new_login_replaced_session',
+                'تم تسجيل الدخول من جهاز آخر — سيتم تسجيل الخروج من هذه الجلسة.'
+              ));
             }
 
             await client.query('COMMIT');
@@ -330,6 +437,27 @@ router.post('/login', loginLimiter, async (req, res) => {
       const token = generateToken(payload);
       const { password: _, plain_password: __, fcm_token: ___, ...safeUser } = user;
 
+      if (r === 'student') {
+        const jti = extractJti(token);
+        if (jti) {
+          const ip = getIp(req);
+          const ua = req.headers['user-agent'] || '';
+          const safeOrigin = ['browser','pwa_ios','pwa_android','twa','unknown'].includes(device_origin)
+            ? device_origin : 'browser';
+          await pool.query(
+            `INSERT INTO student_active_sessions
+               (student_id, jti, device_id, device_origin, ip_address, user_agent)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             ON CONFLICT (jti) DO UPDATE
+               SET last_active_at = NOW(),
+                   device_origin  = EXCLUDED.device_origin,
+                   device_id      = EXCLUDED.device_id`,
+            [user.id, jti, device_id || null, safeOrigin, ip, ua]
+          );
+          console.log(`[LOGIN] student id=${user.id} active_session registered jti=${jti.slice(0,8)}...`);
+        }
+      }
+
       if (r === 'teacher') {
         logActivity({
           teacherId: user.id,
@@ -346,6 +474,15 @@ router.post('/login', loginLimiter, async (req, res) => {
           action: 'login_assistant',
           entity: { type: 'assistant', id: user.id, name: user.name || user.username },
         });
+      } else if (r === 'student') {
+        logActivity({
+          teacherId: user.teacher_id,
+          actor: { type: 'student', id: user.id, name: user.name || user.username },
+          ip: getIp(req),
+          action: 'login_student',
+          entity: { type: 'student', id: user.id, name: user.name || user.username },
+          details: device_id ? { device_id: device_id.slice(0, 16) + '...' } : null,
+        });
       }
 
       // [M-16] FIX: Include force_password_change flag so the frontend can redirect
@@ -357,6 +494,9 @@ router.post('/login', loginLimiter, async (req, res) => {
         token,
         user: { ...safeUser, role: r, teacher_slug: payload.teacher_slug },
         force_password_change: forceChange,
+        // [H-3] Only true when the student logged in from a previously-unregistered
+        // device. Drives whether the Login page shows the orange DeviceWarningModal.
+        is_new_device: loginMeta.is_new_device,
       });
     }
 
@@ -370,12 +510,22 @@ router.post('/login', loginLimiter, async (req, res) => {
   }
 });
 
-// ── POST /api/auth/logout — revoke current token immediately ────────────────
 router.post('/logout', authenticate, (req, res) => {
   const token = req.headers.authorization?.split(' ')[1];
   if (token) {
     const expiresAt = (req.user.exp || 0) * 1000 || Date.now() + 7 * 24 * 60 * 60 * 1000;
     blacklistToken(token, expiresAt);
+  }
+  // [Phase 2] Mark the live session row as voluntarily ended so it doesn't
+  // count against the student's "active device" tally.
+  if (req.user?.role === 'student' && req.user?.jti) {
+    pool.query(
+      `UPDATE student_active_sessions
+          SET kicked_at = NOW(),
+              kicked_reason = 'student_logout'
+        WHERE jti = $1 AND kicked_at IS NULL`,
+      [req.user.jti]
+    ).catch((e) => console.warn('[LOGOUT] failed to mark session kicked:', e.message));
   }
   res.json({ success: true });
 });

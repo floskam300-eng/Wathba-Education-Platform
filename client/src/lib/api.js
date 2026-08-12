@@ -77,6 +77,17 @@ api.interceptors.response.use(
       return Promise.reject(err);
     }
 
+    // [Phase 2] Session-kicked: a newer login (or teacher action) ended this
+    // session. Surface it like an account-suspended event so the same UI fires.
+    if (status === 403 && err.response?.data?.session_kicked) {
+      window.dispatchEvent(new CustomEvent('wathba_account_suspended', {
+        detail: { message: err.response.data.error || 'تم إنهاء جلستك لأن حسابك مفتوح من جهاز آخر.' }
+      }));
+      localStorage.removeItem('wathba_token');
+      localStorage.removeItem('wathba_user');
+      return Promise.reject(err);
+    }
+
     if (status === 401) {
       const isInExam = Object.keys(localStorage).some(k => k.startsWith('exam_start_'));
 

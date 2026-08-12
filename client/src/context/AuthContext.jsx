@@ -27,6 +27,7 @@ const pickStorable = (userData) => {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [suspendedNotice, setSuspendedNotice] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -66,15 +67,39 @@ export const AuthProvider = ({ children }) => {
       navigate('/login', { replace: true });
     };
     window.addEventListener('wathba_unauthorized', handleUnauthorized);
-    return () => window.removeEventListener('wathba_unauthorized', handleUnauthorized);
+    // [H-1] Listen for account_suspended 403s fired by api.js response interceptor.
+    // Without this listener the student stayed on the page after the server
+    // rejected their JWT. We now show a dedicated modal and force them back
+    // to the login page so they cannot keep using cached UI data.
+    const handleAccountSuspended = (e) => {
+      const message = e?.detail?.message || 'تم إيقاف حسابك مؤقتاً. يرجى التواصل مع المدرس.';
+      setUser(null);
+      setSuspendedNotice({ message });
+      setTimeout(() => navigate('/login', { replace: true }), 4000);
+    };
+    window.addEventListener('wathba_account_suspended', handleAccountSuspended);
+    return () => {
+      window.removeEventListener('wathba_unauthorized', handleUnauthorized);
+      window.removeEventListener('wathba_account_suspended', handleAccountSuspended);
+    };
   }, [navigate]);
 
-  const login = async (username, password, role, _slug, deviceId) => {
+  const dismissSuspendedNotice = () => {
+    setSuspendedNotice(null);
+  };
+
+  const login = async (username, password, role, _slug, deviceId, deviceOrigin) => {
     const body = { username, password };
     if (role) body.role = role;
     if (deviceId) body.device_id = deviceId;
+    // [H-4] Pass the device origin (browser | pwa_ios | pwa_android | twa |
+    // unknown) alongside the hardware-only device_id. The server uses this
+    // purely for analytics on the teacher dashboard; it does NOT affect the
+    // 1-device quota, so opening the same phone in Chrome and as a PWA no
+    // longer burns the single device slot allotted to this student.
+    if (deviceOrigin) body.device_origin = deviceOrigin;
     const res = await api.post('/auth/login', body);
-    const { token, user, force_password_change } = res.data;
+    const { token, user, force_password_change, is_new_device } = res.data;
     // [CACHE-FIX] Clear any previously cached query data from a different user
     // before setting the new token. This prevents cross-user data contamination
     // when two different students log in from the same browser without an
@@ -88,7 +113,12 @@ export const AuthProvider = ({ children }) => {
     setUser(user);
     // [M-16] Pass force_password_change flag to the caller so Login page can
     // redirect the teacher to change their default seed password immediately.
-    return { user, force_password_change: force_password_change === true };
+    // [H-3] Also pass is_new_device so Login can gate the warning modal.
+    return {
+      user,
+      force_password_change: force_password_change === true,
+      is_new_device: is_new_device === true,
+    };
   };
 
   const logout = () => {
@@ -120,8 +150,54 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading, updateUser }}>
+    <AuthContext.Provider value={{ user, login, logout, loading, updateUser, suspendedNotice, dismissSuspendedNotice }}>
       {children}
+      {suspendedNotice && (
+        <div
+          role="alert"
+          aria-live="assertive"
+          style={{
+            position: 'fixed', inset: 0, zIndex: 9999,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(15, 23, 42, 0.7)',
+            backdropFilter: 'blur(4px)',
+            direction: 'rtl',
+            fontFamily: "'Cairo', 'Tajawal', sans-serif",
+          }}
+        >
+          <div style={{
+            background: '#fff', borderRadius: 16, padding: '32px 28px',
+            maxWidth: 420, width: '92%', boxShadow: '0 25px 50px -12px rgba(0,0,0,.35)',
+            textAlign: 'center', borderTop: '6px solid #DC2626',
+          }}>
+            <div style={{
+              width: 64, height: 64, margin: '0 auto 16px',
+              borderRadius: '50%', background: '#FEE2E2',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 32,
+            }}>🔒</div>
+            <h2 style={{ margin: '0 0 12px', fontSize: 22, fontWeight: 800, color: '#991B1B' }}>
+              تم إيقاف حسابك
+            </h2>
+            <p style={{ margin: '0 0 8px', fontSize: 15, color: '#475569', lineHeight: 1.7 }}>
+              {suspendedNotice.message}
+            </p>
+            <p style={{ margin: '0 0 20px', fontSize: 13, color: '#94A3B8' }}>
+              سيتم تحويلك لصفحة الدخول خلال ثوانٍ...
+            </p>
+            <button
+              onClick={dismissSuspendedNotice}
+              style={{
+                background: '#DC2626', color: '#fff', border: 'none',
+                borderRadius: 10, padding: '10px 24px', fontSize: 15,
+                fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+              }}
+            >
+              حسناً
+            </button>
+          </div>
+        </div>
+      )}
     </AuthContext.Provider>
   );
 };

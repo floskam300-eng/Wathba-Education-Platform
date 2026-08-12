@@ -254,6 +254,18 @@ export function useSSE(enabled, role) {
             style: { fontFamily: 'inherit', direction: 'rtl' },
           });
         });
+
+        // [Phase 2] Force-logout pushed by the server when this session was
+        // kicked — either by a concurrent login from another device, a
+        // teacher "switch/suspend/reset" action, or a logout. We dispatch
+        // the same wathba_account_suspended event so the AuthProvider UI
+        // shows the modal and routes the user to /login.
+        es.addEventListener('force_logout', (e) => {
+          let data; try { data = JSON.parse(e.data); } catch { return; }
+          window.dispatchEvent(new CustomEvent('wathba_account_suspended', {
+            detail: { message: data.message || 'تم إنهاء جلستك.' }
+          }));
+        });
       }
 
       if (role === 'teacher' || role === 'assistant') {
