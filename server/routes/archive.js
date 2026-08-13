@@ -464,20 +464,27 @@ router.get('/filters', requireRole('teacher', 'assistant'), checkAnyPerm, async 
       // ORDER stages logically: إعدادي first (1st→2nd→3rd), then ثانوي (1st→2nd→3rd),
       // with عام before بكالوريا within the same year, using a CASE sort key.
       pool.query(
-        `SELECT DISTINCT academic_stage FROM students
+        `SELECT academic_stage FROM students
          WHERE teacher_id=$1 AND deleted_at IS NULL AND academic_stage IS NOT NULL
+         GROUP BY academic_stage
          ORDER BY
-           CASE academic_stage
-             WHEN 'الصف الأول الإعدادي'               THEN 1
-             WHEN 'الصف الثاني الإعدادي'               THEN 2
-             WHEN 'الصف الثالث الإعدادي'               THEN 3
-             WHEN 'الصف الأول الثانوي عام'             THEN 4
-             WHEN 'الصف الأول الثانوي بكالوريا'        THEN 5
-             WHEN 'الصف الثاني الثانوي عام'            THEN 6
-             WHEN 'الصف الثاني الثانوي بكالوريا'       THEN 7
-             WHEN 'الصف الثالث الثانوي'                THEN 10
-             ELSE 99
-           END ASC, academic_stage ASC`,
+            CASE academic_stage
+              WHEN 'الصف الأول الابتدائي'              THEN 1
+              WHEN 'الصف الثاني الابتدائي'              THEN 2
+              WHEN 'الصف الثالث الابتدائي'              THEN 3
+              WHEN 'الصف الرابع الابتدائي'              THEN 4
+              WHEN 'الصف الخامس الابتدائي'              THEN 5
+              WHEN 'الصف السادس الابتدائي'              THEN 6
+              WHEN 'الصف الأول الإعدادي'               THEN 7
+              WHEN 'الصف الثاني الإعدادي'               THEN 8
+              WHEN 'الصف الثالث الإعدادي'               THEN 9
+              WHEN 'الصف الأول الثانوي عام'             THEN 10
+              WHEN 'الصف الأول الثانوي بكالوريا'        THEN 11
+              WHEN 'الصف الثاني الثانوي عام'            THEN 12
+              WHEN 'الصف الثاني الثانوي بكالوريا'       THEN 13
+              WHEN 'الصف الثالث الثانوي'                THEN 14
+              ELSE 99
+            END ASC, academic_stage ASC`,
         [teacherId]
       ),
     ]);

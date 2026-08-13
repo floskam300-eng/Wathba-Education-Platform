@@ -11,14 +11,20 @@ import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 
 const STAGE_COLORS = {
+  'الصف الأول الابتدائي': 'bg-rose-50 text-rose-700 border-rose-200',
+  'الصف الثاني الابتدائي': 'bg-pink-50 text-pink-700 border-pink-200',
+  'الصف الثالث الابتدائي': 'bg-amber-50 text-amber-700 border-amber-200',
+  'الصف الرابع الابتدائي': 'bg-orange-50 text-orange-700 border-orange-200',
+  'الصف الخامس الابتدائي': 'bg-lime-50 text-lime-700 border-lime-200',
+  'الصف السادس الابتدائي': 'bg-yellow-50 text-yellow-700 border-yellow-200',
+  'الصف الأول الإعدادي': 'bg-green-50 text-green-700 border-green-200',
+  'الصف الثاني الإعدادي': 'bg-teal-50 text-teal-700 border-teal-200',
+  'الصف الثالث الإعدادي': 'bg-cyan-50 text-cyan-700 border-cyan-200',
   'الصف الأول الثانوي عام': 'bg-blue-50 text-blue-700 border-blue-200',
   'الصف الأول الثانوي بكالوريا': 'bg-sky-50 text-sky-700 border-sky-200',
   'الصف الثاني الثانوي عام': 'bg-indigo-50 text-indigo-700 border-indigo-200',
   'الصف الثاني الثانوي بكالوريا': 'bg-violet-50 text-violet-700 border-violet-200',
   'الصف الثالث الثانوي': 'bg-purple-50 text-purple-700 border-purple-200',
-  'الصف الأول الإعدادي': 'bg-green-50 text-green-700 border-green-200',
-  'الصف الثاني الإعدادي': 'bg-teal-50 text-teal-700 border-teal-200',
-  'الصف الثالث الإعدادي': 'bg-cyan-50 text-cyan-700 border-cyan-200',
   'جامعي': 'bg-orange-50 text-orange-700 border-orange-200',
 };
 

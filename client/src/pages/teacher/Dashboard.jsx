@@ -21,14 +21,20 @@ import { useAuth } from '../../context/AuthContext';
 import { useTeacher } from '../../context/TeacherContext';
 
 const STAGE_COLORS = {
+  'الصف الأول الابتدائي': 'bg-rose-50 text-rose-700 border-rose-100',
+  'الصف الثاني الابتدائي': 'bg-pink-50 text-pink-700 border-pink-100',
+  'الصف الثالث الابتدائي': 'bg-amber-50 text-amber-700 border-amber-100',
+  'الصف الرابع الابتدائي': 'bg-orange-50 text-orange-700 border-orange-100',
+  'الصف الخامس الابتدائي': 'bg-lime-50 text-lime-700 border-lime-100',
+  'الصف السادس الابتدائي': 'bg-yellow-50 text-yellow-700 border-yellow-100',
+  'الصف الأول الإعدادي': 'bg-emerald-50 text-emerald-700 border-emerald-100',
+  'الصف الثاني الإعدادي': 'bg-teal-50 text-teal-700 border-teal-100',
+  'الصف الثالث الإعدادي': 'bg-cyan-50 text-cyan-700 border-cyan-100',
   'الصف الأول الثانوي عام': 'bg-blue-50 text-blue-700 border-blue-100',
   'الصف الأول الثانوي بكالوريا': 'bg-sky-50 text-sky-700 border-sky-100',
   'الصف الثاني الثانوي عام': 'bg-indigo-50 text-indigo-700 border-indigo-100',
   'الصف الثاني الثانوي بكالوريا': 'bg-violet-50 text-violet-700 border-violet-100',
   'الصف الثالث الثانوي': 'bg-purple-50 text-purple-700 border-purple-100',
-  'الصف الأول الإعدادي': 'bg-emerald-50 text-emerald-700 border-emerald-100',
-  'الصف الثاني الإعدادي': 'bg-teal-50 text-teal-700 border-teal-100',
-  'الصف الثالث الإعدادي': 'bg-cyan-50 text-cyan-700 border-cyan-100',
 };
 
 

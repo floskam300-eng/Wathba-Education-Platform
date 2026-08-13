@@ -22,36 +22,54 @@ function FieldError({ error }) {
 }
 
 const STAGES = [
+  'الصف الأول الابتدائي',
+  'الصف الثاني الابتدائي',
+  'الصف الثالث الابتدائي',
+  'الصف الرابع الابتدائي',
+  'الصف الخامس الابتدائي',
+  'الصف السادس الابتدائي',
+  'الصف الأول الإعدادي',
+  'الصف الثاني الإعدادي',
+  'الصف الثالث الإعدادي',
   'الصف الأول الثانوي عام',
   'الصف الأول الثانوي بكالوريا',
   'الصف الثاني الثانوي عام',
   'الصف الثاني الثانوي بكالوريا',
   'الصف الثالث الثانوي',
-  'الصف الأول الإعدادي',
-  'الصف الثاني الإعدادي',
-  'الصف الثالث الإعدادي'
 ];
 
 const STAGE_PREFIX_LABELS = {
+  'الصف الأول الابتدائي': 'P1',
+  'الصف الثاني الابتدائي': 'P2',
+  'الصف الثالث الابتدائي': 'P3',
+  'الصف الرابع الابتدائي': 'P4',
+  'الصف الخامس الابتدائي': 'P5',
+  'الصف السادس الابتدائي': 'P6',
+  'الصف الأول الإعدادي': 'A',
+  'الصف الثاني الإعدادي': 'B',
+  'الصف الثالث الإعدادي': 'C',
   'الصف الأول الثانوي عام': 'HA',
   'الصف الأول الثانوي بكالوريا': 'HB',
   'الصف الثاني الثانوي عام': 'NA',
   'الصف الثاني الثانوي بكالوريا': 'NB',
   'الصف الثالث الثانوي': 'T',
-  'الصف الأول الإعدادي': 'A',
-  'الصف الثاني الإعدادي': 'B',
-  'الصف الثالث الإعدادي': 'C',
 };
 
 const STAGE_COLORS = {
+  'الصف الأول الابتدائي': 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800/50',
+  'الصف الثاني الابتدائي': 'bg-pink-50 dark:bg-pink-950/40 text-pink-700 dark:text-pink-300 border-pink-200 dark:border-pink-800/50',
+  'الصف الثالث الابتدائي': 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/50',
+  'الصف الرابع الابتدائي': 'bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800/50',
+  'الصف الخامس الابتدائي': 'bg-lime-50 dark:bg-lime-950/40 text-lime-700 dark:text-lime-300 border-lime-200 dark:border-lime-800/50',
+  'الصف السادس الابتدائي': 'bg-yellow-50 dark:bg-yellow-950/40 text-yellow-700 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800/50',
+  'الصف الأول الإعدادي': 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/50',
+  'الصف الثاني الإعدادي': 'bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800/50',
+  'الصف الثالث الإعدادي': 'bg-cyan-50 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-300 border-cyan-200 dark:border-cyan-800/50',
   'الصف الأول الثانوي عام': 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800/50',
   'الصف الأول الثانوي بكالوريا': 'bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800/50',
   'الصف الثاني الثانوي عام': 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800/50',
   'الصف الثاني الثانوي بكالوريا': 'bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 border-violet-200 dark:border-violet-800/50',
   'الصف الثالث الثانوي': 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800/50',
-  'الصف الأول الإعدادي': 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/50',
-  'الصف الثاني الإعدادي': 'bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800/50',
-  'الصف الثالث الإعدادي': 'bg-cyan-50 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-300 border-cyan-200 dark:border-cyan-800/50',
 };
 
 const emptyForm = {
