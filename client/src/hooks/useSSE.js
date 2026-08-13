@@ -350,7 +350,7 @@ export function useSSE(enabled, role) {
         es.addEventListener('recitation_submitted', (e) => {
           let data; try { data = JSON.parse(e.data); } catch { return; }
           qc.invalidateQueries({ queryKey: ['recitations'] });
-          qc.invalidateQueries({ queryKey: ['recitation-results'] });
+          qc.invalidateQueries({ queryKey: ['recitation-participants'] });
           qc.invalidateQueries({ queryKey: ['recitations-analytics'] });
         });
 
@@ -361,7 +361,7 @@ export function useSSE(enabled, role) {
         // teacher queries here is harmless if no event ever fires.
         es.addEventListener('recitation_retake_granted', () => {
           qc.invalidateQueries({ queryKey: ['recitations'] });
-          qc.invalidateQueries({ queryKey: ['recitation-results'] });
+          qc.invalidateQueries({ queryKey: ['recitation-participants'] });
           qc.invalidateQueries({ queryKey: ['recitation-retake-grants'] });
           qc.invalidateQueries({ queryKey: ['recitations-analytics'] });
         });

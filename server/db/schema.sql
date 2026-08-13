@@ -1111,6 +1111,8 @@ CREATE INDEX IF NOT EXISTS idx_recitations_course ON recitations(course_id);
 CREATE INDEX IF NOT EXISTS idx_recitations_video_ids ON recitations USING GIN (video_ids);
 CREATE INDEX IF NOT EXISTS idx_recitation_results_student ON recitation_results(student_id);
 CREATE INDEX IF NOT EXISTS idx_recitation_results_recitation ON recitation_results(recitation_id);
+CREATE INDEX IF NOT EXISTS idx_recitation_results_rec_student_created
+  ON recitation_results(recitation_id, student_id, created_at DESC, id DESC);
 -- [SH-1] Store shuffled questions snapshot so review endpoint uses correct correct_answer_letter
 ALTER TABLE recitation_results ADD COLUMN IF NOT EXISTS questions_snapshot JSONB DEFAULT NULL;
 

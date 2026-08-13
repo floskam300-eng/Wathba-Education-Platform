@@ -1322,6 +1322,165 @@ router.get('/:id/results', requireRole('teacher', 'assistant'), checkManageRecit
   }
 });
 
+// GET /api/recitations/:id/participants
+// Returns one lightweight summary per student. The old /results endpoint above
+// remains available for callers that need the raw result rows, while the
+// teacher-facing lists use this paginated endpoint so answer snapshots are not
+// transferred for every student at once.
+router.get('/:id/participants', requireRole('teacher', 'assistant'), checkManageRecitationsPerm, async (req, res) => {
+  const id = parseParamId(req.params.id);
+  if (!id) return res.status(400).json({ error: 'Invalid ID' });
+
+  const page = Math.min(10000, Math.max(1, parseInt(req.query.page, 10) || 1));
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 50));
+  const offset = (page - 1) * limit;
+  const rawSearch = typeof req.query.q === 'string' ? req.query.q.trim().slice(0, 100) : '';
+
+  try {
+    const teacherId = getTeacherId(req);
+    const rec = await getRecitationForOwner(id, teacherId);
+    if (!rec) return res.status(404).json({ error: 'التسميع غير موجود' });
+
+    const params = [id, teacherId];
+    let searchClause = 'WHERE TRUE';
+    if (rawSearch) {
+      const escaped = rawSearch
+        .replace(/\\/g, '\\\\')
+        .replace(/%/g, '\\%')
+        .replace(/_/g, '\\_');
+      params.push(`%${escaped}%`);
+      const searchParam = `$${params.length}`;
+      searchClause = `WHERE (student_name ILIKE ${searchParam} ESCAPE '\\'
+                   OR student_username ILIKE ${searchParam} ESCAPE '\\'
+                   OR student_phone ILIKE ${searchParam} ESCAPE '\\')`;
+    }
+
+    const participantCte = `
+      WITH attempt_rows AS (
+        SELECT rr.id, rr.student_id, rr.recitation_id, rr.score, rr.correct_count, rr.wrong_count,
+               rr.is_absent, rr.passed, rr.created_at,
+               s.name AS student_name, s.username AS student_username, s.phone AS student_phone,
+               s.academic_stage,
+               r.total_score, r.pass_score,
+               ROW_NUMBER() OVER (
+                 PARTITION BY rr.student_id
+                 ORDER BY rr.created_at DESC, rr.id DESC
+               ) AS attempt_rank,
+               COUNT(*) OVER (PARTITION BY rr.student_id)::int AS attempt_count,
+               FIRST_VALUE(rr.score) OVER (
+                 PARTITION BY rr.student_id
+                 ORDER BY rr.created_at ASC, rr.id ASC
+               ) AS first_score,
+               FIRST_VALUE(rr.passed) OVER (
+                 PARTITION BY rr.student_id
+                 ORDER BY rr.created_at ASC, rr.id ASC
+               ) AS first_passed,
+               FIRST_VALUE(rr.created_at) OVER (
+                 PARTITION BY rr.student_id
+                 ORDER BY rr.created_at ASC, rr.id ASC
+               ) AS first_submitted_at
+          FROM recitation_results rr
+          JOIN recitations r ON r.id = rr.recitation_id
+          JOIN students s ON s.id = rr.student_id
+         WHERE rr.recitation_id = $1 AND s.teacher_id = $2
+      ), participant_summaries AS (
+        SELECT a.id, a.student_id, a.student_name, a.student_username, a.student_phone,
+               a.academic_stage, a.total_score, a.pass_score, a.score,
+               a.correct_count, a.wrong_count, a.is_absent, a.passed, a.created_at,
+               a.attempt_count, a.first_score, a.first_passed, a.first_submitted_at,
+               COALESCE(g.unused_grants, 0)::int AS unused_grants
+          FROM attempt_rows a
+          LEFT JOIN LATERAL (
+            SELECT COUNT(*)::int AS unused_grants
+              FROM recitation_retake_grants
+             WHERE recitation_id = a.recitation_id
+               AND student_id = a.student_id
+               AND used_at IS NULL
+          ) g ON TRUE
+         WHERE a.attempt_rank = 1
+      )`;
+
+    const countRes = await pool.query(
+      `${participantCte}
+       SELECT COUNT(*)::int AS total,
+              COUNT(*) FILTER (WHERE is_absent = false)::int AS participated,
+              COUNT(*) FILTER (WHERE is_absent = true)::int AS absent,
+              COALESCE(ROUND(AVG(score::numeric) FILTER (WHERE is_absent = false)), 0)::int AS avg_score,
+              COUNT(*) FILTER (WHERE is_absent = false AND passed = true)::int AS passed_count,
+              (SELECT COUNT(*)::int
+                 FROM recitation_retake_grants
+                WHERE recitation_id = $1 AND used_at IS NULL) AS active_grants
+         FROM participant_summaries
+         ${searchClause}`,
+      params
+    );
+
+    const dataParams = [...params, limit, offset];
+    const limitParam = `$${params.length + 1}`;
+    const offsetParam = `$${params.length + 2}`;
+    const dataRes = await pool.query(
+      `${participantCte}
+       SELECT id, student_id, student_name, student_username, academic_stage,
+              total_score, pass_score, score, correct_count, wrong_count,
+              is_absent, passed, created_at, attempt_count, first_score,
+              first_passed, first_submitted_at, unused_grants
+         FROM participant_summaries
+         ${searchClause}
+        ORDER BY created_at DESC, id DESC
+        LIMIT ${limitParam} OFFSET ${offsetParam}`,
+      dataParams
+    );
+
+    const stats = countRes.rows[0] || {};
+    res.json({
+      students: dataRes.rows,
+      total: Number(stats.total) || 0,
+      page,
+      limit,
+      stats: {
+        participated: Number(stats.participated) || 0,
+        absent: Number(stats.absent) || 0,
+        avg_score: Number(stats.avg_score) || 0,
+        passed_count: Number(stats.passed_count) || 0,
+        active_grants: Number(stats.active_grants) || 0,
+      },
+    });
+  } catch (err) {
+    console.error('[recitations GET /:id/participants]', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /api/recitations/:id/participants/:studentId/attempts
+// Attempt history is loaded only when a teacher expands a student row.
+router.get('/:id/participants/:studentId/attempts', requireRole('teacher', 'assistant'), checkManageRecitationsPerm, async (req, res) => {
+  const id = parseParamId(req.params.id);
+  const studentId = parseParamId(req.params.studentId);
+  if (!id || !studentId) return res.status(400).json({ error: 'Invalid ID' });
+
+  try {
+    const teacherId = getTeacherId(req);
+    const rec = await getRecitationForOwner(id, teacherId);
+    if (!rec) return res.status(404).json({ error: 'التسميع غير موجود' });
+
+    const { rows } = await pool.query(
+      `SELECT rr.id, rr.student_id, rr.score, rr.correct_count, rr.wrong_count,
+              rr.is_absent, rr.passed, rr.created_at,
+              r.total_score, r.pass_score
+         FROM recitation_results rr
+         JOIN recitations r ON r.id = rr.recitation_id
+         JOIN students s ON s.id = rr.student_id
+        WHERE rr.recitation_id = $1 AND rr.student_id = $2 AND s.teacher_id = $3
+        ORDER BY rr.created_at DESC, rr.id DESC`,
+      [id, studentId, teacherId]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('[recitations GET /:id/participants/:studentId/attempts]', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ════════════════════════════════════════════════════════════════════════════════
 // STUDENT SESSION ROUTES
 // ════════════════════════════════════════════════════════════════════════════════

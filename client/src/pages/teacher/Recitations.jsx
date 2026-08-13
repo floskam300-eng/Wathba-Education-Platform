@@ -1,11 +1,11 @@
-import React, { useState, useMemo, useRef } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
   BookOpen, Plus, Trash2, Settings, ChevronDown, ChevronUp,
   CheckCircle, XCircle, Clock, Users, BarChart2, Edit3,
   AlertCircle, Eye, FileText, RefreshCw, Flame, Image as ImageIcon, Upload, ZoomIn,
-  Gift, X, Loader2
+  Gift, X, Loader2, Search
 } from 'lucide-react';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
@@ -92,6 +92,60 @@ const emptyForm = {
 
 const emptyQ = { question_text: '', question_image_url: '', question_type: 'mcq', option_a: '', option_b: '', option_c: '', option_d: '', correct_answer_letter: 'A', points: 1, sub_questions: [] };
 
+const PARTICIPANT_PAGE_SIZE = 50;
+
+function useDebouncedValue(value, delay = 400) {
+  const [debounced, setDebounced] = useState(value);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+
+  return debounced;
+}
+
+function useRecitationParticipants(recitationId, search, refetchInterval = 15000) {
+  const debouncedSearch = useDebouncedValue(search);
+
+  return useInfiniteQuery({
+    queryKey: ['recitation-participants', recitationId, debouncedSearch],
+    queryFn: ({ pageParam = 1 }) => api.get(`/recitations/${recitationId}/participants`, {
+      params: {
+        page: pageParam,
+        limit: PARTICIPANT_PAGE_SIZE,
+        ...(debouncedSearch.trim() ? { q: debouncedSearch.trim() } : {}),
+      },
+    }).then(r => r.data),
+    enabled: !!recitationId,
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => {
+      const loaded = lastPage.page * lastPage.limit;
+      return loaded < lastPage.total ? lastPage.page + 1 : undefined;
+    },
+    refetchInterval: recitationId ? refetchInterval : false,
+    refetchIntervalInBackground: false,
+  });
+}
+
+function useLoadMoreOnIntersect({ hasNextPage, isFetchingNextPage, fetchNextPage, rootRef = null }) {
+  const sentinelRef = useRef(null);
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel || !hasNextPage || isFetchingNextPage) return undefined;
+
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting && !isFetchingNextPage) fetchNextPage();
+    }, { root: rootRef?.current || null, rootMargin: '300px' });
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage, rootRef]);
+
+  return sentinelRef;
+}
+
 export default function Recitations() {
   const { dark } = useTheme();
   const navigate = useNavigate();
@@ -157,18 +211,6 @@ export default function Recitations() {
     enabled: !!form.course_id,
   });
 
-  const { data: results = [] } = useQuery({
-    queryKey: ['recitation-results', selectedId],
-    queryFn: () => selectedId ? api.get(`/recitations/${selectedId}/results`).then(r => r.data) : [],
-    enabled: !!selectedId,
-    // [real-time] Safety-net poll in case SSE drops; primary updates come from
-    // the recitation_submitted / recitation_retake_granted SSE listeners which
-    // invalidate this query key.  15s is small enough to feel live and large
-    // enough to not hammer the server for idle teachers.
-    refetchInterval: selectedId ? 15000 : false,
-    refetchIntervalInBackground: false,
-  });
-
   const { data: analytics } = useQuery({
     queryKey: ['recitations-analytics'],
     queryFn: () => api.get('/recitations/analytics').then(r => r.data),
@@ -210,7 +252,7 @@ export default function Recitations() {
       api.post(`/recitations/${recitation_id}/grant-retake`, { student_id, note }),
     onSuccess: (res, vars) => {
       qc.invalidateQueries({ queryKey: ['recitations'] });
-      qc.invalidateQueries({ queryKey: ['recitation-results', vars.recitation_id] });
+      qc.invalidateQueries({ queryKey: ['recitation-participants', vars.recitation_id] });
       qc.invalidateQueries({ queryKey: ['recitation-retake-grants', vars.recitation_id] });
       toast.success('تم منح محاولة إضافية للطالب 🎁');
     },
@@ -449,7 +491,7 @@ export default function Recitations() {
                 </div>
 
                 {/* Results */}
-                <ResultsPanel results={results} rec={selectedRec} dark={dark} cardCls={cardCls} navigate={navigate} baseRole={baseRole} grantMut={grantMut} />
+                <ResultsPanel key={selectedRec.id} rec={selectedRec} dark={dark} cardCls={cardCls} navigate={navigate} baseRole={baseRole} grantMut={grantMut} />
               </div>
             )}
           </div>
@@ -1267,45 +1309,130 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
   );
 }
 
-function ResultsPanel({ results, rec, dark, cardCls, navigate, baseRole = 'teacher', grantMut }) {
-  const [expandedStudent, setExpandedStudent] = useState(null);
+function ParticipantAttemptHistory({ recitationId, studentId, rec, dark, navigate, baseRole }) {
+  const { data: attempts = [], isLoading } = useQuery({
+    queryKey: ['recitation-participant-attempts', recitationId, studentId],
+    queryFn: () => api.get(`/recitations/${recitationId}/participants/${studentId}/attempts`).then(r => r.data),
+    enabled: !!recitationId && !!studentId,
+  });
 
-  if (results.length === 0)
+  if (isLoading) {
     return (
-      <div className={`${cardCls} text-center py-8`}>
-        <Users className={`w-10 h-10 mx-auto mb-2 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-300'}`} />
-        <p className={`text-sm ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>لا توجد نتائج بعد</p>
+      <div className={`flex items-center justify-center py-3 text-xs ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>
+        <Loader2 className="w-4 h-4 animate-spin ml-1" /> جار تحميل سجل المحاولات...
       </div>
     );
-
-  // Group by student: keep latest result per student + all their attempts
-  const studentMap = new Map();
-  for (const r of results) {
-    if (!studentMap.has(r.student_id)) {
-      studentMap.set(r.student_id, { latest: r, all: [r] });
-    } else {
-      studentMap.get(r.student_id).all.push(r);
-    }
   }
-  const grouped = Array.from(studentMap.values());
 
-  // [STATS-FIX] Exclude absent students from avg/pass-rate stats
-  // (absent students have is_absent=true and score=0 which skews numbers down).
-  const nonAbsent = grouped.filter(g => !g.latest.is_absent);
-  const absentCount = grouped.length - nonAbsent.length;
-  const uniqueStudents = nonAbsent.length;
-  const avgScore = uniqueStudents > 0
-    ? Math.round(nonAbsent.reduce((s, g) => s + g.latest.score, 0) / uniqueStudents)
-    : 0;
-  const passedCount = nonAbsent.filter(g => g.latest.passed).length;
+  if (attempts.length === 0) return null;
+
+  return (
+    <div className={`rounded-xl overflow-hidden border ${dark ? 'border-[var(--dk-border)]' : 'border-gray-100'}`}>
+      {attempts.map((attempt, idx) => (
+        <div key={attempt.id} className={`flex items-center justify-between px-3 py-2 gap-3 ${idx > 0 ? (dark ? 'border-t border-[var(--dk-border)]' : 'border-t border-gray-100') : ''} ${dark ? 'bg-[var(--dk-elevated)]' : 'bg-gray-50'}`}>
+          <div className="flex items-center gap-2">
+            <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${attempt.is_absent ? 'bg-gray-100 text-gray-600' : attempt.passed ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+              {attempt.is_absent ? 'غائب' : `محاولة ${attempts.length - idx}`}
+            </span>
+            <span className={`text-xs ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>
+              {new Date(attempt.created_at).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`font-bold text-sm ${attempt.is_absent ? 'text-gray-400' : attempt.passed ? 'text-green-600' : 'text-red-500'}`}>
+              {attempt.score}/{rec.total_score}
+            </span>
+            {navigate && (
+              <button onClick={() => navigate(`/${baseRole}/recitation-review/${attempt.id}`)}
+                className="p-1 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-600 transition-colors"
+                title="مراجعة">
+                <Eye className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ResultsPanel({ rec, dark, cardCls, navigate, baseRole = 'teacher', grantMut }) {
+  const [expandedStudent, setExpandedStudent] = useState(null);
+  const [studentSearch, setStudentSearch] = useState('');
+  const {
+    data,
+    isLoading,
+    isError,
+    isFetching,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+  } = useRecitationParticipants(rec.id, studentSearch);
+  const students = useMemo(() => data?.pages?.flatMap(page => page.students || []) || [], [data]);
+  const firstPage = data?.pages?.[0];
+  const stats = firstPage?.stats || { participated: 0, absent: 0, avg_score: 0, passed_count: 0 };
+  const total = firstPage?.total || 0;
+  const sentinelRef = useLoadMoreOnIntersect({ hasNextPage, isFetchingNextPage, fetchNextPage });
+
+  const searchInput = (
+    <div className="relative">
+      <Search className={`absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`} />
+      {isFetching && !isFetchingNextPage && (
+        <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-500 animate-spin" />
+      )}
+      <input
+        value={studentSearch}
+        onChange={e => setStudentSearch(e.target.value)}
+        placeholder="بحث باسم الطالب أو الكود أو الهاتف..."
+        aria-label="بحث في طلاب التسميع"
+        className={`w-full rounded-xl px-3 py-2.5 pr-10 text-sm border transition-colors ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)] placeholder-[var(--dk-text-2)]' : 'bg-white border-gray-200 text-gray-800'}`}
+      />
+    </div>
+  );
+
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        {searchInput}
+        {[...Array(3)].map((_, i) => <div key={i} className={`${cardCls} h-20 animate-pulse`} />)}
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="space-y-3">
+        {searchInput}
+        <div className={`${cardCls} text-center py-8`}>
+          <AlertCircle className="w-10 h-10 mx-auto mb-2 text-red-400" />
+          <p className={`text-sm ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>تعذر تحميل نتائج الطلاب</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (students.length === 0) {
+    return (
+      <div className="space-y-3">
+        {searchInput}
+        <div className={`${cardCls} text-center py-8`}>
+          <Users className={`w-10 h-10 mx-auto mb-2 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-300'}`} />
+          <p className={`text-sm ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>
+            {studentSearch.trim() ? 'لا توجد نتائج مطابقة' : 'لا توجد نتائج بعد'}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">
+      {searchInput}
       <div className="grid grid-cols-3 gap-2">
         {[
-          { label: 'شاركوا', value: uniqueStudents, color: 'purple' },
-          { label: 'متوسط الدرجة', value: uniqueStudents > 0 ? `${avgScore}/${rec.total_score}` : '-', color: 'blue' },
-          { label: 'نسبة النجاح', value: uniqueStudents > 0 ? `${Math.round(passedCount/uniqueStudents*100)}%` : '-', color: 'green' },
+          { label: 'شاركوا', value: stats.participated, color: 'purple' },
+          { label: 'متوسط الدرجة', value: stats.participated > 0 ? `${stats.avg_score}/${rec.total_score}` : '-', color: 'blue' },
+          { label: 'نسبة النجاح', value: stats.participated > 0 ? `${Math.round(stats.passed_count / stats.participated * 100)}%` : '-', color: 'green' },
         ].map(({ label, value, color }) => (
           <div key={label} className={`rounded-xl p-3 text-center ${dark ? 'bg-[var(--dk-elevated)]' : `bg-${color}-50`}`}>
             <div className={`text-xl font-black text-${color}-600`}>{value}</div>
@@ -1313,21 +1440,18 @@ function ResultsPanel({ results, rec, dark, cardCls, navigate, baseRole = 'teach
           </div>
         ))}
       </div>
-      {absentCount > 0 && (
+      {stats.absent > 0 && (
         <div className={`text-xs font-semibold px-3 py-1.5 rounded-xl flex items-center gap-1.5 ${dark ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>
-          <span>⚠️</span> {absentCount} طالب غائب (مستبعد من الإحصائيات)
+          <span>⚠️</span> {stats.absent} طالب غائب (مستبعد من الإحصائيات)
         </div>
       )}
-      {grouped.map(({ latest: r, all }) => {
-        const attemptCount = parseInt(r.attempt_count) || all.length;
+      {students.map(r => {
+        const attemptCount = parseInt(r.attempt_count, 10) || 1;
         const isExpanded = expandedStudent === r.student_id;
         const hasMultiple = attemptCount > 1;
         const firstScore = parseFloat(r.first_score);
-        const latestScore = r.score;
+        const latestScore = Number(r.score) || 0;
         const scoreDiff = latestScore - firstScore;
-        // [retake-grant] unused_grants comes from the LEFT JOIN LATERAL in
-        // GET /api/recitations/:id/results. 0 = no pending grant; >0 = the
-        // teacher has already granted at least one extra attempt.
         const unusedGrants = parseInt(r.unused_grants, 10) || 0;
         const isAbsent = r.is_absent === true || r.is_absent === 'true';
 
@@ -1342,17 +1466,13 @@ function ResultsPanel({ results, rec, dark, cardCls, navigate, baseRole = 'teach
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className={`font-bold text-sm ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>{r.student_name}</p>
                     {isAbsent && (
-                      <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600">
-                        غائب
-                      </span>
+                      <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600">غائب</span>
                     )}
                     {hasMultiple && (
                       <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">
                         {attemptCount} محاولات
                       </span>
                     )}
-                    {/* [retake-grant] Purple badge when the teacher has already
-                        issued one or more unused grants for this student. */}
                     {unusedGrants > 0 && (
                       <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 inline-flex items-center gap-1"
                             title={`منحت ${unusedGrants} محاولة إضافية لم تستخدم بعد`}>
@@ -1382,9 +1502,6 @@ function ResultsPanel({ results, rec, dark, cardCls, navigate, baseRole = 'teach
                     {r.correct_count}✓ {r.wrong_count}✗
                   </p>
                 </div>
-                {/* [retake-grant] Inline button next to each student — same
-                    mutation the modal uses, so either surface produces the
-                    same badge / toast / cache refresh. */}
                 {grantMut && !isAbsent && (
                   <button
                     onClick={() => grantMut.mutate({ recitation_id: rec.id, student_id: r.student_id })}
@@ -1419,36 +1536,22 @@ function ResultsPanel({ results, rec, dark, cardCls, navigate, baseRole = 'teach
             </div>
 
             {isExpanded && hasMultiple && (
-              <div className={`rounded-xl overflow-hidden border ${dark ? 'border-[var(--dk-border)]' : 'border-gray-100'}`}>
-                {all.map((attempt, idx) => (
-                  <div key={attempt.id} className={`flex items-center justify-between px-3 py-2 gap-3 ${idx > 0 ? (dark ? 'border-t border-[var(--dk-border)]' : 'border-t border-gray-100') : ''} ${dark ? 'bg-[var(--dk-elevated)]' : 'bg-gray-50'}`}>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${attempt.passed ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                        محاولة {all.length - idx}
-                      </span>
-                      <span className={`text-xs ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>
-                        {new Date(attempt.created_at).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`font-bold text-sm ${attempt.passed ? 'text-green-600' : 'text-red-500'}`}>
-                        {attempt.score}/{rec.total_score}
-                      </span>
-                      {navigate && (
-                        <button onClick={() => navigate(`/${baseRole}/recitation-review/${attempt.id}`)}
-                          className="p-1 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-600 transition-colors"
-                          title="مراجعة">
-                          <Eye className="w-3 h-3" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <ParticipantAttemptHistory
+                recitationId={rec.id}
+                studentId={r.student_id}
+                rec={rec}
+                dark={dark}
+                navigate={navigate}
+                baseRole={baseRole}
+              />
             )}
           </div>
         );
       })}
+      <div ref={sentinelRef} className={`flex items-center justify-center min-h-8 text-xs ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>
+        {isFetchingNextPage && <><Loader2 className="w-4 h-4 animate-spin ml-1" /> جار تحميل المزيد...</>}
+        {!hasNextPage && total > PARTICIPANT_PAGE_SIZE && <span>تم تحميل جميع الطلاب المطابقين</span>}
+      </div>
     </div>
   );
 }
@@ -1556,21 +1659,26 @@ function RetakeGrantModal({ recitationId, onClose, dark }) {
   const [note, setNote] = useState('');
   const [confirmId, setConfirmId] = useState(null);
   const [successIds, setSuccessIds] = useState(new Set());
-
-  const { data: results = [], isLoading } = useQuery({
-    queryKey: ['recitation-results', recitationId],
-    queryFn: () => api.get(`/recitations/${recitationId}/results`).then(r => r.data),
-    // Modal-local refetch so the badge stays fresh while the teacher grants
-    // multiple students in succession (without round-tripping through parent).
-    refetchInterval: 10000,
-    refetchIntervalInBackground: false,
-  });
-
-  const { data: grants = [] } = useQuery({
-    queryKey: ['recitation-retake-grants', recitationId],
-    queryFn: () => api.get(`/recitations/${recitationId}/retake-grants`).then(r => r.data),
-    refetchInterval: 10000,
-    refetchIntervalInBackground: false,
+  const [studentSearch, setStudentSearch] = useState('');
+  const listRef = useRef(null);
+  const {
+    data,
+    isLoading,
+    isError,
+    isFetching,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+  } = useRecitationParticipants(recitationId, studentSearch, 10000);
+  const students = useMemo(() => data?.pages?.flatMap(page => page.students || []) || [], [data]);
+  const firstPage = data?.pages?.[0];
+  const total = firstPage?.total || 0;
+  const activeGrants = firstPage?.stats?.active_grants || 0;
+  const sentinelRef = useLoadMoreOnIntersect({
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+    rootRef: listRef,
   });
 
   const grantMut = useMutation({
@@ -1578,15 +1686,11 @@ function RetakeGrantModal({ recitationId, onClose, dark }) {
       api.post(`/recitations/${recitationId}/grant-retake`, { student_id, note: note || null }),
     onSuccess: (_res, vars) => {
       qc.invalidateQueries({ queryKey: ['recitations'] });
-      qc.invalidateQueries({ queryKey: ['recitation-results', recitationId] });
-      qc.invalidateQueries({ queryKey: ['recitation-retake-grants', recitationId] });
+      qc.invalidateQueries({ queryKey: ['recitation-participants', recitationId] });
       setConfirmId(null);
       setNote('');
       setSuccessIds(prev => new Set(prev).add(vars.student_id));
       toast.success('تم منح محاولة إضافية 🎁');
-      // Clear the success flash after a few seconds so the row reverts to
-      // the normal "grant" button but the new badge stays (the badge comes
-      // from the freshly-refetched results row).
       setTimeout(() => {
         setSuccessIds(prev => {
           const n = new Set(prev);
@@ -1598,25 +1702,6 @@ function RetakeGrantModal({ recitationId, onClose, dark }) {
     onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ أثناء المنح'),
   });
 
-  // Group results by student to get the latest row (mirrors ResultsPanel logic).
-  const studentMap = useMemo(() => {
-    const m = new Map();
-    for (const r of results) {
-      if (!m.has(r.student_id)) m.set(r.student_id, { latest: r, all: [r] });
-      else m.get(r.student_id).all.push(r);
-    }
-    return m;
-  }, [results]);
-  const grouped = Array.from(studentMap.values());
-
-  const grantCountByStudent = useMemo(() => {
-    const counts = {};
-    for (const g of grants) {
-      if (!g.used_at) counts[g.student_id] = (counts[g.student_id] || 0) + 1;
-    }
-    return counts;
-  }, [grants]);
-
   const overlay = dark ? 'bg-black/70' : 'bg-black/50';
   const surface = dark ? 'bg-[var(--dk-surface)] border-[var(--dk-border)]' : 'bg-white border-gray-100';
   const elev = dark ? 'bg-[var(--dk-elevated)]' : 'bg-gray-50';
@@ -1624,6 +1709,9 @@ function RetakeGrantModal({ recitationId, onClose, dark }) {
   const textSec = dark ? 'text-[var(--dk-text-2)]' : 'text-gray-500';
   const inputCls = dark
     ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)] placeholder-gray-500'
+    : 'bg-white border-gray-200 text-gray-800';
+  const searchCls = dark
+    ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)] placeholder-[var(--dk-text-2)]'
     : 'bg-white border-gray-200 text-gray-800';
 
   return (
@@ -1660,21 +1748,45 @@ function RetakeGrantModal({ recitationId, onClose, dark }) {
           />
         </div>
 
+        {/* Search only the students returned by this recitation. */}
+        <div className={`px-5 py-3 border-b ${dark ? 'border-[var(--dk-border)]' : 'border-gray-100'}`}>
+          <div className="relative">
+            <Search className={`absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 ${textSec}`} />
+            {isFetching && !isFetchingNextPage && (
+              <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500 animate-spin" />
+            )}
+            <input
+              value={studentSearch}
+              onChange={e => setStudentSearch(e.target.value)}
+              placeholder="بحث باسم الطالب أو الكود أو الهاتف..."
+              aria-label="بحث في طلاب التسميع لمنح محاولة إضافية"
+              className={`w-full rounded-xl px-3 py-2 text-sm border pr-10 ${searchCls}`}
+            />
+          </div>
+        </div>
+
         {/* Student list */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+        <div ref={listRef} className="flex-1 overflow-y-auto p-4 space-y-2">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className={`w-6 h-6 animate-spin ${textSec}`} />
             </div>
-          ) : grouped.length === 0 ? (
+          ) : isError ? (
+            <div className="text-center py-12">
+              <AlertCircle className="w-10 h-10 mx-auto mb-2 text-red-400" />
+              <p className={`text-sm ${textSec}`}>تعذر تحميل قائمة الطلاب</p>
+            </div>
+          ) : students.length === 0 ? (
             <div className="text-center py-12">
               <Users className={`w-10 h-10 mx-auto mb-2 ${textSec}`} />
-              <p className={`text-sm ${textSec}`}>لا يوجد طلاب سلّموا هذا التسميع بعد</p>
+              <p className={`text-sm ${textSec}`}>
+                {studentSearch.trim() ? 'لا توجد نتائج مطابقة' : 'لا يوجد طلاب سلّموا هذا التسميع بعد'}
+              </p>
             </div>
-          ) : grouped.map(({ latest: r, all }) => {
-            const attemptCount = parseInt(r.attempt_count) || all.length;
+          ) : students.map(r => {
+            const attemptCount = parseInt(r.attempt_count, 10) || 1;
             const isAbsent = r.is_absent === true || r.is_absent === 'true';
-            const unusedGrants = grantCountByStudent[r.student_id] || 0;
+            const unusedGrants = parseInt(r.unused_grants, 10) || 0;
             const isConfirming = confirmId === r.student_id;
             const justSucceeded = successIds.has(r.student_id);
 
@@ -1740,12 +1852,18 @@ function RetakeGrantModal({ recitationId, onClose, dark }) {
               </div>
             );
           })}
+          {students.length > 0 && (
+            <div ref={sentinelRef} className={`flex items-center justify-center min-h-8 text-xs ${textSec}`}>
+              {isFetchingNextPage && <><Loader2 className="w-4 h-4 animate-spin ml-1" /> جار تحميل المزيد...</>}
+              {!hasNextPage && total > PARTICIPANT_PAGE_SIZE && <span>تم تحميل جميع الطلاب المطابقين</span>}
+            </div>
+          )}
         </div>
 
         {/* Footer */}
         <div className={`flex items-center justify-between px-5 py-3 border-t text-xs ${dark ? 'border-[var(--dk-border)] text-[var(--dk-text-2)]' : 'border-gray-100 text-gray-500'}`}>
-          <span>إجمالي الطلاب الذين سلّموا: <strong className={textPrimary}>{grouped.length}</strong></span>
-          <span>منح نشطة: <strong className="text-emerald-600">{grants.filter(g => !g.used_at).length}</strong></span>
+          <span>{studentSearch.trim() ? 'الطلاب المطابقون' : 'إجمالي الطلاب الذين سلّموا'}: <strong className={textPrimary}>{total}</strong></span>
+          <span>منح نشطة: <strong className="text-emerald-600">{activeGrants}</strong></span>
         </div>
       </div>
     </div>
