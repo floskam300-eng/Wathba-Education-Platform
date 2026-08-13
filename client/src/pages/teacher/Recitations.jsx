@@ -549,13 +549,18 @@ export default function Recitations() {
                 {form.course_id && (
                   <div>
                     <label className={`block text-xs font-bold mb-1.5 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-600'}`}>
-                      الفيديوهات التي يقفل عليها هذا التسميع
-                      <span className={`mr-1.5 font-normal ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>(الطالب لازم يجتاز التسميع للانتقال للفيديو التالي)</span>
+                      المحاضرات المطلوب قفلها بهذا التسميع
+                      <span className={`mr-1.5 font-normal text-[11px] ${dark ? 'text-[var(--dk-text-2)]' : 'text-purple-600'}`}>
+                        (المحاضرة المحددة لن تفتح للطالب إلا بعد اجتيازه هذا التسميع)
+                      </span>
                     </label>
+                    <p className={`text-[11px] mb-2 leading-relaxed ${dark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      💡 <strong>توضيح:</strong> لقفل المحاضرة التالية بعد المحاضرة الأولى، ضع علامة صح على <strong>المحاضرة 2</strong>.
+                    </p>
                     {courseVideos.length === 0 ? (
                       <p className={`text-xs ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>لا توجد فيديوهات في هذا الكورس</p>
                     ) : (
-                      <div className="space-y-1.5 max-h-40 overflow-y-auto pr-0.5">
+                      <div className="space-y-1.5 max-h-48 overflow-y-auto pr-0.5">
                         {courseVideos.map((v, i) => {
                           const checked = form.video_ids.includes(v.id);
                           return (
@@ -597,7 +602,7 @@ export default function Recitations() {
                               }`}>{i + 1}</span>
                               <span className={`text-xs font-semibold truncate flex-1 ${
                                 checked
-                                  ? dark ? 'text-purple-300' : 'text-purple-700'
+                                  ? dark ? 'text-purple-300' : 'text-purple-700 font-bold'
                                   : dark ? 'text-[var(--dk-text)]' : 'text-gray-700'
                               }`}>{v.title}</span>
                               {(() => {
@@ -610,8 +615,8 @@ export default function Recitations() {
                                 );
                               })()}
                               {i === 0 && courseVideos.length > 1 && (
-                                <span className="flex-shrink-0 text-[10px] font-bold text-gray-500 dark:text-gray-400 italic" title="المحاضرة الأولى — إن ربطت تسميعاً بها فلن يستطيع الطالب بدء الكورس قبل حلّه">
-                                  المحاضرة الأولى
+                                <span className="flex-shrink-0 text-[10px] font-semibold text-gray-400 dark:text-gray-500" title="المحاضرة الأولى مفتوحة تلقائياً كبداية للكورس">
+                                  (بداية الكورس)
                                 </span>
                               )}
                             </button>

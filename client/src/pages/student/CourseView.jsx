@@ -2389,15 +2389,29 @@ export default function CourseView() {
                     {(() => {
                       const idx = videos.findIndex(v => v.id === currentVideo.id);
                       const next = videos[idx + 1];
-                      return next ? (
+                      if (!next) return null;
+                      const nextLocked = isVideoLocked(next, idx + 1);
+                      return (
                         <button
-                          onClick={() => setActiveVideo(next)}
-                          className="flex-shrink-0 flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-bold px-4 py-2 rounded-xl transition-all text-sm hover:shadow-lg active:scale-95"
+                          onClick={() => {
+                            if (nextLocked) {
+                              toast.error('يجب اجتياز التسميع أولاً للوصول لهذه المحاضرة');
+                              setActiveTab('recitations');
+                              return;
+                            }
+                            setActiveVideo(next);
+                          }}
+                          className={`flex-shrink-0 flex items-center gap-2 font-bold px-4 py-2 rounded-xl transition-all text-sm active:scale-95 ${
+                            nextLocked
+                              ? 'bg-gray-600 opacity-60 cursor-not-allowed text-white'
+                              : 'bg-orange-500 hover:bg-orange-600 text-white hover:shadow-lg'
+                          }`}
                         >
+                          {nextLocked ? <Lock className="w-4 h-4" /> : null}
                           التالي
                           <ChevronRight className="w-4 h-4" />
                         </button>
-                      ) : null;
+                      );
                     })()}
                   </div>
 
