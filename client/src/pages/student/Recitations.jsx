@@ -402,7 +402,12 @@ export default function StudentRecitations() {
                     : null;
                   const maxReached = maxAttempts && attemptCount >= maxAttempts;
                   const allowRetry = Boolean(recInfo?.allow_retry ?? r.allow_retry);
-                  const canRetry = !isAbsent && !passed && allowRetry && !maxReached;
+                  // [retake-grant] An unused teacher-granted retake overrides allow_retry=false
+                  // and max_retry_attempts (the server's /take endpoint treats it the same way).
+                  // Source: history row falls back to matchedRec from the list query.
+                  const unusedGrants = parseInt(r.unused_grants ?? recInfo?.unused_grants, 10) || 0;
+                  const hasGrant = unusedGrants > 0;
+                  const canRetry = !isAbsent && !passed && (allowRetry || hasGrant) && (hasGrant || !maxReached);
                   return (
                     <div key={r.id} className="flex items-center gap-3 px-4 py-3">
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
@@ -426,7 +431,13 @@ export default function StudentRecitations() {
                             <span className={`text-[10px] rounded-full px-1.5 py-0.5 font-bold ${dark ? 'bg-green-900/30 text-green-400' : 'bg-green-50 text-green-600'}`}>ناجح</span>
                           )}
                           {!isAbsent && !passed && (
-                            <span className={`text-[10px] rounded-full px-1.5 py-0.5 font-bold ${dark ? 'bg-red-900/30 text-red-400' : 'bg-red-50 text-red-600'}`}>راسب</span>
+                            <span className={`text-[10px] rounded-full px-1.5 py-0.5 font-bold ${dark ? 'bg-red-900/30 text-red-400' : 'bg-red-50 text-red-500'}`}>راسب</span>
+                          )}
+                          {/* [retake-grant] Tell the student they have a granted extra attempt. */}
+                          {!isAbsent && hasGrant && (
+                            <span className="text-[10px] rounded-full px-1.5 py-0.5 font-bold bg-emerald-500/15 text-emerald-600 border border-emerald-500/30">
+                              🎁 منحة إعادة
+                            </span>
                           )}
                         </div>
                         <p className={`text-[10px] mt-0.5 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>
@@ -719,11 +730,18 @@ export default function StudentRecitations() {
                 مراجعة مفصّلة
               </button>
             )}
-            {!passed && selectedRec && Boolean(selectedRec.allow_retry) && (() => {
+            {!passed && selectedRec && (() => {
               const attempts = parseInt(selectedRec.my_attempt_count, 10) || 1;
               const maxAttempts = selectedRec.max_retry_attempts ? parseInt(selectedRec.max_retry_attempts, 10) : null;
               const maxReached = maxAttempts && attempts >= maxAttempts;
-              if (maxReached) return null;
+              const allowRetry = Boolean(selectedRec.allow_retry);
+              // [retake-grant] An unused teacher-granted retake overrides both
+              // allow_retry=false and max_retry_attempts (the server's /take
+              // endpoint enforces the same).
+              const unusedGrants = parseInt(selectedRec.unused_grants, 10) || 0;
+              const hasGrant = unusedGrants > 0;
+              if (!(allowRetry || hasGrant)) return null;
+              if (maxReached && !hasGrant) return null;
               return (
                 <button
                   onClick={() => {
@@ -733,10 +751,14 @@ export default function StudentRecitations() {
                     submittedRef.current = false;
                     startRec(selectedRec);
                   }}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-black text-sm bg-purple-600 hover:bg-purple-700 text-white transition-colors shadow-lg shadow-purple-500/20"
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-black text-sm text-white transition-colors shadow-lg ${
+                    hasGrant
+                      ? 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/20'
+                      : 'bg-purple-600 hover:bg-purple-700 shadow-purple-500/20'
+                  }`}
                 >
                   <RefreshCw className="w-4 h-4" />
-                  أعد المحاولة {maxAttempts ? `(${attempts + 1}/${maxAttempts})` : ''}
+                  {hasGrant ? 'محاولة إضافية من المعلم 🎁' : `أعد المحاولة ${maxAttempts ? `(${attempts + 1}/${maxAttempts})` : ''}`}
                 </button>
               );
             })()}
@@ -886,30 +908,37 @@ function Section({ title, items, dark, cardCls, onStart, navigate, startingId = 
                       </button>
                     )}
 
-                    {/* Show retry button only for FAILED students when allow_retry=true and limit not reached */}
+                    {/* Show retry button only for FAILED students when allow_retry=true and limit not reached.
+                        [retake-grant] An unused teacher-granted retake overrides both allow_retry=false
+                        and max_retry_attempts (the server's /take endpoint enforces the same). */}
                     {(() => {
                       const isPassed = rec.my_ever_passed ?? (rec.my_passed === true || rec.my_passed === 'true');
                       const attempts = parseInt(rec.my_attempt_count, 10) || 1;
                       const maxAttempts = rec.max_retry_attempts ? parseInt(rec.max_retry_attempts, 10) : null;
                       const maxReached = maxAttempts && attempts >= maxAttempts;
                       const allowRetry = Boolean(rec.allow_retry);
-                      if (allowRetry && !isPassed && !maxReached && onStart) {
+                      const unusedGrants = parseInt(rec.unused_grants, 10) || 0;
+                      const hasGrant = unusedGrants > 0;
+                      if (!isPassed && (allowRetry || hasGrant) && (hasGrant || !maxReached) && onStart) {
                         return (
                           <button
                             onClick={() => onStart(rec)}
                             disabled={!!startingId}
                             className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all active:scale-95 ${
-                              dark
-                                ? 'bg-purple-900/30 text-purple-300 hover:bg-purple-900/50 border border-purple-700/30'
-                                : 'bg-purple-50 text-purple-600 hover:bg-purple-100 border border-purple-100'
+                              hasGrant
+                                ? 'bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/25 border border-emerald-500/40'
+                                : dark
+                                  ? 'bg-purple-900/30 text-purple-300 hover:bg-purple-900/50 border border-purple-700/30'
+                                  : 'bg-purple-50 text-purple-600 hover:bg-purple-100 border border-purple-100'
                             }`}
+                            title={hasGrant ? 'لديك محاولة إضافية من المعلم' : undefined}
                           >
                             <RefreshCw className="w-3.5 h-3.5" />
-                            إعادة المحاولة {maxAttempts ? `(${attempts}/${maxAttempts})` : ''}
+                            {hasGrant ? 'محاولة إضافية من المعلم 🎁' : `إعادة المحاولة ${maxAttempts ? `(${attempts}/${maxAttempts})` : ''}`}
                           </button>
                         );
                       }
-                      if (allowRetry && !isPassed && maxReached) {
+                      if (!isPassed && (allowRetry || hasGrant) && maxReached && !hasGrant) {
                         return (
                           <span
                             className={`text-[11px] font-bold px-2.5 py-1.5 rounded-lg ${

@@ -1536,17 +1536,28 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
             <Eye className="w-3.5 h-3.5" /> مراجعة مفصّلة
           </button>
         )}
-        {!passed && selectedRec && Boolean(selectedRec.allow_retry) && (() => {
+        {!passed && selectedRec && (() => {
+          // [retake-grant] An unused teacher-granted retake overrides both
+          // allow_retry=false and max_retry_attempts (server enforces the same).
           const attempts = parseInt(selectedRec.my_attempt_count, 10) || 1;
           const maxAttempts = selectedRec.max_retry_attempts ? parseInt(selectedRec.max_retry_attempts, 10) : null;
           const maxReached = maxAttempts && attempts >= maxAttempts;
-          if (maxReached) return null;
+          const allowRetry = Boolean(selectedRec.allow_retry);
+          const unusedGrants = parseInt(selectedRec.unused_grants, 10) || 0;
+          const hasGrant = unusedGrants > 0;
+          if (!(allowRetry || hasGrant)) return null;
+          if (maxReached && !hasGrant) return null;
           return (
             <button
               onClick={() => startRec(selectedRec)}
-              className="w-full flex items-center justify-center gap-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 font-bold text-xs py-2.5 rounded-xl transition-colors border border-purple-500/30"
+              className={`w-full flex items-center justify-center gap-2 font-bold text-xs py-2.5 rounded-xl transition-colors border ${
+                hasGrant
+                  ? 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/30'
+                  : 'bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border-purple-500/30'
+              }`}
             >
-              <RefreshCw className="w-3.5 h-3.5" /> أعد المحاولة {maxAttempts ? `(${attempts + 1}/${maxAttempts})` : ''}
+              <RefreshCw className="w-3.5 h-3.5" />
+              {hasGrant ? 'محاولة إضافية من المعلم 🎁' : `أعد المحاولة ${maxAttempts ? `(${attempts + 1}/${maxAttempts})` : ''}`}
             </button>
           );
         })()}
@@ -1627,7 +1638,12 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
           const attempts = parseInt(rec.my_attempt_count, 10) || (hasResult ? 1 : 0);
           const maxAttempts = rec.max_retry_attempts ? parseInt(rec.max_retry_attempts, 10) : null;
           const maxReached = maxAttempts && attempts >= maxAttempts;
-          const canRetry = Boolean(rec.allow_retry) && !maxReached;
+          // [retake-grant] An unused teacher-granted retake overrides both
+          // allow_retry=false and max_retry_attempts so the button stays enabled.
+          // The server's /take endpoint enforces the same rule.
+          const unusedGrants = parseInt(rec.unused_grants, 10) || 0;
+          const hasGrant = unusedGrants > 0;
+          const canRetry = (Boolean(rec.allow_retry) || hasGrant) && (hasGrant || !maxReached);
           const canStart = !passed && !isExpired && !isUpcoming && (!hasResult || canRetry);
 
           // A recitation gates the next video only when it has linked videos AND
@@ -1717,14 +1733,24 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
                   <button
                     onClick={() => startRec(rec)}
                     disabled={startingId === rec.id} // [M3-FIX] only disable the specific rec
-                    className="flex-1 py-1.5 rounded-lg text-[11px] font-black text-white bg-purple-500 hover:bg-purple-600 disabled:opacity-60 transition-colors">
+                    className={`flex-1 py-1.5 rounded-lg text-[11px] font-black text-white disabled:opacity-60 transition-colors ${
+                      hasGrant
+                        ? 'bg-emerald-500 hover:bg-emerald-600'
+                        : 'bg-purple-500 hover:bg-purple-600'
+                    }`}>
                     {startingId === rec.id ? ( // [M3-FIX]
                       <RefreshCw className="w-3 h-3 inline animate-spin" />
                     ) : hasResult ? (
-                      `أعد المحاولة${maxAttempts ? ` (${attempts}/${maxAttempts})` : ''}`
+                      hasGrant
+                        ? 'محاولة إضافية 🎁'
+                        : `أعد المحاولة${maxAttempts ? ` (${attempts}/${maxAttempts})` : ''}`
                     ) : 'ابدأ التسميع'}
                   </button>
                 )}
+                {/* [retake-grant] Only show the closed message when the student
+                    truly cannot retry: max reached AND no grant pending. With a
+                    grant, the button above is the granted retry and this message
+                    is suppressed. */}
                 {hasResult && !passed && !canRetry && (
                   <div className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-bold text-red-400 bg-red-500/10 border border-red-500/20">
                     {maxReached ? `استنفدت المحاولات (${maxAttempts})` : 'إعادة المحاولة مغلقة'}

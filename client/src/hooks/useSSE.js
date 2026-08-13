@@ -292,6 +292,23 @@ export function useSSE(enabled, role) {
             detail: { message: data.message || 'تم إنهاء جلستك.' }
           }));
         });
+
+        // [retake-grant] Fired when a teacher grants a one-time retake to
+        // THIS student. The event is sent to student_{studentId} on the
+        // server. We invalidate every student-side query key that renders a
+        // recitation so the new unused_grants badge shows up immediately on
+        // /student/recitations, the CourseView, and the result-history list.
+        es.addEventListener('recitation_retake_granted', (e) => {
+          let data; try { data = JSON.parse(e.data); } catch { return; }
+          qc.invalidateQueries({ queryKey: ['student-recitations'] });
+          qc.invalidateQueries({ queryKey: ['student-recitation-results'] });
+          qc.invalidateQueries({ queryKey: ['course-recitations'] });
+          qc.invalidateQueries({ queryKey: ['recitation-retake-grants'] });
+          toast.success(`لديك محاولة إضافية من المعلم 🎁 — ${data?.recitationTitle || 'تسميع'}`, {
+            duration: 7000,
+            style: { fontFamily: 'inherit', direction: 'rtl' },
+          });
+        });
       }
 
       if (role === 'teacher' || role === 'assistant') {
@@ -337,12 +354,12 @@ export function useSSE(enabled, role) {
           qc.invalidateQueries({ queryKey: ['recitations-analytics'] });
         });
 
-        // [retake-grant] Fired when a teacher grants a one-time retake to a
-        // student. We invalidate the same query keys as recitation_submitted
-        // so any other teacher tab (or the same teacher's other devices)
-        // reflects the new unused_grants badge without a refresh.
-        es.addEventListener('recitation_retake_granted', (e) => {
-          let data; try { data = JSON.parse(e.data); } catch { return; }
+        // [retake-grant] The server sends recitation_retake_granted to the
+        // student channel; teachers don't normally receive it. We register a
+        // listener here anyway as a safety net in case the server is
+        // reconfigured to broadcast to the teacher channel too — invalidating
+        // teacher queries here is harmless if no event ever fires.
+        es.addEventListener('recitation_retake_granted', () => {
           qc.invalidateQueries({ queryKey: ['recitations'] });
           qc.invalidateQueries({ queryKey: ['recitation-results'] });
           qc.invalidateQueries({ queryKey: ['recitation-retake-grants'] });

@@ -507,14 +507,15 @@ router.get('/student/course/:courseId', requireRole('student'), async (req, res)
               rr.correct_count AS my_correct, rr.wrong_count AS my_wrong,
               rr.created_at AS my_submitted_at,
               lv.min_sort_order,
-              lv.linked_video_title
+              lv.linked_video_title,
+              COALESCE(g.unused_grants, 0) AS unused_grants
          FROM recitations r
          LEFT JOIN LATERAL (
            SELECT rr2.id, rr2.score, rr2.passed,
-                  (SELECT bool_or(rr3.passed) FROM recitation_results rr3
-                    WHERE rr3.student_id=$1 AND rr3.recitation_id=r.id
-                      AND (rr3.is_absent IS NULL OR rr3.is_absent=false)) AS ever_passed,
-                  rr2.correct_count, rr2.wrong_count, rr2.created_at
+                   (SELECT bool_or(rr3.passed) FROM recitation_results rr3
+                     WHERE rr3.student_id=$1 AND rr3.recitation_id=r.id
+                       AND (rr3.is_absent IS NULL OR rr3.is_absent=false)) AS ever_passed,
+                   rr2.correct_count, rr2.wrong_count, rr2.created_at
              FROM recitation_results rr2
             WHERE rr2.student_id=$1
               AND rr2.recitation_id=r.id
@@ -536,6 +537,13 @@ router.get('/student/course/:courseId', requireRole('student'), async (req, res)
             ORDER BY v.sort_order ASC, v.id ASC
             LIMIT 1
          ) lv ON true
+         LEFT JOIN LATERAL (
+           SELECT COUNT(*)::int AS unused_grants
+             FROM recitation_retake_grants
+            WHERE recitation_id = r.id
+              AND student_id    = $1
+              AND used_at IS NULL
+         ) g ON true
         WHERE r.teacher_id=$3
           AND r.is_published=true
           AND r.deleted_at IS NULL
@@ -579,14 +587,15 @@ router.get('/student/list', requireRole('student'), async (req, res) => {
               rr.id AS result_id, rr.score AS my_score, rr.passed AS my_passed,
               rr.correct_count AS my_correct, rr.wrong_count AS my_wrong,
               rr.created_at AS my_submitted_at,
-              rs2.id AS session_id
+              rs2.id AS session_id,
+              COALESCE(g.unused_grants, 0) AS unused_grants
          FROM recitations r
          LEFT JOIN LATERAL (
            SELECT id, score, passed,
-                  (SELECT bool_or(rr3.passed) FROM recitation_results rr3
-                    WHERE rr3.student_id=$1 AND rr3.recitation_id=r.id
-                      AND (rr3.is_absent IS NULL OR rr3.is_absent=false)) AS ever_passed,
-                  correct_count, wrong_count, created_at
+                   (SELECT bool_or(rr3.passed) FROM recitation_results rr3
+                     WHERE rr3.student_id=$1 AND rr3.recitation_id=r.id
+                       AND (rr3.is_absent IS NULL OR rr3.is_absent=false)) AS ever_passed,
+                   correct_count, wrong_count, created_at
              FROM recitation_results rr2
             WHERE rr2.student_id=$1
               AND rr2.recitation_id=r.id
@@ -596,6 +605,13 @@ router.get('/student/list', requireRole('student'), async (req, res) => {
             LIMIT 1
          ) rr ON true
          LEFT JOIN recitation_sessions rs2 ON r.id=rs2.recitation_id AND rs2.student_id=$1
+         LEFT JOIN LATERAL (
+           SELECT COUNT(*)::int AS unused_grants
+             FROM recitation_retake_grants
+            WHERE recitation_id = r.id
+              AND student_id    = $1
+              AND used_at IS NULL
+         ) g ON true
         WHERE r.teacher_id=$2
           AND r.is_published=true
           AND r.deleted_at IS NULL
@@ -641,9 +657,17 @@ router.get('/student/results', requireRole('student'), async (req, res) => {
               (SELECT COUNT(*) FROM recitation_results rr2
                 WHERE rr2.student_id=$1 AND rr2.recitation_id=r.id
                   AND (r.start_date IS NULL OR rr2.created_at >= r.start_date)
-                  AND (rr2.is_absent IS NULL OR rr2.is_absent=false)) AS my_attempt_count
+                  AND (rr2.is_absent IS NULL OR rr2.is_absent=false)) AS my_attempt_count,
+              COALESCE(g.unused_grants, 0) AS unused_grants
          FROM recitation_results rr
          JOIN recitations r ON rr.recitation_id=r.id
+         LEFT JOIN LATERAL (
+           SELECT COUNT(*)::int AS unused_grants
+             FROM recitation_retake_grants
+            WHERE recitation_id = r.id
+              AND student_id    = $1
+              AND used_at IS NULL
+         ) g ON true
         WHERE rr.student_id=$1 AND r.teacher_id=$2
         ORDER BY rr.created_at DESC`,
       [studentId, teacherId]
@@ -1271,12 +1295,14 @@ router.get('/:id/results', requireRole('teacher', 'assistant'), checkManageRecit
 
     const { rows } = await pool.query(
       `SELECT rr.*, s.name AS student_name, s.academic_stage,
+              r.total_score, r.pass_score,
               COUNT(*) OVER (PARTITION BY rr.student_id) AS attempt_count,
               FIRST_VALUE(rr.score) OVER (PARTITION BY rr.student_id ORDER BY rr.created_at ASC) AS first_score,
               FIRST_VALUE(rr.passed) OVER (PARTITION BY rr.student_id ORDER BY rr.created_at ASC) AS first_passed,
               FIRST_VALUE(rr.created_at) OVER (PARTITION BY rr.student_id ORDER BY rr.created_at ASC) AS first_submitted_at,
               COALESCE(g.unused_grants, 0) AS unused_grants
          FROM recitation_results rr
+         JOIN recitations r ON r.id = rr.recitation_id
          JOIN students s ON rr.student_id = s.id
          LEFT JOIN LATERAL (
            SELECT COUNT(*)::int AS unused_grants
@@ -2116,6 +2142,14 @@ router.post('/:id/grant-retake', requireRole('teacher', 'assistant'), checkManag
     sendEvent(`student_${studentId}`, 'recitation_retake_granted', {
       recitationId: id,
       recitationTitle: rec.title,
+    });
+    // Also notify the teacher's own channel so any other open teacher tab
+    // (e.g. the teacher opened the Recitations page twice) re-renders the
+    // new unused_grants badge without a manual refresh.
+    sendEvent(`teacher_${teacherId}`, 'recitation_retake_granted', {
+      recitationId: id,
+      recitationTitle: rec.title,
+      studentId,
     });
     sendFCMToStudents(pool, [studentId],
       'لديك محاولة إضافية لتسميع 📖',
