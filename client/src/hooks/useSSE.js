@@ -337,6 +337,18 @@ export function useSSE(enabled, role) {
           qc.invalidateQueries({ queryKey: ['recitations-analytics'] });
         });
 
+        // [retake-grant] Fired when a teacher grants a one-time retake to a
+        // student. We invalidate the same query keys as recitation_submitted
+        // so any other teacher tab (or the same teacher's other devices)
+        // reflects the new unused_grants badge without a refresh.
+        es.addEventListener('recitation_retake_granted', (e) => {
+          let data; try { data = JSON.parse(e.data); } catch { return; }
+          qc.invalidateQueries({ queryKey: ['recitations'] });
+          qc.invalidateQueries({ queryKey: ['recitation-results'] });
+          qc.invalidateQueries({ queryKey: ['recitation-retake-grants'] });
+          qc.invalidateQueries({ queryKey: ['recitations-analytics'] });
+        });
+
         es.addEventListener('live_hand_raise', (e) => {
           let data; try { data = JSON.parse(e.data); } catch { return; }
           window.dispatchEvent(new CustomEvent('wathba_live_hand_raise', { detail: data }));

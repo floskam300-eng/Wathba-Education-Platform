@@ -21,6 +21,7 @@ const ACTION_LABELS = {
   force_reset_exam_results:  'إعادة تعيين نتائج اختبار',
   approve_retry:             'الموافقة على إعادة اختبار',
   reject_retry:              'رفض إعادة اختبار',
+  grant_recitation_retake:   'منح محاولة إضافية لتسميع',
   approve_payment:           'قبول دفعة',
   reject_payment:            'رفض دفعة',
   add_payment:               'إضافة دفعة',

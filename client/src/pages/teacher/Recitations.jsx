@@ -4,7 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import {
   BookOpen, Plus, Trash2, Settings, ChevronDown, ChevronUp,
   CheckCircle, XCircle, Clock, Users, BarChart2, Edit3,
-  AlertCircle, Eye, FileText, RefreshCw, Flame, Image as ImageIcon, Upload, ZoomIn
+  AlertCircle, Eye, FileText, RefreshCw, Flame, Image as ImageIcon, Upload, ZoomIn,
+  Gift, X, Loader2
 } from 'lucide-react';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
@@ -113,6 +114,9 @@ export default function Recitations() {
   const [deleteId, setDeleteId] = useState(null);
   const [search, setSearch] = useState('');
   const [stageFilter, setStageFilter] = useState('');
+  // [retake-grant] Modal showing every student who took the selected recitation
+  // with a "grant retake" button next to each name.
+  const [grantModalRecId, setGrantModalRecId] = useState(null);
 
   const { data: recitations = [], isLoading } = useQuery({
     queryKey: ['recitations'],
@@ -157,6 +161,12 @@ export default function Recitations() {
     queryKey: ['recitation-results', selectedId],
     queryFn: () => selectedId ? api.get(`/recitations/${selectedId}/results`).then(r => r.data) : [],
     enabled: !!selectedId,
+    // [real-time] Safety-net poll in case SSE drops; primary updates come from
+    // the recitation_submitted / recitation_retake_granted SSE listeners which
+    // invalidate this query key.  15s is small enough to feel live and large
+    // enough to not hammer the server for idle teachers.
+    refetchInterval: selectedId ? 15000 : false,
+    refetchIntervalInBackground: false,
   });
 
   const { data: analytics } = useQuery({
@@ -190,6 +200,21 @@ export default function Recitations() {
     mutationFn: (id) => api.put(`/recitations/${id}/publish`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['recitations'] }); toast.success('تم تحديث حالة النشر'); },
     onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
+  });
+
+  // [retake-grant] Shared mutation used by both the modal AND the right-side
+  // ResultsPanel so a single request triggers consistent cache invalidation
+  // and toast feedback regardless of which surface issued it.
+  const grantMut = useMutation({
+    mutationFn: ({ recitation_id, student_id, note }) =>
+      api.post(`/recitations/${recitation_id}/grant-retake`, { student_id, note }),
+    onSuccess: (res, vars) => {
+      qc.invalidateQueries({ queryKey: ['recitations'] });
+      qc.invalidateQueries({ queryKey: ['recitation-results', vars.recitation_id] });
+      qc.invalidateQueries({ queryKey: ['recitation-retake-grants', vars.recitation_id] });
+      toast.success('تم منح محاولة إضافية للطالب 🎁');
+    },
+    onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ أثناء المنح'),
   });
 
   const openEdit = (rec) => {
@@ -325,6 +350,13 @@ export default function Recitations() {
                           className={`p-1.5 rounded-lg transition-colors ${dark ? 'text-purple-400 hover:bg-[var(--dk-elevated)]' : 'text-purple-500 hover:bg-purple-50'}`}>
                           <FileText className="w-3.5 h-3.5" />
                         </button>
+                        {/* [retake-grant] Opens the modal that lists every student
+                            who took this recitation with a per-student grant button. */}
+                        <button onClick={e => { e.stopPropagation(); setGrantModalRecId(rec.id); }}
+                          title="منح محاولة إضافية لطالب"
+                          className={`p-1.5 rounded-lg transition-colors ${dark ? 'text-emerald-400 hover:bg-[var(--dk-elevated)]' : 'text-emerald-500 hover:bg-emerald-50'}`}>
+                          <Gift className="w-3.5 h-3.5" />
+                        </button>
                         {/* [N5-FIX] Hide edit button for published recitations —
                             server rejects edits anyway (409) but showing the button
                             misleads the teacher. */}
@@ -417,7 +449,7 @@ export default function Recitations() {
                 </div>
 
                 {/* Results */}
-                <ResultsPanel results={results} rec={selectedRec} dark={dark} cardCls={cardCls} navigate={navigate} baseRole={baseRole} />
+                <ResultsPanel results={results} rec={selectedRec} dark={dark} cardCls={cardCls} navigate={navigate} baseRole={baseRole} grantMut={grantMut} />
               </div>
             )}
           </div>
@@ -866,6 +898,16 @@ export default function Recitations() {
           </div>
         </div>
       )}
+
+      {/* Retake-grant modal — lists every student who submitted the recitation
+          with a "grant retake" button next to each name. */}
+      {grantModalRecId && (
+        <RetakeGrantModal
+          recitationId={grantModalRecId}
+          onClose={() => setGrantModalRecId(null)}
+          dark={dark}
+        />
+      )}
     </div>
   );
 }
@@ -1220,7 +1262,7 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
   );
 }
 
-function ResultsPanel({ results, rec, dark, cardCls, navigate, baseRole = 'teacher' }) {
+function ResultsPanel({ results, rec, dark, cardCls, navigate, baseRole = 'teacher', grantMut }) {
   const [expandedStudent, setExpandedStudent] = useState(null);
 
   if (results.length === 0)
@@ -1278,20 +1320,38 @@ function ResultsPanel({ results, rec, dark, cardCls, navigate, baseRole = 'teach
         const firstScore = parseFloat(r.first_score);
         const latestScore = r.score;
         const scoreDiff = latestScore - firstScore;
+        // [retake-grant] unused_grants comes from the LEFT JOIN LATERAL in
+        // GET /api/recitations/:id/results. 0 = no pending grant; >0 = the
+        // teacher has already granted at least one extra attempt.
+        const unusedGrants = parseInt(r.unused_grants, 10) || 0;
+        const isAbsent = r.is_absent === true || r.is_absent === 'true';
 
         return (
           <div key={r.student_id} className={`${cardCls} space-y-2`}>
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0 flex-1">
-                <div className={`w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center font-bold text-sm text-white ${r.passed ? 'bg-green-500' : 'bg-red-400'}`}>
+                <div className={`w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center font-bold text-sm text-white ${isAbsent ? 'bg-gray-400' : r.passed ? 'bg-green-500' : 'bg-red-400'}`}>
                   {r.student_name?.charAt(0)}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className={`font-bold text-sm ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>{r.student_name}</p>
+                    {isAbsent && (
+                      <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                        غائب
+                      </span>
+                    )}
                     {hasMultiple && (
                       <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">
                         {attemptCount} محاولات
+                      </span>
+                    )}
+                    {/* [retake-grant] Purple badge when the teacher has already
+                        issued one or more unused grants for this student. */}
+                    {unusedGrants > 0 && (
+                      <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 inline-flex items-center gap-1"
+                            title={`منحت ${unusedGrants} محاولة إضافية لم تستخدم بعد`}>
+                        🎁 {unusedGrants > 1 ? `${unusedGrants} منح` : 'منحة'}
                       </span>
                     )}
                   </div>
@@ -1302,7 +1362,7 @@ function ResultsPanel({ results, rec, dark, cardCls, navigate, baseRole = 'teach
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 <div className="text-left">
-                  <span className={`font-black text-lg ${r.passed ? 'text-green-600' : 'text-red-500'}`}>
+                  <span className={`font-black text-lg ${isAbsent ? 'text-gray-400' : r.passed ? 'text-green-600' : 'text-red-500'}`}>
                     {latestScore}/{rec.total_score}
                   </span>
                   {hasMultiple && !isNaN(firstScore) && firstScore !== latestScore && (
@@ -1317,6 +1377,23 @@ function ResultsPanel({ results, rec, dark, cardCls, navigate, baseRole = 'teach
                     {r.correct_count}✓ {r.wrong_count}✗
                   </p>
                 </div>
+                {/* [retake-grant] Inline button next to each student — same
+                    mutation the modal uses, so either surface produces the
+                    same badge / toast / cache refresh. */}
+                {grantMut && !isAbsent && (
+                  <button
+                    onClick={() => grantMut.mutate({ recitation_id: rec.id, student_id: r.student_id })}
+                    disabled={grantMut.isPending}
+                    title={unusedGrants > 0 ? 'منح محاولة إضافية أخرى' : 'منح محاولة إضافية'}
+                    className={`p-1.5 rounded-lg transition-colors disabled:opacity-50 ${
+                      unusedGrants > 0
+                        ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                        : (dark ? 'text-[var(--dk-text-2)] hover:bg-[var(--dk-elevated)] hover:text-emerald-400'
+                                : 'text-gray-400 hover:bg-emerald-50 hover:text-emerald-600')
+                    }`}>
+                    <Gift className="w-4 h-4" />
+                  </button>
+                )}
                 {navigate && (
                   <button onClick={() => navigate(`/${baseRole}/recitation-review/${r.id}`)}
                     className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 transition-colors"
@@ -1461,6 +1538,211 @@ function AnalyticsTab({ analytics, dark, cardCls }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── [retake-grant] Modal listing every student who submitted a recitation ──
+// Each row has a "منح محاولة إضافية" button next to the student's name and an
+// inline confirm step to prevent accidental grants. Successful grants show a
+// green confirmation row that disappears after a few seconds.
+function RetakeGrantModal({ recitationId, onClose, dark }) {
+  const qc = useQueryClient();
+  const [note, setNote] = useState('');
+  const [confirmId, setConfirmId] = useState(null);
+  const [successIds, setSuccessIds] = useState(new Set());
+
+  const { data: results = [], isLoading } = useQuery({
+    queryKey: ['recitation-results', recitationId],
+    queryFn: () => api.get(`/recitations/${recitationId}/results`).then(r => r.data),
+    // Modal-local refetch so the badge stays fresh while the teacher grants
+    // multiple students in succession (without round-tripping through parent).
+    refetchInterval: 10000,
+    refetchIntervalInBackground: false,
+  });
+
+  const { data: grants = [] } = useQuery({
+    queryKey: ['recitation-retake-grants', recitationId],
+    queryFn: () => api.get(`/recitations/${recitationId}/retake-grants`).then(r => r.data),
+    refetchInterval: 10000,
+    refetchIntervalInBackground: false,
+  });
+
+  const grantMut = useMutation({
+    mutationFn: ({ student_id, note }) =>
+      api.post(`/recitations/${recitationId}/grant-retake`, { student_id, note: note || null }),
+    onSuccess: (_res, vars) => {
+      qc.invalidateQueries({ queryKey: ['recitations'] });
+      qc.invalidateQueries({ queryKey: ['recitation-results', recitationId] });
+      qc.invalidateQueries({ queryKey: ['recitation-retake-grants', recitationId] });
+      setConfirmId(null);
+      setNote('');
+      setSuccessIds(prev => new Set(prev).add(vars.student_id));
+      toast.success('تم منح محاولة إضافية 🎁');
+      // Clear the success flash after a few seconds so the row reverts to
+      // the normal "grant" button but the new badge stays (the badge comes
+      // from the freshly-refetched results row).
+      setTimeout(() => {
+        setSuccessIds(prev => {
+          const n = new Set(prev);
+          n.delete(vars.student_id);
+          return n;
+        });
+      }, 3500);
+    },
+    onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ أثناء المنح'),
+  });
+
+  // Group results by student to get the latest row (mirrors ResultsPanel logic).
+  const studentMap = useMemo(() => {
+    const m = new Map();
+    for (const r of results) {
+      if (!m.has(r.student_id)) m.set(r.student_id, { latest: r, all: [r] });
+      else m.get(r.student_id).all.push(r);
+    }
+    return m;
+  }, [results]);
+  const grouped = Array.from(studentMap.values());
+
+  const grantCountByStudent = useMemo(() => {
+    const counts = {};
+    for (const g of grants) {
+      if (!g.used_at) counts[g.student_id] = (counts[g.student_id] || 0) + 1;
+    }
+    return counts;
+  }, [grants]);
+
+  const overlay = dark ? 'bg-black/70' : 'bg-black/50';
+  const surface = dark ? 'bg-[var(--dk-surface)] border-[var(--dk-border)]' : 'bg-white border-gray-100';
+  const elev = dark ? 'bg-[var(--dk-elevated)]' : 'bg-gray-50';
+  const textPrimary = dark ? 'text-[var(--dk-text)]' : 'text-navy-700';
+  const textSec = dark ? 'text-[var(--dk-text-2)]' : 'text-gray-500';
+  const inputCls = dark
+    ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)] placeholder-gray-500'
+    : 'bg-white border-gray-200 text-gray-800';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm" dir="rtl">
+      <div className={`${overlay} absolute inset-0`} onClick={onClose} />
+      <div className={`relative w-full max-w-2xl max-h-[85vh] flex flex-col rounded-2xl shadow-2xl border ${surface}`}>
+        {/* Header */}
+        <div className={`flex items-center justify-between px-5 py-4 border-b ${dark ? 'border-[var(--dk-border)]' : 'border-gray-100'}`}>
+          <div className="flex items-center gap-2">
+            <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center">
+              <Gift className="w-5 h-5 text-emerald-600" />
+            </div>
+            <div>
+              <h3 className={`font-black text-base ${textPrimary}`}>منح محاولة إضافية</h3>
+              <p className={`text-xs ${textSec}`}>
+                اختر طالباً لمنحه محاولة إضافية — حتى لو التسميع مغلق أو استنفد الطالب محاولاته
+              </p>
+            </div>
+          </div>
+          <button onClick={onClose}
+            className={`p-2 rounded-xl ${dark ? 'hover:bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'hover:bg-gray-100 text-gray-400'}`}>
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Optional note (applies to the next grant; reset after each successful submit) */}
+        <div className={`px-5 py-3 border-b ${dark ? 'border-[var(--dk-border)]' : 'border-gray-100'}`}>
+          <label className={`block text-[11px] font-bold mb-1 ${textSec}`}>ملاحظة (اختياري — تُحفظ مع المنحة)</label>
+          <input
+            value={note}
+            onChange={e => setNote(e.target.value.slice(0, 500))}
+            placeholder="مثال: مشكلة تقنية، إعادة بسبب خطأ في السؤال…"
+            className={`w-full rounded-xl px-3 py-2 text-sm border ${inputCls}`}
+          />
+        </div>
+
+        {/* Student list */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className={`w-6 h-6 animate-spin ${textSec}`} />
+            </div>
+          ) : grouped.length === 0 ? (
+            <div className="text-center py-12">
+              <Users className={`w-10 h-10 mx-auto mb-2 ${textSec}`} />
+              <p className={`text-sm ${textSec}`}>لا يوجد طلاب سلّموا هذا التسميع بعد</p>
+            </div>
+          ) : grouped.map(({ latest: r, all }) => {
+            const attemptCount = parseInt(r.attempt_count) || all.length;
+            const isAbsent = r.is_absent === true || r.is_absent === 'true';
+            const unusedGrants = grantCountByStudent[r.student_id] || 0;
+            const isConfirming = confirmId === r.student_id;
+            const justSucceeded = successIds.has(r.student_id);
+
+            return (
+              <div key={r.student_id}
+                className={`flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 border ${elev} ${dark ? 'border-[var(--dk-border)]' : 'border-gray-100'}`}>
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className={`w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center font-bold text-sm text-white ${isAbsent ? 'bg-gray-400' : r.passed ? 'bg-green-500' : 'bg-red-400'}`}>
+                    {r.student_name?.charAt(0)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className={`font-bold text-sm truncate ${textPrimary}`}>{r.student_name}</p>
+                      {isAbsent && (
+                        <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-700">غائب</span>
+                      )}
+                      {attemptCount > 1 && (
+                        <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">
+                          {attemptCount} محاولات
+                        </span>
+                      )}
+                      {unusedGrants > 0 && (
+                        <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                          🎁 {unusedGrants > 1 ? `${unusedGrants} منح` : 'منحة'}
+                        </span>
+                      )}
+                    </div>
+                    <p className={`text-[11px] truncate ${textSec}`}>
+                      {r.academic_stage} · {isAbsent ? 'غائب' : `${r.score}/${r.total_score} (${r.passed ? 'ناجح' : 'راسب'})`}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {justSucceeded ? (
+                    <span className="text-emerald-600 font-black text-xs inline-flex items-center gap-1">
+                      <CheckCircle className="w-4 h-4" /> تم
+                    </span>
+                  ) : isAbsent ? (
+                    <span className={`text-[11px] ${textSec}`}>—</span>
+                  ) : isConfirming ? (
+                    <>
+                      <button onClick={() => setConfirmId(null)} disabled={grantMut.isPending}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold ${dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-600'}`}>
+                        إلغاء
+                      </button>
+                      <button onClick={() => grantMut.mutate({ student_id: r.student_id, note })}
+                        disabled={grantMut.isPending}
+                        className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white inline-flex items-center gap-1 disabled:opacity-50">
+                        {grantMut.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Gift className="w-3 h-3" />}
+                        تأكيد
+                      </button>
+                    </>
+                  ) : (
+                    <button onClick={() => setConfirmId(r.student_id)}
+                      title={unusedGrants > 0 ? 'منح محاولة إضافية أخرى' : 'منح محاولة إضافية'}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white inline-flex items-center gap-1">
+                      <Gift className="w-3 h-3" />
+                      منح محاولة
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Footer */}
+        <div className={`flex items-center justify-between px-5 py-3 border-t text-xs ${dark ? 'border-[var(--dk-border)] text-[var(--dk-text-2)]' : 'border-gray-100 text-gray-500'}`}>
+          <span>إجمالي الطلاب الذين سلّموا: <strong className={textPrimary}>{grouped.length}</strong></span>
+          <span>منح نشطة: <strong className="text-emerald-600">{grants.filter(g => !g.used_at).length}</strong></span>
+        </div>
+      </div>
     </div>
   );
 }

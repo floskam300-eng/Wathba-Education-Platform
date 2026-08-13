@@ -1132,6 +1132,26 @@ ALTER TABLE recitations ADD COLUMN IF NOT EXISTS allow_retry BOOLEAN NOT NULL DE
 -- Max retry attempts: NULL = unlimited, 1 = one attempt total (no retries), 2 = first + one retry, etc.
 ALTER TABLE recitations ADD COLUMN IF NOT EXISTS max_retry_attempts INT DEFAULT NULL;
 
+-- Teacher-granted one-time retakes (mirrors migration 0003 for fresh installs).
+-- Each row lets the student submit one extra attempt regardless of
+-- allow_retry / max_retry_attempts / prior pass status. used_at is set
+-- when the student consumes the grant.
+CREATE TABLE IF NOT EXISTS recitation_retake_grants (
+  id              SERIAL PRIMARY KEY,
+  recitation_id   INTEGER NOT NULL REFERENCES recitations(id) ON DELETE CASCADE,
+  student_id      INTEGER NOT NULL REFERENCES students(id)    ON DELETE CASCADE,
+  granted_by      INTEGER REFERENCES teachers(id)             ON DELETE SET NULL,
+  granted_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  used_at         TIMESTAMPTZ,
+  used_result_id  INTEGER REFERENCES recitation_results(id)   ON DELETE SET NULL,
+  note            TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_rrg_unused
+  ON recitation_retake_grants(recitation_id, student_id)
+  WHERE used_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_rrg_recitation
+  ON recitation_retake_grants(recitation_id, granted_at DESC);
+
 -- Support contacts shown on the teacher's public landing page (independent of assistant accounts)
 CREATE TABLE IF NOT EXISTS teacher_support_contacts (
   id         SERIAL PRIMARY KEY,

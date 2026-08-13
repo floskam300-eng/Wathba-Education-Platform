@@ -1274,15 +1274,24 @@ router.get('/:id/results', requireRole('teacher', 'assistant'), checkManageRecit
               COUNT(*) OVER (PARTITION BY rr.student_id) AS attempt_count,
               FIRST_VALUE(rr.score) OVER (PARTITION BY rr.student_id ORDER BY rr.created_at ASC) AS first_score,
               FIRST_VALUE(rr.passed) OVER (PARTITION BY rr.student_id ORDER BY rr.created_at ASC) AS first_passed,
-              FIRST_VALUE(rr.created_at) OVER (PARTITION BY rr.student_id ORDER BY rr.created_at ASC) AS first_submitted_at
+              FIRST_VALUE(rr.created_at) OVER (PARTITION BY rr.student_id ORDER BY rr.created_at ASC) AS first_submitted_at,
+              COALESCE(g.unused_grants, 0) AS unused_grants
          FROM recitation_results rr
          JOIN students s ON rr.student_id = s.id
+         LEFT JOIN LATERAL (
+           SELECT COUNT(*)::int AS unused_grants
+             FROM recitation_retake_grants
+            WHERE recitation_id = rr.recitation_id
+              AND student_id    = rr.student_id
+              AND used_at IS NULL
+         ) g ON true
         WHERE rr.recitation_id = $1 AND s.teacher_id = $2
         ORDER BY rr.created_at DESC`,
       [id, teacherId]
     );
     res.json(rows);
   } catch (err) {
+    console.error('[recitations GET /:id/results]', err.message);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -1366,8 +1375,20 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
     // [R5-FIX] For recurring recitations: only block if student already submitted
     // WITHIN the current window (start_date). This allows retaking in a new window.
     // [allow_retry] When allow_retry=true, only FAILED students may retake.
-    // Passed students are never allowed to retake (regardless of allow_retry).
-    // [max_retry_attempts] When set, block once the student has reached the total attempt limit.
+    // Passed students are never allowed to retake (regardless of allow_retry) UNLESS
+    // the teacher has issued a one-time retake grant for this student+recitation.
+    // [max_retry_attempts] When set, block once the student has reached the total attempt limit
+    // — also bypassed by an unused teacher grant.
+    // [teacher-grant] Look up an unused grant FIRST so the rest of the rules can
+    // short-circuit on hasGrant.
+    const { rows: grantRows } = await pool.query(
+      `SELECT id FROM recitation_retake_grants
+        WHERE student_id=$1 AND recitation_id=$2 AND used_at IS NULL
+        ORDER BY granted_at ASC LIMIT 1`,
+      [studentId, id]
+    );
+    const hasGrant = grantRows.length > 0;
+
     const { rows: existing } = await pool.query(
       `SELECT id, passed FROM recitation_results
         WHERE student_id=$1 AND recitation_id=$2
@@ -1378,16 +1399,16 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
     );
     if (existing.length) {
       const everPassed = existing.some(r => r.passed === true);
-      if (everPassed) {
-        // Student already passed — never allow retake
+      if (everPassed && !hasGrant) {
+        // Student already passed AND no unused grant — never allow retake
         return res.status(409).json({ error: 'لقد نجحت في هذا التسميع بالفعل', already_submitted: true });
       }
-      if (!rec.allow_retry) {
-        // Student failed but retries are disabled
+      if (!rec.allow_retry && !hasGrant) {
+        // Student failed but retries are disabled AND no unused grant
         return res.status(409).json({ error: 'لقد أديت هذا التسميع بالفعل', already_submitted: true });
       }
-      // [max_retry_attempts] Check total attempt count against the limit
-      if (rec.max_retry_attempts !== null && rec.max_retry_attempts !== undefined) {
+      // [max_retry_attempts] Check total attempt count against the limit (bypassable by grant)
+      if (!hasGrant && rec.max_retry_attempts !== null && rec.max_retry_attempts !== undefined) {
         if (existing.length >= rec.max_retry_attempts) {
           return res.status(409).json({
             error: `لقد استنفدت عدد المحاولات المتاحة (${rec.max_retry_attempts})`,
@@ -1396,7 +1417,8 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
           });
         }
       }
-      // Student failed + allow_retry=true + within attempt limit → allow retake (fall through)
+      // Student failed (or passed) + has unused grant → fall through to create new session.
+      // If hasGrant, allow_retry/max_retry_attempts are bypassed entirely.
     }
 
     // Create new session — load and snapshot questions
@@ -1517,18 +1539,31 @@ router.post('/:id/submit', recitationSubmitLimiter, requireRole('student'), asyn
     // [R5-FIX] Fast-path duplicate check OUTSIDE the transaction to avoid
     // unnecessary TX overhead for the common case.  A second in-TX check
     // (T1-FIX below) protects against the rare concurrent-submit race.
-    // [RETRY-FIX] Block if: (a) student passed before, OR (b) allow_retry=false.
-    // Only a student who FAILED with allow_retry=true may resubmit.
+    // [RETRY-FIX] Block if: (a) student passed before, OR (b) allow_retry=false,
+    // OR (c) attempts >= max_retry_attempts.  An unused teacher-issued grant
+    // (hasGrant=true) bypasses ALL three rules, allowing even passed students
+    // to retake via a teacher-granted one-time retake.
+    const { rows: grantFastRows } = await pool.query(
+      `SELECT id FROM recitation_retake_grants
+        WHERE student_id=$1 AND recitation_id=$2 AND used_at IS NULL
+        ORDER BY granted_at ASC LIMIT 1`,
+      [studentId, id]
+    );
+    const hasGrant = grantFastRows.length > 0;
+
     const { rows: existingResult } = await pool.query(
       `SELECT id, passed FROM recitation_results
         WHERE student_id=$1 AND recitation_id=$2
           AND ($3::timestamp IS NULL OR created_at >= $3::timestamp)
+          AND (is_absent IS NULL OR is_absent=false)
         ORDER BY created_at DESC`,
       [studentId, id, rec.start_date]
     );
     if (existingResult.length) {
       const everPassed = existingResult.some(r => r.passed === true);
-      if (everPassed || !rec.allow_retry)
+      const maxReached = rec.max_retry_attempts !== null && rec.max_retry_attempts !== undefined
+        && existingResult.length >= rec.max_retry_attempts;
+      if (!hasGrant && (everPassed || !rec.allow_retry || maxReached))
         return res.status(409).json({ error: 'لقد أديت هذا التسميع بالفعل', already_submitted: true });
     }
 
@@ -1678,6 +1713,15 @@ router.post('/:id/submit', recitationSubmitLimiter, requireRole('student'), asyn
 
       // Re-check for duplicate INSIDE the locked transaction
       // [RETRY-FIX] Mirror the fast-path check: block if passed OR allow_retry=false OR max_attempts reached.
+      // An unused teacher-issued grant (hasGrantTx) bypasses all three rules.
+      const { rows: grantTxRows } = await client.query(
+        `SELECT id FROM recitation_retake_grants
+          WHERE student_id=$1 AND recitation_id=$2 AND used_at IS NULL
+          ORDER BY granted_at ASC LIMIT 1`,
+        [studentId, id]
+      );
+      const hasGrantTx = grantTxRows.length > 0;
+
       const { rows: dupeRows } = await client.query(
         `SELECT id, passed FROM recitation_results
           WHERE student_id=$1 AND recitation_id=$2
@@ -1690,7 +1734,7 @@ router.post('/:id/submit', recitationSubmitLimiter, requireRole('student'), asyn
         const everPassedTx = dupeRows.some(r => r.passed === true);
         const maxReached = rec.max_retry_attempts !== null && rec.max_retry_attempts !== undefined
           && dupeRows.length >= rec.max_retry_attempts;
-        if (everPassedTx || !rec.allow_retry || maxReached) {
+        if (!hasGrantTx && (everPassedTx || !rec.allow_retry || maxReached)) {
           await client.query('ROLLBACK');
           client.release();
           return res.status(409).json({ error: 'لقد أديت هذا التسميع بالفعل', already_submitted: true });
@@ -1747,6 +1791,27 @@ router.post('/:id/submit', recitationSubmitLimiter, requireRole('student'), asyn
           JSON.stringify(snapshot),
         ]
       );
+
+      // Consume any unused teacher-granted retake that allowed this submission.
+      // Done atomically inside the same transaction so a concurrent grant
+      // issued by the teacher can't end up consuming both grants on a single
+      // submit.  Using a sub-select + FOR UPDATE locks the grant row to keep
+      // double-consumption impossible even under race conditions.
+      if (grantTxRows.length > 0) {
+        await client.query(
+          `UPDATE recitation_retake_grants
+              SET used_at = NOW(),
+                  used_result_id = $3
+            WHERE id = (
+              SELECT id FROM recitation_retake_grants
+               WHERE student_id = $1 AND recitation_id = $2 AND used_at IS NULL
+               ORDER BY granted_at ASC
+               LIMIT 1
+               FOR UPDATE SKIP LOCKED
+            )`,
+          [studentId, id, resultRows[0].id]
+        );
+      }
 
       // Update student points
       if (pointsEarned > 0) {
@@ -1998,6 +2063,110 @@ router.get('/results/:resultId/review', authenticate, async (req, res) => {
 // every eligible student who has no result yet for this recitation.
 // Eligibility: all non-suspended, non-deleted students of this teacher,
 // filtered by academic_stage if the recitation has one set.
+
+// ════════════════════════════════════════════════════════════════════════════════
+// TEACHER-GRANTED RETAKE ENDPOINTS
+// ════════════════════════════════════════════════════════════════════════════════
+
+// POST /api/recitations/:id/grant-retake
+// Body: { student_id: int, note?: string }
+// Inserts a new row in recitation_retake_grants. The student will be allowed to
+// submit one extra attempt on the next call to GET /:id/take, regardless of
+// allow_retry / max_retry_attempts / prior pass status. Multiple grants per
+// student are allowed.
+router.post('/:id/grant-retake', requireRole('teacher', 'assistant'), checkManageRecitationsPerm, async (req, res) => {
+  const id = parseParamId(req.params.id);
+  if (!id) return res.status(400).json({ error: 'Invalid ID' });
+
+  const studentIdRaw = req.body?.student_id;
+  const studentId = parseParamId(studentIdRaw);
+  if (!studentId) return res.status(400).json({ error: 'student_id غير صالح' });
+
+  const note = typeof req.body?.note === 'string' ? req.body.note.trim().slice(0, 500) : null;
+
+  try {
+    const teacherId = getTeacherId(req);
+    const rec = await getRecitationForOwner(id, teacherId);
+    if (!rec) return res.status(404).json({ error: 'التسميع غير موجود' });
+
+    // Verify the student belongs to this teacher and is not deleted/suspended.
+    const { rows: stRows } = await pool.query(
+      `SELECT id, name FROM students
+        WHERE id=$1 AND teacher_id=$2 AND deleted_at IS NULL AND is_suspended = false`,
+      [studentId, teacherId]
+    );
+    if (!stRows.length) return res.status(404).json({ error: 'الطالب غير موجود' });
+
+    // Insert the grant. Multiple grants per (recitation, student) are allowed
+    // so a teacher can grant another attempt after the first is consumed.
+    const grantedBy = req.user.role === 'teacher' ? req.user.id : req.user.teacher_id || null;
+    const { rows: grantRows } = await pool.query(
+      `INSERT INTO recitation_retake_grants
+         (recitation_id, student_id, granted_by, note)
+       VALUES ($1,$2,$3,$4) RETURNING *`,
+      [id, studentId, grantedBy, note]
+    );
+    const grant = grantRows[0];
+
+    // Invalidate the teacher-side results cache so the panel re-renders
+    // immediately with the new unused_grants badge.
+    invalidateCache(`t${teacherId}_rec_analytics`);
+
+    // Notify the student in real time + push notification.
+    sendEvent(`student_${studentId}`, 'recitation_retake_granted', {
+      recitationId: id,
+      recitationTitle: rec.title,
+    });
+    sendFCMToStudents(pool, [studentId],
+      'لديك محاولة إضافية لتسميع 📖',
+      `تم منحك محاولة إضافية لتسميع: "${rec.title}"`,
+      { recitationId: String(id) }
+    ).catch(() => {});
+
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'grant_recitation_retake',
+      entity: { type: 'recitation', id, name: rec.title },
+      details: { student_id: studentId, grant_id: grant.id },
+    });
+
+    res.status(201).json({ grant });
+  } catch (err) {
+    console.error('[recitations POST /:id/grant-retake]', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /api/recitations/:id/retake-grants
+// Returns every grant (used + unused) for this recitation so the UI can show
+// a per-student badge and history. Used by the RetakeGrantModal.
+router.get('/:id/retake-grants', requireRole('teacher', 'assistant'), checkManageRecitationsPerm, async (req, res) => {
+  const id = parseParamId(req.params.id);
+  if (!id) return res.status(400).json({ error: 'Invalid ID' });
+
+  try {
+    const teacherId = getTeacherId(req);
+    const rec = await getRecitationForOwner(id, teacherId);
+    if (!rec) return res.status(404).json({ error: 'التسميع غير موجود' });
+
+    const { rows } = await pool.query(
+      `SELECT g.id, g.student_id, g.granted_at, g.used_at, g.used_result_id, g.note,
+              s.name AS student_name, s.academic_stage,
+              COALESCE(t.name, '—') AS grantor_name
+         FROM recitation_retake_grants g
+         JOIN students s ON s.id = g.student_id
+         LEFT JOIN teachers t ON t.id = g.granted_by
+        WHERE g.recitation_id = $1 AND s.teacher_id = $2
+        ORDER BY g.granted_at DESC`,
+      [id, teacherId]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('[recitations GET /:id/retake-grants]', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 async function markAbsentRecitationStudents(poolOrClient, recitationId, teacherId) {
   try {
     const recInfo = await poolOrClient.query(
