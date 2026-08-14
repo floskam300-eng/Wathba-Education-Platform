@@ -1984,6 +1984,8 @@ export default function CourseView() {
     queryKey: ['course-exam-results', courseId],
     queryFn: () => api.get(`/exams/student/course-results/${courseId}`).then(r => r.data),
     enabled: !!courseId,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   const { data: courseRecitations = [], refetch: refetchRecitations } = useQuery({

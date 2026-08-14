@@ -77,11 +77,15 @@ export default function ExamQuestions() {
   const { data: exam } = useQuery({
     queryKey: ['exam-single', examId],
     queryFn: () => api.get('/exams').then(r => (r.data || []).find(e => String(e.id) === String(examId))),
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   const { data: questions = [], isLoading } = useQuery({
     queryKey: ['questions', examId],
     queryFn: () => api.get(`/exams/${examId}/questions`).then(r => r.data),
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   // Sync preferred option labels from existing questions if not explicitly customized yet
@@ -120,8 +124,8 @@ export default function ExamQuestions() {
   const addQMut = useMutation({
     mutationFn: (data) => api.post(`/exams/${examId}/questions`, data),
     onSuccess: () => {
-      qc.invalidateQueries(['questions', examId]);
-      qc.invalidateQueries(['exams']);
+      qc.invalidateQueries({ queryKey: ['questions', examId] });
+      qc.invalidateQueries({ queryKey: ['exams'] });
       toast.success('تم إضافة السؤال ✅');
       resetQForm();
     },
@@ -131,8 +135,8 @@ export default function ExamQuestions() {
   const updateQMut = useMutation({
     mutationFn: ({ qid, data }) => api.put(`/exams/questions/${qid}`, data),
     onSuccess: () => {
-      qc.invalidateQueries(['questions', examId]);
-      qc.invalidateQueries(['exams']);
+      qc.invalidateQueries({ queryKey: ['questions', examId] });
+      qc.invalidateQueries({ queryKey: ['exams'] });
       toast.success('تم تحديث السؤال ✅');
       resetQForm();
     },
@@ -142,8 +146,8 @@ export default function ExamQuestions() {
   const deleteQMut = useMutation({
     mutationFn: (qid) => api.delete(`/exams/questions/${qid}`),
     onSuccess: () => {
-      qc.invalidateQueries(['questions', examId]);
-      qc.invalidateQueries(['exams']);
+      qc.invalidateQueries({ queryKey: ['questions', examId] });
+      qc.invalidateQueries({ queryKey: ['exams'] });
       toast.success('تم حذف السؤال');
       setDeleteQId(null);
     },

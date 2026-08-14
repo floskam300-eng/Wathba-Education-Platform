@@ -27,6 +27,8 @@ export default function AttemptHistoryModal({ examId, studentId, studentName, ex
     queryFn: () =>
       api.get(`/exams/results/by-exam-student/${examId}/${studentId}`).then(r => r.data),
     enabled: !!examId && !!studentId,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   const attempts = data?.attempts || [];

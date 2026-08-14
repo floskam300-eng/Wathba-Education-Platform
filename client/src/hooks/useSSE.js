@@ -106,7 +106,10 @@ export function useSSE(enabled, role) {
           // [DUP-3 FIX] Removed wathba_platform_notification dispatch: StudentLayout
           // was receiving it and invalidating ['my-notifications'] a second time,
           // causing a redundant refetch. The invalidation above is sufficient.
-          toast.success(`${EVENT_ICONS.new_exam} اختبار جديد متاح الآن: ${data.title}`,
+          const message = data.scheduled
+            ? `${EVENT_ICONS.new_exam} تم جدولة اختبار جديد: ${data.title}`
+            : `${EVENT_ICONS.new_exam} اختبار جديد متاح الآن: ${data.title}`;
+          toast.success(message,
             { duration: 6000, style: { fontFamily: 'inherit', direction: 'rtl' } });
         });
 
@@ -345,6 +348,18 @@ export function useSSE(enabled, role) {
             ? `📝 تم نشر الاختبار: ${data.title}`
             : `🔕 تم إلغاء نشر الاختبار: ${data.title}`;
           toast(msg, { duration: 5000, style: { fontFamily: 'inherit', direction: 'rtl' } });
+        });
+
+        es.addEventListener('exam_result_submitted', (e) => {
+          let data; try { data = JSON.parse(e.data); } catch { return; }
+          qc.invalidateQueries({ queryKey: ['exams'] });
+          qc.invalidateQueries({ queryKey: ['teacher-dashboard'] });
+          qc.invalidateQueries({ queryKey: ['teacher-analytics'] });
+          qc.invalidateQueries({ queryKey: ['assistant-analytics'] });
+          qc.invalidateQueries({ queryKey: ['exam-analytics'] });
+          if (data?.examId) {
+            qc.invalidateQueries({ queryKey: ['exam-attempts', data.examId] });
+          }
         });
 
         es.addEventListener('recitation_submitted', (e) => {

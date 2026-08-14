@@ -112,17 +112,20 @@ export default function StudentExams() {
   const { data: myResults = [] } = useQuery({
     queryKey: ['student-my-results'],
     queryFn: () => api.get('/exams/student/my-results').then(r => r.data),
-    staleTime: 30_000,
+    // Exam history changes after every submission or teacher reset. Do not let
+    // the persisted global query cache hide those changes after a refresh.
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   const { data: exams = [], isLoading } = useQuery({
     queryKey: ['student-exams'],
     queryFn: () => api.get('/exams/student/available').then(r => r.data),
-    refetchInterval: (query) => {
-      const list = query.state.data || [];
-      const hasUpcoming = list.some(ex => getExamScheduleStatus(ex) === 'upcoming');
-      return hasUpcoming ? 30000 : false;
-    },
+    // SSE is the fast path. Polling is the recovery path when a device was
+    // offline or its long-lived SSE connection was interrupted.
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchInterval: 30_000,
   });
 
   // Mounted ref + submittedRef reset on unmount
@@ -165,6 +168,8 @@ export default function StudentExams() {
   const { data: retryRequests = [] } = useQuery({
     queryKey: ['student-retry-requests'],
     queryFn: () => api.get('/exams/student/retry-requests').then(r => r.data),
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   // T7 FIX: backend returns requests ORDER BY created_at DESC (newest first).
@@ -179,12 +184,14 @@ export default function StudentExams() {
     queryKey: ['exam-take', taking?.id],
     queryFn: () => api.get(`/exams/${taking?.id}/take`).then(r => r.data),
     enabled: !!taking && !taking.already_taken,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   const retryRequestMut = useMutation({
     mutationFn: ({ examId, message }) => api.post(`/exams/${examId}/retry-request`, { message }),
     onSuccess: () => {
-      qc.invalidateQueries(['student-retry-requests']);
+      qc.invalidateQueries({ queryKey: ['student-retry-requests'] });
       toast.success('تم إرسال طلب إعادة الاختبار للمعلم');
       setRetryModal(null);
       setRetryMessage('');
@@ -199,8 +206,8 @@ export default function StudentExams() {
       localStorage.removeItem(`exam_answers_${variables.id}`);
       setResult(res.data);
       setTaking(null);
-      qc.invalidateQueries(['student-exams']);
-      qc.invalidateQueries(['student-dashboard']);
+      qc.invalidateQueries({ queryKey: ['student-exams'] });
+      qc.invalidateQueries({ queryKey: ['student-dashboard'] });
     },
     onError: (e, variables) => {
       const status = e.response?.status;
@@ -209,7 +216,7 @@ export default function StudentExams() {
         localStorage.removeItem(`exam_start_${variables.id}`);
         localStorage.removeItem(`exam_answers_${variables.id}`);
         setTaking(null);
-        qc.invalidateQueries(['student-exams']);
+        qc.invalidateQueries({ queryKey: ['student-exams'] });
       } else {
         // Retriable error — reset guard so student can re-submit
         submittedRef.current = false;

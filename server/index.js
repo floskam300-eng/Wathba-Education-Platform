@@ -473,6 +473,15 @@ const sseLimiter = rateLimit({
   },
 });
 
+// API responses are user- and tenant-specific. Never let a browser, proxy, or
+// an accidentally broad CDN rule reuse one student's response for another.
+app.use('/api', (req, res, next) => {
+  res.setHeader('Cache-Control', 'private, no-store, no-cache, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  next();
+});
+
 // ── [C-2] SSE endpoint — H-8 fix: prefer short-lived ticket over raw JWT ──
 app.get('/api/sse', sseLimiter, async (req, res) => {
   const ticket = req.query.ticket;

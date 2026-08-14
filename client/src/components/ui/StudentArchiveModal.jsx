@@ -48,6 +48,8 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
   const { data: examResults, isLoading: examLoading } = useQuery({
     queryKey: ['archive-student-exams', student.id],
     queryFn: () => api.get(`/archive/student/${student.id}/exam-results`).then(r => r.data),
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   const { data: recResults, isLoading: recLoading } = useQuery({

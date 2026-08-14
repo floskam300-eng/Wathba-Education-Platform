@@ -83,6 +83,8 @@ export default function QuestionBankQuestions() {
   const { data: bankQuestions = [], isLoading } = useQuery({
     queryKey: ['bank-questions', bankId],
     queryFn: () => api.get(`/question-banks/${bankId}/questions`).then(r => r.data),
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   // Sync preferred option labels from existing questions if not explicitly customized yet
@@ -121,8 +123,8 @@ export default function QuestionBankQuestions() {
   const addQMut = useMutation({
     mutationFn: (data) => api.post(`/question-banks/${bankId}/questions`, data),
     onSuccess: () => {
-      qc.invalidateQueries(['bank-questions', bankId]);
-      qc.invalidateQueries(['question-banks']);
+      qc.invalidateQueries({ queryKey: ['bank-questions', bankId] });
+      qc.invalidateQueries({ queryKey: ['question-banks'] });
       toast.success('تم إضافة السؤال');
       resetQForm();
     },
@@ -132,7 +134,7 @@ export default function QuestionBankQuestions() {
   const updateQMut = useMutation({
     mutationFn: ({ qid, data }) => api.put(`/question-banks/questions/${qid}`, data),
     onSuccess: () => {
-      qc.invalidateQueries(['bank-questions', bankId]);
+      qc.invalidateQueries({ queryKey: ['bank-questions', bankId] });
       toast.success('تم تحديث السؤال');
       resetQForm();
     },
@@ -142,8 +144,8 @@ export default function QuestionBankQuestions() {
   const deleteQMut = useMutation({
     mutationFn: (qid) => api.delete(`/question-banks/questions/${qid}`),
     onSuccess: () => {
-      qc.invalidateQueries(['bank-questions', bankId]);
-      qc.invalidateQueries(['question-banks']);
+      qc.invalidateQueries({ queryKey: ['bank-questions', bankId] });
+      qc.invalidateQueries({ queryKey: ['question-banks'] });
       toast.success('تم حذف السؤال');
       setDeleteQId(null);
     },

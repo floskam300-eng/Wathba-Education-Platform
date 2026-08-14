@@ -55,7 +55,9 @@ export default function ExamAnalytics() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ['exam-analytics', examId],
     queryFn: () => api.get(`/teachers/analytics/exam/${examId}`).then(r => r.data),
-    staleTime: 3 * 60 * 1000,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchInterval: 30_000,
   });
 
   const exam = data?.exam;

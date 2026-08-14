@@ -539,10 +539,17 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExams
           [teacherId, studentIds, notifMsg, notifTitle]
         ).catch(e => console.error('[exam publish notif batch]', e.message));
       }
-      if (!hasStartDate) {
-        for (const sid of studentIds)
-          sendEvent(`student_${sid}`, 'new_exam', { title: exam.title, examId: exam.id });
-      }
+       // Always invalidate the student exam list at publish time, including
+       // future exams. The start scheduler will send `exam_started` later for
+       // the second refresh when the exam becomes open.
+       for (const sid of studentIds) {
+         sendEvent(`student_${sid}`, 'new_exam', {
+           title: exam.title,
+           examId: exam.id,
+           scheduled: !!hasStartDate,
+           startDate: exam.start_date,
+         });
+       }
       sendFCMToStudents(pool, studentIds, notifTitle, notifMsg, { examId: String(exam.id) }).catch(() => {});
 
       // start_notified is now set atomically in the UPDATE above — no second query needed.
@@ -1702,6 +1709,22 @@ router.post('/:id/submit', submitLimiter, requireRole('student'), async (req, re
 
     await client.query('COMMIT');
     invalidateCache(exam.teacher_id);
+    // Refresh teacher exam lists and analytics immediately after a submission.
+    // The client also has a polling fallback, but this keeps the normal path
+    // real-time while the teacher page is open.
+    sendEvent(`teacher_${exam.teacher_id}`, 'exam_result_submitted', {
+      examId,
+      studentId,
+    });
+    // Assistants use their own SSE channel, so fan the same event out to the
+    // teacher's connected assistants without delaying the submission response.
+    pool.query('SELECT id FROM assistants WHERE teacher_id=$1', [exam.teacher_id])
+      .then(({ rows }) => {
+        for (const assistant of rows) {
+          sendEvent(`assistant_${assistant.id}`, 'exam_result_submitted', { examId, studentId });
+        }
+      })
+      .catch(() => {});
     // Clean up the exam session after successful submission (best-effort)
     pool.query('DELETE FROM exam_sessions WHERE student_id=$1 AND exam_id=$2', [studentId, examId]).catch(() => {});
     res.json({ result: resultRow.rows[0], detailedAnswers, normalizedScore, pointsEarned, pass_score: exam.pass_score, total_score: exam.total_score });

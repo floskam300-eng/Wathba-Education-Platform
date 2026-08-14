@@ -63,6 +63,8 @@ export default function ExamReviewModal({ resultId, onClose }) {
     queryKey: ['exam-review', resultId],
     queryFn: () => api.get(`/exams/results/${resultId}/review`).then(r => r.data),
     enabled: !!resultId,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   const { result, questions = [] } = data || {};

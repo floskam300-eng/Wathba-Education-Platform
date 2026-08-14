@@ -97,7 +97,9 @@ export default function ExamPerformancePage() {
   const { data, isLoading } = useQuery({
     queryKey: [queryKey],
     queryFn: () => api.get(apiPath).then(r => r.data),
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchInterval: 30_000,
   });
 
   const exams = data?.examResults || [];

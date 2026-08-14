@@ -82,6 +82,8 @@ export default function TeacherExams() {
   const { data: exams = [], isLoading } = useQuery({
     queryKey: ['exams'],
     queryFn: () => api.get('/exams').then(r => r.data),
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   const { data: courses = [] } = useQuery({
@@ -123,25 +125,25 @@ export default function TeacherExams() {
 
   const createMut = useMutation({
     mutationFn: (data) => api.post('/exams', data),
-    onSuccess: () => { qc.invalidateQueries(['exams']); toast.success('تم إنشاء الاختبار'); closeModal(); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['exams'] }); toast.success('تم إنشاء الاختبار'); closeModal(); },
     onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
   });
 
   const updateMut = useMutation({
     mutationFn: ({ id, data }) => api.put(`/exams/${id}`, data),
-    onSuccess: () => { qc.invalidateQueries(['exams']); toast.success('تم تحديث الاختبار'); closeModal(); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['exams'] }); toast.success('تم تحديث الاختبار'); closeModal(); },
     onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ في تحديث الاختبار'),
   });
 
   const deleteMut = useMutation({
     mutationFn: (id) => api.delete(`/exams/${id}`),
-    onSuccess: () => { qc.invalidateQueries(['exams']); toast.success('تم حذف الاختبار'); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['exams'] }); toast.success('تم حذف الاختبار'); },
   });
 
   const publishMut = useMutation({
     mutationFn: ({ id, force_reset }) => api.put(`/exams/${id}/publish`, { force_reset: !!force_reset }),
     onSuccess: (res) => {
-      qc.invalidateQueries(['exams']);
+      qc.invalidateQueries({ queryKey: ['exams'] });
       setPublishConfirm(null);
       setForceResetConfirm(null);
       if (res.data.is_published) {

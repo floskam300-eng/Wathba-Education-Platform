@@ -21,6 +21,8 @@ export default function AssistantDashboard() {
     queryKey: ['exams'],
     queryFn: () => api.get('/exams').then(r => r.data),
     enabled: !!canViewExams,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   return (

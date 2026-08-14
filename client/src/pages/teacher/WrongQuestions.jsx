@@ -153,6 +153,9 @@ export default function WrongQuestionsPage() {
   const { data: exams = [], isLoading } = useQuery({
     queryKey: ['wrong-questions-full'],
     queryFn: () => api.get('/teachers/analytics/wrong-questions?full=true').then(r => r.data),
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchInterval: 30_000,
   });
 
   // Exam options for filter
