@@ -219,4 +219,4 @@ function validatePayment(req, res, next) {
   next();
 }
 
-module.exports = { validateStudent, validateAssistant, validateCourse, validateExam, validatePayment };
+module.exports = { validateStudent, validateAssistant, validateCourse, validateExam, validatePayment, VALID_STAGES };

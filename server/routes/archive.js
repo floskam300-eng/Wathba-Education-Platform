@@ -466,34 +466,36 @@ router.get('/filters', requireRole('teacher', 'assistant'), checkAnyPerm, async 
       pool.query(
         `SELECT academic_stage FROM students
          WHERE teacher_id=$1 AND deleted_at IS NULL AND academic_stage IS NOT NULL
-         GROUP BY academic_stage
-         ORDER BY
-            CASE academic_stage
-              WHEN 'الصف الأول الابتدائي'              THEN 1
-              WHEN 'الصف الثاني الابتدائي'              THEN 2
-              WHEN 'الصف الثالث الابتدائي'              THEN 3
-              WHEN 'الصف الرابع الابتدائي'              THEN 4
-              WHEN 'الصف الخامس الابتدائي'              THEN 5
-              WHEN 'الصف السادس الابتدائي'              THEN 6
-              WHEN 'الصف الأول الإعدادي'               THEN 7
-              WHEN 'الصف الثاني الإعدادي'               THEN 8
-              WHEN 'الصف الثالث الإعدادي'               THEN 9
-              WHEN 'الصف الأول الثانوي عام'             THEN 10
-              WHEN 'الصف الأول الثانوي بكالوريا'        THEN 11
-              WHEN 'الصف الثاني الثانوي عام'            THEN 12
-              WHEN 'الصف الثاني الثانوي بكالوريا'       THEN 13
-              WHEN 'الصف الثالث الثانوي'                THEN 14
-              ELSE 99
-            END ASC, academic_stage ASC`,
+         GROUP BY academic_stage`,
         [teacherId]
       ),
     ]);
+
+    const ALL_STAGES = [
+      'الصف الأول الابتدائي',
+      'الصف الثاني الابتدائي',
+      'الصف الثالث الابتدائي',
+      'الصف الرابع الابتدائي',
+      'الصف الخامس الابتدائي',
+      'الصف السادس الابتدائي',
+      'الصف الأول الإعدادي',
+      'الصف الثاني الإعدادي',
+      'الصف الثالث الإعدادي',
+      'الصف الأول الثانوي عام',
+      'الصف الأول الثانوي بكالوريا',
+      'الصف الثاني الثانوي عام',
+      'الصف الثاني الثانوي بكالوريا',
+      'الصف الثالث الثانوي',
+      'جامعي',
+    ];
+    const dbStages = stagesQ.rows.map(r => r.academic_stage).filter(Boolean);
+    const combinedStages = Array.from(new Set([...ALL_STAGES, ...dbStages]));
 
     res.json({
       courses: coursesQ.rows,
       exams: examsQ.rows,
       recitations: recitationsQ.rows,
-      stages: stagesQ.rows.map(r => r.academic_stage),
+      stages: combinedStages,
     });
   } catch (err) {
     console.error('[archive/filters]', err);

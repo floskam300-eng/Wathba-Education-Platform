@@ -103,6 +103,7 @@ async function markAbsentStudents(poolOrClient, examId, teacherId) {
       );
     }
     await poolOrClient.query('UPDATE exams SET absent_marked=true WHERE id=$1', [examId]);
+    invalidateCache(teacherId);
     console.log(`[markAbsentStudents] exam=${examId} — marked ${eligibleRows.length} absent`);
     return eligibleRows.length;
   } catch (err) {
@@ -589,9 +590,10 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExams
         );
       } else {
         // Mark absent for every eligible student who never took this exam
-        markAbsentStudents(pool, exam.id, teacherId).catch(e =>
+        await markAbsentStudents(pool, exam.id, teacherId).catch(e =>
           console.error('[unpublish] markAbsentStudents error:', e.message)
         );
+        invalidateCache(teacherId);
       }
     }
 

@@ -265,7 +265,7 @@ export default function TeacherAnalytics() {
   const totalAttempts = useMemo(() => (data?.examResults || []).reduce((s, e) => s + parseInt(e.attempt_count || 0), 0), [data]);
 
   const avgScore = useMemo(() => {
-    const results = data?.recentResults || [];
+    const results = (data?.recentResults || []).filter(r => !r.is_absent);
     if (results.length) {
       const total = results.reduce((s, r) => s + (r.total_score ? (r.score / r.total_score * 100) : 0), 0);
       return Math.round(total / results.length);
@@ -278,13 +278,13 @@ export default function TeacherAnalytics() {
   }, [data]);
 
   const passRate = useMemo(() => {
-    const results = data?.recentResults || [];
+    const results = (data?.recentResults || []).filter(r => !r.is_absent);
     if (!results.length) return 0;
     return Math.round((results.filter(r => r.score >= r.pass_score).length / results.length) * 100);
   }, [data]);
 
   const passFailData = useMemo(() => {
-    const results = data?.recentResults || [];
+    const results = (data?.recentResults || []).filter(r => !r.is_absent);
     const pass = results.filter(r => r.score >= r.pass_score).length;
     const fail = results.length - pass;
     if (!results.length) return [];
@@ -295,7 +295,7 @@ export default function TeacherAnalytics() {
   }, [data]);
 
   const scoreDistData = useMemo(() => {
-    const results = data?.recentResults || [];
+    const results = (data?.recentResults || []).filter(r => !r.is_absent);
     return [
       { name: '0–39', min: 0, max: 39, fill: '#f43f5e', count: 0 },
       { name: '40–59', min: 40, max: 59, fill: '#f59e0b', count: 0 },
@@ -400,11 +400,16 @@ export default function TeacherAnalytics() {
     if (stageFilter !== 'الكل') list = list.filter(r => r.academic_stage === stageFilter);
     if (resultsSearch.trim()) {
       const q = resultsSearch.trim().toLowerCase();
-      list = list.filter(r => r.student_name?.toLowerCase().includes(q) || r.exam_title?.toLowerCase().includes(q));
+      list = list.filter(r =>
+        r.student_name?.toLowerCase().includes(q) ||
+        r.exam_title?.toLowerCase().includes(q) ||
+        r.student_username?.toLowerCase().includes(q)
+      );
     }
     if (resultsExamFilter !== 'الكل') list = list.filter(r => r.exam_title === resultsExamFilter);
-    if (resultsStatus === 'ناجح') list = list.filter(r => r.score >= r.pass_score);
-    if (resultsStatus === 'راسب') list = list.filter(r => r.score < r.pass_score);
+    if (resultsStatus === 'ناجح') list = list.filter(r => !r.is_absent && r.score >= r.pass_score);
+    if (resultsStatus === 'راسب') list = list.filter(r => !r.is_absent && r.score < r.pass_score);
+    if (resultsStatus === 'غائب') list = list.filter(r => r.is_absent);
     return list;
   }, [data, stageFilter, resultsSearch, resultsExamFilter, resultsStatus]);
 
@@ -1883,11 +1888,11 @@ export default function TeacherAnalytics() {
                 { header: 'الطالب', accessor: 'student_name' },
                 { header: 'كود الطالب', accessor: 'student_username' },
                 { header: 'الاختبار', accessor: 'exam_title' },
-                { header: 'الدرجة', render: (r) => `${r.score} / ${r.total_score}` },
-                { header: 'النسبة', render: (r) => (r.total_score ? Math.round((r.score / r.total_score) * 100) : 0) + '%' },
-                { header: 'الحالة', render: (r) => (r.score >= r.pass_score ? 'ناجح' : 'راسب') },
-                { header: 'صواب', accessor: 'correct_count' },
-                { header: 'خطأ', accessor: 'wrong_count' },
+                { header: 'الدرجة', render: (r) => r.is_absent ? 'غائب' : `${r.score} / ${r.total_score}` },
+                { header: 'النسبة', render: (r) => r.is_absent ? '—' : (r.total_score ? Math.round((r.score / r.total_score) * 100) : 0) + '%' },
+                { header: 'الحالة', render: (r) => r.is_absent ? 'غائب' : (r.score >= r.pass_score ? 'ناجح' : 'راسب') },
+                { header: 'صواب', render: (r) => r.is_absent ? '—' : r.correct_count },
+                { header: 'خطأ', render: (r) => r.is_absent ? '—' : r.wrong_count },
                 { header: 'التاريخ', accessor: 'created_at' },
               ]}
             />
@@ -1906,10 +1911,10 @@ export default function TeacherAnalytics() {
             className="py-2 px-3 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600 focus:outline-none focus:border-orange-300 transition">
             {examOptions.map(o => <option key={o} value={o}>{o}</option>)}
           </select>
-          {['الكل', 'ناجح', 'راسب'].map(s => (
+          {['الكل', 'ناجح', 'راسب', 'غائب'].map(s => (
             <button key={s} onClick={() => setResultsStatus(s)}
               className={`px-3 py-2 rounded-lg text-xs font-bold transition-all ${resultsStatus === s
-                  ? s === 'ناجح' ? 'bg-emerald-500 text-white' : s === 'راسب' ? 'bg-rose-500 text-white' : 'bg-gray-700 text-white'
+                  ? s === 'ناجح' ? 'bg-emerald-500 text-white' : s === 'راسب' ? 'bg-rose-500 text-white' : s === 'غائب' ? 'bg-amber-500 text-white' : 'bg-gray-700 text-white'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}>{s}</button>
           ))}
@@ -1930,30 +1935,49 @@ export default function TeacherAnalytics() {
             </thead>
             <tbody>
               {filteredResults.slice(0, resultsPage).map(r => {
-                const passed = r.score >= r.pass_score;
-                const pct = r.total_score ? Math.round((r.score / r.total_score) * 100) : 0;
+                const isAbsent = r.is_absent === true || r.is_absent === 'true';
+                const passed = !isAbsent && r.score >= r.pass_score;
+                const pct = !isAbsent && r.total_score ? Math.round((r.score / r.total_score) * 100) : 0;
                 return (
                   <tr key={r.id} className="border-t border-gray-50 hover:bg-gray-50/60 transition-colors group">
                     <td className="px-4 py-3 font-bold text-gray-800 text-sm">{r.student_name}</td>
                     <td className="px-4 py-3 font-mono font-bold text-xs text-orange-600">{r.student_username || '—'}</td>
                     <td className="px-4 py-3 text-gray-600 text-xs max-w-[150px] truncate font-medium">{r.exam_title}</td>
                     <td className="px-4 py-3 text-center">
-                      <div className="flex flex-col items-center gap-0.5">
-                        <span className={`font-black text-sm ${passed ? 'text-emerald-600' : 'text-rose-500'}`}>{r.score}/{r.total_score}</span>
-                        <div className="w-14 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                          <div className="h-1.5 rounded-full" style={{ width: `${pct}%`, background: passed ? '#10b981' : '#f43f5e' }} />
+                      {isAbsent ? (
+                        <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                          لم يحضر
+                        </span>
+                      ) : (
+                        <div className="flex flex-col items-center gap-0.5">
+                          <span className={`font-black text-sm ${passed ? 'text-emerald-600' : 'text-rose-500'}`}>{r.score}/{r.total_score}</span>
+                          <div className="w-14 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div className="h-1.5 rounded-full" style={{ width: `${pct}%`, background: passed ? '#10b981' : '#f43f5e' }} />
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${passed ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-600'}`}>
-                        {passed ? '✓ ناجح' : '✗ راسب'}
-                      </span>
+                      {isAbsent ? (
+                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                          ⚠ غائب
+                        </span>
+                      ) : (
+                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${passed ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-600'}`}>
+                          {passed ? '✓ ناجح' : '✗ راسب'}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-center text-xs font-semibold hidden sm:table-cell">
-                      <span className="text-emerald-600">✓ {r.correct_count}</span>
-                      <span className="mx-1.5 text-gray-300">|</span>
-                      <span className="text-rose-500">✗ {r.wrong_count}</span>
+                      {isAbsent ? (
+                        <span className="text-gray-400">—</span>
+                      ) : (
+                        <>
+                          <span className="text-emerald-600">✓ {r.correct_count}</span>
+                          <span className="mx-1.5 text-gray-300">|</span>
+                          <span className="text-rose-500">✗ {r.wrong_count}</span>
+                        </>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-center text-[11px] text-gray-400 font-medium hidden sm:table-cell">
                       {r.created_at ? new Date(r.created_at).toLocaleDateString('ar-EG') : '—'}
@@ -1962,7 +1986,7 @@ export default function TeacherAnalytics() {
                 );
               })}
               {filteredResults.length === 0 && (
-                <tr><td colSpan={6} className="text-center py-10 text-gray-400 text-sm font-semibold">لا توجد نتائج</td></tr>
+                <tr><td colSpan={7} className="text-center py-10 text-gray-400 text-sm font-semibold">لا توجد نتائج</td></tr>
               )}
             </tbody>
           </table>

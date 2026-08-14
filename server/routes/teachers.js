@@ -354,7 +354,7 @@ router.get('/analytics', requireRole('teacher'), async (req, res) => {
         FROM exam_results er
         JOIN students s ON er.student_id = s.id
         JOIN exams e ON er.exam_id = e.id
-        WHERE e.teacher_id = $1 AND er.is_latest = true AND er.is_absent = false
+        WHERE e.teacher_id = $1 AND er.is_latest = true
         ORDER BY er.created_at DESC LIMIT 100
       `, [teacherId]),
       pool.query(
