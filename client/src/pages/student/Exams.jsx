@@ -34,8 +34,7 @@ function getShuffledOpts(q, studentId, shuffleOptions) {
   return seededShuffle(allOpts, seed || 1);
 }
 
-const getExamScheduleStatus = (ex) => {
-  const now = new Date();
+const getExamScheduleStatus = (ex, now = new Date()) => {
   if (ex.start_date && toUTCDate(ex.start_date) > now) return 'upcoming';
   if (ex.end_date && toUTCDate(ex.end_date) < now) return 'expired';
   return 'open';
@@ -45,12 +44,17 @@ const getExamScheduleStatus = (ex) => {
 const ExamCountdownBadge = React.memo(function ExamCountdownBadge({ targetDate, onExpire }) {
   const targetMs = toUTCDate(targetDate)?.getTime() ?? Infinity;
   const [display, setDisplay] = useState(() => formatCountdown(targetMs - Date.now()));
+  const expiredRef = useRef(false);
   useEffect(() => {
+    expiredRef.current = false;
     const update = () => {
       const msLeft = targetMs - Date.now();
       if (msLeft <= 0) {
         setDisplay(null);
-        if (onExpire) onExpire();
+        if (!expiredRef.current) {
+          expiredRef.current = true;
+          if (onExpire) onExpire();
+        }
       } else {
         setDisplay(formatCountdown(msLeft));
       }
@@ -93,6 +97,9 @@ export default function StudentExams() {
   const [retryModal, setRetryModal] = useState(null);
   const [retryMessage, setRetryMessage] = useState('');
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  // Used only at start/end boundaries so the card status changes without a
+  // manual refresh or a one-second re-render of the whole page.
+  const [scheduleNow, setScheduleNow] = useState(() => new Date());
   // Collapsed by default — student taps the button to expand and review past attempts
   const [showHistory, setShowHistory] = useState(false);
   // Question-by-question navigation
@@ -137,24 +144,30 @@ export default function StudentExams() {
     };
   }, []);
 
-  // Auto-refresh when upcoming exams hit their start time (client-side fallback)
+  const refreshScheduleState = useCallback(() => {
+    setScheduleNow(new Date());
+    qc.invalidateQueries({ queryKey: ['student-exams'] });
+  }, [qc]);
+
+  // Refresh exactly when an exam opens or expires. The API refresh remains a
+  // fallback, but the local status must change even if the request is slow.
   useEffect(() => {
     if (!exams.length) return;
-    const upcomingDates = exams
-      .filter(ex => ex.start_date && toUTCDate(ex.start_date) > new Date())
-      .map(ex => toUTCDate(ex.start_date)?.getTime() ?? 0).filter(Boolean);
-    if (!upcomingDates.length) return;
+    const boundaryDates = exams
+      .flatMap(ex => [ex.start_date, ex.end_date])
+      .map(date => toUTCDate(date)?.getTime() ?? 0)
+      .filter(ts => ts > Date.now());
 
-    const timers = upcomingDates.map(ts => {
+    const timers = boundaryDates.map(ts => {
       const delay = ts - Date.now();
       if (delay <= 0) return null;
       return setTimeout(() => {
-        qc.invalidateQueries({ queryKey: ['student-exams'] });
+        refreshScheduleState();
       }, delay + 500);
     }).filter(Boolean);
 
     return () => timers.forEach(t => clearTimeout(t));
-  }, [exams, qc]);
+  }, [exams, refreshScheduleState]);
 
   // Listen for SSE exam_started event to also force-refresh
   useEffect(() => {
@@ -1113,7 +1126,7 @@ export default function StudentExams() {
           return (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
             {availableExams.map(ex => {
-              const scheduleStatus = getExamScheduleStatus(ex);
+              const scheduleStatus = getExamScheduleStatus(ex, scheduleNow);
               const isUpcoming = scheduleStatus === 'upcoming';
               const isExpired = scheduleStatus === 'expired';
               return (
@@ -1164,7 +1177,7 @@ export default function StudentExams() {
                         <span className="text-xs text-yellow-800 font-bold">
                           يبدأ في: {toUTCDate(ex.start_date)?.toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }) ?? ''}
                         </span>
-                        <ExamCountdownBadge targetDate={ex.start_date} onExpire={() => qc.invalidateQueries({ queryKey: ['student-exams'] })} />
+                         <ExamCountdownBadge targetDate={ex.start_date} onExpire={refreshScheduleState} />
                       </div>
                     </div>
                   )}
