@@ -11,10 +11,10 @@ import toast from 'react-hot-toast';
 import { useTheme } from '../../context/ThemeContext';
 import ImageLightbox from '../../components/ImageLightbox';
 import { withToken } from '../../lib/mediaAccess';
-import { toUTCDate } from '../../lib/dateUtils';
+import { toUTCDate, getServerNow, getServerNowMs, formatEgyptDateTime } from '../../lib/dateUtils';
 
 function getStatus(rec) {
-  const now = new Date();
+  const now = getServerNow();
   const startDate = toUTCDate(rec.start_date);
   const endDate = toUTCDate(rec.end_date);
   const mySubmittedAt = toUTCDate(rec.my_submitted_at);
@@ -29,7 +29,7 @@ function getStatus(rec) {
 
 function CountdownBadge({ target, onExpire }) {
   const targetDate = toUTCDate(target);
-  const calcDiff = () => targetDate ? targetDate.getTime() - Date.now() : 0;
+  const calcDiff = () => targetDate ? targetDate.getTime() - getServerNowMs() : 0;
   const [diff, setDiff] = useState(calcDiff);
 
   useEffect(() => {
@@ -138,7 +138,7 @@ export default function StudentRecitations() {
       if (typeof data.remaining_seconds === 'number' && !isNaN(data.remaining_seconds)) {
         remainingSecs = Math.max(0, data.remaining_seconds);
       } else if (data.server_started_at) {
-        const serverNowMs = data.server_now ? new Date(data.server_now).getTime() : Date.now();
+        const serverNowMs = data.server_now ? new Date(data.server_now).getTime() : getServerNowMs();
         const startedAtMs = new Date(data.server_started_at).getTime();
         if (!isNaN(startedAtMs)) {
           const elapsedSecs = Math.max(0, Math.floor((serverNowMs - startedAtMs) / 1000));
@@ -248,45 +248,7 @@ export default function StudentRecitations() {
     };
   }, [selectedRec]);
 
-  // Keepalive on tab close
-  useEffect(() => {
-    if (view !== 'take' || !selectedRec) return;
-    const handleUnload = () => {
-      if (submittedRef.current) return;
-      // [CL1-FIX] Use the correct localStorage key 'wathba_token' that AuthContext
-      // and api.js both use. The previous key 'token' was never set, so the
-      // keepalive always sent "Authorization: Bearer null" → server rejected 401.
-      const token = localStorage.getItem('wathba_token');
-      // [CL4-FIX] Include X-Tenant-Slug so multi-tenant servers can resolve the
-      // tenant. Axios interceptor injects this automatically, but fetch() doesn't
-      // use interceptors — the same gap was fixed in Exams.jsx keepalive (M-15).
-      const tenantSlug = localStorage.getItem('wathba_teacher_slug') || '';
-      // [R4-FIX] sendBeacon does not support custom headers (Authorization),
-      // so the server always rejected it with 401. Use fetch with keepalive:true
-      // instead — it supports auth headers and survives page unload.
-      const qs2 = examData?.questions || [];
-      const payloadUnload = JSON.stringify({
-        answers: qs2.map(q => ({
-          question_id: q.id,
-          answer: q.question_type === 'image_multi'
-            ? JSON.stringify(answers[q.id] || {})
-            : (answers[q.id] || null),
-        }))
-      });
-      fetch(`/api/recitations/${selectedRec.id}/submit`, {
-        method: 'POST',
-        keepalive: true,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-          ...(tenantSlug ? { 'X-Tenant-Slug': tenantSlug } : {}),
-        },
-        body: payloadUnload,
-      }).catch(() => {});
-    };
-    window.addEventListener('beforeunload', handleUnload);
-    return () => window.removeEventListener('beforeunload', handleUnload);
-  }, [view, selectedRec, answers, examData]);
+  // (Keepalive beforeunload removed to prevent unexpected zero-score submissions on network drops)
 
   const handleSubmit = useCallback(async (auto = false) => {
     if (submittedRef.current || submitting) return;

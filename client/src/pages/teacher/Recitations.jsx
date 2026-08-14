@@ -12,7 +12,7 @@ import toast from 'react-hot-toast';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { withToken } from '../../lib/mediaAccess';
-import { fmtDateLocal, toUTCDate } from '../../lib/dateUtils';
+import { fmtDateLocal, toUTCDate, getServerNow, formatEgyptDateTime } from '../../lib/dateUtils';
 
 const PG_STAGES = [
   'الصف الأول الابتدائي',
@@ -35,7 +35,7 @@ const SCHED_LABELS = { once: 'مرة واحدة', daily: 'يومي', weekly: 'أ
 const DAY_NAMES = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 
 function getStatus(rec) {
-  const now = new Date();
+  const now = getServerNow();
   if (!rec.is_published) return { label: 'مسودة', color: 'gray', icon: Edit3 };
   const sDate = toUTCDate(rec.start_date);
   const eDate = toUTCDate(rec.end_date);

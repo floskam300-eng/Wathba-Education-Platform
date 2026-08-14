@@ -15,7 +15,7 @@ import api from '../../lib/api';
 import toast from 'react-hot-toast';
 import { generatePDFReport } from '../../lib/pdfReport';
 import { validateExamForm, hasErrors } from '../../lib/validation';
-import { toUTCDate, fmtDateLocal as _fmtDateLocal } from '../../lib/dateUtils';
+import { toUTCDate, fmtDateLocal as _fmtDateLocal, getServerNow, formatEgyptDateTime } from '../../lib/dateUtils';
 
 function FieldError({ error }) {
   if (!error) return null;
@@ -272,7 +272,7 @@ export default function TeacherExams() {
     : exams.filter(ex => !ex.course_id || courseStageMap[ex.course_id] === stageFilter);
 
   const getScheduleStatus = (ex) => {
-    const now = new Date();
+    const now = getServerNow();
     if (ex.start_date && toUTCDate(ex.start_date) > now) return { label: '⏳ لم يبدأ', cls: 'bg-yellow-100 text-yellow-800' };
     if (ex.end_date && toUTCDate(ex.end_date) < now) return { label: '🔒 انتهى', cls: 'bg-red-100 text-red-800' };
     if (ex.start_date || ex.end_date) return { label: '🟢 مفتوح', cls: 'bg-green-100 text-green-800' };
@@ -447,8 +447,8 @@ export default function TeacherExams() {
                     {(ex.start_date || ex.end_date) && (
                       <div className="flex items-center gap-1 mt-1 text-xs text-gray-500">
                         <Calendar className="w-3 h-3 flex-shrink-0" />
-                        {ex.start_date && <span className="truncate">من: {toUTCDate(ex.start_date)?.toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}</span>}
-                        {ex.end_date && <span className="truncate">· حتى: {toUTCDate(ex.end_date)?.toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}</span>}
+                        {ex.start_date && <span className="truncate">من: {formatEgyptDateTime(ex.start_date)}</span>}
+                        {ex.end_date && <span className="truncate">· حتى: {formatEgyptDateTime(ex.end_date)}</span>}
                       </div>
                     )}
 

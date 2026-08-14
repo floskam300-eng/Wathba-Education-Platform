@@ -1385,49 +1385,73 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
 
     // ── Store server-side session: start time + question snapshot ──
     // This prevents timer cheating and bank-question tampering on submit.
-    // H-9 fix: if a session already exists, ALWAYS return the stored snapshot
-    // questions (not freshly generated ones) so the client and server stay in
-    // sync.  The old code used ON CONFLICT DO NOTHING and then returned the
-    // new questions array — mismatch on re-entry / duplicate GET /take calls.
     let serverStartedAt = null;
+    const serverNow = new Date();
+    const durationMinutes = Math.max(1, parseInt(exam.duration_minutes, 10) || 60);
+    const maxDurationMs = (durationMinutes * 60 + 90) * 1000;
+    let isResumed = false;
+    let remainingSeconds = durationMinutes * 60;
+
     try {
-      const insertRes = await pool.query(
-        `INSERT INTO exam_sessions (student_id, exam_id, started_at, questions_snapshot)
-         VALUES ($1, $2, NOW(), $3)
-         ON CONFLICT (student_id, exam_id)
-         DO NOTHING
-         RETURNING started_at`,
-        [studentId, examId, JSON.stringify(questions)]
+      // Check if session already exists
+      const sessionRow = await pool.query(
+        'SELECT started_at, questions_snapshot FROM exam_sessions WHERE student_id=$1 AND exam_id=$2',
+        [studentId, examId]
       );
 
-      if (insertRes.rows.length > 0) {
-        // New session — use the freshly generated questions
-        serverStartedAt = insertRes.rows[0].started_at;
-      } else {
-        // Session already existed (re-entry or duplicate GET /take) —
-        // MUST return the stored snapshot so submit scores the right questions.
-        const sessionRow = await pool.query(
-          'SELECT started_at, questions_snapshot FROM exam_sessions WHERE student_id=$1 AND exam_id=$2',
-          [studentId, examId]
-        );
-        if (sessionRow.rows[0]) {
-          serverStartedAt = sessionRow.rows[0].started_at;
-          const storedSnap = sessionRow.rows[0].questions_snapshot;
+      if (sessionRow.rows.length > 0) {
+        const sess = sessionRow.rows[0];
+        const sessStartedAtMs = new Date(sess.started_at).getTime();
+        const elapsedMs = serverNow.getTime() - sessStartedAtMs;
+
+        if (elapsedMs > maxDurationMs) {
+          // Abandoned / expired session — clean it up and start fresh
+          await pool.query('DELETE FROM exam_sessions WHERE student_id=$1 AND exam_id=$2', [studentId, examId]);
+          const insertRes = await pool.query(
+            `INSERT INTO exam_sessions (student_id, exam_id, started_at, questions_snapshot)
+             VALUES ($1, $2, NOW(), $3)
+             RETURNING started_at`,
+            [studentId, examId, JSON.stringify(questions)]
+          );
+          serverStartedAt = insertRes.rows[0]?.started_at || serverNow.toISOString();
+          remainingSeconds = durationMinutes * 60;
+          isResumed = false;
+        } else {
+          // Active session — resume seamlessly
+          serverStartedAt = sess.started_at;
+          remainingSeconds = Math.max(0, Math.floor(((durationMinutes * 60 * 1000) - elapsedMs) / 1000));
+          isResumed = true;
+          const storedSnap = sess.questions_snapshot;
           if (Array.isArray(storedSnap) && storedSnap.length > 0) {
-            questions = storedSnap; // Override with the authoritative snapshot
+            questions = storedSnap; // Keep authoritative snapshot
           }
         }
+      } else {
+        // Brand new session
+        const insertRes = await pool.query(
+          `INSERT INTO exam_sessions (student_id, exam_id, started_at, questions_snapshot)
+           VALUES ($1, $2, NOW(), $3)
+           ON CONFLICT (student_id, exam_id)
+           DO NOTHING
+           RETURNING started_at`,
+          [studentId, examId, JSON.stringify(questions)]
+        );
+        if (insertRes.rows.length > 0) {
+          serverStartedAt = insertRes.rows[0].started_at;
+        } else {
+          const freshCheck = await pool.query(
+            'SELECT started_at, questions_snapshot FROM exam_sessions WHERE student_id=$1 AND exam_id=$2',
+            [studentId, examId]
+          );
+          serverStartedAt = freshCheck.rows[0]?.started_at || serverNow.toISOString();
+          if (Array.isArray(freshCheck.rows[0]?.questions_snapshot) && freshCheck.rows[0].questions_snapshot.length > 0) {
+            questions = freshCheck.rows[0].questions_snapshot;
+          }
+        }
+        remainingSeconds = durationMinutes * 60;
+        isResumed = false;
       }
     } catch (_) {}
-
-    // Enforce session TTL: sessions older than 24 hours are invalid
-    if (serverStartedAt) {
-      const sessionAgeMs = Date.now() - new Date(serverStartedAt).getTime();
-      if (sessionAgeMs > 24 * 60 * 60 * 1000) {
-        await pool.query('DELETE FROM exam_sessions WHERE student_id=$1 AND exam_id=$2', [studentId, examId]);
-        return res.status(409).json({ error: 'انتهت صلاحية جلسة الاختبار — يرجى البدء من جديد', code: 'SESSION_EXPIRED' });
-      }
-    }
 
     // Strip correct_answer_letter and sub-question correct fields before sending to client
     // (prevents answer-key leaking for both MCQ and image_multi question types)
@@ -1440,7 +1464,16 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
       }
       return q;
     });
-    res.json({ exam, questions: clientQuestions, serverStartedAt });
+
+    res.json({
+      exam,
+      questions: clientQuestions,
+      server_started_at: serverStartedAt,
+      server_now: serverNow.toISOString(),
+      remaining_seconds: remainingSeconds,
+      resumed: isResumed,
+      serverStartedAt, // for backward compat
+    });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }
@@ -1527,20 +1560,12 @@ router.post('/:id/submit', submitLimiter, requireRole('student'), async (req, re
     }
 
     if (eligibilityRow.question_source === 'bank' && eligibilityRow.bank_id) {
-      const questionIds = Object.keys(answers || {}).map(Number).filter(id => id > 0);
-      if (questionIds.length === 0) return res.status(400).json({ error: 'لم يتم إرسال أي إجابات' });
-      // SEC-2: Always use snapshot as authoritative source when available.
-      // Do NOT fall back to DB if snapshot exists — this would allow forged question IDs.
+      // SEC-2: Always use full snapshot as authoritative source.
+      // Every question in the snapshot is evaluated. Questions not present in answers
+      // payload are correctly scored as unanswered (0 points).
       if (serverSession?.questions_snapshot?.length > 0) {
-        // Only score questions that were actually served to this student
-        questionsData = serverSession.questions_snapshot.filter(q => questionIds.includes(q.id));
-        // Any submitted IDs not in snapshot are silently ignored (scored as unanswered)
+        questionsData = serverSession.questions_snapshot;
       } else {
-        // H-10 fix: No snapshot for a bank exam → REJECT the submission.
-        // The old fallback loaded questions directly from the DB by submitted ID,
-        // allowing an attacker to forge any question IDs from the bank.
-        // A valid session (created by GET /:id/take) always has a snapshot —
-        // its absence means the student never properly opened the exam.
         return res.status(409).json({
           error: 'جلسة الاختبار غير موجودة أو انتهت — يرجى الدخول للاختبار مجدداً ثم التسليم',
           code: 'NO_SESSION_SNAPSHOT',

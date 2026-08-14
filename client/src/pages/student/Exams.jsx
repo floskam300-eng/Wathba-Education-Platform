@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { FileText, Clock, CheckCircle, Play, Eye, Calendar, Lock, RotateCcw, X, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import ImageLightbox from '../../components/ImageLightbox';
-import { toUTCDate } from '../../lib/dateUtils';
+import { toUTCDate, getServerNow, getServerNowMs, formatEgyptDateTime } from '../../lib/dateUtils';
 import Modal from '../../components/ui/Modal';
 import MathText from '../../components/MathText';
 import Badge from '../../components/ui/Badge';
@@ -34,7 +34,7 @@ function getShuffledOpts(q, studentId, shuffleOptions) {
   return seededShuffle(allOpts, seed || 1);
 }
 
-const getExamScheduleStatus = (ex, now = new Date()) => {
+const getExamScheduleStatus = (ex, now = getServerNow()) => {
   if (ex.start_date && toUTCDate(ex.start_date) > now) return 'upcoming';
   if (ex.end_date && toUTCDate(ex.end_date) < now) return 'expired';
   return 'open';
@@ -43,12 +43,12 @@ const getExamScheduleStatus = (ex, now = new Date()) => {
 // Isolated countdown badge — manages its own 1s timer to avoid re-rendering the whole page
 const ExamCountdownBadge = React.memo(function ExamCountdownBadge({ targetDate, onExpire }) {
   const targetMs = toUTCDate(targetDate)?.getTime() ?? Infinity;
-  const [display, setDisplay] = useState(() => formatCountdown(targetMs - Date.now()));
+  const [display, setDisplay] = useState(() => formatCountdown(targetMs - getServerNowMs()));
   const expiredRef = useRef(false);
   useEffect(() => {
     expiredRef.current = false;
     const update = () => {
-      const msLeft = targetMs - Date.now();
+      const msLeft = targetMs - getServerNowMs();
       if (msLeft <= 0) {
         setDisplay(null);
         if (!expiredRef.current) {
@@ -99,7 +99,7 @@ export default function StudentExams() {
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   // Used only at start/end boundaries so the card status changes without a
   // manual refresh or a one-second re-render of the whole page.
-  const [scheduleNow, setScheduleNow] = useState(() => new Date());
+  const [scheduleNow, setScheduleNow] = useState(() => getServerNow());
   // Collapsed by default — student taps the button to expand and review past attempts
   const [showHistory, setShowHistory] = useState(false);
   // Question-by-question navigation
@@ -145,7 +145,7 @@ export default function StudentExams() {
   }, []);
 
   const refreshScheduleState = useCallback(() => {
-    setScheduleNow(new Date());
+    setScheduleNow(getServerNow());
     qc.invalidateQueries({ queryKey: ['student-exams'] });
   }, [qc]);
 
@@ -153,13 +153,14 @@ export default function StudentExams() {
   // fallback, but the local status must change even if the request is slow.
   useEffect(() => {
     if (!exams.length) return;
+    const currentServerMs = getServerNowMs();
     const boundaryDates = exams
       .flatMap(ex => [ex.start_date, ex.end_date])
       .map(date => toUTCDate(date)?.getTime() ?? 0)
-      .filter(ts => ts > Date.now());
+      .filter(ts => ts > currentServerMs);
 
     const timers = boundaryDates.map(ts => {
-      const delay = ts - Date.now();
+      const delay = ts - getServerNowMs();
       if (delay <= 0) return null;
       return setTimeout(() => {
         refreshScheduleState();
@@ -343,146 +344,85 @@ export default function StudentExams() {
     try { localStorage.setItem(`exam_answers_${taking.id}`, JSON.stringify(answers)); } catch (_) {}
   }, [answers, taking]);
 
-  // ── Auto-submit only when browser/tab is CLOSED (not just hidden) ──
-  useEffect(() => {
-    const sendKeepaliveSubmit = (examId) => {
-      if (submittedRef.current) return;
-      submittedRef.current = true;
-      const token = localStorage.getItem('wathba_token');
-      if (!token) return;
-      // locked: false = auto-submit on tab close (not a voluntary lock → no lock bonus)
-      const payload = JSON.stringify({ answers: answersRef.current, start_time: startTimeRef.current, locked: false });
-      // keepalive fetch is intentional here (axios doesn't support keepalive for
-      // tab-close unload events). Include X-Tenant-Slug so the server can resolve
-      // the tenant on multi-tenant setups. [M-18 keepalive fix]
-      const slug = localStorage.getItem('wathba_teacher_slug') || '';
-      const hdrs = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
-      if (slug) hdrs['X-Tenant-Slug'] = slug;
-      fetch(`/api/exams/${examId}/submit`, {
-        method: 'POST',
-        headers: hdrs,
-        body: payload,
-        keepalive: true,
-      }).catch(() => {});
-      // Set flag so next mount can show a toast
-      try { sessionStorage.setItem(`exam_auto_submitted_${examId}`, 'true'); } catch (_) {}
-      // Do NOT clear localStorage here — if the fetch fails silently, the student
-      // needs their saved state to resume. Keys are cleared on successful submission.
-    };
-
-    const handleBeforeUnload = (e) => {
-      if (!takingRef.current || !examDataRef.current) return;
-      sendKeepaliveSubmit(takingRef.current.id);
-      e.preventDefault();
-      e.returnValue = '';
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, []);
-
-  // Check for auto-submitted flag from a previous tab-close beacon
-  useEffect(() => {
-    if (taking) return;
-    try {
-      const keys = Object.keys(sessionStorage).filter(k => k.startsWith('exam_auto_submitted_'));
-      for (const key of keys) {
-        const examId = key.replace('exam_auto_submitted_', '');
-        if (sessionStorage.getItem(key) === 'true') {
-          toast('تم تسليم الاختبار تلقائياً عند إغلاق المتصفح', { icon: 'ℹ️' });
-          sessionStorage.removeItem(key);
-          // Clean up any leftover exam data
-          localStorage.removeItem(`exam_start_${examId}`);
-          localStorage.removeItem(`exam_answers_${examId}`);
-        }
-      }
-    } catch (_) {}
-  }, [taking]);
+  // ── Monotonic Timer + Resume Handling ──
+  const timerEpochRef = useRef(null);
+  const timerDurationRef = useRef(null);
 
   useEffect(() => {
     if (!examData || !taking) return;
     const examId = taking.id;
     const storageKey = `exam_start_${examId}`;
     const answersKey = `exam_answers_${examId}`;
-    const durationSecs = examData.exam.duration_minutes * 60;
+    const durationSecs = Math.max(1, parseInt(examData.exam?.duration_minutes, 10) || 60) * 60;
 
-    // Use the server-authoritative start time to set the timer.
-    // This prevents:
-    //   - Timer cheating (student can't fake an earlier start in localStorage)
-    //   - Stale data from a previous attempt being used on retry
-    //     (server creates a fresh session on retry; its started_at is newer)
-    // Use performance.now() as base for elapsed time — resistant to system clock changes.
-    let startTs;
-    if (examData.serverStartedAt) {
-      const serverTs = new Date(examData.serverStartedAt).getTime();
-      const localTs  = parseInt(localStorage.getItem(storageKey) || '0', 10);
-      // If localStorage is newer than the server session by >60 s, it must be
-      // stale data from a previous attempt (e.g. retry) — discard it.
-      if (localTs && localTs > serverTs + 60_000) {
-        try { localStorage.removeItem(answersKey); } catch (_) {}
-      }
-      startTs = serverTs;
-      try { localStorage.setItem(storageKey, String(startTs)); } catch (_) {}
-      // Record performance.now() baseline for drift-resistant timing
-      window.__examStartPerf = performance.now();
-      window.__examStartWall = startTs;
-    } else {
-      // Fallback: no server session returned (should not normally happen)
-      startTs = parseInt(localStorage.getItem(storageKey) || '0', 10);
-      if (!startTs) {
-        startTs = Date.now();
-        try { localStorage.setItem(storageKey, String(startTs)); } catch (_) {}
+    let remainingSecs = durationSecs;
+    if (typeof examData.remaining_seconds === 'number' && !isNaN(examData.remaining_seconds)) {
+      remainingSecs = Math.max(0, examData.remaining_seconds);
+    } else if (examData.server_started_at || examData.serverStartedAt) {
+      const startedAtStr = examData.server_started_at || examData.serverStartedAt;
+      const serverNowMs = examData.server_now ? new Date(examData.server_now).getTime() : getServerNowMs();
+      const startedAtMs = new Date(startedAtStr).getTime();
+      if (!isNaN(startedAtMs)) {
+        const elapsedSecs = Math.max(0, Math.floor((serverNowMs - startedAtMs) / 1000));
+        remainingSecs = Math.max(0, durationSecs - elapsedSecs);
       }
     }
 
-    // Restore saved answers (after startTs is resolved so we don't restore stale ones)
+    // Restore saved answers seamlessly when resuming
     try {
       const saved = localStorage.getItem(answersKey);
-      if (saved) setAnswers(JSON.parse(saved));
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          setAnswers(parsed);
+        }
+      }
     } catch (_) {}
 
-    const startIso = new Date(startTs).toISOString();
+    const startIso = examData.server_started_at || examData.serverStartedAt || new Date().toISOString();
     setStartTime(startIso);
 
-    const elapsed = Math.floor((Date.now() - startTs) / 1000);
-    const remaining = durationSecs - elapsed;
+    timerEpochRef.current = performance.now();
+    timerDurationRef.current = remainingSecs;
+    setTimeLeft(remainingSecs);
 
-    if (remaining <= 0) {
+    if (remainingSecs <= 0) {
       localStorage.removeItem(storageKey);
       if (!submittedRef.current) {
         submittedRef.current = true;
-        // locked: false = timer already expired, not a voluntary lock
         submitMut.mutate({ id: examId, data: { answers: answersRef.current, start_time: startIso, locked: false } });
       }
       return;
     }
 
-    setTimeLeft(remaining);
-
     let timerActive = true;
     const interval = setInterval(() => {
-      setTimeLeft(t => {
-        if (t <= 1) {
+      if (timerEpochRef.current !== null && timerDurationRef.current !== null) {
+        const elapsedSecs = Math.floor((performance.now() - timerEpochRef.current) / 1000);
+        const trueLeft = Math.max(0, timerDurationRef.current - elapsedSecs);
+        setTimeLeft(trueLeft);
+        if (trueLeft <= 0) {
           clearInterval(interval);
           localStorage.removeItem(storageKey);
-          // Guard: only submit if component still mounted AND not already submitted
           if (timerActive && !submittedRef.current) {
             submittedRef.current = true;
-            // locked: false = timer ran out, not a voluntary lock
             submitMut.mutate({ id: examId, data: { answers: answersRef.current, start_time: startIso, locked: false } });
           }
-          return 0;
         }
-        // Use performance.now() drift-resistant calculation when available
-        if (window.__examStartPerf && window.__examStartWall) {
-          const perfElapsed = Math.floor((performance.now() - window.__examStartPerf) / 1000);
-          const perfRemaining = durationSecs - perfElapsed;
-          if (perfRemaining < t) return Math.max(0, perfRemaining);
-        }
-        return t - 1;
-      });
+      } else {
+        setTimeLeft(t => {
+          if (t <= 1) {
+            clearInterval(interval);
+            localStorage.removeItem(storageKey);
+            if (timerActive && !submittedRef.current) {
+              submittedRef.current = true;
+              submitMut.mutate({ id: examId, data: { answers: answersRef.current, start_time: startIso, locked: false } });
+            }
+            return 0;
+          }
+          return t - 1;
+        });
+      }
     }, 1000);
 
     return () => { timerActive = false; clearInterval(interval); };
@@ -509,15 +449,28 @@ export default function StudentExams() {
 
   const navigate = useNavigate();
   const openExam = (exam) => {
-    const status = getExamScheduleStatus(exam);
+    const status = getExamScheduleStatus(exam, getServerNow());
     if (status === 'upcoming') return toast.error('الاختبار لم يبدأ بعد');
-    // Allow students with an approved retry to bypass the expired-date guard
     if (status === 'expired' && retryMap[exam.id]?.status !== 'approved') return toast.error('انتهى وقت هذا الاختبار');
-    // Do NOT clear localStorage here — if a student navigated away mid-exam, their
-    // saved answers and timer position should be restored. Stale data from a previous
-    // attempt is detected and cleared in the examData useEffect below using the
-    // server-authoritative serverStartedAt timestamp.
-    setAnswers({}); setResult(null);
+
+    // Check if resuming an existing attempt with saved answers
+    try {
+      const saved = localStorage.getItem(`exam_answers_${exam.id}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          setAnswers(parsed);
+        } else {
+          setAnswers({});
+        }
+      } else {
+        setAnswers({});
+      }
+    } catch (_) {
+      setAnswers({});
+    }
+
+    setResult(null);
     submittedRef.current = false;
     const examForTaking = { ...exam };
     if (retryMap[exam.id]?.status === 'approved') {
@@ -1165,8 +1118,8 @@ export default function StudentExams() {
                     <div className="flex items-start gap-1.5 mb-3 text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
                       <Calendar className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
                       <span className="leading-relaxed">
-                        {ex.start_date && `من ${toUTCDate(ex.start_date)?.toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' }) ?? ''}`}
-                        {ex.end_date && ` · حتى ${toUTCDate(ex.end_date)?.toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' }) ?? ''}`}
+                        {ex.start_date && `من ${formatEgyptDateTime(ex.start_date)}`}
+                        {ex.end_date && ` · حتى ${formatEgyptDateTime(ex.end_date)}`}
                       </span>
                     </div>
                   )}
@@ -1175,7 +1128,7 @@ export default function StudentExams() {
                     <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-3 py-2 mb-3">
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-xs text-yellow-800 font-bold">
-                          يبدأ في: {toUTCDate(ex.start_date)?.toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }) ?? ''}
+                          يبدأ في: {formatEgyptDateTime(ex.start_date, { dateStyle: 'medium', timeStyle: 'short' })}
                         </span>
                          <ExamCountdownBadge targetDate={ex.start_date} onExpire={refreshScheduleState} />
                       </div>

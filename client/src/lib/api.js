@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { getTenantSlug } from './tenant';
+import { syncServerTime } from './dateUtils';
 
 const API_BASE = import.meta.env.VITE_API_URL
   ? `${import.meta.env.VITE_API_URL}/api`
@@ -52,7 +53,15 @@ api.interceptors.request.use((config) => {
 });
 
 api.interceptors.response.use(
-  (res) => res,
+  (res) => {
+    // Synchronize client time with authoritative server time from response
+    if (res.data?.server_now) {
+      syncServerTime(res.data.server_now);
+    } else if (res.headers?.date) {
+      syncServerTime(res.headers.date);
+    }
+    return res;
+  },
   (err) => {
     const status = err.response?.status;
 
