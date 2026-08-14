@@ -296,91 +296,87 @@ export default function ArchivePage() {
     ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text-1)]'
     : 'bg-white border-gray-200 text-gray-700';
 
-  // If in Tab 2 and an item is selected, render the detailed view
-  if (activeTab === 'items' && selectedItem) {
-    return (
-      <ItemArchiveDetailView
-        item={selectedItem}
-        onBack={() => setSelectedItem(null)}
-        onOpenStudent={setSelectedStudent}
-      />
-    );
-  }
-
   return (
     <div className="space-y-5" dir="rtl">
+      {activeTab === 'items' && selectedItem ? (
+        <ItemArchiveDetailView
+          item={selectedItem}
+          onBack={() => setSelectedItem(null)}
+          onOpenStudent={setSelectedStudent}
+        />
+      ) : (
+        <>
+          {/* ── Header ── */}
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-orange-500 flex items-center justify-center flex-shrink-0">
+                <Archive className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h1 className={`text-xl font-black ${textPrimary}`}>أرشيف النتائج</h1>
+                <p className={`text-xs font-medium ${textSec}`}>
+                  {activeTab === 'students' ? 'عرض نتائج كل طالب مع سجله الشامل' : 'سجل كافة الاختبارات والتسميعات ومتابعة الطلاب المستهدفين'}
+                </p>
+              </div>
+            </div>
 
-      {/* ── Header ── */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-orange-500 flex items-center justify-center flex-shrink-0">
-            <Archive className="w-5 h-5 text-white" />
+            {/* Tab 1 Action */}
+            {activeTab === 'students' && (
+              <button
+                onClick={handleGroupPrint}
+                disabled={isLoading || students.length === 0}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-purple-600 to-orange-500 text-white hover:opacity-90 transition disabled:opacity-40 shadow-sm cursor-pointer"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                طباعة القائمة الجماعية
+              </button>
+            )}
           </div>
-          <div>
-            <h1 className={`text-xl font-black ${textPrimary}`}>أرشيف النتائج</h1>
-            <p className={`text-xs font-medium ${textSec}`}>
-              {activeTab === 'students' ? 'عرض نتائج كل طالب مع سجله الشامل' : 'سجل كافة الاختبارات والتسميعات ومتابعة الطلاب المستهدفين'}
-            </p>
+
+          {/* ── Navigation Tabs ── */}
+          <div className={`p-1.5 rounded-2xl border flex items-center gap-2 ${card} shadow-sm`}>
+            <button
+              onClick={() => setActiveTab('students')}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                activeTab === 'students'
+                  ? 'bg-orange-500 text-white shadow-sm'
+                  : dark
+                    ? 'text-gray-400 hover:text-white hover:bg-[var(--dk-elevated)]'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              <span>أرشيف الطلاب (سجل كل طالب)</span>
+              {totalCount > 0 && (
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${
+                  activeTab === 'students' ? 'bg-white/20 text-white' : (dark ? 'bg-gray-800 text-gray-300' : 'bg-gray-200 text-gray-700')
+                }`}>
+                  {totalCount}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => setActiveTab('items')}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                activeTab === 'items'
+                  ? 'bg-gradient-to-r from-orange-500 to-purple-600 text-white shadow-sm'
+                  : dark
+                    ? 'text-gray-400 hover:text-white hover:bg-[var(--dk-elevated)]'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+            >
+              <Layers className="w-4 h-4" />
+              <span>أرشيف الاختبارات والتسميعات (المستهدفون والنتائج)</span>
+              {totalItemsCount > 0 && (
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${
+                  activeTab === 'items' ? 'bg-white/20 text-white' : (dark ? 'bg-gray-800 text-gray-300' : 'bg-gray-200 text-gray-700')
+                }`}>
+                  {totalItemsCount}
+                </span>
+              )}
+            </button>
           </div>
-        </div>
-
-        {/* Tab 1 Action */}
-        {activeTab === 'students' && (
-          <button
-            onClick={handleGroupPrint}
-            disabled={isLoading || students.length === 0}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-purple-600 to-orange-500 text-white hover:opacity-90 transition disabled:opacity-40 shadow-sm cursor-pointer"
-          >
-            <Printer className="w-3.5 h-3.5" />
-            طباعة القائمة الجماعية
-          </button>
-        )}
-      </div>
-
-      {/* ── Navigation Tabs ── */}
-      <div className={`p-1.5 rounded-2xl border flex items-center gap-2 ${card} shadow-sm`}>
-        <button
-          onClick={() => setActiveTab('students')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-black transition-all cursor-pointer ${
-            activeTab === 'students'
-              ? 'bg-orange-500 text-white shadow-sm'
-              : dark
-                ? 'text-gray-400 hover:text-white hover:bg-[var(--dk-elevated)]'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-          }`}
-        >
-          <Users className="w-4 h-4" />
-          <span>أرشيف الطلاب (سجل كل طالب)</span>
-          {totalCount > 0 && (
-            <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${
-              activeTab === 'students' ? 'bg-white/20 text-white' : (dark ? 'bg-gray-800 text-gray-300' : 'bg-gray-200 text-gray-700')
-            }`}>
-              {totalCount}
-            </span>
-          )}
-        </button>
-
-        <button
-          onClick={() => setActiveTab('items')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-black transition-all cursor-pointer ${
-            activeTab === 'items'
-              ? 'bg-gradient-to-r from-orange-500 to-purple-600 text-white shadow-sm'
-              : dark
-                ? 'text-gray-400 hover:text-white hover:bg-[var(--dk-elevated)]'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-          }`}
-        >
-          <Layers className="w-4 h-4" />
-          <span>أرشيف الاختبارات والتسميعات (المستهدفون والنتائج)</span>
-          {totalItemsCount > 0 && (
-            <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${
-              activeTab === 'items' ? 'bg-white/20 text-white' : (dark ? 'bg-gray-800 text-gray-300' : 'bg-gray-200 text-gray-700')
-            }`}>
-              {totalItemsCount}
-            </span>
-          )}
-        </button>
-      </div>
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* ── TAB 1: STUDENTS ARCHIVE ── */}
@@ -944,6 +940,8 @@ export default function ArchivePage() {
             </div>
           )}
         </div>
+      )}
+      </>
       )}
 
       {/* ── Student Profile Modal ── */}

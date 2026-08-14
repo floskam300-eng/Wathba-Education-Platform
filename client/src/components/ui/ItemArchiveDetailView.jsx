@@ -9,6 +9,7 @@ import {
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
 import { generatePDFReport } from '../../lib/pdfReport';
+import StudentArchiveModal from './StudentArchiveModal';
 
 const SORT_OPTIONS = [
   { value: 'name',     label: 'الاسم (أ–ي)' },
@@ -25,6 +26,15 @@ export default function ItemArchiveDetailView({ item, onBack, onOpenStudent }) {
   const [sortBy, setSortBy] = useState('name');
   const [sortOrder, setSortOrder] = useState('asc');
   const [viewingAttemptsStudent, setViewingAttemptsStudent] = useState(null);
+  const [selectedStudentModal, setSelectedStudentModal] = useState(null);
+
+  const handleOpenStudent = (st) => {
+    const studentPayload = { id: st.student_id || st.id, name: st.student_name || st.name };
+    setSelectedStudentModal(studentPayload);
+    if (onOpenStudent) {
+      onOpenStudent(studentPayload);
+    }
+  };
 
   const { data, isLoading } = useQuery({
     queryKey: ['archive-item-students', item.item_type, item.id, { search, statusFilter, sortBy, sortOrder }],
@@ -338,7 +348,8 @@ export default function ItemArchiveDetailView({ item, onBack, onOpenStudent }) {
                     return (
                       <tr
                         key={st.student_id}
-                        className={`transition-colors group ${
+                        onClick={() => handleOpenStudent(st)}
+                        className={`transition-colors group cursor-pointer ${
                           dark ? 'hover:bg-[var(--dk-elevated)]' : 'hover:bg-orange-50/20'
                         }`}
                       >
@@ -349,7 +360,7 @@ export default function ItemArchiveDetailView({ item, onBack, onOpenStudent }) {
                               {st.student_name?.charAt(0) || 'ط'}
                             </div>
                             <div>
-                              <p className={`font-bold ${textPrimary}`}>{st.student_name}</p>
+                              <p className={`font-bold group-hover:text-orange-500 transition-colors ${textPrimary}`}>{st.student_name}</p>
                               {st.phone && <p className={`text-[10px] ${textSec}`}>{st.phone}</p>}
                             </div>
                           </div>
@@ -400,7 +411,7 @@ export default function ItemArchiveDetailView({ item, onBack, onOpenStudent }) {
                             <span className={`text-[11px] ${textSec}`}>—</span>
                           )}
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                           {!isAbsent ? (
                             hasRetried ? (
                               <button
@@ -433,7 +444,10 @@ export default function ItemArchiveDetailView({ item, onBack, onOpenStudent }) {
                         </td>
                         <td className="px-4 py-3">
                           <button
-                            onClick={() => onOpenStudent({ id: st.student_id, name: st.student_name })}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenStudent(st);
+                            }}
                             className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
                               dark ? 'text-gray-500 hover:text-orange-400 hover:bg-[var(--dk-elevated)]' : 'text-gray-400 hover:text-orange-500 hover:bg-orange-50'
                             }`}
@@ -458,7 +472,11 @@ export default function ItemArchiveDetailView({ item, onBack, onOpenStudent }) {
                 const hasRetried = st.attempts_count > 1;
 
                 return (
-                  <div key={st.student_id} className="p-4 space-y-3">
+                  <div
+                    key={st.student_id}
+                    onClick={() => handleOpenStudent(st)}
+                    className="p-4 space-y-3 cursor-pointer"
+                  >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2.5">
                         <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-400 to-purple-500 flex items-center justify-center text-white text-xs font-black flex-shrink-0">
@@ -505,7 +523,10 @@ export default function ItemArchiveDetailView({ item, onBack, onOpenStudent }) {
                         <div className="mt-0.5">
                           {hasRetried ? (
                             <button
-                              onClick={() => setViewingAttemptsStudent(st)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setViewingAttemptsStudent(st);
+                              }}
                               className="text-[10px] font-black text-purple-600 hover:underline flex items-center gap-1 cursor-pointer"
                             >
                               <History className="w-2.5 h-2.5" />
@@ -521,7 +542,10 @@ export default function ItemArchiveDetailView({ item, onBack, onOpenStudent }) {
                     <div className="flex items-center justify-between text-[11px] pt-1">
                       <span className={textSec}>المرحلة: {st.academic_stage || '—'}</span>
                       <button
-                        onClick={() => onOpenStudent({ id: st.student_id, name: st.student_name })}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenStudent(st);
+                        }}
                         className="text-xs font-bold text-orange-500 hover:underline flex items-center gap-1 cursor-pointer"
                       >
                         <Eye className="w-3.5 h-3.5" />
@@ -592,6 +616,15 @@ export default function ItemArchiveDetailView({ item, onBack, onOpenStudent }) {
             </button>
           </div>
         </div>
+      )}
+
+      {/* ── Student Profile Modal ── */}
+      {selectedStudentModal && (
+        <StudentArchiveModal
+          student={selectedStudentModal}
+          onClose={() => setSelectedStudentModal(null)}
+          mode="both"
+        />
       )}
     </div>
   );
