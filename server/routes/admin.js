@@ -1316,13 +1316,7 @@ router.post('/upload/image', requireAdminAuth, adminUploadLimiter, uploadAdminIm
   // when native bindings are misconfigured), we fall back to serving the
   // original file rather than leaving the request hanging indefinitely.
   try {
-    const conversionTimeout = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('WebP conversion timed out after 20s')), 20000)
-    );
-    const { filename: webpName } = await Promise.race([
-      convertToWebp(req.file.path, req.file.filename),
-      conversionTimeout,
-    ]);
+    const { filename: webpName } = await convertToWebp(req.file.path, req.file.filename);
     const fileUrl = `/uploads/admin/${webpName}`;
     res.json({ success: true, url: fileUrl });
   } catch (convErr) {

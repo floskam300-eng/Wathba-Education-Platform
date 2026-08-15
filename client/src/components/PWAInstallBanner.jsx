@@ -6,7 +6,10 @@ import { Download, X, Smartphone, Share, MoreVertical } from 'lucide-react';
 function isStandalone() {
   return (
     window.matchMedia('(display-mode: standalone)').matches ||
-    window.navigator.standalone === true // iOS Safari
+    window.matchMedia('(display-mode: fullscreen)').matches ||
+    window.matchMedia('(display-mode: minimal-ui)').matches ||
+    window.navigator.standalone === true || // iOS Safari
+    localStorage.getItem('pwa_installed') === '1'
   );
 }
 
@@ -19,6 +22,105 @@ function isIOS() {
 
 function isSafari() {
   return /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+}
+
+function isInAppBrowser() {
+  const ua = (navigator.userAgent || navigator.vendor || window.opera || '').toLowerCase();
+  return /fban|fbav|instagram|whatsapp|telegram|line|messenger|twitter|tiktok|snapchat|musical_ly|bytedance/i.test(ua);
+}
+
+// ── In-App Browser (WhatsApp / Facebook / Instagram / Telegram) instruction sheet ──
+function InAppSheet({ logoUrl, platformName, onDismiss }) {
+  return (
+    <div
+      dir="rtl"
+      style={{
+        position: 'fixed',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        zIndex: 99999,
+        fontFamily: "'Cairo', sans-serif",
+        padding: '0 12px',
+        paddingBottom: 'max(20px, env(safe-area-inset-bottom, 20px))',
+        paddingTop: 10,
+        background: 'linear-gradient(to top, rgba(10,8,18,0.98) 0%, rgba(10,8,18,0) 100%)',
+      }}
+    >
+      <style>{`
+        @keyframes slideUpBanner {
+          from { opacity: 0; transform: translateY(20px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+      <div style={{
+        maxWidth: 480,
+        margin: '0 auto',
+        background: 'linear-gradient(135deg, #1e1236 0%, #120e24 100%)',
+        border: '1px solid rgba(249,115,22,0.5)',
+        borderRadius: 20,
+        padding: '16px 16px 14px',
+        boxShadow: '0 8px 40px rgba(0,0,0,0.7), 0 0 0 1px rgba(249,115,22,0.2)',
+        animation: 'slideUpBanner 0.4s cubic-bezier(0.34,1.56,0.64,1) both',
+      }}>
+        {/* Header row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+          <div style={{
+            width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+            background: 'linear-gradient(135deg, #f97316, #7c3aed)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            overflow: 'hidden',
+          }}>
+            {logoUrl
+              ? <img src={logoUrl} alt={platformName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              : <Smartphone size={20} color="#fff" />
+            }
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ color: '#fff', fontWeight: 900, fontSize: 13, margin: 0 }}>
+              تثبيت تطبيق {platformName} 📲
+            </p>
+            <p style={{ color: '#f97316', fontSize: 10.5, fontWeight: 700, margin: '2px 0 0' }}>
+              ⚠️ أنت تتصفح من داخل تطبيق (واتساب / فيسبوك)
+            </p>
+          </div>
+          <button
+            onClick={onDismiss}
+            style={{
+              flexShrink: 0, width: 28, height: 28, borderRadius: '50%', border: 'none',
+              background: 'rgba(255,255,255,0.08)', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: 'rgba(255,255,255,0.5)',
+              WebkitTapHighlightColor: 'transparent',
+            }}
+          >
+            <X size={13} />
+          </button>
+        </div>
+
+        {/* Steps */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 4 }}>
+          {[
+            { n: 1, icon: '⋮ / ⬆️', text: 'اضغط على زر القائمة ⋮ أو المشاركة في زاوية الشاشة' },
+            { n: 2, icon: '🌐', text: 'اختر "فتح في المتصفح" (Open in Chrome أو Safari)' },
+            { n: 3, icon: '📲', text: 'من المتصفح ستتمكن من تثبيت التطبيق بضغطة زر' },
+          ].map(({ n, icon, text }) => (
+            <div key={n} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{
+                width: 24, height: 24, borderRadius: '50%', flexShrink: 0,
+                background: 'rgba(249,115,22,0.2)', border: '1px solid rgba(249,115,22,0.4)',
+                color: '#f97316', fontSize: 11, fontWeight: 900,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>{n}</span>
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.85)', fontWeight: 600 }}>
+                <span style={{ color: '#fb923c', fontWeight: 800 }}>{icon}</span> {text}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ── iOS instruction sheet ─────────────────────────────────────────────────────
@@ -339,8 +441,19 @@ export default function PWAInstallBanner({ logoUrl = null, platformName = 'وث�
     const onInstalled = () => {
       setInstalled(true);
       setMode(null);
+      try { localStorage.setItem('pwa_installed', '1'); } catch (_) {}
     };
     window.addEventListener('appinstalled', onInstalled);
+
+    // If opening inside In-App Browser (WhatsApp, Facebook, Messenger, Instagram, Telegram),
+    // show the In-App guidance sheet immediately.
+    if (isInAppBrowser()) {
+      setMode('inapp');
+      return () => {
+        window.removeEventListener('beforeinstallprompt', onBeforeInstall);
+        window.removeEventListener('appinstalled', onInstalled);
+      };
+    }
 
     // Determine fallback mode for browsers that never fire beforeinstallprompt
     // We use a short timeout so Chrome has a chance to fire the event first.
@@ -361,15 +474,26 @@ export default function PWAInstallBanner({ logoUrl = null, platformName = 'وث�
 
   const handleDismiss = () => {
     setDismissed(true);
-    sessionStorage.setItem('pwa_banner_dismissed', '1');
+    try { sessionStorage.setItem('pwa_banner_dismissed', '1'); } catch (_) {}
   };
 
   const handleInstalled = () => {
     setInstalled(true);
     setMode(null);
+    try { localStorage.setItem('pwa_installed', '1'); } catch (_) {}
   };
 
   if (installed || dismissed || !mode) return null;
+
+  if (mode === 'inapp') {
+    return (
+      <InAppSheet
+        logoUrl={logoUrl}
+        platformName={platformName}
+        onDismiss={handleDismiss}
+      />
+    );
+  }
 
   if (mode === 'native') {
     return (

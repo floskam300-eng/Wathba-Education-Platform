@@ -295,24 +295,43 @@ async function buildManifest(req, slug) {
     ? (rawLogo.startsWith('http') ? rawLogo : `${req.protocol}://${req.get('host')}${rawLogo.startsWith('/') ? '' : '/'}${rawLogo}`)
     : null;
 
+  const getIconType = (url) => {
+    if (!url) return 'image/png';
+    const ext = url.split('.').pop().toLowerCase().split('?')[0];
+    if (ext === 'webp') return 'image/webp';
+    if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg';
+    if (ext === 'svg') return 'image/svg+xml';
+    return 'image/png';
+  };
+
+  const logoType = getIconType(logoSrc);
+  const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+  const host  = req.get('host') || '';
+  const base  = `${proto}://${host}`;
+
   const icons = logoSrc
     ? [
-        { src: logoSrc, sizes: '48x48',   type: 'image/png', purpose: 'any' },
-        { src: logoSrc, sizes: '192x192', type: 'image/png', purpose: 'any' },
-        { src: logoSrc, sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+        { src: logoSrc, sizes: '48x48',   type: logoType, purpose: 'any' },
+        { src: logoSrc, sizes: '192x192', type: logoType, purpose: 'any' },
+        { src: logoSrc, sizes: '512x512', type: logoType, purpose: 'any' },
+        { src: logoSrc, sizes: '512x512', type: logoType, purpose: 'maskable' },
       ]
     : [
-        { src: '/icon-48.png',  sizes: '48x48',   type: 'image/png', purpose: 'any' },
-        { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-        { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+        { src: `${base}/icon-48.png`,  sizes: '48x48',   type: 'image/png', purpose: 'any' },
+        { src: `${base}/icon-192.png`, sizes: '192x192', type: 'image/png', purpose: 'any' },
+        { src: `${base}/icon-512.png`, sizes: '512x512', type: 'image/png', purpose: 'any' },
+        { src: `${base}/icon-512.png`, sizes: '512x512', type: 'image/png', purpose: 'maskable' },
       ];
 
+  const iconSrc192 = logoSrc || `${base}/icon-192.png`;
+
   return {
+    id:               `${base}/`,
     name:             appName,
     short_name:       shortName,
     description:      `منصة ${appName} التعليمية`,
-    start_url:        '/student',
-    scope:            '/',
+    start_url:        `${base}/`,
+    scope:            `${base}/`,
     display:          'standalone',
     orientation:      'portrait',
     background_color: '#0F0E15',
@@ -325,14 +344,14 @@ async function buildManifest(req, slug) {
       {
         name:      'لوحتي',
         short_name:'لوحتي',
-        url:       '/student',
-        icons:     [{ src: logoSrc || '/icon-192.png', sizes: '192x192' }],
+        url:       `${base}/student`,
+        icons:     [{ src: iconSrc192, sizes: '192x192' }],
       },
       {
         name:      'كورساتي',
         short_name:'كورسات',
-        url:       '/student/courses',
-        icons:     [{ src: logoSrc || '/icon-192.png', sizes: '192x192' }],
+        url:       `${base}/student/courses`,
+        icons:     [{ src: iconSrc192, sizes: '192x192' }],
       },
     ],
   };

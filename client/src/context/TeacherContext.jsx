@@ -79,7 +79,7 @@ function applyManifest(appName) {
     link.rel = 'manifest';
     document.head.appendChild(link);
   }
-  link.href = `/api/public/manifest`;
+  link.href = `/manifest.json`;
 
   const setMeta = (name, val) => {
     let el = document.querySelector(`meta[name='${name}']`);
