@@ -463,8 +463,13 @@ export default function StudentExams() {
     if (status === 'expired' && retryMap[exam.id]?.status !== 'approved') return toast.error('انتهى وقت هذا الاختبار');
 
     // Check if resuming an existing attempt with saved answers
+    let isResuming = false;
     try {
       const saved = localStorage.getItem(`exam_answers_${exam.id}`);
+      const savedStart = localStorage.getItem(`exam_start_${exam.id}`);
+      if (saved || savedStart) {
+        isResuming = true;
+      }
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
@@ -485,8 +490,14 @@ export default function StudentExams() {
     if (retryMap[exam.id]?.status === 'approved') {
       delete examForTaking.already_taken;
     }
-    setPendingExam(examForTaking);
-    setCountdown(3);
+
+    if (isResuming) {
+      // Resume directly without 3-2-1 countdown screen
+      setTaking(examForTaking);
+    } else {
+      setPendingExam(examForTaking);
+      setCountdown(3);
+    }
   };
 
   /* ── Pre-exam countdown overlay ── */
@@ -1091,24 +1102,52 @@ export default function StudentExams() {
               const scheduleStatus = getExamScheduleStatus(ex, scheduleNow);
               const isUpcoming = scheduleStatus === 'upcoming';
               const isExpired = scheduleStatus === 'expired';
+              const isSessionInProgress = !ex.already_taken && (() => {
+                try {
+                  return !!(localStorage.getItem(`exam_start_${ex.id}`) || localStorage.getItem(`exam_answers_${ex.id}`));
+                } catch (_) { return false; }
+              })();
               return (
-                <div key={ex.id} className={`card !p-4 ${ex.already_taken ? 'border-2 border-green-300 dark:border-green-800/50' : isExpired ? 'opacity-60' : ''}`}>
+                <div key={ex.id} className={`card !p-4 transition-all ${
+                  isSessionInProgress
+                    ? 'border-2 border-amber-400 dark:border-amber-500/60 bg-amber-50/20 dark:bg-amber-950/10 shadow-md shadow-amber-500/10'
+                    : ex.already_taken
+                      ? 'border-2 border-green-300 dark:border-green-800/50'
+                      : isExpired
+                        ? 'opacity-60'
+                        : ''
+                }`}>
                   {/* Card Header */}
                   <div className="flex items-start gap-3 mb-3">
-                    <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${ex.already_taken ? 'bg-green-100' : isExpired || isUpcoming ? 'bg-gray-100' : 'bg-gradient-to-br from-orange-500 to-orange-700'}`}>
-                      {ex.already_taken
-                        ? <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-green-700" />
-                        : (isExpired || isUpcoming)
-                          ? <Lock className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400" />
-                          : <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-white" />}
+                    <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                      isSessionInProgress
+                        ? 'bg-gradient-to-br from-amber-500 to-orange-600 shadow-md shadow-orange-500/30 text-white'
+                        : ex.already_taken
+                          ? 'bg-green-100'
+                          : isExpired || isUpcoming
+                            ? 'bg-gray-100'
+                            : 'bg-gradient-to-br from-orange-500 to-orange-700'
+                    }`}>
+                      {isSessionInProgress
+                        ? <RotateCcw className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                        : ex.already_taken
+                          ? <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-green-700" />
+                          : (isExpired || isUpcoming)
+                            ? <Lock className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400" />
+                            : <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-white" />}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">
                         <h3 className="font-bold text-navy-600 text-sm leading-snug">{ex.title}</h3>
                         <div className="flex-shrink-0">
-                          {ex.already_taken && <Badge variant="success">✓ أُدي</Badge>}
-                          {isUpcoming && <span className="text-[10px] sm:text-xs bg-yellow-100 text-yellow-800 font-bold px-2 py-0.5 rounded-full whitespace-nowrap">⏳ قريباً</span>}
-                          {isExpired && <span className="text-[10px] sm:text-xs bg-red-100 text-red-800 font-bold px-2 py-0.5 rounded-full whitespace-nowrap">🔒 انتهى</span>}
+                          {isSessionInProgress && (
+                            <span className="text-[10px] sm:text-xs bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 font-black px-2.5 py-0.5 rounded-full whitespace-nowrap animate-pulse flex items-center gap-1 border border-amber-300 dark:border-amber-700/50">
+                              ⚡ جاري الاختبار
+                            </span>
+                          )}
+                          {!isSessionInProgress && ex.already_taken && <Badge variant="success">✓ أُدي</Badge>}
+                          {!isSessionInProgress && isUpcoming && <span className="text-[10px] sm:text-xs bg-yellow-100 text-yellow-800 font-bold px-2 py-0.5 rounded-full whitespace-nowrap">⏳ قريباً</span>}
+                          {!isSessionInProgress && isExpired && <span className="text-[10px] sm:text-xs bg-red-100 text-red-800 font-bold px-2 py-0.5 rounded-full whitespace-nowrap">🔒 انتهى</span>}
                         </div>
                       </div>
                       {ex.course_name && <p className="text-xs text-gray-500 font-medium mt-0.5">{ex.course_name}</p>}
@@ -1199,8 +1238,20 @@ export default function StudentExams() {
                   })() : (
                     <button onClick={() => openExam(ex)}
                       disabled={isUpcoming || (isExpired && retryMap[ex.id]?.status !== 'approved')}
-                      className="w-full btn-primary flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                      <Play className="w-4 h-4" /> ابدأ الاختبار
+                      className={`w-full flex items-center justify-center gap-2 font-black transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                        isSessionInProgress
+                          ? 'py-2.5 sm:py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white text-sm shadow-lg shadow-orange-500/25 active:scale-[0.98]'
+                          : 'btn-primary'
+                      }`}>
+                      {isSessionInProgress ? (
+                        <>
+                          <RotateCcw className="w-4 h-4" /> استئناف الاختبار
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-4 h-4" /> ابدأ الاختبار
+                        </>
+                      )}
                     </button>
                   )}
                 </div>

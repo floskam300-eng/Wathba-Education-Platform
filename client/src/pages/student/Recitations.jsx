@@ -862,16 +862,27 @@ function Section({ title, items, dark, cardCls, onStart, navigate, startingId = 
 
               {/* Actions Section */}
               <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-end pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-100 dark:border-gray-800/60 sm:flex-shrink-0">
-                {status === 'open' && onStart && (
-                  <button
-                    onClick={() => onStart(rec)}
-                    disabled={!!startingId}
-                    className="w-full sm:w-auto px-5 py-2.5 bg-purple-500 hover:bg-purple-600 disabled:opacity-60 text-white rounded-xl text-xs sm:text-sm font-black transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-95"
-                  >
-                    {isStarting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-                    {isStarting ? 'جاري التحميل...' : 'ابدأ التسميع'}
-                  </button>
-                )}
+                {status === 'open' && onStart && (() => {
+                  const isRecSessionInProgress = (() => {
+                    try {
+                      return !!localStorage.getItem(`recitation_answers_${rec.id}`);
+                    } catch (_) { return false; }
+                  })();
+                  return (
+                    <button
+                      onClick={() => onStart(rec)}
+                      disabled={!!startingId}
+                      className={`w-full sm:w-auto px-5 py-2.5 disabled:opacity-60 text-white rounded-xl text-xs sm:text-sm font-black transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-95 ${
+                        isRecSessionInProgress
+                          ? 'bg-gradient-to-r from-amber-500 to-purple-600 hover:from-amber-600 hover:to-purple-700 shadow-purple-500/20'
+                          : 'bg-purple-500 hover:bg-purple-600'
+                      }`}
+                    >
+                      {isStarting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : isRecSessionInProgress ? <RotateCcw className="w-3.5 h-3.5" /> : null}
+                      {isStarting ? 'جاري التحميل...' : isRecSessionInProgress ? 'استئناف التسميع' : 'ابدأ التسميع'}
+                    </button>
+                  );
+                })()}
 
                 {status === 'upcoming' && (
                   <div className="hidden sm:flex items-center gap-1 text-xs font-semibold text-gray-400">
