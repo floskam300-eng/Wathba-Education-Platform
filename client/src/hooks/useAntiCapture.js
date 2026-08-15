@@ -65,15 +65,6 @@ export function useAntiCapture({ onAttempt, examId } = {}) {
     const blockSelect = (e) => e.preventDefault();
     document.addEventListener('selectstart', blockSelect);
 
-    // [L-5] Detect tab/window visibility changes — common precursor to
-    // OS-level screenshots or screen recording via another app
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        notify('visibility_hidden');
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
     let origGetDisplayMedia = null;
     if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
       origGetDisplayMedia = navigator.mediaDevices.getDisplayMedia.bind(navigator.mediaDevices);
@@ -89,7 +80,6 @@ export function useAntiCapture({ onAttempt, examId } = {}) {
       document.removeEventListener('keyup', blockKeyUp, true);
       document.removeEventListener('dragstart', blockDrag);
       document.removeEventListener('selectstart', blockSelect);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (origGetDisplayMedia && navigator.mediaDevices) {
         navigator.mediaDevices.getDisplayMedia = origGetDisplayMedia;
       }

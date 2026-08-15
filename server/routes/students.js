@@ -1264,7 +1264,7 @@ router.post('/device-alerts/:alertId/action', requireRole('teacher', 'assistant'
     const alert = alertRes.rows[0];
 
     if (action === 'reactivate') {
-      await pool.query('UPDATE students SET is_suspended=false WHERE id=$1', [alert.student_id]);
+      await pool.query('UPDATE students SET is_suspended=false, failed_device_attempts=0 WHERE id=$1', [alert.student_id]);
       // Resolve ALL pending alerts for this student, not just the triggered one
       await pool.query(
         "UPDATE device_alerts SET status='reactivated', resolved_at=NOW() WHERE student_id=$1 AND teacher_id=$2 AND status='pending'",
@@ -1279,7 +1279,7 @@ router.post('/device-alerts/:alertId/action', requireRole('teacher', 'assistant'
       );
       invalidateStudentAuthCache(alert.student_id);
     } else if (action === 'reactivate_reset_devices') {
-      await pool.query('UPDATE students SET is_suspended=false WHERE id=$1', [alert.student_id]);
+      await pool.query('UPDATE students SET is_suspended=false, failed_device_attempts=0 WHERE id=$1', [alert.student_id]);
       await pool.query('DELETE FROM student_devices WHERE student_id=$1', [alert.student_id]);
       await pool.query(
         "UPDATE device_alerts SET status='reactivated', resolved_at=NOW() WHERE student_id=$1 AND teacher_id=$2 AND status='pending'",
@@ -1298,6 +1298,7 @@ router.post('/device-alerts/:alertId/action', requireRole('teacher', 'assistant'
       // Also end any active sessions — they are now invalid because their device_id
       // no longer exists in the registered list.
       await pool.query('DELETE FROM student_devices WHERE student_id=$1', [alert.student_id]);
+      await pool.query('UPDATE students SET failed_device_attempts=0 WHERE id=$1', [alert.student_id]);
       await pool.query(
         "UPDATE device_alerts SET status='reactivated', resolved_at=NOW() WHERE student_id=$1 AND teacher_id=$2 AND status='pending'",
         [alert.student_id, teacherId]
@@ -1309,6 +1310,7 @@ router.post('/device-alerts/:alertId/action', requireRole('teacher', 'assistant'
           WHERE student_id = $1 AND kicked_at IS NULL`,
         [alert.student_id]
       );
+      invalidateStudentAuthCache(alert.student_id);
     } else if (action === 'dismiss' || action === 'keep_original_device') {
       // Option 2: Keep original device only (reject new device attempt) — dismiss pending alerts
       // and force-close any active session that came from the rejected new device.
@@ -1335,7 +1337,7 @@ router.post('/device-alerts/:alertId/action', requireRole('teacher', 'assistant'
           [alert.student_id, alert.device_id, alert.device_name, alert.ip_address]
         );
       }
-      await pool.query('UPDATE students SET is_suspended=false WHERE id=$1', [alert.student_id]);
+      await pool.query('UPDATE students SET is_suspended=false, failed_device_attempts=0 WHERE id=$1', [alert.student_id]);
       await pool.query(
         "UPDATE device_alerts SET status='reactivated', resolved_at=NOW() WHERE student_id=$1 AND teacher_id=$2 AND status='pending'",
         [alert.student_id, teacherId]
@@ -1358,7 +1360,7 @@ router.post('/device-alerts/:alertId/action', requireRole('teacher', 'assistant'
           [alert.student_id, alert.device_id, alert.device_name, alert.ip_address]
         );
       }
-      await pool.query('UPDATE students SET is_suspended=false WHERE id=$1', [alert.student_id]);
+      await pool.query('UPDATE students SET is_suspended=false, failed_device_attempts=0 WHERE id=$1', [alert.student_id]);
       await pool.query(
         "UPDATE device_alerts SET status='reactivated', resolved_at=NOW() WHERE student_id=$1 AND teacher_id=$2 AND status='pending'",
         [alert.student_id, teacherId]
@@ -1537,14 +1539,14 @@ router.post('/:id/suspend',
         ));
         invalidateStudentAuthCache(studentId);
       } else if (action === 'reactivate') {
-        await pool.query('UPDATE students SET is_suspended=false WHERE id=$1', [studentId]);
+        await pool.query('UPDATE students SET is_suspended=false, failed_device_attempts=0 WHERE id=$1', [studentId]);
         await pool.query(
           "UPDATE device_alerts SET status='reactivated', resolved_at=NOW() WHERE student_id=$1 AND status='pending'",
           [studentId]
         );
         invalidateStudentAuthCache(studentId);
       } else if (action === 'reactivate_reset_devices') {
-        await pool.query('UPDATE students SET is_suspended=false WHERE id=$1', [studentId]);
+        await pool.query('UPDATE students SET is_suspended=false, failed_device_attempts=0 WHERE id=$1', [studentId]);
         await pool.query('DELETE FROM student_devices WHERE student_id=$1', [studentId]);
         await pool.query(
           "UPDATE device_alerts SET status='reactivated', resolved_at=NOW() WHERE student_id=$1 AND status='pending'",

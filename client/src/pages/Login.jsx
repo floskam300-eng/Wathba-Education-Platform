@@ -150,9 +150,9 @@ function DeviceBlockedModal({ onClose, autoSuspended = false }) {
             {[
               autoSuspended
                 ? { icon: <Lock size={17} color="#dc2626" />, title: 'الحساب متوقف الآن', text: 'لن تستطيع الدخول حتى يقوم المدرس بإعادة التفعيل.' }
-                : { icon: <Smartphone size={17} color="#ef4444" />, title: 'جهاز غير مسجّل', text: 'هذا الجهاز لم يسبق تسجيله في حسابك. الحد الأقصى المسموح به جهاز واحد فقط.' },
+                : { icon: <Smartphone size={17} color="#ef4444" />, title: 'جهاز أو متصفح غير مسجّل', text: 'هذا الجهاز أو المتصفح لم يسبق تسجيله في حسابك. الحد الأقصى المسموح به جهاز واحد فقط.' },
               { icon: <ShieldAlert size={17} color="#f97316" />, title: 'المدرس تم إشعاره', text: 'تلقّى المدرس تنبيهاً فورياً بهذه المحاولة وسيراجعها.' },
-              { icon: <CheckCircle size={17} color="#16a34a" />, title: 'ماذا تفعل؟', text: 'تواصل مع المدرس لإعادة التفعيل، أو استخدم جهازك الأصلي المسجّل مسبقاً.' },
+              { icon: <CheckCircle size={17} color="#16a34a" />, title: 'ماذا تفعل؟', text: 'إذا كنت تستخدم التصفح الخفي (Incognito) أو متصفحاً آخر، أغلقه وافتح من متصفحك الأصلي المعتاد، أو تواصل مع المدرس.' },
             ].map((item, i) => (
               <div key={i} style={{ display: 'flex', gap: '.75rem', alignItems: 'flex-start' }}>
                 <div style={{ flexShrink: 0, marginTop: 2 }}>{item.icon}</div>
