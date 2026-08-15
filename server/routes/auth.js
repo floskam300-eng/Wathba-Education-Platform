@@ -387,22 +387,16 @@ router.post('/login', loginLimiter, async (req, res) => {
               );
             }
 
-            // [Phase 2] Enforce single-active-session policy. Any live session
-            // on a *different* device must be force-closed so the student is
-            // only ever logged in on one physical machine at a time. We treat
-            // a row as "live" if last_active_at was within the last 10 minutes
-            // (anything older is most likely a stale JWT left open by a closed
-            // tab and can be reaped by the cleanup cron later). The same
-            // device's prior JWT is also kicked to prevent two tabs on the
-            // same phone staying open simultaneously.
+            // [Phase 2] Enforce single-active-session policy. Any prior active session
+            // must be marked kicked so the student is only ever logged in on one session at a time.
             const otherSessions = await client.query(
-              `SELECT id, jti
+              `SELECT id, jti, last_active_at
                  FROM student_active_sessions
                 WHERE student_id = $1
-                  AND kicked_at IS NULL
-                  AND last_active_at > NOW() - INTERVAL '10 minutes'`,
+                  AND kicked_at IS NULL`,
               [user.id]
             );
+            let recentlyActiveCount = 0;
             for (const sess of otherSessions.rows) {
               await client.query(
                 `UPDATE student_active_sessions
@@ -411,15 +405,17 @@ router.post('/login', loginLimiter, async (req, res) => {
                   WHERE id = $1`,
                 [sess.id]
               );
+              if (sess.last_active_at && (Date.now() - new Date(sess.last_active_at).getTime() < 10 * 60 * 1000)) {
+                recentlyActiveCount++;
+              }
               console.log(`[LOGIN] KICKED prior session jti=${sess.jti.slice(0,8)}... for student id=${user.id}`);
             }
-            if (otherSessions.rows.length > 0) {
-              // Push the SSE force_logout event so the kicked tab signs out
-              // instantly without waiting for its next API request.
+            if (recentlyActiveCount > 0) {
+              // Push the SSE force_logout event so any live tab signs out instantly
               setImmediate(() => pushSessionKicked(
                 user.id,
                 'new_login_replaced_session',
-                'تم تسجيل الدخول من جهاز آخر — سيتم تسجيل الخروج من هذه الجلسة.'
+                'تم تسجيل الدخول من جهاز آخر — تم إنهاء هذه الجلسة.'
               ));
             }
 
@@ -616,6 +612,18 @@ router.post('/refresh', authenticate, (req, res) => {
   // Strip JWT-internal fields before re-signing
   const { jti: _jti, iat: _iat, exp: _exp, ...payload } = req.user;
   const newToken = generateToken(payload);
+
+  if (req.user.role === 'student' && req.user.jti) {
+    const newJti = extractJti(newToken);
+    if (newJti) {
+      pool.query(
+        `UPDATE student_active_sessions
+            SET jti = $1, last_active_at = NOW()
+          WHERE jti = $2 AND kicked_at IS NULL`,
+        [newJti, req.user.jti]
+      ).catch((e) => console.warn('[REFRESH] failed to update active session jti:', e.message));
+    }
+  }
 
   res.json({ refreshed: true, token: newToken, expires_in: 7 * 24 * 3600 });
 });

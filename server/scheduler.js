@@ -504,28 +504,19 @@ async function runDataRetentionCleanup() {
 }
 
 // [Phase 2] Trim dead / expired student sessions so the student_active_sessions
-// table doesn't grow unbounded. Sessions that have not been "alive" for 1 hour
-// and are not currently being kicked are considered gone. Anything older than
-// 7 days (the JWT TTL) is purged wholesale because the corresponding token
-// can no longer authenticate anyway.
+// table doesn't grow unbounded. Only sessions older than 7 days (the JWT TTL)
+// are purged because the corresponding token can no longer authenticate anyway.
 async function runSessionCleanup() {
   if (!_pool) return;
   try {
-    const stale = await _pool.query(
-      `UPDATE student_active_sessions
-          SET kicked_at = COALESCE(kicked_at, NOW()),
-              kicked_reason = COALESCE(kicked_reason, 'idle_timeout')
-        WHERE kicked_at IS NULL
-          AND last_active_at < NOW() - INTERVAL '1 hour'`
-    );
     const purged = await _pool.query(
       `DELETE FROM student_active_sessions
-        WHERE logged_in_at < NOW() - INTERVAL '7 days'`
+        WHERE logged_in_at < NOW() - INTERVAL '7 days'
+           OR (kicked_at IS NOT NULL AND kicked_at < NOW() - INTERVAL '7 days')`
     );
-    const sCount = stale.rowCount || 0;
     const pCount = purged.rowCount || 0;
-    if (sCount > 0 || pCount > 0) {
-      console.log(`[Scheduler] Session cleanup: idle-kicked=${sCount} purged=${pCount}`);
+    if (pCount > 0) {
+      console.log(`[Scheduler] Session cleanup: purged=${pCount}`);
     }
   } catch (err) {
     console.error('[Scheduler] Session cleanup error:', err.message);

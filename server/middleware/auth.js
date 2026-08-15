@@ -162,8 +162,15 @@ const authenticate = async (req, res, next) => {
     if (decoded.role === 'student') {
       const sessionStatus = await checkAndHeartbeatSession(decoded);
       if (!sessionStatus.ok) {
+        const reasonMsg = sessionStatus.reason === 'teacher_suspended_account'
+          ? 'تم إيقاف حسابك من قِبل المدرس.'
+          : sessionStatus.reason === 'teacher_removed_device'
+          ? 'تم إزالة هذا الجهاز من حسابك من قِبل المدرس.'
+          : sessionStatus.reason === 'new_login_replaced_session'
+          ? 'تم تسجيل الدخول من جهاز آخر — تم إنهاء هذه الجلسة.'
+          : 'تم إنهاء جلستك لأن حسابك مفتوح من جهاز آخر. يرجى تسجيل الدخول مرة أخرى.';
         return res.status(403).json({
-          error: 'تم إنهاء جلستك لأن حسابك مفتوح من جهاز آخر. يرجى تسجيل الدخول مرة أخرى.',
+          error: reasonMsg,
           session_kicked: true,
           kick_reason: sessionStatus.reason,
         });

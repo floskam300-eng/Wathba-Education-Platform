@@ -78,7 +78,11 @@ api.interceptors.response.use(
     // redirecting to login (the account still exists, it's just suspended)
     if (status === 403 && err.response?.data?.account_suspended) {
       window.dispatchEvent(new CustomEvent('wathba_account_suspended', {
-        detail: { message: err.response.data.error || 'تم إيقاف حسابك مؤقتاً. يرجى التواصل مع المدرس.' }
+        detail: {
+          title: 'تم إيقاف حسابك',
+          icon: '🔒',
+          message: err.response.data.error || 'تم إيقاف حسابك مؤقتاً. يرجى التواصل مع المدرس.'
+        }
       }));
       // Clear session so the student gets the login page on next navigation
       localStorage.removeItem('wathba_token');
@@ -86,11 +90,15 @@ api.interceptors.response.use(
       return Promise.reject(err);
     }
 
-    // [Phase 2] Session-kicked: a newer login (or teacher action) ended this
-    // session. Surface it like an account-suspended event so the same UI fires.
+    // [Phase 2] Session-kicked: a newer login (or teacher action) ended this session.
     if (status === 403 && err.response?.data?.session_kicked) {
+      const isSuspended = err.response?.data?.kick_reason === 'teacher_suspended_account';
       window.dispatchEvent(new CustomEvent('wathba_account_suspended', {
-        detail: { message: err.response.data.error || 'تم إنهاء جلستك لأن حسابك مفتوح من جهاز آخر.' }
+        detail: {
+          title: isSuspended ? 'تم إيقاف حسابك' : 'تم إنهاء الجلسة',
+          icon: isSuspended ? '🔒' : '📱',
+          message: err.response.data.error || 'تم إنهاء جلستك لأن حسابك مفتوح من جهاز آخر.'
+        }
       }));
       localStorage.removeItem('wathba_token');
       localStorage.removeItem('wathba_user');

@@ -265,8 +265,13 @@ export function useSSE(enabled, role) {
 
         es.addEventListener('force_logout', (e) => {
           let data; try { data = JSON.parse(e.data); } catch { return; }
+          const isSuspended = data.reason === 'teacher_suspended_account';
           window.dispatchEvent(new CustomEvent('wathba_account_suspended', {
-            detail: { message: data.message || 'تم إنهاء جلستك.' }
+            detail: {
+              title: isSuspended ? 'تم إيقاف حسابك' : 'تم إنهاء الجلسة',
+              icon: isSuspended ? '🔒' : '📱',
+              message: data.message || 'تم إنهاء جلستك.'
+            }
           }));
         });
 

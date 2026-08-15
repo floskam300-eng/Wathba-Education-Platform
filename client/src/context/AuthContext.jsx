@@ -72,9 +72,11 @@ export const AuthProvider = ({ children }) => {
     // rejected their JWT. We now show a dedicated modal and force them back
     // to the login page so they cannot keep using cached UI data.
     const handleAccountSuspended = (e) => {
+      const title = e?.detail?.title || 'تم إيقاف حسابك';
+      const icon = e?.detail?.icon || '🔒';
       const message = e?.detail?.message || 'تم إيقاف حسابك مؤقتاً. يرجى التواصل مع المدرس.';
       setUser(null);
-      setSuspendedNotice({ message });
+      setSuspendedNotice({ title, icon, message });
       setTimeout(() => navigate('/login', { replace: true }), 4000);
     };
     window.addEventListener('wathba_account_suspended', handleAccountSuspended);
@@ -149,6 +151,8 @@ export const AuthProvider = ({ children }) => {
     });
   };
 
+  const isLock = suspendedNotice?.icon === '🔒';
+
   return (
     <AuthContext.Provider value={{ user, login, logout, loading, updateUser, suspendedNotice, dismissSuspendedNotice }}>
       {children}
@@ -168,16 +172,16 @@ export const AuthProvider = ({ children }) => {
           <div style={{
             background: '#fff', borderRadius: 16, padding: '32px 28px',
             maxWidth: 420, width: '92%', boxShadow: '0 25px 50px -12px rgba(0,0,0,.35)',
-            textAlign: 'center', borderTop: '6px solid #DC2626',
+            textAlign: 'center', borderTop: `6px solid ${isLock ? '#DC2626' : '#D97706'}`,
           }}>
             <div style={{
               width: 64, height: 64, margin: '0 auto 16px',
-              borderRadius: '50%', background: '#FEE2E2',
+              borderRadius: '50%', background: isLock ? '#FEE2E2' : '#FEF3C7',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 32,
-            }}>🔒</div>
-            <h2 style={{ margin: '0 0 12px', fontSize: 22, fontWeight: 800, color: '#991B1B' }}>
-              تم إيقاف حسابك
+            }}>{suspendedNotice.icon || '🔒'}</div>
+            <h2 style={{ margin: '0 0 12px', fontSize: 22, fontWeight: 800, color: isLock ? '#991B1B' : '#B45309' }}>
+              {suspendedNotice.title || 'تم إيقاف حسابك'}
             </h2>
             <p style={{ margin: '0 0 8px', fontSize: 15, color: '#475569', lineHeight: 1.7 }}>
               {suspendedNotice.message}
@@ -188,7 +192,7 @@ export const AuthProvider = ({ children }) => {
             <button
               onClick={dismissSuspendedNotice}
               style={{
-                background: '#DC2626', color: '#fff', border: 'none',
+                background: isLock ? '#DC2626' : '#D97706', color: '#fff', border: 'none',
                 borderRadius: 10, padding: '10px 24px', fontSize: 15,
                 fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
               }}
