@@ -1403,6 +1403,9 @@ router.post('/device-alerts/:alertId/action', requireRole('teacher', 'assistant'
           'teacher_kept_original_device',
           'الإبقاء على جهازك الأصلي فقط — تم رفض طلب الجهاز الجديد.'
         ));
+      }
+    }
+
     // Broadcast to update other open dashboard/alerts screens immediately
     setImmediate(() => {
       broadcastToTeacherAndAssistants(pool, teacherId, 'device_alert_resolved', {
