@@ -15,7 +15,7 @@ import api from '../../lib/api';
 import toast from 'react-hot-toast';
 import { generatePDFReport } from '../../lib/pdfReport';
 import { validateExamForm, hasErrors } from '../../lib/validation';
-import { toUTCDate, fmtDateLocal as _fmtDateLocal, getServerNow, formatEgyptDateTime } from '../../lib/dateUtils';
+import { toUTCDate, fmtDateLocal as _fmtDateLocal, getServerNow, formatEgyptDateTime, parseEgyptDateTimeToUTC } from '../../lib/dateUtils';
 
 function FieldError({ error }) {
   if (!error) return null;
@@ -213,11 +213,6 @@ export default function TeacherExams() {
   };
   const closeModal = () => { setModal(false); setEditData(null); setForm(emptyExam); setFormErrors({}); };
 
-  const toUTCIso = (localStr) => {
-    if (!localStr) return null;
-    return new Date(localStr).toISOString();
-  };
-
   const handleSubmit = (e) => {
     e.preventDefault();
     const errs = validateExamForm(form);
@@ -229,8 +224,8 @@ export default function TeacherExams() {
     setFormErrors({});
     const payload = {
       ...form,
-      start_date: toUTCIso(form.start_date),
-      end_date: toUTCIso(form.end_date),
+      start_date: parseEgyptDateTimeToUTC(form.start_date),
+      end_date: parseEgyptDateTimeToUTC(form.end_date),
     };
     if (editData) updateMut.mutate({ id: editData.id, data: payload });
     else createMut.mutate(payload);
@@ -899,7 +894,7 @@ export default function TeacherExams() {
 
       {/* Publish Confirmation Dialog */}
       {publishConfirm && (() => {
-        const now = new Date();
+        const now = getServerNow();
         const endDate = publishConfirm.end_date ? toUTCDate(publishConfirm.end_date) : null;
         const startDate = publishConfirm.start_date ? toUTCDate(publishConfirm.start_date) : null;
         const isExpired = endDate && endDate < now;
@@ -932,13 +927,13 @@ export default function TeacherExams() {
                 {startDate && (
                   <div className="flex items-center justify-between">
                     <span className="text-gray-500">تاريخ البداية</span>
-                    <span className="font-bold text-gray-700">{startDate.toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}</span>
+                    <span className="font-bold text-gray-700">{formatEgyptDateTime(publishConfirm.start_date)}</span>
                   </div>
                 )}
                 {endDate && (
                   <div className="flex items-center justify-between">
                     <span className="text-gray-500">تاريخ النهاية</span>
-                    <span className={`font-bold ${isExpired ? 'text-red-600' : 'text-gray-700'}`}>{endDate.toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}</span>
+                    <span className={`font-bold ${isExpired ? 'text-red-600' : 'text-gray-700'}`}>{formatEgyptDateTime(publishConfirm.end_date)}</span>
                   </div>
                 )}
                 {!startDate && !endDate && (

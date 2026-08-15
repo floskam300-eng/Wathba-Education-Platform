@@ -1380,3 +1380,18 @@ CREATE INDEX IF NOT EXISTS idx_class_att_subject_date ON class_attendance_record
 
 -- New assistant permission for attendance management
 ALTER TABLE assistants ADD COLUMN IF NOT EXISTS can_manage_attendance BOOLEAN DEFAULT false;
+
+-- Ensure all session, exam, and recitation timestamp columns use TIMESTAMPTZ for global timezone alignment
+DO $$
+BEGIN
+  ALTER TABLE exam_sessions ALTER COLUMN started_at TYPE TIMESTAMPTZ USING started_at AT TIME ZONE 'UTC';
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE exam_results ALTER COLUMN start_time TYPE TIMESTAMPTZ USING start_time AT TIME ZONE 'UTC';
+  ALTER TABLE exam_results ALTER COLUMN end_time TYPE TIMESTAMPTZ USING end_time AT TIME ZONE 'UTC';
+  ALTER TABLE exam_results ALTER COLUMN created_at TYPE TIMESTAMPTZ USING created_at AT TIME ZONE 'UTC';
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;

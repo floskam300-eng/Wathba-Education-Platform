@@ -1535,8 +1535,23 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
       const elapsedMs = serverNow.getTime() - sessStartedAt;
 
       // If the session has already exceeded duration + grace period,
-      // it was an abandoned/expired session from a previous visit. Clean it up!
+      // it was an abandoned/expired session from a previous visit.
       if (elapsedMs > maxDurationMs) {
+        const { rows: existingCheck } = await pool.query(
+          `SELECT id FROM recitation_results
+            WHERE student_id=$1 AND recitation_id=$2
+              AND ($3::timestamp IS NULL OR created_at >= $3::timestamp)
+              AND (is_absent IS NULL OR is_absent=false)`,
+          [studentId, id, rec.start_date]
+        );
+        if (!existingCheck.length) {
+          const totalQCount = Array.isArray(sess.questions_snapshot) ? sess.questions_snapshot.length : 0;
+          await pool.query(
+            `INSERT INTO recitation_results (student_id, recitation_id, score, correct_count, wrong_count, unanswered_count, answers, points_earned, start_time, end_time, passed, is_absent)
+             VALUES ($1, $2, 0, 0, 0, $3, '[]'::jsonb, 0, $4, NOW(), false, false)`,
+            [studentId, id, totalQCount, sess.started_at]
+          ).catch(() => {});
+        }
         await pool.query(
           'DELETE FROM recitation_sessions WHERE student_id=$1 AND recitation_id=$2',
           [studentId, id]
@@ -1761,13 +1776,8 @@ router.post('/:id/submit', recitationSubmitLimiter, requireRole('student'), asyn
     const session = sessRows[0];
 
     // Timer check — server authoritative (+ 30s grace)
+    // Note: If elapsedMs > maxMs, we accept and grade the answers to record the attempt and clean up session
     const durationMinutes = Math.max(1, parseInt(rec.duration_minutes, 10) || 10);
-    const elapsedMs = Date.now() - new Date(session.started_at).getTime();
-    const maxMs = (durationMinutes * 60 + 30) * 1000;
-    if (elapsedMs > maxMs) {
-      await pool.query('DELETE FROM recitation_sessions WHERE student_id=$1 AND recitation_id=$2', [studentId, id]).catch(() => {});
-      return res.status(400).json({ error: 'انتهى وقت التسميع', timer_expired: true });
-    }
 
     // Build raw answer map — image_multi answers are JSON strings; others are letters
     const snapshot = session.questions_snapshot;

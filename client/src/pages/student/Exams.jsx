@@ -382,6 +382,8 @@ export default function StudentExams() {
     const startIso = examData.server_started_at || examData.serverStartedAt || new Date().toISOString();
     setStartTime(startIso);
 
+    const baseClientMs = getServerNowMs();
+    const baseRemainingSecs = remainingSecs;
     timerEpochRef.current = performance.now();
     timerDurationRef.current = remainingSecs;
     setTimeLeft(remainingSecs);
@@ -395,37 +397,44 @@ export default function StudentExams() {
       return;
     }
 
-    let timerActive = true;
-    const interval = setInterval(() => {
-      if (timerEpochRef.current !== null && timerDurationRef.current !== null) {
-        const elapsedSecs = Math.floor((performance.now() - timerEpochRef.current) / 1000);
-        const trueLeft = Math.max(0, timerDurationRef.current - elapsedSecs);
-        setTimeLeft(trueLeft);
-        if (trueLeft <= 0) {
-          clearInterval(interval);
-          localStorage.removeItem(storageKey);
-          if (timerActive && !submittedRef.current) {
-            submittedRef.current = true;
-            submitMut.mutate({ id: examId, data: { answers: answersRef.current, start_time: startIso, locked: false } });
-          }
-        }
-      } else {
-        setTimeLeft(t => {
-          if (t <= 1) {
-            clearInterval(interval);
-            localStorage.removeItem(storageKey);
-            if (timerActive && !submittedRef.current) {
-              submittedRef.current = true;
-              submitMut.mutate({ id: examId, data: { answers: answersRef.current, start_time: startIso, locked: false } });
-            }
-            return 0;
-          }
-          return t - 1;
-        });
-      }
-    }, 1000);
+    const calculateRemaining = () => {
+      if (timerEpochRef.current === null || timerDurationRef.current === null) return 0;
+      const perfElapsed = Math.floor((performance.now() - timerEpochRef.current) / 1000);
+      const wallElapsed = Math.floor((getServerNowMs() - baseClientMs) / 1000);
+      const effectiveElapsed = Math.max(perfElapsed, wallElapsed);
+      return Math.max(0, baseRemainingSecs - effectiveElapsed);
+    };
 
-    return () => { timerActive = false; clearInterval(interval); };
+    let timerActive = true;
+    const checkAndTick = () => {
+      const trueLeft = calculateRemaining();
+      setTimeLeft(trueLeft);
+      if (trueLeft <= 0) {
+        clearInterval(interval);
+        localStorage.removeItem(storageKey);
+        if (timerActive && !submittedRef.current) {
+          submittedRef.current = true;
+          submitMut.mutate({ id: examId, data: { answers: answersRef.current, start_time: startIso, locked: false } });
+        }
+      }
+    };
+
+    const interval = setInterval(checkAndTick, 1000);
+
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible' || (typeof document.hasFocus === 'function' && document.hasFocus())) {
+        checkAndTick();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+    window.addEventListener('focus', handleVisibilityOrFocus);
+
+    return () => {
+      timerActive = false;
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+    };
   }, [examData]);
 
   /* ── Pre-exam countdown 3-2-1 ── */

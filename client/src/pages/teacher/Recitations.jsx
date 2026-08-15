@@ -12,7 +12,7 @@ import toast from 'react-hot-toast';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { withToken } from '../../lib/mediaAccess';
-import { fmtDateLocal, toUTCDate, getServerNow, formatEgyptDateTime } from '../../lib/dateUtils';
+import { fmtDateLocal, toUTCDate, getServerNow, formatEgyptDateTime, parseEgyptDateTimeToUTC } from '../../lib/dateUtils';
 
 const PG_STAGES = [
   'الصف الأول الابتدائي',
@@ -917,8 +917,8 @@ export default function Recitations() {
                   const rawMax = parseInt(form.max_retry_attempts, 10);
                   const payload = {
                     ...form,
-                    start_date: toUTCIso(form.start_date),
-                    end_date: toUTCIso(form.end_date),
+                    start_date: parseEgyptDateTimeToUTC(form.start_date),
+                    end_date: parseEgyptDateTimeToUTC(form.end_date),
                     max_retry_attempts: form.allow_retry && !isNaN(rawMax) && rawMax >= 1 ? rawMax : null,
                   };
                   createMut.mutate(payload);

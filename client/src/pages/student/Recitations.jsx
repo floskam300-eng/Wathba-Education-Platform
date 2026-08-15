@@ -84,6 +84,7 @@ export default function StudentRecitations() {
   // correct for setInterval/setTimeout drift (common when tab is backgrounded).
   const timerEpochRef = useRef(null);
   const timerDurationRef = useRef(null);
+  const timerBaseClientMsRef = useRef(null);
 
   const { data: recitations = [], isLoading } = useQuery({
     queryKey: ['student-recitations'],
@@ -147,6 +148,7 @@ export default function StudentRecitations() {
       }
 
       // Record monotonic baseline + initial remaining seconds to completely eliminate clock skew
+      timerBaseClientMsRef.current = getServerNowMs();
       timerEpochRef.current = performance.now();
       timerDurationRef.current = remainingSecs;
       setTimeLeft(remainingSecs);
@@ -212,23 +214,47 @@ export default function StudentRecitations() {
     submittedRef.current = false;
   };
 
-  // Main exam timer — drift-corrected using monotonic performance.now()
+  // Main exam timer — hybrid drift-corrected using monotonic performance.now() + server wall clock
   useEffect(() => {
     if (view !== 'take' || timeLeft === null) return;
     if (timeLeft <= 0) {
       handleSubmitRef.current?.(true);
       return;
     }
-    timerRef.current = setTimeout(() => {
-      if (timerEpochRef.current !== null && timerDurationRef.current !== null) {
-        const elapsedSecs = Math.floor((performance.now() - timerEpochRef.current) / 1000);
-        const trueLeft = Math.max(0, timerDurationRef.current - elapsedSecs);
-        setTimeLeft(trueLeft);
-      } else {
-        setTimeLeft(t => Math.max(0, t - 1));
+
+    const calculateRemaining = () => {
+      if (timerEpochRef.current === null || timerDurationRef.current === null) return 0;
+      const perfElapsed = Math.floor((performance.now() - timerEpochRef.current) / 1000);
+      const wallElapsed = timerBaseClientMsRef.current
+        ? Math.floor((getServerNowMs() - timerBaseClientMsRef.current) / 1000)
+        : perfElapsed;
+      const effectiveElapsed = Math.max(perfElapsed, wallElapsed);
+      return Math.max(0, timerDurationRef.current - effectiveElapsed);
+    };
+
+    const checkAndTick = () => {
+      const trueLeft = calculateRemaining();
+      setTimeLeft(trueLeft);
+      if (trueLeft <= 0) {
+        handleSubmitRef.current?.(true);
       }
-    }, 1000);
-    return () => clearTimeout(timerRef.current);
+    };
+
+    timerRef.current = setTimeout(checkAndTick, 1000);
+
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible' || (typeof document.hasFocus === 'function' && document.hasFocus())) {
+        checkAndTick();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+    window.addEventListener('focus', handleVisibilityOrFocus);
+
+    return () => {
+      clearTimeout(timerRef.current);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+    };
   }, [view, timeLeft]);
 
   // Save answers to localStorage

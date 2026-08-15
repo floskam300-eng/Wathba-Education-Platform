@@ -1405,17 +1405,35 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
         const elapsedMs = serverNow.getTime() - sessStartedAtMs;
 
         if (elapsedMs > maxDurationMs) {
-          // Abandoned / expired session — clean it up and start fresh
-          await pool.query('DELETE FROM exam_sessions WHERE student_id=$1 AND exam_id=$2', [studentId, examId]);
-          const insertRes = await pool.query(
-            `INSERT INTO exam_sessions (student_id, exam_id, started_at, questions_snapshot)
-             VALUES ($1, $2, NOW(), $3)
-             RETURNING started_at`,
-            [studentId, examId, JSON.stringify(questions)]
-          );
-          serverStartedAt = insertRes.rows[0]?.started_at || serverNow.toISOString();
-          remainingSeconds = durationMinutes * 60;
-          isResumed = false;
+          // Abandoned / expired session
+          const hasRetry = retryRes.rows.length > 0;
+          if (!hasRetry) {
+            const existingResRow = await pool.query(
+              'SELECT id FROM exam_results WHERE student_id=$1 AND exam_id=$2 AND is_latest=true AND is_absent=false',
+              [studentId, examId]
+            );
+            if (!existingResRow.rows.length) {
+              const totalQCount = Array.isArray(sess.questions_snapshot) ? sess.questions_snapshot.length : 0;
+              await pool.query(
+                `INSERT INTO exam_results (student_id, exam_id, score, correct_count, wrong_count, unanswered_count, start_time, end_time, answers, points_earned, attempt_number, is_latest, is_absent)
+                 VALUES ($1, $2, 0, 0, 0, $3, $4, NOW(), '[]'::jsonb, 0, 1, true, false)`,
+                [studentId, examId, totalQCount, sess.started_at]
+              );
+            }
+            await pool.query('DELETE FROM exam_sessions WHERE student_id=$1 AND exam_id=$2', [studentId, examId]);
+            return res.status(403).json({ error: 'لقد انتهت مهلة محاولتك السابقة — يُرجى طلب الإعادة من المعلم' });
+          } else {
+            await pool.query('DELETE FROM exam_sessions WHERE student_id=$1 AND exam_id=$2', [studentId, examId]);
+            const insertRes = await pool.query(
+              `INSERT INTO exam_sessions (student_id, exam_id, started_at, questions_snapshot)
+               VALUES ($1, $2, NOW(), $3)
+               RETURNING started_at`,
+              [studentId, examId, JSON.stringify(questions)]
+            );
+            serverStartedAt = insertRes.rows[0]?.started_at || serverNow.toISOString();
+            remainingSeconds = durationMinutes * 60;
+            isResumed = false;
+          }
         } else {
           // Active session — resume seamlessly
           serverStartedAt = sess.started_at;
@@ -1550,14 +1568,9 @@ router.post('/:id/submit', submitLimiter, requireRole('student'), async (req, re
     );
     serverSession = sessionRes.rows[0] || null;
 
-    // ── Enforce server-side duration limit (prevents client-side timer cheating) ──
-    if (serverSession?.started_at) {
-      const elapsedMs  = Date.now() - new Date(serverSession.started_at).getTime();
-      const maxMs      = (eligibilityRow.duration_minutes || 60) * 60 * 1000 + 90_000; // +90s grace
-      if (elapsedMs > maxMs) {
-        return res.status(409).json({ error: 'انتهت مدة الاختبار — لا يمكن تسليم الإجابات بعد انتهاء الوقت المخصص' });
-      }
-    }
+    // Note: If elapsedMs > maxMs, we do NOT reject with 409 — we accept and grade
+    // the submission with locked=false (no early bonus), ensuring answers are recorded
+    // and the session is cleared cleanly.
 
     if (eligibilityRow.question_source === 'bank' && eligibilityRow.bank_id) {
       // SEC-2: Always use full snapshot as authoritative source.
@@ -1690,11 +1703,27 @@ router.post('/:id/submit', submitLimiter, requireRole('student'), async (req, re
 
     // Retry path: deduct old points + archive old result + mark retry as used
     const existingCheck = await client.query(
-      'SELECT id, points_earned, attempt_number FROM exam_results WHERE student_id=$1 AND exam_id=$2 AND is_latest=true FOR UPDATE',
+      'SELECT id, points_earned, attempt_number, is_absent FROM exam_results WHERE student_id=$1 AND exam_id=$2 AND is_latest=true FOR UPDATE',
       [studentId, examId]
     );
     let nextAttemptNumber = 1;
     if (existingCheck.rows.length > 0) {
+      const isAbsentRow = existingCheck.rows[0].is_absent === true;
+      if (!isAbsentRow) {
+        // Concurrency lock: verify and mark approved retry request inside transaction
+        const retryReq = await client.query(
+          "SELECT id FROM exam_retry_requests WHERE student_id=$1 AND exam_id=$2 AND status='approved' FOR UPDATE",
+          [studentId, examId]
+        );
+        if (!retryReq.rows.length) {
+          await client.query('ROLLBACK');
+          return res.status(409).json({ error: 'لقد أديت هذا الاختبار مسبقاً' });
+        }
+        await client.query(
+          "UPDATE exam_retry_requests SET status='used', handled_at=NOW() WHERE id=$1",
+          [retryReq.rows[0].id]
+        );
+      }
       const oldPts = existingCheck.rows[0].points_earned || 0;
       nextAttemptNumber = (existingCheck.rows[0].attempt_number || 1) + 1;
       if (oldPts > 0)
@@ -1702,10 +1731,6 @@ router.post('/:id/submit', submitLimiter, requireRole('student'), async (req, re
       // Archive old result instead of deleting — preserves history
       await client.query(
         'UPDATE exam_results SET is_latest=false WHERE student_id=$1 AND exam_id=$2',
-        [studentId, examId]
-      );
-      await client.query(
-        "UPDATE exam_retry_requests SET status='used', handled_at=NOW() WHERE student_id=$1 AND exam_id=$2 AND status='approved'",
         [studentId, examId]
       );
     }
