@@ -5,7 +5,7 @@ const rateLimit = require('express-rate-limit');
 const pool = require('../db/connection');
 const { generateToken, authenticate, blacklistToken, invalidateStudentAuthCache, extractJti } = require('../middleware/auth');
 const { logActivity, getIp } = require('../lib/activityLog');
-const { pushSessionKicked } = require('../sse');
+const { pushSessionKicked, broadcastToTeacherAndAssistants } = require('../sse');
 
 const router = express.Router();
 
@@ -320,6 +320,20 @@ router.post('/login', loginLimiter, async (req, res) => {
 
                 await client.query('COMMIT');
                 console.log(`[LOGIN] NEW_DEVICE_BLOCKED committed for student id=${user.id}`);
+
+                // Real-time instant notification via SSE to teacher and assistants
+                setImmediate(() => {
+                  broadcastToTeacherAndAssistants(pool, user.teacher_id, 'device_alert', {
+                    student_id: user.id,
+                    student_name: user.name,
+                    student_username: user.username,
+                    device_name: deviceName,
+                    ip_address: ip,
+                    alert_type: autoSuspended ? 'auto_suspended' : 'device_limit_exceeded',
+                    created_at: new Date().toISOString(),
+                  }).catch(e => console.error('[SSE] device_alert broadcast error:', e.message));
+                });
+
                 return res.status(403).json({
                   error: autoSuspended
                     ? 'تم رصد محاولات متكررة من أجهزة مختلفة. تم إيقاف حسابك تلقائياً — يرجى التواصل مع المدرس لإعادة التفعيل.'

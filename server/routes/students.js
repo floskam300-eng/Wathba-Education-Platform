@@ -8,7 +8,7 @@ const { invalidateCache } = require('../lib/analyticsCache');
 const { getPermissions } = require('../lib/permissionsCache');
 const { validateStudent } = require('../middleware/validate');
 const { logActivity, getActor, getIp } = require('../lib/activityLog');
-const { pushSessionKicked } = require('../sse');
+const { pushSessionKicked, broadcastToTeacherAndAssistants } = require('../sse');
 
 const router = express.Router();
 router.use(authenticate);
@@ -1403,8 +1403,14 @@ router.post('/device-alerts/:alertId/action', requireRole('teacher', 'assistant'
           'teacher_kept_original_device',
           'الإبقاء على جهازك الأصلي فقط — تم رفض طلب الجهاز الجديد.'
         ));
-      }
-    }
+    // Broadcast to update other open dashboard/alerts screens immediately
+    setImmediate(() => {
+      broadcastToTeacherAndAssistants(pool, teacherId, 'device_alert_resolved', {
+        alert_id: alertId,
+        student_id: alert.student_id,
+        action,
+      }).catch(() => {});
+    });
 
     res.json({ success: true });
   } catch (err) {
@@ -1473,6 +1479,15 @@ router.delete('/:id/devices/:deviceId',
         'تم إزالة هذا الجهاز من حسابك من قِبل المدرس.'
       ));
       invalidateStudentAuthCache(studentId);
+
+      setImmediate(() => {
+        broadcastToTeacherAndAssistants(pool, teacherId, 'device_alert_resolved', {
+          student_id: studentId,
+          action: 'delete_device',
+          device_id: deviceId,
+        }).catch(() => {});
+      });
+
       res.json({ success: true });
     } catch (err) {
       res.status(500).json({ error: 'Server error' });
@@ -1541,6 +1556,13 @@ router.post('/:id/suspend',
         ip: getIp(req),
         action: action === 'suspend' ? 'suspend_student' : 'reactivate_student',
         entity: { type: 'student', id: studentId, name: check.rows[0].name },
+      });
+
+      setImmediate(() => {
+        broadcastToTeacherAndAssistants(pool, teacherId, 'device_alert_resolved', {
+          student_id: studentId,
+          action,
+        }).catch(() => {});
       });
 
       res.json({ success: true });

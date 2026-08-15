@@ -26,11 +26,6 @@ export function useSSE(enabled, role) {
 
     // Cancellation flag: set to true in cleanup so any in-flight async connect()
     // call aborts instead of creating an orphaned second EventSource connection.
-    // This is the root cause of duplicate toast notifications — React StrictMode
-    // double-invokes effects; if cleanup runs while the SSE-ticket fetch is still
-    // awaiting, the cleanup finds esRef.current===null (nothing to close), the
-    // second mount starts its own connect(), and then both async calls complete
-    // and each registers event listeners on their own EventSource.
     let cancelled = false;
 
     const connect = async () => {
@@ -44,28 +39,22 @@ export function useSSE(enabled, role) {
 
       // H-8 fix: fetch a short-lived one-time SSE ticket (30s TTL) so the
       // long-lived JWT never appears in the EventSource URL query string
-      // (which would be captured by server logs and browser history).
       let sseUrl;
       try {
         const ticketRes = await fetch('/api/auth/sse-ticket', {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${freshToken}` },
         });
-        // Cleanup ran while we were awaiting the ticket — bail out immediately
-        // to avoid creating an orphaned EventSource.
         if (cancelled) return;
         if (ticketRes.ok) {
           const { ticket } = await ticketRes.json();
           if (cancelled) return;
           sseUrl = `/api/sse?ticket=${encodeURIComponent(ticket)}`;
         } else {
-          // Token rejected — don't reconnect; auth context will handle redirect
           return;
         }
       } catch {
         if (cancelled) return;
-        // Network error fetching ticket — fall back to legacy token URL so
-        // SSE still works (degraded security but better than no real-time)
         const token = localStorage.getItem('wathba_token');
         if (!token) return;
         sseUrl = `/api/sse?token=${encodeURIComponent(token)}`;
@@ -82,7 +71,7 @@ export function useSSE(enabled, role) {
       es.onerror = () => {
         es.close();
         esRef.current = null;
-        if (cancelled) return; // don't reschedule if cleanup already ran
+        if (cancelled) return;
         const delay = Math.min(1000 * 2 ** retryCountRef.current, 30000);
         retryCountRef.current += 1;
         console.log(`[SSE] disconnected — reconnecting in ${delay / 1000}s`);
@@ -103,9 +92,6 @@ export function useSSE(enabled, role) {
           qc.invalidateQueries({ queryKey: ['student-exams'] });
           qc.invalidateQueries({ queryKey: ['student-dashboard'] });
           qc.invalidateQueries({ queryKey: ['my-notifications'] });
-          // [DUP-3 FIX] Removed wathba_platform_notification dispatch: StudentLayout
-          // was receiving it and invalidating ['my-notifications'] a second time,
-          // causing a redundant refetch. The invalidation above is sufficient.
           const message = data.scheduled
             ? `${EVENT_ICONS.new_exam} تم جدولة اختبار جديد: ${data.title}`
             : `${EVENT_ICONS.new_exam} اختبار جديد متاح الآن: ${data.title}`;
@@ -135,11 +121,6 @@ export function useSSE(enabled, role) {
             { duration: 6000, style: { fontFamily: 'inherit', direction: 'rtl' } });
         });
 
-        // [Phase 4] The student just passed a recitation. Refetch the
-        // course-scoped recitation list so the next CourseView render
-        // re-evaluates video lock state. The server already broadcatches
-        // `video_lock_changed` to other students in the same course
-        // (we listen for that too, below).
         es.addEventListener('recitation_passed', (e) => {
           let data; try { data = JSON.parse(e.data); } catch { return; }
           qc.invalidateQueries({ queryKey: ['course-recitations'] });
@@ -151,8 +132,6 @@ export function useSSE(enabled, role) {
           }
         });
 
-        // [Phase 4] A peer student passed a recitation in this course.
-        // The lock badge on locked videos may need to clear.
         es.addEventListener('video_lock_changed', (e) => {
           let data; try { data = JSON.parse(e.data); } catch { return; }
           if (data?.courseId) {
@@ -284,11 +263,6 @@ export function useSSE(enabled, role) {
           });
         });
 
-        // [Phase 2] Force-logout pushed by the server when this session was
-        // kicked — either by a concurrent login from another device, a
-        // teacher "switch/suspend/reset" action, or a logout. We dispatch
-        // the same wathba_account_suspended event so the AuthProvider UI
-        // shows the modal and routes the user to /login.
         es.addEventListener('force_logout', (e) => {
           let data; try { data = JSON.parse(e.data); } catch { return; }
           window.dispatchEvent(new CustomEvent('wathba_account_suspended', {
@@ -296,11 +270,6 @@ export function useSSE(enabled, role) {
           }));
         });
 
-        // [retake-grant] Fired when a teacher grants a one-time retake to
-        // THIS student. The event is sent to student_{studentId} on the
-        // server. We invalidate every student-side query key that renders a
-        // recitation so the new unused_grants badge shows up immediately on
-        // /student/recitations, the CourseView, and the result-history list.
         es.addEventListener('recitation_retake_granted', (e) => {
           let data; try { data = JSON.parse(e.data); } catch { return; }
           qc.invalidateQueries({ queryKey: ['student-recitations'] });
@@ -369,11 +338,6 @@ export function useSSE(enabled, role) {
           qc.invalidateQueries({ queryKey: ['recitations-analytics'] });
         });
 
-        // [retake-grant] The server sends recitation_retake_granted to the
-        // student channel; teachers don't normally receive it. We register a
-        // listener here anyway as a safety net in case the server is
-        // reconfigured to broadcast to the teacher channel too — invalidating
-        // teacher queries here is harmless if no event ever fires.
         es.addEventListener('recitation_retake_granted', () => {
           qc.invalidateQueries({ queryKey: ['recitations'] });
           qc.invalidateQueries({ queryKey: ['recitation-participants'] });
@@ -401,13 +365,41 @@ export function useSSE(enabled, role) {
           let data; try { data = JSON.parse(e.data); } catch { return; }
           window.dispatchEvent(new CustomEvent('wathba_live_chat', { detail: data }));
         });
+
+        es.addEventListener('device_alert', (e) => {
+          let data; try { data = JSON.parse(e.data); } catch { return; }
+          qc.invalidateQueries({ queryKey: ['device-alerts'] });
+          qc.invalidateQueries({ queryKey: ['students'] });
+          qc.invalidateQueries({ queryKey: ['student-devices'] });
+          qc.invalidateQueries({ queryKey: ['teacher-dashboard'] });
+          window.dispatchEvent(new CustomEvent('wathba_device_alert', { detail: data }));
+
+          const studentName = data.student_name ? `الطالب: ${data.student_name}` : 'طالب';
+          const reason = data.alert_type === 'auto_suspended'
+            ? 'تم إيقاف حسابه تلقائياً لتكرار محاولات الدخول من أجهزة متعددة 🚫'
+            : data.alert_type === 'capture_attempt'
+            ? `محاولة نسخ أو تصوير محتوى (${data.device_name || ''}) ⚠️`
+            : `محاولة تسجيل دخول من جهاز جديد (${data.device_name || 'جهاز غير مسجل'}) 📱`;
+
+          toast.error(`⚠️ تحذير أمني جديد\n${studentName}\n${reason}`, {
+            duration: 8000,
+            style: { fontFamily: 'inherit', direction: 'rtl', background: '#991b1b', color: '#fff', fontWeight: 'bold' },
+          });
+        });
+
+        es.addEventListener('device_alert_resolved', () => {
+          qc.invalidateQueries({ queryKey: ['device-alerts'] });
+          qc.invalidateQueries({ queryKey: ['students'] });
+          qc.invalidateQueries({ queryKey: ['student-devices'] });
+          qc.invalidateQueries({ queryKey: ['teacher-dashboard'] });
+        });
       }
     };
 
     connect();
 
     return () => {
-      cancelled = true; // signal any in-flight connect() to abort
+      cancelled = true;
       clearTimeout(retryRef.current);
       if (esRef.current) {
         esRef.current.close();

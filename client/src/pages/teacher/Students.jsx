@@ -102,7 +102,7 @@ function DeviceAlertsPanel({ canEdit }) {
   const { data: alerts = [], isLoading } = useQuery({
     queryKey: ['device-alerts'],
     queryFn: () => api.get('/students/device-alerts').then(r => r.data),
-    refetchInterval: 60000,
+    refetchInterval: 10000,
   });
 
   const { data: devices = [] } = useQuery({
@@ -596,6 +596,13 @@ export default function TeacherStudents() {
 
   useEffect(() => { setPage(1); }, [stageFilter]);
 
+  // Instantly refresh alerts when switching to the alerts tab
+  useEffect(() => {
+    if (mainView === 'alerts') {
+      qc.invalidateQueries({ queryKey: ['device-alerts'] });
+    }
+  }, [mainView, qc]);
+
   const [modal, setModal] = useState(false);
   const [editData, setEditData] = useState(null);
   const [form, setForm] = useState(emptyForm);
@@ -651,7 +658,7 @@ export default function TeacherStudents() {
   const { data: deviceAlerts = [] } = useQuery({
     queryKey: ['device-alerts'],
     queryFn: () => api.get('/students/device-alerts').then(r => r.data),
-    refetchInterval: 60000,
+    refetchInterval: 15000,
   });
   // Count unique students with pending alerts (not raw alert rows) to avoid inflated badge numbers
   const pendingAlertsCount = new Set(deviceAlerts.filter(a => a.status === 'pending').map(a => a.student_id)).size;

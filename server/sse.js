@@ -133,12 +133,39 @@ function pushSessionKicked(studentId, reason, message) {
   });
 }
 
+/**
+ * Broadcast an event to a teacher and all their connected assistants.
+ * @param {object} pool
+ * @param {number} teacherId
+ * @param {string} event
+ * @param {object} payload
+ */
+async function broadcastToTeacherAndAssistants(pool, teacherId, event, payload) {
+  if (!teacherId) return;
+  // Send to teacher
+  sendEvent(`teacher_${teacherId}`, event, payload);
+  // Send to all assistants under this teacher
+  try {
+    if (pool) {
+      const { rows } = await pool.query(
+        'SELECT id FROM assistants WHERE teacher_id = $1',
+        [teacherId]
+      );
+      for (const { id } of rows) {
+        sendEvent(`assistant_${id}`, event, payload);
+      }
+    }
+  } catch (_) {}
+}
+
 module.exports = {
   addClient,
   removeClient,
   sendEvent,
   broadcastToTeacherStudents,
   broadcastToCourseStudents,
+  broadcastToTeacherAndAssistants,
   pushSessionKicked,
   getTotalConnections,
 };
+

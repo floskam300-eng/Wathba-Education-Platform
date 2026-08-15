@@ -2,6 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const pool = require('../db/connection');
 const { authenticate, requireRole } = require('../middleware/auth');
+const { broadcastToTeacherAndAssistants } = require('../sse');
 
 const router = express.Router();
 router.use(authenticate);
@@ -195,13 +196,30 @@ router.post('/capture-attempt', requireRole('student'), async (req, res) => {
 
   try {
     // Log to device_alerts table so teacher sees it in the students panel
-    await pool.query(
+    const ins = await pool.query(
       `INSERT INTO device_alerts
          (teacher_id, student_id, alert_type, device_name, ip_address, status)
        SELECT s.teacher_id, $1, 'capture_attempt', $2, $3, 'pending'
-       FROM students s WHERE s.id = $1`,
+       FROM students s WHERE s.id = $1
+       RETURNING teacher_id`,
       [studentId, `محاولة نسخ: ${type}`, req.ip || '']
     );
+
+    const teacherId = ins.rows[0]?.teacher_id;
+    if (teacherId) {
+      setImmediate(() => {
+        broadcastToTeacherAndAssistants(pool, teacherId, 'device_alert', {
+          student_id: studentId,
+          student_name: req.user.name,
+          student_username: req.user.username,
+          device_name: `محاولة نسخ/تصوير: ${type}`,
+          ip_address: req.ip || '',
+          alert_type: 'capture_attempt',
+          created_at: new Date().toISOString(),
+        }).catch(e => console.error('[SSE] capture_attempt alert broadcast error:', e.message));
+      });
+    }
+
     res.json({ logged: true });
   } catch (err) {
     console.error('[events /capture-attempt]', err.message);
