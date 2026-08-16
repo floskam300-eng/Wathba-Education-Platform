@@ -5,7 +5,7 @@ import {
   Users, Plus, Pencil, Trash2, Search, Eye, EyeOff, Printer,
   GraduationCap, Upload, FileSpreadsheet, Download, X, Loader2,
   Copy, CheckCircle, AlertCircle, Ban, Lock, Unlock, ShieldAlert,
-  Smartphone, Monitor, RefreshCw, AlertTriangle, ChevronRight,
+  Smartphone, Monitor, RefreshCw, AlertTriangle,
   Layers, Trash, ArrowLeft, ShieldCheck, PlusCircle,
 } from 'lucide-react';
 // Removed static XLSX import to decrease initial chunk size
@@ -97,7 +97,6 @@ function DeviceAlertsPanel({ canEdit }) {
   const [alertSearch, setAlertSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');   // 'all' | 'pending' | 'resolved'
   const [stageFilterA, setStageFilterA] = useState('الكل');
-  const [deviceChoiceOpen, setDeviceChoiceOpen] = useState(null); // student_id of open dropdown
 
   const { data: alerts = [], isLoading } = useQuery({
     queryKey: ['device-alerts'],
@@ -396,74 +395,6 @@ function DeviceAlertsPanel({ canEdit }) {
                           <ShieldCheck className="w-3.5 h-3.5 text-gray-500" /> إبقاء القديم فقط
                         </button>
 
-                        {/* Choice Dropdown */}
-                        <div className="relative">
-                          <button
-                            onClick={() => setDeviceChoiceOpen(deviceChoiceOpen === alert.student_id ? null : alert.student_id)}
-                            disabled={actionMut.isPending}
-                            className="p-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
-                            title="خيارات إضافية"
-                          >
-                            <ChevronRight className={`w-3.5 h-3.5 transition-transform ${deviceChoiceOpen === alert.student_id ? 'rotate-90' : ''}`} />
-                          </button>
-                          {deviceChoiceOpen === alert.student_id && (
-                            <>
-                              <div
-                                className="fixed inset-0 z-40 cursor-default"
-                                onClick={() => setDeviceChoiceOpen(null)}
-                              />
-                              <div className="absolute top-full right-0 mt-1.5 bg-white dark:bg-navy-800 rounded-xl shadow-2xl border border-gray-200 dark:border-navy-700 p-2 z-50 min-w-[290px] animate-in fade-in slide-in-from-top-1 duration-150">
-                                <p className="text-[11px] text-gray-500 font-bold px-2.5 py-1 mb-1 border-b border-gray-100 dark:border-navy-700">اختر الإجراء المناسب:</p>
-                                
-                                <button
-                                  onClick={() => actionMut.mutate({ alertId: alert.id, action: 'add_new_device' })}
-                                  disabled={actionMut.isPending}
-                                  className="flex items-center gap-2 w-full px-2.5 py-2 rounded-lg text-right text-xs font-bold text-green-700 hover:bg-green-50 dark:hover:bg-green-950/30 transition-colors"
-                                >
-                                  <div className="w-7 h-7 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
-                                    <PlusCircle className="w-3.5 h-3.5 text-green-600" />
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <span className="block">إضافة الجهاز الجديد (السماح بالاثنين)</span>
-                                    <span className="block text-[10px] text-gray-400 font-medium mt-0.5">يضيف الجهاز مع الاحتفاظ بالجهاز الأصلي</span>
-                                  </div>
-                                </button>
-
-                                <button
-                                  onClick={() => actionMut.mutate({ alertId: alert.id, action: 'switch_to_new_device' })}
-                                  disabled={actionMut.isPending}
-                                  className="flex items-center gap-2 w-full px-2.5 py-2 rounded-lg text-right text-xs font-bold text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-950/30 transition-colors mt-1"
-                                >
-                                  <div className="w-7 h-7 rounded-lg bg-orange-100 flex items-center justify-center flex-shrink-0">
-                                    <RefreshCw className="w-3.5 h-3.5 text-orange-600" />
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <span className="block">استبدال الجهاز بالجديد (مسح القديم)</span>
-                                    <span className="block text-[10px] text-gray-400 font-medium mt-0.5">
-                                      {alert.count > 1
-                                        ? `الأجهزة: ${[...new Set(alert.devices)].join(' · ')}`
-                                        : `${alert.device_name || 'جهاز جديد'}`}
-                                    </span>
-                                  </div>
-                                </button>
-
-                                <button
-                                  onClick={() => actionMut.mutate({ alertId: alert.id, action: 'keep_original_device' })}
-                                  disabled={actionMut.isPending}
-                                  className="flex items-center gap-2 w-full px-2.5 py-2 rounded-lg text-right text-xs font-bold text-gray-700 hover:bg-gray-100 dark:hover:bg-navy-700 transition-colors mt-1"
-                                >
-                                  <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
-                                    <ShieldCheck className="w-3.5 h-3.5 text-gray-600" />
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <span className="block">إبقاء القديم فقط (رفض الجديد)</span>
-                                    <span className="block text-[10px] text-gray-400 font-medium mt-0.5">يرفض محاولة الدخول من الجهاز الجديد</span>
-                                  </div>
-                                </button>
-                              </div>
-                            </>
-                          )}
-                        </div>
                       </>
                     )}
                   </div>
