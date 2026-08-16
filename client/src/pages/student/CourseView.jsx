@@ -1792,23 +1792,26 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
 
   return (
     <div className="flex-1 flex flex-col min-h-0 h-full" dir="rtl">
-      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+      <div className="flex-1 overflow-y-auto p-3 space-y-3">
         {/* Dedicated Active In-Progress Banner in Course Tab */}
         {activeInProgressRec && (
-          <div className="rounded-xl p-3 bg-gradient-to-r from-amber-500/15 via-purple-500/15 to-amber-500/10 border border-amber-400 dark:border-amber-500/50 shadow-sm">
-            <div className="flex items-center justify-between gap-2 mb-1.5">
-              <span className="text-[10px] font-black bg-amber-500 text-white px-2 py-0.5 rounded-full animate-pulse">
+          <div className="rounded-2xl p-3.5 bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-purple-500/15 border-2 border-amber-400/80 dark:border-amber-500/60 shadow-lg shadow-amber-500/10 transition-all">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <span className="text-[11px] font-black bg-gradient-to-r from-amber-500 to-orange-600 text-white px-2.5 py-0.5 rounded-full shadow-sm animate-pulse flex items-center gap-1">
                 ⚡ لديك تسميع جارٍ
               </span>
-              <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold">الوقت مستمر</span>
+              <span className="text-[11px] text-amber-700 dark:text-amber-300 font-bold bg-amber-50 dark:bg-amber-900/30 px-2 py-0.5 rounded-md border border-amber-200 dark:border-amber-800/40">
+                الوقت مستمر ⏳
+              </span>
             </div>
-            <p className="text-gray-900 dark:text-white text-xs font-black truncate mb-2">{activeInProgressRec.title}</p>
+            <p className="text-gray-900 dark:text-white text-xs font-black truncate mb-2.5">{activeInProgressRec.title}</p>
             <button
               onClick={() => startRec(activeInProgressRec)}
               disabled={!!startingId}
-              className="w-full py-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-black text-xs rounded-lg shadow-md transition-all flex items-center justify-center gap-1.5"
+              className="w-full py-2.5 bg-gradient-to-r from-amber-500 via-orange-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 active:scale-95 text-white font-black text-xs rounded-xl shadow-md shadow-orange-500/25 transition-all flex items-center justify-center gap-2"
             >
-              <RotateCcw className="w-3.5 h-3.5" /> استئناف التسميع الآن
+              {startingId === activeInProgressRec.id ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+              استئناف التسميع الآن
             </button>
           </div>
         )}
@@ -1837,38 +1840,45 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
           // knows exactly what to do to proceed.
           const gatesVideo = Array.isArray(rec.video_ids) && rec.video_ids.length > 0 && !passed;
           return (
-            <div key={rec.id} className={`rounded-xl border p-3 transition-all ${
+            <div key={rec.id} className={`rounded-2xl border p-3.5 transition-all ${
               passed
                 ? 'border-green-500/30 bg-green-500/5'
                 : isActiveSession
-                ? 'border-amber-400 dark:border-amber-500/50 bg-amber-500/5'
+                ? 'border-2 border-amber-400 dark:border-amber-500/60 bg-gradient-to-br from-amber-500/10 via-purple-500/5 to-amber-500/5 shadow-md shadow-amber-500/5'
                 : hasResult
                 ? 'border-red-500/30 bg-red-500/5'
                 : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5'
             }`}>
-              <div className="flex items-start gap-2.5 mb-2">
+              <div className="flex items-start gap-2.5 mb-2.5">
                 {/* Sequential number so the student sees the required order (1, 2, 3...) */}
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-black ${
-                  passed ? 'bg-green-500/20 text-green-600 dark:text-green-400' : isActiveSession ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400' : hasResult ? 'bg-red-500/20 text-red-500 dark:text-red-400' : 'bg-purple-500/20 text-purple-600 dark:text-purple-300'
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-xs font-black transition-all ${
+                  passed
+                    ? 'bg-green-500/20 text-green-600 dark:text-green-400'
+                    : isActiveSession
+                    ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-sm shadow-orange-500/20'
+                    : hasResult
+                    ? 'bg-red-500/20 text-red-500 dark:text-red-400'
+                    : 'bg-purple-500/20 text-purple-600 dark:text-purple-300'
                 }`}>
-                  {passed ? <CheckCircle className="w-4 h-4" /> : isActiveSession ? <RotateCcw className="w-3.5 h-3.5" /> : idx + 1}
+                  {passed ? <CheckCircle className="w-4 h-4" /> : isActiveSession ? <RotateCcw className="w-4 h-4" /> : idx + 1}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <p className="text-gray-900 dark:text-white text-xs font-bold truncate">{rec.title}</p>
+                    <p className="text-gray-900 dark:text-white text-xs sm:text-sm font-black truncate">{rec.title}</p>
                     {isActiveSession && (
-                      <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-amber-500 text-white">
-                        جلسة نشطة
+                      <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-xs animate-pulse">
+                        ⚡ جلسة نشطة
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                    <span className="text-[10px] text-gray-500">
+                  <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                    <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">
                       <Clock className="w-2.5 h-2.5 inline ml-0.5" />{rec.duration_minutes} دقيقة
                     </span>
-                    <span className="text-[10px] text-gray-500">{rec.question_count} سؤال</span>
+                    <span className="text-[10px] text-gray-400">•</span>
+                    <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">{rec.question_count} سؤال</span>
                     {hasResult && !isActiveSession && (
-                      <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${
+                      <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${
                         passed ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
                       }`}>
                         {rec.my_score}/{rec.total_score} · {passed ? 'ناجح ✓' : 'راسب ✗'}
@@ -1876,19 +1886,19 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
                     )}
                     {/* [M1-FIX] Schedule status badges */}
                     {isExpired && (
-                      <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-gray-500/20 text-gray-400">
+                      <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md bg-gray-500/20 text-gray-400">
                         انتهى الوقت
                       </span>
                     )}
                     {isUpcoming && (
-                      <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400">
+                      <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md bg-yellow-500/20 text-yellow-400">
                         لم يبدأ بعد
                       </span>
                     )}
                   </div>
                   {/* Linked-video context: show which lecture this recitation unlocks */}
                   {rec.linked_video_title && (
-                    <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1">
+                    <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1.5 flex items-center gap-1">
                       <Video className="w-2.5 h-2.5 inline" />
                       يفتح: <span className="text-gray-700 dark:text-gray-300 font-semibold truncate">{rec.linked_video_title}</span>
                     </p>
@@ -1906,7 +1916,7 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
                       ? 'أعد المحاولة لفتح المحاضرة'
                       : 'يجب النجاح لفتح المحاضرة';
                     return (
-                      <div className="mt-1 space-y-1">
+                      <div className="mt-1.5 space-y-1">
                         <p className="text-[10px] font-black flex items-center gap-1 text-orange-300 bg-orange-500/10 border border-orange-500/20 rounded-lg px-2 py-1">
                           <Lock className="w-3 h-3 inline" />
                           {primary}
@@ -1923,25 +1933,35 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
                   })()}
                 </div>
               </div>
-              <div className="flex gap-1.5">
+              <div className="flex gap-2">
                 {canStart && (
                   <button
                     onClick={() => startRec(rec)}
                     disabled={startingId === rec.id} // [M3-FIX] only disable the specific rec
-                    className={`flex-1 py-1.5 rounded-lg text-[11px] font-black text-white disabled:opacity-60 transition-colors ${
+                    className={`flex-1 py-2 rounded-xl text-xs font-black text-white disabled:opacity-60 transition-all flex items-center justify-center gap-1.5 active:scale-95 shadow-sm ${
                       isActiveSession
-                        ? 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700'
+                        ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 shadow-orange-500/20'
                         : hasGrant
-                        ? 'bg-emerald-500 hover:bg-emerald-600'
-                        : 'bg-purple-500 hover:bg-purple-600'
+                        ? 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/20'
+                        : 'bg-purple-600 hover:bg-purple-700 shadow-purple-500/20'
                     }`}>
-                    {startingId === rec.id ? ( // [M3-FIX]
-                      <RefreshCw className="w-3 h-3 inline animate-spin" />
+                    {startingId === rec.id ? (
+                      <RefreshCw className="w-3.5 h-3.5 inline animate-spin" />
+                    ) : isActiveSession ? (
+                      <>
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>استئناف التسميع</span>
+                      </>
                     ) : hasResult ? (
                       hasGrant
                         ? 'محاولة إضافية 🎁'
                         : `أعد المحاولة${maxAttempts ? ` (${attempts}/${maxAttempts})` : ''}`
-                    ) : 'ابدأ التسميع'}
+                    ) : (
+                      <>
+                        <Play className="w-3.5 h-3.5 fill-white" />
+                        <span>ابدأ التسميع</span>
+                      </>
+                    )}
                   </button>
                 )}
                 {/* [retake-grant] Only show the closed message when the student
@@ -1949,20 +1969,21 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
                     grant, the button above is the granted retry and this message
                     is suppressed. */}
                 {hasResult && !passed && !canRetry && (
-                  <div className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-bold text-red-400 bg-red-500/10 border border-red-500/20">
+                  <div className="flex-1 flex items-center justify-center gap-1 py-2 rounded-xl text-[11px] font-bold text-red-400 bg-red-500/10 border border-red-500/20">
                     {maxReached ? `استنفدت المحاولات (${maxAttempts})` : 'إعادة المحاولة مغلقة'}
                   </div>
                 )}
                 {rec.result_id && (
                   <button
                     onClick={() => navigate(`/student/recitation-review/${rec.result_id}`, { state: { backTo: `/student/courses/${courseId}` } })}
-                    className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-indigo-400 bg-indigo-500/10 hover:bg-indigo-500/20 transition-colors border border-indigo-500/20">
-                    <Eye className="w-3 h-3 inline ml-0.5" />مراجعة
+                    className="px-3 py-2 rounded-xl text-xs font-bold text-indigo-400 bg-indigo-500/10 hover:bg-indigo-500/20 transition-colors border border-indigo-500/20 flex items-center justify-center gap-1">
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>مراجعة</span>
                   </button>
                 )}
                 {passed && (
-                  <div className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-bold text-green-400 bg-green-500/10 border border-green-500/20">
-                    <CheckCircle className="w-3 h-3" /> اجتزت التسميع
+                  <div className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold text-green-400 bg-green-500/10 border border-green-500/20">
+                    <CheckCircle className="w-3.5 h-3.5" /> اجتزت التسميع
                   </div>
                 )}
               </div>
