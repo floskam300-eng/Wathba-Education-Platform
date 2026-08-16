@@ -38,6 +38,17 @@ export default {
         cairo: ['Tajawal', 'sans-serif'],
         tajawal: ['Tajawal', 'sans-serif'],
       },
+      fontWeight: {
+        hairline: '200',
+        thin: '200',
+        light: '300',
+        normal: '400',
+        medium: '500',
+        semibold: '600',
+        bold: '700',
+        extrabold: '700',
+        black: '700',
+      },
       boxShadow: {
         navy: '0 4px 20px rgba(26, 35, 58, 0.08)',
         'navy-lg': '0 8px 40px rgba(26, 35, 58, 0.12)',

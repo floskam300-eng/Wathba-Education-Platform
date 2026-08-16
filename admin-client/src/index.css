@@ -23,4 +23,7 @@ body {
   color: #F1F5F9;
   overflow-x: hidden;
   font-family: 'Tajawal', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
