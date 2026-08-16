@@ -1260,23 +1260,70 @@ router.post('/device-alerts/:alertId/action', requireRole('teacher', 'assistant'
       'SELECT * FROM device_alerts WHERE id=$1 AND teacher_id=$2',
       [alertId, teacherId]
     );
-    if (!alertRes.rows.length) return res.status(403).json({ error: 'Access denied' });
+    if (!alertRes.rows.length) return res.status(403).json({ error: 'التحذير غير موجود أو تم معالجته بالفعل' });
     const alert = alertRes.rows[0];
+
+    // Helper to safely upsert device without failing on missing unique constraint
+    const upsertDevice = async (stdId, devId, devName, ip) => {
+      if (!devId) return;
+      try {
+        const exist = await pool.query(
+          'SELECT 1 FROM student_devices WHERE student_id=$1 AND device_id=$2',
+          [stdId, devId]
+        );
+        if (exist.rows.length === 0) {
+          await pool.query(
+            `INSERT INTO student_devices (student_id, device_id, device_name, ip_address)
+             VALUES ($1, $2, $3, $4)`,
+            [stdId, devId, devName, ip]
+          );
+        } else {
+          await pool.query(
+            `UPDATE student_devices
+                SET last_seen = NOW(),
+                    device_name = COALESCE(NULLIF($3, ''), device_name),
+                    ip_address = COALESCE(NULLIF($4, ''), ip_address)
+              WHERE student_id = $1 AND device_id = $2`,
+            [stdId, devId, devName, ip]
+          );
+        }
+      } catch (devErr) {
+        console.warn('[UPSERT_DEVICE_WARN]', devErr.message);
+      }
+    };
+
+    // Helper to safely kick active sessions without failing if table is missing
+    const safeKickSessions = async (stdId, reason, devId = null) => {
+      try {
+        if (devId) {
+          await pool.query(
+            `UPDATE student_active_sessions
+                SET kicked_at = NOW(),
+                    kicked_reason = $3
+              WHERE student_id = $1 AND device_id = $2 AND kicked_at IS NULL`,
+            [stdId, devId, reason]
+          );
+        } else {
+          await pool.query(
+            `UPDATE student_active_sessions
+                SET kicked_at = NOW(),
+                    kicked_reason = $2
+              WHERE student_id = $1 AND kicked_at IS NULL`,
+            [stdId, reason]
+          );
+        }
+      } catch (sessErr) {
+        console.warn('[SAFE_KICK_SESSION_WARN]', sessErr.message);
+      }
+    };
 
     if (action === 'reactivate') {
       await pool.query('UPDATE students SET is_suspended=false, failed_device_attempts=0 WHERE id=$1', [alert.student_id]);
-      // Resolve ALL pending alerts for this student, not just the triggered one
       await pool.query(
         "UPDATE device_alerts SET status='reactivated', resolved_at=NOW() WHERE student_id=$1 AND teacher_id=$2 AND status='pending'",
         [alert.student_id, teacherId]
       );
-      await pool.query(
-        `UPDATE student_active_sessions
-            SET kicked_at = NOW(),
-                kicked_reason = 'teacher_reactivated_account'
-          WHERE student_id = $1 AND kicked_at IS NULL`,
-        [alert.student_id]
-      );
+      await safeKickSessions(alert.student_id, 'teacher_reactivated_account');
       invalidateStudentAuthCache(alert.student_id);
     } else if (action === 'reactivate_reset_devices') {
       await pool.query('UPDATE students SET is_suspended=false, failed_device_attempts=0 WHERE id=$1', [alert.student_id]);
@@ -1285,109 +1332,61 @@ router.post('/device-alerts/:alertId/action', requireRole('teacher', 'assistant'
         "UPDATE device_alerts SET status='reactivated', resolved_at=NOW() WHERE student_id=$1 AND teacher_id=$2 AND status='pending'",
         [alert.student_id, teacherId]
       );
-      await pool.query(
-        `UPDATE student_active_sessions
-            SET kicked_at = NOW(),
-                kicked_reason = 'teacher_reset_devices'
-          WHERE student_id = $1 AND kicked_at IS NULL`,
-        [alert.student_id]
-      );
+      await safeKickSessions(alert.student_id, 'teacher_reset_devices');
       invalidateStudentAuthCache(alert.student_id);
     } else if (action === 'reset_devices') {
-      // Clear all registered devices so the student can log in fresh from any device.
-      // Also end any active sessions — they are now invalid because their device_id
-      // no longer exists in the registered list.
       await pool.query('DELETE FROM student_devices WHERE student_id=$1', [alert.student_id]);
       await pool.query('UPDATE students SET failed_device_attempts=0 WHERE id=$1', [alert.student_id]);
       await pool.query(
         "UPDATE device_alerts SET status='reactivated', resolved_at=NOW() WHERE student_id=$1 AND teacher_id=$2 AND status='pending'",
         [alert.student_id, teacherId]
       );
-      await pool.query(
-        `UPDATE student_active_sessions
-            SET kicked_at = NOW(),
-                kicked_reason = 'teacher_reset_devices'
-          WHERE student_id = $1 AND kicked_at IS NULL`,
-        [alert.student_id]
-      );
+      await safeKickSessions(alert.student_id, 'teacher_reset_devices');
       invalidateStudentAuthCache(alert.student_id);
     } else if (action === 'dismiss' || action === 'keep_original_device') {
-      // Option 2: Keep original device only (reject new device attempt) — dismiss pending alerts
-      // and force-close any active session that came from the rejected new device.
       await pool.query(
         "UPDATE device_alerts SET status='dismissed', resolved_at=NOW() WHERE student_id=$1 AND teacher_id=$2 AND status='pending'",
         [alert.student_id, teacherId]
       );
       if (alert.device_id) {
-        await pool.query(
-          `UPDATE student_active_sessions
-              SET kicked_at = NOW(),
-                  kicked_reason = 'teacher_kept_original_device'
-            WHERE student_id = $1 AND device_id = $2 AND kicked_at IS NULL`,
-          [alert.student_id, alert.device_id]
-        );
+        await safeKickSessions(alert.student_id, 'teacher_kept_original_device', alert.device_id);
       }
     } else if (action === 'switch_to_new_device') {
       await pool.query('DELETE FROM student_devices WHERE student_id=$1', [alert.student_id]);
       if (alert.device_id) {
-        await pool.query(
-          `INSERT INTO student_devices (student_id, device_id, device_name, ip_address)
-           VALUES ($1, $2, $3, $4)
-           ON CONFLICT (student_id, device_id) DO UPDATE SET last_seen = NOW(), device_name = EXCLUDED.device_name`,
-          [alert.student_id, alert.device_id, alert.device_name, alert.ip_address]
-        );
+        await upsertDevice(alert.student_id, alert.device_id, alert.device_name, alert.ip_address);
       }
       await pool.query('UPDATE students SET is_suspended=false, failed_device_attempts=0 WHERE id=$1', [alert.student_id]);
       await pool.query(
         "UPDATE device_alerts SET status='reactivated', resolved_at=NOW() WHERE student_id=$1 AND teacher_id=$2 AND status='pending'",
         [alert.student_id, teacherId]
       );
-      // Switch: kick every previously-live session; the new device can start fresh.
-      await pool.query(
-        `UPDATE student_active_sessions
-            SET kicked_at = NOW(),
-                kicked_reason = 'teacher_switched_to_new_device'
-          WHERE student_id = $1 AND kicked_at IS NULL`,
-        [alert.student_id]
-      );
+      await safeKickSessions(alert.student_id, 'teacher_switched_to_new_device');
       invalidateStudentAuthCache(alert.student_id);
     } else if (action === 'add_new_device') {
       if (alert.device_id) {
-        await pool.query(
-          `INSERT INTO student_devices (student_id, device_id, device_name, ip_address)
-           VALUES ($1, $2, $3, $4)
-           ON CONFLICT (student_id, device_id) DO UPDATE SET last_seen = NOW(), device_name = EXCLUDED.device_name`,
-          [alert.student_id, alert.device_id, alert.device_name, alert.ip_address]
-        );
+        await upsertDevice(alert.student_id, alert.device_id, alert.device_name, alert.ip_address);
       }
       await pool.query('UPDATE students SET is_suspended=false, failed_device_attempts=0 WHERE id=$1', [alert.student_id]);
       await pool.query(
         "UPDATE device_alerts SET status='reactivated', resolved_at=NOW() WHERE student_id=$1 AND teacher_id=$2 AND status='pending'",
         [alert.student_id, teacherId]
       );
-      // Add: keep previously-live sessions alive, only kick sessions on the
-      // now-banned new device that the alert was about — though there should
-      // be none since the alert was triggered when the student tried to log
-      // in from it and was blocked. Defensive kick anyway.
       if (alert.device_id) {
-        await pool.query(
-          `UPDATE student_active_sessions
-              SET kicked_at = NOW(),
-                  kicked_reason = 'teacher_added_new_device'
-            WHERE student_id = $1 AND device_id = $2 AND kicked_at IS NULL`,
-          [alert.student_id, alert.device_id]
-        );
+        await safeKickSessions(alert.student_id, 'teacher_added_new_device', alert.device_id);
       }
       invalidateStudentAuthCache(alert.student_id);
     }
 
     const studentName = (await pool.query('SELECT name FROM students WHERE id=$1', [alert.student_id]).catch(() => ({ rows: [] }))).rows[0]?.name;
-    logActivity({
-      teacherId, actor: getActor(req), ip: getIp(req),
-      action: 'device_alert_review',
-      entity: { type: 'student', id: alert.student_id, name: studentName },
-      details: { alert_action: action },
-    });
+    try {
+      logActivity({
+        teacherId, actor: getActor(req), ip: getIp(req),
+        action: 'device_alert_review',
+        entity: { type: 'student', id: alert.student_id, name: studentName },
+        details: { alert_action: action },
+      });
+    } catch (_) {}
 
     // [Phase 2] Push SSE notification so the kicked tab logs out instantly.
     if (['switch_to_new_device', 'reactivate', 'reactivate_reset_devices', 'reset_devices'].includes(action)) {
@@ -1419,8 +1418,8 @@ router.post('/device-alerts/:alertId/action', requireRole('teacher', 'assistant'
 
     res.json({ success: true });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
+    console.error('[DEVICE_ALERT_ACTION_ERROR]', err);
+    res.status(500).json({ error: err.message || 'Server error' });
   }
 });
 
