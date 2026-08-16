@@ -5,7 +5,7 @@ import {
   Users, Plus, Pencil, Trash2, Search, Eye, EyeOff, Printer,
   GraduationCap, Upload, FileSpreadsheet, Download, X, Loader2,
   Copy, CheckCircle, AlertCircle, Ban, Lock, Unlock, ShieldAlert,
-  Smartphone, Monitor, RefreshCw, AlertTriangle,
+  Smartphone, Monitor, Tablet, RefreshCw, AlertTriangle,
   Layers, Trash, ArrowLeft, ShieldCheck, PlusCircle,
 } from 'lucide-react';
 // Removed static XLSX import to decrease initial chunk size
@@ -471,10 +471,13 @@ function DeviceAlertsPanel({ canEdit }) {
             <div key={d.id || d.device_id} className="flex items-center justify-between gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
               <div className="flex items-start gap-3 flex-1 min-w-0">
                 <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
-                  {d.device_name?.includes('Android') || d.device_name?.includes('iOS') || d.device_name?.includes('iPhone')
-                    ? <Smartphone className="w-4 h-4 text-blue-600" />
-                    : <Monitor className="w-4 h-4 text-blue-600" />
-                  }
+                  {/iPad|Tab|Tablet/i.test(d.device_name || '') ? (
+                    <Tablet className="w-4 h-4 text-blue-600" />
+                  ) : /Android|iOS|iPhone|Samsung|Xiaomi|Redmi|POCO|Oppo|Realme|Infinix|Tecno|Vivo|Huawei|Honor|Pixel/i.test(d.device_name || '') ? (
+                    <Smartphone className="w-4 h-4 text-blue-600" />
+                  ) : (
+                    <Monitor className="w-4 h-4 text-blue-600" />
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-bold text-sm text-navy-700">{d.device_name || 'جهاز غير معروف'}</p>

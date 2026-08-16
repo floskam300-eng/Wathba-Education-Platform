@@ -81,43 +81,265 @@ function clearAttempts(key) {
   loginAttempts.delete(key);
 }
 
-// ── Parse a readable device name from User-Agent ───────────────────────────
-function parseDeviceName(userAgent) {
-  if (!userAgent) return 'جهاز غير معروف';
+// ── Humanize Android model codes to user-friendly names ────────────────────
+function humanizeModel(model) {
+  if (!model) return '';
+  const m = String(model).replace(/["']/g, '').trim();
+  const upper = m.toUpperCase();
+
+  // Samsung Galaxy Series
+  if (/^SM-([A-Z0-9]+)/i.test(upper)) {
+    if (/^SM-S92/i.test(upper)) return `Samsung Galaxy S24 (${m})`;
+    if (/^SM-S91/i.test(upper)) return `Samsung Galaxy S23 (${m})`;
+    if (/^SM-S90/i.test(upper)) return `Samsung Galaxy S22 (${m})`;
+    if (/^SM-G99/i.test(upper)) return `Samsung Galaxy S21 (${m})`;
+    if (/^SM-G98/i.test(upper)) return `Samsung Galaxy S20 (${m})`;
+    if (/^SM-G97/i.test(upper)) return `Samsung Galaxy S10 (${m})`;
+    if (/^SM-A55/i.test(upper)) return `Samsung Galaxy A55 (${m})`;
+    if (/^SM-A54/i.test(upper)) return `Samsung Galaxy A54 (${m})`;
+    if (/^SM-A53/i.test(upper)) return `Samsung Galaxy A53 (${m})`;
+    if (/^SM-A52/i.test(upper)) return `Samsung Galaxy A52 (${m})`;
+    if (/^SM-A51/i.test(upper)) return `Samsung Galaxy A51 (${m})`;
+    if (/^SM-A50/i.test(upper)) return `Samsung Galaxy A50 (${m})`;
+    if (/^SM-A35/i.test(upper)) return `Samsung Galaxy A35 (${m})`;
+    if (/^SM-A34/i.test(upper)) return `Samsung Galaxy A34 (${m})`;
+    if (/^SM-A33/i.test(upper)) return `Samsung Galaxy A33 (${m})`;
+    if (/^SM-A32/i.test(upper)) return `Samsung Galaxy A32 (${m})`;
+    if (/^SM-A31/i.test(upper)) return `Samsung Galaxy A31 (${m})`;
+    if (/^SM-A30/i.test(upper)) return `Samsung Galaxy A30 (${m})`;
+    if (/^SM-A25/i.test(upper)) return `Samsung Galaxy A25 (${m})`;
+    if (/^SM-A24/i.test(upper)) return `Samsung Galaxy A24 (${m})`;
+    if (/^SM-A23/i.test(upper)) return `Samsung Galaxy A23 (${m})`;
+    if (/^SM-A22/i.test(upper)) return `Samsung Galaxy A22 (${m})`;
+    if (/^SM-A21/i.test(upper)) return `Samsung Galaxy A21 (${m})`;
+    if (/^SM-A20/i.test(upper)) return `Samsung Galaxy A20 (${m})`;
+    if (/^SM-A15/i.test(upper)) return `Samsung Galaxy A15 (${m})`;
+    if (/^SM-A14/i.test(upper)) return `Samsung Galaxy A14 (${m})`;
+    if (/^SM-A13/i.test(upper)) return `Samsung Galaxy A13 (${m})`;
+    if (/^SM-A12/i.test(upper)) return `Samsung Galaxy A12 (${m})`;
+    if (/^SM-A11/i.test(upper)) return `Samsung Galaxy A11 (${m})`;
+    if (/^SM-A10/i.test(upper)) return `Samsung Galaxy A10 (${m})`;
+    if (/^SM-A05/i.test(upper)) return `Samsung Galaxy A05 (${m})`;
+    if (/^SM-A04/i.test(upper)) return `Samsung Galaxy A04 (${m})`;
+    if (/^SM-A03/i.test(upper)) return `Samsung Galaxy A03 (${m})`;
+    if (/^SM-A/i.test(upper)) return `Samsung Galaxy A (${m})`;
+    if (/^SM-M/i.test(upper)) return `Samsung Galaxy M (${m})`;
+    if (/^SM-F/i.test(upper)) return `Samsung Galaxy Z (${m})`;
+    if (/^SM-N/i.test(upper)) return `Samsung Galaxy Note (${m})`;
+    if (/^SM-[TX]/i.test(upper)) return `Samsung Galaxy Tab (${m})`;
+    return `Samsung (${m})`;
+  }
+
+  // Xiaomi / Redmi / POCO
+  if (/^2[0-9]{3}[0-9A-Z]+/i.test(upper) || /^M2[0-9]+/i.test(upper) || /REDMI|XIAOMI|POCO/i.test(upper)) {
+    if (/23129RAA4G|23124RA7EO/i.test(upper)) return `Redmi Note 13 (${m})`;
+    if (/2312DRA50G/i.test(upper)) return `Redmi Note 13 Pro (${m})`;
+    if (/23117RA68G/i.test(upper)) return `Redmi Note 13 Pro+ (${m})`;
+    if (/22101316G|22101316UG/i.test(upper)) return `Redmi Note 12 (${m})`;
+    if (/22101316UCP/i.test(upper)) return `Redmi Note 12 Pro (${m})`;
+    if (/2201117TG|2201117TY/i.test(upper)) return `Redmi Note 11 (${m})`;
+    if (/2201116SG/i.test(upper)) return `Redmi Note 11 Pro (${m})`;
+    if (/2311DRK48G/i.test(upper)) return `POCO X6 Pro (${m})`;
+    if (/23122PCD1G/i.test(upper)) return `POCO X6 (${m})`;
+    if (/23049PCD8G/i.test(upper)) return `POCO F5 (${m})`;
+    if (/23053RN02Y|23053RN02L/i.test(upper)) return `Redmi 12 (${m})`;
+    if (/23108RN04Y/i.test(upper)) return `Redmi 13C (${m})`;
+    if (/2404ARN45A/i.test(upper)) return `Redmi 13 (${m})`;
+    if (/23028RN4BG|23028RNCAG/i.test(upper)) return `Redmi 12C (${m})`;
+    if (/POCO/i.test(upper)) return `POCO (${m})`;
+    if (/REDMI/i.test(upper)) return `Redmi (${m})`;
+    return `Xiaomi (${m})`;
+  }
+
+  // Realme
+  if (/^RMX[0-9]+/i.test(upper)) {
+    if (/^RMX3636|^RMX3630/i.test(upper)) return `Realme 11 4G (${m})`;
+    if (/^RMX3740|^RMX3741/i.test(upper)) return `Realme 11 5G (${m})`;
+    if (/^RMX3771|^RMX3770/i.test(upper)) return `Realme 11 Pro 5G (${m})`;
+    if (/^RMX3780/i.test(upper)) return `Realme 11 Pro+ 5G (${m})`;
+    if (/^RMX3840|^RMX3841/i.test(upper)) return `Realme 12 Pro+ 5G (${m})`;
+    if (/^RMX3842/i.test(upper)) return `Realme 12 Pro 5G (${m})`;
+    if (/^RMX3890/i.test(upper)) return `Realme 12+ / C65 (${m})`;
+    if (/^RMX3830/i.test(upper)) return `Realme C67 (${m})`;
+    if (/^RMX3760|^RMX3761/i.test(upper)) return `Realme C53 (${m})`;
+    if (/^RMX3710/i.test(upper)) return `Realme C55 (${m})`;
+    if (/^RMX3511/i.test(upper)) return `Realme C35 (${m})`;
+    if (/^RMX3261|^RMX3263/i.test(upper)) return `Realme C21Y (${m})`;
+    if (/^RMX3612|^RMX3611/i.test(upper)) return `Realme 10 Pro (${m})`;
+    if (/^RMX3363|^RMX3360/i.test(upper)) return `Realme GT Master (${m})`;
+    if (/^RMX3392|^RMX3393/i.test(upper)) return `Realme 9 Pro+ (${m})`;
+    if (/^RMX3085|^RMX3081/i.test(upper)) return `Realme 8 / 8 Pro (${m})`;
+    return `Realme (${m})`;
+  }
+
+  // Oppo
+  if (/^CPH[0-9]+/i.test(upper)) {
+    if (/^CPH2579/i.test(upper)) return `Oppo Reno 11 5G (${m})`;
+    if (/^CPH2607/i.test(upper)) return `Oppo Reno 11F 5G (${m})`;
+    if (/^CPH2525|^CPH2527/i.test(upper)) return `Oppo Reno 10 5G (${m})`;
+    if (/^CPH2523/i.test(upper)) return `Oppo Reno 10 Pro+ (${m})`;
+    if (/^CPH2457/i.test(upper)) return `Oppo Reno 8T 5G (${m})`;
+    if (/^CPH2481/i.test(upper)) return `Oppo Reno 8T 4G (${m})`;
+    if (/^CPH2359/i.test(upper)) return `Oppo Reno 8 5G (${m})`;
+    if (/^CPH2371/i.test(upper)) return `Oppo Reno 7 5G (${m})`;
+    if (/^CPH2569/i.test(upper)) return `Oppo A79 5G (${m})`;
+    if (/^CPH2577/i.test(upper)) return `Oppo A58 (${m})`;
+    if (/^CPH2565/i.test(upper)) return `Oppo A38 (${m})`;
+    if (/^CPH2477/i.test(upper)) return `Oppo A78 (${m})`;
+    if (/^CPH2387/i.test(upper)) return `Oppo A57 (${m})`;
+    if (/^CPH2269/i.test(upper)) return `Oppo A16 (${m})`;
+    if (/^CPH2185/i.test(upper)) return `Oppo A15 (${m})`;
+    return `Oppo (${m})`;
+  }
+
+  // OnePlus
+  if (/^NE[0-9]+|^KB[0-9]+|^IN[0-9]+|^GM[0-9]+/i.test(upper)) {
+    return `OnePlus (${m})`;
+  }
+
+  // Infinix
+  if (/^X[0-9]{3,}/i.test(upper)) {
+    if (/^X6837/i.test(upper)) return `Infinix Hot 40 Pro (${m})`;
+    if (/^X6836/i.test(upper)) return `Infinix Hot 40 (${m})`;
+    if (/^X6831/i.test(upper)) return `Infinix Hot 30 (${m})`;
+    if (/^X6850/i.test(upper)) return `Infinix Note 40 Pro (${m})`;
+    if (/^X6711/i.test(upper)) return `Infinix Note 30 (${m})`;
+    if (/^X6525/i.test(upper)) return `Infinix Smart 8 (${m})`;
+    if (/^X6515/i.test(upper)) return `Infinix Smart 7 (${m})`;
+    return `Infinix (${m})`;
+  }
+
+  // Tecno
+  if (/^[A-Z]{2}[0-9]+/i.test(upper) && !/^SM-/i.test(upper)) {
+    if (/^KJ6/i.test(upper)) return `Tecno Spark 20 (${m})`;
+    if (/^KJ5/i.test(upper)) return `Tecno Spark 20C (${m})`;
+    if (/^KL7/i.test(upper)) return `Tecno Camon 30 (${m})`;
+    if (/^CK6/i.test(upper)) return `Tecno Camon 20 (${m})`;
+    return `Tecno (${m})`;
+  }
+
+  // Vivo
+  if (/^V[0-9]{4}/i.test(upper)) return `Vivo (${m})`;
+
+  // Huawei / Honor
+  if (/^ALN|^VOG|^HMA|^CLT|^ELS|^ANA|^NOH|^JAD/i.test(upper)) return `Huawei (${m})`;
+  if (/^LGE|^ELT|^ANY/i.test(upper)) return `Honor (${m})`;
+
+  // Google Pixel
+  if (/PIXEL/i.test(upper)) return m;
+
+  return m;
+}
+
+// ── Parse a readable device name with high precision ───────────────────────
+function parseDeviceName(userAgent, clientProvidedName, headers = {}) {
+  // If the client provided a detailed, sanitized device name, clean and use it!
+  if (clientProvidedName && typeof clientProvidedName === 'string') {
+    const clean = clientProvidedName
+      .replace(/<[^>]*>?/gm, '') // Strip HTML tags to prevent XSS
+      .replace(/[\x00-\x1F\x7F]/g, '') // Strip control characters
+      .replace(/["'`<>]/g, '') // Strip quotes and angle brackets
+      .trim();
+    if (clean.length >= 3 && clean.length <= 250) {
+      return clean;
+    }
+  }
+
+  if (!userAgent && !headers['sec-ch-ua-platform']) return 'جهاز غير معروف';
+  const ua = userAgent || '';
+
   let os = 'غير معروف';
-  let browser = 'غير معروف';
-  if (/Windows NT 10/i.test(userAgent))      os = 'Windows 10/11';
-  else if (/Windows NT 6\.3/i.test(userAgent)) os = 'Windows 8.1';
-  else if (/Windows/i.test(userAgent))         os = 'Windows';
-  else if (/Android/i.test(userAgent)) {
-    const m = userAgent.match(/Android ([0-9.]+)/i);
-    os = m ? `Android ${m[1]}` : 'Android';
-  } else if (/iPhone/i.test(userAgent)) {
-    const m = userAgent.match(/OS ([0-9_]+)/i);
-    os = m ? `iOS ${m[1].replace(/_/g,'.')}` : 'iPhone';
-  } else if (/iPad/i.test(userAgent)) os = 'iPad';
-  else if (/Mac OS/i.test(userAgent))  os = 'Mac';
-  else if (/Linux/i.test(userAgent))   os = 'Linux';
+  let browser = 'متصفح';
+  let model = '';
 
-  if (/Edg\//i.test(userAgent))        browser = 'Edge';
-  else if (/OPR\//i.test(userAgent))   browser = 'Opera';
-  else if (/Chrome\//i.test(userAgent)) browser = 'Chrome';
-  else if (/Firefox\//i.test(userAgent)) browser = 'Firefox';
-  else if (/Safari\//i.test(userAgent))  browser = 'Safari';
+  // 1. Check Client Hints headers if sent by browser
+  const chPlatform = headers['sec-ch-ua-platform'] ? String(headers['sec-ch-ua-platform']).replace(/["']/g, '') : '';
+  const chPlatformVersion = headers['sec-ch-ua-platform-version'] ? String(headers['sec-ch-ua-platform-version']).replace(/["']/g, '') : '';
+  const chModel = headers['sec-ch-ua-model'] ? String(headers['sec-ch-ua-model']).replace(/["']/g, '') : '';
+  const chMobile = headers['sec-ch-ua-mobile'] === '?1';
 
-  return `${os} — ${browser}`;
+  // 2. Resolve OS
+  if (/Android/i.test(ua) || chPlatform.toLowerCase() === 'android') {
+    let androidVer = '';
+    if (chPlatformVersion) {
+      const major = parseInt(chPlatformVersion.split('.')[0], 10);
+      if (!isNaN(major) && major > 0) androidVer = `${major}`;
+    }
+    if (!androidVer) {
+      const m = ua.match(/Android ([0-9.]+)/i);
+      androidVer = m ? m[1] : '';
+    }
+    os = androidVer ? `Android ${androidVer}` : 'Android';
+  } else if (/iPhone/i.test(ua)) {
+    const m = ua.match(/OS ([0-9_]+)/i);
+    os = m ? `iOS ${m[1].replace(/_/g, '.')}` : 'iPhone';
+  } else if (/iPad/i.test(ua)) {
+    const m = ua.match(/OS ([0-9_]+)/i);
+    os = m ? `iPadOS ${m[1].replace(/_/g, '.')}` : 'iPad';
+  } else if (/Mac OS/i.test(ua) || chPlatform.toLowerCase() === 'macos') {
+    os = 'macOS';
+  } else if (/Windows NT 10/i.test(ua) || (chPlatform.toLowerCase() === 'windows' && chPlatformVersion)) {
+    if (chPlatformVersion) {
+      const major = parseInt(chPlatformVersion.split('.')[0], 10);
+      os = (!isNaN(major) && major >= 13) ? 'Windows 11' : 'Windows 10';
+    } else {
+      os = 'Windows 10/11';
+    }
+  } else if (/Windows NT 6\.3/i.test(ua)) {
+    os = 'Windows 8.1';
+  } else if (/Windows/i.test(ua)) {
+    os = 'Windows';
+  } else if (/Linux/i.test(ua) || chPlatform.toLowerCase() === 'linux') {
+    // If mobile hint or Android indicators present, mark as mobile desktop mode
+    if (chMobile || /Mobile|Phone|Tablet/i.test(ua)) {
+      os = 'Android (وضع كمبيوتر)';
+    } else {
+      os = 'Linux';
+    }
+  }
+
+  // 3. Resolve Model
+  if (chModel) {
+    model = humanizeModel(chModel);
+  } else {
+    const m = ua.match(/;\s*([A-Za-z0-9\-\s_]+)\s+Build\//i);
+    if (m && m[1] && !/Linux|Android/i.test(m[1])) {
+      model = humanizeModel(m[1].trim());
+    }
+  }
+
+  // 4. Resolve Browser
+  if (/SamsungBrowser\/([0-9.]+)/i.test(ua))   browser = 'Samsung Internet';
+  else if (/MiuiBrowser\/([0-9.]+)/i.test(ua)) browser = 'Mi Browser';
+  else if (/Edg\/|EdgA\/|EdgiOS\//i.test(ua))  browser = 'Edge';
+  else if (/OPR\/|OPT\/|Opera/i.test(ua))      browser = 'Opera';
+  else if (/WhatsApp\//i.test(ua))             browser = 'WhatsApp';
+  else if (/FB_IAB|FBAN|FBAV|Instagram/i.test(ua)) browser = 'Facebook/Instagram';
+  else if (/Firefox\/|FxiOS\//i.test(ua))      browser = 'Firefox';
+  else if (/Chrome\/|CriOS\//i.test(ua))       browser = 'Chrome';
+  else if (/Safari\//i.test(ua))               browser = 'Safari';
+
+  const parts = [];
+  if (model) parts.push(model);
+  parts.push(os);
+  parts.push(browser);
+
+  return parts.join(' — ');
 }
 
 // ── POST /api/auth/login ────────────────────────────────────────────────────
 router.post('/login', loginLimiter, async (req, res) => {
-  const { username, password, role, device_id, device_origin } = req.body;
+  // Instruct browsers to send high-entropy client hints on future requests
+  res.setHeader('Accept-CH', 'Sec-CH-UA-Model, Sec-CH-UA-Platform-Version, Sec-CH-UA-Full-Version-List, Sec-CH-UA-Mobile');
+
+  const { username, password, role, device_id, device_origin, device_name } = req.body;
   // [H-3] Mutable session-wide flag set inside the student device-check
   // transaction. The Login page uses it to decide whether to show the
   // DeviceWarningModal ("first time on this device") — so the warning is
   // only surfaced when it is actually new, not on every successful login.
   const loginMeta = { is_new_device: false };
 
-  console.log(`[LOGIN] attempt: user="${username}" role="${role || 'auto'}" device_id="${device_id ? device_id.slice(0,12)+'...' : 'MISSING'}" tenant_id="${req.tenantTeacherId || 'none'}"`);
+  console.log(`[LOGIN] attempt: user="${username}" role="${role || 'auto'}" device_id="${device_id ? device_id.slice(0,12)+'...' : 'MISSING'}" device_name="${device_name || 'AUTO'}" tenant_id="${req.tenantTeacherId || 'none'}"`);
 
   if (!username || !password) {
     return res.status(400).json({ error: 'Username and password are required' });
@@ -218,9 +440,9 @@ router.post('/login', loginLimiter, async (req, res) => {
         if (device_id) {
           const ip         = getIp(req);
           const ua         = req.headers['user-agent'] || '';
-          const deviceName = parseDeviceName(ua);
+          const deviceName = parseDeviceName(ua, device_name, req.headers);
 
-          console.log(`[LOGIN] acquiring DB connection for device transaction...`);
+          console.log(`[LOGIN] acquiring DB connection for device transaction... (device: "${deviceName}")`);
           // Use a transaction + SELECT FOR UPDATE to prevent race conditions
           // when two concurrent logins from different unknown devices happen
           // simultaneously (without the lock, both could slip under the limit).
@@ -354,7 +576,11 @@ router.post('/login', loginLimiter, async (req, res) => {
                 `INSERT INTO student_devices (student_id, device_id, device_name, user_agent, ip_address, device_origin)
                  VALUES ($1, $2, $3, $4, $5, $6)
                  ON CONFLICT (student_id, device_id) DO UPDATE
-                   SET last_seen = NOW(), device_name = $3, device_origin = $6`,
+                   SET last_seen = NOW(),
+                       device_name = EXCLUDED.device_name,
+                       device_origin = EXCLUDED.device_origin,
+                       ip_address = EXCLUDED.ip_address,
+                       user_agent = EXCLUDED.user_agent`,
                 [user.id, device_id, deviceName, ua, ip, safeOrigin]
               );
               // [H-2] First-time registration wipes the failure counter.
@@ -368,18 +594,20 @@ router.post('/login', loginLimiter, async (req, res) => {
               // lost the previous slot.
               loginMeta.is_new_device = true;
             } else {
-              // Known device → just update last_seen / device_origin and reset
-              // the failure counter so a previously-blocked student can recover
-              // after registering the new device through the teacher dashboard.
-              console.log(`[LOGIN] known device — updating last_seen for student id=${user.id}`);
+              // Known device → update last_seen, device_name, ip_address, and device_origin
+              // so existing devices automatically upgrade to richer names, and reset the failure counter.
+              console.log(`[LOGIN] known device — updating last_seen and device_name for student id=${user.id}`);
               const safeOrigin = ['browser','pwa_ios','pwa_android','twa','unknown'].includes(device_origin)
                 ? device_origin : 'browser';
               await client.query(
                 `UPDATE student_devices
                     SET last_seen = NOW(),
-                        device_origin = $3
+                        device_origin = $3,
+                        device_name = COALESCE(NULLIF($4, ''), device_name),
+                        ip_address = $5,
+                        user_agent = $6
                   WHERE student_id = $1 AND device_id = $2`,
-                [user.id, device_id, safeOrigin]
+                [user.id, device_id, safeOrigin, deviceName, ip, ua]
               );
               await client.query(
                 'UPDATE students SET failed_device_attempts = 0 WHERE id = $1',

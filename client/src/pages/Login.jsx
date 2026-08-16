@@ -212,9 +212,9 @@ export default function Login() {
     if (!username.trim() || !password) return toast.error('يرجى إدخال اسم المستخدم وكلمة المرور');
     setLoading(true);
     try {
-      const { device_id: deviceId, origin: deviceOrigin } = await getOrCreateDeviceId();
+      const { device_id: deviceId, origin: deviceOrigin, device_name: deviceName } = await getOrCreateDeviceId();
       const { user, force_password_change, is_new_device } = await login(
-        username.trim(), password, undefined, undefined, deviceId, deviceOrigin
+        username.trim(), password, undefined, undefined, deviceId, deviceOrigin, deviceName
       );
       if (force_password_change && user.role === 'teacher') {
         toast('يرجى تغيير كلمة المرور الافتراضية قبل المتابعة', { icon: '🔑', duration: 5000 });

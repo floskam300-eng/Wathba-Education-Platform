@@ -90,10 +90,11 @@ export const AuthProvider = ({ children }) => {
     setSuspendedNotice(null);
   };
 
-  const login = async (username, password, role, _slug, deviceId, deviceOrigin) => {
+  const login = async (username, password, role, _slug, deviceId, deviceOrigin, deviceName) => {
     const body = { username, password };
     if (role) body.role = role;
     if (deviceId) body.device_id = deviceId;
+    if (deviceName) body.device_name = deviceName;
     // [H-4] Pass the device origin (browser | pwa_ios | pwa_android | twa |
     // unknown) alongside the hardware-only device_id. The server uses this
     // purely for analytics on the teacher dashboard; it does NOT affect the
