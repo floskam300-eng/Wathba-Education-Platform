@@ -118,7 +118,6 @@ function DeviceAlertsPanel({ canEdit }) {
       qc.invalidateQueries({ queryKey: ['student-devices'] });
       toast.success('تم تنفيذ الإجراء بنجاح');
       setActionAlert(null);
-      setDeviceChoiceOpen(null);
     },
     onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
   });
