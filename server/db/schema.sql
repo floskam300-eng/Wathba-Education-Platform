@@ -454,6 +454,20 @@ CREATE INDEX IF NOT EXISTS idx_exam_sessions_student_exam ON exam_sessions(stude
 CREATE INDEX IF NOT EXISTS idx_notification_log_student_source ON notification_log(student_id, source);
 CREATE INDEX IF NOT EXISTS idx_exam_results_student_exam ON exam_results(student_id, exam_id);
 CREATE INDEX IF NOT EXISTS idx_exam_retry_requests_student_exam ON exam_retry_requests(student_id, exam_id);
+
+DO $$
+BEGIN
+  ALTER TABLE exam_results ALTER COLUMN start_time TYPE TIMESTAMPTZ USING start_time AT TIME ZONE 'UTC';
+  ALTER TABLE exam_results ALTER COLUMN end_time TYPE TIMESTAMPTZ USING end_time AT TIME ZONE 'UTC';
+  ALTER TABLE exam_results ALTER COLUMN created_at TYPE TIMESTAMPTZ USING created_at AT TIME ZONE 'UTC';
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+-- ── Question Image URL indexes for fast file-access permission checks ──────────
+CREATE INDEX IF NOT EXISTS idx_questions_img ON questions(question_image_url) WHERE question_image_url IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_bank_questions_img ON bank_questions(question_image_url) WHERE question_image_url IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_recitation_questions_img ON recitation_questions(question_image_url) WHERE question_image_url IS NOT NULL;
+
 CREATE INDEX IF NOT EXISTS idx_live_stream_viewers_stream_active ON live_stream_viewers(stream_id, is_active);
 CREATE INDEX IF NOT EXISTS idx_students_deleted_at ON students(teacher_id, deleted_at);
 

@@ -5,6 +5,7 @@ import api from '../../lib/api';
 import ImageLightbox from '../ImageLightbox';
 
 import { withToken } from '../../lib/mediaAccess';
+import QuestionImage from './QuestionImage';
 
 function seededShuffle(arr, seed) {
   const result = [...arr];
@@ -215,13 +216,12 @@ export default function ExamReviewModal({ resultId, onClose }) {
                   <div className="flex-1">
                     <p className="font-bold text-gray-800 dark:text-gray-100 text-sm leading-relaxed">{q.question_text}</p>
                     {q.question_image_url && (
-                      <img
-                        src={withToken(q.question_image_url)}
-                        alt=""
-                        className="mt-2 max-w-full max-h-56 rounded-xl border border-gray-200 dark:border-gray-600 object-contain cursor-zoom-in"
-                        loading="lazy"
-                        decoding="async"
-                        onClick={() => setLightboxSrc(withToken(q.question_image_url))}
+                      <QuestionImage
+                        src={q.question_image_url}
+                        alt="سؤال"
+                        maxHeightClass="max-h-56"
+                        containerClassName="mt-2"
+                        onImagePress={(url) => setLightboxSrc(url)}
                       />
                     )}
                     <div className="flex items-center gap-2 mt-1.5 flex-wrap">

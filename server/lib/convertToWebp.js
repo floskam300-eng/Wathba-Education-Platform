@@ -64,7 +64,9 @@ async function convertToWebp(inputPath, originalName) {
 
   try {
     await sharp(inputPath)
-      .webp({ quality: 80 })
+      .rotate() // Auto-orient based on EXIF metadata from phone cameras
+      .resize({ width: 1400, height: 1400, fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 80, effort: 4 })
       .toFile(tempWebpPath);
 
     // If we wrote to a temp path, rename it to the final name

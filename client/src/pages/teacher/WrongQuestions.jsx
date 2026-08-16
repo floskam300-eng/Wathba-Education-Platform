@@ -259,10 +259,10 @@ export default function WrongQuestionsPage() {
 
     const html = `<!DOCTYPE html><html dir="rtl" lang="ar"><head>
       <meta charset="UTF-8"><title>تقرير أكثر الأسئلة خطأً</title>
-      <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+      <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;600;700;900&display=swap" rel="stylesheet">
       <style>
         *{margin:0;padding:0;box-sizing:border-box}
-        body{font-family:'Cairo',Arial,sans-serif;padding:24px;direction:rtl;color:#1e293b;background:#fff}
+        body{font-family:'Tajawal',Arial,sans-serif;padding:24px;direction:rtl;color:#1e293b;background:#fff}
         .header{display:flex;align-items:center;gap:16px;border-bottom:3px solid #1e3a5f;padding-bottom:16px;margin-bottom:20px}
         .logo{width:44px;height:44px;background:linear-gradient(135deg,#1e3a5f,#2d5080);border-radius:10px;display:flex;align-items:center;justify-content:center;color:#f97316;font-size:20px;font-weight:900;flex-shrink:0}
         .title{font-size:18px;font-weight:900;color:#1e3a5f}
@@ -275,7 +275,7 @@ export default function WrongQuestionsPage() {
         tr:nth-child(even) td{background:#fef2f2}
         .footer{margin-top:20px;padding-top:12px;border-top:1px solid #e2e8f0;text-align:center;color:#94a3b8;font-size:11px}
         .no-print{text-align:center;padding:16px 0 8px}
-        .btn{padding:10px 28px;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:700;font-family:'Cairo',sans-serif;margin:0 6px}
+        .btn{padding:10px 28px;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:700;font-family:'Tajawal',sans-serif;margin:0 6px}
         @media print{.no-print{display:none}body{padding:12px}}
       </style></head><body>
       <div class="header">

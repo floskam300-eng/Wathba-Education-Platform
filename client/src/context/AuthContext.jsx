@@ -166,7 +166,7 @@ export const AuthProvider = ({ children }) => {
             background: 'rgba(15, 23, 42, 0.7)',
             backdropFilter: 'blur(4px)',
             direction: 'rtl',
-            fontFamily: "'Cairo', 'Tajawal', sans-serif",
+            fontFamily: "'Tajawal', sans-serif",
           }}
         >
           <div style={{

@@ -83,7 +83,7 @@ function DeviceWarningModal({ onAccept }) {
           style={{
             width: '100%', border: 'none', borderRadius: 12,
             padding: '.85rem', fontSize: '.9rem', fontWeight: 700,
-            fontFamily: "'Cairo', sans-serif", cursor: 'pointer',
+            fontFamily: "'Tajawal', sans-serif", cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.5rem',
             background: 'linear-gradient(135deg,#f97316,#ea6c0a)',
             color: '#fff',
@@ -170,7 +170,7 @@ function DeviceBlockedModal({ onClose, autoSuspended = false }) {
           style={{
             width: '100%', border: '2px solid rgba(239,68,68,.3)', borderRadius: 12,
             padding: '.85rem', fontSize: '.9rem', fontWeight: 700,
-            fontFamily: "'Cairo', sans-serif", cursor: 'pointer',
+            fontFamily: "'Tajawal', sans-serif", cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.5rem',
             background: 'rgba(239,68,68,.06)',
             color: '#dc2626',
@@ -267,7 +267,7 @@ export default function Login() {
     <div dir="rtl" style={{
       minHeight: '100vh',
       display: 'flex',
-      fontFamily: "'Cairo', sans-serif",
+      fontFamily: "'Tajawal', sans-serif",
       background: '#F8FAFC',
       overflow: 'hidden',
     }}>
@@ -422,7 +422,7 @@ export default function Login() {
                 borderRadius:10, padding:'.45rem .85rem',
                 cursor:'pointer', marginBottom:'1.5rem',
                 color:'rgba(11,60,93,.6)', fontSize:'.8rem', fontWeight:600,
-                fontFamily:"'Cairo', sans-serif",
+                fontFamily:"'Tajawal', sans-serif",
                 transition:'all .2s',
               }}
               onMouseEnter={e => { e.currentTarget.style.borderColor='rgba(249,115,22,.35)'; e.currentTarget.style.color='#f97316'; e.currentTarget.style.background='rgba(249,115,22,.04)'; }}
@@ -470,7 +470,7 @@ export default function Login() {
                   onBlur={() => setFocused(null)}
                   autoComplete="username"
                   className="lg-input"
-                  style={{ width:'100%', background:'transparent', border:'none', padding:'.75rem 2.4rem .75rem .9rem', color: '#0B3C5D', fontSize:'.9rem', fontFamily:"'Cairo', sans-serif", borderRadius:12, direction:'ltr', textAlign:'left' }}
+                  style={{ width:'100%', background:'transparent', border:'none', padding:'.75rem 2.4rem .75rem .9rem', color: '#0B3C5D', fontSize:'.9rem', fontFamily:"'Tajawal', sans-serif", borderRadius:12, direction:'ltr', textAlign:'left' }}
                 />
               </div>
             </div>
@@ -496,7 +496,7 @@ export default function Login() {
                   onBlur={() => setFocused(null)}
                   autoComplete="current-password"
                   className="lg-input"
-                  style={{ width:'100%', background:'transparent', border:'none', padding:'.75rem 2.4rem .75rem 2.4rem', color: '#0B3C5D', fontSize:'.9rem', fontFamily:"'Cairo', sans-serif", borderRadius:12, direction:'ltr', textAlign:'left' }}
+                  style={{ width:'100%', background:'transparent', border:'none', padding:'.75rem 2.4rem .75rem 2.4rem', color: '#0B3C5D', fontSize:'.9rem', fontFamily:"'Tajawal', sans-serif", borderRadius:12, direction:'ltr', textAlign:'left' }}
                 />
                 <button type="button" onClick={() => setShowPass(!showPass)} tabIndex={-1} style={{ position:'absolute', left:11, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color: 'rgba(11,60,93,.4)', display:'flex', alignItems:'center', padding:3 }}>
                   {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
@@ -510,7 +510,7 @@ export default function Login() {
               className="lg-btn"
               style={{
                 width:'100%', border:'none', borderRadius:12, padding:'.9rem',
-                fontSize:'.95rem', fontWeight:700, fontFamily:"'Cairo', sans-serif",
+                fontSize:'.95rem', fontWeight:700, fontFamily:"'Tajawal', sans-serif",
                 cursor: loading || teacherLoading ? 'not-allowed' : 'pointer',
                 display:'flex', alignItems:'center', justifyContent:'center', gap:'.5rem',
                 background: loading || teacherLoading ? 'rgba(249,115,22,.5)' : 'linear-gradient(135deg,#f97316,#ea6c0a)',

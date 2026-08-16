@@ -37,7 +37,7 @@ export default function PrivacyPolicy() {
   }, []);
 
   return (
-    <div dir="rtl" className="min-h-screen bg-[#F8FAFC] text-[#0B3C5D]" style={{ fontFamily: "'Cairo', sans-serif" }}>
+    <div dir="rtl" className="min-h-screen bg-[#F8FAFC] text-[#0B3C5D]" style={{ fontFamily: "'Tajawal', sans-serif" }}>
       <style>{`
         @keyframes pp-orb { from { transform: translate(0,0) scale(1); } to { transform: translate(15px,-20px) scale(1.06); } }
         .pp-dot-grid {

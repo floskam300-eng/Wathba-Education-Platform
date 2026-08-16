@@ -12,6 +12,7 @@ import {
 import api from '../lib/api';
 
 import { withToken } from '../lib/mediaAccess';
+import QuestionImage from '../components/ui/QuestionImage';
 
 function seededShuffle(arr, seed) {
   const result = [...arr];
@@ -319,11 +320,12 @@ export default function ExamReviewPage() {
                     <div className="px-5 py-4">
                       {q.question_text && <p className={`font-bold text-base leading-relaxed mb-1 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}><MathText text={q.question_text} /></p>}
                       {q.question_image_url && (
-                        <img
-                          src={withToken(q.question_image_url)}
-                          alt=""
-                          className={`mt-2 mb-3 w-full max-w-full max-h-72 rounded-xl border object-contain cursor-zoom-in ${dark ? 'border-[var(--dk-border)]' : 'border-gray-200'}`}
-                          onClick={() => setLightboxSrc(withToken(q.question_image_url))}
+                        <QuestionImage
+                          src={q.question_image_url}
+                          alt="سؤال"
+                          maxHeightClass="max-h-72"
+                          dark={dark}
+                          onImagePress={(url) => setLightboxSrc(url)}
                         />
                       )}
 

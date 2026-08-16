@@ -40,7 +40,7 @@ export default function App() {
               background: '#1E293B',
               color: '#F1F5F9',
               border: '1px solid #334155',
-              fontFamily: 'Cairo, sans-serif',
+              fontFamily: 'Tajawal, sans-serif',
               fontSize: '14px',
             },
           }}

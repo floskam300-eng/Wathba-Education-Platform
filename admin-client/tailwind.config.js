@@ -33,8 +33,9 @@ export default {
         },
       },
       fontFamily: {
-        sans: ['Outfit', 'sans-serif'],
-        cairo: ['Cairo', 'sans-serif'],
+        sans: ['Tajawal', 'Outfit', 'sans-serif'],
+        cairo: ['Tajawal', 'sans-serif'],
+        tajawal: ['Tajawal', 'sans-serif'],
       },
     },
   },

@@ -355,29 +355,29 @@ export default function TeacherDashboard() {
                   backgroundColor: '#fff',
                   borderColor: '#f1f5f9',
                   borderWidth: 1,
-                  textStyle: { fontFamily: 'Cairo', fontSize: 12, color: '#1e293b' },
+                  textStyle: { fontFamily: 'Tajawal', fontSize: 12, color: '#1e293b' },
                   extraCssText: 'box-shadow:0 20px 60px rgba(0,0,0,0.12);border-radius:12px;padding:10px 14px',
                   formatter: params => {
-                    let s = `<div style="font-family:Cairo;font-weight:900;color:#1e293b;border-bottom:1px solid #f1f5f9;padding-bottom:6px;margin-bottom:6px">${params[0]?.name}</div>`;
-                    params.forEach(p => { s += `<div style="font-family:Cairo;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:2px 0">${p.marker}${p.seriesName}: <b style="color:${p.color}">${p.value}</b></div>`; });
+                    let s = `<div style="font-family:Tajawal;font-weight:900;color:#1e293b;border-bottom:1px solid #f1f5f9;padding-bottom:6px;margin-bottom:6px">${params[0]?.name}</div>`;
+                    params.forEach(p => { s += `<div style="font-family:Tajawal;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:2px 0">${p.marker}${p.seriesName}: <b style="color:${p.color}">${p.value}</b></div>`; });
                     return s;
                   }
                 },
                 legend: {
                   bottom: 0, icon: 'circle', itemWidth: 8, itemHeight: 8,
-                  textStyle: { fontFamily: 'Cairo', fontSize: 11, color: '#64748b' }
+                  textStyle: { fontFamily: 'Tajawal', fontSize: 11, color: '#64748b' }
                 },
                 grid: { left: 8, right: 8, top: 10, bottom: 32, containLabel: true },
                 xAxis: {
                   type: 'category',
                   data: chartData.map(d => d.name),
                   axisLine: { show: false }, axisTick: { show: false },
-                  axisLabel: { fontFamily: 'Cairo', color: '#94a3b8', fontSize: 10, interval: 0 }
+                  axisLabel: { fontFamily: 'Tajawal', color: '#94a3b8', fontSize: 10, interval: 0 }
                 },
                 yAxis: {
                   type: 'value',
                   splitLine: { lineStyle: { color: '#f1f5f9', type: 'dashed' } },
-                  axisLabel: { fontFamily: 'Cairo', color: '#94a3b8', fontSize: 10 },
+                  axisLabel: { fontFamily: 'Tajawal', color: '#94a3b8', fontSize: 10 },
                   axisLine: { show: false }, axisTick: { show: false }
                 },
                 series: [

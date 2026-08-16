@@ -113,11 +113,11 @@ export const generatePDFReport = (title, headers, data, filename = 'report.pdf',
 <title>${escapeHtml(title)}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
   body {
-    font-family: 'Cairo', Arial, Tahoma, sans-serif;
+    font-family: 'Tajawal', Arial, Tahoma, sans-serif;
     direction: rtl;
     color: #1e293b;
     background: #fff;
@@ -140,11 +140,11 @@ export const generatePDFReport = (title, headers, data, filename = 'report.pdf',
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
   }
-  .logo-text { color: #f97316; font-size: 22px; font-weight: 900; font-family: 'Cairo', sans-serif; }
-  .report-title { font-size: 20px; font-weight: 900; color: #1e3a5f; font-family: 'Cairo', sans-serif; }
+  .logo-text { color: #f97316; font-size: 22px; font-weight: 900; font-family: 'Tajawal', sans-serif; }
+  .report-title { font-size: 20px; font-weight: 900; color: #1e3a5f; font-family: 'Tajawal', sans-serif; }
   .report-sub   { font-size: 12px; color: #64748b; margin-top: 3px; }
   .report-meta  { margin-right: auto; text-align: left; }
-  .report-meta .platform { font-size: 14px; font-weight: 900; color: #f97316; font-family: 'Cairo', sans-serif; }
+  .report-meta .platform { font-size: 14px; font-weight: 900; color: #f97316; font-family: 'Tajawal', sans-serif; }
   .report-meta .date     { font-size: 11px; color: #94a3b8; margin-top: 2px; }
 
   .section-bar {
@@ -154,7 +154,7 @@ export const generatePDFReport = (title, headers, data, filename = 'report.pdf',
   .section-title {
     font-size: 13px; font-weight: 900; color: #1e3a5f;
     border-right: 4px solid #f97316; padding-right: 10px;
-    font-family: 'Cairo', sans-serif;
+    font-family: 'Tajawal', sans-serif;
   }
 
   table { width: 100%; border-collapse: collapse; border-radius: 12px; overflow: hidden; }
@@ -166,7 +166,7 @@ export const generatePDFReport = (title, headers, data, filename = 'report.pdf',
     font-weight: 700;
     text-align: center;
     letter-spacing: 0.3px;
-    font-family: 'Cairo', sans-serif;
+    font-family: 'Tajawal', sans-serif;
   }
   thead th:first-child { color: rgba(255,255,255,0.6); font-size: 10px; }
 
@@ -188,13 +188,13 @@ export const generatePDFReport = (title, headers, data, filename = 'report.pdf',
     padding: 11px 32px; background: #f97316; color: #fff;
     border: none; border-radius: 8px; cursor: pointer;
     font-size: 14px; font-weight: 700; margin-left: 10px;
-    font-family: 'Cairo', sans-serif;
+    font-family: 'Tajawal', sans-serif;
   }
   .btn-close {
     padding: 11px 32px; background: #64748b; color: #fff;
     border: none; border-radius: 8px; cursor: pointer;
     font-size: 14px; font-weight: 700;
-    font-family: 'Cairo', sans-serif;
+    font-family: 'Tajawal', sans-serif;
   }
 
   @media print {

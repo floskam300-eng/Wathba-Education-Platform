@@ -13,24 +13,7 @@ import { useAuth } from '../../context/AuthContext';
 
 const CHART_COLORS = ['#6366f1','#f97316','#10b981','#f59e0b','#8b5cf6','#06b6d4','#ec4899','#f43f5e'];
 
-const STAGES = [
-  'الكل',
-  'الصف الأول الابتدائي',
-  'الصف الثاني الابتدائي',
-  'الصف الثالث الابتدائي',
-  'الصف الرابع الابتدائي',
-  'الصف الخامس الابتدائي',
-  'الصف السادس الابتدائي',
-  'الصف الأول الإعدادي',
-  'الصف الثاني الإعدادي',
-  'الصف الثالث الإعدادي',
-  'الصف الأول الثانوي عام',
-  'الصف الأول الثانوي بكالوريا',
-  'الصف الثاني الثانوي عام',
-  'الصف الثاني الثانوي بكالوريا',
-  'الصف الثالث الثانوي',
-  'جامعي'
-];
+
 
 const SORT_OPTIONS = [
   { value: 'newest',    label: 'الأحدث أولاً' },
@@ -104,6 +87,11 @@ export default function ExamPerformancePage() {
 
   const exams = data?.examResults || [];
 
+  const availableStages = useMemo(() => {
+    const set = new Set(exams.map(e => e.target_stage).filter(Boolean));
+    return ['الكل', ...Array.from(set)];
+  }, [exams]);
+
   const activeAvgFilter = AVG_FILTERS.find(f => f.label === avgFilter) || AVG_FILTERS[0];
 
   const filtered = useMemo(() => {
@@ -176,7 +164,7 @@ export default function ExamPerformancePage() {
     grid: { top: 40, right: 20, bottom: 60, left: 20, containLabel: true },
     legend: {
       top: 8,
-      textStyle: { fontFamily: 'Cairo', fontSize: 11, color: dark ? '#9ca3af' : '#6b7280' },
+      textStyle: { fontFamily: 'Tajawal', fontSize: 11, color: dark ? '#9ca3af' : '#6b7280' },
       itemWidth: 10, itemHeight: 10, borderRadius: 4,
     },
     tooltip: {
@@ -184,17 +172,17 @@ export default function ExamPerformancePage() {
       backgroundColor: '#fff',
       borderColor: '#f1f5f9',
       borderWidth: 1,
-      textStyle: { fontFamily: 'Cairo', fontSize: 12, color: '#1e293b' },
+      textStyle: { fontFamily: 'Tajawal', fontSize: 12, color: '#1e293b' },
     },
     xAxis: {
       type: 'category',
       data: chartData.map(e => e.name),
-      axisLabel: { fontFamily: 'Cairo', fontSize: 10, color: dark ? '#9ca3af' : '#94a3b8', rotate: 30 },
+      axisLabel: { fontFamily: 'Tajawal', fontSize: 10, color: dark ? '#9ca3af' : '#94a3b8', rotate: 30 },
       axisLine: { lineStyle: { color: dark ? '#374151' : '#f1f5f9' } },
     },
     yAxis: {
       type: 'value', min: 0, max: 100,
-      axisLabel: { fontFamily: 'Cairo', fontSize: 10, color: dark ? '#9ca3af' : '#94a3b8', formatter: v => v + '%' },
+      axisLabel: { fontFamily: 'Tajawal', fontSize: 10, color: dark ? '#9ca3af' : '#94a3b8', formatter: v => v + '%' },
       splitLine: { lineStyle: { color: dark ? '#374151' : '#f8fafc', type: 'dashed' } },
     },
     series: [
@@ -238,10 +226,10 @@ export default function ExamPerformancePage() {
 
     const html = `<!DOCTYPE html><html dir="rtl" lang="ar"><head>
       <meta charset="UTF-8"><title>تقرير أداء الاختبارات</title>
-      <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+      <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;600;700;900&display=swap" rel="stylesheet">
       <style>
         *{margin:0;padding:0;box-sizing:border-box}
-        body{font-family:'Cairo',Arial,sans-serif;padding:24px;direction:rtl;color:#1e293b;background:#fff}
+        body{font-family:'Tajawal',Arial,sans-serif;padding:24px;direction:rtl;color:#1e293b;background:#fff}
         .header{display:flex;align-items:center;gap:16px;border-bottom:3px solid #1e3a5f;padding-bottom:16px;margin-bottom:20px}
         .logo{width:44px;height:44px;background:linear-gradient(135deg,#1e3a5f,#2d5080);border-radius:10px;display:flex;align-items:center;justify-content:center;color:#f97316;font-size:20px;font-weight:900;flex-shrink:0}
         .title{font-size:18px;font-weight:900;color:#1e3a5f}
@@ -252,12 +240,12 @@ export default function ExamPerformancePage() {
         .stat-lbl{font-size:11px;color:#94a3b8;margin-top:3px}
         table{width:100%;border-collapse:collapse;border-radius:12px;overflow:hidden}
         thead tr{background:linear-gradient(135deg,#1e3a5f,#2d5080)}
-        th{color:#fff;padding:10px 12px;font-size:12px;font-weight:700;text-align:center;font-family:'Cairo',sans-serif}
+        th{color:#fff;padding:10px 12px;font-size:12px;font-weight:700;text-align:center;font-family:'Tajawal',sans-serif}
         td{padding:9px 12px;border-bottom:1px solid #f1f5f9;font-size:12px;vertical-align:middle}
         tr:nth-child(even) td{background:#f8fafc}
         .footer{margin-top:20px;padding-top:12px;border-top:1px solid #e2e8f0;text-align:center;color:#94a3b8;font-size:11px}
         .no-print{text-align:center;padding:16px 0 8px}
-        .btn{padding:10px 28px;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:700;font-family:'Cairo',sans-serif;margin:0 6px}
+        .btn{padding:10px 28px;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:700;font-family:'Tajawal',sans-serif;margin:0 6px}
         @media print{.no-print{display:none}body{padding:12px}}
       </style></head><body>
       <div class="header">
@@ -409,7 +397,7 @@ export default function ExamPerformancePage() {
                 <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1.5">المرحلة الدراسية</label>
                 <select value={stageFilter} onChange={e => setStageFilter(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-semibold text-gray-700 dark:text-gray-200 focus:outline-none focus:border-indigo-300 transition">
-                  {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
+                  {availableStages.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
 

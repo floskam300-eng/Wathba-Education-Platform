@@ -9,6 +9,8 @@ const { Pool } = require('pg');
 const dbUrl = process.env.DATABASE_URL;
 const useConnectionString = dbUrl && dbUrl.startsWith('postgresql');
 
+const maxPool = parseInt(process.env.DB_POOL_MAX || '45', 10);
+
 const pool = new Pool(
   useConnectionString
     ? {
@@ -17,9 +19,9 @@ const pool = new Pool(
           process.env.DATABASE_SSL === 'false' || dbUrl.includes('localhost') || dbUrl.includes('127.0.0.1')
             ? false
             : { rejectUnauthorized: false },
-        max: 20,
+        max: maxPool,
         idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 2000,
+        connectionTimeoutMillis: 10000,
         query_timeout: 30_000,
         statement_timeout: 30_000,
       }
@@ -30,9 +32,9 @@ const pool = new Pool(
         password: process.env.PGPASSWORD || '',
         database: process.env.PGDATABASE || 'postgres',
         ssl: false,
-        max: 20,
+        max: maxPool,
         idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 2000,
+        connectionTimeoutMillis: 10000,
         query_timeout: 30_000,
         statement_timeout: 30_000,
       }

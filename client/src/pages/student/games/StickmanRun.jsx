@@ -274,7 +274,7 @@ function drawStoryText(ctx, texts, fr) {
     const fadeOut = Math.min((duration - life) / 30, 1);
     ctx.globalAlpha = Math.min(fadeIn, fadeOut) * 0.9;
     const x = t.x - life * 0.3;
-    ctx.font = `bold ${t.size || 16}px Cairo, sans-serif`;
+    ctx.font = `bold ${t.size || 16}px Tajawal, Cairo, sans-serif`;
     ctx.fillStyle = t.color || '#c084fc';
     ctx.textAlign = 'center';
     ctx.shadowBlur = 12; ctx.shadowColor = t.color || '#c084fc';

@@ -6,6 +6,7 @@ import api from '../lib/api';
 import MathText from '../components/MathText';
 import ImageLightbox from '../components/ImageLightbox';
 import { withToken } from '../lib/mediaAccess';
+import QuestionImage from '../components/ui/QuestionImage';
 import { useAuth } from '../context/AuthContext';
 
 function fmt(date) {
@@ -111,11 +112,11 @@ export default function RecitationReviewPage() {
             </p>
           )}
           {q.question_image_url && (
-            <img
-              src={withToken(q.question_image_url)}
-              alt=""
-              className="mt-1 mb-3 w-full max-h-64 object-contain rounded-xl border border-gray-200 dark:border-[var(--dk-border)] bg-gray-50 dark:bg-[var(--dk-elevated)] cursor-zoom-in"
-              onClick={() => setLightboxSrc(withToken(q.question_image_url))}
+            <QuestionImage
+              src={q.question_image_url}
+              alt="سؤال"
+              maxHeightClass="max-h-64"
+              onImagePress={(url) => setLightboxSrc(url)}
             />
           )}
 

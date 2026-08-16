@@ -127,7 +127,7 @@ function DevAccessPanel() {
   return (
     <div style={{
       position: 'fixed', bottom: 20, left: 20, zIndex: 9999,
-      fontFamily: "'Cairo', sans-serif",
+      fontFamily: "'Tajawal', sans-serif",
     }}>
       {!open ? (
         <button
@@ -168,7 +168,7 @@ function DevAccessPanel() {
                 width: '100%', boxSizing: 'border-box',
                 background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
                 borderRadius: 8, padding: '7px 10px', color: '#fff', fontSize: 13,
-                fontFamily: "'Cairo', sans-serif", outline: 'none',
+                fontFamily: "'Tajawal', sans-serif", outline: 'none',
                 direction: 'ltr', textAlign: 'left',
               }}
               onKeyDown={e => e.key === 'Enter' && goTo('/login')}
@@ -182,7 +182,7 @@ function DevAccessPanel() {
                 background: 'linear-gradient(135deg,#f97316,#ea6c0a)',
                 border: 'none', borderRadius: 8, padding: '8px',
                 color: '#fff', fontWeight: 700, fontSize: 12,
-                cursor: 'pointer', fontFamily: "'Cairo', sans-serif",
+                cursor: 'pointer', fontFamily: "'Tajawal', sans-serif",
               }}
             >
               🔐 فتح صفحة تسجيل الدخول
@@ -190,13 +190,13 @@ function DevAccessPanel() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
               <button
                 onClick={() => { localStorage.setItem('wathba_teacher_slug', slug.trim()); window.location.href = '/teacher'; }}
-                style={{ background: 'rgba(124,58,237,0.2)', border: '1px solid rgba(124,58,237,0.3)', borderRadius: 8, padding: '7px 4px', color: '#a78bfa', fontWeight: 700, fontSize: 11, cursor: 'pointer', fontFamily: "'Cairo', sans-serif" }}
+                style={{ background: 'rgba(124,58,237,0.2)', border: '1px solid rgba(124,58,237,0.3)', borderRadius: 8, padding: '7px 4px', color: '#a78bfa', fontWeight: 700, fontSize: 11, cursor: 'pointer', fontFamily: "'Tajawal', sans-serif" }}
               >
                 👨‍🏫 لوحة المعلم
               </button>
               <button
                 onClick={() => { localStorage.setItem('wathba_teacher_slug', slug.trim()); window.location.href = '/student'; }}
-                style={{ background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 8, padding: '7px 4px', color: '#34d399', fontWeight: 700, fontSize: 11, cursor: 'pointer', fontFamily: "'Cairo', sans-serif" }}
+                style={{ background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 8, padding: '7px 4px', color: '#34d399', fontWeight: 700, fontSize: 11, cursor: 'pointer', fontFamily: "'Tajawal', sans-serif" }}
               >
                 🎒 لوحة الطالب
               </button>
@@ -283,7 +283,7 @@ export default function PlatformHome() {
   ];
 
   return (
-    <div dir="rtl" style={{ fontFamily: "'Cairo', sans-serif", minHeight: '100vh', color: '#0B3C5D', overflowX: 'hidden', position: 'relative' }}>
+    <div dir="rtl" style={{ fontFamily: "'Tajawal', sans-serif", minHeight: '100vh', color: '#0B3C5D', overflowX: 'hidden', position: 'relative' }}>
 
       {/* ── Fixed full page background with gradient, dot-grid, and soft ambient orbs ── */}
       <div className="fixed inset-0 pointer-events-none select-none overflow-hidden bg-gradient-to-br from-white via-[#F4F6F9] to-[#E9EDF0]" style={{ zIndex: 0 }}>

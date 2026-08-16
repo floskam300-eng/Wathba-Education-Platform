@@ -671,3 +671,9 @@ ALTER TABLE exams ADD COLUMN IF NOT EXISTS max_retry_attempts INT DEFAULT NULL;
 -- even if subsequent attempts fail. Used to unlock videos and track lifetime progress.
 ALTER TABLE recitation_results ADD COLUMN IF NOT EXISTS ever_passed BOOLEAN DEFAULT NULL;
 ALTER TABLE exam_results ADD COLUMN IF NOT EXISTS ever_passed BOOLEAN DEFAULT NULL;
+
+-- ── Question Image URL indexes for fast file-access permission checks ──────────
+CREATE INDEX IF NOT EXISTS idx_questions_img ON questions(question_image_url) WHERE question_image_url IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_bank_questions_img ON bank_questions(question_image_url) WHERE question_image_url IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_recitation_questions_img ON recitation_questions(question_image_url) WHERE question_image_url IS NOT NULL;
+

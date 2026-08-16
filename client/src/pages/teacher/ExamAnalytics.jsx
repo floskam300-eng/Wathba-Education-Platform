@@ -25,7 +25,7 @@ const tooltipBase = {
   backgroundColor: '#ffffff',
   borderColor: '#f1f5f9',
   borderWidth: 1,
-  textStyle: { fontFamily: 'Cairo', fontSize: 12, color: '#1e293b' },
+  textStyle: { fontFamily: 'Tajawal', fontSize: 12, color: '#1e293b' },
   extraCssText: 'box-shadow:0 20px 60px rgba(0,0,0,0.12);border-radius:12px;padding:10px 14px',
 };
 
@@ -106,7 +106,7 @@ export default function ExamAnalytics() {
     tooltip: {
       ...tooltipBase,
       trigger: 'item',
-      formatter: params => `<div style="font-family:Cairo"><b>${params.name}</b><br/>${params.marker} ${params.value} طالب <b style="color:${params.color}">(${params.percent}%)</b></div>`,
+      formatter: params => `<div style="font-family:Tajawal"><b>${params.name}</b><br/>${params.marker} ${params.value} طالب <b style="color:${params.color}">(${params.percent}%)</b></div>`,
     },
     series: [{
       type: 'pie', radius: ['52%', '80%'], center: ['50%', '50%'], padAngle: 4,
@@ -127,7 +127,7 @@ export default function ExamAnalytics() {
       axisPointer: { type: 'shadow' },
       formatter: params => {
         const p = params[0];
-        return `<div style="font-family:Cairo"><b style="color:#1e293b">${p.name}</b><br/>${p.marker} عدد الطلاب: <b style="color:${DIST_COLORS[p.name] || '#6366f1'}">${p.value}</b></div>`;
+        return `<div style="font-family:Tajawal"><b style="color:#1e293b">${p.name}</b><br/>${p.marker} عدد الطلاب: <b style="color:${DIST_COLORS[p.name] || '#6366f1'}">${p.value}</b></div>`;
       }
     },
     grid: { left: 8, right: 8, top: 12, bottom: 4, containLabel: true },
@@ -135,12 +135,12 @@ export default function ExamAnalytics() {
       type: 'category',
       data: scoreDist.map(d => d.range),
       axisLine: { show: false }, axisTick: { show: false },
-      axisLabel: { fontFamily: 'Cairo', color: '#94a3b8', fontSize: 10 }
+      axisLabel: { fontFamily: 'Tajawal', color: '#94a3b8', fontSize: 10 }
     },
     yAxis: {
       type: 'value', minInterval: 1,
       splitLine: { lineStyle: { color: '#f1f5f9', type: 'dashed' } },
-      axisLabel: { fontFamily: 'Cairo', color: '#94a3b8', fontSize: 10 },
+      axisLabel: { fontFamily: 'Tajawal', color: '#94a3b8', fontSize: 10 },
       axisLine: { show: false }, axisTick: { show: false }
     },
     series: [{
@@ -176,7 +176,7 @@ export default function ExamAnalytics() {
           const p = params[0];
           const letter = p.name;
           const isCorrect = letter === q.correct_answer?.toUpperCase();
-          return `<div style="font-family:Cairo"><b style="color:#1e293b">${letter}${isCorrect ? ' ✓' : ''}</b><br/>${p.marker} ${p.value} طالب <b style="color:${p.color}">(${Math.round(p.value / total * 100)}%)</b></div>`;
+          return `<div style="font-family:Tajawal"><b style="color:#1e293b">${letter}${isCorrect ? ' ✓' : ''}</b><br/>${p.marker} ${p.value} طالب <b style="color:${p.color}">(${Math.round(p.value / total * 100)}%)</b></div>`;
         }
       },
       grid: { left: 8, right: 8, top: 8, bottom: 4, containLabel: true },
@@ -184,14 +184,14 @@ export default function ExamAnalytics() {
         type: 'category', data: letters,
         axisLine: { show: false }, axisTick: { show: false },
         axisLabel: {
-          fontFamily: 'Cairo', color: '#64748b', fontSize: 12, fontWeight: 'bold',
+          fontFamily: 'Tajawal', color: '#64748b', fontSize: 12, fontWeight: 'bold',
           formatter: val => val === q.correct_answer?.toUpperCase() ? val + ' ✓' : val
         }
       },
       yAxis: {
         type: 'value', minInterval: 1,
         splitLine: { lineStyle: { color: '#f1f5f9', type: 'dashed' } },
-        axisLabel: { fontFamily: 'Cairo', color: '#94a3b8', fontSize: 10 },
+        axisLabel: { fontFamily: 'Tajawal', color: '#94a3b8', fontSize: 10 },
         axisLine: { show: false }, axisTick: { show: false }
       },
       series: [{

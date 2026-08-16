@@ -190,10 +190,20 @@ export default function TeacherCourses() {
     else createMut.mutate(form);
   };
 
-  const stageCounts = ['الكل', ...STAGES].reduce((acc, s) => {
-    acc[s] = s === 'الكل' ? courses.length : courses.filter(c => c.target_stage === s).length;
+  const availableStages = React.useMemo(() => {
+    const stages = Array.from(new Set(courses.map(c => c.target_stage).filter(Boolean)));
+    return ['الكل', ...stages];
+  }, [courses]);
+
+  const stageCounts = React.useMemo(() => {
+    const acc = { 'الكل': courses.length };
+    for (const s of availableStages) {
+      if (s !== 'الكل') {
+        acc[s] = courses.filter(c => c.target_stage === s).length;
+      }
+    }
     return acc;
-  }, {});
+  }, [availableStages, courses]);
 
   const filteredCourses = stageFilter === 'الكل' ? courses : courses.filter(c => c.target_stage === stageFilter);
 
@@ -217,7 +227,7 @@ export default function TeacherCourses() {
           <span className="text-xs font-bold text-gray-500">تصفية حسب المرحلة الدراسية</span>
         </div>
         <div className="filter-scroll">
-          {['الكل', ...STAGES].map(stage => (
+          {availableStages.map(stage => (
             <button key={stage} onClick={() => setStageFilter(stage)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all duration-200 ${
                 stageFilter === stage ? 'bg-navy-600 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'

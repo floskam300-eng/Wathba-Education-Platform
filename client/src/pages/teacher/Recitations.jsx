@@ -195,6 +195,11 @@ export default function Recitations() {
     queryFn: () => api.get('/courses').then(r => r.data),
   });
 
+  const availableFilterStages = useMemo(() => {
+    const set = new Set(recitations.map(r => r.academic_stage).filter(Boolean));
+    return Array.from(set);
+  }, [recitations]);
+
   const filteredCourses = useMemo(() => {
     if (!form.academic_stage) return courses;
     return courses.filter(c => !c.target_stage || c.target_stage === form.academic_stage);
@@ -357,7 +362,7 @@ export default function Recitations() {
               <select value={stageFilter} onChange={e => setStageFilter(e.target.value)}
                 className={`rounded-xl px-3 py-2 text-sm border sm:max-w-[160px] ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`}>
                 <option value="">كل المراحل</option>
-                {PG_STAGES.map(s => <option key={s} value={s}>{s}</option>)}
+                {availableFilterStages.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
 

@@ -13,6 +13,7 @@ import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 import { withToken } from '../../lib/mediaAccess';
+import QuestionImage from '../../components/ui/QuestionImage';
 import { toUTCDate } from '../../lib/dateUtils';
 
 /* ─── helpers ─────────────────────────────────────────── */
@@ -1813,21 +1814,12 @@ function SidebarQuestionCard({ q, idx, answers, setAnswers }) {
         )}
       </div>
       {q.question_image_url && (
-        <div className="relative mb-2">
-          <img
-            src={withToken(q.question_image_url)}
-            alt="question"
-            className="w-full max-h-64 sm:max-h-80 object-contain rounded-lg border border-gray-200 dark:border-white/10 cursor-zoom-in"
-            onClick={() => setLightboxSrc(withToken(q.question_image_url))}
-          />
-          <button
-            onClick={() => setLightboxSrc(withToken(q.question_image_url))}
-            className="absolute top-1 left-1 bg-black/50 hover:bg-black/70 text-white rounded-lg p-1 transition-colors"
-            title="تكبير"
-          >
-            <ZoomIn className="w-3 h-3" />
-          </button>
-        </div>
+        <QuestionImage
+          src={q.question_image_url}
+          alt="سؤال"
+          maxHeightClass="max-h-64 sm:max-h-80"
+          onImagePress={(url) => setLightboxSrc(url)}
+        />
       )}
       {isImgMulti ? (
         <div className="space-y-1.5">

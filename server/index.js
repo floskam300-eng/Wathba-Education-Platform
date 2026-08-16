@@ -108,7 +108,7 @@ app.use('/api/', apiLimiter);
 // The skip logic mirrors apiLimiter so the test-runner is never throttled.
 const uploadsLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 120,
+  max: parseInt(process.env.UPLOADS_RATE_LIMIT || '600', 10),
   standardHeaders: true,
   legacyHeaders: false,
   message: 'Too Many Requests',
@@ -123,8 +123,8 @@ const uploadsLimiter = rateLimit({
 // File-access cache — prevents N+1 DB queries for video range requests.
 // Key: `${role}_${userId}:${fullPath}`, Value: { allowed: bool, at: ts }
 const _fileAccessCache = new Map();
-const FILE_ACCESS_TTL_MS = 60_000;
-const FILE_ACCESS_MAX_SIZE = 10_000;
+const FILE_ACCESS_TTL_MS = 5 * 60_000;
+const FILE_ACCESS_MAX_SIZE = 20_000;
 setInterval(() => {
   const cutoff = Date.now() - FILE_ACCESS_TTL_MS * 10;
   for (const [k, v] of _fileAccessCache.entries()) {
@@ -432,7 +432,14 @@ app.use('/uploads/videos',
 app.use('/uploads/question-images',
         uploadsLimiter,
         makeProtectedUploadsMiddleware('question-image'),
-        express.static(path.join(__dirname, '../uploads/question-images')));
+        (req, res, next) => {
+          // Allow browser to cache locally and revalidate with ETag (304 Not Modified)
+          res.setHeader('Cache-Control', 'private, no-cache');
+          res.setHeader('X-Content-Type-Options', 'nosniff');
+          res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+          next();
+        },
+        express.static(path.join(__dirname, '../uploads/question-images'), { etag: true, lastModified: true }));
 
 // ── PDF.js assets (cMaps + standard fonts) ───────────────────────────────────
 // Served locally so SecurePdfViewer never has to hit an external CDN.

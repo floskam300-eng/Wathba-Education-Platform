@@ -50,7 +50,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <Toaster
           position="top-center"
           toastOptions={{
-            style: { fontFamily: 'Cairo, sans-serif', direction: 'rtl' },
+            style: { fontFamily: 'Tajawal, sans-serif', direction: 'rtl' },
             success: { style: { background: '#1A2E4A', color: '#fff' } },
             error: { style: { background: '#ba1a1a', color: '#fff' } },
           }}

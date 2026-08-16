@@ -33,9 +33,10 @@ export default {
         },
       },
       fontFamily: {
-        sans: ['Montserrat', 'sans-serif'],
-        arabic: ['Almarai', 'sans-serif'],
-        cairo: ['Cairo', 'sans-serif'],
+        sans: ['Tajawal', 'Montserrat', 'sans-serif'],
+        arabic: ['Tajawal', 'sans-serif'],
+        cairo: ['Tajawal', 'sans-serif'],
+        tajawal: ['Tajawal', 'sans-serif'],
       },
       boxShadow: {
         navy: '0 4px 20px rgba(26, 35, 58, 0.08)',

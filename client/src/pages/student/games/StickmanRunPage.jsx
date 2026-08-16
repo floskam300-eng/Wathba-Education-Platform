@@ -11,7 +11,7 @@ export default function StickmanRunPage() {
   return (
     <div dir="rtl" style={{
       height: '100vh', display: 'flex', flexDirection: 'column',
-      background: '#060612', fontFamily: "'Cairo', sans-serif",
+      background: '#060612', fontFamily: "'Tajawal', sans-serif",
       overflow: 'hidden',
     }}>
       {/* Header */}

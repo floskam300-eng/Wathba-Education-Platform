@@ -31,24 +31,7 @@ const TREND_PERIODS = [
   { label: 'الكل', value: 0 },
 ];
 
-const STAGES = [
-  'الكل',
-  'الصف الأول الابتدائي',
-  'الصف الثاني الابتدائي',
-  'الصف الثالث الابتدائي',
-  'الصف الرابع الابتدائي',
-  'الصف الخامس الابتدائي',
-  'الصف السادس الابتدائي',
-  'الصف الأول الإعدادي',
-  'الصف الثاني الإعدادي',
-  'الصف الثالث الإعدادي',
-  'الصف الأول الثانوي عام',
-  'الصف الأول الثانوي بكالوريا',
-  'الصف الثاني الثانوي عام',
-  'الصف الثاني الثانوي بكالوريا',
-  'الصف الثالث الثانوي',
-  'جامعي',
-];
+
 const GENDERS = ['الكل', 'ذكر', 'أنثى'];
 const PERF_LEVELS = [
   { label: 'الكل', min: 0, max: 100 },
@@ -101,7 +84,7 @@ const tooltipBase = {
   backgroundColor: '#ffffff',
   borderColor: '#f1f5f9',
   borderWidth: 1,
-  textStyle: { fontFamily: 'Cairo', fontSize: 12, color: '#1e293b' },
+  textStyle: { fontFamily: 'Tajawal', fontSize: 12, color: '#1e293b' },
   extraCssText: 'box-shadow:0 20px 60px rgba(0,0,0,0.12);border-radius:12px;padding:10px 14px',
 };
 
@@ -155,6 +138,22 @@ export default function TeacherAnalytics() {
   // to be undefined and crashing on currentExam.questions.  Reset to 0
   // whenever the number of available exams changes.
   useEffect(() => { setWrongQExamIdx(0); }, [wrongQData.length]);
+
+  const availableExamStages = useMemo(() => {
+    const set = new Set((data?.examResults || []).map(e => e.target_stage).filter(Boolean));
+    return ['الكل', ...Array.from(set)];
+  }, [data?.examResults]);
+
+  const availableStudentStages = useMemo(() => {
+    const set = new Set();
+    (data?.stageDistribution || []).forEach(s => {
+      const name = s.stage || s.name;
+      if (name) set.add(name);
+    });
+    (data?.topStudents || []).forEach(s => { if (s.academic_stage) set.add(s.academic_stage); });
+    (data?.recentResults || []).forEach(r => { if (r.academic_stage) set.add(r.academic_stage); });
+    return ['الكل', ...Array.from(set)];
+  }, [data]);
 
   const filteredAndSortedExams = useMemo(() => {
     if (!data?.examResults) return [];
@@ -428,8 +427,8 @@ export default function TeacherAnalytics() {
       trigger: 'axis',
       axisPointer: { type: 'shadow', shadowStyle: { color: 'rgba(99,102,241,0.06)' } },
       formatter: params => {
-        let s = `<div style="font-family:Cairo;font-weight:900;color:#1e293b;border-bottom:1px solid #f1f5f9;padding-bottom:6px;margin-bottom:6px">${esc(params[0]?.name)}</div>`;
-        params.forEach(p => { const c = p.seriesName === 'متوسط الدرجات' ? '#6366f1' : p.seriesName === 'أعلى درجة' ? '#10b981' : '#f43f5e'; s += `<div style="font-family:Cairo;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:2px 0">${p.marker}${esc(p.seriesName)}: <b style="color:${c}">${p.value}%</b></div>`; });
+        let s = `<div style="font-family:Tajawal;font-weight:900;color:#1e293b;border-bottom:1px solid #f1f5f9;padding-bottom:6px;margin-bottom:6px">${esc(params[0]?.name)}</div>`;
+        params.forEach(p => { const c = p.seriesName === 'متوسط الدرجات' ? '#6366f1' : p.seriesName === 'أعلى درجة' ? '#10b981' : '#f43f5e'; s += `<div style="font-family:Tajawal;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:2px 0">${p.marker}${esc(p.seriesName)}: <b style="color:${c}">${p.value}%</b></div>`; });
         return s;
       }
     },
@@ -438,12 +437,12 @@ export default function TeacherAnalytics() {
       type: 'category',
       data: examChartData.map(e => e.name),
       axisLine: { show: false }, axisTick: { show: false },
-      axisLabel: { fontFamily: 'Cairo', color: '#94a3b8', fontSize: 9 }
+      axisLabel: { fontFamily: 'Tajawal', color: '#94a3b8', fontSize: 9 }
     },
     yAxis: {
       type: 'value', max: 100,
       splitLine: { lineStyle: { color: '#f1f5f9', type: 'dashed' } },
-      axisLabel: { fontFamily: 'Cairo', color: '#94a3b8', formatter: '{value}%', fontSize: 9 },
+      axisLabel: { fontFamily: 'Tajawal', color: '#94a3b8', formatter: '{value}%', fontSize: 9 },
       axisLine: { show: false }, axisTick: { show: false }
     },
     series: [
@@ -478,19 +477,19 @@ export default function TeacherAnalytics() {
       axisPointer: { type: 'shadow' },
       formatter: params => {
         const p = params[0];
-        return `<div style="font-family:Cairo"><b style="color:#1e293b">${p.name}</b><br/>${p.marker} عدد الطلاب: <b style="color:${p.color}">${p.value}</b></div>`;
+        return `<div style="font-family:Tajawal"><b style="color:#1e293b">${p.name}</b><br/>${p.marker} عدد الطلاب: <b style="color:${p.color}">${p.value}</b></div>`;
       }
     },
     grid: { left: 8, right: 8, top: 8, bottom: 4, containLabel: true },
-    xAxis: { type: 'value', minInterval: 1, axisLine: { show: false }, axisTick: { show: false }, splitLine: { lineStyle: { color: '#f1f5f9', type: 'dashed' } }, axisLabel: { fontFamily: 'Cairo', color: '#94a3b8', fontSize: 10 } },
-    yAxis: { type: 'category', data: stageDistData.map(d => d.name), axisLine: { show: false }, axisTick: { show: false }, axisLabel: { fontFamily: 'Cairo', color: '#64748b', fontSize: 10 } },
+    xAxis: { type: 'value', minInterval: 1, axisLine: { show: false }, axisTick: { show: false }, splitLine: { lineStyle: { color: '#f1f5f9', type: 'dashed' } }, axisLabel: { fontFamily: 'Tajawal', color: '#94a3b8', fontSize: 10 } },
+    yAxis: { type: 'category', data: stageDistData.map(d => d.name), axisLine: { show: false }, axisTick: { show: false }, axisLabel: { fontFamily: 'Tajawal', color: '#64748b', fontSize: 10 } },
     series: [{
       type: 'bar', name: 'طلاب', barMaxWidth: 20,
       data: stageDistData.map((d, i) => ({
         value: d.value,
         itemStyle: { borderRadius: [0, 6, 6, 0], color: { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: CHART_COLORS[i % CHART_COLORS.length] + '99' }, { offset: 1, color: CHART_COLORS[i % CHART_COLORS.length] }] } }
       })),
-      label: { show: true, position: 'right', fontFamily: 'Cairo', fontSize: 10, fontWeight: 'bold', color: '#64748b', formatter: '{c}' }
+      label: { show: true, position: 'right', fontFamily: 'Tajawal', fontSize: 10, fontWeight: 'bold', color: '#64748b', formatter: '{c}' }
     }]
   }), [stageDistData]);
 
@@ -498,7 +497,7 @@ export default function TeacherAnalytics() {
     tooltip: {
       ...tooltipBase,
       trigger: 'item',
-      formatter: params => `<div style="font-family:Cairo"><b>${params.name}</b><br/>${params.marker} ${params.value} طالب <b style="color:${params.color}">(${params.percent}%)</b></div>`,
+      formatter: params => `<div style="font-family:Tajawal"><b>${params.name}</b><br/>${params.marker} ${params.value} طالب <b style="color:${params.color}">(${params.percent}%)</b></div>`,
     },
     series: [{
       type: 'pie', radius: ['50%', '78%'], center: ['50%', '50%'], padAngle: 4,
@@ -518,8 +517,8 @@ export default function TeacherAnalytics() {
       trigger: 'axis',
       axisPointer: { type: 'shadow', shadowStyle: { color: 'rgba(16,185,129,0.06)' } },
       formatter: params => {
-        let s = `<div style="font-family:Cairo;font-weight:900;color:#1e293b;border-bottom:1px solid #f1f5f9;padding-bottom:6px;margin-bottom:6px">${params[0]?.name}</div>`;
-        params.forEach(p => { s += `<div style="font-family:Cairo;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:2px 0">${p.marker}${p.seriesName}: <b style="color:${p.color}">${p.value}%</b></div>`; });
+        let s = `<div style="font-family:Tajawal;font-weight:900;color:#1e293b;border-bottom:1px solid #f1f5f9;padding-bottom:6px;margin-bottom:6px">${params[0]?.name}</div>`;
+        params.forEach(p => { s += `<div style="font-family:Tajawal;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:2px 0">${p.marker}${p.seriesName}: <b style="color:${p.color}">${p.value}%</b></div>`; });
         return s;
       }
     },
@@ -527,12 +526,12 @@ export default function TeacherAnalytics() {
     xAxis: {
       type: 'category', data: recRecentChartData.map(r => r.name),
       axisLine: { show: false }, axisTick: { show: false },
-      axisLabel: { fontFamily: 'Cairo', color: '#94a3b8', fontSize: 9 }
+      axisLabel: { fontFamily: 'Tajawal', color: '#94a3b8', fontSize: 9 }
     },
     yAxis: {
       type: 'value', max: 100,
       splitLine: { lineStyle: { color: '#f1f5f9', type: 'dashed' } },
-      axisLabel: { fontFamily: 'Cairo', color: '#94a3b8', formatter: '{value}%', fontSize: 9 },
+      axisLabel: { fontFamily: 'Tajawal', color: '#94a3b8', formatter: '{value}%', fontSize: 9 },
       axisLine: { show: false }, axisTick: { show: false }
     },
     series: [
@@ -562,19 +561,19 @@ export default function TeacherAnalytics() {
         // BUG-7 FIX: d.color is a gradient object when using itemStyle gradient → use fixed hex
         formatter: p => {
           const d = p[0];
-          return `<div style="font-family:Cairo"><b style="color:#1e293b">${d.name}</b><br/>${d.marker} الطلاب المشتركون: <b style="color:#6366f1">${d.value}</b></div>`;
+          return `<div style="font-family:Tajawal"><b style="color:#1e293b">${d.name}</b><br/>${d.marker} الطلاب المشتركون: <b style="color:#6366f1">${d.value}</b></div>`;
         }
       },
       grid: { left: 8, right: 32, top: 6, bottom: 4, containLabel: true },
-      xAxis: { type: 'value', minInterval: 1, axisLine: { show: false }, axisTick: { show: false }, splitLine: { lineStyle: { color: '#f1f5f9', type: 'dashed' } }, axisLabel: { fontFamily: 'Cairo', color: '#94a3b8', fontSize: 10 } },
-      yAxis: { type: 'category', data: top.map(c => c.name?.length > 18 ? c.name.substring(0, 18) + '…' : c.name), axisLine: { show: false }, axisTick: { show: false }, axisLabel: { fontFamily: 'Cairo', color: '#64748b', fontSize: 10 } },
+      xAxis: { type: 'value', minInterval: 1, axisLine: { show: false }, axisTick: { show: false }, splitLine: { lineStyle: { color: '#f1f5f9', type: 'dashed' } }, axisLabel: { fontFamily: 'Tajawal', color: '#94a3b8', fontSize: 10 } },
+      yAxis: { type: 'category', data: top.map(c => c.name?.length > 18 ? c.name.substring(0, 18) + '…' : c.name), axisLine: { show: false }, axisTick: { show: false }, axisLabel: { fontFamily: 'Tajawal', color: '#64748b', fontSize: 10 } },
       series: [{
         type: 'bar', name: 'طلاب', barMaxWidth: 20,
         data: top.map((c, i) => ({
           value: c.enrolled_count,
           itemStyle: { borderRadius: [0, 6, 6, 0], color: { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: CHART_COLORS[i % CHART_COLORS.length] + '70' }, { offset: 1, color: CHART_COLORS[i % CHART_COLORS.length] }] } }
         })),
-        label: { show: true, position: 'right', fontFamily: 'Cairo', fontSize: 10, fontWeight: 'bold', color: '#64748b', formatter: '{c}' }
+        label: { show: true, position: 'right', fontFamily: 'Tajawal', fontSize: 10, fontWeight: 'bold', color: '#64748b', formatter: '{c}' }
       }]
     };
   }, [courseStatsData]);
@@ -589,12 +588,12 @@ export default function TeacherAnalytics() {
         formatter: p => {
           const d = p[0];
           const color = d.value >= 70 ? '#10b981' : d.value >= 40 ? '#f59e0b' : '#f43f5e';
-          return `<div style="font-family:Cairo"><b style="color:#1e293b">${d.name}</b><br/>${d.marker} متوسط التقدم: <b style="color:${color}">${d.value}%</b></div>`;
+          return `<div style="font-family:Tajawal"><b style="color:#1e293b">${d.name}</b><br/>${d.marker} متوسط التقدم: <b style="color:${color}">${d.value}%</b></div>`;
         }
       },
       grid: { left: 8, right: 40, top: 6, bottom: 4, containLabel: true },
-      xAxis: { type: 'value', max: 100, axisLine: { show: false }, axisTick: { show: false }, splitLine: { lineStyle: { color: '#f1f5f9', type: 'dashed' } }, axisLabel: { fontFamily: 'Cairo', color: '#94a3b8', formatter: '{value}%', fontSize: 10 } },
-      yAxis: { type: 'category', data: top.map(c => c.name?.length > 18 ? c.name.substring(0, 18) + '…' : c.name), axisLine: { show: false }, axisTick: { show: false }, axisLabel: { fontFamily: 'Cairo', color: '#64748b', fontSize: 10 } },
+      xAxis: { type: 'value', max: 100, axisLine: { show: false }, axisTick: { show: false }, splitLine: { lineStyle: { color: '#f1f5f9', type: 'dashed' } }, axisLabel: { fontFamily: 'Tajawal', color: '#94a3b8', formatter: '{value}%', fontSize: 10 } },
+      yAxis: { type: 'category', data: top.map(c => c.name?.length > 18 ? c.name.substring(0, 18) + '…' : c.name), axisLine: { show: false }, axisTick: { show: false }, axisLabel: { fontFamily: 'Tajawal', color: '#64748b', fontSize: 10 } },
       series: [{
         type: 'bar', name: 'تقدم', barMaxWidth: 20,
         data: top.map(c => {
@@ -602,7 +601,7 @@ export default function TeacherAnalytics() {
           const color = v >= 70 ? '#10b981' : v >= 40 ? '#f59e0b' : '#f43f5e';
           return { value: v, itemStyle: { borderRadius: [0, 6, 6, 0], color: { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: color + '70' }, { offset: 1, color }] } } };
         }),
-        label: { show: true, position: 'right', fontFamily: 'Cairo', fontSize: 10, fontWeight: 'bold', color: '#64748b', formatter: '{c}%' }
+        label: { show: true, position: 'right', fontFamily: 'Tajawal', fontSize: 10, fontWeight: 'bold', color: '#64748b', formatter: '{c}%' }
       }]
     };
   }, [courseStatsData]);
@@ -611,7 +610,7 @@ export default function TeacherAnalytics() {
     tooltip: {
       ...tooltipBase,
       trigger: 'item',
-      formatter: params => `<div style="font-family:Cairo"><b>${params.name}</b><br/>${params.marker} ${params.value} محاولة <b style="color:${params.color}">(${params.percent}%)</b></div>`,
+      formatter: params => `<div style="font-family:Tajawal"><b>${params.name}</b><br/>${params.marker} ${params.value} محاولة <b style="color:${params.color}">(${params.percent}%)</b></div>`,
     },
     series: [{
       type: 'pie',
@@ -632,7 +631,7 @@ export default function TeacherAnalytics() {
     tooltip: {
       ...tooltipBase,
       trigger: 'item',
-      formatter: params => `<div style="font-family:Cairo"><b>${params.name}</b><br/>${params.marker} ${params.value} طالب <b style="color:${params.color}">(${params.percent}%)</b></div>`,
+      formatter: params => `<div style="font-family:Tajawal"><b>${params.name}</b><br/>${params.marker} ${params.value} طالب <b style="color:${params.color}">(${params.percent}%)</b></div>`,
     },
     series: [{
       type: 'pie',
@@ -655,7 +654,7 @@ export default function TeacherAnalytics() {
       axisPointer: { type: 'shadow' },
       formatter: params => {
         const p = params[0];
-        return `<div style="font-family:Cairo"><b style="color:#1e293b">${p.name}</b><br/>${p.marker} عدد الطلاب: <b style="color:${p.color}">${p.value}</b></div>`;
+        return `<div style="font-family:Tajawal"><b style="color:#1e293b">${p.name}</b><br/>${p.marker} عدد الطلاب: <b style="color:${p.color}">${p.value}</b></div>`;
       }
     },
     grid: { left: 8, right: 8, top: 12, bottom: 4, containLabel: true },
@@ -663,12 +662,12 @@ export default function TeacherAnalytics() {
       type: 'category',
       data: scoreDistData.map(d => d.name),
       axisLine: { show: false }, axisTick: { show: false },
-      axisLabel: { fontFamily: 'Cairo', color: '#94a3b8', fontSize: 10 }
+      axisLabel: { fontFamily: 'Tajawal', color: '#94a3b8', fontSize: 10 }
     },
     yAxis: {
       type: 'value', minInterval: 1,
       splitLine: { lineStyle: { color: '#f1f5f9', type: 'dashed' } },
-      axisLabel: { fontFamily: 'Cairo', color: '#94a3b8', fontSize: 10 },
+      axisLabel: { fontFamily: 'Tajawal', color: '#94a3b8', fontSize: 10 },
       axisLine: { show: false }, axisTick: { show: false }
     },
     series: [{
@@ -686,14 +685,14 @@ export default function TeacherAnalytics() {
       ...tooltipBase,
       trigger: 'axis',
       formatter: params => {
-        let s = `<div style="font-family:Cairo;font-weight:900;color:#1e293b;border-bottom:1px solid #f1f5f9;padding-bottom:6px;margin-bottom:6px">${params[0]?.axisValue}</div>`;
-        params.forEach(p => { s += `<div style="font-family:Cairo;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:2px 0">${p.marker}${p.seriesName}: <b style="color:${p.color}">${p.value}${p.seriesName.includes('%') ? '%' : ''}</b></div>`; });
+        let s = `<div style="font-family:Tajawal;font-weight:900;color:#1e293b;border-bottom:1px solid #f1f5f9;padding-bottom:6px;margin-bottom:6px">${params[0]?.axisValue}</div>`;
+        params.forEach(p => { s += `<div style="font-family:Tajawal;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:2px 0">${p.marker}${p.seriesName}: <b style="color:${p.color}">${p.value}${p.seriesName.includes('%') ? '%' : ''}</b></div>`; });
         return s;
       }
     },
     legend: {
       bottom: 0, icon: 'circle', itemWidth: 8, itemHeight: 8,
-      textStyle: { fontFamily: 'Cairo', fontSize: 11, color: '#64748b' }
+      textStyle: { fontFamily: 'Tajawal', fontSize: 11, color: '#64748b' }
     },
     grid: { left: 8, right: 8, top: 12, bottom: 32, containLabel: true },
     xAxis: {
@@ -701,13 +700,13 @@ export default function TeacherAnalytics() {
       data: trendChartData.map(d => d.name),
       boundaryGap: false,
       axisLine: { show: false }, axisTick: { show: false },
-      axisLabel: { fontFamily: 'Cairo', color: '#94a3b8', fontSize: 11 }
+      axisLabel: { fontFamily: 'Tajawal', color: '#94a3b8', fontSize: 11 }
     },
     yAxis: [
       {
         type: 'value', max: 100,
         splitLine: { lineStyle: { color: '#f1f5f9', type: 'dashed' } },
-        axisLabel: { fontFamily: 'Cairo', color: '#94a3b8', fontSize: 10, formatter: '{value}%' },
+        axisLabel: { fontFamily: 'Tajawal', color: '#94a3b8', fontSize: 10, formatter: '{value}%' },
         axisLine: { show: false }, axisTick: { show: false }
       },
       {
@@ -1262,7 +1261,7 @@ export default function TeacherAnalytics() {
                   className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs font-bold text-gray-700 dark:text-gray-200 focus:outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition cursor-pointer"
                 >
                   <option value="الكل">جميع المراحل الدراسية</option>
-                  {STAGES.filter(s => s !== 'الكل').map(stage => (
+                  {availableExamStages.filter(s => s !== 'الكل').map(stage => (
                     <option key={stage} value={stage}>{stage}</option>
                   ))}
                 </select>
@@ -1729,7 +1728,7 @@ export default function TeacherAnalytics() {
                 <GraduationCap className="w-3.5 h-3.5 text-orange-500" /> المرحلة الدراسية
               </p>
               <div className="flex flex-wrap gap-2">
-                {STAGES.map(stage => (
+                {availableStudentStages.map(stage => (
                   <button key={stage} onClick={() => setStageFilter(stage)}
                     className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${stageFilter === stage
                         ? 'bg-indigo-600 text-white shadow'

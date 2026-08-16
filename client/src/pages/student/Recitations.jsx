@@ -11,6 +11,7 @@ import toast from 'react-hot-toast';
 import { useTheme } from '../../context/ThemeContext';
 import ImageLightbox from '../../components/ImageLightbox';
 import { withToken } from '../../lib/mediaAccess';
+import QuestionImage from '../../components/ui/QuestionImage';
 import { toUTCDate, getServerNow, getServerNowMs, formatEgyptDateTime } from '../../lib/dateUtils';
 
 function getStatus(rec) {
@@ -1004,23 +1005,13 @@ function QuestionCard({ q, idx, answers, setAnswers, dark, onImagePress }) {
       </div>
 
       {q.question_image_url && (
-        <div className="relative mb-3">
-          <img
-            src={withToken(q.question_image_url)}
-            alt="question"
-            className={`w-full max-h-64 object-contain rounded-xl border ${onImagePress ? 'cursor-zoom-in' : ''}`}
-            onClick={onImagePress ? () => onImagePress(withToken(q.question_image_url)) : undefined}
-          />
-          {onImagePress && (
-            <button
-              onClick={() => onImagePress(withToken(q.question_image_url))}
-              className="absolute top-2 left-2 bg-black/50 hover:bg-black/70 text-white rounded-lg p-1.5 transition-colors"
-              title="تكبير الصورة"
-            >
-              <ZoomIn className="w-4 h-4" />
-            </button>
-          )}
-        </div>
+        <QuestionImage
+          src={q.question_image_url}
+          alt="سؤال"
+          maxHeightClass="max-h-64 sm:max-h-80"
+          onImagePress={onImagePress}
+          dark={dark}
+        />
       )}
 
       {isImgMulti ? (

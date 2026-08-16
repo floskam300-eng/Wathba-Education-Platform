@@ -45,11 +45,11 @@ const PrintReportButton = ({
   <title>${escapeHtml(title)}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;600;700;900&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: 'Cairo', Arial, Tahoma, sans-serif;
+      font-family: 'Tajawal', Arial, Tahoma, sans-serif;
       padding: 24px;
       direction: rtl;
       color: #1e293b;
@@ -75,7 +75,7 @@ const PrintReportButton = ({
     th {
       color: #fff; padding: 11px 12px;
       font-size: 12px; font-weight: 700; text-align: center;
-      font-family: 'Cairo', sans-serif;
+      font-family: 'Tajawal', sans-serif;
     }
     td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; text-align: center; font-size: 12px; }
     tr:nth-child(even) td { background: #f8fafc; }
@@ -89,13 +89,13 @@ const PrintReportButton = ({
       padding: 10px 28px; background: #f97316; color: #fff;
       border: none; border-radius: 8px; cursor: pointer;
       font-size: 14px; font-weight: 700; margin-left: 10px;
-      font-family: 'Cairo', sans-serif;
+      font-family: 'Tajawal', sans-serif;
     }
     .btn-close {
       padding: 10px 28px; background: #64748b; color: #fff;
       border: none; border-radius: 8px; cursor: pointer;
       font-size: 14px; font-weight: 700;
-      font-family: 'Cairo', sans-serif;
+      font-family: 'Tajawal', sans-serif;
     }
     @media print {
       .no-print { display: none; }

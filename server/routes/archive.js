@@ -461,41 +461,43 @@ router.get('/filters', requireRole('teacher', 'assistant'), checkAnyPerm, async 
         `SELECT id, title FROM recitations WHERE teacher_id=$1 AND deleted_at IS NULL ORDER BY title`,
         [teacherId]
       ),
-      // ORDER stages logically: إعدادي first (1st→2nd→3rd), then ثانوي (1st→2nd→3rd),
-      // with عام before بكالوريا within the same year, using a CASE sort key.
       pool.query(
-        `SELECT academic_stage FROM students
-         WHERE teacher_id=$1 AND deleted_at IS NULL AND academic_stage IS NOT NULL
-         GROUP BY academic_stage`,
+        `SELECT DISTINCT stage FROM (
+           SELECT academic_stage AS stage FROM students WHERE teacher_id=$1 AND deleted_at IS NULL AND academic_stage IS NOT NULL
+           UNION
+           SELECT target_stage AS stage FROM courses WHERE teacher_id=$1 AND deleted_at IS NULL AND target_stage IS NOT NULL
+           UNION
+           SELECT target_stage AS stage FROM exams WHERE teacher_id=$1 AND deleted_at IS NULL AND target_stage IS NOT NULL
+           UNION
+           SELECT academic_stage AS stage FROM recitations WHERE teacher_id=$1 AND deleted_at IS NULL AND academic_stage IS NOT NULL
+         ) s WHERE stage IS NOT NULL AND stage != ''`,
         [teacherId]
       ),
     ]);
 
-    const ALL_STAGES = [
-      'الصف الأول الابتدائي',
-      'الصف الثاني الابتدائي',
-      'الصف الثالث الابتدائي',
-      'الصف الرابع الابتدائي',
-      'الصف الخامس الابتدائي',
-      'الصف السادس الابتدائي',
-      'الصف الأول الإعدادي',
-      'الصف الثاني الإعدادي',
-      'الصف الثالث الإعدادي',
-      'الصف الأول الثانوي عام',
-      'الصف الأول الثانوي بكالوريا',
-      'الصف الثاني الثانوي عام',
-      'الصف الثاني الثانوي بكالوريا',
-      'الصف الثالث الثانوي',
-      'جامعي',
+    const STAGE_ORDER = [
+      'الصف الأول الابتدائي', 'الصف الثاني الابتدائي', 'الصف الثالث الابتدائي',
+      'الصف الرابع الابتدائي', 'الصف الخامس الابتدائي', 'الصف السادس الابتدائي',
+      'الصف الأول الإعدادي', 'الصف الثاني الإعدادي', 'الصف الثالث الإعدادي',
+      'الصف الأول الثانوي عام', 'الصف الأول الثانوي بكالوريا',
+      'الصف الثاني الثانوي عام', 'الصف الثاني الثانوي بكالوريا',
+      'الصف الثالث الثانوي', 'جامعي'
     ];
-    const dbStages = stagesQ.rows.map(r => r.academic_stage).filter(Boolean);
-    const combinedStages = Array.from(new Set([...ALL_STAGES, ...dbStages]));
+    const dbStages = stagesQ.rows.map(r => r.stage).filter(Boolean);
+    dbStages.sort((a, b) => {
+      const idxA = STAGE_ORDER.indexOf(a);
+      const idxB = STAGE_ORDER.indexOf(b);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return a.localeCompare(b, 'ar');
+    });
 
     res.json({
       courses: coursesQ.rows,
       exams: examsQ.rows,
       recitations: recitationsQ.rows,
-      stages: combinedStages,
+      stages: dbStages,
     });
   } catch (err) {
     console.error('[archive/filters]', err);

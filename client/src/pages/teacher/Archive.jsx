@@ -40,24 +40,6 @@ const ITEM_PUBLISHED_OPTIONS = [
   { value: 'false', label: '○ غير منشور / مغلق' },
 ];
 
-const ALL_ACADEMIC_STAGES = [
-  'الصف الأول الابتدائي',
-  'الصف الثاني الابتدائي',
-  'الصف الثالث الابتدائي',
-  'الصف الرابع الابتدائي',
-  'الصف الخامس الابتدائي',
-  'الصف السادس الابتدائي',
-  'الصف الأول الإعدادي',
-  'الصف الثاني الإعدادي',
-  'الصف الثالث الإعدادي',
-  'الصف الأول الثانوي عام',
-  'الصف الأول الثانوي بكالوريا',
-  'الصف الثاني الثانوي عام',
-  'الصف الثاني الثانوي بكالوريا',
-  'الصف الثالث الثانوي',
-  'جامعي',
-];
-
 const PassBar = ({ passed, total, dark }) => {
   const pct = total > 0 ? Math.round((passed / total) * 100) : 0;
   const color = pct >= 60 ? 'bg-green-500' : pct >= 40 ? 'bg-amber-500' : 'bg-red-500';
@@ -441,11 +423,11 @@ export default function ArchivePage() {
                 </div>
 
                 {/* Row 2: Stage pills */}
-                {((filterOptions?.stages && filterOptions.stages.length > 0) || ALL_ACADEMIC_STAGES.length > 0) && (
+                {filterOptions?.stages?.length > 0 && (
                   <div>
                     <label className={`block text-[10px] font-black uppercase tracking-wide mb-1.5 ${textSec}`}>المرحلة الدراسية</label>
                     <PillGroup
-                      options={[{ value: '', label: 'كل المراحل' }, ...((filterOptions?.stages || ALL_ACADEMIC_STAGES).map(s => ({ value: s, label: s })))]}
+                      options={[{ value: '', label: 'كل المراحل' }, ...(filterOptions.stages.map(s => ({ value: s, label: s })))]}
                       value={filters.stage}
                       onChange={v => setF('stage', v)}
                       dark={dark}
@@ -779,11 +761,11 @@ export default function ArchivePage() {
             </div>
 
             {/* Row 3: Stage Filter */}
-            {((filterOptions?.stages && filterOptions.stages.length > 0) || ALL_ACADEMIC_STAGES.length > 0) && (
+            {filterOptions?.stages?.length > 0 && (
               <div>
                 <label className={`block text-[10px] font-black uppercase tracking-wide mb-1.5 ${textSec}`}>المرحلة الدراسية</label>
                 <PillGroup
-                  options={[{ value: '', label: 'كل المراحل' }, ...((filterOptions?.stages || ALL_ACADEMIC_STAGES).map(s => ({ value: s, label: s })))]}
+                  options={[{ value: '', label: 'كل المراحل' }, ...(filterOptions.stages.map(s => ({ value: s, label: s })))]}
                   value={itemsStage}
                   onChange={setItemsStage}
                   dark={dark}

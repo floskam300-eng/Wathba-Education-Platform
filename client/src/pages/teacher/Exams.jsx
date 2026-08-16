@@ -253,14 +253,30 @@ export default function TeacherExams() {
     });
   };
 
-  const courseStageMap = {};
-  courses.forEach(c => { if (c.id) courseStageMap[c.id] = c.target_stage; });
+  const courseStageMap = React.useMemo(() => {
+    const map = {};
+    courses.forEach(c => { if (c.id) map[c.id] = c.target_stage; });
+    return map;
+  }, [courses]);
 
-  const stageCounts = ['الكل', ...STAGES].reduce((acc, s) => {
-    if (s === 'الكل') { acc[s] = exams.length; return acc; }
-    acc[s] = exams.filter(ex => !ex.course_id || courseStageMap[ex.course_id] === s).length;
+  const availableStages = React.useMemo(() => {
+    const set = new Set();
+    exams.forEach(ex => {
+      const st = ex.course_id ? courseStageMap[ex.course_id] : (ex.target_stage || ex.academic_stage);
+      if (st) set.add(st);
+    });
+    return ['الكل', ...Array.from(set)];
+  }, [exams, courseStageMap]);
+
+  const stageCounts = React.useMemo(() => {
+    const acc = { 'الكل': exams.length };
+    for (const s of availableStages) {
+      if (s !== 'الكل') {
+        acc[s] = exams.filter(ex => !ex.course_id || courseStageMap[ex.course_id] === s).length;
+      }
+    }
     return acc;
-  }, {});
+  }, [availableStages, exams, courseStageMap]);
 
   const filteredExams = stageFilter === 'الكل'
     ? exams
@@ -302,7 +318,7 @@ export default function TeacherExams() {
           <span className="text-xs font-bold text-gray-500">تصفية حسب المرحلة الدراسية</span>
         </div>
         <div className="filter-scroll">
-          {['الكل', ...STAGES].map(stage => (
+          {availableStages.map(stage => (
             <button key={stage} onClick={() => setStageFilter(stage)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
                 stageFilter === stage ? 'bg-orange-500 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'

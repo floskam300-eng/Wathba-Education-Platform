@@ -1138,15 +1138,18 @@ export default function TeacherStudents() {
     }
   };
 
-  const stageCounts = ['الكل', ...STAGES].reduce((acc, s) => {
-    if (s === 'الكل') {
-      acc[s] = stageCountsData.reduce((sum, sc) => sum + (sc.count ?? 0), 0);
-    } else {
-      const matched = stageCountsData.find(sc => sc.stage === s);
-      acc[s] = matched ? (matched.count ?? 0) : 0;
+  const availableStages = React.useMemo(() => {
+    const presentStages = stageCountsData.filter(sc => (sc.count ?? 0) > 0).map(sc => sc.stage);
+    return ['الكل', ...presentStages];
+  }, [stageCountsData]);
+
+  const stageCounts = React.useMemo(() => {
+    const acc = { 'الكل': stageCountsData.reduce((sum, sc) => sum + (sc.count ?? 0), 0) };
+    for (const sc of stageCountsData) {
+      acc[sc.stage] = sc.count ?? 0;
     }
     return acc;
-  }, {});
+  }, [stageCountsData]);
 
   const filtered = students;
 
@@ -1456,7 +1459,7 @@ export default function TeacherStudents() {
               <span className="text-xs font-bold text-gray-500">تصفية حسب المرحلة الدراسية</span>
             </div>
             <div className="filter-scroll">
-              {['الكل', ...STAGES].map(stage => (
+              {availableStages.map(stage => (
                 <button
                   key={stage}
                   onClick={() => setStageFilter(stage)}

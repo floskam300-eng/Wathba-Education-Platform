@@ -40,25 +40,6 @@ const STATUS_MAP = {
   rejected: { label: 'مرفوضة',       variant: 'danger'  },
 };
 
-const ACADEMIC_STAGES = [
-  'الكل',
-  'الصف الأول الابتدائي',
-  'الصف الثاني الابتدائي',
-  'الصف الثالث الابتدائي',
-  'الصف الرابع الابتدائي',
-  'الصف الخامس الابتدائي',
-  'الصف السادس الابتدائي',
-  'الصف الأول الإعدادي',
-  'الصف الثاني الإعدادي',
-  'الصف الثالث الإعدادي',
-  'الصف الأول الثانوي عام',
-  'الصف الأول الثانوي بكالوريا',
-  'الصف الثاني الثانوي عام',
-  'الصف الثاني الثانوي بكالوريا',
-  'الصف الثالث الثانوي',
-  'جامعي',
-];
-
 const ARABIC_MONTHS = [
   'يناير','فبراير','مارس','أبريل','مايو','يونيو',
   'يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'
@@ -129,6 +110,16 @@ export default function TeacherPayments() {
     students.forEach(s => { m[s.id] = s; });
     return m;
   }, [students]);
+
+  const availableStages = useMemo(() => {
+    const set = new Set();
+    students.forEach(s => { if (s.academic_stage) set.add(s.academic_stage); });
+    payments.forEach(p => {
+      const st = studentMap[p.student_id]?.academic_stage;
+      if (st) set.add(st);
+    });
+    return ['الكل', ...Array.from(set)];
+  }, [students, payments, studentMap]);
 
   const filtered = useMemo(() => {
     let list = payments;
@@ -293,11 +284,11 @@ export default function TeacherPayments() {
               backgroundColor: '#fff',
               borderColor: '#f1f5f9',
               borderWidth: 1,
-              textStyle: { fontFamily: 'Cairo', fontSize: 12, color: '#1e293b' },
+              textStyle: { fontFamily: 'Tajawal', fontSize: 12, color: '#1e293b' },
               extraCssText: 'box-shadow:0 20px 60px rgba(0,0,0,0.12);border-radius:12px;padding:10px 14px',
               formatter: params => {
                 const p = params[0];
-                return `<div style="font-family:Cairo"><b style="color:#1e293b">${p.axisValue}</b><br/>${p.marker} الإيرادات: <b style="color:#10b981">${(p.value||0).toLocaleString()} جنيه</b></div>`;
+                return `<div style="font-family:Tajawal"><b style="color:#1e293b">${p.axisValue}</b><br/>${p.marker} الإيرادات: <b style="color:#10b981">${(p.value||0).toLocaleString()} جنيه</b></div>`;
               }
             },
             grid: { left: 10, right: 10, top: 10, bottom: 4, containLabel: true },
@@ -306,12 +297,12 @@ export default function TeacherPayments() {
               data: monthlyRevenue.map(d => d.name),
               boundaryGap: false,
               axisLine: { show: false }, axisTick: { show: false },
-              axisLabel: { fontFamily: 'Cairo', color: '#94a3b8', fontSize: 11 }
+              axisLabel: { fontFamily: 'Tajawal', color: '#94a3b8', fontSize: 11 }
             },
             yAxis: {
               type: 'value',
               splitLine: { lineStyle: { color: '#f1f5f9', type: 'dashed' } },
-              axisLabel: { fontFamily: 'Cairo', color: '#94a3b8', fontSize: 10, formatter: v => v > 0 ? v.toLocaleString() : '0' },
+              axisLabel: { fontFamily: 'Tajawal', color: '#94a3b8', fontSize: 10, formatter: v => v > 0 ? v.toLocaleString() : '0' },
               axisLine: { show: false }, axisTick: { show: false }
             },
             series: [{
@@ -358,7 +349,7 @@ export default function TeacherPayments() {
               <GraduationCap className="w-3.5 h-3.5" /> فلتر بالسنة الدراسية
             </label>
             <select value={stageFilter} onChange={e => setStageFilter(e.target.value)} className="input-field">
-              {ACADEMIC_STAGES.map(s => <option key={s} value={s}>{s}</option>)}
+              {availableStages.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
           <div>

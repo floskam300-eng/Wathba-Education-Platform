@@ -5,7 +5,7 @@ import { PlayCircle, Trophy, Zap, Shield, Timer, Star, ChevronLeft } from 'lucid
 import api from '../../lib/api';
 
 const CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;600;700;900&display=swap');
 
 @keyframes floatBob { 0%,100%{transform:translateY(0) rotate(-3deg)} 50%{transform:translateY(-10px) rotate(3deg)} }
 @keyframes shimmerSlide { 0%{background-position:-200% center} 100%{background-position:200% center} }
@@ -72,7 +72,7 @@ export default function Events() {
   const pts = user?.points || 0;
 
   return (
-    <div dir="rtl" style={{ minHeight: '100%', display: 'flex', flexDirection: 'column', background: '#0a0812', fontFamily: "'Cairo', sans-serif" }}>
+    <div dir="rtl" style={{ minHeight: '100%', display: 'flex', flexDirection: 'column', background: '#0a0812', fontFamily: "'Tajawal', sans-serif" }}>
       <style>{CSS}</style>
 
       {/* ── HERO HEADER ── */}
