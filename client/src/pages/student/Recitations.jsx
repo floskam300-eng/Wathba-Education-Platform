@@ -1,14 +1,15 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
   BookOpen, Clock, CheckCircle, XCircle, Trophy,
   ChevronLeft, ChevronRight, AlertCircle, BarChart2, RefreshCw, Lock, Eye, Loader2, ZoomIn,
-  ChevronDown, ChevronUp, X
+  ChevronDown, ChevronUp, X, Play, RotateCcw
 } from 'lucide-react';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
 import { useTheme } from '../../context/ThemeContext';
+import { useAuth } from '../../context/AuthContext';
 import ImageLightbox from '../../components/ImageLightbox';
 import { withToken } from '../../lib/mediaAccess';
 import QuestionImage from '../../components/ui/QuestionImage';
@@ -60,8 +61,13 @@ function CountdownBadge({ target, onExpire }) {
 
 export default function StudentRecitations() {
   const { dark } = useTheme();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const qc = useQueryClient();
+
+  const getAnsKey = useCallback((recId) => user?.id ? `recitation_answers_${user.id}_${recId}` : `recitation_answers_${recId}`, [user?.id]);
+  const getActKey = useCallback((recId) => user?.id ? `recitation_active_${user.id}_${recId}` : `recitation_active_${recId}`, [user?.id]);
+
   const [view, setView] = useState('list'); // 'list' | 'take' | 'result'
   const [selectedRec, setSelectedRec] = useState(null);
   const [examData, setExamData] = useState(null);
@@ -112,8 +118,8 @@ export default function StudentRecitations() {
     if (view !== 'list') return null;
     try {
       for (const rec of recitations) {
-        const savedAns = localStorage.getItem(`recitation_answers_${rec.id}`);
-        const savedAct = localStorage.getItem(`recitation_active_${rec.id}`);
+        const savedAns = localStorage.getItem(getAnsKey(rec.id));
+        const savedAct = localStorage.getItem(getActKey(rec.id));
         if (savedAns || savedAct) {
           const status = getStatus(rec);
           if (status === 'open') return rec;
@@ -121,7 +127,7 @@ export default function StudentRecitations() {
       }
     } catch (_) {}
     return null;
-  }, [recitations, view]);
+  }, [recitations, view, getAnsKey, getActKey]);
 
   const startRec = async (rec) => {
     // Block if any start is in progress OR countdown is showing OR already in take view.
@@ -141,7 +147,7 @@ export default function StudentRecitations() {
       // propagate to the catch block and show a confusing "حدث خطأ" to the user.
       // Also guard against JSON.parse('null') → null (valid JSON but invalid answers shape).
       try {
-        const saved = localStorage.getItem(`recitation_answers_${rec.id}`);
+        const saved = localStorage.getItem(getAnsKey(rec.id));
         const parsed = saved ? JSON.parse(saved) : {};
         setAnswers((parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {});
       } catch (_) {
@@ -168,7 +174,7 @@ export default function StudentRecitations() {
       timerEpochRef.current = performance.now();
       timerDurationRef.current = remainingSecs;
       setTimeLeft(remainingSecs);
-      try { localStorage.setItem(`recitation_active_${rec.id}`, '1'); } catch (_) {}
+      try { localStorage.setItem(getActKey(rec.id), '1'); } catch (_) {}
 
       if (data.resumed) {
         // Resuming: go directly to take view; clear the lock immediately.
@@ -277,19 +283,24 @@ export default function StudentRecitations() {
   // Save answers to localStorage
   useEffect(() => {
     if (view === 'take' && selectedRec) {
-      localStorage.setItem(`recitation_answers_${selectedRec.id}`, JSON.stringify(answers));
+      try {
+        localStorage.setItem(getAnsKey(selectedRec.id), JSON.stringify(answers));
+      } catch (_) {}
     }
-  }, [answers, view, selectedRec]);
+  }, [answers, view, selectedRec, getAnsKey]);
 
   // Cleanup on unmount: reset submittedRef; clear saved answers only if submitted
   useEffect(() => {
     return () => {
       if (submittedRef.current && selectedRec?.id) {
-        localStorage.removeItem(`recitation_answers_${selectedRec.id}`);
+        try {
+          localStorage.removeItem(getAnsKey(selectedRec.id));
+          localStorage.removeItem(getActKey(selectedRec.id));
+        } catch (_) {}
       }
       submittedRef.current = false;
     };
-  }, [selectedRec]);
+  }, [selectedRec, getAnsKey, getActKey]);
 
   // (Keepalive beforeunload removed to prevent unexpected zero-score submissions on network drops)
 
@@ -312,8 +323,8 @@ export default function StudentRecitations() {
       const { data } = await api.post(`/recitations/${selectedRec.id}/submit`, { answers: payload });
       if (!mountedRef.current) return;
       try {
-        localStorage.removeItem(`recitation_answers_${selectedRec.id}`);
-        localStorage.removeItem(`recitation_active_${selectedRec.id}`);
+        localStorage.removeItem(getAnsKey(selectedRec.id));
+        localStorage.removeItem(getActKey(selectedRec.id));
       } catch (_) {}
       setResult(data);
       setView('result');
@@ -334,8 +345,8 @@ export default function StudentRecitations() {
       if (data.already_submitted) {
         toast('تم تسليم التسميع بالفعل', { icon: 'ℹ️' });
         try {
-          localStorage.removeItem(`recitation_answers_${selectedRec?.id}`);
-          localStorage.removeItem(`recitation_active_${selectedRec?.id}`);
+          localStorage.removeItem(getAnsKey(selectedRec?.id));
+          localStorage.removeItem(getActKey(selectedRec?.id));
         } catch (_) {}
         setView('list');
         qc.invalidateQueries({ queryKey: ['student-recitations'] });
@@ -344,8 +355,8 @@ export default function StudentRecitations() {
         // [R8-FIX] Server rejected because time ran out — don't leave student stuck
         toast.error('انتهى وقت التسميع');
         try {
-          localStorage.removeItem(`recitation_answers_${selectedRec?.id}`);
-          localStorage.removeItem(`recitation_active_${selectedRec?.id}`);
+          localStorage.removeItem(getAnsKey(selectedRec?.id));
+          localStorage.removeItem(getActKey(selectedRec?.id));
         } catch (_) {}
         setView('list');
         qc.invalidateQueries({ queryKey: ['student-recitations'] });
@@ -354,7 +365,7 @@ export default function StudentRecitations() {
         toast.error(msg);
       }
     }
-  }, [examData, answers, selectedRec, submitting, qc]);
+  }, [examData, answers, selectedRec, submitting, qc, getAnsKey, getActKey]);
 
   handleSubmitRef.current = handleSubmit;
 
@@ -550,16 +561,16 @@ export default function StudentRecitations() {
             ) : (
               <>
                 {open.length > 0 && (
-                  <Section title="متاح الآن 🟢" items={open} dark={dark} cardCls={cardCls} onStart={startRec} navigate={navigate} startingId={startingId} />
+                  <Section title="متاح الآن 🟢" items={open} dark={dark} cardCls={cardCls} onStart={startRec} navigate={navigate} startingId={startingId} getAnsKey={getAnsKey} getActKey={getActKey} />
                 )}
                 {upcoming.length > 0 && (
-                  <Section title="قادم قريباً ⏳" items={upcoming} dark={dark} cardCls={cardCls} onStart={null} navigate={navigate} onExpire={() => qc.invalidateQueries({ queryKey: ['student-recitations'] })} />
+                  <Section title="قادم قريباً ⏳" items={upcoming} dark={dark} cardCls={cardCls} onStart={null} navigate={navigate} onExpire={() => qc.invalidateQueries({ queryKey: ['student-recitations'] })} getAnsKey={getAnsKey} getActKey={getActKey} />
                 )}
                 {done.length > 0 && (
-                  <Section title="أديته ✅" items={done} dark={dark} cardCls={cardCls} onStart={startRec} navigate={navigate} startingId={startingId} />
+                  <Section title="أديته ✅" items={done} dark={dark} cardCls={cardCls} onStart={startRec} navigate={navigate} startingId={startingId} getAnsKey={getAnsKey} getActKey={getActKey} />
                 )}
                 {expired.length > 0 && (
-                  <Section title="منتهي ❌" items={expired} dark={dark} cardCls={cardCls} onStart={null} navigate={navigate} />
+                  <Section title="منتهي ❌" items={expired} dark={dark} cardCls={cardCls} onStart={null} navigate={navigate} getAnsKey={getAnsKey} getActKey={getActKey} />
                 )}
               </>
             )}
@@ -836,7 +847,7 @@ export default function StudentRecitations() {
   return null;
 }
 
-function Section({ title, items, dark, cardCls, onStart, navigate, startingId = null, onExpire = null }) {
+function Section({ title, items, dark, cardCls, onStart, navigate, startingId = null, onExpire = null, getAnsKey = (id) => `recitation_answers_${id}`, getActKey = (id) => `recitation_active_${id}` }) {
   return (
     <div>
       <h2 className={`font-black mb-3 text-base sm:text-lg flex items-center gap-2 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>
@@ -929,7 +940,7 @@ function Section({ title, items, dark, cardCls, onStart, navigate, startingId = 
                 {status === 'open' && onStart && (() => {
                   const isRecSessionInProgress = (() => {
                     try {
-                      return !!localStorage.getItem(`recitation_answers_${rec.id}`);
+                      return !!localStorage.getItem(getAnsKey(rec.id)) || !!localStorage.getItem(getActKey(rec.id));
                     } catch (_) { return false; }
                   })();
                   return (

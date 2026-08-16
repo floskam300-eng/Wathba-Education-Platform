@@ -129,6 +129,14 @@ export const AuthProvider = ({ children }) => {
     // Clear the persisted React Query cache so the next user starts fresh
     localStorage.removeItem('WATHBA_QUERY_CACHE');
     clearMediaToken();
+    try {
+      // Clear any in-progress recitation and exam session keys to prevent leakage across student accounts on shared devices
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('recitation_') || key.startsWith('exam_answers_') || key.startsWith('exam_active_')) {
+          localStorage.removeItem(key);
+        }
+      });
+    } catch (_) {}
     // wathba_teacher_slug is intentionally kept so the user stays on the tenant
     // route after logout (in dev / Replit the slug comes from localStorage, not
     // subdomain). In production the subdomain is authoritative anyway.
