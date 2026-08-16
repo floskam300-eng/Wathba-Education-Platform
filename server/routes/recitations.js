@@ -1531,8 +1531,11 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
 
     if (sessRows.length) {
       const sess = sessRows[0];
-      const sessStartedAt = new Date(sess.started_at).getTime();
-      const elapsedMs = serverNow.getTime() - sessStartedAt;
+      const startedAtStr = typeof sess.started_at === 'string'
+        ? (sess.started_at.endsWith('Z') || sess.started_at.includes('+') ? sess.started_at : `${sess.started_at.replace(' ', 'T')}Z`)
+        : new Date(sess.started_at).toISOString();
+      const sessStartedAt = new Date(startedAtStr).getTime();
+      const elapsedMs = Math.max(0, serverNow.getTime() - sessStartedAt);
 
       // If the session has already exceeded duration + grace period,
       // it was an abandoned/expired session from a previous visit.
@@ -1549,7 +1552,7 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
           await pool.query(
             `INSERT INTO recitation_results (student_id, recitation_id, score, correct_count, wrong_count, unanswered_count, answers, points_earned, start_time, end_time, passed, is_absent)
              VALUES ($1, $2, 0, 0, 0, $3, '[]'::jsonb, 0, $4, NOW(), false, false)`,
-            [studentId, id, totalQCount, sess.started_at]
+            [studentId, id, totalQCount, startedAtStr]
           ).catch(() => {});
         }
         await pool.query(
@@ -1564,7 +1567,7 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
         return res.json({
           recitation: { ...rec, duration_minutes: durationMinutes },
           questions: clientSnapshot,
-          server_started_at: sess.started_at,
+          server_started_at: startedAtStr,
           server_now: serverNow.toISOString(),
           remaining_seconds: remainingSeconds,
           resumed: true,

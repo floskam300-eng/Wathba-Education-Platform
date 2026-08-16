@@ -47,7 +47,7 @@ async function checkAndResetLeaderboard(teacherId) {
       // First time: init tracker, no reset yet
       await pool.query(
         `INSERT INTO leaderboard_reset_tracker (teacher_id, last_reset_at, next_reset_at)
-         VALUES ($1, NOW(), DATE_TRUNC('month', NOW()) + INTERVAL '1 month')
+         VALUES ($1, NOW(), DATE_TRUNC('month', NOW() AT TIME ZONE 'Africa/Cairo') + INTERVAL '1 month')
          ON CONFLICT (teacher_id) DO NOTHING`,
         [teacherId]
       );
@@ -57,7 +57,7 @@ async function checkAndResetLeaderboard(teacherId) {
     // Atomic claim: only the first concurrent request will get the row back
     const claimed = await pool.query(
       `UPDATE leaderboard_reset_tracker
-          SET next_reset_at = DATE_TRUNC('month', NOW()) + INTERVAL '1 month', last_reset_at = NOW()
+          SET next_reset_at = DATE_TRUNC('month', NOW() AT TIME ZONE 'Africa/Cairo') + INTERVAL '1 month', last_reset_at = NOW()
         WHERE teacher_id = $1 AND next_reset_at <= NOW()
        RETURNING last_reset_at - INTERVAL '30 days' AS prev_last_reset_at`,
       [teacherId]
@@ -84,7 +84,7 @@ async function doLeaderboardReset(teacherId, monthLabel, skipTrackerUpdate = fal
     // Lock tracker row to prevent concurrent manual resets from creating duplicate history
     await client.query(
       `INSERT INTO leaderboard_reset_tracker (teacher_id, last_reset_at, next_reset_at)
-       VALUES ($1, NOW(), DATE_TRUNC('month', NOW()) + INTERVAL '1 month')
+       VALUES ($1, NOW(), DATE_TRUNC('month', NOW() AT TIME ZONE 'Africa/Cairo') + INTERVAL '1 month')
        ON CONFLICT (teacher_id) DO NOTHING`,
       [teacherId]
     );
@@ -133,9 +133,9 @@ async function doLeaderboardReset(teacherId, monthLabel, skipTrackerUpdate = fal
     if (!skipTrackerUpdate) {
       await client.query(
         `INSERT INTO leaderboard_reset_tracker (teacher_id, last_reset_at, next_reset_at)
-         VALUES ($1, NOW(), DATE_TRUNC('month', NOW()) + INTERVAL '1 month')
+         VALUES ($1, NOW(), DATE_TRUNC('month', NOW() AT TIME ZONE 'Africa/Cairo') + INTERVAL '1 month')
          ON CONFLICT (teacher_id) DO UPDATE
-         SET last_reset_at = NOW(), next_reset_at = DATE_TRUNC('month', NOW()) + INTERVAL '1 month'`,
+         SET last_reset_at = NOW(), next_reset_at = DATE_TRUNC('month', NOW() AT TIME ZONE 'Africa/Cairo') + INTERVAL '1 month'`,
         [teacherId]
       );
     }

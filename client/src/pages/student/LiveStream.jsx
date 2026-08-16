@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useLiveStream } from '../../context/LiveStreamContext';
-import { toUTCDate } from '../../lib/dateUtils';
+import { toUTCDate, formatEgyptDateTime, getServerNowMs } from '../../lib/dateUtils';
 import LiveKitRoom from '../../components/LiveKitRoom';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
@@ -445,7 +445,7 @@ function Countdown({ target }) {
   useEffect(() => {
     const targetMs = toUTCDate(target)?.getTime() ?? Infinity;
     const tick = () => {
-      const diff = targetMs - Date.now();
+      const diff = targetMs - getServerNowMs();
       if (diff <= 0) { setLabel('ابدأ البث الآن!'); return; }
       const h = Math.floor(diff / 3600000);
       const m = Math.floor((diff % 3600000) / 60000);
@@ -468,7 +468,8 @@ function useReactiveElapsed(startedAt) {
   useEffect(() => {
     if (!startedAt) return;
     const tick = () => {
-      const secs = Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000);
+      const startedMs = toUTCDate(startedAt)?.getTime() ?? new Date(startedAt).getTime();
+      const secs = Math.max(0, Math.floor((getServerNowMs() - startedMs) / 1000));
       const h = Math.floor(secs / 3600);
       const m = Math.floor((secs % 3600) / 60);
       setElapsed(h > 0 ? `${h}س ${m}د` : `${m} دقيقة`);
@@ -482,11 +483,11 @@ function useReactiveElapsed(startedAt) {
 
 /* ── Upcoming scheduled stream card ───────────────────────── */
 function ScheduledCard({ stream, dark }) {
-  const dateStr = toUTCDate(stream.scheduled_at)?.toLocaleString('ar-EG', {
+  const dateStr = formatEgyptDateTime(stream.scheduled_at, {
     weekday: 'long', month: 'short', day: 'numeric',
     hour: '2-digit', minute: '2-digit',
-  }) ?? '';
-  const isPast = (toUTCDate(stream.scheduled_at)?.getTime() ?? Infinity) <= Date.now();
+  });
+  const isPast = (toUTCDate(stream.scheduled_at)?.getTime() ?? Infinity) <= getServerNowMs();
 
   return (
     <div className={`rounded-2xl border p-5 ${dark ? 'bg-[#17151F]/90 border-[rgba(230,175,80,0.12)]' : 'bg-white border-slate-200'}`}>

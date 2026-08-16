@@ -1229,16 +1229,16 @@ router.get('/stats', requireAdminAuth, async (req, res) => {
     const suspendedTeachers = teachersRes.rows[0].suspended;
     const activeTeachers = totalTeachers - suspendedTeachers;
 
-    // 2. Students count and active today stats
+    // 2. Students count and active today stats (aligned to Egypt calendar date)
     const studentsRes = await pool.query(
       `SELECT 
           (SELECT COUNT(*)::int FROM students WHERE deleted_at IS NULL) AS total,
           (SELECT COUNT(DISTINCT student_id)::int FROM (
-              SELECT student_id FROM video_progress WHERE last_watched_at >= CURRENT_DATE
+              SELECT student_id FROM video_progress WHERE last_watched_at >= (NOW() AT TIME ZONE 'Africa/Cairo')::date
               UNION
-              SELECT student_id FROM exam_results WHERE created_at >= CURRENT_DATE
+              SELECT student_id FROM exam_results WHERE created_at >= (NOW() AT TIME ZONE 'Africa/Cairo')::date
               UNION
-              SELECT student_id FROM recitation_results WHERE created_at >= CURRENT_DATE
+              SELECT student_id FROM recitation_results WHERE created_at >= (NOW() AT TIME ZONE 'Africa/Cairo')::date
           ) AS active_today) AS active_today`
     );
 
@@ -1247,16 +1247,16 @@ router.get('/stats', requireAdminAuth, async (req, res) => {
       `SELECT 
           COUNT(CASE WHEN status = 'active' THEN 1 END)::int AS active,
           COUNT(CASE WHEN status = 'expired' THEN 1 END)::int AS expired,
-          COUNT(CASE WHEN status = 'active' AND end_date <= CURRENT_DATE + INTERVAL '7 days' THEN 1 END)::int AS expiring_soon,
-          COUNT(CASE WHEN status = 'active' AND end_date <= CURRENT_DATE + INTERVAL '30 days' THEN 1 END)::int AS pending_renewals
+          COUNT(CASE WHEN status = 'active' AND end_date <= ((NOW() AT TIME ZONE 'Africa/Cairo')::date + INTERVAL '7 days') THEN 1 END)::int AS expiring_soon,
+          COUNT(CASE WHEN status = 'active' AND end_date <= ((NOW() AT TIME ZONE 'Africa/Cairo')::date + INTERVAL '30 days') THEN 1 END)::int AS pending_renewals
        FROM teacher_subscriptions`
     );
 
-    // 4. Payments collected this month (current calendar month)
+    // 4. Payments collected this month (aligned to Egypt calendar month)
     const paymentsRes = await pool.query(
       `SELECT COALESCE(SUM(amount), 0)::float AS total 
        FROM subscription_payments 
-       WHERE paid_at >= DATE_TRUNC('month', CURRENT_DATE)`
+       WHERE paid_at >= DATE_TRUNC('month', NOW() AT TIME ZONE 'Africa/Cairo')`
     );
 
     // Active SSE connections count (live — not cached)

@@ -30,16 +30,36 @@ router.use(async (req, res, next) => {
 // Egypt = Africa/Cairo (UTC+2 winter / UTC+3 summer — Intl handles DST correctly)
 const getWeekStart = () => {
   const now = new Date();
-  // Get the current date string in Cairo timezone (YYYY-MM-DD)
-  const cairoDateStr = now.toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
+  const cairoDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(now);
   const [y, m, d] = cairoDateStr.split('-').map(Number);
 
-  // Build a Date that represents midnight (00:00:00) on this Cairo date, in UTC
-  const cairoMidnightUtc = new Date(Date.UTC(y, m - 1, d));
-  const dayOfWeek = cairoMidnightUtc.getUTCDay(); // 0=Sun, 1=Mon, …
-  const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-  cairoMidnightUtc.setUTCDate(cairoMidnightUtc.getUTCDate() + diff);
-  return cairoMidnightUtc;
+  const dayOfWeek = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0=Sun, 1=Mon, …
+  const diffDays = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+
+  const targetMondayDate = new Date(Date.UTC(y, m - 1, d + diffDays));
+  const mondayY = targetMondayDate.getUTCFullYear();
+  const mondayM = targetMondayDate.getUTCMonth();
+  const mondayD = targetMondayDate.getUTCDate();
+
+  let utcGuess = new Date(Date.UTC(mondayY, mondayM, mondayD, 0, 0, 0));
+  for (let i = 0; i < 3; i++) {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Africa/Cairo',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hour12: false,
+    });
+    const parts = formatter.formatToParts(utcGuess);
+    const map = {};
+    for (const p of parts) map[p.type] = p.value;
+    const hourVal = +map.hour === 24 ? 0 : +map.hour;
+    const cairoDate = new Date(Date.UTC(+map.year, +map.month - 1, +map.day, hourVal, +map.minute, +map.second));
+    const targetDate = new Date(Date.UTC(mondayY, mondayM, mondayD, 0, 0, 0));
+    const diffMs = targetDate.getTime() - cairoDate.getTime();
+    if (diffMs === 0) break;
+    utcGuess = new Date(utcGuess.getTime() + diffMs);
+  }
+  return utcGuess;
 };
 
 // ── Start game session — issues a one-time token to verify real play ──

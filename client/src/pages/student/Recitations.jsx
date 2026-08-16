@@ -108,6 +108,21 @@ export default function StudentRecitations() {
 
   const handleSubmitRef = useRef(null);
 
+  const activeInProgressRec = useMemo(() => {
+    if (view !== 'list') return null;
+    try {
+      for (const rec of recitations) {
+        const savedAns = localStorage.getItem(`recitation_answers_${rec.id}`);
+        const savedAct = localStorage.getItem(`recitation_active_${rec.id}`);
+        if (savedAns || savedAct) {
+          const status = getStatus(rec);
+          if (status === 'open') return rec;
+        }
+      }
+    } catch (_) {}
+    return null;
+  }, [recitations, view]);
+
   const startRec = async (rec) => {
     // Block if any start is in progress OR countdown is showing OR already in take view.
     // startingId is NOT cleared until the view actually transitions to 'take' so there
@@ -153,6 +168,7 @@ export default function StudentRecitations() {
       timerEpochRef.current = performance.now();
       timerDurationRef.current = remainingSecs;
       setTimeLeft(remainingSecs);
+      try { localStorage.setItem(`recitation_active_${rec.id}`, '1'); } catch (_) {}
 
       if (data.resumed) {
         // Resuming: go directly to take view; clear the lock immediately.
@@ -295,7 +311,10 @@ export default function StudentRecitations() {
     try {
       const { data } = await api.post(`/recitations/${selectedRec.id}/submit`, { answers: payload });
       if (!mountedRef.current) return;
-      localStorage.removeItem(`recitation_answers_${selectedRec.id}`);
+      try {
+        localStorage.removeItem(`recitation_answers_${selectedRec.id}`);
+        localStorage.removeItem(`recitation_active_${selectedRec.id}`);
+      } catch (_) {}
       setResult(data);
       setView('result');
       setSubmitting(false);
@@ -314,14 +333,20 @@ export default function StudentRecitations() {
       const msg = data.error || 'حدث خطأ أثناء التسليم';
       if (data.already_submitted) {
         toast('تم تسليم التسميع بالفعل', { icon: 'ℹ️' });
-        localStorage.removeItem(`recitation_answers_${selectedRec?.id}`);
+        try {
+          localStorage.removeItem(`recitation_answers_${selectedRec?.id}`);
+          localStorage.removeItem(`recitation_active_${selectedRec?.id}`);
+        } catch (_) {}
         setView('list');
         qc.invalidateQueries({ queryKey: ['student-recitations'] });
         qc.invalidateQueries({ queryKey: ['student-recitation-results'] });
       } else if (data.timer_expired) {
         // [R8-FIX] Server rejected because time ran out — don't leave student stuck
         toast.error('انتهى وقت التسميع');
-        localStorage.removeItem(`recitation_answers_${selectedRec?.id}`);
+        try {
+          localStorage.removeItem(`recitation_answers_${selectedRec?.id}`);
+          localStorage.removeItem(`recitation_active_${selectedRec?.id}`);
+        } catch (_) {}
         setView('list');
         qc.invalidateQueries({ queryKey: ['student-recitations'] });
         qc.invalidateQueries({ queryKey: ['student-recitation-results'] });
@@ -350,6 +375,44 @@ export default function StudentRecitations() {
         <h1 className={`text-xl font-black flex items-center gap-2 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>
           <BookOpen className="w-6 h-6 text-purple-500" /> التسميع
         </h1>
+
+        {/* ── Active In-Progress Recitation Banner (Dedicated Card) ── */}
+        {activeInProgressRec && (
+          <div className="rounded-2xl p-4 sm:p-5 bg-gradient-to-r from-amber-500/15 via-purple-500/15 to-amber-500/10 border-2 border-amber-400 dark:border-amber-500/60 shadow-lg shadow-amber-500/10 transition-all">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-3 min-w-0">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center flex-shrink-0 text-white shadow-md shadow-orange-500/30">
+                  <RotateCcw className="w-6 h-6" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px] font-black bg-amber-500 text-white px-2.5 py-0.5 rounded-full whitespace-nowrap shadow-sm animate-pulse">
+                      ⚡ لديك تسميع جارٍ لم يتم تسليمه
+                    </span>
+                    <span className="text-xs text-amber-700 dark:text-amber-300 font-bold">
+                      الوقت مستمر
+                    </span>
+                  </div>
+                  <h3 className={`font-black text-base sm:text-lg mt-1 truncate ${dark ? 'text-white' : 'text-navy-800'}`}>
+                    {activeInProgressRec.title}
+                  </h3>
+                  {activeInProgressRec.course_name && (
+                    <p className={`text-xs mt-0.5 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-500'}`}>
+                      {activeInProgressRec.course_name}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={() => startRec(activeInProgressRec)}
+                disabled={!!startingId}
+                className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 active:scale-95 text-white font-black text-sm rounded-xl shadow-lg shadow-orange-500/25 transition-all flex items-center justify-center gap-2"
+              >
+                <Play className="w-4 h-4 fill-white" /> استئناف التسميع الآن
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* ── سجل تسميعاتي (always visible, collapsible) ─────────────────── */}
         {history.length > 0 && (

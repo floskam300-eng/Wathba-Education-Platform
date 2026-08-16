@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useLiveStream } from '../../context/LiveStreamContext';
-import { toUTCDate } from '../../lib/dateUtils';
+import { toUTCDate, parseEgyptDateTimeToUTC, fmtEgyptDateTimeLocal, formatEgyptDateTime, getServerNowMs } from '../../lib/dateUtils';
 import LiveKitRoom from '../../components/LiveKitRoom';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
@@ -20,7 +20,8 @@ function useElapsed(startedAt) {
   useEffect(() => {
     if (!startedAt) return;
     const tick = () => {
-      const secs = Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000);
+      const startedMs = toUTCDate(startedAt)?.getTime() ?? new Date(startedAt).getTime();
+      const secs = Math.max(0, Math.floor((getServerNowMs() - startedMs) / 1000));
       const h = Math.floor(secs / 3600);
       const m = Math.floor((secs % 3600) / 60);
       const s = secs % 60;
@@ -646,7 +647,9 @@ function ScheduledStreamCard({ stream, dark, onStart, onCancel, starting }) {
   const [timeLabel, setTimeLabel] = useState('');
   useEffect(() => {
     const tick = () => {
-      const diff = (toUTCDate(stream.scheduled_at)?.getTime() ?? Date.now()) - Date.now();
+      const targetMs = toUTCDate(stream.scheduled_at)?.getTime() ?? new Date(stream.scheduled_at).getTime();
+      const currentMs = getServerNowMs();
+      const diff = targetMs - currentMs;
       if (diff <= 0) { setTimeLabel('جاهز للبدء الآن!'); return; }
       const h = Math.floor(diff / 3600000);
       const m = Math.floor((diff % 3600000) / 60000);
@@ -661,10 +664,10 @@ function ScheduledStreamCard({ stream, dark, onStart, onCancel, starting }) {
     return () => clearInterval(iv);
   }, [stream.scheduled_at]);
 
-  const dateStr = toUTCDate(stream.scheduled_at)?.toLocaleString('ar-EG', {
+  const dateStr = formatEgyptDateTime(stream.scheduled_at, {
     weekday: 'long', month: 'short', day: 'numeric',
     hour: '2-digit', minute: '2-digit',
-  }) ?? '';
+  });
 
   return (
     <div className={`rounded-2xl border p-4 ${dark ? 'bg-[#17151F] border-[rgba(230,175,80,0.12)]' : 'bg-white border-slate-200'}`}>
@@ -805,14 +808,18 @@ function ScheduleForm({ onBack, onScheduled, dark }) {
   const [scheduledAt, setScheduledAt] = useState('');
   const [loading, setLoading]         = useState(false);
 
-  // Use local time string for datetime-local min attribute (toISOString gives UTC which is wrong)
-  const minDT = new Date(Date.now() + 5 * 60000).toLocaleString('sv').replace(' ', 'T').slice(0, 16);
+  // Use Egypt datetime-local string for min attribute
+  const minDT = fmtEgyptDateTimeLocal(new Date(getServerNowMs() + 5 * 60000));
 
   const submit = async (e) => {
     e.preventDefault();
     if (!title.trim()) { toast.error('أدخل عنوان البث'); return; }
     if (!scheduledAt)  { toast.error('حدد موعد البث'); return; }
-    if (new Date(scheduledAt).getTime() <= Date.now()) { toast.error('يجب أن يكون الموعد في المستقبل'); return; }
+    const utcIso = parseEgyptDateTimeToUTC(scheduledAt);
+    if (!utcIso || new Date(utcIso).getTime() <= getServerNowMs()) {
+      toast.error('يجب أن يكون الموعد في المستقبل');
+      return;
+    }
     if (access === 'stages' && selStages.length === 0) { toast.error('اختر صفاً واحداً على الأقل'); return; }
     setLoading(true);
     try {
@@ -820,7 +827,7 @@ function ScheduleForm({ onBack, onScheduled, dark }) {
         title: title.trim(), description: desc.trim(),
         access, allowed_stages: access === 'stages' ? selStages : [],
         chat_enabled: chatOn, hand_raise_enabled: handOn,
-        scheduled_at: new Date(scheduledAt).toISOString(),
+        scheduled_at: utcIso,
       });
       toast.success('📅 تم جدولة البث بنجاح!', { style: { fontFamily: 'inherit', direction: 'rtl' } });
       onScheduled();

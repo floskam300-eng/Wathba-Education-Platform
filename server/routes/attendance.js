@@ -230,11 +230,9 @@ router.post('/records/bulk', requireRole('teacher', 'assistant'), requireAttenda
     return res.status(400).json({ error: 'صيغة التاريخ غير صحيحة (YYYY-MM-DD)' });
   }
 
-  // Optional: Prevent recording for future dates
-  const targetDate = new Date(`${date}T00:00:00`);
-  const today = new Date();
-  today.setHours(23, 59, 59, 999);
-  if (targetDate > today) {
+  // Prevent recording for future dates (compared against Egypt calendar date)
+  const nowEgyptStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(new Date());
+  if (date > nowEgyptStr) {
     return res.status(400).json({ error: 'لا يمكن تسجيل الحضور لتاريخ في المستقبل' });
   }
 
