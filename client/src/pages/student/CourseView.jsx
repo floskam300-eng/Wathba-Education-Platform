@@ -14,7 +14,7 @@ import api from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 import { withToken } from '../../lib/mediaAccess';
 import QuestionImage from '../../components/ui/QuestionImage';
-import { toUTCDate } from '../../lib/dateUtils';
+import { toUTCDate, getServerNowMs } from '../../lib/dateUtils';
 
 /* ─── helpers ─────────────────────────────────────────── */
 const fmt = (min) => min >= 60
@@ -1161,6 +1161,7 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
   const [showCountdown, setShowCountdown] = useState(false);
   const [countdown, setCountdown] = useState(3);
   const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
+  const [lightboxSrc, setLightboxSrc] = useState(null);
 
   const timerRef = useRef(null);
   const timerEpochRef = useRef(null);
@@ -1168,6 +1169,8 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
   const submittedRef = useRef(false);
   const mountedRef = useRef(true);
   const handleSubmitRef = useRef(null); // [H3-FIX] always-current ref, prevents stale closure in timer
+
+  const timerBaseClientMsRef = useRef(null);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -1182,21 +1185,44 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
     return () => clearTimeout(id);
   }, [showCountdown, countdown]);
 
-  // Drift-corrected server timer using monotonic performance.now()
+  // Drift-corrected server timer using monotonic performance.now() + server wall clock
   useEffect(() => {
     if (view !== 'take' || timeLeft === null) return;
-    // [H3-FIX] Use ref to avoid stale closure — handleSubmitRef.current is always the latest handleSubmit
     if (timeLeft <= 0) { handleSubmitRef.current?.(true); return; }
-    timerRef.current = setTimeout(() => {
-      if (timerEpochRef.current !== null && timerDurationRef.current !== null) {
-        const elapsedSecs = Math.floor((performance.now() - timerEpochRef.current) / 1000);
-        const trueLeft = Math.max(0, timerDurationRef.current - elapsedSecs);
-        setTimeLeft(trueLeft);
-      } else {
-        setTimeLeft(t => Math.max(0, t - 1));
+
+    const calculateRemaining = () => {
+      if (timerEpochRef.current === null || timerDurationRef.current === null) return 0;
+      const perfElapsed = Math.floor((performance.now() - timerEpochRef.current) / 1000);
+      const wallElapsed = timerBaseClientMsRef.current
+        ? Math.floor((getServerNowMs() - timerBaseClientMsRef.current) / 1000)
+        : perfElapsed;
+      const effectiveElapsed = Math.max(perfElapsed, wallElapsed);
+      return Math.max(0, timerDurationRef.current - effectiveElapsed);
+    };
+
+    const checkAndTick = () => {
+      const trueLeft = calculateRemaining();
+      setTimeLeft(trueLeft);
+      if (trueLeft <= 0) {
+        handleSubmitRef.current?.(true);
       }
-    }, 1000);
-    return () => clearTimeout(timerRef.current);
+    };
+
+    timerRef.current = setTimeout(checkAndTick, 1000);
+
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible' || (typeof document.hasFocus === 'function' && document.hasFocus())) {
+        checkAndTick();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+    window.addEventListener('focus', handleVisibilityOrFocus);
+
+    return () => {
+      clearTimeout(timerRef.current);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+    };
   }, [view, timeLeft]);
 
   // Save answers to localStorage
@@ -1210,42 +1236,29 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
   useEffect(() => {
     return () => {
       if (submittedRef.current && selectedRec?.id) {
-        localStorage.removeItem(`recitation_answers_${selectedRec.id}`);
+        try {
+          localStorage.removeItem(`recitation_answers_${selectedRec.id}`);
+          localStorage.removeItem(`recitation_active_${selectedRec.id}`);
+        } catch (_) {}
       }
       submittedRef.current = false;
     };
   }, [selectedRec]);
 
-  // Keepalive on tab close
-  useEffect(() => {
-    if (view !== 'take' || !selectedRec) return;
-    const handleUnload = () => {
-      if (submittedRef.current) return;
-      const token = localStorage.getItem('wathba_token');
-      const tenantSlug = localStorage.getItem('wathba_teacher_slug') || '';
-      const qs2 = examData?.questions || [];
-      const payloadUnload = JSON.stringify({
-        answers: qs2.map(q => ({
-          question_id: q.id,
-          answer: q.question_type === 'image_multi'
-            ? JSON.stringify(answers[q.id] || {})
-            : (answers[q.id] || null),
-        }))
-      });
-      fetch(`/api/recitations/${selectedRec.id}/submit`, {
-        method: 'POST',
-        keepalive: true,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-          ...(tenantSlug ? { 'X-Tenant-Slug': tenantSlug } : {}),
-        },
-        body: payloadUnload,
-      }).catch(() => {});
-    };
-    window.addEventListener('beforeunload', handleUnload);
-    return () => window.removeEventListener('beforeunload', handleUnload);
-  }, [view, selectedRec, answers, examData]);
+  const activeInProgressRec = useMemo(() => {
+    if (view !== 'list') return null;
+    try {
+      for (const rec of recitations) {
+        const savedAns = localStorage.getItem(`recitation_answers_${rec.id}`);
+        const savedAct = localStorage.getItem(`recitation_active_${rec.id}`);
+        if (savedAns || savedAct) {
+          const status = getRecStatus(rec);
+          if (status === 'open') return rec;
+        }
+      }
+    } catch (_) {}
+    return null;
+  }, [recitations, view]);
 
   const startRec = async (rec) => {
     if (startingId) return; // [M3-FIX] prevent double-start across all recs
@@ -1272,7 +1285,7 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
       if (typeof data.remaining_seconds === 'number' && !isNaN(data.remaining_seconds)) {
         remainingSecs = Math.max(0, data.remaining_seconds);
       } else if (data.server_started_at) {
-        const serverNowMs = data.server_now ? new Date(data.server_now).getTime() : Date.now();
+        const serverNowMs = data.server_now ? new Date(data.server_now).getTime() : getServerNowMs();
         const startedAtMs = new Date(data.server_started_at).getTime();
         if (!isNaN(startedAtMs)) {
           const elapsedSecs = Math.max(0, Math.floor((serverNowMs - startedAtMs) / 1000));
@@ -1280,10 +1293,13 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
         }
       }
 
+      timerBaseClientMsRef.current = getServerNowMs();
       timerEpochRef.current = performance.now();
       timerDurationRef.current = remainingSecs;
       setTimeLeft(remainingSecs);
       setCurrentQuestionIdx(0);
+      try { localStorage.setItem(`recitation_active_${rec.id}`, '1'); } catch (_) {}
+
       if (data.resumed) {
         setView('take');
       } else {
@@ -1313,7 +1329,10 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
     try {
       const { data } = await api.post(`/recitations/${selectedRec.id}/submit`, { answers: payload });
       if (!mountedRef.current) return;
-      localStorage.removeItem(`recitation_answers_${selectedRec.id}`);
+      try {
+        localStorage.removeItem(`recitation_answers_${selectedRec.id}`);
+        localStorage.removeItem(`recitation_active_${selectedRec.id}`);
+      } catch (_) {}
       setResult(data);
       setView('result');
       setSubmitting(false);
@@ -1334,7 +1353,10 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
       const errData = e.response?.data || {};
       if (errData.already_submitted) {
         toast('تم تسليم التسميع بالفعل', { icon: 'ℹ️' });
-        localStorage.removeItem(`recitation_answers_${selectedRec?.id}`);
+        try {
+          localStorage.removeItem(`recitation_answers_${selectedRec?.id}`);
+          localStorage.removeItem(`recitation_active_${selectedRec?.id}`);
+        } catch (_) {}
         setView('list');
         qc.invalidateQueries({ queryKey: ['course-recitations', courseId] });
         qc.invalidateQueries({ queryKey: ['student-recitations'] });
@@ -1342,7 +1364,10 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
         onRefresh?.();
       } else if (errData.timer_expired) {
         toast.error('انتهى وقت التسميع');
-        localStorage.removeItem(`recitation_answers_${selectedRec?.id}`);
+        try {
+          localStorage.removeItem(`recitation_answers_${selectedRec?.id}`);
+          localStorage.removeItem(`recitation_active_${selectedRec?.id}`);
+        } catch (_) {}
         setView('list');
         qc.invalidateQueries({ queryKey: ['course-recitations', courseId] });
         qc.invalidateQueries({ queryKey: ['student-recitations'] });
@@ -1394,7 +1419,6 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
     const q = questions[safeIdx];
     const isFirst = safeIdx === 0;
     const isLast = safeIdx === questions.length - 1;
-    const nextQ = !isLast ? questions[safeIdx + 1] : null;
 
     const isQAnswered = (qid) => {
       const a = answers[qid];
@@ -1418,85 +1442,175 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
           </div>
         </div>
 
-        {/* Question number grid */}
-        <div className="flex flex-wrap gap-1 justify-center py-2 px-1 border-b border-gray-200 dark:border-white/10 flex-shrink-0 bg-gray-50 dark:bg-white/5">
-          {questions.map((qq, idx) => {
-            const isAnswered = isQAnswered(qq.id);
-            const isCurrent = idx === safeIdx;
-            return (
-              <button
-                key={qq.id}
-                onClick={() => setCurrentQuestionIdx(idx)}
-                className={`w-7 h-7 rounded-lg text-xs font-black transition-all border ${
-                  isCurrent
-                    ? 'bg-purple-500 text-white border-purple-500 shadow scale-105'
-                    : isAnswered
-                    ? 'bg-purple-500/20 text-purple-600 dark:text-purple-300 border-purple-400/40'
-                    : 'bg-gray-100 dark:bg-white/5 text-gray-500 border-gray-200 dark:border-white/10 hover:border-purple-300'
-                }`}
-              >
-                {idx + 1}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Question separator badge */}
-        {q && (
-          <div className="flex items-center gap-2 my-2 px-3 flex-shrink-0">
-            <div className="flex-1 h-px bg-purple-500/20" />
-            <span className="text-[11px] font-black text-purple-600 dark:text-purple-300 bg-purple-500/10 border border-purple-500/20 px-2.5 py-0.5 rounded-full whitespace-nowrap">
-              السؤال {safeIdx + 1} من {questions.length}
-              <span className="opacity-40 mx-1">·</span>
-              <span className="font-medium text-[10px]">
-                {q.question_type === 'true_false' ? 'صح / خطأ' : q.question_type === 'image_multi' ? 'صورة + أسئلة' : 'اختيار من متعدد'}
-              </span>
+        {/* Question content */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-black text-purple-400 bg-purple-500/10 px-2.5 py-1 rounded-lg">
+              سؤال {safeIdx + 1} من {questions.length}
             </span>
-            <div className="flex-1 h-px bg-purple-500/20" />
+            <span className="text-[10px] text-gray-500">{q.points || 1} درجة</span>
           </div>
-        )}
 
-        {/* Current question view */}
-        <div className="flex-1 overflow-y-auto p-3">
-          {q && (
-            <SidebarQuestionCard key={q.id} q={q} idx={safeIdx} answers={answers} setAnswers={setAnswers} />
+          <p className="text-gray-900 dark:text-white text-sm font-bold leading-relaxed">{q.question_text}</p>
+
+          {q.image_url && (
+            <div className="relative group rounded-xl overflow-hidden border border-gray-200 dark:border-white/10 max-h-48 cursor-pointer"
+                 onClick={() => setLightboxSrc(q.image_url)}>
+              <QuestionImage src={q.image_url} alt="صورة السؤال" className="w-full h-full object-contain max-h-48" />
+              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs gap-1 font-bold">
+                <ZoomIn className="w-4 h-4" /> اضغط للتكبير
+              </div>
+            </div>
+          )}
+
+          {/* Options */}
+          {q.question_type === 'mcq' && Array.isArray(q.options) && (
+            <div className="space-y-2">
+              {q.options.map((opt, oIdx) => {
+                const optText = typeof opt === 'string' ? opt : (opt?.text ?? '');
+                const optImg = typeof opt === 'object' ? opt?.image_url : null;
+                const isSelected = answers[q.id] === optText;
+                return (
+                  <button
+                    key={oIdx}
+                    type="button"
+                    onClick={() => setAnswers(prev => ({ ...prev, [q.id]: optText }))}
+                    className={`w-full text-right p-3 rounded-xl border text-xs font-semibold transition-all flex items-center justify-between ${
+                      isSelected
+                        ? 'border-purple-500 bg-purple-500/15 text-purple-300 shadow-sm'
+                        : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-gray-700 dark:text-gray-300 hover:border-purple-500/40 hover:bg-gray-100 dark:hover:bg-white/10'
+                    }`}
+                  >
+                    <span className="flex-1 leading-relaxed">{optText}</span>
+                    {optImg && (
+                      <QuestionImage src={optImg} alt="" className="w-10 h-10 object-cover rounded-lg mr-2 border border-white/10" />
+                    )}
+                    <span className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 mr-2 ${
+                      isSelected ? 'border-purple-400 bg-purple-500' : 'border-gray-600'
+                    }`}>
+                      {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {q.question_type === 'true_false' && (
+            <div className="grid grid-cols-2 gap-2">
+              {['صح', 'خطأ'].map(opt => {
+                const isSelected = answers[q.id] === opt;
+                return (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => setAnswers(prev => ({ ...prev, [q.id]: opt }))}
+                    className={`p-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                      isSelected
+                        ? 'border-purple-500 bg-purple-500/20 text-purple-300 shadow-sm'
+                        : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/10'
+                    }`}
+                  >
+                    <span>{opt === 'صح' ? '✓' : '✗'}</span>
+                    <span>{opt}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {q.question_type === 'text' && (
+            <textarea
+              rows={3}
+              value={answers[q.id] || ''}
+              onChange={e => setAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
+              placeholder="اكتب إجابتك هنا..."
+              className="w-full p-3 rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-gray-900 dark:text-white text-xs placeholder-gray-500 focus:outline-none focus:border-purple-500 resize-none"
+            />
+          )}
+
+          {q.question_type === 'image_multi' && Array.isArray(q.sub_questions) && (
+            <div className="space-y-3">
+              {q.sub_questions.map((subQ, sIdx) => {
+                const curSubAns = (answers[q.id] || {})[subQ.id] || '';
+                return (
+                  <div key={subQ.id || sIdx} className="p-3 rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 space-y-2">
+                    <p className="text-gray-900 dark:text-white text-xs font-bold">{subQ.text || `الفقرة ${sIdx + 1}`}</p>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {(subQ.options || []).map((opt, oIdx) => {
+                        const optText = typeof opt === 'string' ? opt : (opt?.text ?? '');
+                        const isSelected = curSubAns === optText;
+                        return (
+                          <button
+                            key={oIdx}
+                            type="button"
+                            onClick={() => setAnswers(prev => ({
+                              ...prev,
+                              [q.id]: { ...(prev[q.id] || {}), [subQ.id]: optText },
+                            }))}
+                            className={`p-2 rounded-lg border text-[11px] font-semibold text-right transition-all truncate ${
+                              isSelected
+                                ? 'border-purple-500 bg-purple-500/20 text-purple-300'
+                                : 'border-gray-200 dark:border-white/10 bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300'
+                            }`}
+                          >
+                            {optText}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
 
-        {/* Prefetch next question's images silently */}
-        {nextQ?.question_image_url && (
-          <img key={`prefetch-${nextQ.id}`} src={withToken(nextQ.question_image_url)} alt="" aria-hidden="true" className="hidden" />
-        )}
-
-        {/* Prev / Next navigation footer */}
-        <div className="p-3 border-t border-gray-200 dark:border-white/10 flex-shrink-0 flex gap-2 bg-white dark:bg-gray-900">
+        {/* Footer Navigation */}
+        <div className="p-3 border-t border-gray-200 dark:border-white/10 flex items-center justify-between gap-2 flex-shrink-0 bg-white dark:bg-[#0A0910]">
           <button
-            onClick={() => setCurrentQuestionIdx(safeIdx - 1)}
+            type="button"
             disabled={isFirst}
-            className="flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-xs font-black bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-300 disabled:opacity-40 transition-colors"
+            onClick={() => setCurrentQuestionIdx(i => Math.max(0, i - 1))}
+            className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold text-gray-400 hover:text-white disabled:opacity-30 disabled:hover:text-gray-400 transition-colors"
           >
-            <ChevronRight className="w-4 h-4" />
-            السابق
+            <ChevronRight className="w-4 h-4" /> السابق
           </button>
+
+          <div className="flex items-center gap-1 overflow-x-auto max-w-[120px] py-1">
+            {questions.map((_, dotIdx) => (
+              <button
+                key={dotIdx}
+                type="button"
+                onClick={() => setCurrentQuestionIdx(dotIdx)}
+                className={`w-2 h-2 rounded-full transition-all flex-shrink-0 ${
+                  dotIdx === safeIdx
+                    ? 'bg-purple-500 w-4'
+                    : isQAnswered(questions[dotIdx].id)
+                    ? 'bg-purple-400/50'
+                    : 'bg-gray-700'
+                }`}
+              />
+            ))}
+          </div>
+
           {isLast ? (
             <button
-              onClick={() => {
-                if (window.confirm(`هل أنت متأكد من تسليم التسميع؟\nأجبت على ${answered} من ${questions.length} أسئلة`)) {
-                  handleSubmit(false);
-                }
-              }}
+              type="button"
               disabled={submitting}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-black text-white bg-purple-500 hover:bg-purple-600 disabled:opacity-60 transition-colors shadow-sm"
+              onClick={() => handleSubmit(false)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black text-white bg-green-600 hover:bg-green-700 disabled:opacity-60 transition-colors shadow-lg shadow-green-600/20"
             >
-              {submitting ? <><RefreshCw className="w-3.5 h-3.5 inline animate-spin" />جاري التسليم...</> : `تسليم التسميع (${answered}/${questions.length})`}
+              {submitting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
+              تسليم
             </button>
           ) : (
             <button
-              onClick={() => setCurrentQuestionIdx(safeIdx + 1)}
-              className="flex-1 flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-black text-white bg-purple-500 hover:bg-purple-600 transition-colors shadow-sm"
+              type="button"
+              onClick={() => setCurrentQuestionIdx(i => Math.min(questions.length - 1, i + 1))}
+              className="flex items-center gap-1 px-4 py-2 rounded-xl text-xs font-black text-white bg-purple-600 hover:bg-purple-700 transition-colors"
             >
-              التالي
-              <ChevronLeft className="w-4 h-4" />
+              التالي <ChevronLeft className="w-4 h-4" />
             </button>
           )}
         </div>
@@ -1506,16 +1620,18 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
 
   // ── RESULT VIEW ──
   if (view === 'result' && result) {
-    const { score, correct, wrong, unanswered, passed, points_earned, total_score, pass_score } = result;
+    const { score = 0, correct = 0, wrong = 0, unanswered = 0, passed = false, total_score = 0, pass_score = 0, points_earned = 0 } = result;
     return (
-      <div className="flex flex-col h-full overflow-y-auto p-3 space-y-3" dir="rtl">
-        <div className={`rounded-2xl p-4 text-center ${passed ? 'bg-gradient-to-br from-green-600 to-emerald-700' : 'bg-gradient-to-br from-red-600 to-rose-700'} text-white`}>
-          <div className="text-4xl mb-1">{passed ? '🎉' : '📚'}</div>
-          <div className="text-3xl font-black">{score}<span className="text-base font-semibold opacity-70">/{total_score}</span></div>
-          <p className="text-sm font-bold mt-1">{passed ? 'نجحت! ✓' : 'لم تنجح'}</p>
-          <p className="text-white/70 text-xs mt-0.5">حد النجاح: {pass_score}/{total_score}</p>
+      <div className="p-4 space-y-3 h-full overflow-y-auto" dir="rtl">
+        <div className={`p-4 rounded-2xl text-center text-white ${
+          passed ? 'bg-gradient-to-br from-green-600 to-emerald-700' : 'bg-gradient-to-br from-red-600 to-rose-700'
+        }`}>
+          <div className="text-3xl mb-1">{passed ? '🎉' : '📚'}</div>
+          <div className="text-3xl font-black">{score}<span className="text-lg opacity-70">/{total_score}</span></div>
+          <p className="text-xs font-bold mt-0.5">{passed ? 'أحسنت! نجحت في التسميع' : 'حاول أكثر في المرة القادمة'}</p>
+          <p className="text-white/70 text-[10px]">درجة النجاح: {pass_score}/{total_score}</p>
           {points_earned > 0 && (
-            <div className="mt-2 inline-flex items-center gap-1.5 bg-white/20 rounded-xl px-3 py-1.5 text-xs font-black">
+            <div className="mt-2 inline-flex items-center gap-1 bg-white/20 rounded-lg px-2.5 py-1 text-xs font-black">
               <Trophy className="w-3.5 h-3.5" /> +{points_earned} نقطة
             </div>
           )}
@@ -1630,6 +1746,26 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
   return (
     <div className="flex-1 flex flex-col min-h-0 h-full" dir="rtl">
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
+        {/* Dedicated Active In-Progress Banner in Course Tab */}
+        {activeInProgressRec && (
+          <div className="rounded-xl p-3 bg-gradient-to-r from-amber-500/15 via-purple-500/15 to-amber-500/10 border border-amber-400 dark:border-amber-500/50 shadow-sm">
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <span className="text-[10px] font-black bg-amber-500 text-white px-2 py-0.5 rounded-full animate-pulse">
+                ⚡ لديك تسميع جارٍ
+              </span>
+              <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold">الوقت مستمر</span>
+            </div>
+            <p className="text-gray-900 dark:text-white text-xs font-black truncate mb-2">{activeInProgressRec.title}</p>
+            <button
+              onClick={() => startRec(activeInProgressRec)}
+              disabled={!!startingId}
+              className="w-full py-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-black text-xs rounded-lg shadow-md transition-all flex items-center justify-center gap-1.5"
+            >
+              <RotateCcw className="w-3.5 h-3.5" /> استئناف التسميع الآن
+            </button>
+          </div>
+        )}
+
         {pendingRecitations.map((rec, idx) => {
           const hasResult = !!rec.result_id;
           const passed = isRecPassed(rec);
@@ -1647,6 +1783,8 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
           const canRetry = (Boolean(rec.allow_retry) || hasGrant) && (hasGrant || !maxReached);
           const canStart = !passed && !isExpired && !isUpcoming && (!hasResult || canRetry);
 
+          const isActiveSession = !!localStorage.getItem(`recitation_active_${rec.id}`) || !!localStorage.getItem(`recitation_answers_${rec.id}`);
+
           // A recitation gates the next video only when it has linked videos AND
           // the student hasn't passed it yet — surface this clearly so the student
           // knows exactly what to do to proceed.
@@ -1655,6 +1793,8 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
             <div key={rec.id} className={`rounded-xl border p-3 transition-all ${
               passed
                 ? 'border-green-500/30 bg-green-500/5'
+                : isActiveSession
+                ? 'border-amber-400 dark:border-amber-500/50 bg-amber-500/5'
                 : hasResult
                 ? 'border-red-500/30 bg-red-500/5'
                 : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5'
@@ -1662,18 +1802,25 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
               <div className="flex items-start gap-2.5 mb-2">
                 {/* Sequential number so the student sees the required order (1, 2, 3...) */}
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-black ${
-                  passed ? 'bg-green-500/20 text-green-600 dark:text-green-400' : hasResult ? 'bg-red-500/20 text-red-500 dark:text-red-400' : 'bg-purple-500/20 text-purple-600 dark:text-purple-300'
+                  passed ? 'bg-green-500/20 text-green-600 dark:text-green-400' : isActiveSession ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400' : hasResult ? 'bg-red-500/20 text-red-500 dark:text-red-400' : 'bg-purple-500/20 text-purple-600 dark:text-purple-300'
                 }`}>
-                  {passed ? <CheckCircle className="w-4 h-4" /> : idx + 1}
+                  {passed ? <CheckCircle className="w-4 h-4" /> : isActiveSession ? <RotateCcw className="w-3.5 h-3.5" /> : idx + 1}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-gray-900 dark:text-white text-xs font-bold truncate">{rec.title}</p>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <p className="text-gray-900 dark:text-white text-xs font-bold truncate">{rec.title}</p>
+                    {isActiveSession && (
+                      <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-amber-500 text-white">
+                        جلسة نشطة
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                     <span className="text-[10px] text-gray-500">
                       <Clock className="w-2.5 h-2.5 inline ml-0.5" />{rec.duration_minutes} دقيقة
                     </span>
                     <span className="text-[10px] text-gray-500">{rec.question_count} سؤال</span>
-                    {hasResult && (
+                    {hasResult && !isActiveSession && (
                       <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${
                         passed ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
                       }`}>
@@ -1735,7 +1882,9 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
                     onClick={() => startRec(rec)}
                     disabled={startingId === rec.id} // [M3-FIX] only disable the specific rec
                     className={`flex-1 py-1.5 rounded-lg text-[11px] font-black text-white disabled:opacity-60 transition-colors ${
-                      hasGrant
+                      isActiveSession
+                        ? 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700'
+                        : hasGrant
                         ? 'bg-emerald-500 hover:bg-emerald-600'
                         : 'bg-purple-500 hover:bg-purple-600'
                     }`}>
