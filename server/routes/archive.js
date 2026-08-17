@@ -465,9 +465,7 @@ router.get('/filters', requireRole('teacher', 'assistant'), checkAnyPerm, async 
         `SELECT DISTINCT stage FROM (
            SELECT academic_stage AS stage FROM students WHERE teacher_id=$1 AND deleted_at IS NULL AND academic_stage IS NOT NULL
            UNION
-           SELECT target_stage AS stage FROM courses WHERE teacher_id=$1 AND deleted_at IS NULL AND target_stage IS NOT NULL
-           UNION
-           SELECT target_stage AS stage FROM exams WHERE teacher_id=$1 AND deleted_at IS NULL AND target_stage IS NOT NULL
+           SELECT target_stage AS stage FROM courses WHERE teacher_id=$1 AND target_stage IS NOT NULL
            UNION
            SELECT academic_stage AS stage FROM recitations WHERE teacher_id=$1 AND deleted_at IS NULL AND academic_stage IS NOT NULL
          ) s WHERE stage IS NOT NULL AND stage != ''`,

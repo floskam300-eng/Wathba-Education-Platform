@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext';
 import {
   X, FileText, GraduationCap, CheckCircle2, XCircle,
@@ -10,6 +9,7 @@ import api from '../../lib/api';
 import { generatePDFReport } from '../../lib/pdfReport';
 import toast from 'react-hot-toast';
 import ExamReviewModal from './ExamReviewModal';
+import RecitationReviewModal from './RecitationReviewModal';
 
 const fmt = (iso) => {
   if (!iso) return '—';
@@ -35,10 +35,11 @@ const StatPill = ({ label, value, color }) => (
 // When mode is 'exams' or 'recitations', only that tab is shown (no tab switcher).
 export default function StudentArchiveModal({ student, onClose, mode = 'both' }) {
   const { dark } = useTheme();
-  const navigate = useNavigate();
   const [tab, setTab] = useState(mode === 'recitations' ? 'recitations' : 'exams');
   const [expandedExam, setExpandedExam] = useState(null);
+  const [expandedRec, setExpandedRec] = useState(null);
   const [reviewResultId, setReviewResultId] = useState(null);
+  const [recReviewResultId, setRecReviewResultId] = useState(null);
 
   const { data: summary, isLoading: sumLoading } = useQuery({
     queryKey: ['archive-student-summary', student.id],
@@ -69,8 +70,6 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
       r.exam_title,
       isAbsent ? 'غائب' : `${r.score}/${r.total_score}`,
       isAbsent ? '—' : `${pct(r.score, r.total_score)}%`,
-      // N6 FIX: absent records showed as 'راسب' because score=0 < pass_score.
-      // They must be labelled 'غائب' — the student never answered any questions.
       isAbsent ? 'غائب' : Number(r.score) >= Number(r.pass_score) ? 'ناجح' : 'راسب',
       isAbsent ? '—' : r.attempt_number > 1 ? `إعادة (${r.attempt_number})` : 'أول محاولة',
       isAbsent ? '—' : `${r.correct_count} صح / ${r.wrong_count} خطأ / ${r.unanswered_count} بلا إجابة`,
@@ -192,7 +191,7 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-xl bg-white/20 hover:bg-white/30 text-white transition-colors"
+            className="p-2 rounded-xl bg-white/20 hover:bg-white/30 text-white transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -211,8 +210,6 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
                   <StatPill label="إجمالي" value={exE?.total_exams || 0} color={dark ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-50 text-blue-700'} />
                   <StatPill label="ناجح" value={exE?.passed_exams || 0} color={dark ? 'bg-green-900/40 text-green-300' : 'bg-green-50 text-green-700'} />
                   <StatPill label="راسب" value={exE?.failed_exams || 0} color={dark ? 'bg-red-900/40 text-red-300' : 'bg-red-50 text-red-700'} />
-                  {/* N7 FIX: show absent count as a distinct pill — previously absent records
-                      inflated the "راسب" count since score=0 < pass_score */}
                   {Number(exE?.absent_exams) > 0 && (
                     <StatPill label="غائب" value={exE.absent_exams} color={dark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-500'} />
                   )}
@@ -243,7 +240,7 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
             <div className={`flex rounded-xl p-0.5 gap-0.5 ${dark ? 'bg-[var(--dk-elevated)]' : 'bg-gray-100'}`}>
               <button
                 onClick={() => setTab('exams')}
-                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${tab === 'exams'
+                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${tab === 'exams'
                   ? 'bg-orange-500 text-white shadow-sm'
                   : (dark ? 'text-[var(--dk-text-2)] hover:text-[var(--dk-text-1)]' : 'text-gray-500 hover:text-gray-700')
                 }`}
@@ -258,7 +255,7 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
               </button>
               <button
                 onClick={() => setTab('recitations')}
-                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${tab === 'recitations'
+                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${tab === 'recitations'
                   ? 'bg-purple-600 text-white shadow-sm'
                   : (dark ? 'text-[var(--dk-text-2)] hover:text-[var(--dk-text-1)]' : 'text-gray-500 hover:text-gray-700')
                 }`}
@@ -284,7 +281,7 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
             <div className="flex items-center gap-1.5 flex-shrink-0">
               <button
                 onClick={tab === 'exams' ? handlePrintExams : handlePrintRecs}
-                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all border ${
+                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all border cursor-pointer ${
                   tab === 'exams'
                     ? (dark ? 'border-orange-700 text-orange-300 hover:bg-orange-900/30' : 'border-orange-200 text-orange-600 hover:bg-orange-50')
                     : (dark ? 'border-purple-700 text-purple-300 hover:bg-purple-900/30' : 'border-purple-200 text-purple-600 hover:bg-purple-50')
@@ -295,7 +292,7 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
               </button>
               <button
                 onClick={handlePrintFull}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-l from-orange-500 to-purple-600 text-white hover:opacity-90 transition-all shadow-sm"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-l from-orange-500 to-purple-600 text-white hover:opacity-90 transition-all shadow-sm cursor-pointer"
               >
                 <Printer className="w-3.5 h-3.5" />
                 التقرير الكامل
@@ -304,7 +301,7 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
           ) : (
             <button
               onClick={tab === 'exams' ? handlePrintExams : handlePrintRecs}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${tab === 'exams'
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${tab === 'exams'
                 ? 'bg-orange-500 hover:bg-orange-600 text-white'
                 : 'bg-purple-600 hover:bg-purple-700 text-white'
               }`}
@@ -331,7 +328,6 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
               <div className="p-4 space-y-2">
                 {examResults.map(r => {
                   const p = pct(r.score, r.total_score);
-                  // FIX-F5: Explicit Number() conversion for type-safe comparison
                   const passed = Number(r.score) >= Number(r.pass_score);
                   const isExpanded = expandedExam === r.id;
 
@@ -349,7 +345,7 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
                     >
                       <button
                         onClick={() => !isAbsent && setExpandedExam(isExpanded ? null : r.id)}
-                        className={`w-full flex items-center gap-3 px-4 py-3 text-right transition-colors ${isAbsent ? 'cursor-default' : (dark ? 'hover:bg-[var(--dk-elevated)]' : 'hover:bg-gray-50')}`}
+                        className={`w-full flex items-center gap-3 px-4 py-3 text-right transition-colors ${isAbsent ? 'cursor-default' : (dark ? 'hover:bg-[var(--dk-elevated)]' : 'hover:bg-gray-50')} cursor-pointer`}
                       >
                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-black ${isAbsent ? 'bg-gray-400 text-white' : passed ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
                           {isAbsent ? <Clock className="w-4 h-4" /> : passed ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
@@ -415,7 +411,7 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
                           <div className="pt-2 flex justify-end">
                             <button
                               onClick={() => setReviewResultId(r.id)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-orange-500 hover:bg-orange-600 text-white transition-colors"
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-orange-500 hover:bg-orange-600 text-white transition-colors cursor-pointer"
                             >
                               <Eye className="w-3.5 h-3.5" />
                               مراجعة الإجابات
@@ -444,17 +440,35 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
               <div className="p-4 space-y-2">
                 {recResults.map(r => {
                   const p = pct(r.score, r.total_score);
+                  const isExpanded = expandedRec === r.id;
+                  const borderClass = r.passed
+                    ? (dark ? 'border-l-2 border-l-green-500' : 'border-l-2 border-l-green-400')
+                    : (dark ? 'border-l-2 border-l-red-500' : 'border-l-2 border-l-red-400');
+
                   return (
                     <div
                       key={r.id}
-                      className={`rounded-xl border overflow-hidden transition-all ${dark ? 'border-[var(--dk-border)]' : 'border-gray-100'} ${r.passed ? (dark ? 'border-l-2 border-l-green-500' : 'border-l-2 border-l-green-400') : (dark ? 'border-l-2 border-l-red-500' : 'border-l-2 border-l-red-400')}`}
+                      className={`rounded-xl border overflow-hidden transition-all ${dark ? 'border-[var(--dk-border)]' : 'border-gray-100'} ${borderClass}`}
                     >
-                      <div className={`px-4 py-3 flex items-center gap-3 ${dark ? 'hover:bg-[var(--dk-elevated)]' : 'hover:bg-purple-50/30'}`}>
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${r.passed ? 'bg-green-500' : 'bg-red-500'} text-white`}>
+                      <button
+                        onClick={() => setExpandedRec(isExpanded ? null : r.id)}
+                        className={`w-full flex items-center gap-3 px-4 py-3 text-right transition-colors ${dark ? 'hover:bg-[var(--dk-elevated)]' : 'hover:bg-purple-50/30'} cursor-pointer`}
+                      >
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-black ${r.passed ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
                           {r.passed ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-xs font-black ${textPrimary}`}>{r.recitation_title}</p>
+                        <div className="flex-1 min-w-0 text-right">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className={`text-xs font-black truncate ${textPrimary}`}>{r.recitation_title}</p>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${r.passed ? 'bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-300' : 'bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300'}`}>
+                              {r.passed ? 'ناجح' : 'راسب'}
+                            </span>
+                            {r.points_earned > 0 && (
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${dark ? 'bg-amber-900/40 text-amber-300' : 'bg-amber-50 text-amber-600'}`}>
+                                +{r.points_earned} نقطة
+                              </span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-3 mt-1">
                             <div className="flex items-center gap-1.5">
                               <MiniBar value={r.score} max={r.total_score} color={r.passed ? 'bg-green-500' : 'bg-red-500'} />
@@ -463,28 +477,40 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
                             <span className={`text-[10px] ${textSec}`}>{fmt(r.created_at)}</span>
                           </div>
                         </div>
-                        <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+                        <div className="flex items-center gap-2 flex-shrink-0">
                           <span className={`text-xs font-black ${r.passed ? 'text-green-500' : 'text-red-500'}`}>
                             {r.score}/{r.total_score}
                           </span>
-                          <div className="flex items-center gap-1.5">
-                            <span className={`text-[10px] ${textSec}`}>صح: {r.correct_count}</span>
-                            <span className="text-[10px] text-red-400">خطأ: {r.wrong_count}</span>
-                          </div>
-                          {(r.points_earned > 0) && (
-                            <span className="text-[10px] text-amber-500 font-bold">+{r.points_earned} نقطة</span>
-                          )}
+                          {isExpanded ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
                         </div>
-                      </div>
-                      <div className={`px-4 pb-3 flex justify-end border-t ${dark ? 'border-[var(--dk-border)] bg-[var(--dk-elevated)]' : 'border-gray-50 bg-gray-50'}`}>
-                        <button
-                          onClick={() => { onClose(); navigate(`/teacher/recitation-review/${r.id}`); }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white transition-colors mt-2"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          مراجعة الإجابات
-                        </button>
-                      </div>
+                      </button>
+
+                      {isExpanded && (
+                        <div className={`px-4 pb-3 border-t ${divider} ${dark ? 'bg-[var(--dk-elevated)]' : 'bg-gray-50'}`}>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-3">
+                            {[
+                              { label: 'صحيح', value: r.correct_count, color: 'text-green-500' },
+                              { label: 'خطأ', value: r.wrong_count, color: 'text-red-500' },
+                              { label: 'الدرجة الكلية', value: r.total_score, color: textSec },
+                              { label: 'النقاط المكتسبة', value: r.points_earned || 0, color: 'text-amber-500' },
+                            ].map(({ label, value, color }) => (
+                              <div key={label} className={`text-center rounded-lg p-2 ${dark ? 'bg-[var(--dk-surface)]' : 'bg-white'} border ${dark ? 'border-[var(--dk-border)]' : 'border-gray-100'}`}>
+                                <p className={`text-sm font-black ${color}`}>{value}</p>
+                                <p className={`text-[10px] font-bold ${textSec} mt-0.5`}>{label}</p>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="pt-2 flex justify-end">
+                            <button
+                              onClick={() => setRecReviewResultId(r.id)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white transition-colors cursor-pointer"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              مراجعة الإجابات
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -499,6 +525,13 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
       <ExamReviewModal
         resultId={reviewResultId}
         onClose={() => setReviewResultId(null)}
+      />
+    )}
+
+    {recReviewResultId && (
+      <RecitationReviewModal
+        resultId={recReviewResultId}
+        onClose={() => setRecReviewResultId(null)}
       />
     )}
     </>
