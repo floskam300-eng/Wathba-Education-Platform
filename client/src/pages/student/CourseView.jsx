@@ -291,7 +291,10 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
     const onFsChange = () => {
       const fs = !!(document.fullscreenElement || document.webkitFullscreenElement);
       setIsFullscreen(fs);
-      if (!fs) setCssFullscreen(false);
+      if (!fs) {
+        setCssFullscreen(false);
+        try { screen.orientation?.unlock?.(); } catch (_) {}
+      }
     };
     document.addEventListener('fullscreenchange', onFsChange);
     document.addEventListener('webkitfullscreenchange', onFsChange);
@@ -514,26 +517,44 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
 
   const deviceIsLandscape = useDeviceOrientation();
 
-  const toggleLandscape = () => {
-    if (cssLandscape) {
-      setCssLandscape(false);
-      setIsFullscreen(false);
+  const toggleLandscape = async () => {
+    const el = containerRef.current;
+    if (!el) return;
+    const inFs = !!(document.fullscreenElement || document.webkitFullscreenElement || isFullscreen || cssFullscreen);
+    if (!inFs) {
+      const fsReq = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen;
+      if (fsReq) {
+        try {
+          await fsReq.call(el);
+          setIsFullscreen(true);
+          try { await screen.orientation?.lock?.('landscape'); } catch (_) {}
+        } catch (_) {
+          setCssFullscreen(true);
+          setIsFullscreen(true);
+        }
+      } else {
+        setCssFullscreen(true);
+        setIsFullscreen(true);
+      }
     } else {
-      setCssFullscreen(false);
-      setCssLandscape(true);
-      setIsFullscreen(true);
+      try {
+        if (deviceIsLandscape) {
+          screen.orientation?.unlock?.();
+        } else {
+          screen.orientation?.lock?.('landscape').catch(() => {});
+        }
+      } catch (_) {}
     }
   };
 
   const toggleFullscreen = () => {
     const inNativeFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
-    if (inNativeFs || cssFullscreen || cssLandscape) {
+    if (inNativeFs || cssFullscreen) {
       if (inNativeFs) {
         try { (document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen)?.call(document); } catch (_) {}
       }
       try { screen.orientation?.unlock?.(); } catch (_) {}
       setCssFullscreen(false);
-      setCssLandscape(false);
       setIsFullscreen(false);
       return;
     }
@@ -542,8 +563,14 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
     const fsReq = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen;
     if (fsReq) {
       fsReq.call(el)
-        .then(() => { try { screen.orientation?.lock?.('landscape').catch(() => {}); } catch (_) {} setIsFullscreen(true); })
-        .catch(() => setCssFullscreen(true));
+        .then(() => {
+          try { screen.orientation?.lock?.('landscape').catch(() => {}); } catch (_) {}
+          setIsFullscreen(true);
+        })
+        .catch(() => {
+          setCssFullscreen(true);
+          setIsFullscreen(true);
+        });
     } else {
       setCssFullscreen(true);
       setIsFullscreen(true);
@@ -576,19 +603,10 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
   const pctStr = `${progress}%`;
   const volStr = `${muted ? 0 : volume}%`;
 
-  const fsStyle = cssLandscape
-    ? (deviceIsLandscape
-        ? { position: 'fixed', inset: 0, zIndex: 9999, width: '100vw', height: '100vh' }
-        : {
-            position: 'fixed', top: 0, left: 0,
-            width: '100vh', height: '100vw',
-            transformOrigin: 'top left',
-            transform: 'rotate(-90deg) translateX(-100%)',
-            zIndex: 9999,
-          })
-    : cssFullscreen
-      ? { position: 'fixed', inset: 0, zIndex: 9998, width: '100vw', height: '100vh' }
-      : {};
+  const inFs = isFullscreen || cssFullscreen;
+  const fsStyle = inFs
+    ? { position: 'fixed', inset: 0, zIndex: 9999, width: '100vw', height: '100vh' }
+    : {};
 
   return (
     <div
@@ -601,22 +619,30 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
     >
       <FloatingWatermark name={studentName} code={studentCode} />
 
-      {/* ── YouTube iframe wrapper ── */}
+      {/* ── YouTube iframe wrapper — adapts in fullscreen to preserve full video frame ── */}
       <div
-        className="absolute"
-        style={{ top: -60, left: 0, right: 0, bottom: -100 }}
+        className="absolute transition-all duration-300"
+        style={
+          inFs
+            ? { top: -20, left: 0, right: 0, bottom: -35, transform: 'scale(0.96)', transformOrigin: 'center center' }
+            : { top: -55, left: 0, right: 0, bottom: -85 }
+        }
       >
         <div id={playerDivId} className="w-full h-full" />
       </div>
 
-      {/* ── YouTube UI gradient masks ── */}
+      {/* ── YouTube UI gradient masks — fade out while playing so 100% of video content is visible ── */}
       <div
-        className="absolute top-0 left-0 right-0 pointer-events-none"
-        style={{ height: 80, background: 'linear-gradient(to bottom, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.6) 50%, transparent 100%)', zIndex: 9 }}
+        className={`absolute top-0 left-0 right-0 pointer-events-none transition-opacity duration-300 ${
+          showControls || !playing ? 'opacity-100' : 'opacity-0'
+        }`}
+        style={{ height: inFs ? 60 : 75, background: 'linear-gradient(to bottom, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 50%, transparent 100%)', zIndex: 9 }}
       />
       <div
-        className="absolute bottom-0 left-0 right-0 pointer-events-none"
-        style={{ height: 80, background: 'linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.6) 50%, transparent 100%)', zIndex: 9 }}
+        className={`absolute bottom-0 left-0 right-0 pointer-events-none transition-opacity duration-300 ${
+          showControls || !playing ? 'opacity-100' : 'opacity-0'
+        }`}
+        style={{ height: inFs ? 60 : 75, background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 50%, transparent 100%)', zIndex: 9 }}
       />
 
       {/* Click interceptor — captures taps to toggle controls */}
@@ -705,13 +731,13 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
             {/* زر تدوير الشاشة — يظهر على الموبايل فقط */}
             <button
               onClick={toggleLandscape}
-              className={`sm:hidden transition-colors flex-shrink-0 ${cssLandscape ? 'text-orange-400' : 'text-white hover:text-orange-400'}`}
+              className={`sm:hidden transition-colors flex-shrink-0 ${inFs && deviceIsLandscape ? 'text-orange-400' : 'text-white hover:text-orange-400'}`}
               title="تدوير الشاشة"
             >
               <RotateCw className="w-4 h-4" />
             </button>
             <button onClick={toggleFullscreen} className="text-white hover:text-orange-400 transition-colors flex-shrink-0">
-              {isFullscreen || cssFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+              {inFs ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </button>
           </div>
         </div>
@@ -803,7 +829,10 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
     const onFsChange = () => {
       const fs = !!(document.fullscreenElement || document.webkitFullscreenElement);
       setIsFullscreen(fs);
-      if (!fs) setCssFullscreen(false);
+      if (!fs) {
+        setCssFullscreen(false);
+        try { screen.orientation?.unlock?.(); } catch (_) {}
+      }
     };
     document.addEventListener('fullscreenchange', onFsChange);
     document.addEventListener('webkitfullscreenchange', onFsChange);
@@ -879,26 +908,50 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
 
   const deviceIsLandscape = useDeviceOrientation();
 
-  const toggleLandscape = () => {
-    if (cssLandscape) {
-      setCssLandscape(false);
-      setIsFullscreen(false);
+  const toggleLandscape = async () => {
+    const el = containerRef.current;
+    if (!el) return;
+    const inFs = !!(document.fullscreenElement || document.webkitFullscreenElement || isFullscreen || cssFullscreen);
+    if (!inFs) {
+      const fsReq = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen;
+      if (fsReq) {
+        try {
+          await fsReq.call(el);
+          setIsFullscreen(true);
+          try { await screen.orientation?.lock?.('landscape'); } catch (_) {}
+        } catch (_) {
+          if (videoRef.current?.webkitEnterFullscreen) {
+            videoRef.current.webkitEnterFullscreen();
+          } else {
+            setCssFullscreen(true);
+            setIsFullscreen(true);
+          }
+        }
+      } else if (videoRef.current?.webkitEnterFullscreen) {
+        videoRef.current.webkitEnterFullscreen();
+      } else {
+        setCssFullscreen(true);
+        setIsFullscreen(true);
+      }
     } else {
-      setCssFullscreen(false);
-      setCssLandscape(true);
-      setIsFullscreen(true);
+      try {
+        if (deviceIsLandscape) {
+          screen.orientation?.unlock?.();
+        } else {
+          screen.orientation?.lock?.('landscape').catch(() => {});
+        }
+      } catch (_) {}
     }
   };
 
   const toggleFullscreen = () => {
     const inNativeFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
-    if (inNativeFs || cssFullscreen || cssLandscape) {
+    if (inNativeFs || cssFullscreen) {
       if (inNativeFs) {
         try { (document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen)?.call(document); } catch (_) {}
       }
       try { screen.orientation?.unlock?.(); } catch (_) {}
       setCssFullscreen(false);
-      setCssLandscape(false);
       setIsFullscreen(false);
       return;
     }
@@ -909,19 +962,20 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
       fsReq.call(el)
         .then(() => {
           try { screen.orientation?.lock?.('landscape').catch(() => {}); } catch (_) {}
+          setIsFullscreen(true);
         })
         .catch(() => {
           if (videoRef.current?.webkitEnterFullscreen) {
             videoRef.current.webkitEnterFullscreen();
           } else {
-            setCssLandscape(true);
+            setCssFullscreen(true);
             setIsFullscreen(true);
           }
         });
     } else if (videoRef.current?.webkitEnterFullscreen) {
       videoRef.current.webkitEnterFullscreen();
     } else {
-      setCssLandscape(true);
+      setCssFullscreen(true);
       setIsFullscreen(true);
     }
   };
@@ -946,23 +1000,10 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
   const pct = `${progress}%`;
   const vol = `${(muted ? 0 : volume) * 100}%`;
 
-  // Only fake-rotate with CSS when the device itself is still portrait —
-  // if it's already physically landscape, a plain fullscreen is correct
-  // and an extra 90° rotate would turn the video sideways.
-  const vFsStyle = cssLandscape
-    ? (deviceIsLandscape
-        ? { position: 'fixed', inset: 0, zIndex: 9999, width: '100vw', height: '100vh' }
-        : {
-            position: 'fixed', top: 0, left: 0,
-            width: '100vh', height: '100vw',
-            transformOrigin: 'top left',
-            transform: 'rotate(-90deg) translateX(-100%)',
-            zIndex: 9999,
-          })
-    : cssFullscreen ? {
-        position: 'fixed', inset: 0, zIndex: 9998,
-        width: '100vw', height: '100vh',
-      } : {};
+  const inVFs = isFullscreen || cssFullscreen;
+  const vFsStyle = inVFs
+    ? { position: 'fixed', inset: 0, zIndex: 9999, width: '100vw', height: '100vh' }
+    : {};
 
   return (
     <div
@@ -1121,13 +1162,13 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
             {/* زر تدوير الشاشة — يظهر على الموبايل فقط */}
             <button
               onClick={toggleLandscape}
-              className={`sm:hidden transition-colors flex-shrink-0 ${cssLandscape ? 'text-orange-400' : 'text-white hover:text-orange-400'}`}
+              className={`sm:hidden transition-colors flex-shrink-0 ${inVFs && deviceIsLandscape ? 'text-orange-400' : 'text-white hover:text-orange-400'}`}
               title="تدوير الشاشة"
             >
               <RotateCw className="w-4 h-4" />
             </button>
             <button onClick={toggleFullscreen} className="text-white hover:text-orange-400 transition-colors flex-shrink-0">
-              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+              {inVFs ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </button>
           </div>
         </div>

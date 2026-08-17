@@ -3,12 +3,15 @@
  *
  * Key Features & Fixes:
  *  1. Vertical scroll layout — pages stacked vertically in natural sequence.
- *  2. Default Fit-to-Width — auto-calculates scale based on device / container width.
- *  3. Dynamic container resize tracking via ResizeObserver (adapts to phone orientation & window resize).
- *  4. Pinch-to-zoom & Ctrl+scroll zoom support with manual +/- and "Fit Width" reset.
- *  5. Diagonal watermark (student name + ID) burned into every canvas frame.
- *  6. Viewport rendering via IntersectionObserver for instant scrolling & high performance.
- *  7. Full security: canvas pointer-events:none, user-select:none, no download buttons, key shortcuts blocked.
+ *  2. Default Fit-to-Width — auto-calculates scale based on device / container width & rotation.
+ *  3. Page Rotation — 0° / 90° / 180° / 270° clockwise rotation of page content.
+ *  4. Fullscreen Landscape — locks screen orientation to landscape where supported.
+ *  5. Dynamic container resize tracking via ResizeObserver (adapts to phone orientation & window resize).
+ *  6. Pinch-to-zoom & Ctrl+scroll zoom support with manual +/- and "Fit Width" reset.
+ *  7. Diagonal watermark (student name + ID) burned into every canvas frame.
+ *  8. Viewport rendering via IntersectionObserver for instant scrolling & high performance.
+ *  9. Progressive loading progress indicator (%) during download.
+ * 10. Full security: canvas pointer-events:none, user-select:none, no download buttons, key shortcuts blocked.
  */
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -17,7 +20,7 @@ import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import {
   FileText, ChevronUp, ChevronDown,
   ZoomIn, ZoomOut, Loader2, AlertTriangle, RefreshCw,
-  Maximize2, Minimize2, Maximize
+  Maximize2, Minimize2, Maximize, RotateCw
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { withToken } from '../lib/mediaAccess';
@@ -33,6 +36,7 @@ const PdfPageItem = React.memo(function PdfPageItem({
   doc,
   pageNum,
   scale,
+  rotation = 0,
   watermarkLabel,
   drawWatermark,
   defaultAspect = 0.707,
@@ -69,7 +73,7 @@ const PdfPageItem = React.memo(function PdfPageItem({
     return () => observer.disconnect();
   }, []);
 
-  // Render canvas when page becomes visible or scale / doc changes
+  // Render canvas when page becomes visible or scale / rotation / doc changes
   useEffect(() => {
     if (!doc || !isVisible) return;
     let cancelled = false;
@@ -85,14 +89,14 @@ const PdfPageItem = React.memo(function PdfPageItem({
         const page = await doc.getPage(pageNum);
         if (cancelled) return;
 
-        const unscaledViewport = page.getViewport({ scale: 1.0 });
+        const unscaledViewport = page.getViewport({ scale: 1.0, rotation });
         if (unscaledViewport.width && unscaledViewport.height) {
           setOriginalWidth(unscaledViewport.width);
           setPageAspect(unscaledViewport.width / unscaledViewport.height);
         }
 
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
-        const viewport = page.getViewport({ scale: scale * dpr });
+        const viewport = page.getViewport({ scale: scale * dpr, rotation });
         const canvas = canvasRef.current;
         if (!canvas) return;
 
@@ -131,7 +135,7 @@ const PdfPageItem = React.memo(function PdfPageItem({
         renderTaskRef.current = null;
       }
     };
-  }, [doc, pageNum, scale, isVisible, watermarkLabel, drawWatermark]);
+  }, [doc, pageNum, scale, rotation, isVisible, watermarkLabel, drawWatermark]);
 
   const cssW = Math.round(originalWidth * scale);
   const cssH = Math.round(cssW / (pageAspect || 0.707));
@@ -186,7 +190,9 @@ export default function SecurePdfViewer({ pdf }) {
   const [pageInputValue, setPageInputValue] = useState('1');
   const [scale, setScale] = useState(1.0);
   const [scaleMode, setScaleMode] = useState('fit'); // 'fit' | 'custom'
+  const [rotation, setRotation] = useState(0); // 0 | 90 | 180 | 270
   const [isLoading, setIsLoading] = useState(true);
+  const [loadProgress, setLoadProgress] = useState(0);
   const [error, setError] = useState(null);
   const [retryKey, setRetryKey] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -199,7 +205,9 @@ export default function SecurePdfViewer({ pdf }) {
   const watermarkLabelRef = useRef('');
   const scaleRef = useRef(1.0);
   const scaleModeRef = useRef('fit');
+  const rotationRef = useRef(0);
   const pageWidthRef = useRef(595);
+  const pageHeightRef = useRef(842);
   const pageRefs = useRef({});
 
   useEffect(() => {
@@ -218,6 +226,7 @@ export default function SecurePdfViewer({ pdf }) {
 
   useEffect(() => { scaleRef.current = scale; }, [scale]);
   useEffect(() => { scaleModeRef.current = scaleMode; }, [scaleMode]);
+  useEffect(() => { rotationRef.current = rotation; }, [rotation]);
 
   /* ── Watermark ─────────────────────────────────────────────── */
   const drawWatermark = useCallback((canvas, label) => {
@@ -249,14 +258,18 @@ export default function SecurePdfViewer({ pdf }) {
   }, []);
 
   /* ── Calculate Fit-to-Width Scale ───────────────────────────── */
-  const calculateFitScale = useCallback((pWidth) => {
+  const calculateFitScale = useCallback((pWidth, pHeight, rot) => {
     const el = canvasAreaRef.current;
     if (!el) return 1.0;
     const containerW = el.clientWidth;
     // On mobile (<640px): 16px padding (8px per side). Desktop: 32px padding.
     const padding = containerW < 640 ? 16 : 32;
     const availableW = Math.max(280, containerW - padding);
-    const targetWidth = pWidth || pageWidthRef.current || 595;
+    const effectiveRot = rot !== undefined ? rot : rotationRef.current;
+    const isSideways = (effectiveRot % 180) === 90;
+    const targetWidth = isSideways
+      ? (pHeight || pageHeightRef.current || 842)
+      : (pWidth || pageWidthRef.current || 595);
     const fit = parseFloat((availableW / targetWidth).toFixed(2));
     return Math.min(MAX_SCALE, Math.max(MIN_SCALE, fit));
   }, []);
@@ -269,6 +282,7 @@ export default function SecurePdfViewer({ pdf }) {
       setNumPages(0);
       setCurrentPage(1);
       setPageInputValue('1');
+      setLoadProgress(0);
       if (pdfDocRef.current) {
         try { pdfDocRef.current.destroy(); } catch (_) {}
         pdfDocRef.current = null;
@@ -282,6 +296,7 @@ export default function SecurePdfViewer({ pdf }) {
     setNumPages(0);
     setCurrentPage(1);
     setPageInputValue('1');
+    setLoadProgress(0);
     pageRefs.current = {};
 
     if (pdfDocRef.current) {
@@ -295,23 +310,32 @@ export default function SecurePdfViewer({ pdf }) {
       cMapUrl: '/pdfjs/cmaps/',
       cMapPacked: true,
       standardFontDataUrl: '/pdfjs/standard_fonts/',
-      disableFontFace: true,
     });
     loadTaskRef.current = task;
+
+    // Track download progress
+    task.onProgress = ({ loaded, total }) => {
+      if (total > 0 && !cancelled) {
+        const pct = Math.min(99, Math.round((loaded / total) * 100));
+        setLoadProgress(pct);
+      }
+    };
 
     task.promise
       .then(async (doc) => {
         if (cancelled) { doc.destroy(); return; }
         pdfDocRef.current = doc;
         setNumPages(doc.numPages);
+        setLoadProgress(100);
 
         // Fetch page 1 dimensions to calculate fit scale
         try {
           const page1 = await doc.getPage(1);
           if (!cancelled) {
-            const vp = page1.getViewport({ scale: 1.0 });
+            const vp = page1.getViewport({ scale: 1.0, rotation: rotationRef.current });
             pageWidthRef.current = vp.width || 595;
-            const fit = calculateFitScale(vp.width);
+            pageHeightRef.current = vp.height || 842;
+            const fit = calculateFitScale(vp.width, vp.height, rotationRef.current);
             setScale(fit);
             setScaleMode('fit');
           }
@@ -344,8 +368,8 @@ export default function SecurePdfViewer({ pdf }) {
     const handleResize = () => {
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(() => {
-        if (scaleModeRef.current === 'fit' && pageWidthRef.current) {
-          const fit = calculateFitScale(pageWidthRef.current);
+        if (scaleModeRef.current === 'fit') {
+          const fit = calculateFitScale(pageWidthRef.current, pageHeightRef.current, rotationRef.current);
           setScale(fit);
         }
       }, 100);
@@ -409,7 +433,11 @@ export default function SecurePdfViewer({ pdf }) {
   /* ── Fullscreen Sync ────────────────────────────────────────── */
   useEffect(() => {
     const onFsChange = () => {
-      setIsFullscreen(!!(document.fullscreenElement || document.webkitFullscreenElement));
+      const inFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+      setIsFullscreen(inFs);
+      if (!inFs) {
+        try { screen.orientation?.unlock?.(); } catch (_) {}
+      }
     };
     document.addEventListener('fullscreenchange', onFsChange);
     document.addEventListener('webkitfullscreenchange', onFsChange);
@@ -424,12 +452,30 @@ export default function SecurePdfViewer({ pdf }) {
     if (!el) return;
     if (document.fullscreenElement || document.webkitFullscreenElement) {
       try { (document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen)?.call(document); } catch (_) {}
+      try { screen.orientation?.unlock?.(); } catch (_) {}
       return;
     }
     const fsReq = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen;
     if (fsReq) {
-      fsReq.call(el).catch(() => {});
+      fsReq.call(el)
+        .then(() => {
+          try { screen.orientation?.lock?.('landscape').catch(() => {}); } catch (_) {}
+        })
+        .catch(() => {});
     }
+  };
+
+  /* ── Page Rotation Handler (0 -> 90 -> 180 -> 270) ─────────── */
+  const handleRotate = () => {
+    setRotation((r) => {
+      const next = (r + 90) % 360;
+      rotationRef.current = next;
+      if (scaleModeRef.current === 'fit') {
+        const fit = calculateFitScale(pageWidthRef.current, pageHeightRef.current, next);
+        setScale(fit);
+      }
+      return next;
+    });
   };
 
   /* ── Pinch Zoom & Ctrl+Wheel Zoom ──────────────────────────── */
@@ -525,7 +571,7 @@ export default function SecurePdfViewer({ pdf }) {
   const handleFitWidth = () => {
     setScaleMode('fit');
     scaleModeRef.current = 'fit';
-    const fit = calculateFitScale(pageWidthRef.current);
+    const fit = calculateFitScale(pageWidthRef.current, pageHeightRef.current, rotationRef.current);
     setScale(fit);
   };
 
@@ -567,14 +613,14 @@ export default function SecurePdfViewer({ pdf }) {
       <div className="flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-3 sm:px-4 py-2 flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap shadow-sm z-20">
         
         {/* Document Title */}
-        <div className="flex items-center gap-2 min-w-0 max-w-[200px] sm:max-w-xs">
+        <div className="flex items-center gap-2 min-w-0 max-w-[180px] sm:max-w-xs">
           <FileText className="w-4 h-4 text-orange-500 flex-shrink-0" />
-          <span className="font-bold text-xs sm:text-sm text-gray-800 dark:text-gray-100 truncate">
+          <span className="font-bold text-xs sm:text-sm text-gray-800 dark:text-gray-100 truncate" title={pdf.title}>
             {pdf.title}
           </span>
         </div>
 
-        {/* Center Controls: Page Jumping + Zoom + Fit */}
+        {/* Center Controls: Page Jumping + Zoom + Rotation + Fit */}
         <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
 
           {/* Page Jumper */}
@@ -648,6 +694,22 @@ export default function SecurePdfViewer({ pdf }) {
             </button>
           </div>
 
+          {/* Rotate Button (0 -> 90 -> 180 -> 270) */}
+          <button
+            onClick={handleRotate}
+            disabled={isLoading || numPages === 0}
+            className={`p-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+              rotation > 0
+                ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/30'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
+            }`}
+            title="تدوير صفحات الـ PDF بمقدار 90 درجة"
+            aria-label="تدوير الصفحات"
+          >
+            <RotateCw className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">{rotation > 0 ? `${rotation}°` : 'تدوير'}</span>
+          </button>
+
           {/* Fit Width Button */}
           <button
             onClick={handleFitWidth}
@@ -661,7 +723,7 @@ export default function SecurePdfViewer({ pdf }) {
             aria-label="احتواء للشاشة"
           >
             <Maximize className="w-3 h-3" />
-            <span>احتواء الشاشة</span>
+            <span className="hidden sm:inline">احتواء الشاشة</span>
           </button>
         </div>
 
@@ -683,11 +745,21 @@ export default function SecurePdfViewer({ pdf }) {
         ref={canvasAreaRef}
         className="flex-1 overflow-auto py-2 sm:py-4 px-2 sm:px-4"
       >
-        {/* Loading state */}
+        {/* Loading state with progress % */}
         {isLoading && (
           <div className="flex flex-col items-center justify-center h-64 gap-3 text-gray-400">
             <Loader2 className="w-10 h-10 animate-spin text-orange-400" />
-            <span className="text-sm font-medium">جاري تحميل الملف…</span>
+            <span className="text-sm font-medium">
+              جاري تحميل الملف… {loadProgress > 0 ? `${loadProgress}%` : ''}
+            </span>
+            {loadProgress > 0 && (
+              <div className="w-48 bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 overflow-hidden">
+                <div
+                  className="bg-orange-500 h-1.5 rounded-full transition-all duration-200"
+                  style={{ width: `${loadProgress}%` }}
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -714,6 +786,7 @@ export default function SecurePdfViewer({ pdf }) {
                 doc={pdfDocRef.current}
                 pageNum={pNum}
                 scale={scale}
+                rotation={rotation}
                 watermarkLabel={watermarkLabelRef.current}
                 drawWatermark={drawWatermark}
                 defaultWidth={pageWidthRef.current || 595}
@@ -726,4 +799,3 @@ export default function SecurePdfViewer({ pdf }) {
     </div>
   );
 }
-

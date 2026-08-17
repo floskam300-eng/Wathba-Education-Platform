@@ -2,6 +2,7 @@ const { sendEvent } = require('../sse');
 const { sendFCMToStudents } = require('../lib/fcm');
 const { isValidImage, isValidPdf, deleteFile, deleteUploadFile } = require('../lib/validateFileMagic');
 const { convertToWebp } = require('../lib/convertToWebp');
+const { optimizeAndLinearizePdf } = require('../lib/pdfOptimizer');
 const express = require('express');
 const rateLimit = require('express-rate-limit');
 const multer = require('multer');
@@ -700,6 +701,14 @@ router.post('/:id/pdfs/upload', requireRole('teacher', 'assistant'), checkManage
       deleteFile(diskPath);
       return res.status(400).json({ error: 'الملف المرفوع ليس PDF صالح — يُرجى رفع ملف PDF حقيقي' });
     }
+
+    // Optimize and linearize PDF (Fast Web View & stream compression)
+    try {
+      await optimizeAndLinearizePdf(diskPath);
+    } catch (optErr) {
+      console.warn('[courses/upload_pdf] Optimization warning:', optErr.message);
+    }
+
     const { title, section_id } = req.body;
     if (section_id) {
       const secCheck = await pool.query('SELECT id FROM sections WHERE id=$1 AND course_id=$2', [section_id, req.params.id]);

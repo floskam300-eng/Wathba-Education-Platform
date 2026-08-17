@@ -26,7 +26,8 @@ RUN apk add --no-cache \
     vips-dev \
     fftw-dev \
     build-base \
-    python3
+    python3 \
+    qpdf
 
 WORKDIR /app
 
