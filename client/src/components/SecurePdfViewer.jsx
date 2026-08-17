@@ -27,9 +27,15 @@ import { withToken } from '../lib/mediaAccess';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
 
+/* ─── In-Memory Session Cache ───────────────────────────────── */
+// Caches PDF document binary buffers across tab switches within the same user session.
+// Automatically cleared upon browser tab closure / page reload.
+const _pdfSessionCache = new Map();
+const MAX_SESSION_CACHE = 8;
+
 /* ─── Constants ─────────────────────────────────────────────── */
-const MIN_SCALE = 0.4;
-const MAX_SCALE = 3.0;
+const MIN_SCALE = 0.15;
+const MAX_SCALE = 3.5;
 
 /* ─── Sub-component: Single PDF Page Canvas ─────────────────── */
 const PdfPageItem = React.memo(function PdfPageItem({
@@ -147,10 +153,11 @@ const PdfPageItem = React.memo(function PdfPageItem({
         registerRef(pageNum, el);
       }}
       data-page={pageNum}
-      className="relative mx-auto my-3 sm:my-5 bg-white dark:bg-gray-800 shadow-md sm:shadow-lg rounded-lg overflow-hidden transition-shadow"
+      className="relative mx-auto my-1.5 sm:my-3.5 bg-white dark:bg-gray-800 shadow-sm sm:shadow-lg rounded-none sm:rounded-lg overflow-hidden transition-shadow"
       style={{
         width: `${cssW}px`,
         height: `${cssH}px`,
+        maxWidth: '100%',
       }}
     >
       {/* Page number badge */}
@@ -291,12 +298,14 @@ export default function SecurePdfViewer({ pdf }) {
     }
 
     let cancelled = false;
-    setIsLoading(true);
+    const rawUrl = pdf.file_url;
+    // User-isolated cache key prevents cross-account cache leakage on shared devices
+    const cacheKey = `${user?.id}:${rawUrl || pdf.id}`;
+    const cachedEntry = _pdfSessionCache.get(cacheKey);
+
     setError(null);
-    setNumPages(0);
     setCurrentPage(1);
     setPageInputValue('1');
-    setLoadProgress(0);
     pageRefs.current = {};
 
     if (pdfDocRef.current) {
@@ -304,23 +313,53 @@ export default function SecurePdfViewer({ pdf }) {
       pdfDocRef.current = null;
     }
 
-    const url = withToken(pdf.file_url);
-    const task = pdfjsLib.getDocument({
-      url,
-      cMapUrl: '/pdfjs/cmaps/',
-      cMapPacked: true,
-      standardFontDataUrl: '/pdfjs/standard_fonts/',
-      disableFontFace: true,
-    });
-    loadTaskRef.current = task;
+    let task;
+    if (cachedEntry && cachedEntry.data) {
+      // 🚀 Instant RAM Cache Hit (0 network latency!)
+      _pdfSessionCache.delete(cacheKey);
+      _pdfSessionCache.set(cacheKey, cachedEntry);
 
-    // Track download progress
-    task.onProgress = ({ loaded, total }) => {
-      if (total > 0 && !cancelled) {
-        const pct = Math.min(99, Math.round((loaded / total) * 100));
-        setLoadProgress(pct);
+      if (cachedEntry.numPages) setNumPages(cachedEntry.numPages);
+      if (cachedEntry.pageWidth && cachedEntry.pageHeight) {
+        pageWidthRef.current = cachedEntry.pageWidth;
+        pageHeightRef.current = cachedEntry.pageHeight;
+        const fit = calculateFitScale(cachedEntry.pageWidth, cachedEntry.pageHeight, rotationRef.current);
+        setScale(fit);
+        setScaleMode('fit');
       }
-    };
+      setIsLoading(false);
+      setLoadProgress(100);
+
+      // Clone buffer to prevent neutering by Web Worker transfer
+      task = pdfjsLib.getDocument({
+        data: cachedEntry.data.slice(0),
+        cMapUrl: '/pdfjs/cmaps/',
+        cMapPacked: true,
+        standardFontDataUrl: '/pdfjs/standard_fonts/',
+        disableFontFace: true,
+      });
+    } else {
+      // First-time network load with progress bar
+      setIsLoading(true);
+      setLoadProgress(0);
+      const url = withToken(rawUrl);
+      task = pdfjsLib.getDocument({
+        url,
+        cMapUrl: '/pdfjs/cmaps/',
+        cMapPacked: true,
+        standardFontDataUrl: '/pdfjs/standard_fonts/',
+        disableFontFace: true,
+      });
+
+      task.onProgress = ({ loaded, total }) => {
+        if (total > 0 && !cancelled) {
+          const pct = Math.min(99, Math.round((loaded / total) * 100));
+          setLoadProgress(pct);
+        }
+      };
+    }
+
+    loadTaskRef.current = task;
 
     task.promise
       .then(async (doc) => {
@@ -329,20 +368,43 @@ export default function SecurePdfViewer({ pdf }) {
         setNumPages(doc.numPages);
         setLoadProgress(100);
 
+        let pWidth = 595;
+        let pHeight = 842;
+
         // Fetch page 1 dimensions to calculate fit scale
         try {
           const page1 = await doc.getPage(1);
           if (!cancelled) {
             const vp = page1.getViewport({ scale: 1.0, rotation: rotationRef.current });
-            pageWidthRef.current = vp.width || 595;
-            pageHeightRef.current = vp.height || 842;
-            const fit = calculateFitScale(vp.width, vp.height, rotationRef.current);
+            pWidth = vp.width || 595;
+            pHeight = vp.height || 842;
+            pageWidthRef.current = pWidth;
+            pageHeightRef.current = pHeight;
+            const fit = calculateFitScale(pWidth, pHeight, rotationRef.current);
             setScale(fit);
             setScaleMode('fit');
           }
         } catch (_) {
           if (!cancelled) setScale(1.0);
         }
+
+        // Cache document in session RAM for instant navigation
+        try {
+          if (!_pdfSessionCache.has(cacheKey)) {
+            const data = await doc.getData();
+            if (_pdfSessionCache.size >= MAX_SESSION_CACHE) {
+              const oldestKey = _pdfSessionCache.keys().next().value;
+              _pdfSessionCache.delete(oldestKey);
+            }
+            _pdfSessionCache.set(cacheKey, {
+              data,
+              userId: user?.id,
+              numPages: doc.numPages,
+              pageWidth: pWidth,
+              pageHeight: pHeight,
+            });
+          }
+        } catch (_) {}
 
         if (!cancelled) setIsLoading(false);
       })

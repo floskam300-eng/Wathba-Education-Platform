@@ -301,6 +301,7 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
     return () => {
       document.removeEventListener('fullscreenchange', onFsChange);
       document.removeEventListener('webkitfullscreenchange', onFsChange);
+      try { screen.orientation?.unlock?.(); } catch (_) {}
     };
   }, []);
 
@@ -842,6 +843,7 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
       document.removeEventListener('fullscreenchange', onFsChange);
       document.removeEventListener('webkitfullscreenchange', onFsChange);
       document.removeEventListener('mozfullscreenchange', onFsChange);
+      try { screen.orientation?.unlock?.(); } catch (_) {}
     };
   }, []);
 
