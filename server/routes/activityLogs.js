@@ -32,11 +32,15 @@ router.get('/', requireRole('teacher'), async (req, res) => {
     }
     if (from) {
       params.push(from);
-      conditions.push(`created_at >= $${params.length}::date`);
+      conditions.push(
+        `(created_at AT TIME ZONE 'Africa/Cairo') >= $${params.length}::date`
+      );
     }
     if (to) {
       params.push(to);
-      conditions.push(`created_at < ($${params.length}::date + INTERVAL '1 day')`);
+      conditions.push(
+        `(created_at AT TIME ZONE 'Africa/Cairo') < ($${params.length}::date + INTERVAL '1 day')`
+      );
     }
     if (search && search.trim()) {
       const term = `%${search.trim()}%`;

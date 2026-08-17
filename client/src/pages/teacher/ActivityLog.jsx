@@ -145,9 +145,9 @@ function formatDateTime(ts) {
   });
 }
 
-function ActionBadge({ action }) {
+function ActionBadge({ action, labels }) {
   const c = ACTION_COLORS[action] || { bg: 'bg-gray-500/20', text: 'text-gray-400', border: 'border-gray-500/30' };
-  const label = ACTION_LABELS[action] || action;
+  const label = (labels && labels[action]) || ACTION_LABELS[action] || action;
   return (
     <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${c.bg} ${c.text} ${c.border}`}>
       {label}
@@ -155,7 +155,8 @@ function ActionBadge({ action }) {
   );
 }
 
-function exportToCSV(logs) {
+function exportToCSV(logs, actionLabels) {
+  const labels = actionLabels || ACTION_LABELS;
   const headers = ['التوقيت', 'المنفذ', 'النوع', 'الإجراء', 'الكيان', 'اسم الكيان', 'تفاصيل', 'IP'];
   const rows = logs.map(log => {
     let detailsText = '';
@@ -175,8 +176,10 @@ function exportToCSV(logs) {
     return [
       formatDateTime(log.created_at),
       log.actor_name || '',
-      log.actor_type === 'teacher' ? 'معلم' : 'مساعد',
-      ACTION_LABELS[log.action] || log.action,
+      log.actor_type === 'teacher'  ? 'معلم'
+        : log.actor_type === 'student' ? 'طالب'
+        :                              'مساعد',
+      labels[log.action] || log.action,
       ENTITY_TYPE_LABELS[log.entity_type] || log.entity_type || '',
       log.entity_name || '',
       detailsText,
@@ -230,6 +233,7 @@ export default function ActivityLog() {
   const logs  = data?.logs  || [];
   const total = data?.total || 0;
   const pages = data?.pages || 1;
+  const actionLabels = data?.action_labels || ACTION_LABELS;
 
   const handleFilterChange = useCallback((key, val) => {
     setFilters(f => ({ ...f, [key]: val }));
@@ -257,7 +261,7 @@ export default function ActivityLog() {
         limit: 5000,
       };
       const res = await api.get('/activity-logs', { params: exportParams });
-      exportToCSV(res.data.logs || []);
+      exportToCSV(res.data.logs || [], res.data.action_labels || actionLabels);
     } catch {
     } finally {
       setExporting(false);
@@ -625,7 +629,9 @@ function LogRow({ log, dark, textPrimary, textSecondary, border, i }) {
               {log.actor_name || '—'}
             </p>
             <p className={`text-[10px] ${textSecondary}`}>
-              {log.actor_type === 'teacher' ? 'معلم' : 'مساعد'}
+              {log.actor_type === 'teacher'  ? 'معلم'
+               : log.actor_type === 'student' ? 'طالب'
+               :                              'مساعد'}
             </p>
           </div>
         </div>
@@ -633,7 +639,7 @@ function LogRow({ log, dark, textPrimary, textSecondary, border, i }) {
 
       {/* Action */}
       <td className="px-4 py-3">
-        <ActionBadge action={log.action} />
+        <ActionBadge action={log.action} labels={actionLabels} />
       </td>
 
       {/* Entity */}
