@@ -310,6 +310,7 @@ export default function SecurePdfViewer({ pdf }) {
       cMapUrl: '/pdfjs/cmaps/',
       cMapPacked: true,
       standardFontDataUrl: '/pdfjs/standard_fonts/',
+      disableFontFace: true,
     });
     loadTaskRef.current = task;
 
@@ -452,16 +453,11 @@ export default function SecurePdfViewer({ pdf }) {
     if (!el) return;
     if (document.fullscreenElement || document.webkitFullscreenElement) {
       try { (document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen)?.call(document); } catch (_) {}
-      try { screen.orientation?.unlock?.(); } catch (_) {}
       return;
     }
     const fsReq = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen;
     if (fsReq) {
-      fsReq.call(el)
-        .then(() => {
-          try { screen.orientation?.lock?.('landscape').catch(() => {}); } catch (_) {}
-        })
-        .catch(() => {});
+      fsReq.call(el).catch(() => {});
     }
   };
 

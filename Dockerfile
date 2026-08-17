@@ -41,8 +41,9 @@ COPY package.json ./
 ENV SHARP_IGNORE_GLOBAL_LIBVIPS=0
 RUN npm install --omit=dev
 
-# Copy server source
+# Copy server source and utilities
 COPY server/ ./server/
+COPY scripts/ ./scripts/
 
 # Copy compiled frontend from stage 1
 COPY --from=client-builder /build/client/dist ./client/dist

@@ -564,7 +564,6 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
     if (fsReq) {
       fsReq.call(el)
         .then(() => {
-          try { screen.orientation?.lock?.('landscape').catch(() => {}); } catch (_) {}
           setIsFullscreen(true);
         })
         .catch(() => {
@@ -961,7 +960,6 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
     if (fsReq) {
       fsReq.call(el)
         .then(() => {
-          try { screen.orientation?.lock?.('landscape').catch(() => {}); } catch (_) {}
           setIsFullscreen(true);
         })
         .catch(() => {
