@@ -9,6 +9,7 @@ import {
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
 import { generatePDFReport } from '../../lib/pdfReport';
+import { formatDuration } from '../../lib/format';
 import StudentArchiveModal from './StudentArchiveModal';
 
 const SORT_OPTIONS = [
@@ -333,7 +334,7 @@ export default function ItemArchiveDetailView({ item, onBack, onOpenStudent }) {
               <table className="w-full text-xs">
                 <thead>
                   <tr className={dark ? 'bg-[var(--dk-elevated)]' : 'bg-gray-50'}>
-                    {['#', 'الطالب', 'كود الطالب', 'المرحلة الدراسية', 'الحالة والنتيجة', 'الدرجة', 'المحاولات', 'تاريخ الأداء', ''].map(h => (
+                    {['#', 'الطالب', 'كود الطالب', 'المرحلة الدراسية', 'الحالة والنتيجة', 'الدرجة', 'المحاولات', 'المدة', 'تاريخ الأداء', ''].map(h => (
                       <th key={h} className={`px-4 py-3 text-right font-black text-[10px] uppercase tracking-wide ${textSec}`}>{h}</th>
                     ))}
                   </tr>
@@ -429,6 +430,16 @@ export default function ItemArchiveDetailView({ item, onBack, onOpenStudent }) {
                             ) : (
                               <span className={`text-[11px] font-semibold ${textSec}`}>محاولة 1</span>
                             )
+                          ) : (
+                            <span className={`text-[11px] ${textSec}`}>—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          {!isAbsent ? (
+                            <span className={`text-[11px] flex items-center gap-1 font-bold ${dark ? 'text-orange-300' : 'text-orange-600'}`} title="وقت أداء آخر محاولة">
+                              <Clock className="w-3 h-3" />
+                              {formatDuration(st)}
+                            </span>
                           ) : (
                             <span className={`text-[11px] ${textSec}`}>—</span>
                           )}
@@ -537,6 +548,25 @@ export default function ItemArchiveDetailView({ item, onBack, onOpenStudent }) {
                           )}
                         </div>
                       </div>
+
+                      <div className={`p-2 rounded-xl border ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)]' : 'bg-gray-50 border-gray-100'}`}>
+                        <p className={`text-[10px] ${textSec}`}>المدة (آخر محاولة)</p>
+                        <p className={`font-bold mt-0.5 flex items-center gap-1 ${!isAbsent && st.time_minutes ? (dark ? 'text-orange-300' : 'text-orange-600') : textSec}`}>
+                          {!isAbsent ? (
+                            <>
+                              <Clock className="w-2.5 h-2.5" />
+                              {formatDuration(st)}
+                            </>
+                          ) : '—'}
+                        </p>
+                      </div>
+
+                      <div className={`p-2 rounded-xl border ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)]' : 'bg-gray-50 border-gray-100'}`}>
+                        <p className={`text-[10px] ${textSec}`}>تاريخ الأداء</p>
+                        <p className={`font-bold mt-0.5 ${textPrimary}`}>
+                          {st.submitted_at ? new Date(st.submitted_at).toLocaleDateString('ar-EG') : '—'}
+                        </p>
+                      </div>
                     </div>
 
                     <div className="flex items-center justify-between text-[11px] pt-1">
@@ -596,6 +626,10 @@ export default function ItemArchiveDetailView({ item, onBack, onOpenStudent }) {
                     </div>
                     <p className={`text-[10px] ${textSec}`}>
                       {att.created_at ? new Date(att.created_at).toLocaleString('ar-EG') : '—'}
+                    </p>
+                    <p className={`text-[10px] flex items-center gap-1 mt-0.5 font-bold ${dark ? 'text-orange-300' : 'text-orange-600'}`} title="وقت أداء المحاولة">
+                      <Clock className="w-2.5 h-2.5" />
+                      {formatDuration(att)}
                     </p>
                   </div>
                   <div className="text-left">

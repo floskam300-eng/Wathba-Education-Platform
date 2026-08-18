@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import api from '../../lib/api';
 import { generatePDFReport } from '../../lib/pdfReport';
+import { formatDuration } from '../../lib/format';
 import toast from 'react-hot-toast';
 import ExamReviewModal from './ExamReviewModal';
 import RecitationReviewModal from './RecitationReviewModal';
@@ -72,6 +73,7 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
       isAbsent ? '—' : `${pct(r.score, r.total_score)}%`,
       isAbsent ? 'غائب' : Number(r.score) >= Number(r.pass_score) ? 'ناجح' : 'راسب',
       isAbsent ? '—' : r.attempt_number > 1 ? `إعادة (${r.attempt_number})` : 'أول محاولة',
+      isAbsent ? '—' : formatDuration(r),
       isAbsent ? '—' : `${r.correct_count} صح / ${r.wrong_count} خطأ / ${r.unanswered_count} بلا إجابة`,
       isAbsent ? '—' : r.points_earned > 0 ? `+${r.points_earned}` : '—',
       fmt(r.created_at),
@@ -83,6 +85,7 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
     `${r.score}/${r.total_score}`,
     `${pct(r.score, r.total_score)}%`,
     r.passed ? 'ناجح' : 'راسب',
+    formatDuration(r),
     `${r.correct_count} صح / ${r.wrong_count} خطأ`,
     r.points_earned > 0 ? `+${r.points_earned}` : '—',
     fmt(r.created_at),
@@ -110,12 +113,12 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
         sections: [
           {
             title: '📄 نتائج الاختبارات',
-            headers: ['الكورس', 'الاختبار', 'الدرجة', 'النسبة', 'الحالة', 'المحاولة', 'الإجابات', 'النقاط', 'التاريخ'],
+            headers: ['الكورس', 'الاختبار', 'الدرجة', 'النسبة', 'الحالة', 'المحاولة', 'المدة', 'الإجابات', 'النقاط', 'التاريخ'],
             data: examRows,
           },
           {
             title: '📚 نتائج التسميع',
-            headers: ['التسميع', 'الدرجة', 'النسبة', 'الحالة', 'الإجابات', 'النقاط', 'التاريخ'],
+            headers: ['التسميع', 'الدرجة', 'النسبة', 'الحالة', 'المدة', 'الإجابات', 'النقاط', 'التاريخ'],
             data: recRows,
           },
         ],
@@ -128,7 +131,7 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
     const s = summary?.student;
     generatePDFReport(
       `نتائج اختبارات الطالب: ${student.name}`,
-      ['الكورس', 'الاختبار', 'الدرجة', 'النسبة', 'الحالة', 'المحاولة', 'الإجابات', 'النقاط', 'التاريخ'],
+      ['الكورس', 'الاختبار', 'الدرجة', 'النسبة', 'الحالة', 'المحاولة', 'المدة', 'الإجابات', 'النقاط', 'التاريخ'],
       examRows,
       `student-exams-${student.id}.pdf`,
       {
@@ -148,7 +151,7 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
     const s = summary?.student;
     generatePDFReport(
       `نتائج تسميع الطالب: ${student.name}`,
-      ['التسميع', 'الدرجة', 'النسبة', 'الحالة', 'الإجابات', 'النقاط', 'التاريخ'],
+      ['التسميع', 'الدرجة', 'النسبة', 'الحالة', 'المدة', 'الإجابات', 'النقاط', 'التاريخ'],
       recRows,
       `student-recs-${student.id}.pdf`,
       {
@@ -374,13 +377,17 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center gap-3 mt-1">
+                          <div className="flex items-center gap-3 mt-1 flex-wrap">
                             {!isAbsent && (
                               <div className="flex items-center gap-1.5">
                                 <MiniBar value={r.score} max={r.total_score} color={passed ? 'bg-green-500' : 'bg-red-500'} />
                                 <span className={`text-[10px] font-bold ${passed ? 'text-green-600' : 'text-red-500'}`}>{p}%</span>
                               </div>
                             )}
+                            <span className={`text-[10px] flex items-center gap-1 ${textSec}`} title="وقت أداء المحاولة">
+                              <Clock className="w-2.5 h-2.5" />
+                              {formatDuration(r)}
+                            </span>
                             <span className={`text-[10px] ${textSec}`}>{fmt(r.created_at)}</span>
                           </div>
                         </div>
@@ -469,11 +476,15 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center gap-3 mt-1">
+                          <div className="flex items-center gap-3 mt-1 flex-wrap">
                             <div className="flex items-center gap-1.5">
                               <MiniBar value={r.score} max={r.total_score} color={r.passed ? 'bg-green-500' : 'bg-red-500'} />
                               <span className={`text-[10px] font-bold ${r.passed ? 'text-green-600' : 'text-red-500'}`}>{p}%</span>
                             </div>
+                            <span className={`text-[10px] flex items-center gap-1 ${textSec}`} title="وقت أداء المحاولة">
+                              <Clock className="w-2.5 h-2.5" />
+                              {formatDuration(r)}
+                            </span>
                             <span className={`text-[10px] ${textSec}`}>{fmt(r.created_at)}</span>
                           </div>
                         </div>

@@ -10,6 +10,7 @@ import {
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
 import { generatePDFReport } from '../../lib/pdfReport';
+import { formatDuration } from '../../lib/format';
 import StudentArchiveModal from '../../components/ui/StudentArchiveModal';
 import ItemArchiveDetailView from '../../components/ui/ItemArchiveDetailView';
 
@@ -148,17 +149,23 @@ export default function ArchivePage() {
   const [itemsType, setItemsType] = useState('all');
   const [itemsStage, setItemsStage] = useState('');
   const [itemsPublished, setItemsPublished] = useState('all');
+  const [itemsMinMinutes, setItemsMinMinutes] = useState('');
+  const [itemsMaxMinutes, setItemsMaxMinutes] = useState('');
   const [itemsSort, setItemsSort] = useState('date');
   const [itemsOrder, setItemsOrder] = useState('desc');
 
+  const itemsDurationActive = itemsMinMinutes !== '' || itemsMaxMinutes !== '';
+
   const { data: itemsData, isLoading: itemsLoading } = useQuery({
-    queryKey: ['archive-items', { type: itemsType, q: itemsSearch, stage: itemsStage, published: itemsPublished, sort: itemsSort, order: itemsOrder }],
+    queryKey: ['archive-items', { type: itemsType, q: itemsSearch, stage: itemsStage, published: itemsPublished, min_minutes: itemsMinMinutes, max_minutes: itemsMaxMinutes, sort: itemsSort, order: itemsOrder }],
     queryFn: () => api.get('/archive/items', {
       params: {
         type: itemsType,
         q: itemsSearch,
         stage: itemsStage,
         published: itemsPublished,
+        min_minutes: itemsMinMinutes === '' ? undefined : itemsMinMinutes,
+        max_minutes: itemsMaxMinutes === '' ? undefined : itemsMaxMinutes,
         sort: itemsSort,
         order: itemsOrder,
       }
@@ -715,13 +722,15 @@ export default function ArchivePage() {
                 <Filter className="w-4 h-4 text-orange-500" />
                 <span className={`text-sm font-bold ${textPrimary}`}>فلاتر الاختبارات والتسميعات</span>
               </div>
-              {(itemsSearch || itemsType !== 'all' || itemsStage || itemsPublished !== 'all' || itemsSort !== 'date') && (
+              {(itemsSearch || itemsType !== 'all' || itemsStage || itemsPublished !== 'all' || itemsSort !== 'date' || itemsDurationActive) && (
                 <button
                   onClick={() => {
                     setItemsSearch('');
                     setItemsType('all');
                     setItemsStage('');
                     setItemsPublished('all');
+                    setItemsMinMinutes('');
+                    setItemsMaxMinutes('');
                     setItemsSort('date');
                   }}
                   className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl border transition cursor-pointer ${
@@ -801,6 +810,54 @@ export default function ArchivePage() {
                 </button>
               </div>
             </div>
+
+            {/* Row 5: Duration filter (avg minutes per attempt) */}
+            <div className="pt-1">
+              <label className={`block text-[10px] font-black uppercase tracking-wide mb-1.5 ${textSec}`}>
+                متوسط وقت الأداء (بالدقائق)
+              </label>
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5">
+                  <span className={`text-[11px] font-bold ${textSec}`}>من</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    inputMode="numeric"
+                    placeholder="0"
+                    value={itemsMinMinutes}
+                    onChange={e => setItemsMinMinutes(e.target.value.replace(/[^0-9]/g, ''))}
+                    className={`w-20 text-xs rounded-xl border px-3 py-2 font-medium focus:outline-none focus:ring-2 focus:ring-orange-400 ${inputCls}`}
+                  />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className={`text-[11px] font-bold ${textSec}`}>إلى</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    inputMode="numeric"
+                    placeholder="∞"
+                    value={itemsMaxMinutes}
+                    onChange={e => setItemsMaxMinutes(e.target.value.replace(/[^0-9]/g, ''))}
+                    className={`w-20 text-xs rounded-xl border px-3 py-2 font-medium focus:outline-none focus:ring-2 focus:ring-orange-400 ${inputCls}`}
+                  />
+                </div>
+                {itemsDurationActive && (
+                  <button
+                    onClick={() => { setItemsMinMinutes(''); setItemsMaxMinutes(''); }}
+                    className={`text-[10px] font-bold px-2 py-1 rounded-lg transition cursor-pointer ${
+                      dark ? 'text-red-400 hover:bg-red-950/30' : 'text-red-500 hover:bg-red-50'
+                    }`}
+                  >
+                    مسح
+                  </button>
+                )}
+                <span className={`text-[10px] font-bold ${textSec}`}>
+                  (يعرض العناصر بناءً على متوسط وقت أداء الطلاب)
+                </span>
+              </div>
+            </div>
           </div>
 
           {/* Items Cards List / Grid */}
@@ -870,6 +927,15 @@ export default function ArchivePage() {
                         <span>الدرجة: <strong className={textPrimary}>{it.pass_score}/{it.total_score}</strong></span>
                         <span>•</span>
                         <span>المستهدفون: <strong className={textPrimary}>{totalTargeted} طالب</strong></span>
+                        {it.avg_time_minutes !== null && it.avg_time_minutes !== undefined && Number(it.avg_time_minutes) > 0 && (
+                          <>
+                            <span>•</span>
+                            <span className="flex items-center gap-1" title={`أسرع: ${it.fastest_time_minutes ?? 0} دقيقة | أبطأ: ${it.slowest_time_minutes ?? 0} دقيقة`}>
+                              <Clock className="w-3 h-3 text-orange-400" />
+                              متوسط الأداء: <strong className={textPrimary}>{Number(it.avg_time_minutes).toFixed(1)} دقيقة</strong>
+                            </span>
+                          </>
+                        )}
                       </div>
 
                       {/* Mini Breakdown Stats */}

@@ -65,6 +65,7 @@ router.get('/exam-results', requireRole('teacher', 'assistant'), checkExamPerm, 
     student_id, course_id, exam_id, stage,
     status, attempt,
     date_from, date_to,
+    min_minutes, max_minutes,
     sort = 'date', order = 'desc',
     page = 1, limit = 50,
   } = req.query;
@@ -76,6 +77,16 @@ router.get('/exam-results', requireRole('teacher', 'assistant'), checkExamPerm, 
     return res.status(400).json({ error: 'تاريخ النهاية غير صالح، استخدم صيغة YYYY-MM-DD' });
   if (date_from && date_to && date_from > date_to)
     return res.status(400).json({ error: 'تاريخ البداية يجب أن يكون قبل تاريخ النهاية' });
+
+  // Validate duration range filters
+  const minMinutes = min_minutes !== undefined && min_minutes !== '' ? parseInt(min_minutes, 10) : null;
+  const maxMinutes = max_minutes !== undefined && max_minutes !== '' ? parseInt(max_minutes, 10) : null;
+  if (minMinutes !== null && (isNaN(minMinutes) || minMinutes < 0))
+    return res.status(400).json({ error: 'min_minutes غير صالح' });
+  if (maxMinutes !== null && (isNaN(maxMinutes) || maxMinutes < 0))
+    return res.status(400).json({ error: 'max_minutes غير صالح' });
+  if (minMinutes !== null && maxMinutes !== null && minMinutes > maxMinutes)
+    return res.status(400).json({ error: 'min_minutes يجب أن يكون أقل من max_minutes' });
 
   try {
     const conditions = ['e.teacher_id = $1', 's.deleted_at IS NULL'];
@@ -132,11 +143,22 @@ router.get('/exam-results', requireRole('teacher', 'assistant'), checkExamPerm, 
       params.push(date_to);
     }
 
+    // Duration filters — only apply to completed attempts (end_time IS NOT NULL).
+    if (minMinutes !== null) {
+      conditions.push(`er.end_time IS NOT NULL AND ROUND(EXTRACT(EPOCH FROM (er.end_time - er.start_time)) / 60.0)::int >= $${p++}`);
+      params.push(minMinutes);
+    }
+    if (maxMinutes !== null) {
+      conditions.push(`er.end_time IS NOT NULL AND ROUND(EXTRACT(EPOCH FROM (er.end_time - er.start_time)) / 60.0)::int <= $${p++}`);
+      params.push(maxMinutes);
+    }
+
     const sortMap = {
       date: 'er.created_at',
       score: 'er.score',
       name: 's.name',
       exam: 'e.title',
+      duration: 'time_minutes',
     };
     const sortCol = sortMap[sort] || 'er.created_at';
     const sortDir = order === 'asc' ? 'ASC' : 'DESC';
@@ -162,6 +184,8 @@ router.get('/exam-results', requireRole('teacher', 'assistant'), checkExamPerm, 
       `SELECT
          er.id, er.score, er.correct_count, er.wrong_count, er.unanswered_count,
          er.points_earned, er.attempt_number, er.created_at, er.is_absent, er.is_latest,
+         er.start_time, er.end_time,
+         ROUND(EXTRACT(EPOCH FROM (er.end_time - er.start_time)) / 60.0, 1) AS time_minutes,
          e.id AS exam_id, e.title AS exam_title, e.total_score, e.pass_score,
          e.course_id,
          COALESCE(c.name, '—') AS course_name,
@@ -203,6 +227,7 @@ router.get('/recitation-results', requireRole('teacher', 'assistant'), checkRecP
     student_id, recitation_id, stage,
     status,
     date_from, date_to,
+    min_minutes, max_minutes,
     sort = 'date', order = 'desc',
     page = 1, limit = 50,
   } = req.query;
@@ -214,6 +239,16 @@ router.get('/recitation-results', requireRole('teacher', 'assistant'), checkRecP
     return res.status(400).json({ error: 'تاريخ النهاية غير صالح، استخدم صيغة YYYY-MM-DD' });
   if (date_from && date_to && date_from > date_to)
     return res.status(400).json({ error: 'تاريخ البداية يجب أن يكون قبل تاريخ النهاية' });
+
+  // Validate duration range filters
+  const minMinutes = min_minutes !== undefined && min_minutes !== '' ? parseInt(min_minutes, 10) : null;
+  const maxMinutes = max_minutes !== undefined && max_minutes !== '' ? parseInt(max_minutes, 10) : null;
+  if (minMinutes !== null && (isNaN(minMinutes) || minMinutes < 0))
+    return res.status(400).json({ error: 'min_minutes غير صالح' });
+  if (maxMinutes !== null && (isNaN(maxMinutes) || maxMinutes < 0))
+    return res.status(400).json({ error: 'max_minutes غير صالح' });
+  if (minMinutes !== null && maxMinutes !== null && minMinutes > maxMinutes)
+    return res.status(400).json({ error: 'min_minutes يجب أن يكون أقل من max_minutes' });
 
   try {
     const conditions = ['r.teacher_id = $1', 's.deleted_at IS NULL'];
@@ -257,11 +292,22 @@ router.get('/recitation-results', requireRole('teacher', 'assistant'), checkRecP
       params.push(date_to);
     }
 
+    // Duration filters — only apply to completed attempts (end_time IS NOT NULL).
+    if (minMinutes !== null) {
+      conditions.push(`rr.end_time IS NOT NULL AND ROUND(EXTRACT(EPOCH FROM (rr.end_time - rr.start_time)) / 60.0)::int >= $${p++}`);
+      params.push(minMinutes);
+    }
+    if (maxMinutes !== null) {
+      conditions.push(`rr.end_time IS NOT NULL AND ROUND(EXTRACT(EPOCH FROM (rr.end_time - rr.start_time)) / 60.0)::int <= $${p++}`);
+      params.push(maxMinutes);
+    }
+
     const sortMap = {
       date: 'rr.created_at',
       score: 'rr.score',
       name: 's.name',
       recitation: 'r.title',
+      duration: 'time_minutes',
     };
     const sortCol = sortMap[sort] || 'rr.created_at';
     const sortDir = order === 'asc' ? 'ASC' : 'DESC';
@@ -286,6 +332,8 @@ router.get('/recitation-results', requireRole('teacher', 'assistant'), checkRecP
       `SELECT
          rr.id, rr.score, rr.passed, rr.correct_count,
          rr.wrong_count, rr.unanswered_count, rr.points_earned, rr.created_at,
+         rr.start_time, rr.end_time,
+         ROUND(EXTRACT(EPOCH FROM (rr.end_time - rr.start_time)) / 60.0, 1) AS time_minutes,
          r.id AS recitation_id, r.title AS recitation_title,
          r.total_score, r.pass_score,
          s.id AS student_id, s.name AS student_name, s.username AS student_username,
@@ -524,6 +572,8 @@ router.get('/student/:id/exam-results', requireRole('teacher', 'assistant'), che
       `SELECT
          er.id, er.score, er.correct_count, er.wrong_count, er.unanswered_count,
          er.points_earned, er.attempt_number, er.created_at, er.is_latest, er.is_absent,
+         er.start_time, er.end_time,
+         ROUND(EXTRACT(EPOCH FROM (er.end_time - er.start_time)) / 60.0, 1) AS time_minutes,
          e.id AS exam_id, e.title AS exam_title, e.total_score, e.pass_score,
          c.id AS course_id, c.name AS course_name
        FROM exam_results er
@@ -561,6 +611,8 @@ router.get('/student/:id/recitation-results', requireRole('teacher', 'assistant'
       `SELECT
          rr.id, rr.score, rr.passed, rr.correct_count,
          rr.wrong_count, rr.unanswered_count, rr.points_earned, rr.created_at,
+         rr.start_time, rr.end_time,
+         ROUND(EXTRACT(EPOCH FROM (rr.end_time - rr.start_time)) / 60.0, 1) AS time_minutes,
          r.id AS recitation_id, r.title AS recitation_title,
          r.total_score, r.pass_score
        FROM recitation_results rr
@@ -640,7 +692,17 @@ router.get('/items', requireRole('teacher', 'assistant'), checkAnyPerm, async (r
   const teacherId = getTeacherId(req);
   if (!teacherId) return res.status(400).json({ error: 'بيانات المعلم غير صالحة' });
 
-  const { type = 'all', q, stage, published, sort = 'date', order = 'desc' } = req.query;
+  const { type = 'all', q, stage, published, min_minutes, max_minutes, sort = 'date', order = 'desc' } = req.query;
+
+  // Validate optional duration range filters on /items (avg minutes per item).
+  const itemsMinMinutes = min_minutes !== undefined && min_minutes !== '' ? parseInt(min_minutes, 10) : null;
+  const itemsMaxMinutes = max_minutes !== undefined && max_minutes !== '' ? parseInt(max_minutes, 10) : null;
+  if (itemsMinMinutes !== null && (isNaN(itemsMinMinutes) || itemsMinMinutes < 0))
+    return res.status(400).json({ error: 'min_minutes غير صالح' });
+  if (itemsMaxMinutes !== null && (isNaN(itemsMaxMinutes) || itemsMaxMinutes < 0))
+    return res.status(400).json({ error: 'max_minutes غير صالح' });
+  if (itemsMinMinutes !== null && itemsMaxMinutes !== null && itemsMinMinutes > itemsMaxMinutes)
+    return res.status(400).json({ error: 'min_minutes يجب أن يكون أقل من max_minutes' });
 
   try {
     const items = [];
@@ -664,6 +726,16 @@ router.get('/items', requireRole('teacher', 'assistant'), checkAnyPerm, async (r
       if (stage && stage !== 'الكل') {
         examConditions.push(`(c.target_stage = $${ep} OR (e.course_id IS NULL AND EXISTS (SELECT 1 FROM students s WHERE s.teacher_id = $1 AND s.academic_stage = $${ep} AND s.deleted_at IS NULL)))`);
         examParams.push(stage);
+        ep++;
+      }
+      if (itemsMinMinutes !== null) {
+        examConditions.push(`er_stats.avg_time_minutes IS NOT NULL AND er_stats.avg_time_minutes >= $${ep}`);
+        examParams.push(itemsMinMinutes);
+        ep++;
+      }
+      if (itemsMaxMinutes !== null) {
+        examConditions.push(`er_stats.avg_time_minutes IS NOT NULL AND er_stats.avg_time_minutes <= $${ep}`);
+        examParams.push(itemsMaxMinutes);
         ep++;
       }
 
@@ -702,7 +774,10 @@ router.get('/items', requireRole('teacher', 'assistant'), checkAnyPerm, async (r
            COALESCE(er_stats.failed_count, 0)::int AS failed_count,
            COALESCE(er_stats.absent_marked_count, 0)::int AS absent_marked_count,
            COALESCE(er_stats.avg_score, 0)::numeric AS avg_score,
-           COALESCE(er_stats.retried_count, 0)::int AS retried_count
+           COALESCE(er_stats.retried_count, 0)::int AS retried_count,
+           er_stats.avg_time_minutes,
+           er_stats.fastest_time_minutes,
+           er_stats.slowest_time_minutes
          FROM exams e
          LEFT JOIN courses c ON e.course_id = c.id
          LEFT JOIN (
@@ -713,7 +788,13 @@ router.get('/items', requireRole('teacher', 'assistant'), checkAnyPerm, async (r
              COUNT(DISTINCT er.student_id) FILTER (WHERE er.is_latest = true AND er.is_absent = false AND er.score < ex_inner.pass_score) AS failed_count,
              COUNT(DISTINCT er.student_id) FILTER (WHERE er.is_latest = true AND er.is_absent = true) AS absent_marked_count,
              ROUND(AVG(er.score::numeric / NULLIF(ex_inner.total_score, 0) * 100) FILTER (WHERE er.is_latest = true AND er.is_absent = false), 1) AS avg_score,
-             COUNT(DISTINCT er.student_id) FILTER (WHERE er.attempt_number > 1) AS retried_count
+             COUNT(DISTINCT er.student_id) FILTER (WHERE er.attempt_number > 1) AS retried_count,
+             ROUND(AVG(EXTRACT(EPOCH FROM (er.end_time - er.start_time)) / 60.0)
+               FILTER (WHERE er.is_latest = true AND er.is_absent = false AND er.end_time IS NOT NULL AND er.start_time IS NOT NULL), 1) AS avg_time_minutes,
+             ROUND(MIN(EXTRACT(EPOCH FROM (er.end_time - er.start_time)) / 60.0)
+               FILTER (WHERE er.is_latest = true AND er.is_absent = false AND er.end_time IS NOT NULL AND er.start_time IS NOT NULL), 1) AS fastest_time_minutes,
+             ROUND(MAX(EXTRACT(EPOCH FROM (er.end_time - er.start_time)) / 60.0)
+               FILTER (WHERE er.is_latest = true AND er.is_absent = false AND er.end_time IS NOT NULL AND er.start_time IS NOT NULL), 1) AS slowest_time_minutes
            FROM exam_results er
            JOIN exams ex_inner ON er.exam_id = ex_inner.id
            WHERE ex_inner.teacher_id = $1
@@ -762,6 +843,16 @@ router.get('/items', requireRole('teacher', 'assistant'), checkAnyPerm, async (r
         recParams.push(stage);
         rp++;
       }
+      if (itemsMinMinutes !== null) {
+        recConditions.push(`rr_stats.avg_time_minutes IS NOT NULL AND rr_stats.avg_time_minutes >= $${rp}`);
+        recParams.push(itemsMinMinutes);
+        rp++;
+      }
+      if (itemsMaxMinutes !== null) {
+        recConditions.push(`rr_stats.avg_time_minutes IS NOT NULL AND rr_stats.avg_time_minutes <= $${rp}`);
+        recParams.push(itemsMaxMinutes);
+        rp++;
+      }
 
       const recWhere = recConditions.join(' AND ');
 
@@ -803,7 +894,10 @@ router.get('/items', requireRole('teacher', 'assistant'), checkAnyPerm, async (r
            COALESCE(rr_stats.failed_count, 0)::int AS failed_count,
            COALESCE(rr_stats.absent_marked_count, 0)::int AS absent_marked_count,
            COALESCE(rr_stats.avg_score, 0)::numeric AS avg_score,
-           COALESCE(rr_stats.retried_count, 0)::int AS retried_count
+           COALESCE(rr_stats.retried_count, 0)::int AS retried_count,
+           rr_stats.avg_time_minutes,
+           rr_stats.fastest_time_minutes,
+           rr_stats.slowest_time_minutes
          FROM recitations r
          LEFT JOIN courses c ON r.course_id = c.id
          LEFT JOIN (
@@ -814,7 +908,13 @@ router.get('/items', requireRole('teacher', 'assistant'), checkAnyPerm, async (r
              COUNT(DISTINCT rr.student_id) FILTER (WHERE rr.passed = false AND rr.is_absent = false) AS failed_count,
              COUNT(DISTINCT rr.student_id) FILTER (WHERE rr.is_absent = true) AS absent_marked_count,
              ROUND(AVG(rr.score::numeric / NULLIF(rc_inner.total_score, 0) * 100) FILTER (WHERE rr.is_absent = false), 1) AS avg_score,
-             COUNT(rr.id) - COUNT(DISTINCT rr.student_id) AS retried_count
+             COUNT(rr.id) - COUNT(DISTINCT rr.student_id) AS retried_count,
+             ROUND(AVG(EXTRACT(EPOCH FROM (rr.end_time - rr.start_time)) / 60.0)
+               FILTER (WHERE rr.is_absent = false AND rr.end_time IS NOT NULL AND rr.start_time IS NOT NULL), 1) AS avg_time_minutes,
+             ROUND(MIN(EXTRACT(EPOCH FROM (rr.end_time - rr.start_time)) / 60.0)
+               FILTER (WHERE rr.is_absent = false AND rr.end_time IS NOT NULL AND rr.start_time IS NOT NULL), 1) AS fastest_time_minutes,
+             ROUND(MAX(EXTRACT(EPOCH FROM (rr.end_time - rr.start_time)) / 60.0)
+               FILTER (WHERE rr.is_absent = false AND rr.end_time IS NOT NULL AND rr.start_time IS NOT NULL), 1) AS slowest_time_minutes
            FROM recitation_results rr
            JOIN recitations rc_inner ON rr.recitation_id = rc_inner.id
            WHERE rc_inner.teacher_id = $1
@@ -951,6 +1051,9 @@ router.get('/item/:type/:id/students', requireRole('teacher', 'assistant'), chec
                 'wrong_count', er.wrong_count,
                 'unanswered_count', er.unanswered_count,
                 'points_earned', er.points_earned,
+                'start_time', er.start_time,
+                'end_time', er.end_time,
+                'time_minutes', ROUND(EXTRACT(EPOCH FROM (er.end_time - er.start_time)) / 60.0, 1),
                 'created_at', er.created_at
               ) ORDER BY er.attempt_number ASC, er.created_at ASC
             ) AS attempts_list
@@ -973,6 +1076,9 @@ router.get('/item/:type/:id/students', requireRole('teacher', 'assistant'), chec
           latest_er.unanswered_count,
           latest_er.points_earned,
           latest_er.is_absent,
+          latest_er.start_time,
+          latest_er.end_time,
+          ROUND(EXTRACT(EPOCH FROM (latest_er.end_time - latest_er.start_time)) / 60.0, 1) AS time_minutes,
           latest_er.created_at AS submitted_at,
           latest_er.attempt_number,
           COALESCE(sa.total_attempts, 0)::int AS attempts_count,
@@ -1018,6 +1124,9 @@ router.get('/item/:type/:id/students', requireRole('teacher', 'assistant'), chec
           wrong_count: isAbsent ? 0 : Number(st.wrong_count) || 0,
           unanswered_count: isAbsent ? 0 : Number(st.unanswered_count) || 0,
           points_earned: isAbsent ? 0 : Number(st.points_earned) || 0,
+          start_time: isAbsent ? null : st.start_time,
+          end_time: isAbsent ? null : st.end_time,
+          time_minutes: isAbsent ? null : (st.time_minutes !== null && st.time_minutes !== undefined ? Number(st.time_minutes) : null),
           submitted_at: isAbsent ? null : st.submitted_at,
           attempt_number: isAbsent ? null : st.attempt_number,
           attempts_count: Number(st.attempts_count) || 0,
@@ -1079,6 +1188,14 @@ router.get('/item/:type/:id/students', requireRole('teacher', 'assistant'), chec
       const maxScore = scores.length ? Math.max(...scores) : 0;
       const minScore = scores.length ? Math.min(...scores) : 0;
 
+      // Time aggregates across all attended attempts for this item
+      const timeMinutes = attendedRows
+        .map(r => r.time_minutes !== null && r.time_minutes !== undefined ? Number(r.time_minutes) : NaN)
+        .filter(m => !isNaN(m));
+      const avgTimeMinutes = timeMinutes.length ? Math.round((timeMinutes.reduce((a, b) => a + b, 0) / timeMinutes.length) * 10) / 10 : 0;
+      const fastestTimeMinutes = timeMinutes.length ? Math.min(...timeMinutes) : 0;
+      const slowestTimeMinutes = timeMinutes.length ? Math.max(...timeMinutes) : 0;
+
       res.json({
         item: {
           ...itemInfo,
@@ -1092,6 +1209,9 @@ router.get('/item/:type/:id/students', requireRole('teacher', 'assistant'), chec
           avg_pct: avgPct,
           max_score: maxScore,
           min_score: minScore,
+          avg_time_minutes: avgTimeMinutes,
+          fastest_time_minutes: fastestTimeMinutes,
+          slowest_time_minutes: slowestTimeMinutes,
         },
         students: processedStudents,
         total: processedStudents.length,
@@ -1174,6 +1294,9 @@ router.get('/item/:type/:id/students', requireRole('teacher', 'assistant'), chec
                 'wrong_count', rr.wrong_count,
                 'unanswered_count', rr.unanswered_count,
                 'points_earned', rr.points_earned,
+                'start_time', rr.start_time,
+                'end_time', rr.end_time,
+                'time_minutes', ROUND(EXTRACT(EPOCH FROM (rr.end_time - rr.start_time)) / 60.0, 1),
                 'created_at', rr.created_at
               ) ORDER BY rr.created_at ASC
             ) AS attempts_list
@@ -1197,6 +1320,9 @@ router.get('/item/:type/:id/students', requireRole('teacher', 'assistant'), chec
           latest_rr.unanswered_count,
           latest_rr.points_earned,
           latest_rr.is_absent,
+          latest_rr.start_time,
+          latest_rr.end_time,
+          ROUND(EXTRACT(EPOCH FROM (latest_rr.end_time - latest_rr.start_time)) / 60.0, 1) AS time_minutes,
           latest_rr.created_at AS submitted_at,
           COALESCE(sa.total_attempts, 0)::int AS attempts_count,
           COALESCE(sa.attempts_list, '[]'::json) AS attempts
@@ -1245,6 +1371,9 @@ router.get('/item/:type/:id/students', requireRole('teacher', 'assistant'), chec
           wrong_count: isAbsent ? 0 : Number(st.wrong_count) || 0,
           unanswered_count: isAbsent ? 0 : Number(st.unanswered_count) || 0,
           points_earned: isAbsent ? 0 : Number(st.points_earned) || 0,
+          start_time: isAbsent ? null : st.start_time,
+          end_time: isAbsent ? null : st.end_time,
+          time_minutes: isAbsent ? null : (st.time_minutes !== null && st.time_minutes !== undefined ? Number(st.time_minutes) : null),
           submitted_at: isAbsent ? null : st.submitted_at,
           attempts_count: Number(st.attempts_count) || 0,
           attempts: st.attempts || [],
@@ -1304,6 +1433,14 @@ router.get('/item/:type/:id/students', requireRole('teacher', 'assistant'), chec
       const maxScore = scores.length ? Math.max(...scores) : 0;
       const minScore = scores.length ? Math.min(...scores) : 0;
 
+      // Time aggregates across all attended attempts for this recitation
+      const timeMinutes = attendedRows
+        .map(r => r.time_minutes !== null && r.time_minutes !== undefined ? Number(r.time_minutes) : NaN)
+        .filter(m => !isNaN(m));
+      const avgTimeMinutes = timeMinutes.length ? Math.round((timeMinutes.reduce((a, b) => a + b, 0) / timeMinutes.length) * 10) / 10 : 0;
+      const fastestTimeMinutes = timeMinutes.length ? Math.min(...timeMinutes) : 0;
+      const slowestTimeMinutes = timeMinutes.length ? Math.max(...timeMinutes) : 0;
+
       res.json({
         item: {
           ...itemInfo,
@@ -1317,6 +1454,9 @@ router.get('/item/:type/:id/students', requireRole('teacher', 'assistant'), chec
           avg_pct: avgPct,
           max_score: maxScore,
           min_score: minScore,
+          avg_time_minutes: avgTimeMinutes,
+          fastest_time_minutes: fastestTimeMinutes,
+          slowest_time_minutes: slowestTimeMinutes,
         },
         students: processedStudents,
         total: processedStudents.length,
