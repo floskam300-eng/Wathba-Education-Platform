@@ -525,7 +525,7 @@ export default function ActivityLog() {
                 {logs.map((log, i) => (
                   <LogRow key={log.id} log={log} dark={dark}
                     textPrimary={textPrimary} textSecondary={textSecondary}
-                    border={border} i={i} />
+                    border={border} i={i} actionLabels={actionLabels} />
                 ))}
               </tbody>
             </table>
@@ -586,7 +586,7 @@ export default function ActivityLog() {
   );
 }
 
-function LogRow({ log, dark, textPrimary, textSecondary, border, i }) {
+function LogRow({ log, dark, textPrimary, textSecondary, border, i, actionLabels }) {
   const rowBg = dark
     ? i % 2 === 0 ? 'bg-transparent' : 'bg-white/[0.02]'
     : i % 2 === 0 ? 'bg-transparent' : 'bg-gray-50/70';
