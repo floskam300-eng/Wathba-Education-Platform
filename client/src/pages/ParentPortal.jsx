@@ -241,7 +241,9 @@ export default function ParentPortal() {
   useForceLightMode();
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
+  const [selectingId, setSelectingId] = useState(null);
   const [data, setData] = useState(null);
+  const [multiStudents, setMultiStudents] = useState(null);
   const [error, setError] = useState('');
   const [showAllVideos, setShowAllVideos] = useState(false);
   const resultsRef = useRef(null);
@@ -249,19 +251,48 @@ export default function ParentPortal() {
   const displayLogo = logoUrl || wathbaLogo;
 
   const handleSearch = async (e) => {
-    e.preventDefault();
+    e?.preventDefault();
     if (!phone.trim()) return;
     setLoading(true);
     setError('');
     setData(null);
+    setMultiStudents(null);
     try {
       const res = await api.get('/public/parent-lookup', { params: { phone: phone.trim() } });
-      setData(res.data);
+      if (res.data.multiple) {
+        setMultiStudents(res.data.students);
+        setData(null);
+      } else {
+        setData(res.data);
+        if (res.data.available_students) {
+          setMultiStudents(res.data.available_students);
+        }
+      }
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
     } catch (err) {
       setError(err.response?.data?.error || 'حدث خطأ، حاول مرة أخرى');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSelectStudent = async (studentId) => {
+    if (!phone.trim() || !studentId) return;
+    setSelectingId(studentId);
+    setError('');
+    try {
+      const res = await api.get('/public/parent-lookup', {
+        params: { phone: phone.trim(), student_id: studentId }
+      });
+      setData(res.data);
+      if (res.data.available_students) {
+        setMultiStudents(res.data.available_students);
+      }
+      setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+    } catch (err) {
+      setError(err.response?.data?.error || 'حدث خطأ، حاول مرة أخرى');
+    } finally {
+      setSelectingId(null);
     }
   };
 
@@ -470,7 +501,7 @@ export default function ParentPortal() {
           )}
 
           {/* Hint */}
-          {!data && !error && (
+          {!data && !multiStudents && !error && (
             <p className="pp-fade-in text-[#0B3C5D]/40 text-xs mt-5 leading-normal px-4" style={{ animationDelay: '0.7s' }}>
               الرقم المسجَّل هو رقم ولي الأمر الذي أضافه المعلم عند تسجيل الطالب
             </p>
@@ -478,10 +509,103 @@ export default function ParentPortal() {
         </div>
       </section>
 
+      {/* ── MULTI-STUDENT SELECTOR STEP (الحل الثاني: اختيار الطالب) ── */}
+      {!data && multiStudents && multiStudents.length > 0 && (
+        <div ref={resultsRef} className="relative pb-24 bg-[#F0F4F8] w-full">
+          <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 pt-10 sm:pt-14">
+            <Reveal className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl p-5 sm:p-8 mb-8 shadow-xl shadow-[#0B3C5D]/5 text-center">
+              <div className="inline-flex items-center gap-2 bg-orange-500/10 border border-orange-500/20 text-orange-600 text-xs sm:text-sm font-bold px-4 py-1.5 rounded-full mb-4">
+                <Users className="w-4 h-4 text-orange-500" />
+                <span>تم العثور على {multiStudents.length} طلاب مسجلين برقمك</span>
+              </div>
+              <h2 className="text-[#0B3C5D] font-black text-xl sm:text-2xl mb-2">اختر الطالب لعرض تقريره التعليمي</h2>
+              <p className="text-[#0B3C5D]/60 text-xs sm:text-sm max-w-lg mx-auto mb-8 leading-relaxed">
+                يرجى اختيار الابن / الابنة التي تود متابعة نتائج امتحاناتها، تسميعاتها، ونسب المشاهدة ومستوى أدائها العام.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 text-right">
+                {multiStudents.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => handleSelectStudent(s.id)}
+                    disabled={selectingId !== null}
+                    className="group relative bg-gradient-to-br from-white to-slate-50 hover:to-orange-50/50 border-2 border-slate-200 hover:border-orange-400 rounded-2xl p-5 sm:p-6 transition-all duration-300 hover:shadow-lg hover:shadow-orange-500/10 text-right flex flex-col justify-between gap-4 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:border-orange-500"
+                  >
+                    <div className="flex items-center gap-3.5 sm:gap-4">
+                      <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 text-white font-black text-lg sm:text-xl flex items-center justify-center shadow-md shadow-orange-500/20 shrink-0 group-hover:scale-105 transition-transform duration-300">
+                        {s.name?.charAt(0) || '؟'}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-[#0B3C5D] font-black text-base sm:text-lg group-hover:text-orange-600 transition-colors duration-200 truncate">
+                          {s.name}
+                        </h3>
+                        {s.academic_stage && (
+                          <div className="flex items-center gap-1.5 text-xs text-[#0B3C5D]/60 mt-1 font-semibold">
+                            <GraduationCap className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+                            <span className="truncate">{s.academic_stage}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-3 border-t border-slate-200/60 mt-1">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-amber-600 bg-amber-50 border border-amber-200/60 px-2.5 py-1 rounded-full">
+                        <Trophy className="w-3.5 h-3.5 shrink-0" />
+                        <span>{s.points?.toLocaleString('ar-EG') || 0} نقطة</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-xs sm:text-sm font-black text-orange-600 group-hover:translate-x-[-4px] transition-transform duration-200">
+                        {selectingId === s.id ? (
+                          <div className="flex items-center gap-2">
+                            <div className="w-3.5 h-3.5 border-2 border-orange-600 border-t-transparent rounded-full animate-spin" />
+                            <span>جاري الفتح...</span>
+                          </div>
+                        ) : (
+                          <>
+                            <span>عرض التقرير</span>
+                            <ArrowLeft className="w-4 h-4" />
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </Reveal>
+          </div>
+        </div>
+      )}
+
       {/* ── RESULTS ── */}
       {data && (
         <div ref={resultsRef} className="relative pb-24 bg-[#F0F4F8] w-full">
           <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 pt-10 sm:pt-16">
+
+            {/* Back to students selection banner (when multiple students exist) */}
+            {multiStudents && multiStudents.length > 1 && (
+              <Reveal className="mb-6 flex flex-wrap items-center justify-between gap-3 bg-white border border-slate-200 rounded-2xl px-4 py-3 sm:px-5 sm:py-3.5 shadow-sm">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-orange-500/10 text-orange-600 flex items-center justify-center shrink-0">
+                    <Users className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-[#0B3C5D]/60 font-semibold">متابعة تقرير</p>
+                    <p className="text-sm font-black text-[#0B3C5D]">{student.name} {student.academic_stage ? `(${student.academic_stage})` : ''}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setData(null);
+                    setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+                  }}
+                  className="flex items-center gap-1.5 bg-slate-100 hover:bg-orange-50 border border-slate-200 hover:border-orange-300 text-[#0B3C5D] hover:text-orange-600 text-xs sm:text-sm font-bold px-3.5 py-2 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"
+                >
+                  <Users className="w-4 h-4 text-orange-500" />
+                  <span>اختيار طالب آخر ({multiStudents.length} طلاب)</span>
+                  <ArrowLeft className="w-3.5 h-3.5 rotate-180" />
+                </button>
+              </Reveal>
+            )}
 
             {/* ── Student Header Card ── */}
             <Reveal className="bg-gradient-to-l from-orange-50 via-white to-blue-50 border border-slate-200 rounded-2xl sm:rounded-3xl p-4 sm:p-6 mb-6 min-w-0"

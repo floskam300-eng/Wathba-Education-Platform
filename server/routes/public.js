@@ -103,7 +103,7 @@ router.get('/info', async (req, res) => {
 
 // Parent portal — lookup student results by parent phone, scoped to teacher
 router.get('/parent-lookup', parentLookupLimiter, async (req, res) => {
-  const { phone } = req.query;
+  const { phone, student_id } = req.query;
   if (!phone || phone.trim().length < 7) {
     return res.status(400).json({ error: 'رقم الهاتف غير صحيح' });
   }
@@ -124,9 +124,9 @@ router.get('/parent-lookup', parentLookupLimiter, async (req, res) => {
     const teacherFeatures = featuresRes.rows[0]?.features_enabled || {};
     const attendanceEnabled = teacherFeatures.class_attendance !== false;
 
-    // Find student by parent phone, strictly scoped to this teacher
+    // Find students by parent phone, strictly scoped to this teacher
     const studentRes = await pool.query(
-      'SELECT id, name, phone, parent_phone, academic_stage, gender, points, created_at FROM students WHERE parent_phone = $1 AND teacher_id = $2 AND deleted_at IS NULL',
+      'SELECT id, name, phone, parent_phone, academic_stage, gender, points, created_at FROM students WHERE parent_phone = $1 AND teacher_id = $2 AND deleted_at IS NULL ORDER BY name ASC, id ASC',
       [phone.trim(), teacherId]
     );
 
@@ -134,7 +134,33 @@ router.get('/parent-lookup', parentLookupLimiter, async (req, res) => {
       return res.status(404).json({ error: 'لم يتم العثور على طالب مرتبط بهذا الرقم' });
     }
 
-    const student = studentRes.rows[0];
+    // If multiple students are registered under this parent phone and no specific student_id was requested
+    const targetStudentId = student_id ? parseInt(student_id, 10) : null;
+    if (studentRes.rows.length > 1 && !targetStudentId) {
+      return res.json({
+        multiple: true,
+        count: studentRes.rows.length,
+        students: studentRes.rows.map(s => ({
+          id: s.id,
+          name: s.name,
+          academic_stage: s.academic_stage,
+          gender: s.gender,
+          points: s.points,
+        })),
+      });
+    }
+
+    // Determine target student
+    let student = studentRes.rows[0];
+    if (targetStudentId) {
+      const found = studentRes.rows.find(s => s.id === targetStudentId);
+      if (found) {
+        student = found;
+      } else {
+        return res.status(404).json({ error: 'الطالب المحدد غير مرتبط بهذا الرقم' });
+      }
+    }
+
     const sid = student.id;
 
     // R-6 OPT: cache rank per student (2 min TTL) — skips COUNT(*) query when fresh
@@ -253,7 +279,9 @@ router.get('/parent-lookup', parentLookupLimiter, async (req, res) => {
     vpSummary.total_course_videos = parseInt(totalVideosRes.rows[0]?.total_course_videos || 0);
 
     res.json({
+      multiple: false,
       student: {
+        id: student.id,
         name: student.name,
         academic_stage: student.academic_stage,
         gender: student.gender,
@@ -261,6 +289,13 @@ router.get('/parent-lookup', parentLookupLimiter, async (req, res) => {
         created_at: student.created_at,
         rank,
       },
+      available_students: studentRes.rows.length > 1 ? studentRes.rows.map(s => ({
+        id: s.id,
+        name: s.name,
+        academic_stage: s.academic_stage,
+        gender: s.gender,
+        points: s.points,
+      })) : null,
       courses: coursesRes.rows,
       exam_results: examsRes.rows,
       recitation_results: recitationsRes.rows,
