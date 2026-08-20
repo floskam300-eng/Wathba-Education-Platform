@@ -273,27 +273,19 @@ export default function StudentExams() {
 
   const [lightboxSrc, setLightboxSrc] = useState(null);
 
-  // Shared scroll-to-top helper used on both exam entry and result display.
-  // Resets BOTH the layout <main> AND the component's own scrollable div (via
-  // scrollContainerRef) so we cover all browser/device combinations.
+  // Shared scroll-to-top helper used on exam entry and result display.
+  // Single immediate reset of the component's own scrollable div (and the
+  // layout <main> as a fallback). Deliberately NOT repeated on a timer — the
+  // old version re-scrolled to top 5 times over 600ms, which hijacked the
+  // student's touch scrolling on mobile and made the page appear to freeze
+  // and jump up by itself after every question change.
   const scrollAllToTop = useCallback(() => {
-    const reset = () => {
-      if (document.activeElement && document.activeElement !== document.body) {
-        document.activeElement.blur();
-      }
-      if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
-      const mainEl = document.querySelector('main');
-      if (mainEl) mainEl.scrollTop = 0;
-      if (document.documentElement) document.documentElement.scrollTop = 0;
-      if (document.body) document.body.scrollTop = 0;
-      window.scrollTo(0, 0);
-    };
-    reset();
-    const t1 = setTimeout(reset, 50);
-    const t2 = setTimeout(reset, 150);
-    const t3 = setTimeout(reset, 300);
-    const t4 = setTimeout(reset, 600);
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
+    if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
+    const mainEl = document.querySelector('main');
+    if (mainEl) mainEl.scrollTop = 0;
+    if (document.documentElement) document.documentElement.scrollTop = 0;
+    if (document.body) document.body.scrollTop = 0;
+    window.scrollTo(0, 0);
   }, []);
 
   // Scroll to top when result is shown (exam finished).
@@ -598,7 +590,10 @@ export default function StudentExams() {
 
     const goTo = (idx) => {
       setCurrentQuestionIdx(idx);
-      scrollAllToTop();
+      // Only reset the exam's own scroll container so the new question starts
+      // at the top — without touching the window/main (which is what made the
+      // page jump up by itself on mobile).
+      if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
     };
 
     return (

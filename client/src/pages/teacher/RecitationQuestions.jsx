@@ -10,6 +10,7 @@ import { withToken } from '../../lib/mediaAccess';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
+import AutoResizeTextarea from '../../components/ui/AutoResizeTextarea';
 
 const QUESTION_TYPES = [
   { value: 'mcq', label: '🔘 اختيار متعدد' },
@@ -183,7 +184,7 @@ export default function RecitationQuestions() {
       sub_questions: q.sub_questions || [],
       option_labels: q.option_labels || null,
     });
-    formTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    formTopRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const totalPoints = questions.reduce((s, q) => s + (parseInt(q.points) || 0), 0);
@@ -274,7 +275,7 @@ export default function RecitationQuestions() {
           </div>
 
           {/* ── Add / Edit form ────────────────────────────────────────── */}
-          <div ref={formTopRef} className="lg:col-span-2 order-1 lg:order-2 lg:sticky lg:top-4">
+          <div ref={formTopRef} className="lg:col-span-2 order-1 lg:order-2 lg:sticky lg:top-4 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:overscroll-contain lg:pl-1">
             {recitation?.is_published ? (
               <div className="bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-300 dark:border-amber-700/50 rounded-2xl p-5 text-center">
                 <AlertCircle className="w-8 h-8 text-amber-500 mx-auto mb-2" />
@@ -321,11 +322,12 @@ export default function RecitationQuestions() {
                     <label className="block text-xs font-bold text-navy-700 dark:text-[var(--dk-text-1)] mb-1">
                       نص السؤال <span className="text-gray-400 dark:text-[var(--dk-text-3)] font-normal">{isImgMulti ? '(تعليمات اختياري)' : '(اختياري إذا وُجدت صورة)'}</span>
                     </label>
-                    <textarea
+                    <AutoResizeTextarea
                       value={qForm.question_text}
                       onChange={e => setQForm(f => ({ ...f, question_text: e.target.value }))}
-                      rows={2}
-                      className="w-full rounded-xl px-3 py-2.5 border border-gray-200 dark:border-[var(--dk-border)] bg-white dark:bg-[var(--dk-elevated)] text-gray-900 dark:text-[var(--dk-text-1)] text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-300 dark:focus:ring-purple-600/50 placeholder:text-gray-400 dark:placeholder:text-[var(--dk-text-3)]"
+                      className="w-full rounded-xl px-3 py-2.5 border border-gray-200 dark:border-[var(--dk-border)] bg-white dark:bg-[var(--dk-elevated)] text-gray-900 dark:text-[var(--dk-text-1)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 dark:focus:ring-purple-600/50 placeholder:text-gray-400 dark:placeholder:text-[var(--dk-text-3)]"
+                      minHeight={56}
+                      maxHeight={320}
                       placeholder="اكتب نص السؤال هنا..." />
                   </div>
 

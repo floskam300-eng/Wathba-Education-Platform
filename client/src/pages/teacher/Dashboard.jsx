@@ -245,7 +245,7 @@ export default function TeacherDashboard() {
               )}
             </div>
             <button
-              onClick={() => navigate('/teacher/students')}
+              onClick={() => navigate('/teacher/analytics/at-risk')}
               className="flex items-center gap-1 text-[11px] font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg border border-red-200 transition-colors"
             >
               عرض الكل <ChevronLeft className="w-3.5 h-3.5" />

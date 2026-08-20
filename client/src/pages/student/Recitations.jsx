@@ -625,9 +625,11 @@ export default function StudentRecitations() {
 
     const goTo = (idx) => {
       setCurrentQuestionIdx(idx);
+      // Reset only the layout <main> scroller so the new question starts at the
+      // top. Avoid window.scrollTo(0,0) here — on mobile both can fight each
+      // other and make the page freeze/jump while the student is scrolling.
       const el = document.querySelector('main');
       if (el) el.scrollTop = 0;
-      window.scrollTo(0, 0);
     };
 
     return (

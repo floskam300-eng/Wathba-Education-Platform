@@ -19,7 +19,7 @@ import { toUTCDate, getServerNowMs } from '../../lib/dateUtils';
 
 /* ─── helpers ─────────────────────────────────────────── */
 const fmt = (min) => min >= 60
-  ? `${Math.floor(min / 60)}س ${min % 60}د`
+  ? `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0')}`
   : `${min} دقيقة`;
 
 // A student is "passed" if they ever passed (stable once earned),
@@ -599,8 +599,11 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
   };
 
   const fmtSec = (s) => {
-    const m = Math.floor(s / 60);
-    return `${m}:${Math.floor(s % 60).toString().padStart(2, '0')}`;
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = Math.floor(s % 60).toString().padStart(2, '0');
+    if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${sec}`;
+    return `${m}:${sec}`;
   };
 
   const pctStr = `${progress}%`;
@@ -878,8 +881,11 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
   };
 
   const fmtSec = (s) => {
-    const m = Math.floor(s / 60);
-    return `${m}:${Math.floor(s % 60).toString().padStart(2, '0')}`;
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = Math.floor(s % 60).toString().padStart(2, '0');
+    if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${sec}`;
+    return `${m}:${sec}`;
   };
 
   const onSeekChange = (e) => {
@@ -1327,11 +1333,21 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
   const handleSubmitRef = useRef(null); // [H3-FIX] always-current ref, prevents stale closure in timer
 
   const timerBaseClientMsRef = useRef(null);
+  const questionScrollRef = useRef(null); // [scroll-fix] resets the question pane to top on navigation
 
   useEffect(() => {
     mountedRef.current = true;
     return () => { mountedRef.current = false; };
   }, []);
+
+  // [scroll-fix] When navigating between questions inside the take view, reset
+  // the question pane to its top so each new question starts from the top
+  // instead of inheriting the previous question's scroll offset.
+  useEffect(() => {
+    if (view === 'take' && questionScrollRef.current) {
+      questionScrollRef.current.scrollTop = 0;
+    }
+  }, [view, currentQuestionIdx]);
 
   // [B7] If the panel was opened with a single recitation (deep-link from
   // CourseView sidebar) pre-select it so the student doesn't have to click
@@ -1649,7 +1665,7 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
         )}
 
         {/* Current question content */}
-        <div className="flex-1 overflow-y-auto p-3">
+        <div ref={questionScrollRef} className="flex-1 overflow-y-auto p-3">
           {q && (
             <CourseQuestionCard
               key={q.id}

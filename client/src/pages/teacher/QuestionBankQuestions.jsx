@@ -8,6 +8,7 @@ import {
 import Modal from '../../components/ui/Modal';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import MathText from '../../components/MathText';
+import AutoResizeTextarea from '../../components/ui/AutoResizeTextarea';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
@@ -64,7 +65,7 @@ export default function QuestionBankQuestions() {
   const [imagePreview, setImagePreview] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
   const imageFileRef = useRef(null);
-  const scrollContainerRef = useRef(null);
+  const formScrollRef = useRef(null);
 
   const [imgMultiCount, setImgMultiCount] = useState(5);
   const [showImport, setShowImport] = useState(false);
@@ -171,7 +172,7 @@ export default function QuestionBankQuestions() {
     setImagePreview(q.question_image_url || '');
     setImageInputMode('url');
     if (q.sub_questions?.length) setImgMultiCount(q.sub_questions.length);
-    scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    formScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleQSubmit = async (e) => {
@@ -241,7 +242,7 @@ export default function QuestionBankQuestions() {
         </div>
       </div>
 
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto min-h-0 p-4 lg:p-6">
+      <div className="flex-1 overflow-y-auto min-h-0 p-4 lg:p-6">
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6 items-start">
 
           {/* Questions List */}
@@ -311,7 +312,7 @@ export default function QuestionBankQuestions() {
           </div>
 
           {/* Add/Edit Question Form */}
-          <div className="lg:col-span-2 order-1 lg:order-2 lg:sticky lg:top-4">
+          <div ref={formScrollRef} className="lg:col-span-2 order-1 lg:order-2 lg:sticky lg:top-4 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:overscroll-contain lg:pl-1">
             <div className="bg-white rounded-2xl border-2 border-dashed border-purple-300 p-5 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-black text-navy-700 flex items-center gap-2">
@@ -341,8 +342,8 @@ export default function QuestionBankQuestions() {
 
                 <div>
                   <label className="block text-xs font-bold text-gray-600 mb-1">نص السؤال</label>
-                  <textarea value={qForm.question_text} onChange={e => setQForm({ ...qForm, question_text: e.target.value })}
-                    className="input-field text-sm resize-none" rows={2} placeholder="اكتب نص السؤال هنا..." />
+                  <AutoResizeTextarea value={qForm.question_text} onChange={e => setQForm({ ...qForm, question_text: e.target.value })}
+                    className="input-field text-sm" minHeight={56} maxHeight={320} placeholder="اكتب نص السؤال هنا..." />
                 </div>
 
                 <div>

@@ -11,6 +11,7 @@ import { useAuth } from '../../context/AuthContext';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import MathText from '../../components/MathText';
 import MathToolbar from '../../components/MathToolbar';
+import AutoResizeTextarea from '../../components/ui/AutoResizeTextarea';
 import CsvImportModal from '../../components/CsvImportModal';
 import { withToken } from '../../lib/mediaAccess';
 
@@ -60,7 +61,7 @@ export default function ExamQuestions() {
   const [imagePreview, setImagePreview] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
   const imageFileRef = useRef(null);
-  const scrollContainerRef = useRef(null);
+  const formScrollRef = useRef(null);
   const questionTextRef = useRef(null);
 
   // CSV import modal
@@ -236,7 +237,7 @@ export default function ExamQuestions() {
         </div>
       </div>
 
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto min-h-0 p-4 lg:p-6">
+      <div className="flex-1 overflow-y-auto min-h-0 p-4 lg:p-6">
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6 items-start">
 
         {/* Questions List */}
@@ -279,7 +280,7 @@ export default function ExamQuestions() {
                     setQForm({ ...q, question_type: q.question_type || 'mcq' });
                     setImageFile(null); setImagePreview(''); setImageInputMode(q.question_image_url?.startsWith('/uploads') ? 'file' : 'url');
                     if (imageFileRef.current) imageFileRef.current.value = '';
-                    scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+                    formScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
                   onDelete={() => setDeleteQId(q.id)}
                 />
@@ -289,7 +290,7 @@ export default function ExamQuestions() {
         </div>
 
         {/* Add/Edit Question Form */}
-        <div className="lg:col-span-2 order-1 lg:order-2 lg:sticky lg:top-4">
+        <div ref={formScrollRef} className="lg:col-span-2 order-1 lg:order-2 lg:sticky lg:top-4 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:overscroll-contain lg:pl-1">
           <div className="bg-white rounded-2xl border-2 border-dashed border-orange-300 p-5 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-black text-navy-700 flex items-center gap-2">
@@ -337,11 +338,13 @@ export default function ExamQuestions() {
                   value={qForm.question_text}
                   onChange={v => setQForm({ ...qForm, question_text: v })}
                 />
-                <textarea
+                <AutoResizeTextarea
                   ref={questionTextRef}
                   value={qForm.question_text}
                   onChange={e => setQForm({ ...qForm, question_text: e.target.value })}
-                  className="input-field h-20 resize-none text-sm"
+                  className="input-field text-sm"
+                  minHeight={80}
+                  maxHeight={320}
                   placeholder="اكتب نص السؤال هنا... (استخدم $...$ للمعادلات)" />
               </div>
 
