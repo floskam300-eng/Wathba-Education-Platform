@@ -88,6 +88,8 @@ export default function StudentExams() {
   const studentId = user?.id || 0;
   const qc = useQueryClient();
   const [taking, setTaking] = useState(null);
+  const [examData, setExamData] = useState(null);
+  const [startingId, setStartingId] = useState(null);
   const [answers, setAnswers] = useState({});
   const [result, setResult] = useState(null);
   const [timeLeft, setTimeLeft] = useState(0);
@@ -105,6 +107,24 @@ export default function StudentExams() {
   const [showHistory, setShowHistory] = useState(false);
   // Question-by-question navigation
   const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
+
+  // Storage key helpers scoped to user.id
+  const getAnsKey = useCallback((id) => `exam_answers_${user?.id || 0}_${id}`, [user?.id]);
+  const getStartKey = useCallback((id) => `exam_start_${user?.id || 0}_${id}`, [user?.id]);
+  const getActKey = useCallback((id) => `exam_active_${user?.id || 0}_${id}`, [user?.id]);
+
+  const clearExamKeys = useCallback((id) => {
+    if (!id) return;
+    try {
+      const uId = user?.id || 0;
+      localStorage.removeItem(`exam_answers_${uId}_${id}`);
+      localStorage.removeItem(`exam_start_${uId}_${id}`);
+      localStorage.removeItem(`exam_active_${uId}_${id}`);
+      localStorage.removeItem(`exam_answers_${id}`);
+      localStorage.removeItem(`exam_start_${id}`);
+      localStorage.removeItem(`exam_active_${id}`);
+    } catch (_) {}
+  }, [user?.id]);
 
   // Ref attached to the root scrollable div in every view (exam-taking, list, result).
   // scrollAllToTop resets both this container AND the layout <main> so we cover all cases.
@@ -195,14 +215,6 @@ export default function StudentExams() {
     return acc;
   }, {});
 
-  const { data: examData } = useQuery({
-    queryKey: ['exam-take', taking?.id],
-    queryFn: () => api.get(`/exams/${taking?.id}/take`).then(r => r.data),
-    enabled: !!taking && !taking.already_taken,
-    staleTime: 0,
-    refetchOnMount: 'always',
-  });
-
   const retryRequestMut = useMutation({
     mutationFn: ({ examId, message }) => api.post(`/exams/${examId}/retry-request`, { message }),
     onSuccess: () => {
@@ -217,21 +229,23 @@ export default function StudentExams() {
   const submitMut = useMutation({
     mutationFn: ({ id, data }) => api.post(`/exams/${id}/submit`, data),
     onSuccess: (res, variables) => {
-      localStorage.removeItem(`exam_start_${variables.id}`);
-      localStorage.removeItem(`exam_answers_${variables.id}`);
+      clearExamKeys(variables.id);
       setResult(res.data);
       setTaking(null);
+      setExamData(null);
       qc.invalidateQueries({ queryKey: ['student-exams'] });
+      qc.invalidateQueries({ queryKey: ['student-my-results'] });
       qc.invalidateQueries({ queryKey: ['student-dashboard'] });
     },
     onError: (e, variables) => {
       const status = e.response?.status;
-      if (status === 409) {
+      if (status === 409 || e.response?.data?.already_submitted) {
         // Already submitted (e.g., duplicate keepalive) — clean up and refresh
-        localStorage.removeItem(`exam_start_${variables.id}`);
-        localStorage.removeItem(`exam_answers_${variables.id}`);
+        clearExamKeys(variables.id);
         setTaking(null);
+        setExamData(null);
         qc.invalidateQueries({ queryKey: ['student-exams'] });
+        qc.invalidateQueries({ queryKey: ['student-my-results'] });
       } else {
         // Retriable error — reset guard so student can re-submit
         submittedRef.current = false;
@@ -262,18 +276,12 @@ export default function StudentExams() {
   // Shared scroll-to-top helper used on both exam entry and result display.
   // Resets BOTH the layout <main> AND the component's own scrollable div (via
   // scrollContainerRef) so we cover all browser/device combinations.
-  // We fire at 0 ms, 50 ms, 150 ms, 300 ms, and 600 ms to win against
-  // post-layout adjustments, late data renders, and query-cache refetches.
   const scrollAllToTop = useCallback(() => {
     const reset = () => {
-      // Blur any focused element so the browser doesn't re-scroll to keep it
-      // in view after we reset the position.
       if (document.activeElement && document.activeElement !== document.body) {
         document.activeElement.blur();
       }
-      // Reset the component's own scrollable container (the most reliable target)
       if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
-      // Also reset layout-level containers as fallback
       const mainEl = document.querySelector('main');
       if (mainEl) mainEl.scrollTop = 0;
       if (document.documentElement) document.documentElement.scrollTop = 0;
@@ -294,14 +302,11 @@ export default function StudentExams() {
   }, [!!result]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Scroll to top when entering an exam (taking becomes non-null).
-  // Without this, <main> keeps the scroll position from the exam list page.
   useEffect(() => {
     if (taking) return scrollAllToTop();
   }, [!!taking]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Scroll to top again when exam questions finish loading.
-  // examData arrives via React Query AFTER taking is set, so without this the
-  // question list renders after the earlier resets and can land mid-page.
   useEffect(() => {
     if (examData) return scrollAllToTop();
   }, [!!examData]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -311,24 +316,36 @@ export default function StudentExams() {
     if (examData) setCurrentQuestionIdx(0);
   }, [examData]);
 
-  // Must be declared here (before any early returns) to satisfy the Rules of Hooks.
-  // When the exam-taking view is active, this will always return [] due to the
-  // `if (taking) return []` guard inside the memo.
+  // Track stuck exams across storage
   const stuckExamIds = React.useMemo(() => {
     if (taking) return [];
     try {
-      return Object.keys(localStorage)
-        .filter(k => k.startsWith('exam_start_'))
-        .map(k => parseInt(k.replace('exam_start_', ''), 10))
-        .filter(id => !isNaN(id));
+      const uId = user?.id || 0;
+      const actPrefix = `exam_active_${uId}_`;
+      const ansPrefix = `exam_answers_${uId}_`;
+      const startPrefix = `exam_start_${uId}_`;
+      const ids = new Set();
+      Object.keys(localStorage).forEach(k => {
+        if (k.startsWith(actPrefix)) {
+          const id = parseInt(k.replace(actPrefix, ''), 10);
+          if (!isNaN(id)) ids.add(id);
+        } else if (k.startsWith(ansPrefix)) {
+          const id = parseInt(k.replace(ansPrefix, ''), 10);
+          if (!isNaN(id)) ids.add(id);
+        } else if (k.startsWith(startPrefix)) {
+          const id = parseInt(k.replace(startPrefix, ''), 10);
+          if (!isNaN(id)) ids.add(id);
+        } else if (k.startsWith('exam_start_')) {
+          const id = parseInt(k.replace('exam_start_', ''), 10);
+          if (!isNaN(id)) ids.add(id);
+        }
+      });
+      return Array.from(ids);
     } catch (_) { return []; }
-  }, [taking, exams]);
+  }, [taking, exams, user?.id]);
 
   const clearStuckSession = (examId) => {
-    try {
-      localStorage.removeItem(`exam_start_${examId}`);
-      localStorage.removeItem(`exam_answers_${examId}`);
-    } catch (_) {}
+    clearExamKeys(examId);
     window.location.reload();
   };
 
@@ -342,8 +359,12 @@ export default function StudentExams() {
   // ── Save answers to localStorage whenever they change ──
   useEffect(() => {
     if (!taking) return;
-    try { localStorage.setItem(`exam_answers_${taking.id}`, JSON.stringify(answers)); } catch (_) {}
-  }, [answers, taking]);
+    try {
+      const uId = user?.id || 0;
+      localStorage.setItem(`exam_answers_${uId}_${taking.id}`, JSON.stringify(answers));
+      localStorage.setItem(`exam_active_${uId}_${taking.id}`, 'true');
+    } catch (_) {}
+  }, [answers, taking, user?.id]);
 
   // ── Monotonic Timer + Resume Handling ──
   const timerEpochRef = useRef(null);
@@ -352,8 +373,6 @@ export default function StudentExams() {
   useEffect(() => {
     if (!examData || !taking) return;
     const examId = taking.id;
-    const storageKey = `exam_start_${examId}`;
-    const answersKey = `exam_answers_${examId}`;
     const durationSecs = Math.max(1, parseInt(examData.exam?.duration_minutes, 10) || 60) * 60;
 
     let remainingSecs = durationSecs;
@@ -369,17 +388,6 @@ export default function StudentExams() {
       }
     }
 
-    // Restore saved answers seamlessly when resuming
-    try {
-      const saved = localStorage.getItem(answersKey);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-          setAnswers(parsed);
-        }
-      }
-    } catch (_) {}
-
     const startIso = examData.server_started_at || examData.serverStartedAt || new Date().toISOString();
     setStartTime(startIso);
 
@@ -390,7 +398,7 @@ export default function StudentExams() {
     setTimeLeft(remainingSecs);
 
     if (remainingSecs <= 0) {
-      localStorage.removeItem(storageKey);
+      clearExamKeys(examId);
       if (!submittedRef.current) {
         submittedRef.current = true;
         submitMut.mutate({ id: examId, data: { answers: answersRef.current, start_time: startIso, locked: false } });
@@ -412,7 +420,7 @@ export default function StudentExams() {
       setTimeLeft(trueLeft);
       if (trueLeft <= 0) {
         clearInterval(interval);
-        localStorage.removeItem(storageKey);
+        clearExamKeys(examId);
         if (timerActive && !submittedRef.current) {
           submittedRef.current = true;
           submitMut.mutate({ id: examId, data: { answers: answersRef.current, start_time: startIso, locked: false } });
@@ -436,7 +444,7 @@ export default function StudentExams() {
       document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
       window.removeEventListener('focus', handleVisibilityOrFocus);
     };
-  }, [examData]);
+  }, [examData, taking, clearExamKeys]);
 
   /* ── Pre-exam countdown 3-2-1 ── */
   useEffect(() => {
@@ -458,46 +466,70 @@ export default function StudentExams() {
   };
 
   const navigate = useNavigate();
-  const openExam = (exam) => {
+
+  const openExam = async (exam) => {
     const status = getExamScheduleStatus(exam, getServerNow());
     if (status === 'upcoming') return toast.error('الاختبار لم يبدأ بعد');
-    if (status === 'expired' && retryMap[exam.id]?.status !== 'approved') return toast.error('انتهى وقت هذا الاختبار');
+    if (status === 'expired' && retryMap[exam.id]?.status !== 'approved') {
+      clearExamKeys(exam.id);
+      return toast.error('انتهى وقت هذا الاختبار');
+    }
 
-    // Check if resuming an existing attempt with saved answers
-    let isResuming = false;
+    setStartingId(exam.id);
     try {
-      const saved = localStorage.getItem(`exam_answers_${exam.id}`);
-      const savedStart = localStorage.getItem(`exam_start_${exam.id}`);
-      if (saved || savedStart) {
-        isResuming = true;
+      const res = await api.get(`/exams/${exam.id}/take`);
+      const data = res.data;
+
+      // Check if remaining seconds is expired
+      if (typeof data.remaining_seconds === 'number' && data.remaining_seconds <= 0) {
+        clearExamKeys(exam.id);
+        toast.error('لقد انتهت مهلة محاولتك لهذا الاختبار');
+        qc.invalidateQueries({ queryKey: ['student-exams'] });
+        qc.invalidateQueries({ queryKey: ['student-my-results'] });
+        setStartingId(null);
+        return;
       }
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-          setAnswers(parsed);
-        } else {
-          setAnswers({});
+
+      // Restore saved answers from localStorage if any
+      let loadedAnswers = {};
+      try {
+        const uId = user?.id || 0;
+        const saved = localStorage.getItem(`exam_answers_${uId}_${exam.id}`) || localStorage.getItem(`exam_answers_${exam.id}`);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            loadedAnswers = parsed;
+          }
         }
-      } else {
-        setAnswers({});
+      } catch (_) {}
+
+      setAnswers(loadedAnswers);
+      setResult(null);
+      submittedRef.current = false;
+      setCurrentQuestionIdx(0);
+      setExamData(data);
+
+      const examForTaking = { ...exam };
+      if (retryMap[exam.id]?.status === 'approved') {
+        delete examForTaking.already_taken;
       }
-    } catch (_) {
-      setAnswers({});
-    }
 
-    setResult(null);
-    submittedRef.current = false;
-    const examForTaking = { ...exam };
-    if (retryMap[exam.id]?.status === 'approved') {
-      delete examForTaking.already_taken;
-    }
-
-    if (isResuming) {
-      // Resume directly without 3-2-1 countdown screen
-      setTaking(examForTaking);
-    } else {
-      setPendingExam(examForTaking);
-      setCountdown(3);
+      if (data.resumed || Object.keys(loadedAnswers).length > 0) {
+        // Resume directly without 3-2-1 countdown screen
+        setTaking(examForTaking);
+        setStartingId(null);
+      } else {
+        setPendingExam(examForTaking);
+        setCountdown(3);
+        setStartingId(null);
+      }
+    } catch (err) {
+      clearExamKeys(exam.id);
+      qc.invalidateQueries({ queryKey: ['student-exams'] });
+      qc.invalidateQueries({ queryKey: ['student-my-results'] });
+      setStartingId(null);
+      const errMsg = err.response?.data?.error || 'تعذر فتح الاختبار';
+      toast.error(errMsg);
     }
   };
 
@@ -820,12 +852,69 @@ export default function StudentExams() {
     );
   }
 
+  // Active in-progress exam session detection
+  const activeInProgressExam = useMemo(() => {
+    if (taking) return null;
+    const uId = user?.id || 0;
+    return exams.find(ex => {
+      const scheduleStatus = getExamScheduleStatus(ex, scheduleNow);
+      if (scheduleStatus !== 'open' || ex.already_taken) return false;
+      try {
+        return !!(
+          localStorage.getItem(`exam_answers_${uId}_${ex.id}`) ||
+          localStorage.getItem(`exam_active_${uId}_${ex.id}`) ||
+          localStorage.getItem(`exam_start_${uId}_${ex.id}`) ||
+          localStorage.getItem(`exam_answers_${ex.id}`) ||
+          localStorage.getItem(`exam_start_${ex.id}`)
+        );
+      } catch (_) { return false; }
+    }) || null;
+  }, [exams, taking, scheduleNow, user?.id]);
+
   return (
     <div ref={scrollContainerRef} className="h-full overflow-y-auto p-4 lg:p-6">
       <div className="space-y-6">
         <h1 className="text-2xl font-black text-navy-600 flex items-center gap-2">
           <FileText className="w-7 h-7 text-orange-500" /> الاختبارات
         </h1>
+
+        {/* ── Active In-Progress Exam Banner ── */}
+        {activeInProgressExam && (
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-amber-500/5 border-2 border-amber-400 dark:border-amber-500/60 p-4 sm:p-5 shadow-lg shadow-amber-500/10 transition-all">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-white shadow-md shadow-orange-500/30 flex-shrink-0 animate-pulse">
+                  <RotateCcw className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px] font-black bg-amber-500 text-white px-2 py-0.5 rounded-full">
+                      ⚡ لديك اختبار جارٍ
+                    </span>
+                    <span className="text-xs font-bold text-amber-700 dark:text-amber-300">
+                      الوقت مستمر ⏳
+                    </span>
+                  </div>
+                  <h3 className="font-black text-navy-800 dark:text-[var(--dk-text-1)] text-base mt-1 line-clamp-1">
+                    {activeInProgressExam.title}
+                  </h3>
+                </div>
+              </div>
+              <button
+                onClick={() => openExam(activeInProgressExam)}
+                disabled={startingId === activeInProgressExam.id}
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-black text-sm shadow-md shadow-orange-500/25 flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50 whitespace-nowrap"
+              >
+                {startingId === activeInProgressExam.id ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <RotateCcw className="w-4 h-4" />
+                )}
+                استئناف الاختبار الآن
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* ── My Exam History (all attempts + absent records) ─────────────────── */}
         {myResults.length > 0 && (
@@ -1093,9 +1182,16 @@ export default function StudentExams() {
               const scheduleStatus = getExamScheduleStatus(ex, scheduleNow);
               const isUpcoming = scheduleStatus === 'upcoming';
               const isExpired = scheduleStatus === 'expired';
-              const isSessionInProgress = !ex.already_taken && (() => {
+              const isSessionInProgress = !ex.already_taken && !isExpired && !isUpcoming && (() => {
                 try {
-                  return !!(localStorage.getItem(`exam_start_${ex.id}`) || localStorage.getItem(`exam_answers_${ex.id}`));
+                  const uId = user?.id || 0;
+                  return !!(
+                    localStorage.getItem(`exam_answers_${uId}_${ex.id}`) ||
+                    localStorage.getItem(`exam_active_${uId}_${ex.id}`) ||
+                    localStorage.getItem(`exam_start_${uId}_${ex.id}`) ||
+                    localStorage.getItem(`exam_answers_${ex.id}`) ||
+                    localStorage.getItem(`exam_start_${ex.id}`)
+                  );
                 } catch (_) { return false; }
               })();
               return (
@@ -1227,14 +1323,21 @@ export default function StudentExams() {
                       </div>
                     );
                   })() : (
-                    <button onClick={() => openExam(ex)}
-                      disabled={isUpcoming || (isExpired && retryMap[ex.id]?.status !== 'approved')}
+                    <button
+                      onClick={() => openExam(ex)}
+                      disabled={isUpcoming || (isExpired && retryMap[ex.id]?.status !== 'approved') || startingId === ex.id}
                       className={`w-full flex items-center justify-center gap-2 font-black transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
                         isSessionInProgress
                           ? 'py-2.5 sm:py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white text-sm shadow-lg shadow-orange-500/25 active:scale-[0.98]'
                           : 'btn-primary'
-                      }`}>
-                      {isSessionInProgress ? (
+                      }`}
+                    >
+                      {startingId === ex.id ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          {isSessionInProgress ? 'جاري الاستئناف...' : 'جاري التحميل...'}
+                        </>
+                      ) : isSessionInProgress ? (
                         <>
                           <RotateCcw className="w-4 h-4" /> استئناف الاختبار
                         </>

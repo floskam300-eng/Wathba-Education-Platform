@@ -1292,7 +1292,10 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
       ),
     ]);
     if (existingRes.rows.length > 0 && retryRes.rows.length === 0) {
-      return res.status(403).json({ error: 'لقد أديت هذا الاختبار بالفعل — يُرجى طلب الإعادة من المعلم' });
+      return res.status(403).json({
+        error: 'لقد أديت هذا الاختبار بالفعل — يُرجى طلب الإعادة من المعلم',
+        already_submitted: true,
+      });
     }
 
     const now = new Date();
@@ -1320,7 +1323,7 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
     // Allow students with an approved retry to bypass the end_date guard so
     // the teacher's approval works even after the exam window has closed.
     if (exam.end_date && new Date(exam.end_date) < now && retryRes.rows.length === 0) {
-      return res.status(403).json({ error: 'انتهى وقت الاختبار', end_date: exam.end_date });
+      return res.status(403).json({ error: 'انتهى وقت الاختبار', end_date: exam.end_date, timer_expired: true });
     }
 
     let questions;
@@ -1421,7 +1424,11 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
               );
             }
             await pool.query('DELETE FROM exam_sessions WHERE student_id=$1 AND exam_id=$2', [studentId, examId]);
-            return res.status(403).json({ error: 'لقد انتهت مهلة محاولتك السابقة — يُرجى طلب الإعادة من المعلم' });
+            return res.status(403).json({
+              error: 'لقد انتهت مهلة محاولتك السابقة — يُرجى طلب الإعادة من المعلم',
+              timer_expired: true,
+              already_submitted: true,
+            });
           } else {
             await pool.query('DELETE FROM exam_sessions WHERE student_id=$1 AND exam_id=$2', [studentId, examId]);
             const insertRes = await pool.query(
@@ -1469,7 +1476,9 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
         remainingSeconds = durationMinutes * 60;
         isResumed = false;
       }
-    } catch (_) {}
+    } catch (sessionErr) {
+      console.error('[exams/take] session error:', sessionErr.message);
+    }
 
     // Strip correct_answer_letter and sub-question correct fields before sending to client
     // (prevents answer-key leaking for both MCQ and image_multi question types)
