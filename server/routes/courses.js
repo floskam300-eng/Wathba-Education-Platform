@@ -519,63 +519,198 @@ router.get('/:id/content', requireRole('teacher', 'assistant', 'student'), async
       pool.query('SELECT * FROM sections WHERE course_id=$1 ORDER BY sort_order, id', [courseId]),
     ]);
 
-    // [C1-FIX] Server-side video lock enforcement for students.
-    // Build a set of video IDs that are locked by unpassed recitations.
-    // Lock logic: a video is locked if ANY published recitation links to it
-    // and the student has NEVER passed that recitation.
-    // The first video (sort_order/index 0) is NEVER locked by design.
-    let videoRows = videos.rows;
-    if (isStudent && videoRows.length > 1) {
-      const { rows: recLockRows } = await pool.query(
-        `SELECT r.video_ids,
-                bool_or(rr.passed) AS ever_passed
+    // Fetch recitations tied to this course, grouped by section_id.
+    // Lock semantic (Phase-7): a recitation linked to section X "gates" section X —
+    // i.e. the student must pass every such recitation to unlock section X's
+    // videos / files / recitations. Section 1 (lowest sort_order) is always
+    // unlocked by design so the student can start the course.
+    const recitationsRes = isStudent
+      ? pool.query(
+          `SELECT r.id, r.title, r.description, r.duration_minutes, r.total_score, r.pass_score,
+                  r.start_date, r.end_date, r.allow_retry, r.max_retry_attempts,
+                  r.section_id, r.is_published, r.academic_stage,
+                  (SELECT COUNT(*) FROM recitation_questions WHERE recitation_id=r.id) AS question_count,
+                  (SELECT bool_or(rr3.passed) FROM recitation_results rr3
+                    WHERE rr3.student_id=$2 AND rr3.recitation_id=r.id
+                      AND (rr3.is_absent IS NULL OR rr3.is_absent=false)) AS my_ever_passed,
+                  rr.id AS result_id, rr.score AS my_score, rr.passed AS my_passed,
+                  rr.correct_count AS my_correct, rr.wrong_count AS my_wrong,
+                  rr.created_at AS my_submitted_at,
+                  COALESCE(g.unused_grants, 0) AS unused_grants
+             FROM recitations r
+             LEFT JOIN LATERAL (
+               SELECT id, score, passed,
+                      correct_count, wrong_count, created_at
+                 FROM recitation_results rr2
+                WHERE rr2.student_id=$2
+                  AND rr2.recitation_id=r.id
+                  AND (rr2.is_absent IS NULL OR rr2.is_absent=false)
+                ORDER BY rr2.created_at DESC
+                LIMIT 1
+             ) rr ON true
+             LEFT JOIN LATERAL (
+               SELECT COUNT(*)::int AS unused_grants
+                 FROM recitation_retake_grants
+                WHERE recitation_id = r.id
+                  AND student_id    = $2
+                  AND used_at IS NULL
+             ) g ON true
+            WHERE r.course_id=$1
+              AND r.is_published=true
+              AND r.deleted_at IS NULL
+            ORDER BY r.section_id NULLS LAST, r.created_at ASC`,
+          [courseId, req.user.id]
+        )
+      : pool.query(
+          `SELECT r.id, r.title, r.description, r.duration_minutes, r.total_score, r.pass_score,
+                  r.start_date, r.end_date, r.allow_retry, r.max_retry_attempts,
+                  r.section_id, r.is_published, r.academic_stage,
+                  (SELECT COUNT(*) FROM recitation_questions WHERE recitation_id=r.id) AS question_count,
+                  (SELECT COUNT(*) FROM recitation_results WHERE recitation_id=r.id) AS result_count,
+                  r.created_at
+             FROM recitations r
+            WHERE r.course_id=$1
+              AND r.deleted_at IS NULL
+            ORDER BY r.section_id NULLS LAST, r.created_at ASC`,
+          [courseId]
+        );
+
+    const [videoRowsRaw, pdfRows, examRows, sectionRows, recitationRows] = await Promise.all([
+      Promise.resolve(videos.rows),
+      Promise.resolve(pdfs.rows),
+      Promise.resolve(exams.rows),
+      Promise.resolve(sections.rows),
+      recitationsRes.then(r => r.rows),
+    ]);
+
+    // ── Compute section-level lock for students ──────────────────────────────
+    // A section is locked for a student if:
+    //   - it's NOT the first section (sort_order=1) — that one is always open
+    //   - there exists at least one published recitation in this course with
+    //     section_id = <this section> that the student has NOT passed
+    // The lock applies to the whole section: videos / pdfs / recitations inside
+    // are hidden until unlocked.
+    let sectionLockInfo = new Map(); // section_id → { required, passed, hasUnpassed }
+    if (isStudent) {
+      // [B5] Single round-trip: combine gate + progress with FILTER clauses.
+      const { rows: gateRows } = await pool.query(
+        `SELECT r.section_id,
+                count(*)::int AS total,
+                count(*) FILTER (WHERE rr.passed = true)::int AS passed,
+                bool_or(rr.passed IS NULL OR rr.passed = false) AS has_unpassed
            FROM recitations r
            LEFT JOIN recitation_results rr
              ON rr.recitation_id = r.id AND rr.student_id = $2
+               AND (rr.is_absent IS NULL OR rr.is_absent=false)
           WHERE r.course_id = $1
             AND r.is_published = true
             AND r.deleted_at IS NULL
-            AND r.video_ids IS NOT NULL
-            AND r.video_ids != '[]'::jsonb
-          GROUP BY r.id, r.video_ids`,
+            AND r.section_id IS NOT NULL
+          GROUP BY r.section_id`,
         [courseId, req.user.id]
       );
-
-      // Build set of locked video IDs
-      const lockedVideoIds = new Set();
-      for (const rec of recLockRows) {
-        if (!rec.ever_passed) {
-          const vids = Array.isArray(rec.video_ids) ? rec.video_ids : [];
-          for (const vid of vids) {
-            lockedVideoIds.add(Number(vid));
-          }
-        }
-      }
-
-      // Annotate each video — first video (index 0) is never locked
-      videoRows = videoRows.map((v, i) => ({
-        ...v,
-        is_locked: i > 0 && lockedVideoIds.has(v.id),
-      }));
+      sectionLockInfo = new Map(
+        gateRows.map(r => [
+          Number(r.section_id),
+          { required: r.total, passed: r.passed, hasUnpassed: r.has_unpassed },
+        ])
+      );
     }
 
-    // [Student content protection] For students, never expose the raw YouTube URL
-    // (file_path_or_url) in the API response — only the extracted video id. This
-    // keeps the full youtube.com/watch?v=... link out of the Network tab and DOM.
-    // Uploaded (non-YouTube) videos keep file_path_or_url since it points to our
-    // /uploads/* endpoint protected by a short-lived media token.
+    // Identify the "first section" by sort_order. If none exists, treat as no
+    // sections at all (legacy flat-list mode — student UI will fallback).
+    const sortedSections = [...sectionRows].sort(
+      (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)
+    );
+    const firstSectionId = sortedSections.length ? Number(sortedSections[0].id) : null;
+
+    // Annotate each section with lock state
+    const sectionRowsAnnotated = sortedSections.map(s => {
+      const id = Number(s.id);
+      const lock = sectionLockInfo.get(id);
+      const isFirst = firstSectionId === id;
+      const isLocked = isStudent && !isFirst && lock?.hasUnpassed === true;
+      return {
+        ...s,
+        is_unlocked_for_student: isStudent ? !isLocked : true,
+        gate_progress: lock ? { required: lock.required || 0, passed: lock.passed || 0 } : null,
+      };
+    });
+
+    // Annotate videos with is_locked (kept for legacy code-paths that still
+    // inspect videos directly — the new section-level UI ignores this and
+    // hides whole sections instead).
+    let videoRows = videoRowsRaw;
     if (isStudent) {
       videoRows = videoRows.map((v) => {
         const ytId = extractYoutubeId(v.file_path_or_url);
-        if (ytId) {
-          return { ...v, provider: 'youtube', youtube_id: ytId, file_path_or_url: undefined };
-        }
-        return { ...v, provider: 'upload', youtube_id: null };
+        const base = ytId
+          ? { ...v, provider: 'youtube', youtube_id: ytId, file_path_or_url: undefined }
+          : { ...v, provider: 'upload', youtube_id: null };
+        return { ...base, is_locked: false };
       });
     }
 
-    res.json({ videos: videoRows, pdfs: pdfs.rows, exams: exams.rows, sections: sections.rows });
+    // Nest videos / pdfs / recitations under each section (and an _uncategorized
+    // bucket for items without section_id, when no sections exist).
+    const videoBySection = new Map();
+    const pdfBySection = new Map();
+    const recBySection = new Map();
+    for (const v of videoRows) {
+      const key = v.section_id ? Number(v.section_id) : '_none';
+      if (!videoBySection.has(key)) videoBySection.set(key, []);
+      videoBySection.get(key).push(v);
+    }
+    for (const p of pdfRows) {
+      const key = p.section_id ? Number(p.section_id) : '_none';
+      if (!pdfBySection.has(key)) pdfBySection.set(key, []);
+      pdfBySection.get(key).push(p);
+    }
+    for (const r of recitationRows) {
+      const key = r.section_id ? Number(r.section_id) : '_none';
+      if (!recBySection.has(key)) recBySection.set(key, []);
+      recBySection.get(key).push(r);
+    }
+
+    const sectionsPayload = sectionRowsAnnotated.map(s => ({
+      ...s,
+      videos: videoBySection.get(Number(s.id)) || [],
+      pdfs: pdfBySection.get(Number(s.id)) || [],
+      recitations: recBySection.get(Number(s.id)) || [],
+    }));
+
+    // Build an "uncategorized" section when there are items without a section
+    // AND the course has no sections at all (legacy fallback for teachers who
+    // haven't created any chapters). When sections exist, items without a
+    // section_id still appear under "_none" so the teacher can move them.
+    const uncategorized =
+      videoBySection.get('_none')?.length ||
+      pdfBySection.get('_none')?.length ||
+      recBySection.get('_none')?.length
+        ? {
+            id: null,
+            title: 'بدون فصل',
+            sort_order: 999999,
+            is_unlocked_for_student: true,
+            gate_progress: null,
+            videos: videoBySection.get('_none') || [],
+            pdfs: pdfBySection.get('_none') || [],
+            recitations: recBySection.get('_none') || [],
+          }
+        : null;
+
+    res.json({
+      sections: sectionsPayload,
+      uncategorized,
+      // Legacy flat fields — kept so existing frontend code paths keep working
+      // while we migrate. CourseContent (teacher) and CourseView (student) will
+      // move to sections[] over the next phase.
+      videos: videoRows,
+      pdfs: pdfRows,
+      exams: examRows,
+    });
   } catch (err) {
+    console.error('[courses GET /:id/content]', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -623,6 +758,10 @@ router.delete('/:id/sections/:sectionId', requireRole('teacher', 'assistant'), c
     await client.query('BEGIN');
     await client.query('UPDATE videos SET section_id=NULL WHERE section_id=$1', [req.params.sectionId]);
     await client.query('UPDATE pdf_files SET section_id=NULL WHERE section_id=$1', [req.params.sectionId]);
+    // [Phase-7] Section deletion also unlinks any recitations that gated it,
+    // otherwise those recitations would dangle pointing at a non-existent
+    // section and confuse the student gate-progress UI.
+    await client.query('UPDATE recitations SET section_id=NULL WHERE section_id=$1 AND course_id=$2', [req.params.sectionId, req.params.id]);
     await client.query('DELETE FROM sections WHERE id=$1 AND course_id=$2', [req.params.sectionId, req.params.id]);
     await client.query('COMMIT');
     res.json({ message: 'Section deleted' });
@@ -656,6 +795,56 @@ router.put('/:id/pdfs/:pdfId/section', requireRole('teacher', 'assistant'), chec
     await pool.query('UPDATE pdf_files SET section_id=$1 WHERE id=$2 AND course_id=$3', [section_id || null, req.params.pdfId, req.params.id]);
     res.json({ message: 'Updated' });
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// [Phase-7] Move a recitation to a different section (or to no section).
+// The recitation's `section_id` is what gates access — when set, the student
+// must pass the recitation to unlock that section's content.
+router.put('/:id/recitations/:recitationId/section', requireRole('teacher', 'assistant'), checkManageCoursesPerm, async (req, res) => {
+  const teacherId = getTeacherId(req);
+
+  // [B2/B3] Validate that courseId + recitationId route params are real
+  // integers BEFORE running any SQL. Otherwise PostgreSQL throws "invalid
+  // input syntax for type integer" and we leak a 500.
+  const courseId = parseParamId(req.params.id);
+  if (!courseId) return res.status(400).json({ error: 'Invalid course ID' });
+  const recitationId = parseParamId(req.params.recitationId);
+  if (!recitationId) return res.status(400).json({ error: 'Invalid recitation ID' });
+
+  // Coerce section_id the same way — same reasoning.
+  const rawSectionId = parseInt(req.body?.section_id, 10);
+  const sectionId = Number.isFinite(rawSectionId) && rawSectionId > 0 ? rawSectionId : null;
+
+  try {
+    if (!(await verifyCourseOwnership(courseId, teacherId))) {
+      return res.status(403).json({ error: 'Access denied: course not yours' });
+    }
+    if (sectionId) {
+      const { rows: sRows } = await pool.query(
+        'SELECT id FROM sections WHERE id=$1 AND course_id=$2',
+        [sectionId, courseId]
+      );
+      if (!sRows.length) {
+        return res.status(400).json({ error: 'الفصل المحدد لا ينتمي لهذا الكورس' });
+      }
+    }
+    // Verify the recitation belongs to this teacher & course.
+    const { rows: rRows } = await pool.query(
+      'SELECT id FROM recitations WHERE id=$1 AND course_id=$2 AND teacher_id=$3 AND deleted_at IS NULL',
+      [recitationId, courseId, teacherId]
+    );
+    if (!rRows.length) {
+      return res.status(404).json({ error: 'التسميع غير موجود' });
+    }
+    await pool.query(
+      'UPDATE recitations SET section_id=$1 WHERE id=$2',
+      [sectionId, recitationId]
+    );
+    res.json({ message: 'Updated' });
+  } catch (err) {
+    console.error('[courses PUT recitation/section]', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
 router.post('/:id/videos/url', requireRole('teacher', 'assistant'), checkManageCoursesPerm, async (req, res) => {

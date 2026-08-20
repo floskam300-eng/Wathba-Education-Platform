@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   BookOpen, Plus, Trash2, Settings, ChevronDown, ChevronUp,
   CheckCircle, XCircle, Clock, Users, BarChart2, Edit3,
@@ -98,7 +98,7 @@ const emptyForm = {
   schedule_type: 'once', schedule_day: 0,
   start_date: '', end_date: '',
   shuffle_questions: false, shuffle_options: false,
-  course_id: '', video_ids: [],
+  course_id: '', section_id: '',
   allow_retry: true,
   max_retry_attempts: '',
 };
@@ -162,6 +162,7 @@ function useLoadMoreOnIntersect({ hasNextPage, isFetchingNextPage, fetchNextPage
 export default function Recitations() {
   const { dark } = useTheme();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const qc = useQueryClient();
   const { user } = useAuth();
   const baseRole = user?.role === 'assistant' ? 'assistant' : 'teacher';
@@ -205,26 +206,12 @@ export default function Recitations() {
     return courses.filter(c => !c.target_stage || c.target_stage === form.academic_stage);
   }, [courses, form.academic_stage]);
 
-  // [Phase 3] Inverse lock map: how many OTHER recitations already lock each
-  // course video? Source: recitations on the same course, excluding the one
-  // being edited (avoid double-counting self). Used to show the teacher
-  // "this video is also locked by N other recitations".
-  const videoLockCounts = useMemo(() => {
-    const m = new Map();
-    if (!form.course_id) return m;
-    recitations.forEach(r => {
-      if (String(r.course_id) !== String(form.course_id)) return;
-      if (editRec && r.id === editRec.id) return;
-      if (!Array.isArray(r.video_ids)) return;
-      r.video_ids.forEach(vid => m.set(vid, (m.get(vid) || 0) + 1));
-    });
-    return m;
-  }, [recitations, form.course_id, editRec]);
-
-  const { data: courseVideos = [] } = useQuery({
-    queryKey: ['course-videos-for-rec', form.course_id],
+  // [Phase-7] Fetch the sections of the currently selected course so the
+  // teacher can pick which section this recitation "gates" (unlocks when passed).
+  const { data: courseSections = [] } = useQuery({
+    queryKey: ['course-sections-for-rec', form.course_id],
     queryFn: () => form.course_id
-      ? api.get(`/courses/${form.course_id}/content`).then(r => r.data.videos || [])
+      ? api.get(`/courses/${form.course_id}/content`).then(r => r.data.sections || [])
       : Promise.resolve([]),
     enabled: !!form.course_id,
   });
@@ -295,13 +282,31 @@ export default function Recitations() {
       shuffle_questions: rec.shuffle_questions,
       shuffle_options: rec.shuffle_options,
       course_id: rec.course_id ? String(rec.course_id) : '',
-      video_ids: Array.isArray(rec.video_ids) ? rec.video_ids.map(Number) : [],
+      section_id: rec.section_id ? String(rec.section_id) : '',
       allow_retry: rec.allow_retry !== false,
       max_retry_attempts: rec.max_retry_attempts != null ? String(rec.max_retry_attempts) : '',
     });
     setFormErrors({});
     setModal(true);
   };
+
+  // [B6] Auto-open the edit modal when navigated here with ?edit=<id>.
+  // CourseContent passes the recitation ID via URL when the teacher clicks
+  // the "open" (pencil) icon next to a recitation in the content manager.
+  useEffect(() => {
+    if (!recitations.length) return;
+    const editId = parseInt(searchParams.get('edit'), 10);
+    if (!editId) return;
+    const target = recitations.find(r => r.id === editId);
+    if (target) {
+      openEdit(target);
+      // Strip the ?edit= param so it doesn't re-trigger on every refetch.
+      const next = new URLSearchParams(searchParams);
+      next.delete('edit');
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recitations, searchParams]);
 
   const filtered = useMemo(() => recitations.filter(r => {
     const q = search.toLowerCase();
@@ -569,7 +574,7 @@ export default function Recitations() {
                             ...f,
                             academic_stage: newStage,
                             course_id: isCourseValid ? f.course_id : '',
-                            video_ids: isCourseValid ? f.video_ids : [],
+                            section_id: isCourseValid ? f.section_id : '',
                           };
                         });
                       }}
@@ -590,7 +595,7 @@ export default function Recitations() {
                         setForm(f => ({
                           ...f,
                           course_id: selectedCourseId,
-                          video_ids: [],
+                          section_id: '',
                           academic_stage: selectedCourse?.target_stage || f.academic_stage,
                         }));
                       }}
@@ -609,81 +614,32 @@ export default function Recitations() {
                 {form.course_id && (
                   <div>
                     <label className={`block text-xs font-bold mb-1.5 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-600'}`}>
-                      المحاضرات المطلوب قفلها بهذا التسميع
+                      الفصل الذي سيفتح عند اجتياز هذا التسميع
                       <span className={`mr-1.5 font-normal text-[11px] ${dark ? 'text-[var(--dk-text-2)]' : 'text-purple-600'}`}>
-                        (المحاضرة المحددة لن تفتح للطالب إلا بعد اجتيازه هذا التسميع)
+                        (التسميعات في الفصل الأول عادةً تكون مربوطة بالفصل الثاني)
                       </span>
                     </label>
-                    <p className={`text-[11px] mb-2 leading-relaxed ${dark ? 'text-gray-400' : 'text-gray-500'}`}>
-                      💡 <strong>توضيح:</strong> لقفل المحاضرة التالية بعد المحاضرة الأولى، ضع علامة صح على <strong>المحاضرة 2</strong>.
-                    </p>
-                    {courseVideos.length === 0 ? (
-                      <p className={`text-xs ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>لا توجد فيديوهات في هذا الكورس</p>
+                    {courseSections.length === 0 ? (
+                      <p className={`text-xs ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>
+                        لا توجد فصول في هذا الكورس — أنشئ فصولاً من صفحة "إدارة محتوى الكورس" أولاً.
+                      </p>
                     ) : (
-                      <div className="space-y-1.5 max-h-48 overflow-y-auto pr-0.5">
-                        {courseVideos.map((v, i) => {
-                          const checked = form.video_ids.includes(v.id);
-                          return (
-                            <button
-                              type="button"
-                              key={v.id}
-                              onClick={() => setForm(f => ({
-                                ...f,
-                                video_ids: checked
-                                  ? f.video_ids.filter(id => id !== v.id)
-                                  : [...f.video_ids, v.id],
-                              }))}
-                              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl cursor-pointer transition-all border text-right ${
-                                checked
-                                  ? dark
-                                    ? 'bg-purple-500/15 border-purple-500/50 shadow-sm shadow-purple-500/10'
-                                    : 'bg-purple-50 border-purple-300 shadow-sm'
-                                  : dark
-                                  ? 'bg-transparent border-[var(--dk-border)] hover:bg-[var(--dk-surface)] hover:border-purple-500/30'
-                                  : 'bg-white border-gray-200 hover:border-purple-200 hover:bg-purple-50/40'
-                              }`}
-                            >
-                              {/* Custom checkbox indicator */}
-                              <div className={`w-5 h-5 rounded-md flex-shrink-0 flex items-center justify-center border-2 transition-all ${
-                                checked
-                                  ? 'bg-purple-500 border-purple-500'
-                                  : dark ? 'border-gray-600 bg-transparent' : 'border-gray-300 bg-white'
-                              }`}>
-                                {checked && (
-                                  <svg className="w-3 h-3 text-white" viewBox="0 0 12 12" fill="none">
-                                    <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                                  </svg>
-                                )}
-                              </div>
-                              <span className={`text-[11px] font-black flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center ${
-                                checked
-                                  ? 'bg-purple-500/20 text-purple-400'
-                                  : dark ? 'bg-white/5 text-gray-500' : 'bg-gray-100 text-gray-500'
-                              }`}>{i + 1}</span>
-                              <span className={`text-xs font-semibold truncate flex-1 ${
-                                checked
-                                  ? dark ? 'text-purple-300' : 'text-purple-700 font-bold'
-                                  : dark ? 'text-[var(--dk-text)]' : 'text-gray-700'
-                              }`}>{v.title}</span>
-                              {(() => {
-                                const others = videoLockCounts.get(v.id) || 0;
-                                if (others === 0) return null;
-                                return (
-                                  <span className="flex-shrink-0 text-[10px] font-black text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-500/15 px-1.5 py-0.5 rounded-full" title="عدد التسميعات الأخرى التي تقفل نفس المحاضرة">
-                                    🔒 يقفلها أيضاً {others} تسميع
-                                  </span>
-                                );
-                              })()}
-                              {i === 0 && courseVideos.length > 1 && (
-                                <span className="flex-shrink-0 text-[10px] font-semibold text-gray-400 dark:text-gray-500" title="المحاضرة الأولى مفتوحة تلقائياً كبداية للكورس">
-                                  (بداية الكورس)
-                                </span>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
+                      <select
+                        value={form.section_id || ''}
+                        onChange={e => setForm(f => ({ ...f, section_id: e.target.value }))}
+                        className={`w-full rounded-xl px-3 py-2 border text-sm ${dark ? 'bg-[var(--dk-surface)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`}
+                      >
+                        <option value="">بدون ربط بفصل</option>
+                        {courseSections.map(s => (
+                          <option key={s.id} value={String(s.id)}>
+                            {s.title}{s.id === courseSections[0]?.id ? '  (الفصل الأول — مفتوح تلقائياً)' : ''}
+                          </option>
+                        ))}
+                      </select>
                     )}
+                    <p className={`text-[11px] mt-2 leading-relaxed ${dark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      💡 <strong>توضيح:</strong> التسميعات في الفصل N عادةً تربط بالفصل N+1 — اجتيازها يفتح محتوى الفصل التالي (فيديوهاته + ملفاته + تسميعاته).
+                    </p>
                   </div>
                 )}
               </div>
@@ -920,8 +876,13 @@ export default function Recitations() {
                   }
                   setFormErrors({});
                   const rawMax = parseInt(form.max_retry_attempts, 10);
+                  // [Phase-7] Coerce string <select> values to integers / null
+                  // so the backend doesn't reject them with "Invalid section_id".
+                  const rawSection = parseInt(form.section_id, 10);
                   const payload = {
                     ...form,
+                    course_id: form.course_id ? parseInt(form.course_id, 10) || null : null,
+                    section_id: Number.isFinite(rawSection) && rawSection > 0 ? rawSection : null,
                     start_date: parseEgyptDateTimeToUTC(form.start_date),
                     end_date: parseEgyptDateTimeToUTC(form.end_date),
                     max_retry_attempts: form.allow_retry && !isNaN(rawMax) && rawMax >= 1 ? rawMax : null,

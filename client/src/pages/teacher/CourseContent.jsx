@@ -376,8 +376,10 @@ function SectionDropZone({ sectionKey, label, icon, labelColor, isDraggingAny, d
 // [PF-1] VideoItem lifted to module scope — avoids React treating it as a new
 // component type on every parent render, which caused full unmount/remount of
 // every video row whenever any parent state changed.
-function VideoItem({ v, videoRecitationsMap, onPreview, onEdit, onDelete, onDragStart, onDragEnd, isDragging }) {
-  const linkedRecs = videoRecitationsMap[Number(v.id)] || [];
+// [Phase-7] Recitations no longer link to specific videos — they link to a
+// whole section. So the per-video "locked by N recitations" badge is gone;
+// the section-level "this chapter has N gate-recitations" replaces it.
+function VideoItem({ v, onPreview, onEdit, onDelete, onDragStart, onDragEnd, isDragging }) {
   const isUrlBased = v.file_path_or_url && !v.file_path_or_url.startsWith('/uploads/');
   return (
     <div
@@ -404,16 +406,6 @@ function VideoItem({ v, videoRecitationsMap, onPreview, onEdit, onDelete, onDrag
             </span>
           )}
         </div>
-        {linkedRecs.length > 0 && (
-          <div className="mt-1.5 flex flex-wrap gap-1">
-            {linkedRecs.map(rec => (
-              <span key={rec.id} className="inline-flex items-center gap-1 text-[10px] font-bold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full border border-purple-200">
-                <BookMarked className="w-2.5 h-2.5 flex-shrink-0" />
-                {rec.title}
-              </span>
-            ))}
-          </div>
-        )}
       </div>
       {isUrlBased && (
         <button onClick={() => onEdit(v)} className="p-1.5 text-navy-500 hover:bg-navy-50 rounded-lg flex-shrink-0 transition-colors mt-0.5" title="تعديل الفيديو">
@@ -421,6 +413,53 @@ function VideoItem({ v, videoRecitationsMap, onPreview, onEdit, onDelete, onDrag
         </button>
       )}
       <button onClick={() => onDelete(v.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg flex-shrink-0 transition-colors mt-0.5">
+        <Trash2 className="w-4 h-4" />
+      </button>
+    </div>
+  );
+}
+
+// [Phase-7] RecitationItem — same drag pattern as VideoItem / PdfItem, with
+// "open in recitations manager" button + delete confirmation.
+function RecitationItem({ r, onDragStart, onDragEnd, isDragging, onOpen, onDelete }) {
+  return (
+    <div
+      draggable
+      onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; onDragStart(r.id, r.section_id); }}
+      onDragEnd={onDragEnd}
+      className={`flex items-start gap-3 p-3 bg-white rounded-xl shadow-sm border border-gray-100 hover:border-gray-200 transition-all select-none
+        ${isDragging ? 'opacity-40 scale-95' : 'cursor-grab active:cursor-grabbing'}`}
+    >
+      <div className="flex items-center self-stretch text-gray-300 hover:text-gray-400 cursor-grab active:cursor-grabbing flex-shrink-0 -mr-1">
+        <GripVertical className="w-4 h-4" />
+      </div>
+      <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+        <BookMarked className="w-5 h-5 text-purple-600" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold text-navy-600 text-sm truncate">{r.title}</p>
+        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+          <span className="text-xs text-gray-500 font-medium">{r.question_count ?? 0} سؤال</span>
+          {r.is_published ? (
+            <span className="text-[10px] bg-green-50 text-green-700 font-bold px-1.5 py-0.5 rounded-full flex items-center gap-1">
+              ✓ منشور
+            </span>
+          ) : (
+            <span className="text-[10px] bg-amber-50 text-amber-700 font-bold px-1.5 py-0.5 rounded-full flex items-center gap-1">
+              � مسودة
+            </span>
+          )}
+          {r.result_count > 0 && (
+            <span className="text-[10px] bg-blue-50 text-blue-600 font-bold px-1.5 py-0.5 rounded-full">
+              {r.result_count} محاولة
+            </span>
+          )}
+        </div>
+      </div>
+      <button onClick={() => onOpen(r)} className="p-1.5 text-navy-500 hover:bg-navy-50 rounded-lg flex-shrink-0 transition-colors mt-0.5" title="إدارة التسميع">
+        <Pencil className="w-4 h-4" />
+      </button>
+      <button onClick={() => onDelete(r.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg flex-shrink-0 transition-colors mt-0.5" title="حذف التسميع">
         <Trash2 className="w-4 h-4" />
       </button>
     </div>
@@ -549,40 +588,33 @@ export default function CourseContent() {
     if (newSectionId === oldSectionId) return; // same section, no-op
     if (item.type === 'video') {
       moveVideoMut.mutate({ videoId: item.id, sectionId: newSectionId });
-    } else {
+    } else if (item.type === 'pdf') {
       movePdfMut.mutate({ pdfId: item.id, sectionId: newSectionId });
+    } else if (item.type === 'recitation') {
+      moveRecitationMut.mutate({ recitationId: item.id, sectionId: newSectionId });
     }
     dragItem.current = null;
     setDraggingId(null);
-  }, [moveVideoMut, movePdfMut]);
+  }, [moveVideoMut, movePdfMut, moveRecitationMut]);
 
   const sections = content?.sections || [];
   const videos = content?.videos || [];
   const pdfs = content?.pdfs || [];
 
-  const { data: allRecitations = [] } = useQuery({
-    queryKey: ['recitations'],
-    queryFn: () => api.get('/recitations').then(r => r.data),
-    staleTime: 30_000,
-    retry: (failCount, err) => err?.response?.status !== 403 && failCount < 2,
-  });
-  const courseRecitations = useMemo(
-    () => allRecitations.filter(rec => String(rec.course_id) === String(courseId)),
-    [allRecitations, courseId]
-  );
-
-  const videoRecitationsMap = useMemo(() => {
-    const map = {};
-    courseRecitations.forEach(rec => {
-      if (!Array.isArray(rec.video_ids)) return;
-      rec.video_ids.forEach(vid => {
-        const id = Number(vid);
-        if (!map[id]) map[id] = [];
-        map[id].push(rec);
-      });
-    });
-    return map;
-  }, [courseRecitations]);
+  // [Phase-7] Recitations come nested inside the new /content response —
+  // each section has its own `recitations` array, plus an `uncategorized`
+  // bucket for items without a section. Flatten for the count summary.
+  const recitations = useMemo(() => {
+    if (!content) return [];
+    const arr = [];
+    for (const s of (content.sections || [])) {
+      for (const r of (s.recitations || [])) arr.push(r);
+    }
+    if (content.uncategorized) {
+      for (const r of (content.uncategorized.recitations || [])) arr.push(r);
+    }
+    return arr;
+  }, [content]);
 
   const onPreviewVideo = useCallback((v) => setPreviewVideo(v), []);
   const onEditVideo    = useCallback((v) => setEditingVideo(v), []);
@@ -590,8 +622,38 @@ export default function CourseContent() {
   const onPreviewPdf   = useCallback((p) => setPreviewPdf(p), []);
   const onDeletePdf    = useCallback((id) => setDeletePdfId(id), []);
 
+  const [deleteRecId, setDeleteRecId] = useState(null);
+  const deleteRecMut = useMutation({
+    mutationFn: (id) => api.delete(`/recitations/${id}`),
+    onSuccess: () => { refreshContent(); toast.success('تم حذف التسميع'); setDeleteRecId(null); },
+    onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
+  });
+  const onOpenRecitation   = useCallback((r) => navigate(`/${baseRole}/recitations?edit=${r.id}`), [navigate, baseRole]);
+  const onDeleteRecitation = useCallback((id) => setDeleteRecId(id), []);
+
   const onDragStartVideo = useCallback((id, sid) => handleDragStart('video', id, sid), [handleDragStart]);
   const onDragStartPdf   = useCallback((id, sid) => handleDragStart('pdf',  id, sid), [handleDragStart]);
+  const onDragStartRec   = useCallback((id, sid) => handleDragStart('recitation', id, sid), [handleDragStart]);
+
+  // Map recitations by section_id so we can render them nested under each
+  // section in the videos / pdfs tabs (and group them in the recitations tab).
+  const recitationsBySection = useMemo(() => {
+    const map = new Map();
+    for (const r of recitations) {
+      const key = r.section_id ?? '_none';
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(r);
+    }
+    return map;
+  }, [recitations]);
+
+  // [Phase-7] Move a recitation between sections (or to "no section").
+  const moveRecitationMut = useMutation({
+    mutationFn: ({ recitationId, sectionId }) =>
+      api.put(`/courses/${courseId}/recitations/${recitationId}/section`, { section_id: sectionId || null }),
+    onSuccess: () => { refreshContent(); toast.success('تم نقل التسميع ✅'); },
+    onError: (e) => toast.error(e.response?.data?.error || 'فشل نقل التسميع'),
+  });
 
   const buildGrouped = (items) => {
     const grouped = {};
@@ -636,6 +698,9 @@ export default function CourseContent() {
             <span className="text-xs text-gray-500 font-bold hidden sm:flex items-center gap-1">
               <FileText className="w-3.5 h-3.5" /> {pdfs.length} ملف
             </span>
+            <span className="text-xs text-gray-500 font-bold hidden sm:flex items-center gap-1">
+              <BookMarked className="w-3.5 h-3.5" /> {recitations.length} تسميع
+            </span>
             <span className="sm:hidden text-xs font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
               {videos.length}🎬 · {pdfs.length}📄
             </span>
@@ -650,6 +715,7 @@ export default function CourseContent() {
             {[
               { key: 'videos', label: '🎬 الفيديوهات', count: videos.length },
               { key: 'pdfs', label: '📄 الملفات', count: pdfs.length },
+              { key: 'recitations', label: '📖 التسميعات', count: recitations.length },
               { key: 'sections', label: '📂 الفصول', count: sections.length },
             ].map(tab => (
               <button key={tab.key} onClick={() => setContentTab(tab.key)}
@@ -711,26 +777,65 @@ export default function CourseContent() {
                           {...dropZoneProps}
                         >
                           {grouped[s.id]?.length > 0 ? (
-                            <div className="space-y-2 pr-4 border-r-2 border-indigo-100">
-                              {grouped[s.id].map(v => (
-                                <VideoItem
-                                  key={v.id}
-                                  v={v}
-                                  videoRecitationsMap={videoRecitationsMap}
-                                  onPreview={onPreviewVideo}
-                                  onEdit={onEditVideo}
-                                  onDelete={onDeleteVideo}
-                                  onDragStart={onDragStartVideo}
-                                  onDragEnd={handleDragEnd}
-                                  isDragging={draggingId === v.id}
-                                />
-                              ))}
+                            <div className="space-y-3">
+                              <div className="space-y-2 pr-4 border-r-2 border-indigo-100">
+                                {grouped[s.id].map(v => (
+                                  <VideoItem
+                                    key={v.id}
+                                    v={v}
+                                    onPreview={onPreviewVideo}
+                                    onEdit={onEditVideo}
+                                    onDelete={onDeleteVideo}
+                                    onDragStart={onDragStartVideo}
+                                    onDragEnd={handleDragEnd}
+                                    isDragging={draggingId === v.id}
+                                  />
+                                ))}
+                              </div>
+                              {/* Recitations inside this section */}
+                              {(recitationsBySection.get(Number(s.id)) || []).length > 0 && (
+                                <div className="mt-3 pt-3 border-t border-dashed border-indigo-200">
+                                  <p className="text-[10px] font-black text-purple-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                                    <BookMarked className="w-3 h-3" /> تسميعات هذا الفصل ({(recitationsBySection.get(Number(s.id)) || []).length})
+                                  </p>
+                                  <div className="space-y-2 pr-4 border-r-2 border-purple-100">
+                                    {(recitationsBySection.get(Number(s.id)) || []).map(r => (
+                                      <RecitationItem
+                                        key={r.id}
+                                        r={r}
+                                        onOpen={onOpenRecitation}
+                                        onDelete={onDeleteRecitation}
+                                        onDragStart={onDragStartRec}
+                                        onDragEnd={handleDragEnd}
+                                        isDragging={draggingId === r.id}
+                                      />
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           ) : (
-                            <div className={`pr-4 border-r-2 border-indigo-50 py-3 text-center text-xs text-gray-400 rounded-lg transition-all ${
-                              dragOverKey === s.id ? 'bg-orange-50 text-orange-500 border-r-orange-300' : ''
-                            }`}>
-                              {dragOverKey === s.id ? '↓ أفلت هنا' : 'فارغ'}
+                            <div className="space-y-3">
+                              <div className={`pr-4 border-r-2 border-indigo-50 py-3 text-center text-xs text-gray-400 rounded-lg transition-all ${
+                                dragOverKey === s.id ? 'bg-orange-50 text-orange-500 border-r-orange-300' : ''
+                              }`}>
+                                {dragOverKey === s.id ? '↓ أفلت هنا' : 'فارغ'}
+                              </div>
+                              {(recitationsBySection.get(Number(s.id)) || []).length > 0 && (
+                                <div className="space-y-2 pr-4 border-r-2 border-purple-100">
+                                  {(recitationsBySection.get(Number(s.id)) || []).map(r => (
+                                    <RecitationItem
+                                      key={r.id}
+                                      r={r}
+                                      onOpen={onOpenRecitation}
+                                      onDelete={onDeleteRecitation}
+                                      onDragStart={onDragStartRec}
+                                      onDragEnd={handleDragEnd}
+                                      isDragging={draggingId === r.id}
+                                    />
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           )}
                         </SectionDropZone>
@@ -752,7 +857,6 @@ export default function CourseContent() {
                                 <VideoItem
                                   key={v.id}
                                   v={v}
-                                  videoRecitationsMap={videoRecitationsMap}
                                   onPreview={onPreviewVideo}
                                   onEdit={onEditVideo}
                                   onDelete={onDeleteVideo}
@@ -778,7 +882,6 @@ export default function CourseContent() {
                         <VideoItem
                           key={v.id}
                           v={v}
-                          videoRecitationsMap={videoRecitationsMap}
                           onPreview={onPreviewVideo}
                           onEdit={onEditVideo}
                           onDelete={onDeleteVideo}
@@ -818,23 +921,62 @@ export default function CourseContent() {
                           {...dropZoneProps}
                         >
                           {grouped[s.id]?.length > 0 ? (
-                            <div className="space-y-2 pr-4 border-r-2 border-orange-100">
-                              {grouped[s.id].map(p => (
-                                <PdfItem
-                                  key={p.id} p={p}
-                                  onDragStart={onDragStartPdf}
-                                  onDragEnd={handleDragEnd}
-                                  isDragging={draggingId === p.id}
-                                  onPreview={onPreviewPdf}
-                                  onDelete={onDeletePdf}
-                                />
-                              ))}
+                            <div className="space-y-3">
+                              <div className="space-y-2 pr-4 border-r-2 border-orange-100">
+                                {grouped[s.id].map(p => (
+                                  <PdfItem
+                                    key={p.id} p={p}
+                                    onDragStart={onDragStartPdf}
+                                    onDragEnd={handleDragEnd}
+                                    isDragging={draggingId === p.id}
+                                    onPreview={onPreviewPdf}
+                                    onDelete={onDeletePdf}
+                                  />
+                                ))}
+                              </div>
+                              {(recitationsBySection.get(Number(s.id)) || []).length > 0 && (
+                                <div className="mt-3 pt-3 border-t border-dashed border-orange-200">
+                                  <p className="text-[10px] font-black text-purple-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                                    <BookMarked className="w-3 h-3" /> تسميعات هذا الفصل ({(recitationsBySection.get(Number(s.id)) || []).length})
+                                  </p>
+                                  <div className="space-y-2 pr-4 border-r-2 border-purple-100">
+                                    {(recitationsBySection.get(Number(s.id)) || []).map(r => (
+                                      <RecitationItem
+                                        key={r.id}
+                                        r={r}
+                                        onOpen={onOpenRecitation}
+                                        onDelete={onDeleteRecitation}
+                                        onDragStart={onDragStartRec}
+                                        onDragEnd={handleDragEnd}
+                                        isDragging={draggingId === r.id}
+                                      />
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           ) : (
-                            <div className={`pr-4 border-r-2 border-orange-50 py-3 text-center text-xs text-gray-400 rounded-lg transition-all ${
-                              dragOverKey === s.id ? 'bg-orange-50 text-orange-500 border-r-orange-300' : ''
-                            }`}>
-                              {dragOverKey === s.id ? '↓ أفلت هنا' : 'فارغ'}
+                            <div className="space-y-3">
+                              <div className={`pr-4 border-r-2 border-orange-50 py-3 text-center text-xs text-gray-400 rounded-lg transition-all ${
+                                dragOverKey === s.id ? 'bg-orange-50 text-orange-500 border-r-orange-300' : ''
+                              }`}>
+                                {dragOverKey === s.id ? '↓ أفلت هنا' : 'فارغ'}
+                              </div>
+                              {(recitationsBySection.get(Number(s.id)) || []).length > 0 && (
+                                <div className="space-y-2 pr-4 border-r-2 border-purple-100">
+                                  {(recitationsBySection.get(Number(s.id)) || []).map(r => (
+                                    <RecitationItem
+                                      key={r.id}
+                                      r={r}
+                                      onOpen={onOpenRecitation}
+                                      onDelete={onDeleteRecitation}
+                                      onDragStart={onDragStartRec}
+                                      onDragEnd={handleDragEnd}
+                                      isDragging={draggingId === r.id}
+                                    />
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           )}
                         </SectionDropZone>
@@ -890,6 +1032,119 @@ export default function CourseContent() {
               );
             })()}
 
+            {/* Recitations Tab */}
+            {contentTab === 'recitations' && (() => {
+              const grouped = buildGrouped(recitations);
+              return (
+                <div className="space-y-6">
+                  <div className="bg-purple-50/50 border border-purple-100 rounded-2xl p-4">
+                    <p className="text-sm font-black text-purple-800 mb-2 flex items-center gap-2">
+                      <BookMarked className="w-4 h-4 text-purple-500" /> عن التسميعات والفصول
+                    </p>
+                    <p className="text-xs text-purple-700/80 leading-relaxed">
+                      التسميعات هنا مرتبة بالفصل الذي <strong>تفتحه عند اجتيازها</strong>.
+                      مثلاً: التسميعات في "الفصل الأول" عادةً تكون مربوطة بـ "الفصل الثاني" —
+                      اجتيازها يفتح محتوى الفصل الثاني. اسحب أي تسميع لتغيير الفصل الذي يفتحه.
+                    </p>
+                    <button onClick={() => navigate(`/${baseRole}/recitations`)}
+                      className="mt-3 inline-flex items-center gap-2 bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-xl text-xs font-bold transition-colors">
+                      <Plus className="w-3.5 h-3.5" /> تسميع جديد
+                    </button>
+                  </div>
+
+                  {recitations.length === 0 ? (
+                    <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-gray-200">
+                      <BookMarked className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                      <p className="text-gray-400 font-medium text-sm">لا توجد تسميعات بعد — أنشئ تسميعات من صفحة "التسميعات" ثم اربطها بفصول هنا</p>
+                    </div>
+                  ) : sections.length > 0 ? (
+                    <div className="space-y-5">
+                      {sections.map(s => (
+                        <SectionDropZone
+                          key={s.id}
+                          sectionKey={s.id}
+                          label={s.title}
+                          icon={<BookMarked className="w-4 h-4 text-purple-500" />}
+                          labelColor="text-purple-600"
+                          isDraggingAny={isDraggingAny}
+                          {...dropZoneProps}
+                        >
+                          {(grouped[s.id] || []).length > 0 ? (
+                            <div className="space-y-2 pr-4 border-r-2 border-purple-100">
+                              {grouped[s.id].map(r => (
+                                <RecitationItem
+                                  key={r.id}
+                                  r={r}
+                                  onOpen={onOpenRecitation}
+                                  onDelete={onDeleteRecitation}
+                                  onDragStart={onDragStartRec}
+                                  onDragEnd={handleDragEnd}
+                                  isDragging={draggingId === r.id}
+                                />
+                              ))}
+                            </div>
+                          ) : (
+                            <div className={`pr-4 border-r-2 border-purple-50 py-3 text-center text-xs text-gray-400 rounded-lg transition-all ${
+                              dragOverKey === s.id ? 'bg-orange-50 text-orange-500 border-r-orange-300' : ''
+                            }`}>
+                              {dragOverKey === s.id ? '↓ أفلت هنا' : 'فارغ'}
+                            </div>
+                          )}
+                        </SectionDropZone>
+                      ))}
+
+                      {(grouped['_none']?.length > 0 || isDraggingAny) && (
+                        <SectionDropZone
+                          sectionKey="_none"
+                          label="بدون فصل"
+                          icon={<BookMarked className="w-4 h-4 text-gray-400" />}
+                          labelColor="text-gray-400"
+                          isDraggingAny={isDraggingAny}
+                          {...dropZoneProps}
+                        >
+                          {grouped['_none']?.length > 0 ? (
+                            <div className="space-y-2 pr-4 border-r-2 border-gray-100">
+                              {grouped['_none'].map(r => (
+                                <RecitationItem
+                                  key={r.id}
+                                  r={r}
+                                  onOpen={onOpenRecitation}
+                                  onDelete={onDeleteRecitation}
+                                  onDragStart={onDragStartRec}
+                                  onDragEnd={handleDragEnd}
+                                  isDragging={draggingId === r.id}
+                                />
+                              ))}
+                            </div>
+                          ) : isDraggingAny ? (
+                            <div className={`pr-4 border-r-2 border-gray-100 py-3 text-center text-xs rounded-lg transition-all ${
+                              dragOverKey === '_none' ? 'bg-orange-50 text-orange-500 border-r-orange-300' : 'text-gray-400'
+                            }`}>
+                              {dragOverKey === '_none' ? '↓ أفلت هنا لإزالة من الفصل' : 'اسحب هنا لإزالة من الفصل'}
+                            </div>
+                          ) : null}
+                        </SectionDropZone>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {recitations.map(r => (
+                        <RecitationItem
+                          key={r.id}
+                          r={r}
+                          onOpen={onOpenRecitation}
+                          onDelete={onDeleteRecitation}
+                          onDragStart={onDragStartRec}
+                          onDragEnd={handleDragEnd}
+                          isDragging={draggingId === r.id}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* Sections Tab */}
             {contentTab === 'sections' && (
               <div className="space-y-4">
@@ -924,7 +1179,8 @@ export default function CourseContent() {
                     {sections.map(s => {
                       const sectionVideos = videos.filter(v => v.section_id === s.id);
                       const sectionPdfs = pdfs.filter(p => p.section_id === s.id);
-                      const totalItems = sectionVideos.length + sectionPdfs.length;
+                      const sectionRecs = recitationsBySection.get(Number(s.id)) || [];
+                      const totalItems = sectionVideos.length + sectionPdfs.length + sectionRecs.length;
                       const isExpanded = !!expandedSections[s.id];
                       return (
                         <div key={s.id} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
@@ -953,10 +1209,10 @@ export default function CourseContent() {
                                   onClick={() => totalItems > 0 && toggleSection(s.id)}
                                   className={`flex-1 flex items-center gap-2 text-right min-w-0 ${totalItems > 0 ? 'cursor-pointer' : 'cursor-default'}`}>
                                   <span className="flex-1 font-semibold text-navy-600 text-sm truncate">{s.title}</span>
-                                  <span className="text-xs text-gray-400 font-medium whitespace-nowrap flex-shrink-0">
+                                  <span className="text-xs text-gray-400 font-medium whitespace-nowrap flex-shrink-0 flex items-center gap-1">
                                     {sectionVideos.length > 0 && <span>{sectionVideos.length} 🎬</span>}
-                                    {sectionVideos.length > 0 && sectionPdfs.length > 0 && <span className="mx-1">·</span>}
                                     {sectionPdfs.length > 0 && <span>{sectionPdfs.length} 📄</span>}
+                                    {sectionRecs.length > 0 && <span className="text-purple-600">{sectionRecs.length} 📖</span>}
                                     {totalItems === 0 && <span className="text-gray-300">فارغ</span>}
                                   </span>
                                   {totalItems > 0 && (
@@ -966,11 +1222,11 @@ export default function CourseContent() {
                                   )}
                                 </button>
                                 <button onClick={() => { setEditingSectionId(s.id); setEditingSectionTitle(s.title); }}
-                                  className="p-1.5 text-navy-500 hover:bg-navy-50 rounded-lg transition-colors flex-shrink-0">
+                                  className="p-1.5 text-navy-500 hover:bg-navy-50 rounded-lg flex-shrink-0 transition-colors">
                                   <Pencil className="w-3.5 h-3.5" />
                                 </button>
                                 <button onClick={() => deleteSectionMut.mutate(s.id)}
-                                  className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0">
+                                  className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg flex-shrink-0 transition-colors">
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                               </>
@@ -989,7 +1245,6 @@ export default function CourseContent() {
                                       <VideoItem
                                         key={v.id}
                                         v={v}
-                                        videoRecitationsMap={videoRecitationsMap}
                                         onPreview={onPreviewVideo}
                                         onEdit={onEditVideo}
                                         onDelete={onDeleteVideo}
@@ -1015,6 +1270,26 @@ export default function CourseContent() {
                                         isDragging={draggingId === p.id}
                                         onPreview={onPreviewPdf}
                                         onDelete={onDeletePdf}
+                                      />
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {sectionRecs.length > 0 && (
+                                <div>
+                                  <p className="text-[11px] font-black text-purple-600 uppercase tracking-wide mb-2 flex items-center gap-1">
+                                    <BookMarked className="w-3 h-3" /> التسميعات
+                                  </p>
+                                  <div className="space-y-2">
+                                    {sectionRecs.map(r => (
+                                      <RecitationItem
+                                        key={r.id}
+                                        r={r}
+                                        onOpen={onOpenRecitation}
+                                        onDelete={onDeleteRecitation}
+                                        onDragStart={onDragStartRec}
+                                        onDragEnd={handleDragEnd}
+                                        isDragging={draggingId === r.id}
                                       />
                                     ))}
                                   </div>
@@ -1075,6 +1350,10 @@ export default function CourseContent() {
       <ConfirmDialog open={!!deletePdfId} onClose={() => setDeletePdfId(null)}
         onConfirm={() => deletePdfMut.mutate(deletePdfId)}
         title="حذف الملف" message="هل أنت متأكد من حذف هذا الملف نهائياً؟" danger />
+
+      <ConfirmDialog open={!!deleteRecId} onClose={() => setDeleteRecId(null)}
+        onConfirm={() => deleteRecMut.mutate(deleteRecId)}
+        title="حذف التسميع" message="هل أنت متأكد من حذف هذا التسميع نهائياً؟ (نتائج الطلاب ستبقى محفوظة في الأرشيف)" danger />
     </div>
   );
 }

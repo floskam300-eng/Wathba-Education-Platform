@@ -206,7 +206,7 @@ router.post('/', requireRole('teacher', 'assistant'), checkManageRecitationsPerm
     total_score, pass_score, points_on_attempt, points_on_pass,
     schedule_type, schedule_day, start_date, end_date,
     shuffle_questions, shuffle_options,
-    course_id, video_ids, allow_retry, max_retry_attempts,
+    course_id, section_id, allow_retry, max_retry_attempts,
   } = req.body;
 
   if (!title || !String(title).trim())
@@ -262,7 +262,8 @@ router.post('/', requireRole('teacher', 'assistant'), checkManageRecitationsPerm
   // [M2-FIX] Guard against NaN from parseInt when course_id is non-numeric
   const rawCourseId = parseInt(course_id, 10);
   const parsedCourseId = Number.isFinite(rawCourseId) && rawCourseId > 0 ? rawCourseId : null;
-  const parsedVideoIds = Array.isArray(video_ids) ? video_ids.map(v => parseInt(v, 10)).filter(v => Number.isFinite(v) && v > 0) : [];
+  const rawSectionId = parseInt(section_id, 10);
+  const parsedSectionId = Number.isFinite(rawSectionId) && rawSectionId > 0 ? rawSectionId : null;
 
   try {
     const teacherId = getTeacherId(req);
@@ -275,16 +276,19 @@ router.post('/', requireRole('teacher', 'assistant'), checkManageRecitationsPerm
       );
       if (!cRows.length) return res.status(403).json({ error: 'الكورس غير موجود أو ليس لك' });
 
-      // [C3-FIX] Verify that all video IDs belong to the specified course
-      if (parsedVideoIds.length > 0) {
-        const { rows: validVids } = await pool.query(
-          'SELECT id FROM videos WHERE id = ANY($1::int[]) AND course_id = $2',
-          [parsedVideoIds, parsedCourseId]
+      // [Section-FIX] Verify section_id belongs to the same course if provided
+      if (parsedSectionId) {
+        const { rows: sRows } = await pool.query(
+          'SELECT id FROM sections WHERE id=$1 AND course_id=$2',
+          [parsedSectionId, parsedCourseId]
         );
-        if (validVids.length !== parsedVideoIds.length) {
-          return res.status(400).json({ error: 'بعض الفيديوهات المحددة لا تنتمي للكورس المختار' });
+        if (!sRows.length) {
+          return res.status(400).json({ error: 'الفصل المحدد لا ينتمي للكورس المختار' });
         }
       }
+    } else if (parsedSectionId) {
+      // section_id without course_id is invalid
+      return res.status(400).json({ error: 'يجب اختيار كورس أولاً قبل ربط التسميع بفصل' });
     }
 
     // Parse max_retry_attempts: null/undefined/0/''/negative → NULL (unlimited)
@@ -297,7 +301,7 @@ router.post('/', requireRole('teacher', 'assistant'), checkManageRecitationsPerm
          (teacher_id, title, description, academic_stage, duration_minutes,
           total_score, pass_score, points_on_attempt, points_on_pass,
           schedule_type, schedule_day, start_date, end_date,
-          shuffle_questions, shuffle_options, course_id, video_ids, allow_retry, max_retry_attempts)
+          shuffle_questions, shuffle_options, course_id, section_id, allow_retry, max_retry_attempts)
        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
        RETURNING *`,
       [
@@ -317,7 +321,7 @@ router.post('/', requireRole('teacher', 'assistant'), checkManageRecitationsPerm
         !!shuffle_questions,
         !!shuffle_options,
         parsedCourseId,
-        JSON.stringify(parsedVideoIds),
+        parsedSectionId,
         allow_retry !== false,
         parsedMaxRetry,
       ]
@@ -497,7 +501,7 @@ router.get('/student/course/:courseId', requireRole('student'), async (req, res)
     const { rows } = await pool.query(
       `SELECT r.id, r.title, r.description, r.duration_minutes, r.total_score, r.pass_score,
               r.start_date, r.end_date, r.allow_retry, r.max_retry_attempts,
-              r.video_ids,
+              r.section_id,
               (SELECT COUNT(*) FROM recitation_questions WHERE recitation_id=r.id) AS question_count,
               (SELECT COUNT(*) FROM recitation_results rr_cnt
                 WHERE rr_cnt.student_id=$1 AND rr_cnt.recitation_id=r.id
@@ -506,16 +510,14 @@ router.get('/student/course/:courseId', requireRole('student'), async (req, res)
               rr.id AS result_id, rr.score AS my_score, rr.passed AS my_passed,
               rr.correct_count AS my_correct, rr.wrong_count AS my_wrong,
               rr.created_at AS my_submitted_at,
-              lv.min_sort_order,
-              lv.linked_video_title,
               COALESCE(g.unused_grants, 0) AS unused_grants
          FROM recitations r
          LEFT JOIN LATERAL (
            SELECT rr2.id, rr2.score, rr2.passed,
-                   (SELECT bool_or(rr3.passed) FROM recitation_results rr3
-                     WHERE rr3.student_id=$1 AND rr3.recitation_id=r.id
-                       AND (rr3.is_absent IS NULL OR rr3.is_absent=false)) AS ever_passed,
-                   rr2.correct_count, rr2.wrong_count, rr2.created_at
+                  (SELECT bool_or(rr3.passed) FROM recitation_results rr3
+                    WHERE rr3.student_id=$1 AND rr3.recitation_id=r.id
+                      AND (rr3.is_absent IS NULL OR rr3.is_absent=false)) AS ever_passed,
+                  rr2.correct_count, rr2.wrong_count, rr2.created_at
              FROM recitation_results rr2
             WHERE rr2.student_id=$1
               AND rr2.recitation_id=r.id
@@ -523,20 +525,6 @@ router.get('/student/course/:courseId', requireRole('student'), async (req, res)
             ORDER BY rr2.created_at DESC
             LIMIT 1
          ) rr ON true
-         LEFT JOIN LATERAL (
-           SELECT v.sort_order AS min_sort_order, v.title AS linked_video_title
-             FROM videos v
-            WHERE v.course_id = $2
-              AND v.id = ANY (
-                ARRAY(
-                  SELECT jsonb_array_elements_text(
-                    CASE WHEN jsonb_typeof(r.video_ids) = 'array' THEN r.video_ids ELSE '[]'::jsonb END
-                  )::int
-                )
-              )
-            ORDER BY v.sort_order ASC, v.id ASC
-            LIMIT 1
-         ) lv ON true
          LEFT JOIN LATERAL (
            SELECT COUNT(*)::int AS unused_grants
              FROM recitation_retake_grants
@@ -554,7 +542,7 @@ router.get('/student/course/:courseId', requireRole('student'), async (req, res)
           -- which silently hid recitations that have no course AND no stage from
           -- every course view even though they appeared on the main list.
           AND (r.course_id=$2 OR (r.course_id IS NULL AND (r.academic_stage IS NULL OR r.academic_stage=$4)))
-        ORDER BY COALESCE(lv.min_sort_order, 999999) ASC, r.created_at ASC`,
+        ORDER BY r.created_at ASC`,
       [studentId, courseId, teacherId, academic_stage]
     );
     res.json(rows);
@@ -719,7 +707,7 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageRecitationsPe
     total_score, pass_score, points_on_attempt, points_on_pass,
     schedule_type, schedule_day, start_date, end_date,
     shuffle_questions, shuffle_options,
-    course_id, video_ids, allow_retry, max_retry_attempts,
+    course_id, section_id, allow_retry, max_retry_attempts,
   } = req.body;
 
   if (!title || !String(title).trim())
@@ -773,7 +761,8 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageRecitationsPe
   // [M2-FIX] Guard against NaN from parseInt when course_id is non-numeric
   const rawCourseIdPut = parseInt(course_id, 10);
   const parsedCourseId = Number.isFinite(rawCourseIdPut) && rawCourseIdPut > 0 ? rawCourseIdPut : null;
-  const parsedVideoIds = Array.isArray(video_ids) ? video_ids.map(v => parseInt(v, 10)).filter(v => Number.isFinite(v) && v > 0) : [];
+  const rawSectionIdPut = parseInt(section_id, 10);
+  const parsedSectionId = Number.isFinite(rawSectionIdPut) && rawSectionIdPut > 0 ? rawSectionIdPut : null;
 
   try {
     const teacherId = getTeacherId(req);
@@ -788,16 +777,18 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageRecitationsPe
       );
       if (!cRows.length) return res.status(403).json({ error: 'الكورس غير موجود أو ليس لك' });
 
-      // [C3-FIX] Verify that all video IDs belong to the specified course
-      if (parsedVideoIds.length > 0) {
-        const { rows: validVids } = await pool.query(
-          'SELECT id FROM videos WHERE id = ANY($1::int[]) AND course_id = $2',
-          [parsedVideoIds, parsedCourseId]
+      // [Section-FIX] Verify section_id belongs to the same course if provided
+      if (parsedSectionId) {
+        const { rows: sRows } = await pool.query(
+          'SELECT id FROM sections WHERE id=$1 AND course_id=$2',
+          [parsedSectionId, parsedCourseId]
         );
-        if (validVids.length !== parsedVideoIds.length) {
-          return res.status(400).json({ error: 'بعض الفيديوهات المحددة لا تنتمي للكورس المختار' });
+        if (!sRows.length) {
+          return res.status(400).json({ error: 'الفصل المحدد لا ينتمي للكورس المختار' });
         }
       }
+    } else if (parsedSectionId) {
+      return res.status(400).json({ error: 'يجب اختيار كورس أولاً قبل ربط التسميع بفصل' });
     }
 
     // Parse max_retry_attempts: null/undefined/0/''/negative → NULL (unlimited)
@@ -810,7 +801,7 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageRecitationsPe
          title=$1, description=$2, academic_stage=$3, duration_minutes=$4,
          total_score=$5, pass_score=$6, points_on_attempt=$7, points_on_pass=$8,
          schedule_type=$9, schedule_day=$10, start_date=$11, end_date=$12,
-         shuffle_questions=$13, shuffle_options=$14, course_id=$15, video_ids=$16,
+         shuffle_questions=$13, shuffle_options=$14, course_id=$15, section_id=$16,
          allow_retry=$17, max_retry_attempts=$18
        WHERE id=$19 AND teacher_id=$20 RETURNING *`,
       [
@@ -822,7 +813,7 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageRecitationsPe
         parsedStartDate,
         parsedEndDate,
         !!shuffle_questions, !!shuffle_options,
-        parsedCourseId, JSON.stringify(parsedVideoIds),
+        parsedCourseId, parsedSectionId,
         allow_retry !== false,
         parsedMaxRetryPut,
         id, teacherId,

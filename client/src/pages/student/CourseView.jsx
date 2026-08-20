@@ -5,7 +5,8 @@ import {
   ArrowRight, Play, FileText, BookOpen, Video, Clock,
   CheckCircle2, Lock, ChevronRight, ChevronLeft, AlertCircle,
   Pause, Volume2, VolumeX, Maximize2, Minimize2, RotateCcw, RotateCw,
-  Settings, Gauge, CheckCircle, XCircle, RefreshCw, Trophy, Eye, ZoomIn
+  Settings, Gauge, CheckCircle, XCircle, RefreshCw, Trophy, Eye, ZoomIn,
+  FolderOpen, ChevronDown, ChevronUp, BookMarked,
 } from 'lucide-react';
 import SecurePdfViewer from '../../components/SecurePdfViewer';
 import ImageLightbox from '../../components/ImageLightbox';
@@ -1332,6 +1333,15 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
     return () => { mountedRef.current = false; };
   }, []);
 
+  // [B7] If the panel was opened with a single recitation (deep-link from
+  // CourseView sidebar) pre-select it so the student doesn't have to click
+  // twice to start. Multi-recitation panels still show the list normally.
+  useEffect(() => {
+    if (recitations.length === 1 && !selectedRec) {
+      setSelectedRec(recitations[0]);
+    }
+  }, [recitations, selectedRec]);
+
   // 3-2-1 countdown
   useEffect(() => {
     if (!showCountdown) return;
@@ -2154,27 +2164,22 @@ export default function CourseView() {
   const { user } = useAuth();
   const [activeVideo, setActiveVideo] = useState(null);
   const [activePdf, setActivePdf] = useState(null);
-  const [activeTab, setActiveTab] = useState('videos');
+  const [activeRec, setActiveRec] = useState(null);
+  const [activeView, setActiveView] = useState('video'); // 'video' | 'pdf' | 'recitation' | 'exams'
+  const [expandedSections, setExpandedSections] = useState({});
 
   const getInitialPosition = (video) => {
     if (!video) return 0;
     const serverPos = parseFloat(video.saved_position) || 0;
     const localPos  = loadVidPos(video.id);
     const pos = Math.max(serverPos, localPos);
-    // If video was completed (progress >= 95% or position within 10s of duration), restart from 0
     const durSec = (video.duration_minutes || 0) * 60;
     if (durSec > 0 && pos >= durSec - 10) return 0;
     if (video.saved_progress >= 95) return 0;
     return pos;
   };
 
-  // [Phase 5] Auto-advance uses these refs because handleProgressUpdate fires
-  // from inside a video player callback chain that may run during a tab switch
-  // before React re-renders. BOTH refs MUST be updated whenever their state
-  // changes (see the useEffects at the bottom of the hook), otherwise the lock
-  // check could run against a stale snapshot.
   const contentRef = useRef(null);
-  const recitationsRef = useRef([]);
 
   const handleProgressUpdate = (videoId, watchedMinutes, progressPct, completed, lastPosition = 0, actualWatchedSec = 0) => {
     saveVidPos(videoId, lastPosition);
@@ -2188,21 +2193,11 @@ export default function CourseView() {
     }).catch(() => {});
 
     if (completed) {
-      const currentVids = contentRef.current?.videos || [];
-      const idx = currentVids.findIndex(v => v.id === videoId);
+      const flatVids = contentRef.current?.flatVids || [];
+      const idx = flatVids.findIndex(v => v.id === videoId);
       if (idx !== -1) {
-        const next = currentVids[idx + 1];
-        if (next) {
-          // Check if next video is locked by an uncleared recitation
-          const recs = recitationsRef.current || [];
-          const nextLocked = recs.some(rec => {
-            const vids = Array.isArray(rec.video_ids) ? rec.video_ids.map(Number) : [];
-            return vids.includes(next.id) && !isRecPassed(rec);
-          });
-          if (!nextLocked) {
-            setTimeout(() => setActiveVideo(next), 1500);
-          }
-        }
+        const next = flatVids[idx + 1];
+        if (next) setTimeout(() => setActiveVideo(next), 1500);
       }
     }
   };
@@ -2212,8 +2207,6 @@ export default function CourseView() {
     queryFn: () => api.get('/courses/student/my-courses').then(r => r.data),
   });
 
-  // BUG-13: wait for courses list before firing the content query so the client-side
-  // enrollment guard has a chance to redirect *before* content is fetched.
   const { data: content, isLoading, error: contentError } = useQuery({
     queryKey: ['course-content', courseId],
     queryFn: () => api.get(`/courses/${courseId}/content`).then(r => r.data),
@@ -2221,9 +2214,17 @@ export default function CourseView() {
     retry: false,
   });
 
-  // Keep contentRef in sync so handleProgressUpdate auto-advance always has latest video list
-  useEffect(() => { contentRef.current = content; }, [content]);
+  const { data: examResults = [] } = useQuery({
+    queryKey: ['course-exam-results', courseId],
+    queryFn: () => api.get(`/exams/student/course-results/${courseId}`).then(r => r.data),
+    enabled: !!courseId,
+    staleTime: 0,
+    refetchOnMount: 'always',
+  });
 
+  const course = courses.find(c => String(c.id) === String(courseId));
+
+  // Access guard
   useEffect(() => {
     if (contentError) {
       const status = contentError?.response?.status;
@@ -2234,30 +2235,6 @@ export default function CourseView() {
     }
   }, [contentError, navigate]);
 
-  const { data: examResults = [] } = useQuery({
-    queryKey: ['course-exam-results', courseId],
-    queryFn: () => api.get(`/exams/student/course-results/${courseId}`).then(r => r.data),
-    enabled: !!courseId,
-    staleTime: 0,
-    refetchOnMount: 'always',
-  });
-
-  const { data: courseRecitations = [], refetch: refetchRecitations } = useQuery({
-    queryKey: ['course-recitations', courseId],
-    queryFn: () => api.get(`/recitations/student/course/${courseId}`).then(r => r.data),
-    enabled: !!courseId && !coursesLoading,
-    // Always fetch fresh recitations — teacher can add/remove them any time.
-    // staleTime:0 means the cache is immediately considered stale and refetched
-    // on mount without waiting for the global 15-minute window.
-    staleTime: 0,
-  });
-
-  // Keep recitationsRef in sync so handleProgressUpdate auto-advance lock check uses latest data
-  useEffect(() => { recitationsRef.current = courseRecitations; }, [courseRecitations]);
-
-  const course = courses.find(c => String(c.id) === String(courseId));
-
-  /* ── Access guard: redirect if courses finished loading and this one isn't enrolled ── */
   useEffect(() => {
     if (!coursesLoading && courseId) {
       const found = courses.find(c => String(c.id) === String(courseId));
@@ -2268,51 +2245,93 @@ export default function CourseView() {
     }
   }, [courses, coursesLoading, courseId, navigate]);
 
-  const videos = content?.videos || [];
-  const pdfs = content?.pdfs || [];
+  // Derive a flat list of all videos across sections (for the
+  // "next video" auto-advance and global "videos" count display).
+  const flatVids = useMemo(() => {
+    if (!content) return [];
+    const arr = [];
+    for (const s of (content.sections || [])) {
+      if (s.is_unlocked_for_student !== false) {
+        for (const v of (s.videos || [])) arr.push(v);
+      }
+    }
+    if (content.uncategorized && content.uncategorized.is_unlocked_for_student !== false) {
+      for (const v of (content.uncategorized.videos || [])) arr.push(v);
+    }
+    return arr;
+  }, [content]);
+
+  // Keep refs in sync (used by handleProgressUpdate auto-advance)
+  useEffect(() => { contentRef.current = { ...(content || {}), flatVids }; }, [content, flatVids]);
+
+  const sections = content?.sections || [];
+  const uncategorized = content?.uncategorized || null;
   const exams = content?.exams || [];
+  const totalSections = sections.length + (uncategorized ? 1 : 0);
+  const totalVideos = flatVids.length;
+  const totalRecitations = useMemo(() => {
+    if (!content) return 0;
+    let n = 0;
+    for (const s of (content.sections || [])) n += (s.recitations || []).length;
+    if (content.uncategorized) n += (content.uncategorized.recitations || []).length;
+    return n;
+  }, [content]);
 
-  /* ── Video lock logic ──
-     [C1-FIX] Lock is now SERVER-AUTHORITATIVE: the server annotates each video
-     with is_locked=true when any linked recitation is not yet passed by this student.
-     The client falls back to the recitations data only when is_locked is not present
-     (e.g. teacher preview where the content endpoint returns no is_locked field).
-     [H6-FIX] Memoize the locked-id set so isVideoLocked is O(1) per call.
+  // `sections` / `uncategorized` are intentionally NOT in the deps below — they
+  // re-derive on every render from `content` and would force the memo to run
+  // twice on every refetch. `[content]` is the actual source of truth.
+  // (no-op — left for documentation)
 
-     [Phase 5] CONTRACT for the `videoIndex === 0` short-circuit:
-       The FIRST video is always free by design so a student can begin a course
-       without first solving a recitation they've never seen. The server
-       enforces this in server/routes/courses.js (the `i > 0` check on
-       is_locked annotation). The teacher UI now warns about it (see
-       client/src/pages/teacher/Recitations.jsx).
-       DO NOT remove this without coordinating with the server-side carve-out.
-  ── */
-  const isVideoLocked = useCallback((video, videoIndex) => {
-    if (videoIndex === 0) return false;
-    // Use server-provided flag if available
-    if (typeof video.is_locked === 'boolean') return video.is_locked;
-    // Fallback for teacher preview (server does not set is_locked for non-students)
-    return courseRecitations.some(rec => {
-      const vids = Array.isArray(rec.video_ids) ? rec.video_ids.map(Number) : [];
-      return vids.includes(video.id) && !isRecPassed(rec);
-    });
-  }, [courseRecitations]);
+  // When `activeVideo` is null OR no longer belongs to an unlocked section,
+  // auto-pick the first video of the first unlocked section.
+  useEffect(() => {
+    if (flatVids.length === 0) return;
+    if (!activeVideo || !flatVids.some(v => v.id === activeVideo.id)) {
+      setActiveVideo(flatVids[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flatVids]);
 
-  const currentVideo = activeVideo || videos[0] || null;
-  const currentPdf = activePdf || pdfs[0] || null;
+  // Default-expand the first chapter the first time we render.
+  useEffect(() => {
+    if (!content) return;
+    const firstId = sections[0]?.id;
+    if (firstId && expandedSections[firstId] === undefined) {
+      const next = { [firstId]: true };
+      for (const s of sections) next[s.id] = (s.id === firstId);
+      setExpandedSections(next);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [content]);
 
-  const tabs = [
-    { key: 'videos', label: 'المحاضرات', icon: Video, count: videos.length },
-    { key: 'pdfs', label: 'الملفات', icon: FileText, count: pdfs.length },
-    { key: 'recitations', label: 'التسميع', icon: BookOpen, count: courseRecitations.length },
-  ];
+  const toggleSection = (sectionId) => setExpandedSections(prev => ({ ...prev, [sectionId]: !prev[sectionId] }));
+  const currentVideo = activeVideo;
+  const currentPdf = activePdf;
 
-  // [Mobile expand/collapse] On phones the tab-picker box (aside) eats a fixed
-  // 34vh even while the student is deep into a PDF or a recitation. Let them
-  // collapse it out of the way and bring it back whenever they want.
-  const [contentExpanded, setContentExpanded] = useState(false);
-  useEffect(() => { setContentExpanded(false); }, [activeTab]);
-  const canExpand = activeTab === 'pdfs' || activeTab === 'recitations';
+  const goToVideo = (v) => {
+    setActiveVideo(v);
+    setActiveView('video');
+    setActiveRec(null);
+  };
+  const goToPdf = (p) => {
+    setActivePdf(p);
+    setActiveView('pdf');
+    setActiveVideo(null);
+    setActiveRec(null);
+  };
+  const goToRec = (r) => {
+    setActiveRec(r);
+    setActiveView('recitation');
+    setActiveVideo(null);
+    setActivePdf(null);
+  };
+
+  const totalRecitationsDone = useMemo(() => {
+    let n = 0;
+    for (const s of sections) for (const r of (s.recitations || [])) if (r.my_ever_passed) n++;
+    if (uncategorized) for (const r of (uncategorized.recitations || [])) if (r.my_ever_passed) n++;
+    return n;
+  }, [sections, uncategorized]);
 
   return (
     <div className="flex flex-col h-full bg-white dark:bg-gray-950">
@@ -2332,7 +2351,7 @@ export default function CourseView() {
         {course && (
           <div className="mr-auto flex items-center gap-2">
             <span className="text-xs text-gray-500 font-medium">
-              {videos.length} محاضرة · {pdfs.length} ملف
+              {totalSections} فصل · {totalVideos} محاضرة · {totalRecitations} تسميع
             </span>
           </div>
         )}
@@ -2341,239 +2360,91 @@ export default function CourseView() {
       {/* ── Body ── */}
       <div className="flex-1 flex flex-col-reverse md:flex-row overflow-hidden">
 
-        {/* ── Sidebar ── */}
-        <aside className={`w-full h-[34vh] md:w-80 md:h-auto flex-shrink-0 bg-gray-50 dark:bg-gray-900 border-t md:border-t-0 md:border-l border-gray-200 dark:border-white/10 flex-col overflow-hidden ${contentExpanded ? 'hidden md:flex' : 'flex'}`}>
-
-          {/* Course info strip — desktop only */}
-          <div className="hidden md:block flex-shrink-0 px-4 py-4 border-b border-gray-200 dark:border-white/10 bg-gradient-to-b from-orange-500/10 to-transparent">
+        {/* ── Sidebar (chapters) ── */}
+        <aside className="w-full h-[40vh] md:w-96 md:h-auto flex-shrink-0 bg-gray-50 dark:bg-gray-900 border-t md:border-t-0 md:border-l border-gray-200 dark:border-white/10 flex-col overflow-hidden flex">
+          <div className="flex-shrink-0 px-4 py-3 border-b border-gray-200 dark:border-white/10 bg-gradient-to-b from-orange-500/10 to-transparent">
             <p className="text-gray-900 dark:text-white font-black text-sm leading-relaxed line-clamp-2">{course?.name}</p>
             {course?.target_stage && (
               <span className="mt-1.5 inline-block text-[10px] font-bold text-orange-400 bg-orange-400/10 px-2 py-0.5 rounded-full">
                 {course.target_stage}
               </span>
             )}
+            <p className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
+              💡 اجتز تسميعات الفصل الحالي لفتح الفصل التالي
+            </p>
           </div>
 
-          {/* Tabs */}
-          <div className="flex-shrink-0 flex border-b border-gray-200 dark:border-white/10">
-            {tabs.map(tab => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`flex-1 flex flex-col items-center gap-1 py-3 text-[11px] font-bold transition-all border-b-2 ${
-                  activeTab === tab.key
-                    ? 'text-orange-500 dark:text-orange-400 border-orange-500 dark:border-orange-400 bg-orange-400/5'
-                    : 'text-gray-500 border-transparent hover:text-gray-700 dark:hover:text-gray-300'
-                }`}
-              >
-                <tab.icon className="w-4 h-4" />
-                {tab.label}
-                <span className={`text-[9px] rounded-full px-1.5 py-0.5 font-black leading-none ${
-                  activeTab === tab.key ? 'bg-orange-400/20 text-orange-500 dark:text-orange-300' : 'bg-gray-200 dark:bg-white/5 text-gray-500'
-                }`}>
-                  {tab.count}
-                </span>
-              </button>
-            ))}
-          </div>
-
-          {/* List */}
-          <div className="flex-1 overflow-y-auto scrollbar-thin">
+          <div className="flex-1 overflow-y-auto scrollbar-thin p-3 space-y-2">
             {isLoading ? (
-              <div className="p-4 space-y-3">
-                {[...Array(5)].map((_, i) => (
-                  <div key={i} className="h-16 rounded-xl bg-gray-200 dark:bg-white/5 animate-pulse" />
+              [...Array(4)].map((_, i) => (
+                <div key={i} className="h-20 rounded-xl bg-gray-200 dark:bg-white/5 animate-pulse" />
+              ))
+            ) : sections.length === 0 && !uncategorized ? (
+              <EmptyState icon={FolderOpen} text="لا يوجد محتوى بعد" />
+            ) : (
+              <>
+                {sections.map(section => (
+                  <ChapterCard
+                    key={section.id}
+                    section={section}
+                    expanded={!!expandedSections[section.id]}
+                    onToggle={() => toggleSection(section.id)}
+                    activeVideo={activeVideo}
+                    activePdf={activePdf}
+                    activeRec={activeRec}
+                    onSelectVideo={goToVideo}
+                    onSelectPdf={goToPdf}
+                    onSelectRec={goToRec}
+                    isStudent
+                  />
                 ))}
-              </div>
-            ) : activeTab === 'videos' ? (
-              <div className="p-3 space-y-1.5">
-                {videos.length === 0 ? (
-                  <EmptyState icon={Video} text="لا توجد محاضرات بعد" />
-                ) : videos.map((v, i) => {
-                  const isActive = currentVideo?.id === v.id;
-                  const locked = isVideoLocked(v, i);
-                  return (
+                {uncategorized && (
+                  <ChapterCard
+                    section={{ ...uncategorized, title: 'بدون فصل', is_unlocked_for_student: true }}
+                    expanded={!!expandedSections['_uncat']}
+                    onToggle={() => toggleSection('_uncat')}
+                    activeVideo={activeVideo}
+                    activePdf={activePdf}
+                    activeRec={activeRec}
+                    onSelectVideo={goToVideo}
+                    onSelectPdf={goToPdf}
+                    onSelectRec={goToRec}
+                    isStudent
+                  />
+                )}
+
+                {/* Exams summary at the bottom */}
+                {exams.length > 0 && (
+                  <div className="mt-4 bg-white dark:bg-white/5 rounded-xl border border-gray-200 dark:border-white/10 overflow-hidden">
                     <button
-                      key={v.id}
-                      onClick={() => {
-                        if (locked) {
-                          toast.error('يجب اجتياز التسميع أولاً للوصول لهذه المحاضرة');
-                          setActiveTab('recitations');
-                          return;
-                        }
-                        setActiveVideo(v); setActiveTab('videos');
-                      }}
-                      className={`w-full text-right flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 ${
-                        locked
-                          ? 'opacity-50 cursor-not-allowed text-gray-500'
-                          : isActive
-                          ? 'bg-orange-500 shadow-lg shadow-orange-500/20'
-                          : 'hover:bg-gray-100 dark:hover:bg-white/5 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                      }`}
+                      onClick={() => setActiveView(activeView === 'exams' ? 'video' : 'exams')}
+                      className="w-full flex items-center gap-3 p-3 text-right hover:bg-orange-500/5 transition-colors"
                     >
-                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-black ${
-                        locked ? 'bg-gray-200 dark:bg-white/5 text-gray-500 dark:text-gray-600'
-                          : isActive ? 'bg-white/20 text-white' : 'bg-gray-200 dark:bg-white/5 text-gray-500'
-                      }`}>
-                        {locked
-                          ? <Lock className="w-4 h-4" />
-                          : isActive
-                          ? <Play className="w-4 h-4 text-white fill-white" />
-                          : <span>{i + 1}</span>
-                        }
+                      <div className="w-9 h-9 rounded-lg bg-purple-500/20 flex items-center justify-center flex-shrink-0">
+                        <Trophy className="w-4 h-4 text-purple-500" />
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className={`font-bold text-sm truncate ${isActive ? 'text-white' : locked ? 'text-gray-500 dark:text-gray-600' : 'text-gray-700 dark:text-gray-300'}`}>
-                          {v.title}
+                      <div className="flex-1 min-w-0 text-right">
+                        <p className="text-gray-900 dark:text-white font-bold text-xs">الاختبارات ({exams.length})</p>
+                        <p className="text-[10px] text-gray-500 mt-0.5">
+                          {examResults.filter(r => !r.is_absent && r.score >= (exams.find(e => e.id === r.exam_id)?.pass_score || 0)).length}/{exams.length} ناجح
                         </p>
-                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                          {locked && (() => {
-                            const p = computeLockProgress(v, courseRecitations);
-                            if (!p) return (
-                              <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-400/10 px-1.5 py-0.5 rounded-full">
-                                🔒 يتطلب تسميع
-                              </span>
-                            );
-                            const allPassed = p.passed >= p.total;
-                            return (
-                              <>
-                                <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-400/10 px-1.5 py-0.5 rounded-full">
-                                  🔒 {p.passed}/{p.total} تسميع
-                                </span>
-                                <span className="flex gap-0.5">
-                                  {p.linkedRecs.map(r => (
-                                    <span
-                                      key={r.id}
-                                      title={r.title}
-                                      className={`w-2 h-2 rounded-full ${isRecPassed(r) ? 'bg-emerald-500' : 'bg-amber-500'}`}
-                                    />
-                                  ))}
-                                </span>
-                                {allPassed && (
-                                  <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                                    ✓ جاهز للعرض
-                                  </span>
-                                )}
-                              </>
-                            );
-                          })()}
-                          {!locked && v.duration_minutes > 0 && (
-                            <p className={`text-xs flex items-center gap-1 ${isActive ? 'text-white/60' : 'text-gray-500 dark:text-gray-600'}`}>
-                              <Clock className="w-3 h-3" /> {fmt(v.duration_minutes)}
-                            </p>
-                          )}
-                          {!locked && v.saved_progress > 0 && (
-                            <span className={`text-[10px] font-bold ${isActive ? 'text-white/70' : 'text-orange-500 dark:text-orange-400'}`}>
-                              {Math.round(v.saved_progress)}%
-                            </span>
-                          )}
-                        </div>
-                        {!locked && v.saved_progress > 0 && !isActive && (
-                          <div className="mt-1.5 h-0.5 w-full rounded-full bg-gray-200 dark:bg-white/10 overflow-hidden">
-                            <div
-                              className="h-full rounded-full bg-orange-500/70"
-                              style={{ width: `${Math.min(100, v.saved_progress)}%` }}
-                            />
-                          </div>
-                        )}
                       </div>
-                      {!locked && v.saved_progress >= 95 && (
-                        <CheckCircle2 className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-white/70' : 'text-green-500 dark:text-green-400'}`} />
-                      )}
+                      <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
                     </button>
-                  );
-                })}
-              </div>
-            ) : activeTab === 'pdfs' ? (
-              <div className="p-3 space-y-1.5">
-                {pdfs.length === 0 ? (
-                  <EmptyState icon={FileText} text="لا توجد ملفات بعد" />
-                ) : pdfs.map(p => {
-                  const isActive = (activePdf || pdfs[0])?.id === p.id;
-                  return (
-                    <button
-                      key={p.id}
-                      onClick={() => { setActivePdf(p); setActiveTab('pdfs'); }}
-                      className={`w-full text-right flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 ${
-                        isActive
-                          ? 'bg-orange-500 shadow-lg shadow-orange-500/20'
-                          : 'hover:bg-gray-100 dark:hover:bg-white/5 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                      }`}
-                    >
-                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                        isActive ? 'bg-white/20' : 'bg-gray-200 dark:bg-white/5'
-                      }`}>
-                        <FileText className={`w-4 h-4 ${isActive ? 'text-white' : 'text-gray-500'}`} />
-                      </div>
-                      <p className={`flex-1 font-bold text-sm text-right truncate ${isActive ? 'text-white' : 'text-gray-700 dark:text-gray-300'}`}>
-                        {p.title}
-                      </p>
-                      {isActive && <Eye className="w-3.5 h-3.5 text-white/60 flex-shrink-0" />}
-                    </button>
-                  );
-                })}
-              </div>
-            ) : activeTab === 'recitations' ? (
-              <div className="p-3 space-y-2">
-                {courseRecitations.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500 dark:text-gray-600">
-                    <BookOpen className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                    <p className="text-xs font-medium">لا توجد تسميعات</p>
                   </div>
-                ) : courseRecitations.map(rec => {
-                  const passed = isRecPassed(rec);
-                  const hasResult = !!rec.result_id;
-                  return (
-                    <div key={rec.id} className={`rounded-xl p-3 border ${hasResult ? (passed ? 'border-green-500/30 bg-green-500/5' : 'border-red-500/30 bg-red-500/5') : 'border-gray-200 dark:border-white/10 bg-gray-100 dark:bg-white/5'}`}>
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-gray-900 dark:text-white font-bold text-xs truncate flex-1">{rec.title}</p>
-                        {hasResult ? (
-                          <span className={`text-xs font-black flex-shrink-0 ${passed ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`}>
-                            {rec.my_score}/{rec.total_score}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-gray-500 flex-shrink-0">لم تُؤدَّ</span>
-                        )}
-                      </div>
-                      {hasResult && (
-                        <span className={`inline-block mt-1 text-xs font-bold px-1.5 py-0.5 rounded-full ${passed ? 'bg-green-500/20 text-green-600 dark:text-green-400' : 'bg-red-500/20 text-red-500 dark:text-red-400'}`}>
-                          {passed ? '✓ ناجح' : '✗ راسب'}
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ) : null}
+                )}
+              </>
+            )}
           </div>
         </aside>
 
         {/* ── Main content ── */}
         <main className="flex-1 flex flex-col overflow-hidden">
-          {/* Mobile expand/collapse toggle — sits in the normal document flow
-              so it never overlaps or overflows onto the PDF / recitation below. */}
-          {canExpand && (
-            <div className="md:hidden flex-shrink-0 flex justify-start px-3 py-1.5 bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-white/10">
-              <button
-                onClick={() => setContentExpanded(e => !e)}
-                className="flex items-center gap-1.5 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-300 hover:text-orange-500 dark:hover:text-orange-400 text-[11px] font-bold px-2.5 py-1.5 rounded-full active:scale-95 transition-all"
-                title={contentExpanded ? 'إظهار القائمة' : 'تكبير الشاشة'}
-              >
-                {contentExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-                {contentExpanded ? 'إظهار القائمة' : 'تكبير الشاشة'}
-              </button>
-            </div>
-          )}
-          {activeTab === 'videos' ? (
+          {activeView === 'video' && currentVideo ? (
             <>
-              {/* Video area */}
               <div className="flex-1 bg-black overflow-hidden min-h-0">
-                {/* key forces a CLEAN remount on every video switch — without it React
-                    reuses the old player instance and the next video hangs (needs a full
-                    page refresh). Both VideoPlayer/YoutubePlayer have proper cleanup
-                    effects that flush progress before destruction. */}
                 <VideoPlayer
-                  key={currentVideo?.id}
+                  key={currentVideo.id}
                   video={currentVideo}
                   onProgressUpdate={handleProgressUpdate}
                   studentName={user?.name}
@@ -2582,159 +2453,109 @@ export default function CourseView() {
                 />
               </div>
 
-              {/* Mobile compact title + next button */}
-              {currentVideo && (
-                <div className="md:hidden flex-shrink-0 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-white/10 px-4 py-2.5 flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-gray-900 dark:text-white font-bold text-sm truncate">{currentVideo.title}</p>
-                    <p className="text-gray-500 text-xs mt-0.5">
-                      {videos.findIndex(v => v.id === currentVideo.id) + 1} / {videos.length}
-                      {currentVideo.duration_minutes > 0 && ` · ${fmt(currentVideo.duration_minutes)}`}
-                    </p>
+              {/* Mobile compact title + next */}
+              <div className="md:hidden flex-shrink-0 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-white/10 px-4 py-2.5 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-gray-900 dark:text-white font-bold text-sm truncate">{currentVideo.title}</p>
+                  <p className="text-gray-500 text-xs mt-0.5">
+                    {flatVids.findIndex(v => v.id === currentVideo.id) + 1} / {flatVids.length}
+                    {currentVideo.duration_minutes > 0 && ` · ${fmt(currentVideo.duration_minutes)}`}
+                  </p>
+                </div>
+                {(() => {
+                  const idx = flatVids.findIndex(v => v.id === currentVideo.id);
+                  const next = flatVids[idx + 1];
+                  if (!next) return null;
+                  return (
+                    <button onClick={() => setActiveVideo(next)}
+                      className="flex-shrink-0 flex items-center gap-1.5 text-white font-bold px-3 py-1.5 rounded-lg transition-all text-xs active:scale-95 bg-orange-500 hover:bg-orange-600">
+                      التالي <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  );
+                })()}
+              </div>
+
+              {/* Desktop info bar */}
+              <div className="hidden md:block flex-shrink-0 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-white/10 px-6 py-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h2 className="text-gray-900 dark:text-white font-black text-lg leading-tight">{currentVideo.title}</h2>
+                    <div className="flex items-center gap-3 mt-1.5">
+                      {currentVideo.duration_minutes > 0 && (
+                        <span className="flex items-center gap-1 text-xs text-gray-500">
+                          <Clock className="w-3.5 h-3.5" /> {fmt(currentVideo.duration_minutes)}
+                        </span>
+                      )}
+                      <span className="text-xs text-gray-500 dark:text-gray-600">
+                        محاضرة {(flatVids.findIndex(v => v.id === currentVideo.id) + 1)} من {flatVids.length}
+                      </span>
+                    </div>
                   </div>
                   {(() => {
-                    const idx = videos.findIndex(v => v.id === currentVideo.id);
-                    const next = videos[idx + 1];
+                    const idx = flatVids.findIndex(v => v.id === currentVideo.id);
+                    const next = flatVids[idx + 1];
                     if (!next) return null;
-                    const nextLocked = isVideoLocked(next, idx + 1);
                     return (
-                      <button
-                        onClick={() => {
-                          // [H4-FIX] Mobile next button must also respect the lock state
-                          if (nextLocked) {
-                            toast.error('يجب اجتياز التسميع أولاً للوصول لهذه المحاضرة');
-                            setActiveTab('recitations');
-                            return;
-                          }
-                          setActiveVideo(next);
-                        }}
-                        className={`flex-shrink-0 flex items-center gap-1.5 text-white font-bold px-3 py-1.5 rounded-lg transition-all text-xs active:scale-95 ${
-                          nextLocked ? 'bg-gray-600 opacity-60 cursor-not-allowed' : 'bg-orange-500 hover:bg-orange-600'
-                        }`}
-                      >
-                        {nextLocked ? <Lock className="w-3 h-3" /> : null}
-                        التالي <ChevronRight className="w-3.5 h-3.5" />
+                      <button onClick={() => setActiveVideo(next)}
+                        className="flex-shrink-0 flex items-center gap-2 font-bold px-4 py-2 rounded-xl transition-all text-sm active:scale-95 bg-orange-500 hover:bg-orange-600 text-white hover:shadow-lg">
+                        التالي <ChevronRight className="w-4 h-4" />
                       </button>
                     );
                   })()}
                 </div>
-              )}
-
-              {/* Desktop full info bar */}
-              {currentVideo && (
-                <div className="hidden md:block flex-shrink-0 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-white/10 px-6 py-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <h2 className="text-gray-900 dark:text-white font-black text-lg leading-tight">
-                        {currentVideo.title}
-                      </h2>
-                      <div className="flex items-center gap-3 mt-1.5">
-                        {currentVideo.duration_minutes > 0 && (
-                          <span className="flex items-center gap-1 text-xs text-gray-500">
-                            <Clock className="w-3.5 h-3.5" />
-                            {fmt(currentVideo.duration_minutes)}
-                          </span>
-                        )}
-                        <span className="text-xs text-gray-500 dark:text-gray-600">
-                          محاضرة {(videos.findIndex(v => v.id === currentVideo.id) + 1)} من {videos.length}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Next video button */}
-                    {(() => {
-                      const idx = videos.findIndex(v => v.id === currentVideo.id);
-                      const next = videos[idx + 1];
-                      if (!next) return null;
-                      const nextLocked = isVideoLocked(next, idx + 1);
-                      return (
-                        <button
-                          onClick={() => {
-                            if (nextLocked) {
-                              toast.error('يجب اجتياز التسميع أولاً للوصول لهذه المحاضرة');
-                              setActiveTab('recitations');
-                              return;
-                            }
-                            setActiveVideo(next);
-                          }}
-                          className={`flex-shrink-0 flex items-center gap-2 font-bold px-4 py-2 rounded-xl transition-all text-sm active:scale-95 ${
-                            nextLocked
-                              ? 'bg-gray-600 opacity-60 cursor-not-allowed text-white'
-                              : 'bg-orange-500 hover:bg-orange-600 text-white hover:shadow-lg'
-                          }`}
-                        >
-                          {nextLocked ? <Lock className="w-4 h-4" /> : null}
-                          التالي
-                          <ChevronRight className="w-4 h-4" />
-                        </button>
-                      );
-                    })()}
-                  </div>
-
-                  {/* Playlist progress mini-strip */}
-                  <div className="flex gap-1 mt-4">
-                    {videos.map((v) => (
-                      <button
-                        key={v.id}
-                        onClick={() => setActiveVideo(v)}
-                        title={v.title}
-                        className={`h-1 rounded-full flex-1 transition-all ${
-                          v.id === currentVideo.id
-                            ? 'bg-orange-500'
-                            : 'bg-gray-300 dark:bg-white/10 hover:bg-gray-400 dark:hover:bg-white/20'
-                        }`}
-                      />
-                    ))}
-                  </div>
+                <div className="flex gap-1 mt-4">
+                  {flatVids.map(v => (
+                    <button key={v.id} onClick={() => setActiveVideo(v)} title={v.title}
+                      className={`h-1 rounded-full flex-1 transition-all ${
+                        v.id === currentVideo.id
+                          ? 'bg-orange-500'
+                          : 'bg-gray-300 dark:bg-white/10 hover:bg-gray-400 dark:hover:bg-white/20'
+                      }`} />
+                  ))}
                 </div>
-              )}
-            </>
-          ) : activeTab === 'pdfs' ? (
-            <>
-              {currentPdf && (
-                <div className="flex-shrink-0 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-white/10 px-5 py-3 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-orange-500/20 flex items-center justify-center">
-                      <FileText className="w-4 h-4 text-orange-500 dark:text-orange-400" />
-                    </div>
-                    <div>
-                      <p className="text-gray-900 dark:text-white font-black text-sm">{currentPdf.title}</p>
-                      <p className="text-gray-500 text-xs">ملف PDF</p>
-                    </div>
-                  </div>
-                  <span className="flex items-center gap-1.5 text-xs font-medium text-gray-500">
-                    <Eye className="w-3.5 h-3.5" /> عرض فقط
-                  </span>
-                </div>
-              )}
-              <div className="flex-1 overflow-hidden">
-                <PdfViewer key={currentPdf?.id} pdf={currentPdf} />
               </div>
             </>
-          ) : null}
-          {/* Recitations tab — always mounted so in-progress state survives tab switches */}
-          <div className={activeTab === 'recitations' ? 'flex-1 flex flex-col min-h-0 overflow-hidden' : 'hidden'}>
-            <RecitationsTabPanel
-              recitations={courseRecitations}
-              courseId={courseId}
-              onRefresh={() => refetchRecitations()}
-              onPassed={() => { refetchRecitations(); }}
-            />
-          </div>
-          {(activeTab !== 'recitations' && activeTab !== 'pdfs' && activeTab !== 'videos') && (
-            /* Exams tab main area — shows grades breakdown */
+          ) : activeView === 'pdf' && currentPdf ? (
+            <>
+              <div className="flex-shrink-0 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-white/10 px-5 py-3 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-orange-500/20 flex items-center justify-center">
+                    <FileText className="w-4 h-4 text-orange-500 dark:text-orange-400" />
+                  </div>
+                  <div>
+                    <p className="text-gray-900 dark:text-white font-black text-sm">{currentPdf.title}</p>
+                    <p className="text-gray-500 text-xs">ملف PDF</p>
+                  </div>
+                </div>
+                <span className="flex items-center gap-1.5 text-xs font-medium text-gray-500">
+                  <Eye className="w-3.5 h-3.5" /> عرض فقط
+                </span>
+              </div>
+              <div className="flex-1 overflow-hidden">
+                <PdfViewer key={currentPdf.id} pdf={currentPdf} />
+              </div>
+            </>
+          ) : activeView === 'recitation' && activeRec ? (
+            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+              <RecitationsTabPanel
+                recitations={[activeRec]}
+                courseId={courseId}
+                onRefresh={() => {
+                  // Refetch content to update gate progress
+                  queryClient.invalidateQueries({ queryKey: ['course-content', courseId] });
+                }}
+                onPassed={() => {
+                  queryClient.invalidateQueries({ queryKey: ['course-content', courseId] });
+                }}
+              />
+            </div>
+          ) : activeView === 'exams' ? (
             <div className="flex-1 overflow-y-auto p-6">
               <div className="max-w-2xl mx-auto space-y-5">
                 <h2 className="text-gray-900 dark:text-white font-black text-xl mb-4 flex items-center gap-2">
-                  <BookOpen className="w-6 h-6 text-purple-500 dark:text-purple-400" /> درجاتي في الاختبارات
+                  <Trophy className="w-6 h-6 text-purple-500 dark:text-purple-400" /> درجاتي في الاختبارات
                 </h2>
-
-                {exams.length === 0 ? (
-                  <div className="text-center py-16 text-gray-500 dark:text-gray-600">
-                    <BookOpen className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                    <p className="text-sm font-medium">لا توجد اختبارات بعد</p>
-                  </div>
-                ) : exams.map(ex => {
+                {exams.map(ex => {
                   const myResult = examResults.find(r => String(r.exam_id) === String(ex.id));
                   const isAbsent = myResult && (myResult.is_absent === true || myResult.is_absent === 'true');
                   const passed = myResult && !isAbsent && myResult.score >= ex.pass_score;
@@ -2758,14 +2579,13 @@ export default function CourseView() {
                               {myResult.score}<span className="text-sm text-gray-500">/{ex.total_score}</span>
                             </div>
                             <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${passed ? 'bg-green-500/20 text-green-600 dark:text-green-400' : 'bg-red-500/20 text-red-500 dark:text-red-400'}`}>
-                              {passed ? '✓ ناجح' : '✗ راسب'}
+                              {passed ? '✓ ناجح' : '� راسب'}
                             </span>
                           </div>
                         ) : (
                           <span className="text-xs font-bold text-gray-500 bg-gray-100 dark:bg-white/5 px-3 py-1.5 rounded-full">لم تُؤدَّ بعد</span>
                         )}
                       </div>
-                      {/* Score breakdown + review button: hidden for absent students */}
                       {myResult && !isAbsent && (
                         <>
                           <div className="w-full bg-gray-200 dark:bg-white/10 rounded-full h-2 overflow-hidden mb-3">
@@ -2797,14 +2617,14 @@ export default function CourseView() {
                     </div>
                   );
                 })}
-
-                <button
-                  onClick={() => navigate('/student/exams')}
-                  className="w-full flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-black px-6 py-3 rounded-2xl transition-all"
-                >
-                  <BookOpen className="w-4 h-4" />
-                  صفحة الاختبارات الكاملة
-                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 flex items-center justify-center p-6">
+              <div className="text-center max-w-md">
+                <Video className="w-14 h-14 mx-auto mb-3 text-gray-300" />
+                <h2 className="text-gray-900 dark:text-white font-black text-lg mb-2">اختر محاضرة أو ملف أو تسميع</h2>
+                <p className="text-gray-500 text-sm">من القائمة الجانبية، اختر محاضرة للمشاهدة، ملف للقراءة، أو تسميع لأدائه.</p>
               </div>
             </div>
           )}
@@ -2813,6 +2633,153 @@ export default function CourseView() {
     </div>
   );
 }
+
+/* ── Chapter card — collapsible section with nested videos / files / recitations ── */
+function ChapterCard({ section, expanded, onToggle, activeVideo, activePdf, activeRec, onSelectVideo, onSelectPdf, onSelectRec, isStudent }) {
+  const isLocked = isStudent && section.is_unlocked_for_student === false;
+  const videos = section.videos || [];
+  const pdfs = section.pdfs || [];
+  const recitations = section.recitations || [];
+  const gateProgress = section.gate_progress;
+  const totalItems = videos.length + pdfs.length + recitations.length;
+
+  return (
+    <div className={`bg-white dark:bg-white/5 rounded-2xl border transition-all overflow-hidden ${
+      isLocked ? 'border-gray-200 dark:border-white/10 opacity-70' : 'border-gray-200 dark:border-white/10 shadow-sm'
+    }`}>
+      <button
+        onClick={() => !isLocked && onToggle()}
+        disabled={isLocked}
+        className="w-full p-3 text-right flex items-center gap-3 hover:bg-orange-500/5 disabled:cursor-not-allowed transition-colors"
+      >
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+          isLocked ? 'bg-gray-200 dark:bg-white/5' : 'bg-gradient-to-br from-orange-400 to-orange-600 shadow-sm shadow-orange-500/20'
+        }`}>
+          {isLocked
+            ? <Lock className="w-4 h-4 text-gray-500" />
+            : <FolderOpen className="w-5 h-5 text-white" />}
+        </div>
+        <div className="flex-1 min-w-0 text-right">
+          <p className="text-gray-900 dark:text-white font-black text-sm truncate">{section.title}</p>
+          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+            {isLocked ? (
+              <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded-full flex items-center gap-1">
+                <Lock className="w-2.5 h-2.5" /> مقفل — يجب اجتياز {gateProgress?.required || 0} تسميع
+              </span>
+            ) : (
+              <>
+                {videos.length > 0 && <span className="text-[10px] text-gray-500">🎬 {videos.length}</span>}
+                {pdfs.length > 0 && <span className="text-[10px] text-gray-500">📄 {pdfs.length}</span>}
+                {recitations.length > 0 && <span className="text-[10px] text-purple-600 dark:text-purple-400 font-bold">📖 {recitations.length}</span>}
+                {totalItems === 0 && <span className="text-[10px] text-gray-400">فارغ</span>}
+                {gateProgress && gateProgress.required > 0 && gateProgress.passed > 0 && gateProgress.passed < gateProgress.required && (
+                  <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded-full">
+                    {gateProgress.passed}/{gateProgress.required} تسميع
+                  </span>
+                )}
+                {gateProgress && gateProgress.required > 0 && gateProgress.passed >= gateProgress.required && (
+                  <span className="text-[10px] font-bold text-green-600 dark:text-green-400 bg-green-500/10 px-1.5 py-0.5 rounded-full">
+                    ✓ اجتزت كل التسميعات
+                  </span>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+        {!isLocked && (expanded ? <ChevronUp className="w-4 h-4 text-gray-400 flex-shrink-0" /> : <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />)}
+      </button>
+
+      {!isLocked && expanded && (
+        <div className="border-t border-gray-200 dark:border-white/10 p-2 space-y-1 bg-gray-50/50 dark:bg-transparent">
+          {videos.map((v, i) => {
+            const isActive = activeVideo?.id === v.id;
+            return (
+              <button key={v.id}
+                onClick={() => onSelectVideo(v)}
+                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all text-right ${
+                  isActive ? 'bg-orange-500 text-white shadow-sm' : 'hover:bg-orange-500/10 text-gray-700 dark:text-gray-300'
+                }`}>
+                <div className={`w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 ${
+                  isActive ? 'bg-white/20' : 'bg-gray-200 dark:bg-white/10'
+                }`}>
+                  {isActive
+                    ? <Play className="w-3.5 h-3.5 text-white fill-white" />
+                    : <Video className="w-3.5 h-3.5 text-gray-500" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-xs font-bold truncate ${isActive ? 'text-white' : ''}`}>{v.title}</p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    {v.duration_minutes > 0 && (
+                      <span className={`text-[10px] flex items-center gap-0.5 ${isActive ? 'text-white/70' : 'text-gray-500'}`}>
+                        <Clock className="w-2.5 h-2.5" /> {fmt(v.duration_minutes)}
+                      </span>
+                    )}
+                    {v.saved_progress > 0 && !isActive && (
+                      <span className="text-[10px] font-bold text-orange-500">{Math.round(v.saved_progress)}%</span>
+                    )}
+                    {v.saved_progress >= 95 && !isActive && <CheckCircle2 className="w-3 h-3 text-green-500" />}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+          {pdfs.map(p => {
+            const isActive = activePdf?.id === p.id;
+            return (
+              <button key={p.id}
+                onClick={() => onSelectPdf(p)}
+                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all text-right ${
+                  isActive ? 'bg-orange-500 text-white shadow-sm' : 'hover:bg-orange-500/10 text-gray-700 dark:text-gray-300'
+                }`}>
+                <div className={`w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 ${
+                  isActive ? 'bg-white/20' : 'bg-gray-200 dark:bg-white/10'
+                }`}>
+                  <FileText className={`w-3.5 h-3.5 ${isActive ? 'text-white' : 'text-gray-500'}`} />
+                </div>
+                <p className={`flex-1 text-xs font-bold truncate ${isActive ? 'text-white' : ''}`}>{p.title}</p>
+              </button>
+            );
+          })}
+          {recitations.map(rec => {
+            const passed = rec.my_ever_passed ?? rec.my_passed ?? false;
+            const hasResult = !!rec.result_id;
+            const isActive = activeRec?.id === rec.id;
+            return (
+              <button key={rec.id}
+                onClick={() => onSelectRec(rec)}
+                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all text-right ${
+                  isActive ? 'bg-purple-500 text-white shadow-sm' : 'hover:bg-purple-500/10 text-gray-700 dark:text-gray-300'
+                }`}>
+                <div className={`w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 ${
+                  isActive ? 'bg-white/20' : 'bg-purple-500/15'
+                }`}>
+                  <BookMarked className={`w-3.5 h-3.5 ${isActive ? 'text-white' : 'text-purple-500'}`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-xs font-bold truncate ${isActive ? 'text-white' : ''}`}>{rec.title}</p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    {hasResult ? (
+                      <span className={`text-[10px] font-black ${isActive ? 'text-white/80' : passed ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`}>
+                        {rec.my_score}/{rec.total_score} {passed ? '✓' : '✗'}
+                      </span>
+                    ) : (
+                      <span className={`text-[10px] ${isActive ? 'text-white/70' : 'text-gray-500'}`}>لم تُؤدَّ</span>
+                    )}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+          {totalItems === 0 && (
+            <p className="text-center text-xs text-gray-400 py-3">هذا الفصل لا يحتوي على محتوى بعد</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 
 function EmptyState({ icon: Icon, text }) {
   return (

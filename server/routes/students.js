@@ -1003,7 +1003,7 @@ router.post('/me/video-progress', requireRole('student'), async (req, res) => {
   try {
     // Verify the video belongs to a course the student is actively enrolled in
     const ownershipCheck = await pool.query(
-      `SELECT v.id, v.duration_minutes FROM videos v
+      `SELECT v.id, v.course_id, v.section_id, v.duration_minutes FROM videos v
        JOIN student_course_enrollment sce ON v.course_id = sce.course_id
        WHERE v.id = $1 AND sce.student_id = $2 AND sce.status = 'active'`,
       [video_id, studentId]
@@ -1011,7 +1011,45 @@ router.post('/me/video-progress', requireRole('student'), async (req, res) => {
     if (!ownershipCheck.rows.length) {
       return res.status(403).json({ error: 'Access denied: video not in your enrolled courses' });
     }
-    const durationMinutes = parseFloat(ownershipCheck.rows[0]?.duration_minutes) || 0;
+
+    // [Phase-7] Server-authoritative section lock check. A video in a
+    // section that's gated by an unpassed recitation must not accept
+    // progress updates. This closes the "stale browser" loophole where a
+    // student could keep watching a video that just became locked because
+    // their browser still had the URL loaded. Returns the same 403 the
+    // content endpoint would, with the same error message the student UI
+    // already knows how to show.
+    const videoRow = ownershipCheck.rows[0];
+    const videoSectionId = videoRow.section_id ? Number(videoRow.section_id) : null;
+    if (videoSectionId) {
+      const sectionOrder = await pool.query(
+        `SELECT id, sort_order FROM sections WHERE course_id = $1 ORDER BY sort_order ASC, id ASC`,
+        [videoRow.course_id]
+      );
+      const firstSectionId = sectionOrder.rows[0] ? Number(sectionOrder.rows[0].id) : null;
+      // Lock applies only to sections OTHER than the first.
+      if (videoSectionId !== firstSectionId) {
+        const gateRes = await pool.query(
+          `SELECT bool_or(rr.passed IS NULL OR rr.passed = false) AS has_unpassed
+             FROM recitations r
+             LEFT JOIN recitation_results rr
+               ON rr.recitation_id = r.id AND rr.student_id = $2
+                 AND (rr.is_absent IS NULL OR rr.is_absent = false)
+            WHERE r.course_id = $1
+              AND r.section_id = $3
+              AND r.is_published = true
+              AND r.deleted_at IS NULL`,
+          [videoRow.course_id, studentId, videoSectionId]
+        );
+        const locked = gateRes.rows[0]?.has_unpassed === true;
+        if (locked) {
+          return res.status(403).json({
+            error: 'هذا الفيديو في فصل مقفل — يجب اجتياز التسميعات المرتبطة به أولاً',
+          });
+        }
+      }
+    }
+    const durationMinutes = parseFloat(videoRow.duration_minutes) || 0;
     const maxWatchedSeconds = durationMinutes > 0 ? durationMinutes * 60 : 86400;
     const safeWatchedSeconds = Math.round(Math.max(0, Math.min(actual_watched_seconds || 0, maxWatchedSeconds)));
     // BUG-12: cap watched_minutes at actual video duration — prevents inflated watch-time from malicious clients

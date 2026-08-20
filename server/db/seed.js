@@ -498,6 +498,11 @@ async function seed() {
   const c7v1 = await addVid(c7.id, c7s1, 'مقدمة في الاستاتيكا وعزوم القوى', YT1, 30, 1);
   await addPdf(c7.id, c7s1, 'ملخص قوانين عزوم القوى PDF');
 
+  // [Edge case] c7s2: فصل فارغ (بدون محتوى) — يستخدم لاختبار سيناريو
+  // "فصل مقفل لأن فيه تسميعات بتقفله، لكن مفيش محتوى لسه". المعلم ينشئه
+  // مقدّمًا قبل ما ينزل المحتوى عشان يقفله بالتسميعات.
+  const c7s2 = await addSec(c7.id, 'الباب الثاني — الاحتكاك والقوى الموزعة (قريباً)', 2);
+
   // ── C8: هندسة فراغية ث3 مجاني (1 قسم، 1 فيديو، 1 PDF) ──
   const c8s1 = await addSec(c8.id, 'الباب الأول — المتجهات في الفراغ', 1);
   const c8v1 = await addVid(c8.id, c8s1, 'المتجهات في الفراغ ثلاثي الأبعاد', YT2, 25, 1);
@@ -2287,53 +2292,53 @@ async function seed() {
   // ══════════════════════════════════════════════════════════
   console.log('\n⟳  إضافة التسميعات...');
 
-  // r1: تسميع يومي على المشتقات — مرتبط بكورس التفاضل (c2)
+  // r1: تسميع يومي على المشتقات — مرتبط بكورس التفاضل (c2)، يقفل الفصل 2
   const [r1] = await q(`
     INSERT INTO recitations
       (teacher_id,title,description,academic_stage,duration_minutes,
        total_score,pass_score,points_on_attempt,points_on_pass,
        schedule_type,start_date,end_date,is_published,
-       shuffle_questions,shuffle_options,course_id,video_ids)
+       shuffle_questions,shuffle_options,course_id,section_id,video_ids)
     VALUES ($1,
       'تسميع المشتقات اليومي',
       'تسميع سريع على قواعد المشتقات — 5 أسئلة خلال 10 دقائق',
       'الصف الثالث الثانوي',10,10,6,2,5,
       'daily',
-      $2,$3,true,false,false,$4,$5)
+      $2,$3,true,false,false,$4,$5,$6)
     RETURNING id
-  `, [T1, past(7), future(1), c2.id, JSON.stringify([c2v3, c2v4])]);
+  `, [T1, past(7), future(1), c2.id, c2s2, JSON.stringify([c2v3, c2v4])]);
 
-  // r2: تسميع أسبوعي على المثلثات — مرتبط بكورس الجبر (c1)
+  // r2: تسميع أسبوعي على المثلثات — مرتبط بكورس الجبر (c1)، يقفل الفصل 2
   const [r2] = await q(`
     INSERT INTO recitations
       (teacher_id,title,description,academic_stage,duration_minutes,
        total_score,pass_score,points_on_attempt,points_on_pass,
        schedule_type,schedule_day,start_date,end_date,is_published,
-       shuffle_questions,shuffle_options,course_id,video_ids)
+       shuffle_questions,shuffle_options,course_id,section_id,video_ids)
     VALUES ($1,
       'مراجعة المثلثات الأسبوعية',
       'تسميع أسبوعي شامل على النسب المثلثية وقوانينها',
       'الصف الثالث الثانوي',15,20,12,3,10,
       'weekly',6,
-      $2,$3,true,true,false,$4,$5)
+      $2,$3,true,true,false,$4,$5,$6)
     RETURNING id
-  `, [T1, past(5), future(2), c1.id, JSON.stringify([c1v7, c1v8, c1v9])]);
+  `, [T1, past(5), future(2), c1.id, c1s2, JSON.stringify([c1v7, c1v8, c1v9])]);
 
-  // r3: تسميع قواعد التكامل — مرتبط بكورس التفاضل (c2)
+  // r3: تسميع قواعد التكامل — مرتبط بكورس التفاضل (c2)، يقفل الفصل 2
   const [r3] = await q(`
     INSERT INTO recitations
       (teacher_id,title,description,academic_stage,duration_minutes,
        total_score,pass_score,points_on_attempt,points_on_pass,
        schedule_type,start_date,end_date,is_published,
-       shuffle_questions,shuffle_options,course_id,video_ids)
+       shuffle_questions,shuffle_options,course_id,section_id,video_ids)
     VALUES ($1,
       'تسميع قواعد التكامل',
       'أسئلة على قوانين التكامل الأساسية — مستوى متوسط',
       'الصف الثالث الثانوي',12,24,15,2,8,
       'once',
-      $2,$3,true,false,true,$4,$5)
+      $2,$3,true,false,true,$4,$5,$6)
     RETURNING id
-  `, [T1, past(1), future(4), c2.id, JSON.stringify([c2v5, c2v6])]);
+  `, [T1, past(1), future(4), c2.id, c2s2, JSON.stringify([c2v5, c2v6])]);
 
   // r4: تسميع شامل قادم (start_date في المستقبل) — لا كورس محدد
   const [r4] = await q(`
@@ -2350,20 +2355,20 @@ async function seed() {
     RETURNING id
   `, [T1, future(5), future(12)]);
 
-  // r5: تسميع ث2 — مرتبط بكورس الهندسة التحليلية (c4)
+  // r5: تسميع ث2 — مرتبط بكورس الهندسة التحليلية (c4)، يقفل الفصل 2
   const [r5] = await q(`
     INSERT INTO recitations
       (teacher_id,title,description,academic_stage,duration_minutes,
        total_score,pass_score,points_on_attempt,points_on_pass,
-       schedule_type,start_date,end_date,is_published,course_id,video_ids)
+       schedule_type,start_date,end_date,is_published,course_id,section_id,video_ids)
     VALUES ($1,
       'تسميع الهندسة التحليلية — ث2',
       'أسئلة على الإحداثيات والمستقيمات',
       'الصف الثاني الثانوي عام',10,10,6,2,5,
       'once',
-      $2,$3,true,$4,$5)
+      $2,$3,true,$4,$5,$6)
     RETURNING id
-  `, [T1, past(3), future(3), c4.id, JSON.stringify([c4v3, c4v4])]);
+  `, [T1, past(3), future(3), c4.id, c4s2, JSON.stringify([c4v3, c4v4])]);
 
   // r6: تسميع مسودة (غير منشور) — لا كورس
   const [r6] = await q(`
@@ -2425,81 +2430,89 @@ async function seed() {
   `, [T1, past(2), future(8), c7.id, JSON.stringify([c7v1])]);
 
   // ══ التسميعات التجريبية (rt1 → rt5) — نشطة ومتاحة لـ std_ali بدون نتائج ══
+  // [Edge case] These recitations gate the NEXT chapter (the "Gate Next Section"
+  // semantic). rt1/rt2 → unlock c1s2. rt3/rt4 → unlock c2s2. rt5 → unlocks
+  // c7s2 (which is empty, demonstrating the "empty chapter ahead" workflow).
 
-  // rt1: تسميع تجريبي — MCQ فقط بدون صور — c1
+  // rt1: تسميع تجريبي — MCQ فقط بدون صور — c1 → يقفل c1s2
   const [rt1] = await q(`
     INSERT INTO recitations
       (teacher_id,title,description,academic_stage,duration_minutes,
        total_score,pass_score,points_on_attempt,points_on_pass,
        schedule_type,start_date,end_date,is_published,
-       shuffle_questions,shuffle_options,course_id)
+       shuffle_questions,shuffle_options,course_id,section_id)
     VALUES ($1,
       'تسميع تجريبي: الجبر الأساسي (اختيار متعدد فقط)',
       'تسميع تجريبي يغطي المعادلات والمتباينات بأسئلة اختيار متعدد فقط — بدون صور',
       'الصف الثالث الثانوي',10,20,12,3,8,
-      'once',$2,$3,true,false,false,$4)
+      'once',$2,$3,true,false,false,$4,$5)
     RETURNING id
-  `, [T1, past(3), future(10), c1.id]);
+  `, [T1, past(3), future(10), c1.id, c1s2]);
 
-  // rt2: تسميع تجريبي — MCQ + صح/خطأ بدون صور — c1
+  // rt2: تسميع تجريبي — MCQ + صح/خطأ بدون صور — c1 → يقفل c1s2 (التسميع الثاني)
   const [rt2] = await q(`
     INSERT INTO recitations
       (teacher_id,title,description,academic_stage,duration_minutes,
        total_score,pass_score,points_on_attempt,points_on_pass,
        schedule_type,start_date,end_date,is_published,
-       shuffle_questions,shuffle_options,course_id)
+       shuffle_questions,shuffle_options,course_id,section_id)
     VALUES ($1,
       'تسميع تجريبي: المثلثات المختلط (اختيار متعدد + صح/خطأ)',
       'أسئلة مزيجة من اختيار متعدد وصح/خطأ على المثلثات — بدون صور',
       'الصف الثالث الثانوي',12,24,14,3,10,
-      'once',$2,$3,true,true,false,$4)
+      'once',$2,$3,true,true,false,$4,$5)
     RETURNING id
-  `, [T1, past(2), future(12), c1.id]);
+  `, [T1, past(2), future(12), c1.id, c1s2]);
 
-  // rt3: تسميع تجريبي — MCQ + أسئلة بصور — c2
+  // rt3: تسميع تجريبي — MCQ + أسئلة بصور — c2 → يقفل c2s2
   const [rt3] = await q(`
     INSERT INTO recitations
       (teacher_id,title,description,academic_stage,duration_minutes,
        total_score,pass_score,points_on_attempt,points_on_pass,
        schedule_type,start_date,end_date,is_published,
-       shuffle_questions,shuffle_options,course_id)
+       shuffle_questions,shuffle_options,course_id,section_id)
     VALUES ($1,
       'تسميع تجريبي: التفاضل مع الرسوم البيانية (أسئلة بصور)',
       'أسئلة على التفاضل مصحوبة بصور ورسوم بيانية لقراءتها والإجابة عنها',
       'الصف الثالث الثانوي',15,25,15,3,10,
-      'once',$2,$3,true,false,true,$4)
+      'once',$2,$3,true,false,true,$4,$5)
     RETURNING id
-  `, [T1, past(4), future(8), c2.id]);
+  `, [T1, past(4), future(8), c2.id, c2s2]);
 
-  // rt4: تسميع تجريبي — image_multi (صورة + بنود فرعية) — c2
+  // rt4: تسميع تجريبي — image_multi (صورة + بنود فرعية) — c2 → يقفل c2s2
   const [rt4] = await q(`
     INSERT INTO recitations
       (teacher_id,title,description,academic_stage,duration_minutes,
        total_score,pass_score,points_on_attempt,points_on_pass,
        schedule_type,start_date,end_date,is_published,
-       shuffle_questions,shuffle_options,course_id)
+       shuffle_questions,shuffle_options,course_id,section_id)
     VALUES ($1,
       'تسميع تجريبي: التكامل — صور متعددة الأسئلة (image_multi)',
       'أسئلة تحتوي على صورة واحدة مع عدة بنود فرعية مرتبطة بها — أعلى مستوى',
       'الصف الثالث الثانوي',15,30,18,3,12,
-      'once',$2,$3,true,false,false,$4)
+      'once',$2,$3,true,false,false,$4,$5)
     RETURNING id
-  `, [T1, past(1), future(14), c2.id]);
+  `, [T1, past(1), future(14), c2.id, c2s2]);
 
-  // rt5: تسميع تجريبي — مختلط كامل (MCQ + صح/خطأ + صورة + image_multi) — c7
+  // [Edge case] rt5 is tied to an empty chapter (c7s2 has no videos/files
+  // yet but has a gate-recitation locking it). This demonstrates the
+  // "pre-create empty chapter" workflow: teacher creates c7s2 + rt5
+  // upfront, then later adds videos to c7s2 and they automatically
+  // become accessible to students who passed rt5.
+  // rt5: تسميع تجريبي — مختلط كامل — c7 → يقفل c7s2 (فصل فارغ)
   const [rt5] = await q(`
     INSERT INTO recitations
       (teacher_id,title,description,academic_stage,duration_minutes,
        total_score,pass_score,points_on_attempt,points_on_pass,
        schedule_type,start_date,end_date,is_published,
-       shuffle_questions,shuffle_options,course_id)
+       shuffle_questions,shuffle_options,course_id,section_id)
     VALUES ($1,
       'تسميع تجريبي: الاستاتيكا الشاملة (كل أنواع الأسئلة)',
       'تسميع يجمع كل الأنواع: اختيار متعدد + صح/خطأ + صورة + صورة متعددة الأسئلة',
       'الصف الثالث الثانوي',18,36,22,3,14,
-      'once',$2,$3,true,true,true,$4)
+      'once',$2,$3,true,true,true,$4,$5)
     RETURNING id
-  `, [T1, past(2), future(9), c7.id]);
+  `, [T1, past(2), future(9), c7.id, c7s2]);
 
   console.log('  ✓ 9 تسميعات (نشط×7، قادم×1، مسودة×1) — مرتبطة بالكورسات + 5 تسميعات تجريبية لـ std_ali');
 

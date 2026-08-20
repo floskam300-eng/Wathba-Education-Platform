@@ -157,7 +157,7 @@ const checkFileAccess = async (decoded, fileType, fullPath) => {
   try {
     if (fileType === 'video') {
       const r = await pool.query(
-        `SELECT v.course_id, c.teacher_id, c.is_published
+        `SELECT v.course_id, v.section_id, c.teacher_id, c.is_published
            FROM videos v
            JOIN courses c ON v.course_id = c.id
           WHERE v.file_path_or_url = $1
@@ -165,7 +165,7 @@ const checkFileAccess = async (decoded, fileType, fullPath) => {
         [fullPath]
       );
       if (!r.rows.length) return null;
-      const { course_id, teacher_id, is_published } = r.rows[0];
+      const { course_id, section_id, teacher_id, is_published } = r.rows[0];
       if (decoded.role === 'teacher') {
         hasAccess = decoded.id === teacher_id;
       } else if (decoded.role === 'assistant') {
@@ -181,6 +181,36 @@ const checkFileAccess = async (decoded, fileType, fullPath) => {
           [decoded.id, course_id]
         );
         hasAccess = e.rows.length > 0;
+
+        // [B11] Section lock check. If the video's section has an unpassed
+        // gate-recitation, the student must NOT access the raw file even
+        // if they had it loaded in their browser when the lock was created.
+        // This mirrors the same check in /api/students/me/video-progress
+        // so a stale browser can't keep streaming a now-locked video.
+        if (hasAccess && section_id) {
+          const orderRes = await pool.query(
+            `SELECT id FROM sections WHERE course_id = $1 ORDER BY sort_order ASC, id ASC LIMIT 1`,
+            [course_id]
+          );
+          const firstSectionId = orderRes.rows[0] ? Number(orderRes.rows[0].id) : null;
+          if (Number(section_id) !== firstSectionId) {
+            const gateRes = await pool.query(
+              `SELECT bool_or(rr.passed IS NULL OR rr.passed = false) AS has_unpassed
+                 FROM recitations r
+                 LEFT JOIN recitation_results rr
+                   ON rr.recitation_id = r.id AND rr.student_id = $2
+                     AND (rr.is_absent IS NULL OR rr.is_absent = false)
+                WHERE r.course_id = $1
+                  AND r.section_id = $3
+                  AND r.is_published = true
+                  AND r.deleted_at IS NULL`,
+              [course_id, decoded.id, section_id]
+            );
+            if (gateRes.rows[0]?.has_unpassed === true) {
+              hasAccess = false;
+            }
+          }
+        }
       }
 
     } else if (fileType === 'pdf') {
