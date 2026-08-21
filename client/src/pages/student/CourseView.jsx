@@ -15,7 +15,7 @@ import api from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 import { withToken } from '../../lib/mediaAccess';
 import QuestionImage from '../../components/ui/QuestionImage';
-import { toUTCDate, getServerNowMs } from '../../lib/dateUtils';
+import { toUTCDate, getServerNow, getServerNowMs } from '../../lib/dateUtils';
 import MathText from '../../components/MathText';
 
 /* ─── helpers ─────────────────────────────────────────── */
@@ -1956,9 +1956,14 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
 
   // [M1-FIX] Determine schedule status for each recitation
   const getRecStatus = (rec) => {
-    const now = new Date();
+    const now = getServerNow();
     const startDate = toUTCDate(rec.start_date);
     const endDate = toUTCDate(rec.end_date);
+    const mySubmittedAt = toUTCDate(rec.my_submitted_at);
+    const isOnce = !rec.schedule_type || rec.schedule_type === 'once';
+    const hasResult = !!rec.result_id || !!mySubmittedAt;
+    const doneInCurrentWindow = hasResult && (isOnce || !startDate || (mySubmittedAt && mySubmittedAt >= startDate));
+    if (doneInCurrentWindow) return 'done';
     if (startDate && startDate > now) return 'upcoming';
     if (endDate && endDate < now) return 'expired';
     return 'open';

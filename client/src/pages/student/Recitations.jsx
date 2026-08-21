@@ -22,8 +22,9 @@ function getStatus(rec) {
   const endDate = toUTCDate(rec.end_date);
   const mySubmittedAt = toUTCDate(rec.my_submitted_at);
 
-  // For recurring recitations: only mark "done" if the student submitted within current window
-  const doneInCurrentWindow = mySubmittedAt && (!startDate || mySubmittedAt >= startDate);
+  const isOnce = !rec.schedule_type || rec.schedule_type === 'once';
+  const hasResult = !!rec.result_id || !!mySubmittedAt;
+  const doneInCurrentWindow = hasResult && (isOnce || !startDate || (mySubmittedAt && mySubmittedAt >= startDate));
   if (doneInCurrentWindow) return 'done';
   if (startDate && startDate > now) return 'upcoming';
   if (endDate && endDate < now) return 'expired';

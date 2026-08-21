@@ -502,13 +502,14 @@ router.get('/student/course/:courseId', requireRole('student'), async (req, res)
     const { rows } = await pool.query(
       `SELECT r.id, r.title, r.description, r.duration_minutes, r.total_score, r.pass_score,
               r.start_date, r.end_date, r.allow_retry, r.max_retry_attempts,
-              r.section_id,
+              r.schedule_type, r.section_id,
               (SELECT COUNT(*) FROM recitation_questions WHERE recitation_id=r.id) AS question_count,
               (SELECT COUNT(*) FROM recitation_results rr_cnt
                 WHERE rr_cnt.student_id=$1 AND rr_cnt.recitation_id=r.id
-                  AND (r.start_date IS NULL OR rr_cnt.created_at >= r.start_date)
+                  AND (r.schedule_type = 'once' OR r.schedule_type IS NULL OR r.start_date IS NULL OR rr_cnt.created_at >= r.start_date)
                   AND (rr_cnt.is_absent IS NULL OR rr_cnt.is_absent=false)) AS my_attempt_count,
               rr.id AS result_id, rr.score AS my_score, rr.passed AS my_passed,
+              rr.ever_passed AS my_ever_passed,
               rr.correct_count AS my_correct, rr.wrong_count AS my_wrong,
               rr.created_at AS my_submitted_at,
               COALESCE(g.unused_grants, 0) AS unused_grants
@@ -517,11 +518,13 @@ router.get('/student/course/:courseId', requireRole('student'), async (req, res)
            SELECT rr2.id, rr2.score, rr2.passed,
                   (SELECT bool_or(rr3.passed) FROM recitation_results rr3
                     WHERE rr3.student_id=$1 AND rr3.recitation_id=r.id
+                      AND (r.schedule_type = 'once' OR r.schedule_type IS NULL OR r.start_date IS NULL OR rr3.created_at >= r.start_date)
                       AND (rr3.is_absent IS NULL OR rr3.is_absent=false)) AS ever_passed,
                   rr2.correct_count, rr2.wrong_count, rr2.created_at
              FROM recitation_results rr2
             WHERE rr2.student_id=$1
               AND rr2.recitation_id=r.id
+              AND (r.schedule_type = 'once' OR r.schedule_type IS NULL OR r.start_date IS NULL OR rr2.created_at >= r.start_date)
               AND (rr2.is_absent IS NULL OR rr2.is_absent=false)
             ORDER BY rr2.created_at DESC
             LIMIT 1
@@ -536,12 +539,6 @@ router.get('/student/course/:courseId', requireRole('student'), async (req, res)
         WHERE r.teacher_id=$3
           AND r.is_published=true
           AND r.deleted_at IS NULL
-          -- [BUG-FIX] Match the main list filter exactly: a standalone recitation
-          -- (no course) is available to every student regardless of stage when its
-          -- academic_stage is NULL, OR when its academic_stage matches the student.
-          -- Previously the course view required academic_stage = student_stage,
-          -- which silently hid recitations that have no course AND no stage from
-          -- every course view even though they appeared on the main list.
           AND (r.course_id=$2 OR (r.course_id IS NULL AND (r.academic_stage IS NULL OR r.academic_stage=$4)))
         ORDER BY r.created_at ASC`,
       [studentId, courseId, teacherId, academic_stage]
@@ -571,9 +568,10 @@ router.get('/student/list', requireRole('student'), async (req, res) => {
               (SELECT COUNT(*) FROM recitation_questions WHERE recitation_id=r.id) AS question_count,
               (SELECT COUNT(*) FROM recitation_results rr_cnt
                 WHERE rr_cnt.student_id=$1 AND rr_cnt.recitation_id=r.id
-                  AND (r.start_date IS NULL OR rr_cnt.created_at >= r.start_date)
+                  AND (r.schedule_type = 'once' OR r.schedule_type IS NULL OR r.start_date IS NULL OR rr_cnt.created_at >= r.start_date)
                   AND (rr_cnt.is_absent IS NULL OR rr_cnt.is_absent=false)) AS my_attempt_count,
               rr.id AS result_id, rr.score AS my_score, rr.passed AS my_passed,
+              rr.ever_passed AS my_ever_passed,
               rr.correct_count AS my_correct, rr.wrong_count AS my_wrong,
               rr.created_at AS my_submitted_at,
               rs2.id AS session_id,
@@ -583,12 +581,13 @@ router.get('/student/list', requireRole('student'), async (req, res) => {
            SELECT id, score, passed,
                    (SELECT bool_or(rr3.passed) FROM recitation_results rr3
                      WHERE rr3.student_id=$1 AND rr3.recitation_id=r.id
+                       AND (r.schedule_type = 'once' OR r.schedule_type IS NULL OR r.start_date IS NULL OR rr3.created_at >= r.start_date)
                        AND (rr3.is_absent IS NULL OR rr3.is_absent=false)) AS ever_passed,
                    correct_count, wrong_count, created_at
              FROM recitation_results rr2
             WHERE rr2.student_id=$1
               AND rr2.recitation_id=r.id
-              AND (r.start_date IS NULL OR rr2.created_at >= r.start_date)
+              AND (r.schedule_type = 'once' OR r.schedule_type IS NULL OR r.start_date IS NULL OR rr2.created_at >= r.start_date)
               AND (rr2.is_absent IS NULL OR rr2.is_absent=false)
             ORDER BY rr2.created_at DESC
             LIMIT 1
@@ -642,10 +641,10 @@ router.get('/student/results', requireRole('student'), async (req, res) => {
     const { rows } = await pool.query(
       `SELECT rr.*, r.title, r.total_score, r.pass_score, r.academic_stage,
               r.allow_retry, r.max_retry_attempts, r.duration_minutes, r.is_published,
-              r.start_date, r.end_date, r.course_id,
+              r.schedule_type, r.start_date, r.end_date, r.course_id,
               (SELECT COUNT(*) FROM recitation_results rr2
                 WHERE rr2.student_id=$1 AND rr2.recitation_id=r.id
-                  AND (r.start_date IS NULL OR rr2.created_at >= r.start_date)
+                  AND (r.schedule_type = 'once' OR r.schedule_type IS NULL OR r.start_date IS NULL OR rr2.created_at >= r.start_date)
                   AND (rr2.is_absent IS NULL OR rr2.is_absent=false)) AS my_attempt_count,
               COALESCE(g.unused_grants, 0) AS unused_grants
          FROM recitation_results rr
@@ -1574,10 +1573,14 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
     const { rows: existing } = await pool.query(
       `SELECT id, passed FROM recitation_results
         WHERE student_id=$1 AND recitation_id=$2
-          AND ($3::timestamp IS NULL OR created_at >= $3::timestamp)
+          AND (
+            $3 = 'once'
+            OR $4::timestamptz IS NULL
+            OR created_at >= $4::timestamptz
+          )
           AND (is_absent IS NULL OR is_absent=false)
         ORDER BY created_at DESC`,
-      [studentId, id, rec.start_date]
+      [studentId, id, rec.schedule_type || 'once', rec.start_date]
     );
     if (existing.length) {
       const everPassed = existing.some(r => r.passed === true);
@@ -1852,10 +1855,14 @@ router.post('/:id/submit', recitationSubmitLimiter, requireRole('student'), asyn
       const { rows: dupeRows } = await client.query(
         `SELECT id, passed FROM recitation_results
           WHERE student_id=$1 AND recitation_id=$2
-            AND ($3::timestamp IS NULL OR created_at >= $3::timestamp)
+            AND (
+              $3 = 'once'
+              OR $4::timestamptz IS NULL
+              OR created_at >= $4::timestamptz
+            )
             AND (is_absent IS NULL OR is_absent=false)
           ORDER BY created_at DESC`,
-        [studentId, id, rec.start_date]
+        [studentId, id, rec.schedule_type || 'once', rec.start_date]
       );
       if (dupeRows.length) {
         const everPassedTx = dupeRows.some(r => r.passed === true);
@@ -1999,8 +2006,8 @@ router.get('/results/:resultId/review', authenticate, async (req, res) => {
     }
 
     // Build answer map from recitation_results.answers JSONB
-    // Format: [{question_id, answer, correct}]
-    // [SH-1] Also capture the stored `correct` flag so is_correct survives snapshot loss.
+    // Format: [{question_id, answer, student_answer, correct, is_correct}]
+    // [SH-1] Also capture the stored `correct` / `is_correct` flag so is_correct survives snapshot loss.
     const answerMap = {};
     const storedCorrectMap = {};
     try {
@@ -2008,8 +2015,13 @@ router.get('/results/:resultId/review', authenticate, async (req, res) => {
         : (typeof row.answers === 'string' ? JSON.parse(row.answers) : []);
       storedAnswers.forEach(a => {
         if (a.question_id != null) {
-          answerMap[a.question_id] = a.answer || null;
-          if (a.correct != null) storedCorrectMap[a.question_id] = !!a.correct;
+          const ans = a.answer != null ? a.answer : (a.student_answer != null ? a.student_answer : null);
+          answerMap[a.question_id] = ans;
+          if (a.correct != null) {
+            storedCorrectMap[a.question_id] = !!a.correct;
+          } else if (a.is_correct != null) {
+            storedCorrectMap[a.question_id] = !!a.is_correct;
+          }
         }
       });
     } catch (_) { }

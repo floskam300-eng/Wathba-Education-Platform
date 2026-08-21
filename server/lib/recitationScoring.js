@@ -142,8 +142,10 @@ function calculateRecitationScore(snapshot, answersPayload, rec) {
       }
       return {
         question_id: q.id,
+        answer: ans,
         student_answer: ans,
         correct_answer: null,
+        correct: isCorrect,
         is_correct: isCorrect,
         question_type: q.question_type,
       };
@@ -161,8 +163,10 @@ function calculateRecitationScore(snapshot, answersPayload, rec) {
 
     return {
       question_id: q.id,
+      answer: checkStudentAns,
       student_answer: checkStudentAns,
       correct_answer: checkCorrectAns,
+      correct: isCorrect,
       is_correct: isCorrect,
       question_type: q.question_type || 'mcq',
     };
@@ -182,21 +186,28 @@ function calculateRecitationScore(snapshot, answersPayload, rec) {
 }
 
 /**
- * Auto-submits an expired recitation session by evaluating saved answers against
- * the recitation questions snapshot instead of arbitrarily giving 0.
+ * Auto-submits an expired recitation session using any saved answers.
+ * Returns the created recitation_result or null.
  */
-async function autoSubmitExpiredRecitationSession(pool, sess, recRow, studentId, recitationId) {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
+async function autoSubmitExpiredRecitationSession(poolOrClient, session, recitation = null, studentIdParam = null, recitationIdParam = null) {
+  const isPool = typeof poolOrClient.connect === 'function';
+  const client = isPool ? await poolOrClient.connect() : poolOrClient;
 
-    // Resolve full recitation metadata
-    let fullRec = recRow;
-    if (!fullRec?.teacher_id || fullRec?.total_score === undefined) {
-      const rRes = await client.query(
-        'SELECT id, title, total_score, pass_score, points_on_attempt, points_on_pass, teacher_id, start_date, end_date FROM recitations WHERE id=$1',
-        [recitationId]
-      );
+  try {
+    if (isPool) await client.query('BEGIN');
+
+    const sess = session || {};
+    const studentId = studentIdParam || sess.student_id;
+    const recitationId = recitationIdParam || sess.recitation_id;
+
+    if (!studentId || !recitationId) {
+      if (isPool) await client.query('ROLLBACK');
+      return null;
+    }
+
+    let fullRec = recitation;
+    if (!fullRec) {
+      const rRes = await client.query('SELECT * FROM recitations WHERE id=$1', [recitationId]);
       if (rRes.rows.length) {
         fullRec = rRes.rows[0];
       }
@@ -206,14 +217,18 @@ async function autoSubmitExpiredRecitationSession(pool, sess, recRow, studentId,
     const { rows: existingCheck } = await client.query(
       `SELECT id FROM recitation_results
         WHERE student_id=$1 AND recitation_id=$2
-          AND ($3::timestamp IS NULL OR created_at >= $3::timestamp)
+          AND (
+            $3 = 'once'
+            OR $4::timestamptz IS NULL
+            OR created_at >= $4::timestamptz
+          )
           AND (is_absent IS NULL OR is_absent=false)`,
-      [studentId, recitationId, fullRec?.start_date]
+      [studentId, recitationId, fullRec?.schedule_type || 'once', fullRec?.start_date]
     );
 
     if (existingCheck.length > 0) {
       await client.query('DELETE FROM recitation_sessions WHERE student_id=$1 AND recitation_id=$2', [studentId, recitationId]);
-      await client.query('COMMIT');
+      if (isPool) await client.query('COMMIT');
       return null;
     }
 
@@ -233,10 +248,10 @@ async function autoSubmitExpiredRecitationSession(pool, sess, recRow, studentId,
 
     const insertRes = await client.query(
       `INSERT INTO recitation_results
-         (student_id, recitation_id, score, correct_count, wrong_count, unanswered_count, answers, points_earned, start_time, end_time, passed, is_absent)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), $10, false)
+         (student_id, recitation_id, score, correct_count, wrong_count, unanswered_count, answers, points_earned, start_time, end_time, passed, is_absent, questions_snapshot)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), $10, false, $11)
        RETURNING *`,
-      [studentId, recitationId, finalScore, correct, wrong, unanswered, JSON.stringify(storedAnswers), pointsEarned, startedAt, passed]
+      [studentId, recitationId, finalScore, correct, wrong, unanswered, JSON.stringify(storedAnswers), pointsEarned, startedAt, passed, JSON.stringify(snapshot)]
     );
 
     if (pointsEarned > 0) {
