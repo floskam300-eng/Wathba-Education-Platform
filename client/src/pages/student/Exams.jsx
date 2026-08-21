@@ -336,6 +336,25 @@ export default function StudentExams() {
     } catch (_) { return []; }
   }, [taking, exams, user?.id]);
 
+  // Active in-progress exam session detection
+  const activeInProgressExam = useMemo(() => {
+    if (taking) return null;
+    const uId = user?.id || 0;
+    return exams.find(ex => {
+      const scheduleStatus = getExamScheduleStatus(ex, scheduleNow);
+      if (scheduleStatus !== 'open' || ex.already_taken) return false;
+      try {
+        return !!(
+          localStorage.getItem(`exam_answers_${uId}_${ex.id}`) ||
+          localStorage.getItem(`exam_active_${uId}_${ex.id}`) ||
+          localStorage.getItem(`exam_start_${uId}_${ex.id}`) ||
+          localStorage.getItem(`exam_answers_${ex.id}`) ||
+          localStorage.getItem(`exam_start_${ex.id}`)
+        );
+      } catch (_) { return false; }
+    }) || null;
+  }, [exams, taking, scheduleNow, user?.id]);
+
   const clearStuckSession = (examId) => {
     clearExamKeys(examId);
     window.location.reload();
@@ -846,25 +865,6 @@ export default function StudentExams() {
       </>
     );
   }
-
-  // Active in-progress exam session detection
-  const activeInProgressExam = useMemo(() => {
-    if (taking) return null;
-    const uId = user?.id || 0;
-    return exams.find(ex => {
-      const scheduleStatus = getExamScheduleStatus(ex, scheduleNow);
-      if (scheduleStatus !== 'open' || ex.already_taken) return false;
-      try {
-        return !!(
-          localStorage.getItem(`exam_answers_${uId}_${ex.id}`) ||
-          localStorage.getItem(`exam_active_${uId}_${ex.id}`) ||
-          localStorage.getItem(`exam_start_${uId}_${ex.id}`) ||
-          localStorage.getItem(`exam_answers_${ex.id}`) ||
-          localStorage.getItem(`exam_start_${ex.id}`)
-        );
-      } catch (_) { return false; }
-    }) || null;
-  }, [exams, taking, scheduleNow, user?.id]);
 
   return (
     <div ref={scrollContainerRef} className="h-full overflow-y-auto p-4 lg:p-6">
