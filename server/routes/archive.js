@@ -613,6 +613,7 @@ router.get('/student/:id/recitation-results', requireRole('teacher', 'assistant'
          rr.wrong_count, rr.unanswered_count, rr.points_earned, rr.created_at,
          rr.start_time, rr.end_time,
          ROUND(EXTRACT(EPOCH FROM (rr.end_time - rr.start_time)) / 60.0, 1) AS time_minutes,
+         ROW_NUMBER() OVER (PARTITION BY rr.student_id, rr.recitation_id ORDER BY rr.created_at ASC) AS attempt_number,
          r.id AS recitation_id, r.title AS recitation_title,
          r.total_score, r.pass_score
        FROM recitation_results rr
@@ -1279,30 +1280,37 @@ router.get('/item/:type/:id/students', requireRole('teacher', 'assistant'), chec
         WITH target_students AS (
           ${targetStudentsSql}
         ),
-        student_attempts AS (
+        rec_ordered AS (
           SELECT
-            rr.student_id,
-            COUNT(*) FILTER (WHERE rr.is_absent = false) AS total_attempts,
-            json_agg(
-              json_build_object(
-                'id', rr.id,
-                'score', rr.score,
-                'percentage', ROUND(rr.score::numeric / NULLIF($3::int, 0) * 100, 1),
-                'passed', ((rr.passed = true OR rr.score >= $4::int) AND rr.is_absent = false),
-                'is_absent', rr.is_absent,
-                'correct_count', rr.correct_count,
-                'wrong_count', rr.wrong_count,
-                'unanswered_count', rr.unanswered_count,
-                'points_earned', rr.points_earned,
-                'start_time', rr.start_time,
-                'end_time', rr.end_time,
-                'time_minutes', ROUND(EXTRACT(EPOCH FROM (rr.end_time - rr.start_time)) / 60.0, 1),
-                'created_at', rr.created_at
-              ) ORDER BY rr.created_at ASC
-            ) AS attempts_list
+            rr.*,
+            ROW_NUMBER() OVER (PARTITION BY rr.student_id ORDER BY rr.created_at ASC, rr.id ASC) AS attempt_num
           FROM recitation_results rr
           WHERE rr.recitation_id = $1
-          GROUP BY rr.student_id
+        ),
+        student_attempts AS (
+          SELECT
+            ro.student_id,
+            COUNT(*) FILTER (WHERE ro.is_absent = false) AS total_attempts,
+            json_agg(
+              json_build_object(
+                'id', ro.id,
+                'attempt_number', ro.attempt_num,
+                'score', ro.score,
+                'percentage', ROUND(ro.score::numeric / NULLIF($3::int, 0) * 100, 1),
+                'passed', ((ro.passed = true OR ro.score >= $4::int) AND ro.is_absent = false),
+                'is_absent', ro.is_absent,
+                'correct_count', ro.correct_count,
+                'wrong_count', ro.wrong_count,
+                'unanswered_count', ro.unanswered_count,
+                'points_earned', ro.points_earned,
+                'start_time', ro.start_time,
+                'end_time', ro.end_time,
+                'time_minutes', ROUND(EXTRACT(EPOCH FROM (ro.end_time - ro.start_time)) / 60.0, 1),
+                'created_at', ro.created_at
+              ) ORDER BY ro.attempt_num ASC, ro.created_at ASC
+            ) AS attempts_list
+          FROM rec_ordered ro
+          GROUP BY ro.student_id
         )
         SELECT
           ts.id AS student_id,
@@ -1324,13 +1332,14 @@ router.get('/item/:type/:id/students', requireRole('teacher', 'assistant'), chec
           latest_rr.end_time,
           ROUND(EXTRACT(EPOCH FROM (latest_rr.end_time - latest_rr.start_time)) / 60.0, 1) AS time_minutes,
           latest_rr.created_at AS submitted_at,
+          COALESCE(latest_rr.attempt_num, sa.total_attempts, 0)::int AS attempt_number,
           COALESCE(sa.total_attempts, 0)::int AS attempts_count,
           COALESCE(sa.attempts_list, '[]'::json) AS attempts
         FROM target_students ts
         LEFT JOIN LATERAL (
-          SELECT * FROM recitation_results rr
-          WHERE rr.student_id = ts.id AND rr.recitation_id = $1
-          ORDER BY rr.created_at DESC LIMIT 1
+          SELECT * FROM rec_ordered ro
+          WHERE ro.student_id = ts.id
+          ORDER BY ro.created_at DESC, ro.id DESC LIMIT 1
         ) latest_rr ON true
         LEFT JOIN student_attempts sa ON sa.student_id = ts.id
         ORDER BY ts.name ASC
@@ -1375,6 +1384,7 @@ router.get('/item/:type/:id/students', requireRole('teacher', 'assistant'), chec
           end_time: isAbsent ? null : st.end_time,
           time_minutes: isAbsent ? null : (st.time_minutes !== null && st.time_minutes !== undefined ? Number(st.time_minutes) : null),
           submitted_at: isAbsent ? null : st.submitted_at,
+          attempt_number: isAbsent ? null : (Number(st.attempt_number) || Number(st.attempts_count) || 1),
           attempts_count: Number(st.attempts_count) || 0,
           attempts: st.attempts || [],
         };

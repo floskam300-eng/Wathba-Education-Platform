@@ -236,25 +236,63 @@ export default function ArchivePage() {
         : (fullItem.academic_stage || fullItem.course_target_stage || 'كل المراحل');
       const pubLabel = fullItem.is_published ? 'منشور' : 'غير منشور / مغلق';
 
+      const reportRows = [];
+      itemStudents.forEach((st, sIdx) => {
+        const isAbsent = st.status === 'absent' || !st.attempts || st.attempts.length === 0;
+        const isNewGroup = sIdx > 0;
+
+        if (isAbsent) {
+          reportRows.push({
+            cells: [
+              st.student_name || '—',
+              st.student_username || '—',
+              st.academic_stage || '—',
+              '—',
+              'غائب',
+              '—',
+              '—',
+              '—',
+              '—',
+            ],
+            isFirstOfGroup: true,
+            isNewGroup,
+            groupIndex: sIdx,
+          });
+        } else {
+          st.attempts.forEach((att, idx) => {
+            const isFirstAttempt = idx === 0;
+            const attNum = att.attempt_number || (idx + 1);
+            const attemptLabel = attNum === 1 ? 'المحاولة 1 (أولى)' : `المحاولة ${attNum} (إعادة ${attNum - 1})`;
+            const isPassed = att.passed === true || (att.score !== null && Number(att.score) >= Number(fullItem.pass_score));
+            const scoreStr = att.score !== null && att.score !== undefined ? `${att.score}/${fullItem.total_score}` : '—';
+            const pctStr = att.percentage !== null && att.percentage !== undefined ? `${att.percentage}%` : '—';
+            const durationStr = formatDuration(att);
+            const dateStr = att.created_at ? new Date(att.created_at).toLocaleDateString('ar-EG') : '—';
+
+            reportRows.push({
+              cells: [
+                isFirstAttempt ? (st.student_name || '—') : '',
+                isFirstAttempt ? (st.student_username || '—') : '',
+                isFirstAttempt ? (st.academic_stage || '—') : '',
+                attemptLabel,
+                isPassed ? 'ناجح' : 'راسب',
+                scoreStr,
+                pctStr,
+                durationStr,
+                dateStr,
+              ],
+              isFirstOfGroup: isFirstAttempt,
+              isNewGroup: isFirstAttempt && isNewGroup,
+              groupIndex: sIdx,
+            });
+          });
+        }
+      });
+
       generatePDFReport(
         `تقرير نتائج ${typeLabel}: ${fullItem.title}`,
-        ['اسم الطالب', 'كود الطالب', 'المرحلة الدراسية', 'الحالة', 'الدرجة', 'النسبة', 'المحاولات', 'تاريخ الأداء'],
-        itemStudents.map(st => {
-          let attemptsText = '—';
-          if (st.status !== 'absent') {
-            attemptsText = st.attempts_count > 1 ? `${st.attempts_count} محاولات (إعادة)` : 'محاولة 1';
-          }
-          return [
-            st.student_name || '—',
-            st.student_username || '—',
-            st.academic_stage || '—',
-            st.status_label || (st.status === 'passed' ? 'ناجح' : st.status === 'failed' ? 'راسب' : 'غائب'),
-            st.score !== null ? `${st.score}/${fullItem.total_score}` : '—',
-            st.percentage !== null ? `${st.percentage}%` : '—',
-            attemptsText,
-            st.submitted_at ? new Date(st.submitted_at).toLocaleDateString('ar-EG') : '—',
-          ];
-        }),
+        ['اسم الطالب', 'كود الطالب', 'المرحلة الدراسية', 'المحاولة', 'الحالة', 'الدرجة', 'النسبة', 'المدة', 'تاريخ الأداء'],
+        reportRows,
         `${it.item_type}-${it.id}-report.pdf`,
         {
           subtitle: `المرحلة / الكورس: ${courseOrStage} | درجة النجاح: ${fullItem.pass_score}/${fullItem.total_score} | الحالة: ${pubLabel} | إجمالي المستهدفين: ${fullItem.total_targeted} طالب`,
@@ -264,9 +302,10 @@ export default function ArchivePage() {
             { label: 'الناجحون', value: fullItem.passed_count || 0, color: '#16a34a' },
             { label: 'الراسبون', value: fullItem.failed_count || 0, color: '#dc2626' },
             { label: 'الغائبون', value: fullItem.absent_count || 0, color: '#d97706' },
+            { label: 'أعادوا المحاولة', value: fullItem.retried_count || 0, color: '#9333ea' },
             { label: 'متوسط الدرجات', value: `${fullItem.avg_pct || 0}%`, color: '#7c3aed' },
           ],
-          note: `تم استخراج هذا التقرير لجميع الطلاب الموجه إليهم هذا ال${typeLabel}. الطلاب الذين لم يؤدوا أو تم إلغاء النشر يظهرون بحالة "غائب".`,
+          note: `تم استخراج هذا التقرير الشامل لجميع المحاولات (المحاولات الأولى وكافة الإعادات). الطلاب الذين لم يؤدوا يظهرون بحالة "غائب".`,
         }
       );
     } catch (err) {

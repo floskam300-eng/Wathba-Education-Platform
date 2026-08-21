@@ -54,21 +54,47 @@ export const generatePDFReport = (title, headers, data, filename = 'report.pdf',
       return `<span style="color:#d97706;font-weight:700">${cell}</span>`;
     }
 
-    if (cell === '—' || cell === '' || cell === 'null' || cell === 'undefined') {
+    if (raw === '' || raw === null || raw === undefined) {
+      return '';
+    }
+
+    if (cell === '—' || cell === 'null' || cell === 'undefined') {
       return `<span style="color:#cbd5e1">—</span>`;
     }
 
     return cell;
   };
 
+  /* ── row renderer supporting row groups & separators ────────────── */
+  const renderRows = (rows) => {
+    if (!rows?.length) return '';
+    return rows.map((rowItem, ri) => {
+      const isObj = rowItem && typeof rowItem === 'object' && !Array.isArray(rowItem) && 'cells' in rowItem;
+      const row = isObj ? rowItem.cells : rowItem;
+      const isFirstOfGroup = isObj ? (rowItem.isFirstOfGroup !== false) : true;
+      const isNewGroup = isObj ? Boolean(rowItem.isNewGroup) : false;
+      const groupBg = isObj && rowItem.groupIndex !== undefined
+        ? (rowItem.groupIndex % 2 === 0 ? '#ffffff' : '#f8fafc')
+        : (ri % 2 === 0 ? '#ffffff' : '#f8fafc');
+      const borderTopStyle = isNewGroup
+        ? 'border-top: 2.5px solid #94a3b8;'
+        : (isObj && !isFirstOfGroup ? 'border-top: 1px dashed #e2e8f0;' : 'border-top: 1px solid #f1f5f9;');
+      const numCell = isObj
+        ? (isFirstOfGroup ? String(rowItem.groupIndex + 1) : '<span style="color:#94a3b8;font-size:12px;font-weight:700">↳</span>')
+        : String(ri + 1);
+
+      return `
+      <tr style="background:${groupBg};${borderTopStyle}">
+        <td style="color:#64748b;font-size:11px;font-weight:800;padding:9px 10px;border-bottom:1px solid #f1f5f9;text-align:center">${numCell}</td>
+        ${row.map(cell => `<td style="padding:9px 12px;border-bottom:1px solid #f1f5f9;text-align:center;font-size:12px;vertical-align:middle">${renderCell(cell)}</td>`).join('')}
+      </tr>`;
+    }).join('');
+  };
+
   /* ── multi-section support ───────────────────────────────────────── */
   const renderTable = (hdrs, rows) => {
     if (!rows?.length) return `<div style="text-align:center;padding:28px;color:#94a3b8;font-size:13px;border:2px dashed #e2e8f0;border-radius:12px">لا توجد بيانات</div>`;
-    const trs = rows.map((row, ri) => `
-      <tr style="background:${ri % 2 === 0 ? '#fff' : '#f8fafc'}">
-        <td style="color:#94a3b8;font-size:11px;font-weight:700;padding:9px 10px;border-bottom:1px solid #f1f5f9;text-align:center">${ri + 1}</td>
-        ${row.map(cell => `<td style="padding:9px 12px;border-bottom:1px solid #f1f5f9;text-align:center;font-size:12px;vertical-align:middle">${renderCell(cell)}</td>`).join('')}
-      </tr>`).join('');
+    const trs = renderRows(rows);
     return `<table>
       <thead><tr><th>#</th>${hdrs.map(h => `<th>${escapeHtml(h)}</th>`).join('')}</tr></thead>
       <tbody>${trs}</tbody>
@@ -99,11 +125,7 @@ export const generatePDFReport = (title, headers, data, filename = 'report.pdf',
     ? `<span style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:20px;padding:3px 12px;font-size:12px;font-weight:700;color:#64748b">${data.length} سجل</span>`
     : '';
 
-  const tableRows = data.map((row, ri) => `
-    <tr style="background:${ri % 2 === 0 ? '#fff' : '#f8fafc'}">
-      <td style="color:#94a3b8;font-size:11px;font-weight:700;padding:9px 10px;border-bottom:1px solid #f1f5f9;text-align:center">${ri + 1}</td>
-      ${row.map(cell => `<td style="padding:9px 12px;border-bottom:1px solid #f1f5f9;text-align:center;font-size:12px;vertical-align:middle">${renderCell(cell)}</td>`).join('')}
-    </tr>`).join('');
+  const tableRows = renderRows(data);
 
   /* ── full HTML document ──────────────────────────────────────────── */
   const html = `<!DOCTYPE html>

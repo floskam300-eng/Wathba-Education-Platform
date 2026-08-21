@@ -80,16 +80,21 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
     ];
   }) || [];
 
-  const recRows = recResults?.map(r => [
-    r.recitation_title,
-    `${r.score}/${r.total_score}`,
-    `${pct(r.score, r.total_score)}%`,
-    r.passed ? 'ناجح' : 'راسب',
-    formatDuration(r),
-    `${r.correct_count} صح / ${r.wrong_count} خطأ`,
-    r.points_earned > 0 ? `+${r.points_earned}` : '—',
-    fmt(r.created_at),
-  ]) || [];
+  const recRows = recResults?.map(r => {
+    const isAbsent = r.is_absent === true || r.is_absent === 'true';
+    const attemptNum = Number(r.attempt_number) || 1;
+    return [
+      r.recitation_title,
+      isAbsent ? 'غائب' : `${r.score}/${r.total_score}`,
+      isAbsent ? '—' : `${pct(r.score, r.total_score)}%`,
+      isAbsent ? 'غائب' : r.passed ? 'ناجح' : 'راسب',
+      isAbsent ? '—' : attemptNum > 1 ? `إعادة (${attemptNum})` : 'أول محاولة',
+      isAbsent ? '—' : formatDuration(r),
+      isAbsent ? '—' : `${r.correct_count} صح / ${r.wrong_count} خطأ`,
+      isAbsent ? '—' : r.points_earned > 0 ? `+${r.points_earned}` : '—',
+      fmt(r.created_at),
+    ];
+  }) || [];
 
   const handlePrintFull = () => {
     const hasExams = examRows.length > 0;
@@ -118,7 +123,7 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
           },
           {
             title: '📚 نتائج التسميع',
-            headers: ['التسميع', 'الدرجة', 'النسبة', 'الحالة', 'المدة', 'الإجابات', 'النقاط', 'التاريخ'],
+            headers: ['التسميع', 'الدرجة', 'النسبة', 'الحالة', 'المحاولة', 'المدة', 'الإجابات', 'النقاط', 'التاريخ'],
             data: recRows,
           },
         ],
@@ -151,7 +156,7 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
     const s = summary?.student;
     generatePDFReport(
       `نتائج تسميع الطالب: ${student.name}`,
-      ['التسميع', 'الدرجة', 'النسبة', 'الحالة', 'المدة', 'الإجابات', 'النقاط', 'التاريخ'],
+      ['التسميع', 'الدرجة', 'النسبة', 'الحالة', 'المحاولة', 'المدة', 'الإجابات', 'النقاط', 'التاريخ'],
       recRows,
       `student-recs-${student.id}.pdf`,
       {
@@ -473,6 +478,11 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
                             {r.points_earned > 0 && (
                               <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${dark ? 'bg-amber-900/40 text-amber-300' : 'bg-amber-50 text-amber-600'}`}>
                                 +{r.points_earned} نقطة
+                              </span>
+                            )}
+                            {Number(r.attempt_number) > 1 && (
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${dark ? 'bg-purple-900/40 text-purple-300' : 'bg-purple-50 text-purple-600'}`}>
+                                إعادة {r.attempt_number}
                               </span>
                             )}
                           </div>
