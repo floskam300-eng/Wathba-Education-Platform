@@ -1409,14 +1409,56 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
     };
   }, [view, timeLeft]);
 
-  // Save answers to localStorage
+  const syncTimeoutRef = useRef(null);
+  const selectedRecRef = useRef(null);
+  const answersRef = useRef({});
+  useEffect(() => { selectedRecRef.current = selectedRec; }, [selectedRec]);
+  useEffect(() => { answersRef.current = answers; }, [answers]);
+
+  const syncAnswersToServer = useCallback((recId, currentAnswers) => {
+    if (!recId) return;
+    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+    syncTimeoutRef.current = setTimeout(() => {
+      api.post(`/recitations/${recId}/sync-answers`, { answers: currentAnswers }).catch(() => {});
+    }, 400);
+  }, []);
+
+  const flushAnswersNow = useCallback((recId, currentAnswers) => {
+    if (!recId || !currentAnswers) return;
+    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+    api.post(`/recitations/${recId}/sync-answers`, { answers: currentAnswers }).catch(() => {});
+  }, []);
+
+  // Flush answers immediately when tab is closed or hidden
+  useEffect(() => {
+    if (view !== 'take') return;
+    const handleFlush = () => {
+      if (selectedRecRef.current?.id && answersRef.current) {
+        flushAnswersNow(selectedRecRef.current.id, answersRef.current);
+      }
+    };
+    const onVisChange = () => {
+      if (document.visibilityState === 'hidden') {
+        handleFlush();
+      }
+    };
+    window.addEventListener('beforeunload', handleFlush);
+    document.addEventListener('visibilitychange', onVisChange);
+    return () => {
+      window.removeEventListener('beforeunload', handleFlush);
+      document.removeEventListener('visibilitychange', onVisChange);
+    };
+  }, [view, flushAnswersNow]);
+
+  // Save answers to localStorage & sync to server
   useEffect(() => {
     if (view === 'take' && selectedRec) {
       try {
         localStorage.setItem(getAnsKey(selectedRec.id), JSON.stringify(answers));
       } catch (_) {}
+      syncAnswersToServer(selectedRec.id, answers);
     }
-  }, [answers, view, selectedRec, getAnsKey]);
+  }, [answers, view, selectedRec, getAnsKey, syncAnswersToServer]);
 
   // Cleanup saved answers on unmount if submitted
   useEffect(() => {
@@ -1456,14 +1498,19 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
       const { data } = await api.get(`/recitations/${rec.id}/take`);
       setExamData(data);
       setSelectedRec(rec);
-      // [H2-FIX] Guard against corrupted localStorage JSON (e.g. after a browser crash)
+
+      // Restore saved answers from server session and localStorage
       let restoredAnswers = {};
       const saved = localStorage.getItem(getAnsKey(rec.id));
       if (saved) {
         try { restoredAnswers = JSON.parse(saved); }
         catch { localStorage.removeItem(getAnsKey(rec.id)); }
       }
-      setAnswers(restoredAnswers);
+      const serverSaved = (data.saved_answers && typeof data.saved_answers === 'object' && !Array.isArray(data.saved_answers))
+        ? data.saved_answers
+        : {};
+      const mergedAnswers = { ...serverSaved, ...restoredAnswers };
+      setAnswers(mergedAnswers);
 
       const durationSecs = (data.recitation?.duration_minutes || rec.duration_minutes || 10) * 60;
       let remainingSecs = durationSecs;
@@ -1486,7 +1533,7 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
       setCurrentQuestionIdx(0);
       try { localStorage.setItem(getActKey(rec.id), '1'); } catch (_) {}
 
-      if (data.resumed) {
+      if (data.resumed || Object.keys(mergedAnswers).length > 0) {
         setView('take');
       } else {
         setShowCountdown(true);
@@ -2381,10 +2428,10 @@ export default function CourseView() {
       </div>
 
       {/* ── Body ── */}
-      <div className="flex-1 flex flex-col-reverse md:flex-row overflow-hidden">
+      <div className="flex-1 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden">
 
         {/* ── Sidebar (chapters) ── */}
-        <aside className="w-full h-[40vh] md:w-96 md:h-auto flex-shrink-0 bg-gray-50 dark:bg-gray-900 border-t md:border-t-0 md:border-l border-gray-200 dark:border-white/10 flex-col overflow-hidden flex">
+        <aside className="w-full md:w-96 md:h-full flex-shrink-0 bg-gray-50 dark:bg-gray-900 border-t md:border-t-0 md:border-l border-gray-200 dark:border-white/10 flex flex-col order-2 md:order-1">
           <div className="flex-shrink-0 px-4 py-3 border-b border-gray-200 dark:border-white/10 bg-gradient-to-b from-orange-500/10 to-transparent">
             <p className="text-gray-900 dark:text-white font-black text-sm leading-relaxed line-clamp-2">{course?.name}</p>
             {course?.target_stage && (
@@ -2397,7 +2444,7 @@ export default function CourseView() {
             </p>
           </div>
 
-          <div className="flex-1 overflow-y-auto scrollbar-thin p-3 space-y-2">
+          <div className="p-3 space-y-2 md:flex-1 md:overflow-y-auto scrollbar-thin">
             {isLoading ? (
               [...Array(4)].map((_, i) => (
                 <div key={i} className="h-20 rounded-xl bg-gray-200 dark:bg-white/5 animate-pulse" />
@@ -2462,10 +2509,10 @@ export default function CourseView() {
         </aside>
 
         {/* ── Main content ── */}
-        <main className="flex-1 flex flex-col overflow-hidden">
+        <main className="w-full md:flex-1 flex flex-col min-h-0 md:overflow-hidden order-1 md:order-2">
           {activeView === 'video' && currentVideo ? (
             <>
-              <div className="flex-1 bg-black overflow-hidden min-h-0">
+              <div className="w-full aspect-video md:aspect-auto md:flex-1 bg-black overflow-hidden min-h-0">
                 <VideoPlayer
                   key={currentVideo.id}
                   video={currentVideo}
@@ -2554,12 +2601,12 @@ export default function CourseView() {
                   <Eye className="w-3.5 h-3.5" /> عرض فقط
                 </span>
               </div>
-              <div className="flex-1 overflow-hidden">
+              <div className="w-full h-[600px] md:h-auto md:flex-1 overflow-hidden">
                 <PdfViewer key={currentPdf.id} pdf={currentPdf} />
               </div>
             </>
           ) : activeView === 'recitation' && activeRec ? (
-            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+            <div className="w-full min-h-[580px] md:min-h-0 md:h-full flex-1 flex flex-col overflow-hidden">
               <RecitationsTabPanel
                 recitations={[activeRec]}
                 courseId={courseId}
