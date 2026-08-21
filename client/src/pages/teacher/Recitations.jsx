@@ -1274,7 +1274,6 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
                   ))}
                 </div>
               )}
-              )}
             </div>
 
             {!rec.is_published && (

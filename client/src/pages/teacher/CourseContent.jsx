@@ -539,7 +539,6 @@ export default function CourseContent() {
     onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
   });
 
-  // Move item between sections
   const moveVideoMut = useMutation({
     mutationFn: ({ videoId, sectionId }) =>
       api.put(`/courses/${courseId}/videos/${videoId}/section`, { section_id: sectionId || null }),
@@ -554,7 +553,20 @@ export default function CourseContent() {
     onError: (e) => toast.error(e.response?.data?.error || 'فشل نقل الملف'),
   });
 
-  // Drag handlers
+  const [deleteRecId, setDeleteRecId] = useState(null);
+  const deleteRecMut = useMutation({
+    mutationFn: (id) => api.delete(`/recitations/${id}`),
+    onSuccess: () => { refreshContent(); toast.success('تم حذف التسميع'); setDeleteRecId(null); },
+    onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
+  });
+
+  const moveRecitationMut = useMutation({
+    mutationFn: ({ recitationId, sectionId }) =>
+      api.put(`/courses/${courseId}/recitations/${recitationId}/section`, { section_id: sectionId || null }),
+    onSuccess: () => { refreshContent(); toast.success('تم نقل التسميع ✅'); },
+    onError: (e) => toast.error(e.response?.data?.error || 'فشل نقل التسميع'),
+  });
+
   const handleDragStart = useCallback((type, id, currentSectionId) => {
     dragItem.current = { type, id, sectionId: currentSectionId ?? null };
     setDraggingId(id);
@@ -585,7 +597,7 @@ export default function CourseContent() {
     if (!item) return;
     const newSectionId = sectionKey === '_none' ? null : Number(sectionKey);
     const oldSectionId = item.sectionId ? Number(item.sectionId) : null;
-    if (newSectionId === oldSectionId) return; // same section, no-op
+    if (newSectionId === oldSectionId) return;
     if (item.type === 'video') {
       moveVideoMut.mutate({ videoId: item.id, sectionId: newSectionId });
     } else if (item.type === 'pdf') {
@@ -601,9 +613,6 @@ export default function CourseContent() {
   const videos = content?.videos || [];
   const pdfs = content?.pdfs || [];
 
-  // [Phase-7] Recitations come nested inside the new /content response —
-  // each section has its own `recitations` array, plus an `uncategorized`
-  // bucket for items without a section. Flatten for the count summary.
   const recitations = useMemo(() => {
     if (!content) return [];
     const arr = [];
@@ -621,13 +630,6 @@ export default function CourseContent() {
   const onDeleteVideo  = useCallback((id) => setDeleteVideoId(id), []);
   const onPreviewPdf   = useCallback((p) => setPreviewPdf(p), []);
   const onDeletePdf    = useCallback((id) => setDeletePdfId(id), []);
-
-  const [deleteRecId, setDeleteRecId] = useState(null);
-  const deleteRecMut = useMutation({
-    mutationFn: (id) => api.delete(`/recitations/${id}`),
-    onSuccess: () => { refreshContent(); toast.success('تم حذف التسميع'); setDeleteRecId(null); },
-    onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
-  });
   const onOpenRecitation   = useCallback((r) => navigate(`/${baseRole}/recitations?edit=${r.id}`), [navigate, baseRole]);
   const onDeleteRecitation = useCallback((id) => setDeleteRecId(id), []);
 
@@ -635,8 +637,6 @@ export default function CourseContent() {
   const onDragStartPdf   = useCallback((id, sid) => handleDragStart('pdf',  id, sid), [handleDragStart]);
   const onDragStartRec   = useCallback((id, sid) => handleDragStart('recitation', id, sid), [handleDragStart]);
 
-  // Map recitations by section_id so we can render them nested under each
-  // section in the videos / pdfs tabs (and group them in the recitations tab).
   const recitationsBySection = useMemo(() => {
     const map = new Map();
     for (const r of recitations) {
@@ -646,14 +646,6 @@ export default function CourseContent() {
     }
     return map;
   }, [recitations]);
-
-  // [Phase-7] Move a recitation between sections (or to "no section").
-  const moveRecitationMut = useMutation({
-    mutationFn: ({ recitationId, sectionId }) =>
-      api.put(`/courses/${courseId}/recitations/${recitationId}/section`, { section_id: sectionId || null }),
-    onSuccess: () => { refreshContent(); toast.success('تم نقل التسميع ✅'); },
-    onError: (e) => toast.error(e.response?.data?.error || 'فشل نقل التسميع'),
-  });
 
   const buildGrouped = (items) => {
     const grouped = {};
