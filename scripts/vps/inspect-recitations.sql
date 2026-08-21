@@ -132,7 +132,6 @@ ORDER BY conname;
 
 WITH c AS (
   SELECT id, name FROM courses
-  WHERE deleted_at IS NULL
   ORDER BY id LIMIT 5
 )
 SELECT
@@ -183,6 +182,65 @@ LEFT JOIN section_counts sc ON sc.recitation_id = r.id
 WHERE r.deleted_at IS NULL
 GROUP BY 1
 ORDER BY 1;
+
+\echo ''
+\echo '═══════════════════════════════════════════════════════════════════════'
+\echo '  9b. Auto-mappable detail — recitation → target section'
+\echo '═══════════════════════════════════════════════════════════════════════'
+
+WITH locked AS (
+  SELECT
+    r.id AS recitation_id,
+    v.section_id AS locked_sec_id,
+    COUNT(*) AS video_count,
+    s.title AS section_title,
+    c.name AS course_name,
+    r.title AS recitation_title
+  FROM recitations r
+  CROSS JOIN LATERAL jsonb_array_elements_text(r.video_ids) AS vid_text
+  JOIN videos v ON v.id = vid_text::int
+  JOIN sections s ON s.id = v.section_id
+  JOIN courses c ON c.id = r.course_id
+  WHERE r.deleted_at IS NULL
+    AND r.section_id IS NULL
+    AND r.video_ids IS NOT NULL
+    AND r.video_ids != '[]'::jsonb
+  GROUP BY r.id, v.section_id, s.title, c.name, r.title
+),
+agg AS (
+  SELECT
+    recitation_id,
+    COUNT(DISTINCT locked_sec_id) AS distinct_sections,
+    SUM(video_count) AS total_videos,
+    MAX(locked_sec_id) FILTER (WHERE rnk = 1) AS best_section_id,
+    MAX(section_title) FILTER (WHERE rnk = 1) AS best_section_title,
+    MAX(course_name) AS course_name,
+    MAX(recitation_title) AS recitation_title
+  FROM (
+    SELECT
+      l.*,
+      ROW_NUMBER() OVER (PARTITION BY l.recitation_id
+                        ORDER BY l.video_count DESC, l.locked_sec_id ASC) AS rnk
+    FROM locked l
+  ) ranked
+  GROUP BY recitation_id
+)
+SELECT
+  agg.recitation_id,
+  agg.recitation_title,
+  agg.course_name,
+  agg.best_section_id,
+  agg.best_section_title,
+  agg.distinct_sections,
+  agg.total_videos,
+  CASE
+    WHEN agg.distinct_sections = 1 THEN '🟢 AUTO-MAP'
+    WHEN agg.distinct_sections >  1 THEN '🟡 SKIP (cross-section)'
+    ELSE                              '⚪ SKIP (no locked videos)'
+  END AS action
+FROM agg
+WHERE agg.distinct_sections = 1
+ORDER BY agg.recitation_id;
 
 \echo ''
 \echo '═══════════════════════════════════════════════════════════════════════'
