@@ -15,6 +15,7 @@ const { activeSends } = require('./lib/waActiveSends');
 const { markAbsentStudents } = require('./routes/exams');
 const { markAbsentRecitationStudents } = require('./routes/recitations');
 const { autoSubmitExpiredExamSession } = require('./lib/examScoring');
+const { autoSubmitExpiredRecitationSession } = require('./lib/recitationScoring');
 
 let _pool = null;
 let _intervalId = null;
@@ -305,6 +306,30 @@ async function runRecitationSchedule() {
       } catch (recErr) {
         console.error(`[Scheduler] Error resetting recitation ${rec.id}:`, recErr.message);
       }
+    }
+
+    // Auto-submit and clean up expired in-progress recitation sessions
+    try {
+      const { rows: expiredRecSessions } = await _pool.query(`
+        SELECT rs.student_id, rs.recitation_id, rs.started_at, rs.questions_snapshot, rs.answers,
+               r.id, r.title, r.total_score, r.pass_score, r.points_on_attempt, r.points_on_pass,
+               r.teacher_id, r.start_date, r.end_date
+        FROM recitation_sessions rs
+        JOIN recitations r ON rs.recitation_id = r.id
+        WHERE rs.started_at + ((COALESCE(r.duration_minutes, 10) * 60 + 30) * interval '1 second') < NOW()
+           OR (r.schedule_type = 'once' AND r.end_date IS NOT NULL AND r.end_date < NOW())
+           OR r.deleted_at IS NOT NULL
+        LIMIT 100
+      `);
+      for (const sess of expiredRecSessions) {
+        try {
+          await autoSubmitExpiredRecitationSession(_pool, sess, sess, sess.student_id, sess.recitation_id);
+        } catch (sessErr) {
+          console.error(`[Scheduler] Error auto-submitting expired recitation session (student=${sess.student_id}, rec=${sess.recitation_id}):`, sessErr.message);
+        }
+      }
+    } catch (cleanErr) {
+      console.error('[Scheduler] Error cleaning expired recitation sessions:', cleanErr.message);
     }
 
     // [N4-FIX] Clean up orphaned sessions from expired 'once' recitations.

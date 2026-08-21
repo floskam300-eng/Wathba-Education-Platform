@@ -6,6 +6,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { convertToWebp } = require('../lib/convertToWebp');
 const { deleteUploadFile, extractSubQuestionImages } = require('../lib/validateFileMagic');
+const { calculateRecitationScore, autoSubmitExpiredRecitationSession } = require('../lib/recitationScoring');
 const pool = require('../db/connection');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { getPermissions } = require('../lib/permissionsCache');
@@ -1516,7 +1517,7 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
 
     // Check for existing session first (resume in-progress attempt, even when retrying)
     const { rows: sessRows } = await pool.query(
-      'SELECT student_id, recitation_id, started_at, questions_snapshot FROM recitation_sessions WHERE student_id=$1 AND recitation_id=$2',
+      'SELECT student_id, recitation_id, started_at, questions_snapshot, answers FROM recitation_sessions WHERE student_id=$1 AND recitation_id=$2',
       [studentId, id]
     );
 
@@ -1529,23 +1530,9 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
       const elapsedMs = Math.max(0, serverNow.getTime() - sessStartedAt);
 
       // If the session has already exceeded duration + grace period,
-      // it was an abandoned/expired session from a previous visit.
+      // auto-grade the student's progress instead of assigning 0.
       if (elapsedMs > maxDurationMs) {
-        const { rows: existingCheck } = await pool.query(
-          `SELECT id FROM recitation_results
-            WHERE student_id=$1 AND recitation_id=$2
-              AND ($3::timestamp IS NULL OR created_at >= $3::timestamp)
-              AND (is_absent IS NULL OR is_absent=false)`,
-          [studentId, id, rec.start_date]
-        );
-        if (!existingCheck.length) {
-          const totalQCount = Array.isArray(sess.questions_snapshot) ? sess.questions_snapshot.length : 0;
-          await pool.query(
-            `INSERT INTO recitation_results (student_id, recitation_id, score, correct_count, wrong_count, unanswered_count, answers, points_earned, start_time, end_time, passed, is_absent)
-             VALUES ($1, $2, 0, 0, 0, $3, '[]'::jsonb, 0, $4, NOW(), false, false)`,
-            [studentId, id, totalQCount, startedAtStr]
-          ).catch(() => {});
-        }
+        await autoSubmitExpiredRecitationSession(pool, sess, rec, studentId, id);
         await pool.query(
           'DELETE FROM recitation_sessions WHERE student_id=$1 AND recitation_id=$2',
           [studentId, id]
@@ -1562,6 +1549,7 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
           server_now: serverNow.toISOString(),
           remaining_seconds: remainingSeconds,
           resumed: true,
+          saved_answers: sess.answers || {},
         });
       }
     }
@@ -1666,8 +1654,8 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
     // We only update the snapshot (same deterministic content) to handle the
     // race, while preserving the original started_at for the timer.
     const { rows: sessionRows } = await pool.query(
-      `INSERT INTO recitation_sessions (student_id, recitation_id, questions_snapshot)
-       VALUES ($1,$2,$3)
+      `INSERT INTO recitation_sessions (student_id, recitation_id, questions_snapshot, answers)
+       VALUES ($1,$2,$3,'{}'::jsonb)
        ON CONFLICT (student_id, recitation_id) DO UPDATE
          SET questions_snapshot=EXCLUDED.questions_snapshot
        RETURNING *`,
@@ -1681,9 +1669,36 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
       server_now: serverNow.toISOString(),
       remaining_seconds: durationMinutes * 60,
       resumed: false,
+      saved_answers: sessionRows[0].answers || {},
     });
   } catch (err) {
     console.error('[recitations GET /:id/take]', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/recitations/:id/sync-answers — sync in-progress answers continuously
+router.post('/:id/sync-answers', requireRole('student'), async (req, res) => {
+  const recitationId = parseParamId(req.params.id);
+  if (!recitationId) return res.status(400).json({ error: 'معرّف التسميع غير صالح' });
+  const studentId = req.user.id;
+  const { answers } = req.body;
+
+  if (!answers || typeof answers !== 'object' || Array.isArray(answers)) {
+    return res.status(400).json({ error: 'Invalid answers payload' });
+  }
+
+  try {
+    const result = await pool.query(
+      'UPDATE recitation_sessions SET answers = $1 WHERE student_id = $2 AND recitation_id = $3 RETURNING id',
+      [JSON.stringify(answers), studentId, recitationId]
+    );
+    if (!result.rows.length) {
+      return res.status(404).json({ error: 'Recitation session not found or already ended' });
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[recitations sync-answers error]:', err.message);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -1793,92 +1808,15 @@ router.post('/:id/submit', recitationSubmitLimiter, requireRole('student'), asyn
       }
     }
 
-    let correct = 0, wrong = 0, unanswered = 0, rawScore = 0;
-
-    for (const q of snapshot) {
-      const studentAns = answerMap[q.id];
-
-      if (q.question_type === 'image_multi') {
-        const subQs = Array.isArray(q.sub_questions) ? q.sub_questions : [];
-        if (!subQs.length) { unanswered++; continue; }
-
-        let parsedAns = {};
-        if (studentAns) {
-          try { parsedAns = JSON.parse(studentAns); } catch { parsedAns = {}; }
-        }
-
-        let questionEarnedPoints = 0;
-        // Count each sub-question individually so the stats (صحيح/خطأ/بلا إجابة)
-        // match the sub-question breakdown shown in the review page.
-        for (const sub of subQs) {
-          const rawStudentSubAns = String(parsedAns[sub.label] || '').toUpperCase();
-          const rawSubCorrect = String(sub.correct || '').toUpperCase();
-          const a = (sub.type === 'true_false' || rawStudentSubAns === 'T' || rawStudentSubAns === 'F')
-            ? (rawStudentSubAns === 'T' ? 'A' : rawStudentSubAns === 'F' ? 'B' : rawStudentSubAns)
-            : rawStudentSubAns;
-          const subCorrectNorm = (sub.type === 'true_false' || rawSubCorrect === 'T' || rawSubCorrect === 'F')
-            ? (rawSubCorrect === 'T' ? 'A' : rawSubCorrect === 'F' ? 'B' : rawSubCorrect)
-            : rawSubCorrect;
-
-          if (!a || !VALID_ANSWER_LETTERS.has(a)) {
-            unanswered++;
-          } else if (a === subCorrectNorm) {
-            correct++;
-            const subPoints = sub.points !== undefined ? (parseInt(sub.points) || 1) : ((q.points || 1) / subQs.length);
-            questionEarnedPoints += subPoints;
-          } else {
-            wrong++;
-          }
-        }
-
-        rawScore += questionEarnedPoints;
-        continue;
-      }
-
-      let finalStudentAns = studentAns;
-      let finalCorrectAns = q.correct_answer_letter;
-      if (q.question_type === 'true_false') {
-        if (finalStudentAns === 'T') finalStudentAns = 'A';
-        if (finalStudentAns === 'F') finalStudentAns = 'B';
-        if (finalCorrectAns === 'T') finalCorrectAns = 'A';
-        if (finalCorrectAns === 'F') finalCorrectAns = 'B';
-      }
-
-      if (!finalStudentAns) {
-        unanswered++;
-      } else if (finalStudentAns === finalCorrectAns) {
-        correct++;
-        rawScore += (q.points || 1);
-      } else {
-        wrong++;
-      }
-    }
-
-    // [IMGMULTI-FIX] Compute totalPoints correctly for image_multi questions:
-    // each sub-question has its own points; using q.points alone underestimates
-    // the total, which can cause rawScore > totalPoints → finalScore > total_score.
-    const totalPoints = snapshot.reduce((s, q) => {
-      if (q.question_type === 'image_multi') {
-        const subQs = Array.isArray(q.sub_questions) ? q.sub_questions : [];
-        if (subQs.length > 0) {
-          const subTotal = subQs.reduce((sp, sub) => {
-            return sp + (sub.points !== undefined && parseInt(sub.points) >= 0
-              ? (parseInt(sub.points) || 1)
-              : ((q.points || 1) / subQs.length));
-          }, 0);
-          return s + subTotal;
-        }
-      }
-      return s + (q.points || 1);
-    }, 0);
-    const finalScore = totalPoints > 0
-      ? Math.min(rec.total_score, Math.round((rawScore / totalPoints) * rec.total_score))
-      : 0;
-    const passed = finalScore >= rec.pass_score;
-
-    // Points to award
-    let pointsEarned = rec.points_on_attempt || 0;
-    if (passed) pointsEarned += (rec.points_on_pass || 0);
+    const {
+      finalScore,
+      passed,
+      correct,
+      wrong,
+      unanswered,
+      pointsEarned,
+      storedAnswers,
+    } = calculateRecitationScore(snapshot, answers, rec);
 
     // Atomic transaction: insert result + update student points + upsert streak
     const client = await pool.connect();
@@ -1929,42 +1867,6 @@ router.post('/:id/submit', recitationSubmitLimiter, requireRole('student'), asyn
           return res.status(409).json({ error: 'لقد أديت هذا التسميع بالفعل', already_submitted: true });
         }
       }
-
-      // Insert result
-      const storedAnswers = answers.map(a => {
-        const q = snapshot.find(sq => sq.id === a.question_id);
-        const ans = answerMap[a.question_id] || null;
-        let isCorrect = false;
-        if (q?.question_type === 'image_multi') {
-          const subQs = Array.isArray(q.sub_questions) ? q.sub_questions : [];
-          if (subQs.length > 0 && ans) {
-            let parsed = {};
-            try { parsed = JSON.parse(ans); } catch { }
-            isCorrect = subQs.every(sub => {
-              const rawSubSa = String(parsed[sub.label] || '').toUpperCase();
-              const rawSubCorrect = String(sub.correct || '').toUpperCase();
-              const aVal = (sub.type === 'true_false' || rawSubSa === 'T' || rawSubSa === 'F')
-                ? (rawSubSa === 'T' ? 'A' : rawSubSa === 'F' ? 'B' : rawSubSa)
-                : rawSubSa;
-              const subCorrectVal = (sub.type === 'true_false' || rawSubCorrect === 'T' || rawSubCorrect === 'F')
-                ? (rawSubCorrect === 'T' ? 'A' : rawSubCorrect === 'F' ? 'B' : rawSubCorrect)
-                : rawSubCorrect;
-              return aVal === subCorrectVal;
-            });
-          }
-        } else {
-          let ansNormalized = ans;
-          let correctNormalized = q?.correct_answer_letter;
-          if (q?.question_type === 'true_false') {
-            if (ansNormalized === 'T') ansNormalized = 'A';
-            if (ansNormalized === 'F') ansNormalized = 'B';
-            if (correctNormalized === 'T') correctNormalized = 'A';
-            if (correctNormalized === 'F') correctNormalized = 'B';
-          }
-          isCorrect = !!ansNormalized && correctNormalized === ansNormalized;
-        }
-        return { question_id: a.question_id, answer: ans, correct: isCorrect };
-      });
 
       const { rows: resultRows } = await client.query(
         `INSERT INTO recitation_results

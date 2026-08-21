@@ -155,16 +155,21 @@ export default function StudentRecitations() {
       setExamData(data);
       setSelectedRec(rec);
 
-      // [REC-1 FIX] Wrap JSON.parse in try-catch: corrupt localStorage must not
-      // propagate to the catch block and show a confusing "حدث خطأ" to the user.
-      // Also guard against JSON.parse('null') → null (valid JSON but invalid answers shape).
+      // Restore saved answers from server session and localStorage
+      let loadedAnswers = {};
       try {
         const saved = localStorage.getItem(getAnsKey(rec.id));
         const parsed = saved ? JSON.parse(saved) : {};
-        setAnswers((parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {});
-      } catch (_) {
-        setAnswers({});
-      }
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          loadedAnswers = parsed;
+        }
+      } catch (_) {}
+
+      const serverSaved = (data.saved_answers && typeof data.saved_answers === 'object' && !Array.isArray(data.saved_answers))
+        ? data.saved_answers
+        : {};
+      const mergedAnswers = { ...serverSaved, ...loadedAnswers };
+      setAnswers(mergedAnswers);
 
       // Safe fallback for duration (at least 1 min, default 10)
       const durationSecs = (data.recitation?.duration_minutes || rec.duration_minutes || 10) * 60;
@@ -188,7 +193,7 @@ export default function StudentRecitations() {
       setTimeLeft(remainingSecs);
       try { localStorage.setItem(getActKey(rec.id), '1'); } catch (_) {}
 
-      if (data.resumed) {
+      if (data.resumed || Object.keys(mergedAnswers).length > 0) {
         // Resuming: go directly to take view; clear the lock immediately.
         setStartingId(null);
         setView('take');
@@ -292,14 +297,56 @@ export default function StudentRecitations() {
     };
   }, [view, timeLeft]);
 
-  // Save answers to localStorage
+  const syncTimeoutRef = useRef(null);
+  const selectedRecRef = useRef(null);
+  const answersRef = useRef({});
+  useEffect(() => { selectedRecRef.current = selectedRec; }, [selectedRec]);
+  useEffect(() => { answersRef.current = answers; }, [answers]);
+
+  const syncAnswersToServer = useCallback((recId, currentAnswers) => {
+    if (!recId) return;
+    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+    syncTimeoutRef.current = setTimeout(() => {
+      api.post(`/recitations/${recId}/sync-answers`, { answers: currentAnswers }).catch(() => {});
+    }, 400);
+  }, []);
+
+  const flushAnswersNow = useCallback((recId, currentAnswers) => {
+    if (!recId || !currentAnswers) return;
+    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+    api.post(`/recitations/${recId}/sync-answers`, { answers: currentAnswers }).catch(() => {});
+  }, []);
+
+  // Flush answers immediately when tab is closed or hidden
+  useEffect(() => {
+    if (view !== 'take') return;
+    const handleFlush = () => {
+      if (selectedRecRef.current?.id && answersRef.current) {
+        flushAnswersNow(selectedRecRef.current.id, answersRef.current);
+      }
+    };
+    const onVisChange = () => {
+      if (document.visibilityState === 'hidden') {
+        handleFlush();
+      }
+    };
+    window.addEventListener('beforeunload', handleFlush);
+    document.addEventListener('visibilitychange', onVisChange);
+    return () => {
+      window.removeEventListener('beforeunload', handleFlush);
+      document.removeEventListener('visibilitychange', onVisChange);
+    };
+  }, [view, flushAnswersNow]);
+
+  // Save answers to localStorage & sync to server
   useEffect(() => {
     if (view === 'take' && selectedRec) {
       try {
         localStorage.setItem(getAnsKey(selectedRec.id), JSON.stringify(answers));
       } catch (_) {}
+      syncAnswersToServer(selectedRec.id, answers);
     }
-  }, [answers, view, selectedRec, getAnsKey]);
+  }, [answers, view, selectedRec, getAnsKey, syncAnswersToServer]);
 
   // Cleanup on unmount: reset submittedRef; clear saved answers only if submitted
   useEffect(() => {
@@ -313,8 +360,6 @@ export default function StudentRecitations() {
       submittedRef.current = false;
     };
   }, [selectedRec, getAnsKey, getActKey]);
-
-  // (Keepalive beforeunload removed to prevent unexpected zero-score submissions on network drops)
 
   const handleSubmit = useCallback(async (auto = false) => {
     if (submittedRef.current || submitting) return;
