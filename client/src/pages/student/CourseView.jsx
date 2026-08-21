@@ -1327,7 +1327,9 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
   const [countdown, setCountdown] = useState(3);
   const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
   const [lightboxSrc, setLightboxSrc] = useState(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
+  const panelContainerRef = useRef(null);
   const timerRef = useRef(null);
   const timerEpochRef = useRef(null);
   const timerDurationRef = useRef(null);
@@ -1337,6 +1339,98 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
 
   const timerBaseClientMsRef = useRef(null);
   const questionScrollRef = useRef(null); // [scroll-fix] resets the question pane to top on navigation
+
+  const syncTimeoutRef = useRef(null);
+  const selectedRecRef = useRef(null);
+  const answersRef = useRef({});
+  useEffect(() => { selectedRecRef.current = selectedRec; }, [selectedRec]);
+  useEffect(() => { answersRef.current = answers; }, [answers]);
+
+  const toggleFullscreen = useCallback(() => {
+    const el = panelContainerRef.current;
+    if (!isFullscreen) {
+      setIsFullscreen(true);
+      if (el && (el.requestFullscreen || el.webkitRequestFullscreen)) {
+        (el.requestFullscreen || el.webkitRequestFullscreen).call(el).catch(() => {});
+      }
+    } else {
+      setIsFullscreen(false);
+      if (document.fullscreenElement || document.webkitFullscreenElement) {
+        try { (document.exitFullscreen || document.webkitExitFullscreen)?.call(document); } catch (_) {}
+      }
+    }
+  }, [isFullscreen]);
+
+  useEffect(() => {
+    const onFsChange = () => {
+      const inFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+      setIsFullscreen(inFs);
+    };
+    document.addEventListener('fullscreenchange', onFsChange);
+    document.addEventListener('webkitfullscreenchange', onFsChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', onFsChange);
+      document.removeEventListener('webkitfullscreenchange', onFsChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape' && isFullscreen) {
+        setIsFullscreen(false);
+        if (document.fullscreenElement || document.webkitFullscreenElement) {
+          try { (document.exitFullscreen || document.webkitExitFullscreen)?.call(document); } catch (_) {}
+        }
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isFullscreen]);
+
+  const syncAnswersToServer = useCallback((recId, currentAnswers) => {
+    if (!recId) return;
+    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+    syncTimeoutRef.current = setTimeout(() => {
+      api.post(`/recitations/${recId}/sync-answers`, { answers: currentAnswers }).catch(() => {});
+    }, 400);
+  }, []);
+
+  const flushAnswersNow = useCallback((recId, currentAnswers) => {
+    if (!recId || !currentAnswers) return;
+    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+    api.post(`/recitations/${recId}/sync-answers`, { answers: currentAnswers }).catch(() => {});
+  }, []);
+
+  // Flush answers immediately when tab is closed or hidden
+  useEffect(() => {
+    if (view !== 'take') return;
+    const handleFlush = () => {
+      if (selectedRecRef.current?.id && answersRef.current) {
+        flushAnswersNow(selectedRecRef.current.id, answersRef.current);
+      }
+    };
+    const onVisChange = () => {
+      if (document.visibilityState === 'hidden') {
+        handleFlush();
+      }
+    };
+    window.addEventListener('beforeunload', handleFlush);
+    document.addEventListener('visibilitychange', onVisChange);
+    return () => {
+      window.removeEventListener('beforeunload', handleFlush);
+      document.removeEventListener('visibilitychange', onVisChange);
+    };
+  }, [view, flushAnswersNow]);
+
+  // Save answers to localStorage & sync to server
+  useEffect(() => {
+    if (view === 'take' && selectedRec) {
+      try {
+        localStorage.setItem(getAnsKey(selectedRec.id), JSON.stringify(answers));
+      } catch (_) {}
+      syncAnswersToServer(selectedRec.id, answers);
+    }
+  }, [answers, view, selectedRec, getAnsKey, syncAnswersToServer]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -1409,57 +1503,6 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
     };
   }, [view, timeLeft]);
 
-  const syncTimeoutRef = useRef(null);
-  const selectedRecRef = useRef(null);
-  const answersRef = useRef({});
-  useEffect(() => { selectedRecRef.current = selectedRec; }, [selectedRec]);
-  useEffect(() => { answersRef.current = answers; }, [answers]);
-
-  const syncAnswersToServer = useCallback((recId, currentAnswers) => {
-    if (!recId) return;
-    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
-    syncTimeoutRef.current = setTimeout(() => {
-      api.post(`/recitations/${recId}/sync-answers`, { answers: currentAnswers }).catch(() => {});
-    }, 400);
-  }, []);
-
-  const flushAnswersNow = useCallback((recId, currentAnswers) => {
-    if (!recId || !currentAnswers) return;
-    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
-    api.post(`/recitations/${recId}/sync-answers`, { answers: currentAnswers }).catch(() => {});
-  }, []);
-
-  // Flush answers immediately when tab is closed or hidden
-  useEffect(() => {
-    if (view !== 'take') return;
-    const handleFlush = () => {
-      if (selectedRecRef.current?.id && answersRef.current) {
-        flushAnswersNow(selectedRecRef.current.id, answersRef.current);
-      }
-    };
-    const onVisChange = () => {
-      if (document.visibilityState === 'hidden') {
-        handleFlush();
-      }
-    };
-    window.addEventListener('beforeunload', handleFlush);
-    document.addEventListener('visibilitychange', onVisChange);
-    return () => {
-      window.removeEventListener('beforeunload', handleFlush);
-      document.removeEventListener('visibilitychange', onVisChange);
-    };
-  }, [view, flushAnswersNow]);
-
-  // Save answers to localStorage & sync to server
-  useEffect(() => {
-    if (view === 'take' && selectedRec) {
-      try {
-        localStorage.setItem(getAnsKey(selectedRec.id), JSON.stringify(answers));
-      } catch (_) {}
-      syncAnswersToServer(selectedRec.id, answers);
-    }
-  }, [answers, view, selectedRec, getAnsKey, syncAnswersToServer]);
-
   // Cleanup saved answers on unmount if submitted
   useEffect(() => {
     return () => {
@@ -1498,8 +1541,7 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
       const { data } = await api.get(`/recitations/${rec.id}/take`);
       setExamData(data);
       setSelectedRec(rec);
-
-      // Restore saved answers from server session and localStorage
+      // Guard against corrupted localStorage JSON and merge server answers
       let restoredAnswers = {};
       const saved = localStorage.getItem(getAnsKey(rec.id));
       if (saved) {
@@ -1629,7 +1671,21 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
   // ── COUNTDOWN ──
   if (showCountdown) {
     return (
-      <div className="flex flex-col items-center justify-center h-full min-h-[300px] bg-gradient-to-br from-purple-900 to-indigo-900">
+      <div
+        ref={panelContainerRef}
+        className={`flex flex-col items-center justify-center h-full min-h-[300px] bg-gradient-to-br from-purple-950 via-purple-900 to-indigo-950 relative ${
+          isFullscreen ? 'fixed inset-0 z-50 w-screen h-screen' : 'flex-1 min-h-0'
+        }`}
+      >
+        <button
+          type="button"
+          onClick={toggleFullscreen}
+          className="absolute top-4 left-4 p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors flex items-center gap-1.5 text-xs font-bold shadow"
+          title={isFullscreen ? 'تصغير الشاشة' : 'تكبير الشاشة'}
+        >
+          {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+          <span className="hidden sm:inline">{isFullscreen ? 'تصغير' : 'شاشة كاملة'}</span>
+        </button>
         <p className="text-white/80 text-sm font-bold mb-3">يبدأ التسميع بعد...</p>
         <div className="text-white font-black" style={{ fontSize: 80, lineHeight: 1 }}>{countdown}</div>
         <p className="text-white/60 text-xs mt-4">{selectedRec?.title}</p>
@@ -1661,15 +1717,33 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
 
     return (
       <>
-      <div className="flex flex-col h-full overflow-hidden" dir="rtl">
-        {/* Timer bar */}
-        <div className="px-3 py-2 border-b border-gray-200 dark:border-white/10 flex items-center justify-between flex-shrink-0 bg-white dark:bg-[#0A0910]">
-          <div>
-            <p className="text-gray-900 dark:text-white text-xs font-black truncate max-w-[140px]">{selectedRec?.title}</p>
-            <p className="text-gray-500 text-[10px]">{answered}/{questions.length} إجابة</p>
+      <div
+        ref={panelContainerRef}
+        className={`flex flex-col h-full overflow-hidden bg-white dark:bg-[#0A0910] ${
+          isFullscreen ? 'fixed inset-0 z-50 w-screen h-screen' : 'flex-1 min-h-0'
+        }`}
+        dir="rtl"
+      >
+        {/* Timer & Fullscreen top bar */}
+        <div className="px-4 py-2.5 border-b border-gray-200 dark:border-white/10 flex items-center justify-between flex-shrink-0 bg-gray-50 dark:bg-[#0A0910]">
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              className="p-1.5 rounded-xl border border-gray-300 dark:border-white/15 bg-white dark:bg-white/5 hover:bg-purple-50 dark:hover:bg-purple-500/20 text-gray-700 dark:text-gray-200 transition-colors flex items-center gap-1.5 text-xs font-bold shadow-sm flex-shrink-0"
+              title={isFullscreen ? 'تصغير الشاشة (Esc)' : 'تكبير التسميع لشاشة كاملة'}
+              aria-label={isFullscreen ? 'تصغير الشاشة' : 'تكبير التسميع لشاشة كاملة'}
+            >
+              {isFullscreen ? <Minimize2 className="w-4 h-4 text-purple-600 dark:text-purple-400" /> : <Maximize2 className="w-4 h-4 text-purple-600 dark:text-purple-400" />}
+              <span className="hidden sm:inline">{isFullscreen ? 'تصغير' : 'شاشة كاملة'}</span>
+            </button>
+            <div className="min-w-0">
+              <p className="text-gray-900 dark:text-white text-xs font-black truncate max-w-[160px] sm:max-w-[320px]">{selectedRec?.title}</p>
+              <p className="text-gray-500 text-[10px]">{answered}/{questions.length} إجابة</p>
+            </div>
           </div>
-          <div className={`flex items-center gap-1 px-3 py-1.5 rounded-xl font-black text-sm tabular-nums ${
-            urgent ? 'bg-red-500/20 text-red-400 animate-pulse' : 'bg-purple-500/10 text-purple-400'
+          <div className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl font-black text-sm tabular-nums flex-shrink-0 ${
+            urgent ? 'bg-red-500/20 text-red-400 animate-pulse' : 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20'
           }`}>
             <Clock className="w-3.5 h-3.5" />
             {mins}:{String(secs).padStart(2, '0')}
@@ -1677,31 +1751,33 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
         </div>
 
         {/* Question number grid */}
-        <div className="flex flex-wrap gap-1 justify-center py-2 px-1 border-b border-gray-200 dark:border-white/10 flex-shrink-0 bg-gray-50 dark:bg-white/5">
-          {questions.map((qq, idx) => {
-            const isAnswered = isQAnswered(qq.id);
-            const isCurrent = idx === safeIdx;
-            return (
-              <button
-                key={qq.id}
-                onClick={() => setCurrentQuestionIdx(idx)}
-                className={`w-7 h-7 rounded-lg text-xs font-black transition-all border ${
-                  isCurrent
-                    ? 'bg-purple-500 text-white border-purple-500 shadow scale-105'
-                    : isAnswered
-                    ? 'bg-purple-500/20 text-purple-600 dark:text-purple-300 border-purple-400/40'
-                    : 'bg-gray-100 dark:bg-white/5 text-gray-500 border-gray-200 dark:border-white/10 hover:border-purple-300'
-                }`}
-              >
-                {idx + 1}
-              </button>
-            );
-          })}
+        <div className="flex flex-wrap gap-1 justify-center py-2 px-2 border-b border-gray-200 dark:border-white/10 flex-shrink-0 bg-gray-100/60 dark:bg-white/5">
+          <div className="max-w-3xl w-full flex flex-wrap gap-1.5 justify-center">
+            {questions.map((qq, idx) => {
+              const isAnswered = isQAnswered(qq.id);
+              const isCurrent = idx === safeIdx;
+              return (
+                <button
+                  key={qq.id}
+                  onClick={() => setCurrentQuestionIdx(idx)}
+                  className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg text-xs font-black transition-all border ${
+                    isCurrent
+                      ? 'bg-purple-500 text-white border-purple-500 shadow scale-105'
+                      : isAnswered
+                      ? 'bg-purple-500/20 text-purple-600 dark:text-purple-300 border-purple-400/40'
+                      : 'bg-white dark:bg-white/5 text-gray-500 border-gray-200 dark:border-white/10 hover:border-purple-300'
+                  }`}
+                >
+                  {idx + 1}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Question separator badge */}
         {q && (
-          <div className="flex items-center gap-2 my-2 px-3 flex-shrink-0">
+          <div className="flex items-center gap-2 my-2 px-4 flex-shrink-0 max-w-3xl mx-auto w-full">
             <div className="flex-1 h-px bg-purple-500/20" />
             <span className="text-[11px] font-black text-purple-600 dark:text-purple-300 bg-purple-500/10 border border-purple-500/20 px-2.5 py-0.5 rounded-full whitespace-nowrap">
               السؤال {safeIdx + 1} من {questions.length}
@@ -1715,70 +1791,74 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
         )}
 
         {/* Current question content */}
-        <div ref={questionScrollRef} className="flex-1 overflow-y-auto p-3">
-          {q && (
-            <CourseQuestionCard
-              key={q.id}
-              q={q}
-              idx={safeIdx}
-              answers={answers}
-              setAnswers={setAnswers}
-              onImagePress={setLightboxSrc}
-            />
-          )}
+        <div ref={questionScrollRef} className="flex-1 overflow-y-auto p-3 sm:p-4">
+          <div className="max-w-3xl mx-auto w-full">
+            {q && (
+              <CourseQuestionCard
+                key={q.id}
+                q={q}
+                idx={safeIdx}
+                answers={answers}
+                setAnswers={setAnswers}
+                onImagePress={setLightboxSrc}
+              />
+            )}
+          </div>
         </div>
 
         {/* Footer Navigation */}
         <div className="p-3 border-t border-gray-200 dark:border-white/10 flex items-center justify-between gap-2 flex-shrink-0 bg-white dark:bg-[#0A0910]">
-          <button
-            type="button"
-            disabled={isFirst}
-            onClick={() => setCurrentQuestionIdx(i => Math.max(0, i - 1))}
-            className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold text-gray-400 hover:text-white disabled:opacity-30 disabled:hover:text-gray-400 transition-colors"
-          >
-            <ChevronRight className="w-4 h-4" /> السابق
-          </button>
+          <div className="max-w-3xl mx-auto w-full flex items-center justify-between gap-2">
+            <button
+              type="button"
+              disabled={isFirst}
+              onClick={() => setCurrentQuestionIdx(i => Math.max(0, i - 1))}
+              className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-white disabled:opacity-30 disabled:hover:text-gray-400 transition-colors"
+            >
+              <ChevronRight className="w-4 h-4" /> السابق
+            </button>
 
-          <div className="flex items-center gap-1 overflow-x-auto max-w-[120px] py-1">
-            {questions.map((_, dotIdx) => (
+            <div className="flex items-center gap-1 overflow-x-auto max-w-[120px] sm:max-w-[200px] py-1">
+              {questions.map((_, dotIdx) => (
+                <button
+                  key={dotIdx}
+                  type="button"
+                  onClick={() => setCurrentQuestionIdx(dotIdx)}
+                  className={`h-2 rounded-full transition-all flex-shrink-0 ${
+                    dotIdx === safeIdx
+                      ? 'bg-purple-500 w-5'
+                      : isQAnswered(questions[dotIdx].id)
+                      ? 'bg-purple-400/50 w-2'
+                      : 'bg-gray-300 dark:bg-gray-700 w-2'
+                  }`}
+                />
+              ))}
+            </div>
+
+            {isLast ? (
               <button
-                key={dotIdx}
                 type="button"
-                onClick={() => setCurrentQuestionIdx(dotIdx)}
-                className={`w-2 h-2 rounded-full transition-all flex-shrink-0 ${
-                  dotIdx === safeIdx
-                    ? 'bg-purple-500 w-4'
-                    : isQAnswered(questions[dotIdx].id)
-                    ? 'bg-purple-400/50'
-                    : 'bg-gray-700'
-                }`}
-              />
-            ))}
+                disabled={submitting}
+                onClick={() => {
+                  if (window.confirm(`هل أنت متأكد من تسليم التسميع؟\nأجبت على ${answered} من ${questions.length} أسئلة`)) {
+                    handleSubmit(false);
+                  }
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black text-white bg-green-600 hover:bg-green-700 disabled:opacity-60 transition-colors shadow-lg shadow-green-600/20"
+              >
+                {submitting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
+                تسليم
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setCurrentQuestionIdx(i => Math.min(questions.length - 1, i + 1))}
+                className="flex items-center gap-1 px-4 py-2 rounded-xl text-xs font-black text-white bg-purple-600 hover:bg-purple-700 transition-colors"
+              >
+                التالي <ChevronLeft className="w-4 h-4" />
+              </button>
+            )}
           </div>
-
-          {isLast ? (
-            <button
-              type="button"
-              disabled={submitting}
-              onClick={() => {
-                if (window.confirm(`هل أنت متأكد من تسليم التسميع؟\nأجبت على ${answered} من ${questions.length} أسئلة`)) {
-                  handleSubmit(false);
-                }
-              }}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black text-white bg-green-600 hover:bg-green-700 disabled:opacity-60 transition-colors shadow-lg shadow-green-600/20"
-            >
-              {submitting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
-              تسليم
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setCurrentQuestionIdx(i => Math.min(questions.length - 1, i + 1))}
-              className="flex items-center gap-1 px-4 py-2 rounded-xl text-xs font-black text-white bg-purple-600 hover:bg-purple-700 transition-colors"
-            >
-              التالي <ChevronLeft className="w-4 h-4" />
-            </button>
-          )}
         </div>
       </div>
       {lightboxSrc && <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
@@ -1790,66 +1870,86 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
   if (view === 'result' && result) {
     const { score = 0, correct = 0, wrong = 0, unanswered = 0, passed = false, total_score = 0, pass_score = 0, points_earned = 0 } = result;
     return (
-      <div className="p-4 space-y-3 h-full overflow-y-auto" dir="rtl">
-        <div className={`p-4 rounded-2xl text-center text-white ${
-          passed ? 'bg-gradient-to-br from-green-600 to-emerald-700' : 'bg-gradient-to-br from-red-600 to-rose-700'
-        }`}>
-          <div className="text-3xl mb-1">{passed ? '🎉' : '📚'}</div>
-          <div className="text-3xl font-black">{score}<span className="text-lg opacity-70">/{total_score}</span></div>
-          <p className="text-xs font-bold mt-0.5">{passed ? 'أحسنت! نجحت في التسميع' : 'حاول أكثر في المرة القادمة'}</p>
-          <p className="text-white/70 text-[10px]">درجة النجاح: {pass_score}/{total_score}</p>
-          {points_earned > 0 && (
-            <div className="mt-2 inline-flex items-center gap-1 bg-white/20 rounded-lg px-2.5 py-1 text-xs font-black">
-              <Trophy className="w-3.5 h-3.5" /> +{points_earned} نقطة
-            </div>
-          )}
-        </div>
-        <div className="grid grid-cols-3 gap-2">
-          {[['✅', 'صحيح', correct, 'text-green-600 dark:text-green-400'], ['❌', 'خطأ', wrong, 'text-red-500 dark:text-red-400'], ['⬜', 'بلا إجابة', unanswered, 'text-gray-500 dark:text-gray-400']].map(([icon, label, val, cls]) => (
-            <div key={label} className="bg-gray-100 dark:bg-white/5 rounded-xl p-2.5 text-center border border-gray-200 dark:border-white/10">
-              <div className="text-lg">{icon}</div>
-              <div className={`text-lg font-black ${cls}`}>{val}</div>
-              <div className="text-[10px] text-gray-500">{label}</div>
-            </div>
-          ))}
-        </div>
-        {result?.result?.id && (
+      <div
+        ref={panelContainerRef}
+        className={`flex flex-col h-full bg-white dark:bg-[#0A0910] ${
+          isFullscreen ? 'fixed inset-0 z-50 w-screen h-screen' : 'flex-1 min-h-0'
+        }`}
+        dir="rtl"
+      >
+        {/* Top Header with Fullscreen button */}
+        <div className="flex-shrink-0 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-white/10 px-4 py-2.5 flex items-center justify-between">
+          <p className="text-gray-900 dark:text-white font-black text-xs sm:text-sm">نتيجة التسميع</p>
           <button
-            onClick={() => navigate(`/student/recitation-review/${result.result.id}`, { state: { backTo: `/student/courses/${courseId}` } })}
-            className="w-full flex items-center justify-center gap-2 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 font-bold text-xs py-2.5 rounded-xl transition-colors border border-indigo-500/30"
+            type="button"
+            onClick={toggleFullscreen}
+            className="p-1.5 rounded-xl border border-gray-200 dark:border-white/10 hover:bg-gray-200 dark:hover:bg-white/10 text-gray-700 dark:text-gray-200 transition-colors flex items-center gap-1 text-xs font-bold"
+            title={isFullscreen ? 'تصغير الشاشة' : 'تكبير الشاشة'}
           >
-            <Eye className="w-3.5 h-3.5" /> مراجعة مفصّلة
+            {isFullscreen ? <Minimize2 className="w-4 h-4 text-purple-500" /> : <Maximize2 className="w-4 h-4 text-purple-500" />}
+            <span className="hidden sm:inline">{isFullscreen ? 'تصغير' : 'شاشة كاملة'}</span>
           </button>
-        )}
-        {!passed && selectedRec && (() => {
-          // [retake-grant] An unused teacher-granted retake overrides both
-          // allow_retry=false and max_retry_attempts (server enforces the same).
-          const attempts = parseInt(selectedRec.my_attempt_count, 10) || 1;
-          const maxAttempts = selectedRec.max_retry_attempts ? parseInt(selectedRec.max_retry_attempts, 10) : null;
-          const maxReached = maxAttempts && attempts >= maxAttempts;
-          const allowRetry = Boolean(selectedRec.allow_retry);
-          const unusedGrants = parseInt(selectedRec.unused_grants, 10) || 0;
-          const hasGrant = unusedGrants > 0;
-          if (!(allowRetry || hasGrant)) return null;
-          if (maxReached && !hasGrant) return null;
-          return (
+        </div>
+
+        <div className="p-4 space-y-3 flex-1 overflow-y-auto max-w-2xl mx-auto w-full">
+          <div className={`p-4 rounded-2xl text-center text-white ${
+            passed ? 'bg-gradient-to-br from-green-600 to-emerald-700' : 'bg-gradient-to-br from-red-600 to-rose-700'
+          }`}>
+            <div className="text-3xl mb-1">{passed ? '🎉' : '📚'}</div>
+            <div className="text-3xl font-black">{score}<span className="text-lg opacity-70">/{total_score}</span></div>
+            <p className="text-xs font-bold mt-0.5">{passed ? 'أحسنت! نجحت في التسميع' : 'حاول أكثر في المرة القادمة'}</p>
+            <p className="text-white/70 text-[10px]">درجة النجاح: {pass_score}/{total_score}</p>
+            {points_earned > 0 && (
+              <div className="mt-2 inline-flex items-center gap-1 bg-white/20 rounded-lg px-2.5 py-1 text-xs font-black">
+                <Trophy className="w-3.5 h-3.5" /> +{points_earned} نقطة
+              </div>
+            )}
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {[['✅', 'صحيح', correct, 'text-green-600 dark:text-green-400'], ['❌', 'خطأ', wrong, 'text-red-500 dark:text-red-400'], ['⬜', 'بلا إجابة', unanswered, 'text-gray-500 dark:text-gray-400']].map(([icon, label, val, cls]) => (
+              <div key={label} className="bg-gray-100 dark:bg-white/5 rounded-xl p-2.5 text-center border border-gray-200 dark:border-white/10">
+                <div className="text-lg">{icon}</div>
+                <div className={`text-lg font-black ${cls}`}>{val}</div>
+                <div className="text-[10px] text-gray-500">{label}</div>
+              </div>
+            ))}
+          </div>
+          {result?.result?.id && (
             <button
-              onClick={() => startRec(selectedRec)}
-              className={`w-full flex items-center justify-center gap-2 font-bold text-xs py-2.5 rounded-xl transition-colors border ${
-                hasGrant
-                  ? 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/30'
-                  : 'bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border-purple-500/30'
-              }`}
+              onClick={() => navigate(`/student/recitation-review/${result.result.id}`, { state: { backTo: `/student/courses/${courseId}` } })}
+              className="w-full flex items-center justify-center gap-2 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 font-bold text-xs py-2.5 rounded-xl transition-colors border border-indigo-500/30"
             >
-              <RefreshCw className="w-3.5 h-3.5" />
-              {hasGrant ? 'محاولة إضافية من المعلم 🎁' : `أعد المحاولة ${maxAttempts ? `(${attempts + 1}/${maxAttempts})` : ''}`}
+              <Eye className="w-3.5 h-3.5" /> مراجعة مفصّلة
             </button>
-          );
-        })()}
-        <button onClick={backToList}
-          className="w-full py-2.5 rounded-xl font-bold text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5 transition-colors">
-          العودة للقائمة →
-        </button>
+          )}
+          {!passed && selectedRec && (() => {
+            const attempts = parseInt(selectedRec.my_attempt_count, 10) || 1;
+            const maxAttempts = selectedRec.max_retry_attempts ? parseInt(selectedRec.max_retry_attempts, 10) : null;
+            const maxReached = maxAttempts && attempts >= maxAttempts;
+            const allowRetry = Boolean(selectedRec.allow_retry);
+            const unusedGrants = parseInt(selectedRec.unused_grants, 10) || 0;
+            const hasGrant = unusedGrants > 0;
+            if (!(allowRetry || hasGrant)) return null;
+            if (maxReached && !hasGrant) return null;
+            return (
+              <button
+                onClick={() => startRec(selectedRec)}
+                className={`w-full flex items-center justify-center gap-2 font-bold text-xs py-2.5 rounded-xl transition-colors border ${
+                  hasGrant
+                    ? 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/30'
+                    : 'bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border-purple-500/30'
+                }`}
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                {hasGrant ? 'محاولة إضافية من المعلم 🎁' : `أعد المحاولة ${maxAttempts ? `(${attempts + 1}/${maxAttempts})` : ''}`}
+              </button>
+            );
+          })()}
+          <button onClick={backToList}
+            className="w-full py-2.5 rounded-xl font-bold text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5 transition-colors">
+            العودة للقائمة →
+          </button>
+        </div>
       </div>
     );
   }
@@ -1871,7 +1971,13 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
 
   if (recitations.length === 0) {
     return (
-      <div className="flex-1 flex flex-col min-h-0 h-full" dir="rtl">
+      <div
+        ref={panelContainerRef}
+        className={`flex flex-col h-full bg-white dark:bg-[#0A0910] ${
+          isFullscreen ? 'fixed inset-0 z-50 w-screen h-screen' : 'flex-1 min-h-0'
+        }`}
+        dir="rtl"
+      >
         <div className="flex flex-col items-center justify-center flex-1 min-h-[180px] p-4 text-center">
           <BookOpen className="w-10 h-10 text-gray-400 dark:text-gray-700 mb-2" />
           <p className="text-gray-500 dark:text-gray-600 text-sm font-semibold">لا توجد تسميعات مرتبطة بهذا الكورس</p>
@@ -1891,7 +1997,13 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
   if (pendingRecitations.length === 0) {
     // All recitations passed — celebrate and link to the full history page
     return (
-      <div className="flex-1 flex flex-col min-h-0 h-full" dir="rtl">
+      <div
+        ref={panelContainerRef}
+        className={`flex flex-col h-full bg-white dark:bg-[#0A0910] ${
+          isFullscreen ? 'fixed inset-0 z-50 w-screen h-screen' : 'flex-1 min-h-0'
+        }`}
+        dir="rtl"
+      >
         <div className="flex flex-col items-center justify-center flex-1 min-h-[200px] p-4 text-center">
           <div className="w-12 h-12 rounded-2xl bg-green-500/10 border border-green-500/20 flex items-center justify-center text-green-500 mb-2">
             <CheckCircle className="w-6 h-6" />
@@ -1912,7 +2024,36 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
   }
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 h-full" dir="rtl">
+    <div
+      ref={panelContainerRef}
+      className={`flex flex-col h-full bg-white dark:bg-[#0A0910] ${
+        isFullscreen ? 'fixed inset-0 z-50 w-screen h-screen' : 'flex-1 min-h-0'
+      }`}
+      dir="rtl"
+    >
+      {/* Top Header with Fullscreen button */}
+      <div className="flex-shrink-0 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-white/10 px-4 py-2.5 flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-lg bg-purple-500/20 flex items-center justify-center">
+            <BookOpen className="w-4 h-4 text-purple-500 dark:text-purple-400" />
+          </div>
+          <div>
+            <p className="text-gray-900 dark:text-white font-black text-xs sm:text-sm">التسميعات</p>
+            <p className="text-gray-500 text-[10px]">تسميعات الكورس</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={toggleFullscreen}
+          className="p-1.5 rounded-xl border border-gray-200 dark:border-white/10 hover:bg-gray-200 dark:hover:bg-white/10 text-gray-700 dark:text-gray-200 transition-colors flex items-center gap-1 text-xs font-bold"
+          title={isFullscreen ? 'تصغير الشاشة' : 'تكبير التسميع لشاشة كاملة'}
+          aria-label={isFullscreen ? 'تصغير الشاشة' : 'تكبير التسميع لشاشة كاملة'}
+        >
+          {isFullscreen ? <Minimize2 className="w-4 h-4 text-purple-500" /> : <Maximize2 className="w-4 h-4 text-purple-500" />}
+          <span className="hidden sm:inline">{isFullscreen ? 'تصغير' : 'شاشة كاملة'}</span>
+        </button>
+      </div>
+
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
         {/* Dedicated Active In-Progress Banner in Course Tab */}
         {activeInProgressRec && (
@@ -2428,10 +2569,10 @@ export default function CourseView() {
       </div>
 
       {/* ── Body ── */}
-      <div className="flex-1 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden">
+      <div className="flex-1 flex flex-col-reverse md:flex-row overflow-hidden">
 
         {/* ── Sidebar (chapters) ── */}
-        <aside className="w-full md:w-96 md:h-full flex-shrink-0 bg-gray-50 dark:bg-gray-900 border-t md:border-t-0 md:border-l border-gray-200 dark:border-white/10 flex flex-col order-2 md:order-1">
+        <aside className="w-full h-[40vh] md:w-96 md:h-auto flex-shrink-0 bg-gray-50 dark:bg-gray-900 border-t md:border-t-0 md:border-l border-gray-200 dark:border-white/10 flex-col overflow-hidden flex">
           <div className="flex-shrink-0 px-4 py-3 border-b border-gray-200 dark:border-white/10 bg-gradient-to-b from-orange-500/10 to-transparent">
             <p className="text-gray-900 dark:text-white font-black text-sm leading-relaxed line-clamp-2">{course?.name}</p>
             {course?.target_stage && (
@@ -2444,7 +2585,7 @@ export default function CourseView() {
             </p>
           </div>
 
-          <div className="p-3 space-y-2 md:flex-1 md:overflow-y-auto scrollbar-thin">
+          <div className="flex-1 overflow-y-auto scrollbar-thin p-3 space-y-2">
             {isLoading ? (
               [...Array(4)].map((_, i) => (
                 <div key={i} className="h-20 rounded-xl bg-gray-200 dark:bg-white/5 animate-pulse" />
@@ -2509,10 +2650,10 @@ export default function CourseView() {
         </aside>
 
         {/* ── Main content ── */}
-        <main className="w-full md:flex-1 flex flex-col min-h-0 md:overflow-hidden order-1 md:order-2">
+        <main className="flex-1 flex flex-col overflow-hidden">
           {activeView === 'video' && currentVideo ? (
             <>
-              <div className="w-full aspect-video md:aspect-auto md:flex-1 bg-black overflow-hidden min-h-0">
+              <div className="flex-1 bg-black overflow-hidden min-h-0">
                 <VideoPlayer
                   key={currentVideo.id}
                   video={currentVideo}
@@ -2601,12 +2742,12 @@ export default function CourseView() {
                   <Eye className="w-3.5 h-3.5" /> عرض فقط
                 </span>
               </div>
-              <div className="w-full h-[600px] md:h-auto md:flex-1 overflow-hidden">
+              <div className="flex-1 overflow-hidden">
                 <PdfViewer key={currentPdf.id} pdf={currentPdf} />
               </div>
             </>
           ) : activeView === 'recitation' && activeRec ? (
-            <div className="w-full min-h-[580px] md:min-h-0 md:h-full flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
               <RecitationsTabPanel
                 recitations={[activeRec]}
                 courseId={courseId}
