@@ -446,8 +446,10 @@ CREATE TABLE IF NOT EXISTS exam_sessions (
   exam_id    INTEGER REFERENCES exams(id) ON DELETE CASCADE,
   started_at TIMESTAMP DEFAULT NOW(),
   questions_snapshot JSONB DEFAULT '[]',
+  answers JSONB DEFAULT '{}'::jsonb,
   UNIQUE(student_id, exam_id)
 );
+ALTER TABLE exam_sessions ADD COLUMN IF NOT EXISTS answers JSONB DEFAULT '{}'::jsonb;
 CREATE INDEX IF NOT EXISTS idx_exam_sessions_student_exam ON exam_sessions(student_id, exam_id);
 
 -- ── Additional performance indexes ───────────────────────────────────────────
@@ -1079,8 +1081,10 @@ CREATE TABLE IF NOT EXISTS recitation_sessions (
   recitation_id INTEGER NOT NULL REFERENCES recitations(id) ON DELETE CASCADE,
   started_at TIMESTAMP DEFAULT NOW(),
   questions_snapshot JSONB DEFAULT '[]',
+  answers JSONB DEFAULT '{}'::jsonb,
   UNIQUE(student_id, recitation_id)
 );
+ALTER TABLE recitation_sessions ADD COLUMN IF NOT EXISTS answers JSONB DEFAULT '{}'::jsonb;
 
 CREATE TABLE IF NOT EXISTS recitation_results (
   id SERIAL PRIMARY KEY,

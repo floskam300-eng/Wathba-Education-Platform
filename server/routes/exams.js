@@ -3,6 +3,7 @@ const { isValidImage, deleteFile, deleteUploadFile, extractSubQuestionImages } =
 const { convertToWebp } = require('../lib/convertToWebp');
 const rateLimit = require('express-rate-limit');
 const { sendFCMToStudents } = require('../lib/fcm');
+const { calculateExamScore, autoSubmitExpiredExamSession } = require('../lib/examScoring');
 const express = require('express');
 const pool = require('../db/connection');
 const { authenticate, requireRole } = require('../middleware/auth');
@@ -1398,7 +1399,7 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
     try {
       // Check if session already exists
       const sessionRow = await pool.query(
-        'SELECT started_at, questions_snapshot FROM exam_sessions WHERE student_id=$1 AND exam_id=$2',
+        'SELECT started_at, questions_snapshot, answers FROM exam_sessions WHERE student_id=$1 AND exam_id=$2',
         [studentId, examId]
       );
 
@@ -1416,14 +1417,10 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
               [studentId, examId]
             );
             if (!existingResRow.rows.length) {
-              const totalQCount = Array.isArray(sess.questions_snapshot) ? sess.questions_snapshot.length : 0;
-              await pool.query(
-                `INSERT INTO exam_results (student_id, exam_id, score, correct_count, wrong_count, unanswered_count, start_time, end_time, answers, points_earned, attempt_number, is_latest, is_absent)
-                 VALUES ($1, $2, 0, 0, 0, $3, $4, NOW(), '[]'::jsonb, 0, 1, true, false)`,
-                [studentId, examId, totalQCount, sess.started_at]
-              );
+              await autoSubmitExpiredExamSession(pool, sess, exam, studentId, examId);
+            } else {
+              await pool.query('DELETE FROM exam_sessions WHERE student_id=$1 AND exam_id=$2', [studentId, examId]);
             }
-            await pool.query('DELETE FROM exam_sessions WHERE student_id=$1 AND exam_id=$2', [studentId, examId]);
             return res.status(403).json({
               error: 'لقد انتهت مهلة محاولتك السابقة — يُرجى طلب الإعادة من المعلم',
               timer_expired: true,
@@ -1432,8 +1429,8 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
           } else {
             await pool.query('DELETE FROM exam_sessions WHERE student_id=$1 AND exam_id=$2', [studentId, examId]);
             const insertRes = await pool.query(
-              `INSERT INTO exam_sessions (student_id, exam_id, started_at, questions_snapshot)
-               VALUES ($1, $2, NOW(), $3)
+              `INSERT INTO exam_sessions (student_id, exam_id, started_at, questions_snapshot, answers)
+               VALUES ($1, $2, NOW(), $3, '{}'::jsonb)
                RETURNING started_at`,
               [studentId, examId, JSON.stringify(questions)]
             );
@@ -1454,8 +1451,8 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
       } else {
         // Brand new session
         const insertRes = await pool.query(
-          `INSERT INTO exam_sessions (student_id, exam_id, started_at, questions_snapshot)
-           VALUES ($1, $2, NOW(), $3)
+          `INSERT INTO exam_sessions (student_id, exam_id, started_at, questions_snapshot, answers)
+           VALUES ($1, $2, NOW(), $3, '{}'::jsonb)
            ON CONFLICT (student_id, exam_id)
            DO NOTHING
            RETURNING started_at`,
@@ -1465,7 +1462,7 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
           serverStartedAt = insertRes.rows[0].started_at;
         } else {
           const freshCheck = await pool.query(
-            'SELECT started_at, questions_snapshot FROM exam_sessions WHERE student_id=$1 AND exam_id=$2',
+            'SELECT started_at, questions_snapshot, answers FROM exam_sessions WHERE student_id=$1 AND exam_id=$2',
             [studentId, examId]
           );
           serverStartedAt = freshCheck.rows[0]?.started_at || serverNow.toISOString();
@@ -1492,6 +1489,11 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
       return q;
     });
 
+    const activeSessionRow = await pool.query(
+      'SELECT answers FROM exam_sessions WHERE student_id=$1 AND exam_id=$2',
+      [studentId, examId]
+    );
+
     res.json({
       exam,
       questions: clientQuestions,
@@ -1499,9 +1501,38 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
       server_now: serverNow.toISOString(),
       remaining_seconds: remainingSeconds,
       resumed: isResumed,
+      saved_answers: activeSessionRow.rows[0]?.answers || {},
       serverStartedAt, // for backward compat
     });
   } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── Student: sync in-progress answers ──
+// Saves progress continuously to exam_sessions.answers so if the tab is closed or
+// internet drops, answers are graded on timer expiry instead of giving 0.
+router.post('/:id/sync-answers', requireRole('student'), async (req, res) => {
+  const examId = parseParamId(req.params.id);
+  if (!examId) return res.status(400).json({ error: 'معرّف الاختبار غير صالح' });
+  const studentId = req.user.id;
+  const { answers } = req.body;
+
+  if (!answers || typeof answers !== 'object' || Array.isArray(answers)) {
+    return res.status(400).json({ error: 'Invalid answers payload' });
+  }
+
+  try {
+    const result = await pool.query(
+      'UPDATE exam_sessions SET answers = $1 WHERE student_id = $2 AND exam_id = $3 RETURNING id',
+      [JSON.stringify(answers), studentId, examId]
+    );
+    if (!result.rows.length) {
+      return res.status(404).json({ error: 'Exam session not found or already ended' });
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[sync-answers error]:', err.message);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -1625,73 +1656,14 @@ router.post('/:id/submit', submitLimiter, requireRole('student'), async (req, re
 
   // ── Score calculation (pure, no DB) ──
   const exam = eligibilityRow;
-  let score = 0, correct = 0, wrong = 0, unanswered = 0;
-  const detailedAnswers = questionsData.map(q => {
-    const rawAnswer = answers[q.id];
-    const qType = q.question_type || 'mcq';
-    let isCorrect = false;
-
-    if (qType === 'image_multi') {
-      const subQs = Array.isArray(q.sub_questions) ? q.sub_questions : [];
-      let parsedAns = {};
-      if (rawAnswer && typeof rawAnswer === 'object') parsedAns = rawAnswer;
-      else { try { parsedAns = JSON.parse(rawAnswer || '{}'); } catch {} }
-      const hasAnswer = Object.keys(parsedAns).length > 0;
-      const studentAnswerStr = hasAnswer ? JSON.stringify(parsedAns) : null;
-
-      // Count each sub-question individually so the stats (صحيح/خطأ/بلا إجابة)
-      // match the sub-question breakdown shown in the review page.
-      let questionEarnedPoints = 0;
-      let allCorrect = subQs.length > 0;
-      for (const sub of subQs) {
-        const rawSubCorrect = String(sub.correct || '').toUpperCase();
-        const rawStudentSubAns = String(parsedAns[sub.label] || '').toUpperCase();
-        const subCorrect = (sub.type === 'true_false' || rawSubCorrect === 'T' || rawSubCorrect === 'F')
-          ? (rawSubCorrect === 'T' ? 'A' : rawSubCorrect === 'F' ? 'B' : rawSubCorrect)
-          : rawSubCorrect;
-        const studentSubAns = (sub.type === 'true_false' || rawStudentSubAns === 'T' || rawStudentSubAns === 'F')
-          ? (rawStudentSubAns === 'T' ? 'A' : rawStudentSubAns === 'F' ? 'B' : rawStudentSubAns)
-          : rawStudentSubAns;
-
-        if (!studentSubAns) {
-          unanswered++;
-          allCorrect = false;
-        } else if (studentSubAns === subCorrect) {
-          correct++;
-          const subPoints = sub.points !== undefined ? (parseInt(sub.points) || 1) : (q.points / (subQs.length || 1));
-          questionEarnedPoints += subPoints;
-        } else {
-          wrong++;
-          allCorrect = false;
-        }
-      }
-      score += questionEarnedPoints;
-      isCorrect = allCorrect && subQs.length > 0;
-      return { question_id: q.id, student_answer: studentAnswerStr, correct_answer: null, is_correct: isCorrect, question_type: qType };
-    }
-
-
-    let studentAnswer = rawAnswer ? String(rawAnswer).toUpperCase() : null;
-    let correctLetter = q.correct_answer_letter ? q.correct_answer_letter.toUpperCase() : null;
-    if (qType === 'true_false') {
-      if (studentAnswer === 'T') studentAnswer = 'A';
-      if (studentAnswer === 'F') studentAnswer = 'B';
-      if (correctLetter === 'T') correctLetter = 'A';
-      if (correctLetter === 'F') correctLetter = 'B';
-    }
-
-    if (!studentAnswer) {
-      unanswered++;
-    } else if (studentAnswer === correctLetter) {
-      score += q.points; correct++; isCorrect = true;
-    } else {
-      wrong++;
-    }
-    return { question_id: q.id, student_answer: studentAnswer, correct_answer: correctLetter, is_correct: isCorrect, question_type: qType };
-  });
-  const totalPoints = questionsData.reduce((s, q) => s + q.points, 0);
-  const normalizedScore = totalPoints > 0 ? Math.round((score / totalPoints) * exam.total_score) : 0;
-  const passed = normalizedScore >= exam.pass_score;
+  const {
+    normalizedScore,
+    correct,
+    wrong,
+    unanswered,
+    detailedAnswers,
+    passed,
+  } = calculateExamScore(questionsData, answers, exam);
   // Server-authoritative lock detection: compare submission time against the session
   // deadline. A student who submits before the timer expires "locked" the exam
   // voluntarily and earns the lock bonus. This cannot be forged by the client.

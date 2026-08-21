@@ -14,6 +14,7 @@ const { activeSends } = require('./lib/waActiveSends');
 // markAbsentStudents will automatically apply here too.
 const { markAbsentStudents } = require('./routes/exams');
 const { markAbsentRecitationStudents } = require('./routes/recitations');
+const { autoSubmitExpiredExamSession } = require('./lib/examScoring');
 
 let _pool = null;
 let _intervalId = null;
@@ -525,7 +526,7 @@ async function runSessionCleanup() {
 
 // ── Auto-submit and clean up expired in-progress exam sessions ──
 // Runs every 60 seconds. Finds exam_sessions where the exam duration + 90s grace
-// has elapsed, records an abandoned 0-score attempt in exam_results (if not yet recorded),
+// has elapsed, grades the student's saved progress into exam_results,
 // and removes the session from exam_sessions so the student cannot resume.
 let _isSessionCheckRunning = false;
 async function runExpiredExamSessionsCheck() {
@@ -533,9 +534,10 @@ async function runExpiredExamSessionsCheck() {
   _isSessionCheckRunning = true;
   try {
     const { rows: expiredSessions } = await _pool.query(`
-      SELECT es.student_id, es.exam_id, es.started_at, es.questions_snapshot,
-             COALESCE(e.duration_minutes, 60) AS duration_minutes,
-             e.title AS exam_title
+      SELECT es.student_id, es.exam_id, es.started_at, es.questions_snapshot, es.answers,
+             e.id, e.title, e.total_score, e.pass_score, e.points_on_pass, e.points_on_attempt,
+             e.badge_name, e.badge_color, e.teacher_id, e.question_source, e.bank_id,
+             COALESCE(e.duration_minutes, 60) AS duration_minutes
       FROM exam_sessions es
       JOIN exams e ON es.exam_id = e.id
       WHERE es.started_at + ((COALESCE(e.duration_minutes, 60) * 60 + 90) * interval '1 second') < NOW()
@@ -544,23 +546,9 @@ async function runExpiredExamSessionsCheck() {
 
     for (const sess of expiredSessions) {
       try {
-        const { student_id, exam_id, started_at, questions_snapshot } = sess;
-        const existingRes = await _pool.query(
-          'SELECT id FROM exam_results WHERE student_id=$1 AND exam_id=$2 AND is_latest=true AND is_absent=false',
-          [student_id, exam_id]
-        );
-        if (!existingRes.rows.length) {
-          const totalQCount = Array.isArray(questions_snapshot) ? questions_snapshot.length : 0;
-          await _pool.query(
-            `INSERT INTO exam_results (student_id, exam_id, score, correct_count, wrong_count, unanswered_count, start_time, end_time, answers, points_earned, attempt_number, is_latest, is_absent)
-             VALUES ($1, $2, 0, 0, 0, $3, $4, NOW(), '[]'::jsonb, 0, 1, true, false)`,
-            [student_id, exam_id, totalQCount, started_at]
-          );
-        }
-        await _pool.query('DELETE FROM exam_sessions WHERE student_id=$1 AND exam_id=$2', [student_id, exam_id]);
-        console.log(`[Scheduler] Expired exam session cleaned up for student=${student_id}, exam=${exam_id}`);
+        await autoSubmitExpiredExamSession(_pool, sess, sess, sess.student_id, sess.exam_id);
       } catch (err) {
-        console.error(`[Scheduler] Error cleaning expired exam session (student=${sess.student_id}, exam=${sess.exam_id}):`, err.message);
+        console.error(`[Scheduler] Error auto-submitting expired exam session (student=${sess.student_id}, exam=${sess.exam_id}):`, err.message);
       }
     }
   } catch (err) {

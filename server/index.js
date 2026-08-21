@@ -800,6 +800,8 @@ const initDB = async () => {
     // Migrations: add columns that may not exist in older deployments
     await pool.query('ALTER TABLE students ADD COLUMN IF NOT EXISTS plain_password VARCHAR(255)');
     await pool.query('ALTER TABLE students ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP');
+    await pool.query("ALTER TABLE exam_sessions ADD COLUMN IF NOT EXISTS answers JSONB DEFAULT '{}'::jsonb");
+    await pool.query("ALTER TABLE recitation_sessions ADD COLUMN IF NOT EXISTS answers JSONB DEFAULT '{}'::jsonb");
 
     // [recitation_locks] Drop the dead `ever_passed` column from
     // recitation_results and exam_results. The column was added in migrate.sql

@@ -367,7 +367,44 @@ export default function StudentExams() {
     submitMut.mutate({ id: taking.id, data: { answers: answersRef.current, start_time: startTime, locked: true } });
   }, [taking, examData, startTime]);
 
-  // ── Save answers to localStorage whenever they change ──
+  const syncTimeoutRef = useRef(null);
+
+  const syncAnswersToServer = useCallback((examId, currentAnswers) => {
+    if (!examId) return;
+    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+    syncTimeoutRef.current = setTimeout(() => {
+      api.post(`/exams/${examId}/sync-answers`, { answers: currentAnswers }).catch(() => {});
+    }, 400);
+  }, []);
+
+  const flushAnswersNow = useCallback((examId, currentAnswers) => {
+    if (!examId || !currentAnswers) return;
+    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+    api.post(`/exams/${examId}/sync-answers`, { answers: currentAnswers }).catch(() => {});
+  }, []);
+
+  // Flush answers immediately when tab is closed or hidden
+  useEffect(() => {
+    if (!taking) return;
+    const handleFlush = () => {
+      if (takingRef.current?.id && answersRef.current) {
+        flushAnswersNow(takingRef.current.id, answersRef.current);
+      }
+    };
+    const onVisChange = () => {
+      if (document.visibilityState === 'hidden') {
+        handleFlush();
+      }
+    };
+    window.addEventListener('beforeunload', handleFlush);
+    document.addEventListener('visibilitychange', onVisChange);
+    return () => {
+      window.removeEventListener('beforeunload', handleFlush);
+      document.removeEventListener('visibilitychange', onVisChange);
+    };
+  }, [taking, flushAnswersNow]);
+
+  // ── Save answers to localStorage & sync to server whenever they change ──
   useEffect(() => {
     if (!taking) return;
     try {
@@ -375,7 +412,9 @@ export default function StudentExams() {
       localStorage.setItem(`exam_answers_${uId}_${taking.id}`, JSON.stringify(answers));
       localStorage.setItem(`exam_active_${uId}_${taking.id}`, 'true');
     } catch (_) {}
-  }, [answers, taking, user?.id]);
+
+    syncAnswersToServer(taking.id, answers);
+  }, [answers, taking, user?.id, syncAnswersToServer]);
 
   // ── Monotonic Timer + Resume Handling ──
   const timerEpochRef = useRef(null);
@@ -501,7 +540,7 @@ export default function StudentExams() {
         return;
       }
 
-      // Restore saved answers from localStorage if any
+      // Restore saved answers from server session and localStorage
       let loadedAnswers = {};
       try {
         const uId = user?.id || 0;
@@ -514,7 +553,12 @@ export default function StudentExams() {
         }
       } catch (_) {}
 
-      setAnswers(loadedAnswers);
+      const serverSaved = (data.saved_answers && typeof data.saved_answers === 'object' && !Array.isArray(data.saved_answers))
+        ? data.saved_answers
+        : {};
+      const mergedAnswers = { ...serverSaved, ...loadedAnswers };
+
+      setAnswers(mergedAnswers);
       setResult(null);
       submittedRef.current = false;
       setCurrentQuestionIdx(0);
@@ -525,7 +569,7 @@ export default function StudentExams() {
         delete examForTaking.already_taken;
       }
 
-      if (data.resumed || Object.keys(loadedAnswers).length > 0) {
+      if (data.resumed || Object.keys(mergedAnswers).length > 0) {
         // Resume directly without 3-2-1 countdown screen
         setTaking(examForTaking);
         setStartingId(null);
