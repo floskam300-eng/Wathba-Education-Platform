@@ -2485,6 +2485,13 @@ export default function CourseView() {
   const exams = content?.exams || [];
   const totalSections = sections.length + (uncategorized ? 1 : 0);
   const totalVideos = flatVids.length;
+  const totalPdfs = useMemo(() => {
+    if (!content) return 0;
+    let n = 0;
+    for (const s of (content.sections || [])) n += (s.pdfs || []).length;
+    if (content.uncategorized) n += (content.uncategorized.pdfs || []).length;
+    return n;
+  }, [content]);
   const totalRecitations = useMemo(() => {
     if (!content) return 0;
     let n = 0;
@@ -2567,7 +2574,7 @@ export default function CourseView() {
         {course && (
           <div className="mr-auto flex items-center gap-2">
             <span className="text-xs text-gray-500 font-medium">
-              {totalSections} فصل · {totalVideos} محاضرة · {totalRecitations} تسميع
+              {totalSections} فصل · {totalVideos} محاضرة{totalPdfs > 0 ? ` · ${totalPdfs} ملف` : ''} · {totalRecitations} تسميع
             </span>
           </div>
         )}
@@ -2850,7 +2857,7 @@ export default function CourseView() {
   );
 }
 
-/* ── Chapter card — collapsible section with nested videos / files / recitations ── */
+/* ── Chapter card — collapsible section with separated videos / files / recitations ── */
 function ChapterCard({ section, expanded, onToggle, activeVideo, activePdf, activeRec, onSelectVideo, onSelectPdf, onSelectRec, isStudent }) {
   const isLocked = isStudent && section.is_unlocked_for_student === false;
   const videos = section.videos || [];
@@ -2858,6 +2865,10 @@ function ChapterCard({ section, expanded, onToggle, activeVideo, activePdf, acti
   const recitations = section.recitations || [];
   const gateProgress = section.gate_progress;
   const totalItems = videos.length + pdfs.length + recitations.length;
+
+  const [categoryFilter, setCategoryFilter] = useState('all');
+
+  const categoriesWithItemsCount = (videos.length > 0 ? 1 : 0) + (pdfs.length > 0 ? 1 : 0) + (recitations.length > 0 ? 1 : 0);
 
   return (
     <div className={`bg-white dark:bg-white/5 rounded-2xl border transition-all overflow-hidden ${
@@ -2877,16 +2888,28 @@ function ChapterCard({ section, expanded, onToggle, activeVideo, activePdf, acti
         </div>
         <div className="flex-1 min-w-0 text-right">
           <p className="text-gray-900 dark:text-white font-black text-sm truncate">{section.title}</p>
-          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
             {isLocked ? (
-              <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded-full flex items-center gap-1">
+              <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full flex items-center gap-1">
                 <Lock className="w-2.5 h-2.5" /> مقفل — يجب اجتياز {gateProgress?.required || 0} تسميع
               </span>
             ) : (
               <>
-                {videos.length > 0 && <span className="text-[10px] text-gray-500">🎬 {videos.length}</span>}
-                {pdfs.length > 0 && <span className="text-[10px] text-gray-500">📄 {pdfs.length}</span>}
-                {recitations.length > 0 && <span className="text-[10px] text-purple-600 dark:text-purple-400 font-bold">📖 {recitations.length}</span>}
+                {videos.length > 0 && (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-orange-500/10 text-orange-600 dark:text-orange-400 flex items-center gap-1">
+                    <Video className="w-2.5 h-2.5" /> {videos.length} فيديو
+                  </span>
+                )}
+                {pdfs.length > 0 && (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center gap-1">
+                    <FileText className="w-2.5 h-2.5" /> {pdfs.length} ملف
+                  </span>
+                )}
+                {recitations.length > 0 && (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center gap-1">
+                    <BookMarked className="w-2.5 h-2.5" /> {recitations.length} تسميع
+                  </span>
+                )}
                 {totalItems === 0 && <span className="text-[10px] text-gray-400">فارغ</span>}
                 {gateProgress && gateProgress.required > 0 && gateProgress.passed > 0 && gateProgress.passed < gateProgress.required && (
                   <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded-full">
@@ -2906,86 +2929,251 @@ function ChapterCard({ section, expanded, onToggle, activeVideo, activePdf, acti
       </button>
 
       {!isLocked && expanded && (
-        <div className="border-t border-gray-200 dark:border-white/10 p-2 space-y-1 bg-gray-50/50 dark:bg-transparent">
-          {videos.map((v, i) => {
-            const isActive = activeVideo?.id === v.id;
-            return (
-              <button key={v.id}
-                onClick={() => onSelectVideo(v)}
-                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all text-right ${
-                  isActive ? 'bg-orange-500 text-white shadow-sm' : 'hover:bg-orange-500/10 text-gray-700 dark:text-gray-300'
+        <div className="border-t border-gray-200 dark:border-white/10 p-2.5 space-y-3 bg-gray-50/60 dark:bg-black/20">
+          {/* Quick Filter Tabs for Multi-Category Chapters */}
+          {categoriesWithItemsCount > 1 && (
+            <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none">
+              <button
+                type="button"
+                onClick={() => setCategoryFilter('all')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 whitespace-nowrap ${
+                  categoryFilter === 'all'
+                    ? 'bg-gray-800 text-white dark:bg-white dark:text-gray-900 shadow-sm'
+                    : 'bg-white dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10 border border-gray-200/60 dark:border-white/10'
+                }`}
+              >
+                <span>الكل</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                  categoryFilter === 'all'
+                    ? 'bg-white/20 dark:bg-black/20 text-inherit'
+                    : 'bg-gray-100 dark:bg-white/10 text-gray-500 dark:text-gray-400'
                 }`}>
-                <div className={`w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 ${
-                  isActive ? 'bg-white/20' : 'bg-gray-200 dark:bg-white/10'
-                }`}>
-                  {isActive
-                    ? <Play className="w-3.5 h-3.5 text-white fill-white" />
-                    : <Video className="w-3.5 h-3.5 text-gray-500" />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className={`text-xs font-bold truncate ${isActive ? 'text-white' : ''}`}>{v.title}</p>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    {v.duration_minutes > 0 && (
-                      <span className={`text-[10px] flex items-center gap-0.5 ${isActive ? 'text-white/70' : 'text-gray-500'}`}>
-                        <Clock className="w-2.5 h-2.5" /> {fmt(v.duration_minutes)}
-                      </span>
-                    )}
-                    {v.saved_progress > 0 && !isActive && (
-                      <span className="text-[10px] font-bold text-orange-500">{Math.round(v.saved_progress)}%</span>
-                    )}
-                    {v.saved_progress >= 95 && !isActive && <CheckCircle2 className="w-3 h-3 text-green-500" />}
+                  {totalItems}
+                </span>
+              </button>
+
+              {videos.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setCategoryFilter('videos')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 whitespace-nowrap ${
+                    categoryFilter === 'videos'
+                      ? 'bg-orange-500 text-white shadow-sm shadow-orange-500/20'
+                      : 'bg-white dark:bg-white/5 text-orange-700 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-500/10 border border-orange-200/60 dark:border-orange-500/20'
+                  }`}
+                >
+                  <Video className="w-3 h-3" />
+                  <span>الفيديوهات</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                    categoryFilter === 'videos'
+                      ? 'bg-white/20 text-white'
+                      : 'bg-orange-100 dark:bg-orange-950 text-orange-600 dark:text-orange-300'
+                  }`}>
+                    {videos.length}
+                  </span>
+                </button>
+              )}
+
+              {pdfs.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setCategoryFilter('pdfs')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 whitespace-nowrap ${
+                    categoryFilter === 'pdfs'
+                      ? 'bg-sky-600 text-white shadow-sm shadow-sky-600/20'
+                      : 'bg-white dark:bg-white/5 text-sky-700 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-500/10 border border-sky-200/60 dark:border-sky-500/20'
+                  }`}
+                >
+                  <FileText className="w-3 h-3" />
+                  <span>الملفات</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                    categoryFilter === 'pdfs'
+                      ? 'bg-white/20 text-white'
+                      : 'bg-sky-100 dark:bg-sky-950 text-sky-600 dark:text-sky-300'
+                  }`}>
+                    {pdfs.length}
+                  </span>
+                </button>
+              )}
+
+              {recitations.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setCategoryFilter('recitations')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 whitespace-nowrap ${
+                    categoryFilter === 'recitations'
+                      ? 'bg-purple-600 text-white shadow-sm shadow-purple-600/20'
+                      : 'bg-white dark:bg-white/5 text-purple-700 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-500/10 border border-purple-200/60 dark:border-purple-500/20'
+                  }`}
+                >
+                  <BookMarked className="w-3 h-3" />
+                  <span>التسميعات</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                    categoryFilter === 'recitations'
+                      ? 'bg-white/20 text-white'
+                      : 'bg-purple-100 dark:bg-purple-950 text-purple-600 dark:text-purple-300'
+                  }`}>
+                    {recitations.length}
+                  </span>
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* ── 1. Videos Division (قسم الفيديوهات) ── */}
+          {(categoryFilter === 'all' || categoryFilter === 'videos') && videos.length > 0 && (
+            <div className="space-y-1.5 bg-white/80 dark:bg-white/[0.03] p-2.5 rounded-xl border border-orange-200/70 dark:border-orange-500/20 shadow-xs">
+              <div className="flex items-center justify-between pb-1.5 border-b border-orange-100 dark:border-orange-500/15">
+                <div className="flex items-center gap-1.5 text-xs font-black text-orange-600 dark:text-orange-400">
+                  <div className="w-5 h-5 rounded-md bg-orange-500/15 flex items-center justify-center">
+                    <Video className="w-3 h-3 text-orange-600 dark:text-orange-400" />
                   </div>
+                  <span>المحاضرات والفيديوهات</span>
                 </div>
-              </button>
-            );
-          })}
-          {pdfs.map(p => {
-            const isActive = activePdf?.id === p.id;
-            return (
-              <button key={p.id}
-                onClick={() => onSelectPdf(p)}
-                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all text-right ${
-                  isActive ? 'bg-orange-500 text-white shadow-sm' : 'hover:bg-orange-500/10 text-gray-700 dark:text-gray-300'
-                }`}>
-                <div className={`w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 ${
-                  isActive ? 'bg-white/20' : 'bg-gray-200 dark:bg-white/10'
-                }`}>
-                  <FileText className={`w-3.5 h-3.5 ${isActive ? 'text-white' : 'text-gray-500'}`} />
-                </div>
-                <p className={`flex-1 text-xs font-bold truncate ${isActive ? 'text-white' : ''}`}>{p.title}</p>
-              </button>
-            );
-          })}
-          {recitations.map(rec => {
-            const passed = rec.my_ever_passed ?? rec.my_passed ?? false;
-            const hasResult = !!rec.result_id;
-            const isActive = activeRec?.id === rec.id;
-            return (
-              <button key={rec.id}
-                onClick={() => onSelectRec(rec)}
-                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all text-right ${
-                  isActive ? 'bg-purple-500 text-white shadow-sm' : 'hover:bg-purple-500/10 text-gray-700 dark:text-gray-300'
-                }`}>
-                <div className={`w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 ${
-                  isActive ? 'bg-white/20' : 'bg-purple-500/15'
-                }`}>
-                  <BookMarked className={`w-3.5 h-3.5 ${isActive ? 'text-white' : 'text-purple-500'}`} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className={`text-xs font-bold truncate ${isActive ? 'text-white' : ''}`}>{rec.title}</p>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    {hasResult ? (
-                      <span className={`text-[10px] font-black ${isActive ? 'text-white/80' : passed ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`}>
-                        {rec.my_score}/{rec.total_score} {passed ? '✓' : '✗'}
-                      </span>
-                    ) : (
-                      <span className={`text-[10px] ${isActive ? 'text-white/70' : 'text-gray-500'}`}>لم تُؤدَّ</span>
-                    )}
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-orange-100 dark:bg-orange-950 text-orange-700 dark:text-orange-300">
+                  {videos.length} {videos.length === 1 ? 'فيديو' : 'فيديوهات'}
+                </span>
+              </div>
+
+              <div className="space-y-1 pt-1">
+                {videos.map((v) => {
+                  const isActive = activeVideo?.id === v.id;
+                  return (
+                    <button
+                      key={v.id}
+                      onClick={() => onSelectVideo(v)}
+                      className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all text-right ${
+                        isActive
+                          ? 'bg-orange-500 text-white shadow-sm shadow-orange-500/25'
+                          : 'hover:bg-orange-500/10 text-gray-700 dark:text-gray-300 bg-white/60 dark:bg-white/[0.02] border border-gray-100 dark:border-white/5'
+                      }`}
+                    >
+                      <div className={`w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 ${
+                        isActive ? 'bg-white/20' : 'bg-orange-500/10 text-orange-600 dark:text-orange-400'
+                      }`}>
+                        {isActive
+                          ? <Play className="w-3.5 h-3.5 text-white fill-white" />
+                          : <Video className="w-3.5 h-3.5" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-xs font-bold truncate ${isActive ? 'text-white' : ''}`}>{v.title}</p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          {v.duration_minutes > 0 && (
+                            <span className={`text-[10px] flex items-center gap-0.5 ${isActive ? 'text-white/70' : 'text-gray-500'}`}>
+                              <Clock className="w-2.5 h-2.5" /> {fmt(v.duration_minutes)}
+                            </span>
+                          )}
+                          {v.saved_progress > 0 && !isActive && (
+                            <span className="text-[10px] font-bold text-orange-500">{Math.round(v.saved_progress)}%</span>
+                          )}
+                          {v.saved_progress >= 95 && !isActive && <CheckCircle2 className="w-3 h-3 text-green-500" />}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ── 2. Files / PDFs Division (قسم الملفات والمذكرات) ── */}
+          {(categoryFilter === 'all' || categoryFilter === 'pdfs') && pdfs.length > 0 && (
+            <div className="space-y-1.5 bg-white/80 dark:bg-white/[0.03] p-2.5 rounded-xl border border-sky-200/70 dark:border-sky-500/20 shadow-xs">
+              <div className="flex items-center justify-between pb-1.5 border-b border-sky-100 dark:border-sky-500/15">
+                <div className="flex items-center gap-1.5 text-xs font-black text-sky-600 dark:text-sky-400">
+                  <div className="w-5 h-5 rounded-md bg-sky-500/15 flex items-center justify-center">
+                    <FileText className="w-3 h-3 text-sky-600 dark:text-sky-400" />
                   </div>
+                  <span>الملفات والمذكرات</span>
                 </div>
-              </button>
-            );
-          })}
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300">
+                  {pdfs.length} {pdfs.length === 1 ? 'ملف' : 'ملفات'}
+                </span>
+              </div>
+
+              <div className="space-y-1 pt-1">
+                {pdfs.map((p) => {
+                  const isActive = activePdf?.id === p.id;
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => onSelectPdf(p)}
+                      className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all text-right ${
+                        isActive
+                          ? 'bg-sky-600 text-white shadow-sm shadow-sky-600/25'
+                          : 'hover:bg-sky-500/10 text-gray-700 dark:text-gray-300 bg-white/60 dark:bg-white/[0.02] border border-gray-100 dark:border-white/5'
+                      }`}
+                    >
+                      <div className={`w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 ${
+                        isActive ? 'bg-white/20' : 'bg-sky-500/10 text-sky-600 dark:text-sky-400'
+                      }`}>
+                        <FileText className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-xs font-bold truncate ${isActive ? 'text-white' : ''}`}>{p.title}</p>
+                        <span className={`text-[10px] ${isActive ? 'text-white/70' : 'text-gray-400'}`}>ملف PDF</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ── 3. Recitations Division (قسم التسميعات) ── */}
+          {(categoryFilter === 'all' || categoryFilter === 'recitations') && recitations.length > 0 && (
+            <div className="space-y-1.5 bg-white/80 dark:bg-white/[0.03] p-2.5 rounded-xl border border-purple-200/70 dark:border-purple-500/20 shadow-xs">
+              <div className="flex items-center justify-between pb-1.5 border-b border-purple-100 dark:border-purple-500/15">
+                <div className="flex items-center gap-1.5 text-xs font-black text-purple-600 dark:text-purple-400">
+                  <div className="w-5 h-5 rounded-md bg-purple-500/15 flex items-center justify-center">
+                    <BookMarked className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+                  </div>
+                  <span>التسميعات والواجبات</span>
+                </div>
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300">
+                  {recitations.length} {recitations.length === 1 ? 'تسميع' : 'تسميعات'}
+                </span>
+              </div>
+
+              <div className="space-y-1 pt-1">
+                {recitations.map((rec) => {
+                  const passed = rec.my_ever_passed ?? rec.my_passed ?? false;
+                  const hasResult = !!rec.result_id;
+                  const isActive = activeRec?.id === rec.id;
+                  return (
+                    <button
+                      key={rec.id}
+                      onClick={() => onSelectRec(rec)}
+                      className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all text-right ${
+                        isActive
+                          ? 'bg-purple-600 text-white shadow-sm shadow-purple-600/25'
+                          : 'hover:bg-purple-500/10 text-gray-700 dark:text-gray-300 bg-white/60 dark:bg-white/[0.02] border border-gray-100 dark:border-white/5'
+                      }`}
+                    >
+                      <div className={`w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 ${
+                        isActive ? 'bg-white/20' : 'bg-purple-500/15 text-purple-600 dark:text-purple-400'
+                      }`}>
+                        <BookMarked className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-xs font-bold truncate ${isActive ? 'text-white' : ''}`}>{rec.title}</p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          {hasResult ? (
+                            <span className={`text-[10px] font-black ${isActive ? 'text-white/80' : passed ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`}>
+                              {rec.my_score}/{rec.total_score} {passed ? '✓ اجتياز' : '✗ لم تجتز'}
+                            </span>
+                          ) : (
+                            <span className={`text-[10px] ${isActive ? 'text-white/70' : 'text-purple-600/70 dark:text-purple-400/70 font-semibold'}`}>لم تُؤدَّ بعد</span>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {totalItems === 0 && (
             <p className="text-center text-xs text-gray-400 py-3">هذا الفصل لا يحتوي على محتوى بعد</p>
           )}
