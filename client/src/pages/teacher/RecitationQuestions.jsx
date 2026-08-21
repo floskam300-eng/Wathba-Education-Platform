@@ -11,6 +11,8 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import AutoResizeTextarea from '../../components/ui/AutoResizeTextarea';
+import RichTextPalette, { CompactOptionFormatter } from '../../components/RichTextPalette';
+import MathText from '../../components/MathText';
 
 const QUESTION_TYPES = [
   { value: 'mcq', label: '🔘 اختيار متعدد' },
@@ -322,13 +324,13 @@ export default function RecitationQuestions() {
                     <label className="block text-xs font-bold text-navy-700 dark:text-[var(--dk-text-1)] mb-1">
                       نص السؤال <span className="text-gray-400 dark:text-[var(--dk-text-3)] font-normal">{isImgMulti ? '(تعليمات اختياري)' : '(اختياري إذا وُجدت صورة)'}</span>
                     </label>
-                    <AutoResizeTextarea
+                    <RichTextPalette
                       value={qForm.question_text}
-                      onChange={e => setQForm(f => ({ ...f, question_text: e.target.value }))}
-                      className="w-full rounded-xl px-3 py-2.5 border border-gray-200 dark:border-[var(--dk-border)] bg-white dark:bg-[var(--dk-elevated)] text-gray-900 dark:text-[var(--dk-text-1)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 dark:focus:ring-purple-600/50 placeholder:text-gray-400 dark:placeholder:text-[var(--dk-text-3)]"
-                      minHeight={56}
-                      maxHeight={320}
-                      placeholder="اكتب نص السؤال هنا..." />
+                      onChange={v => setQForm(f => ({ ...f, question_text: v }))}
+                      placeholder="اكتب نص السؤال هنا... (حدد أي جزء من النص لتغيير لونه أو تنسيقه)"
+                      minHeight={64}
+                      accentColor="purple"
+                    />
                   </div>
 
                   {/* Image upload */}
@@ -408,11 +410,11 @@ export default function RecitationQuestions() {
                               }`}>
                               {displayLabel}
                             </button>
-                            <input
+                            <CompactOptionFormatter
                               value={qForm[`option_${opt.toLowerCase()}`] || ''}
-                              onChange={e => setQForm(f => ({ ...f, [`option_${opt.toLowerCase()}`]: e.target.value }))}
-                              className="flex-1 rounded-xl px-3 py-2 border border-gray-200 dark:border-[var(--dk-border)] bg-white dark:bg-[var(--dk-elevated)] text-gray-900 dark:text-[var(--dk-text-1)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 dark:focus:ring-purple-600/50 placeholder:text-gray-400 dark:placeholder:text-[var(--dk-text-3)]"
-                              placeholder={`الخيار ${displayLabel}${i < 2 ? ' *' : ''}`} />
+                              onChange={v => setQForm(f => ({ ...f, [`option_${opt.toLowerCase()}`]: v }))}
+                              placeholder={`الخيار ${displayLabel}${i < 2 ? ' *' : ''}`}
+                            />
                           </div>
                         );
                       })}
@@ -695,7 +697,9 @@ function QuestionCard({ q, idx, isPublished, isEditing, onEdit, onDelete }) {
             <img src={withToken(q.question_image_url)} alt="question" className="w-full max-h-40 object-contain rounded-xl border border-gray-100 dark:border-[var(--dk-border)] mb-2 bg-gray-50 dark:bg-[var(--dk-elevated)]" loading="lazy" decoding="async" />
           )}
           {q.question_text && (
-            <p className="font-semibold text-navy-600 dark:text-[var(--dk-text-1)] text-sm mb-2 leading-relaxed">{q.question_text}</p>
+            <p className="font-semibold text-navy-600 dark:text-[var(--dk-text-1)] text-sm mb-2 leading-relaxed">
+              <MathText text={q.question_text} />
+            </p>
           )}
 
           {isImgMulti ? (
@@ -731,7 +735,7 @@ function QuestionCard({ q, idx, isPublished, isEditing, onEdit, onDelete }) {
                       <span className={`w-4 h-4 rounded-full text-[10px] flex items-center justify-center font-black flex-shrink-0 ${
                         q.correct_answer_letter === opt ? 'bg-green-600 text-white' : 'bg-gray-300 dark:bg-[var(--dk-hover)] text-gray-600 dark:text-[var(--dk-text-2)]'
                       }`}>{isTF ? (opt === 'A' ? 'صح' : 'خطأ') : (qLabels[oidx] || opt)}</span>
-                      {q[`option_${opt.toLowerCase()}`]}
+                      <span className="flex-1 leading-snug"><MathText text={q[`option_${opt.toLowerCase()}`]} /></span>
                     </div>
                   )
                 );

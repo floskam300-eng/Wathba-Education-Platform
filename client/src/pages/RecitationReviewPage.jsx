@@ -201,7 +201,7 @@ export default function RecitationReviewPage() {
                         : isStudentChoice
                           ? 'text-red-700 dark:text-red-400 font-semibold'
                           : 'text-gray-600 dark:text-[var(--dk-text-2)]'
-                    }`}>{text}</span>
+                    }`}><MathText text={text} /></span>
                     {isCorrectOpt && <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />}
                     {isStudentChoice && !isCorrectOpt && <XCircle className="w-4 h-4 text-red-500 dark:text-red-400 flex-shrink-0" />}
                   </div>

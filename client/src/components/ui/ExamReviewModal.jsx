@@ -6,6 +6,7 @@ import ImageLightbox from '../ImageLightbox';
 
 import { withToken } from '../../lib/mediaAccess';
 import QuestionImage from './QuestionImage';
+import MathText from '../MathText';
 
 function seededShuffle(arr, seed) {
   const result = [...arr];
@@ -214,7 +215,7 @@ export default function ExamReviewModal({ resultId, onClose }) {
                     {qi + 1}
                   </div>
                   <div className="flex-1">
-                    <p className="font-bold text-gray-800 dark:text-gray-100 text-sm leading-relaxed">{q.question_text}</p>
+                    <p className="font-bold text-gray-800 dark:text-gray-100 text-sm leading-relaxed"><MathText text={q.question_text} /></p>
                     {q.question_image_url && (
                       <QuestionImage
                         src={q.question_image_url}
@@ -324,7 +325,7 @@ export default function ExamReviewModal({ resultId, onClose }) {
                           <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 ${optBadge(opt, studentAns, correctAns)}`}>
                             {isTrueFalse ? (opt === 'A' ? '✓' : '✗') : label}
                           </span>
-                          <span className="text-sm font-medium flex-1">{isTrueFalse ? label : text}</span>
+                          <span className="text-sm font-medium flex-1 leading-snug">{isTrueFalse ? label : <MathText text={text} />}</span>
                           {optIcon(opt, studentAns, correctAns)}
                         </div>
                       );

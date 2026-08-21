@@ -14,6 +14,7 @@ import ImageLightbox from '../../components/ImageLightbox';
 import { withToken } from '../../lib/mediaAccess';
 import QuestionImage from '../../components/ui/QuestionImage';
 import { toUTCDate, getServerNow, getServerNowMs, formatEgyptDateTime } from '../../lib/dateUtils';
+import MathText from '../../components/MathText';
 
 function getStatus(rec) {
   const now = getServerNow();
@@ -1075,7 +1076,9 @@ function QuestionCard({ q, idx, answers, setAnswers, dark, onImagePress }) {
         <span className="w-7 h-7 rounded-full bg-purple-100 text-purple-700 text-sm font-black flex items-center justify-center flex-shrink-0">{idx + 1}</span>
         <div className="flex-1 min-w-0">
           {q.question_text && (
-            <p className={`font-semibold text-sm ${dark ? 'text-[var(--dk-text)]' : 'text-navy-800'}`}>{q.question_text}</p>
+            <p className={`font-semibold text-sm ${dark ? 'text-[var(--dk-text)]' : 'text-navy-800'}`}>
+              <MathText text={q.question_text} />
+            </p>
           )}
         </div>
       </div>
@@ -1096,8 +1099,8 @@ function QuestionCard({ q, idx, answers, setAnswers, dark, onImagePress }) {
           {options.some(o => o.text !== o.letter) && (
             <div className="flex flex-wrap gap-1.5 mb-3">
               {options.map(({ letter, text, displayLabel }) => (
-                <span key={letter} className={`text-xs px-2.5 py-1 rounded-lg font-semibold ${dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-600'}`}>
-                  {displayLabel}: {text}
+                <span key={letter} className={`text-xs px-2.5 py-1 rounded-lg font-semibold inline-flex items-center gap-1 ${dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-600'}`}>
+                  <span className="font-black">{displayLabel}:</span> <MathText text={text} />
                 </span>
               ))}
             </div>
@@ -1151,7 +1154,7 @@ function QuestionCard({ q, idx, answers, setAnswers, dark, onImagePress }) {
                     : dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)] hover:border-purple-400' : 'bg-gray-50 border-gray-200 text-gray-700 hover:border-purple-300 hover:bg-purple-50'
                 }`}>
                 <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 ${isSelected ? 'bg-white/20 text-white' : 'bg-white text-purple-600'}`}>{displayLabel}</span>
-                {text}
+                <span className="flex-1 leading-snug"><MathText text={text} /></span>
               </button>
             );
           })}

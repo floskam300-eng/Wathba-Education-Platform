@@ -1652,7 +1652,7 @@ export default function TeacherAnalytics() {
                                   style={{ background: letterColors[letter] || '#94a3b8', color: '#fff' }}>
                                   {letter}
                                 </span>
-                                <span className="truncate">{optionTexts[li]}</span>
+                                <span className="truncate"><MathText text={optionTexts[li]} /></span>
                                 {letter === q.correct_answer_letter?.toUpperCase() && (
                                   <CheckCircle2 className="w-3 h-3 text-green-500 flex-shrink-0 mr-auto" />
                                 )}

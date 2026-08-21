@@ -13,6 +13,9 @@ import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { withToken } from '../../lib/mediaAccess';
 import { fmtDateLocal, toUTCDate, getServerNow, formatEgyptDateTime, parseEgyptDateTimeToUTC } from '../../lib/dateUtils';
+import MathText from '../../components/MathText';
+import RichTextPalette, { CompactOptionFormatter } from '../../components/RichTextPalette';
+import RecitationReviewModal from '../../components/ui/RecitationReviewModal';
 
 const PG_STAGES = [
   'الصف الأول الابتدائي',
@@ -1013,10 +1016,13 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
             </div>
 
             {/* Question text */}
-            <textarea value={qForm.question_text} onChange={e => setQForm(f => ({ ...f, question_text: e.target.value }))}
-              placeholder={isImgMulti ? 'تعليمات / وصف (اختياري)' : 'نص السؤال *'}
-              rows={2}
-              className={`w-full rounded-xl px-3 py-2.5 border text-sm resize-none ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`} />
+            <RichTextPalette
+              value={qForm.question_text}
+              onChange={v => setQForm(f => ({ ...f, question_text: v }))}
+              placeholder={isImgMulti ? 'تعليمات / وصف (اختياري)' : 'نص السؤال * (حدد النص لتنسيقه)'}
+              minHeight={60}
+              accentColor="purple"
+            />
 
             {/* Image upload (all types) */}
             <div>
@@ -1047,13 +1053,13 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
             {!isImgMulti && !tf && (
               <div className="grid grid-cols-2 gap-2">
                 {['A','B','C','D'].map((letter, i) => (
-                  <div key={letter} className="relative">
-                    <input
+                  <div key={letter} className="flex items-center gap-1.5">
+                    <span className="w-6 h-6 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 flex items-center justify-center text-xs font-black flex-shrink-0">{letter}</span>
+                    <CompactOptionFormatter
                       value={[qForm.option_a, qForm.option_b, qForm.option_c, qForm.option_d][i]}
-                      onChange={e => { const keys = ['option_a','option_b','option_c','option_d']; setQForm(f => ({ ...f, [keys[i]]: e.target.value })); }}
+                      onChange={v => { const keys = ['option_a','option_b','option_c','option_d']; setQForm(f => ({ ...f, [keys[i]]: v })); }}
                       placeholder={`الخيار ${letter}${i >= 2 ? ' (اختياري)' : ''}`}
-                      className={`w-full rounded-xl px-3 py-2 pr-8 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`} />
-                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-black text-purple-500">{letter}</span>
+                    />
                   </div>
                 ))}
               </div>
@@ -1233,19 +1239,23 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
                 </div>
               )}
               {q.question_text && (
-                <p className={`text-sm font-semibold mb-2 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>{q.question_text}</p>
+                <p className={`text-sm font-semibold mb-2 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>
+                  <MathText text={q.question_text} />
+                </p>
               )}
 
               {q.question_type === 'image_multi' ? (
                 <div>
                   <div className="flex flex-wrap gap-1.5 mb-1.5">
                     {[['A', q.option_a],['B', q.option_b],['C', q.option_c],['D', q.option_d]].filter(([,v]) => v).map(([l, v]) => (
-                      <span key={l} className={`text-xs px-2 py-0.5 rounded-lg ${dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-600'}`}>{l}: {v}</span>
+                      <span key={l} className={`text-xs px-2 py-0.5 rounded-lg inline-flex items-center gap-1 ${dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-600'}`}>
+                        <span className="font-black">{l}:</span> <MathText text={v} />
+                      </span>
                     ))}
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {(q.sub_questions || []).map(sub => (
-                      <span key={sub.label} className="text-xs px-2 py-1 rounded-lg bg-purple-100 text-purple-700 font-bold">
+                      <span key={sub.label} className="text-xs px-2 py-1 rounded-lg bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 font-bold">
                         {sub.label}: {sub.type === 'true_false' ? (sub.correct === 'A' ? 'صح' : 'خطأ') : sub.correct} ({sub.points || 1} د)
                       </span>
                     ))}
@@ -1254,15 +1264,16 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
               ) : (
                 <div className="flex flex-wrap gap-1.5">
                   {[['A', q.option_a],['B', q.option_b],['C', q.option_c],['D', q.option_d]].filter(([,v]) => v).map(([letter, val]) => (
-                    <span key={letter} className={`text-xs px-2.5 py-1 rounded-lg font-semibold ${
+                    <span key={letter} className={`text-xs px-2.5 py-1 rounded-lg font-semibold inline-flex items-center gap-1 ${
                       q.correct_answer_letter === letter
-                        ? 'bg-green-100 text-green-700 ring-1 ring-green-400'
+                        ? 'bg-green-100 text-green-700 ring-1 ring-green-400 dark:bg-green-900/30 dark:text-green-300'
                         : dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-600'
                     }`}>
-                      {letter}: {val}{q.correct_answer_letter === letter && ' ✓'}
+                      <span className="font-black">{letter}:</span> <MathText text={val} />{q.correct_answer_letter === letter && ' ✓'}
                     </span>
                   ))}
                 </div>
+              )}
               )}
             </div>
 
@@ -1288,7 +1299,7 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
   );
 }
 
-function ParticipantAttemptHistory({ recitationId, studentId, rec, dark, navigate, baseRole }) {
+function ParticipantAttemptHistory({ recitationId, studentId, rec, dark, onReview, navigate, baseRole }) {
   const { data: attempts = [], isLoading } = useQuery({
     queryKey: ['recitation-participant-attempts', recitationId, studentId],
     queryFn: () => api.get(`/recitations/${recitationId}/participants/${studentId}/attempts`).then(r => r.data),
@@ -1321,13 +1332,12 @@ function ParticipantAttemptHistory({ recitationId, studentId, rec, dark, navigat
             <span className={`font-bold text-sm ${attempt.is_absent ? 'text-gray-400' : attempt.passed ? 'text-green-600' : 'text-red-500'}`}>
               {attempt.score}/{rec.total_score}
             </span>
-            {navigate && (
-              <button onClick={() => navigate(`/${baseRole}/recitation-review/${attempt.id}`)}
-                className="p-1 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-600 transition-colors"
-                title="مراجعة">
-                <Eye className="w-3 h-3" />
-              </button>
-            )}
+            <button
+              onClick={() => onReview ? onReview(attempt.id) : (navigate && navigate(`/${baseRole}/recitation-review/${attempt.id}`))}
+              className="p-1 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-600 transition-colors"
+              title="مراجعة">
+              <Eye className="w-3 h-3" />
+            </button>
           </div>
         </div>
       ))}
@@ -1338,6 +1348,7 @@ function ParticipantAttemptHistory({ recitationId, studentId, rec, dark, navigat
 function ResultsPanel({ rec, dark, cardCls, navigate, baseRole = 'teacher', grantMut }) {
   const [expandedStudent, setExpandedStudent] = useState(null);
   const [studentSearch, setStudentSearch] = useState('');
+  const [reviewResultId, setReviewResultId] = useState(null);
   const {
     data,
     isLoading,
@@ -1495,13 +1506,11 @@ function ResultsPanel({ rec, dark, cardCls, navigate, baseRole = 'teacher', gran
                     <Gift className="w-4 h-4" />
                   </button>
                 )}
-                {navigate && (
-                  <button onClick={() => navigate(`/${baseRole}/recitation-review/${r.id}`)}
-                    className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 transition-colors"
-                    title="مراجعة مفصّلة">
-                    <Eye className="w-4 h-4" />
-                  </button>
-                )}
+                <button onClick={() => setReviewResultId(r.id)}
+                  className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 transition-colors"
+                  title="مراجعة مفصّلة">
+                  <Eye className="w-4 h-4" />
+                </button>
                 {hasMultiple && (
                   <button
                     onClick={() => setExpandedStudent(isExpanded ? null : r.student_id)}
@@ -1520,6 +1529,7 @@ function ResultsPanel({ rec, dark, cardCls, navigate, baseRole = 'teacher', gran
                 studentId={r.student_id}
                 rec={rec}
                 dark={dark}
+                onReview={setReviewResultId}
                 navigate={navigate}
                 baseRole={baseRole}
               />
@@ -1531,6 +1541,13 @@ function ResultsPanel({ rec, dark, cardCls, navigate, baseRole = 'teacher', gran
         {isFetchingNextPage && <><Loader2 className="w-4 h-4 animate-spin ml-1" /> جار تحميل المزيد...</>}
         {!hasNextPage && total > PARTICIPANT_PAGE_SIZE && <span>تم تحميل جميع الطلاب المطابقين</span>}
       </div>
+
+      {reviewResultId && (
+        <RecitationReviewModal
+          resultId={reviewResultId}
+          onClose={() => setReviewResultId(null)}
+        />
+      )}
     </div>
   );
 }

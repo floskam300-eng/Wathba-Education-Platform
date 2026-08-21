@@ -737,7 +737,7 @@ export default function StudentExams() {
                         <button key={origOpt} onClick={() => setAnswers({ ...answers, [q.id]: origOpt })}
                           className={`flex items-center gap-2 p-2.5 sm:p-3 rounded-xl text-sm font-semibold text-right transition-all border-2 ${answers[q.id] === origOpt ? 'border-orange-500 bg-orange-50 text-orange-800' : 'border-gray-200 hover:border-navy-300 hover:bg-navy-50 text-navy-700'}`}>
                           <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 ${answers[q.id] === origOpt ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600'}`}>{displayLabels[idx] || defaultArabic[idx] || origOpt}</span>
-                          <span className="flex-1 leading-snug">{q[`option_${origOpt.toLowerCase()}`]}</span>
+                          <span className="flex-1 leading-snug"><MathText text={q[`option_${origOpt.toLowerCase()}`]} /></span>
                         </button>
                       ));
                     })()}

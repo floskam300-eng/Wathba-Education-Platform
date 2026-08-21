@@ -487,7 +487,7 @@ export default function ExamAnalytics() {
                                   style={{ background: LETTER_COLORS[letter] || '#94a3b8' }}>
                                   {letter}
                                 </span>
-                                <span className="truncate">{optKey}</span>
+                                <span className="truncate"><MathText text={optKey} /></span>
                                 {isCorrect && <CheckCircle2 className="w-3 h-3 text-green-500 flex-shrink-0 mr-auto" />}
                               </div>
                             );

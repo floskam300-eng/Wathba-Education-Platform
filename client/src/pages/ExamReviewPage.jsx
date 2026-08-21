@@ -393,7 +393,7 @@ export default function ExamReviewPage() {
                                   {isTrueFalse ? (opt === 'A' ? '✓' : '✗') : label}
                                 </span>
                                 <span className={`text-sm flex-1 leading-snug ${optTextColor(opt, studentAns, correctAns)}`}>
-                                  {isTrueFalse ? label : text}
+                                  {isTrueFalse ? label : <MathText text={text} />}
                                 </span>
                                 {optIcon(opt, studentAns, correctAns)}
                               </div>
@@ -411,7 +411,7 @@ export default function ExamReviewPage() {
                           </span>
                           <span className={`flex items-center gap-1.5 ${dark ? 'text-green-400' : 'text-green-800'}`}>
                             <CheckCircle className="w-3.5 h-3.5" />
-                            الصحيح: <strong>{displayLabels[correctAns] || correctAns}{!isTrueFalse && ` — ${q[`option_${correctAns?.toLowerCase()}`] || ''}`}</strong>
+                            الصحيح: <strong>{displayLabels[correctAns] || correctAns}</strong>{!isTrueFalse && q[`option_${correctAns?.toLowerCase()}`] && <> — <MathText text={q[`option_${correctAns?.toLowerCase()}`]} /></>}
                           </span>
                         </div>
                       )}
@@ -420,11 +420,11 @@ export default function ExamReviewPage() {
                         <div className={`mt-3 flex flex-wrap items-center gap-4 text-xs font-semibold border rounded-xl px-4 py-2.5 ${dark ? 'bg-orange-900/20 border-orange-700/40' : 'bg-orange-50 border-orange-200'}`}>
                           <span className={`flex items-center gap-1.5 ${dark ? 'text-red-400' : 'text-red-700'}`}>
                             <XCircle className="w-3.5 h-3.5" />
-                            اخترت: <strong>{displayLabels[studentAns] || studentAns}{!isTrueFalse && ` — ${q[`option_${studentAns?.toLowerCase()}`] || ''}`}</strong>
+                            اخترت: <strong>{displayLabels[studentAns] || studentAns}</strong>{!isTrueFalse && q[`option_${studentAns?.toLowerCase()}`] && <> — <MathText text={q[`option_${studentAns?.toLowerCase()}`]} /></>}
                           </span>
                           <span className={`flex items-center gap-1.5 ${dark ? 'text-green-400' : 'text-green-800'}`}>
                             <CheckCircle className="w-3.5 h-3.5" />
-                            الصحيح: <strong>{displayLabels[correctAns] || correctAns}{!isTrueFalse && ` — ${q[`option_${correctAns?.toLowerCase()}`] || ''}`}</strong>
+                            الصحيح: <strong>{displayLabels[correctAns] || correctAns}</strong>{!isTrueFalse && q[`option_${correctAns?.toLowerCase()}`] && <> — <MathText text={q[`option_${correctAns?.toLowerCase()}`]} /></>}
                           </span>
                         </div>
                       )}

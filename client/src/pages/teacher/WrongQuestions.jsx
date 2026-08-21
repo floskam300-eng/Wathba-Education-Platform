@@ -52,7 +52,7 @@ function QuestionCard({ q, idx }) {
                     style={{ background: LETTER_COLORS[letter] || '#94a3b8' }}>
                     {letter}
                   </span>
-                  <span className="truncate">{q[OPTION_KEYS[li]]}</span>
+                  <span className="truncate"><MathText text={q[OPTION_KEYS[li]]} /></span>
                   {letter === q.correct_answer_letter?.toUpperCase() && (
                     <CheckCircle2 className="w-3 h-3 text-green-500 flex-shrink-0 mr-auto" />
                   )}

@@ -16,6 +16,7 @@ import { useAuth } from '../../context/AuthContext';
 import { withToken } from '../../lib/mediaAccess';
 import QuestionImage from '../../components/ui/QuestionImage';
 import { toUTCDate, getServerNowMs } from '../../lib/dateUtils';
+import MathText from '../../components/MathText';
 
 /* ─── helpers ─────────────────────────────────────────── */
 const fmt = (min) => min >= 60
@@ -1210,7 +1211,9 @@ function CourseQuestionCard({ q, idx, answers, setAnswers, onImagePress }) {
   return (
     <div className="space-y-3">
       {q.question_text && (
-        <p className="text-gray-900 dark:text-white text-xs sm:text-sm font-bold leading-relaxed">{q.question_text}</p>
+        <p className="text-gray-900 dark:text-white text-xs sm:text-sm font-bold leading-relaxed">
+          <MathText text={q.question_text} />
+        </p>
       )}
 
       {q.question_image_url && (
@@ -1228,8 +1231,8 @@ function CourseQuestionCard({ q, idx, answers, setAnswers, onImagePress }) {
           {options.some(o => o.text !== o.letter) && (
             <div className="flex flex-wrap gap-1.5 mb-2">
               {options.map(({ letter, text, displayLabel }) => (
-                <span key={letter} className="text-[11px] px-2 py-0.5 rounded-lg font-semibold bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300">
-                  {displayLabel}: {text}
+                <span key={letter} className="text-[11px] px-2 py-0.5 rounded-lg font-semibold bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 inline-flex items-center gap-1">
+                  <span className="font-black">{displayLabel}:</span> <MathText text={text} />
                 </span>
               ))}
             </div>
@@ -1290,7 +1293,7 @@ function CourseQuestionCard({ q, idx, answers, setAnswers, onImagePress }) {
                 }`}>
                   {displayLabel}
                 </span>
-                <span className="flex-1 leading-relaxed">{text}</span>
+                <span className="flex-1 leading-relaxed"><MathText text={text} /></span>
               </button>
             );
           })}
@@ -2098,7 +2101,9 @@ function SidebarQuestionCard({ q, idx, answers, setAnswers }) {
       <div className="flex items-start gap-2 mb-2">
         <span className="w-5 h-5 rounded-full bg-purple-500/20 text-purple-600 dark:text-purple-400 text-[10px] font-black flex items-center justify-center flex-shrink-0">{idx + 1}</span>
         {q.question_text && (
-          <p className="text-gray-800 dark:text-gray-200 text-xs font-semibold flex-1">{q.question_text}</p>
+          <p className="text-gray-800 dark:text-gray-200 text-xs font-semibold flex-1">
+            <MathText text={q.question_text} />
+          </p>
         )}
       </div>
       {q.question_image_url && (
@@ -2114,7 +2119,9 @@ function SidebarQuestionCard({ q, idx, answers, setAnswers }) {
           {options.some(o => o.text !== o.letter) && (
             <div className="flex flex-wrap gap-1 mb-1.5">
               {options.map(({ letter, text, displayLabel }) => (
-                <span key={letter} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 dark:bg-white/10 text-gray-600 dark:text-gray-400">{displayLabel || letter}: {text}</span>
+                <span key={letter} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 dark:bg-white/10 text-gray-600 dark:text-gray-400 inline-flex items-center gap-1">
+                  <span>{displayLabel || letter}:</span> <MathText text={text} />
+                </span>
               ))}
             </div>
           )}
@@ -2162,7 +2169,7 @@ function SidebarQuestionCard({ q, idx, answers, setAnswers }) {
                   : 'bg-gray-100 dark:bg-white/5 border-gray-200 dark:border-white/15 text-gray-700 dark:text-gray-300 hover:border-purple-500 dark:hover:border-purple-400'
               }`}>
               <span className={`w-4.5 h-4.5 rounded-full flex items-center justify-center text-[9px] font-black flex-shrink-0 ${selected === letter ? 'bg-white/20' : 'bg-gray-200 dark:bg-white/10 text-purple-600 dark:text-purple-400'}`}>{displayLabel || letter}</span>
-              {text}
+              <span className="flex-1 leading-snug"><MathText text={text} /></span>
             </button>
           ))}
         </div>
