@@ -2,9 +2,8 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Bold, Italic, Underline, Strikethrough, Palette,
   Highlighter, Type, Sigma, X, ChevronDown, ChevronUp,
-  Eye, RotateCcw, Subscript, Superscript, Check
+  Eye, RotateCcw, Subscript, Superscript, Check, Code
 } from 'lucide-react';
-import AutoResizeTextarea from './ui/AutoResizeTextarea';
 import MathText from './MathText';
 
 const TEXT_COLORS = [
@@ -38,9 +37,9 @@ const MATH_SYMBOLS = [
   { label: 'x²', insert: '^{2}', title: 'تربيع' },
   { label: 'x³', insert: '^{3}', title: 'تكعيب' },
   { label: 'xⁿ', insert: '^{n}', title: 'أس' },
-  { label: '√', insert: '\\sqrt{}', title: 'جذر تربيعي', cursor: -1 },
-  { label: '∛', insert: '\\sqrt[3]{}', title: 'جذر تكعيبي', cursor: -1 },
-  { label: 'a/b', insert: '\\frac{}{}', title: 'كسر', cursor: -3 },
+  { label: '√', insert: '\\sqrt{}', title: 'جذر تربيعي' },
+  { label: '∛', insert: '\\sqrt[3]{}', title: 'جذر تكعيبي' },
+  { label: 'a/b', insert: '\\frac{}{}', title: 'كسر' },
   { label: 'π', insert: '\\pi', title: 'باي' },
   { label: 'θ', insert: '\\theta', title: 'ثيتا' },
   { label: 'α', insert: '\\alpha', title: 'ألفا' },
@@ -52,551 +51,364 @@ const MATH_SYMBOLS = [
   { label: '≤', insert: '\\leq', title: 'أصغر من أو يساوي' },
   { label: '≥', insert: '\\geq', title: 'أكبر من أو يساوي' },
   { label: '∞', insert: '\\infty', title: 'ما لانهاية' },
-  { label: 'sin', insert: '\\sin()', title: 'جيب', cursor: -1 },
-  { label: 'cos', insert: '\\cos()', title: 'جيب تمام', cursor: -1 },
-  { label: 'tan', insert: '\\tan()', title: 'ظل', cursor: -1 },
-  { label: 'log', insert: '\\log()', title: 'لوغاريتم', cursor: -1 },
-  { label: 'Σ', insert: '\\sum_{}^{}', title: 'مجموع', cursor: -3 },
-  { label: '∫', insert: '\\int_{}^{}', title: 'تكامل', cursor: -3 },
-  { label: '|x|', insert: '|{}|', title: 'قيمة مطلقة', cursor: -2 },
+  { label: 'sin', insert: '\\sin()', title: 'جيب' },
+  { label: 'cos', insert: '\\cos()', title: 'جيب تمام' },
+  { label: 'tan', insert: '\\tan()', title: 'ظل' },
+  { label: 'log', insert: '\\log()', title: 'لوغاريتم' },
+  { label: 'Σ', insert: '\\sum_{}^{}', title: 'مجموع' },
+  { label: '∫', insert: '\\int_{}^{}', title: 'تكامل' },
+  { label: '|x|', insert: '|{}|', title: 'قيمة مطلقة' },
   { label: '°', insert: '^{\\circ}', title: 'درجة' },
-  { label: 'vec', insert: '\\vec{}', title: 'متجه', cursor: -1 },
+  { label: 'vec', insert: '\\vec{}', title: 'متجه' },
 ];
+
+function sanitizeEditorOutput(html) {
+  if (!html) return '';
+  let cleaned = html
+    .replace(/^<p><br><\/p>$/i, '')
+    .replace(/^<div><br><\/div>$/i, '')
+    .replace(/<br class="ProseMirror-trailingBreak">/gi, '')
+    .replace(/&#8203;/g, '')
+    .replace(/&nbsp;/g, ' ');
+
+  const textOnly = cleaned.replace(/<[^>]*>/g, '').trim();
+  if (!textOnly && !/<img|<svg/i.test(cleaned)) {
+    return '';
+  }
+  return cleaned;
+}
 
 export default function RichTextPalette({
   value = '',
   onChange,
-  placeholder = 'اكتب النص هنا...',
-  minHeight = 80,
+  placeholder = 'اكتب نص السؤال هنا...',
+  minHeight = 90,
   maxHeight = 320,
   className = '',
-  textareaRef: externalRef,
   enableMath = true,
   showPreviewToggle = true,
-  accentColor = 'purple', // 'purple' | 'orange' | 'blue'
+  accentColor = 'purple',
 }) {
-  const innerRef = useRef(null);
-  const textareaRef = externalRef || innerRef;
+  const editorRef = useRef(null);
   const containerRef = useRef(null);
+  const savedRangeRef = useRef(null);
+  const lastEmittedValue = useRef(value || '');
 
+  const [isSourceMode, setIsSourceMode] = useState(false);
   const [bubbleVisible, setBubbleVisible] = useState(false);
   const [bubbleCoords, setBubbleCoords] = useState({ top: 0, left: 0 });
-  const [activeDropdown, setActiveDropdown] = useState(null); // 'color' | 'highlight' | 'size' | 'math'
+  const [activeDropdown, setActiveDropdown] = useState(null);
   const [customColor, setCustomColor] = useState('#2563eb');
   const [customHighlight, setCustomHighlight] = useState('#fef08a');
   const [showLivePreview, setShowLivePreview] = useState(false);
   const [showMathToolbar, setShowMathToolbar] = useState(false);
 
-  // Focus and Selection Handling
-  const getSelection = useCallback(() => {
-    const el = textareaRef.current;
-    if (!el) return { start: 0, end: 0, text: '' };
-    const start = el.selectionStart || 0;
-    const end = el.selectionEnd || 0;
-    return {
-      start,
-      end,
-      text: (value || '').slice(start, end),
-    };
-  }, [value, textareaRef]);
+  useEffect(() => {
+    if (!editorRef.current) return;
+    const currentHtml = editorRef.current.innerHTML;
+    const targetHtml = value || '';
+    if (targetHtml !== lastEmittedValue.current && targetHtml !== currentHtml) {
+      editorRef.current.innerHTML = targetHtml;
+      lastEmittedValue.current = targetHtml;
+    }
+  }, [value]);
 
-  // Floating Bubble Positioning on Text Selection
+  const saveSelection = useCallback(() => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      if (editorRef.current && editorRef.current.contains(range.commonAncestorContainer)) {
+        savedRangeRef.current = range.cloneRange();
+      }
+    }
+  }, []);
+
+  const restoreSelection = useCallback(() => {
+    if (savedRangeRef.current) {
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(savedRangeRef.current);
+    }
+  }, []);
+
+  const emitChange = useCallback(() => {
+    if (!editorRef.current) return;
+    const raw = editorRef.current.innerHTML;
+    const cleaned = sanitizeEditorOutput(raw);
+    lastEmittedValue.current = cleaned;
+    onChange(cleaned);
+  }, [onChange]);
+
   const checkSelection = useCallback(() => {
-    const el = textareaRef.current;
-    if (!el) return;
-    const start = el.selectionStart || 0;
-    const end = el.selectionEnd || 0;
-
-    if (end > start && el === document.activeElement) {
-      const rect = el.getBoundingClientRect();
-      const contRect = containerRef.current?.getBoundingClientRect() || rect;
-      
-      // Calculate relative position within container
-      const top = Math.max(10, rect.top - contRect.top - 42);
-      const left = Math.min(Math.max(20, (rect.width / 2) - 100), rect.width - 220);
-
-      setBubbleCoords({ top, left });
-      setBubbleVisible(true);
-    } else {
+    if (isSourceMode) {
+      setBubbleVisible(false);
+      return;
+    }
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
       setBubbleVisible(false);
       setActiveDropdown(null);
+      return;
     }
-  }, [textareaRef]);
+    const range = sel.getRangeAt(0);
+    const container = containerRef.current;
+    const editor = editorRef.current;
+    if (!editor || !container || !editor.contains(range.commonAncestorContainer)) {
+      setBubbleVisible(false);
+      return;
+    }
+    saveSelection();
+    const rangeRect = range.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    if (rangeRect.width === 0 && rangeRect.height === 0) {
+      setBubbleVisible(false);
+      return;
+    }
+    const top = Math.max(8, rangeRect.top - containerRect.top - 46);
+    const left = Math.min(Math.max(10, rangeRect.right - containerRect.left - 160), containerRect.width - 250);
+    setBubbleCoords({ top, left });
+    setBubbleVisible(true);
+  }, [isSourceMode, saveSelection]);
 
   useEffect(() => {
-    const handleMouseUp = () => {
-      setTimeout(checkSelection, 30);
-    };
-    const handleKeyUp = (e) => {
-      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'Shift'].includes(e.key)) {
-        setTimeout(checkSelection, 30);
-      }
-    };
+    document.addEventListener('selectionchange', checkSelection);
+    return () => document.removeEventListener('selectionchange', checkSelection);
+  }, [checkSelection]);
 
-    const el = textareaRef.current;
-    if (el) {
-      el.addEventListener('mouseup', handleMouseUp);
-      el.addEventListener('keyup', handleKeyUp);
-      el.addEventListener('select', checkSelection);
-    }
-    return () => {
-      if (el) {
-        el.removeEventListener('mouseup', handleMouseUp);
-        el.removeEventListener('keyup', handleKeyUp);
-        el.removeEventListener('select', checkSelection);
-      }
-    };
-  }, [checkSelection, textareaRef]);
-
-  // Apply HTML Tag or Style to Selection
-  const applyWrap = (tag, styleString = '') => {
-    const el = textareaRef.current;
-    const { start, end, text } = getSelection();
-    const styleAttr = styleString ? ` style="${styleString}"` : '';
-    const openTag = `<${tag}${styleAttr}>`;
-    const closeTag = `</${tag}>`;
-
-    const val = value || '';
-    let newVal;
-    let newCursorPos;
-
-    if (text) {
-      // If already wrapped with same tag, remove it
-      newVal = val.slice(0, start) + openTag + text + closeTag + val.slice(end);
-      newCursorPos = start + openTag.length + text.length + closeTag.length;
-    } else {
-      // No text selected: insert wrapper with placeholder or cursor inside
-      const placeholderText = 'نص';
-      newVal = val.slice(0, start) + openTag + placeholderText + closeTag + val.slice(end);
-      newCursorPos = start + openTag.length + placeholderText.length;
-    }
-
-    onChange(newVal);
-    setActiveDropdown(null);
-    setBubbleVisible(false);
-
-    setTimeout(() => {
-      if (el) {
-        el.focus();
-        el.setSelectionRange(newCursorPos, newCursorPos);
-      }
-    }, 0);
+  const execCmd = (cmd, val = null) => {
+    restoreSelection();
+    if (editorRef.current) editorRef.current.focus();
+    document.execCommand(cmd, false, val);
+    emitChange();
+    checkSelection();
   };
 
-  // Clear Formatting from selected text
+  const applyInlineStyle = (styleProp, styleVal) => {
+    restoreSelection();
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    if (!editorRef.current || !editorRef.current.contains(range.commonAncestorContainer)) return;
+    if (range.collapsed) {
+      const span = document.createElement('span');
+      span.style[styleProp] = styleVal;
+      span.textContent = 'نص';
+      range.insertNode(span);
+      const newRange = document.createRange();
+      newRange.selectNodeContents(span);
+      sel.removeAllRanges();
+      sel.addRange(newRange);
+      savedRangeRef.current = newRange.cloneRange();
+    } else {
+      const span = document.createElement('span');
+      span.style[styleProp] = styleVal;
+      if (styleProp === 'backgroundColor') {
+        span.style.padding = '0.15em 0.35em';
+        span.style.borderRadius = '0.3em';
+      }
+      const extracted = range.extractContents();
+      span.appendChild(extracted);
+      range.insertNode(span);
+      const newRange = document.createRange();
+      newRange.selectNodeContents(span);
+      sel.removeAllRanges();
+      sel.addRange(newRange);
+      savedRangeRef.current = newRange.cloneRange();
+    }
+    emitChange();
+    setActiveDropdown(null);
+    setBubbleVisible(false);
+  };
+
   const clearFormatting = () => {
-    const el = textareaRef.current;
-    const { start, end, text } = getSelection();
-    if (!text) return;
-
-    // Strip HTML tags from selection
-    const cleanText = text.replace(/<[^>]*>/g, '');
-    const val = value || '';
-    const newVal = val.slice(0, start) + cleanText + val.slice(end);
-
-    onChange(newVal);
+    restoreSelection();
+    if (editorRef.current) editorRef.current.focus();
+    document.execCommand('removeFormat', false, null);
+    emitChange();
     setBubbleVisible(false);
     setActiveDropdown(null);
-
-    setTimeout(() => {
-      if (el) {
-        el.focus();
-        el.setSelectionRange(start, start + cleanText.length);
-      }
-    }, 0);
   };
 
-  // Math insertion
   const insertMath = (sym) => {
-    const el = textareaRef.current;
-    const { start, end, text } = getSelection();
-    const val = value || '';
-
-    let toInsert;
-    if (text) {
-      toInsert = `$${sym.insert.replace('{}', `{${text}}`)}$`;
-    } else {
-      toInsert = `$${sym.insert}$`;
-    }
-
-    const newVal = val.slice(0, start) + toInsert + val.slice(end);
-    onChange(newVal);
-
-    setTimeout(() => {
-      if (el) {
-        el.focus();
-        const cursorPos = sym.cursor != null
-          ? start + toInsert.length + sym.cursor
-          : start + toInsert.length;
-        el.setSelectionRange(cursorPos, cursorPos);
-      }
-    }, 0);
+    restoreSelection();
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    const selectedText = sel.toString();
+    const toInsert = selectedText ? `$${sym.insert.replace('{}', `{${selectedText}}`)}$` : `$${sym.insert}$`;
+    const textNode = document.createTextNode(toInsert);
+    range.deleteContents();
+    range.insertNode(textNode);
+    emitChange();
   };
 
   const insertMathBlock = () => {
-    const el = textareaRef.current;
-    const { start, end, text } = getSelection();
-    const val = value || '';
-    const toInsert = `\n$$\n${text || ''}\n$$\n`;
-    const newVal = val.slice(0, start) + toInsert + val.slice(end);
-    onChange(newVal);
-
-    setTimeout(() => {
-      if (el) {
-        el.focus();
-        const pos = start + 4 + (text ? text.length : 0);
-        el.setSelectionRange(pos, pos);
-      }
-    }, 0);
+    restoreSelection();
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    const selectedText = sel.toString();
+    const toInsert = `\n$$\n${selectedText || 'x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}'}\n$$\n`;
+    const textNode = document.createTextNode(toInsert);
+    range.deleteContents();
+    range.insertNode(textNode);
+    emitChange();
   };
 
-  // Accent color themes
+  const handleKeyDown = (e) => {
+    if (e.ctrlKey || e.metaKey) {
+      if (e.key === 'b' || e.key === 'B') { e.preventDefault(); execCmd('bold'); }
+      else if (e.key === 'i' || e.key === 'I') { e.preventDefault(); execCmd('italic'); }
+      else if (e.key === 'u' || e.key === 'U') { e.preventDefault(); execCmd('underline'); }
+    }
+  };
+
   const colorMap = {
-    purple: {
-      btnActive: 'bg-purple-600 text-white',
-      btnHover: 'hover:bg-purple-50 dark:hover:bg-purple-900/30 text-purple-700 dark:text-purple-300',
-      border: 'border-purple-200 dark:border-purple-900/40',
-      bgToolbar: 'bg-purple-50/60 dark:bg-purple-950/20',
-      ring: 'focus-within:ring-purple-400 dark:focus-within:ring-purple-600/50',
-    },
-    orange: {
-      btnActive: 'bg-orange-600 text-white',
-      btnHover: 'hover:bg-orange-50 dark:hover:bg-orange-900/30 text-orange-700 dark:text-orange-300',
-      border: 'border-orange-200 dark:border-orange-900/40',
-      bgToolbar: 'bg-orange-50/60 dark:bg-orange-950/20',
-      ring: 'focus-within:ring-orange-400 dark:focus-within:ring-orange-600/50',
-    },
-    blue: {
-      btnActive: 'bg-blue-600 text-white',
-      btnHover: 'hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-700 dark:text-blue-300',
-      border: 'border-blue-200 dark:border-blue-900/40',
-      bgToolbar: 'bg-blue-50/60 dark:bg-blue-950/20',
-      ring: 'focus-within:ring-blue-400 dark:focus-within:ring-blue-600/50',
-    },
+    purple: { border: 'border-purple-200', bgToolbar: 'bg-purple-50/50', ring: 'focus-within:ring-purple-400' },
+    orange: { border: 'border-orange-200', bgToolbar: 'bg-orange-50/50', ring: 'focus-within:ring-orange-400' },
+    blue: { border: 'border-blue-200', bgToolbar: 'bg-blue-50/50', ring: 'focus-within:ring-blue-400' },
   };
-  const theme = colorMap[accentColor] || colorMap.purple;
-
-  const hasContent = !!(value && value.trim());
-  const hasFormatting = /<[a-z][\s\S]*>/i.test(value || '') || /\$[^$]+\$/.test(value || '');
-
   return (
     <div ref={containerRef} className="relative w-full text-right" dir="rtl">
-      
-      {/* ── Floating Bubble Toolbar (appears on text selection) ── */}
-      {bubbleVisible && (
+      {/* ── Floating Bubble Toolbar on Selection ── */}
+      {bubbleVisible && !isSourceMode && (
         <div
           style={{ top: `${bubbleCoords.top}px`, right: `${bubbleCoords.left}px` }}
-          className="absolute z-50 flex items-center gap-1 p-1 bg-gray-900/95 dark:bg-gray-800/95 text-white backdrop-blur-md rounded-2xl shadow-xl border border-gray-700/50 animate-in fade-in zoom-in-95 duration-150"
+          className="absolute z-50 flex items-center gap-1 p-1 bg-gray-900/95 text-white backdrop-blur-md rounded-2xl shadow-xl border border-gray-700/50 animate-in fade-in zoom-in-95 duration-150"
         >
-          <button
-            type="button"
-            onMouseDown={(e) => { e.preventDefault(); applyWrap('b'); }}
-            title="عريض (Bold)"
-            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/20 transition-colors font-bold text-xs"
-          >
-            <Bold className="w-3.5 h-3.5" />
-          </button>
-          <button
-            type="button"
-            onMouseDown={(e) => { e.preventDefault(); applyWrap('i'); }}
-            title="مائل (Italic)"
-            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/20 transition-colors text-xs"
-          >
-            <Italic className="w-3.5 h-3.5" />
-          </button>
-          <button
-            type="button"
-            onMouseDown={(e) => { e.preventDefault(); applyWrap('u'); }}
-            title="تسطير (Underline)"
-            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/20 transition-colors text-xs"
-          >
-            <Underline className="w-3.5 h-3.5" />
-          </button>
-          <button
-            type="button"
-            onMouseDown={(e) => { e.preventDefault(); applyWrap('s'); }}
-            title="شطب (Strikethrough)"
-            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/20 transition-colors text-xs"
-          >
-            <Strikethrough className="w-3.5 h-3.5" />
-          </button>
-
+          <button type="button" onMouseDown={(e) => { e.preventDefault(); execCmd('bold'); }} title="عريض" className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/20 text-xs"><Bold className="w-3.5 h-3.5" /></button>
+          <button type="button" onMouseDown={(e) => { e.preventDefault(); execCmd('italic'); }} title="مائل" className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/20 text-xs"><Italic className="w-3.5 h-3.5" /></button>
+          <button type="button" onMouseDown={(e) => { e.preventDefault(); execCmd('underline'); }} title="تسطير" className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/20 text-xs"><Underline className="w-3.5 h-3.5" /></button>
+          <button type="button" onMouseDown={(e) => { e.preventDefault(); execCmd('strikeThrough'); }} title="شطب" className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/20 text-xs"><Strikethrough className="w-3.5 h-3.5" /></button>
           <div className="w-px h-4 bg-gray-700 mx-0.5" />
-
-          {/* Floating Color Trigger */}
-          <div className="relative">
-            <button
-              type="button"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                setActiveDropdown(activeDropdown === 'bubble_color' ? null : 'bubble_color');
-              }}
-              title="لون الخط"
-              className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/20 transition-colors"
-            >
-              <Palette className="w-3.5 h-3.5 text-blue-400" />
-            </button>
-
-            {activeDropdown === 'bubble_color' && (
-              <div className="absolute bottom-full right-0 mb-2 p-2 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-50 min-w-[190px]">
-                <div className="text-[10px] font-bold text-gray-400 mb-1.5 px-1">اختر لون النص:</div>
-                <div className="grid grid-cols-4 gap-1.5 mb-2">
-                  {TEXT_COLORS.map(c => (
-                    <button
-                      key={c.value}
-                      type="button"
-                      onMouseDown={(e) => { e.preventDefault(); applyWrap('span', `color: ${c.value}`); }}
-                      title={c.label}
-                      className="w-7 h-7 rounded-lg flex items-center justify-center border border-white/10 hover:scale-110 transition-transform"
-                      style={{ backgroundColor: c.value }}
-                    />
-                  ))}
-                </div>
-                <div className="pt-1.5 border-t border-gray-800 flex items-center justify-between gap-1 text-[10px]">
-                  <span className="text-gray-400">لون حر:</span>
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="color"
-                      value={customColor}
-                      onChange={(e) => setCustomColor(e.target.value)}
-                      className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent"
-                    />
-                    <button
-                      type="button"
-                      onMouseDown={(e) => { e.preventDefault(); applyWrap('span', `color: ${customColor}`); }}
-                      className="px-2 py-0.5 rounded bg-blue-600 text-white font-bold text-[10px]"
-                    >
-                      تطبيق
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Floating Highlight Trigger */}
-          <div className="relative">
-            <button
-              type="button"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                setActiveDropdown(activeDropdown === 'bubble_highlight' ? null : 'bubble_highlight');
-              }}
-              title="تظليل النص"
-              className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/20 transition-colors"
-            >
-              <Highlighter className="w-3.5 h-3.5 text-yellow-300" />
-            </button>
-
-            {activeDropdown === 'bubble_highlight' && (
-              <div className="absolute bottom-full right-0 mb-2 p-2 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-50 min-w-[190px]">
-                <div className="text-[10px] font-bold text-gray-400 mb-1.5 px-1">اختر لون التظليل:</div>
-                <div className="grid grid-cols-3 gap-1.5 mb-2">
-                  {HIGHLIGHT_COLORS.map(c => (
-                    <button
-                      key={c.value}
-                      type="button"
-                      onMouseDown={(e) => { e.preventDefault(); applyWrap('mark', `background-color: ${c.value}; padding: 0 4px; border-radius: 4px;`); }}
-                      title={c.label}
-                      className="h-6 rounded-md flex items-center justify-center text-[10px] font-bold text-gray-900 hover:scale-105 transition-transform"
-                      style={{ backgroundColor: c.value }}
-                    >
-                      {c.label}
-                    </button>
-                  ))}
-                </div>
-                <div className="pt-1.5 border-t border-gray-800 flex items-center justify-between gap-1 text-[10px]">
-                  <span className="text-gray-400">تظليل مخصص:</span>
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="color"
-                      value={customHighlight}
-                      onChange={(e) => setCustomHighlight(e.target.value)}
-                      className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent"
-                    />
-                    <button
-                      type="button"
-                      onMouseDown={(e) => { e.preventDefault(); applyWrap('mark', `background-color: ${customHighlight}; padding: 0 4px; border-radius: 4px;`); }}
-                      className="px-2 py-0.5 rounded bg-yellow-600 text-white font-bold text-[10px]"
-                    >
-                      تطبيق
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <button
-            type="button"
-            onMouseDown={(e) => { e.preventDefault(); clearFormatting(); }}
-            title="إزالة التنسيق"
-            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-500/30 text-red-400 transition-colors text-xs"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-          </button>
+          <button type="button" onMouseDown={(e) => { e.preventDefault(); execCmd('subscript'); }} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/20 text-xs"><Subscript className="w-3.5 h-3.5" /></button>
+          <button type="button" onMouseDown={(e) => { e.preventDefault(); execCmd('superscript'); }} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/20 text-xs"><Superscript className="w-3.5 h-3.5" /></button>
+          <button type="button" onMouseDown={(e) => { e.preventDefault(); clearFormatting(); }} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-500/30 text-red-300 text-xs"><RotateCcw className="w-3.5 h-3.5" /></button>
         </div>
       )}
 
-      {/* ── Main Container & Top Toolbar ── */}
-      <div className={`rounded-2xl border ${theme.border} bg-white dark:bg-[var(--dk-elevated)] overflow-hidden shadow-sm transition-all ${theme.ring}`}>
-        
-        {/* Top Toolbar */}
-        <div className={`flex flex-wrap items-center justify-between gap-1.5 px-3 py-2 border-b ${theme.border} ${theme.bgToolbar}`}>
-          
-          {/* Main Formatting Group */}
-          <div className="flex items-center gap-1 flex-wrap">
-            <button
-              type="button"
-              onClick={() => applyWrap('b')}
-              title="عريض (Bold)"
-              className="p-1.5 rounded-lg text-gray-700 dark:text-[var(--dk-text-1)] hover:bg-white dark:hover:bg-[var(--dk-surface)] transition-all font-black text-xs"
-            >
-              <Bold className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => applyWrap('i')}
-              title="مائل (Italic)"
-              className="p-1.5 rounded-lg text-gray-700 dark:text-[var(--dk-text-1)] hover:bg-white dark:hover:bg-[var(--dk-surface)] transition-all text-xs"
-            >
-              <Italic className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => applyWrap('u')}
-              title="تسطير (Underline)"
-              className="p-1.5 rounded-lg text-gray-700 dark:text-[var(--dk-text-1)] hover:bg-white dark:hover:bg-[var(--dk-surface)] transition-all text-xs"
-            >
-              <Underline className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => applyWrap('s')}
-              title="شطب (Strikethrough)"
-              className="p-1.5 rounded-lg text-gray-700 dark:text-[var(--dk-text-1)] hover:bg-white dark:hover:bg-[var(--dk-surface)] transition-all text-xs"
-            >
-              <Strikethrough className="w-4 h-4" />
-            </button>
+      {/* ── Main Editor Box ── */}
+      <div className={`w-full rounded-2xl border transition-all ${theme.border} ${theme.ring} bg-white dark:bg-[var(--dk-surface)] shadow-xs overflow-visible`}>
+        {/* Top Action Toolbar */}
+        <div className={`flex items-center justify-between gap-1 p-1.5 border-b border-gray-200/80 dark:border-[var(--dk-border)] ${theme.bgToolbar} rounded-t-2xl flex-wrap`}>
+          <div className="flex items-center gap-0.5 flex-wrap">
+            <button type="button" onClick={() => execCmd('bold')} className="p-1.5 rounded-lg text-gray-700 dark:text-[var(--dk-text-1)] hover:bg-white dark:hover:bg-[var(--dk-surface)] transition-all font-bold text-xs" title="عريض (Ctrl+B)"><Bold className="w-4 h-4" /></button>
+            <button type="button" onClick={() => execCmd('italic')} className="p-1.5 rounded-lg text-gray-700 dark:text-[var(--dk-text-1)] hover:bg-white dark:hover:bg-[var(--dk-surface)] transition-all text-xs" title="مائل (Ctrl+I)"><Italic className="w-4 h-4" /></button>
+            <button type="button" onClick={() => execCmd('underline')} className="p-1.5 rounded-lg text-gray-700 dark:text-[var(--dk-text-1)] hover:bg-white dark:hover:bg-[var(--dk-surface)] transition-all text-xs" title="تسطير (Ctrl+U)"><Underline className="w-4 h-4" /></button>
+            <button type="button" onClick={() => execCmd('strikeThrough')} className="p-1.5 rounded-lg text-gray-700 dark:text-[var(--dk-text-1)] hover:bg-white dark:hover:bg-[var(--dk-surface)] transition-all text-xs" title="يتوسطه خط"><Strikethrough className="w-4 h-4" /></button>
 
-            <div className="h-4 w-px bg-gray-300 dark:bg-[var(--dk-border)] mx-1" />
+            <div className="w-px h-5 bg-gray-300 dark:bg-[var(--dk-border)] mx-1" />
 
-            {/* Text Color Dropdown */}
+            {/* Top Color Dropdown */}
             <div className="relative">
               <button
                 type="button"
-                onClick={() => setActiveDropdown(activeDropdown === 'top_color' ? null : 'top_color')}
-                title="لون النص"
+                onClick={() => { saveSelection(); setActiveDropdown(d => d === 'top_color' ? null : 'top_color'); }}
+                title="تلوين النص بلون مخصص"
                 className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold transition-all ${
                   activeDropdown === 'top_color'
-                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300'
+                    ? 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300'
                     : 'text-gray-700 dark:text-[var(--dk-text-1)] hover:bg-white dark:hover:bg-[var(--dk-surface)]'
                 }`}
               >
-                <Palette className="w-3.5 h-3.5 text-blue-500" />
-                <span className="hidden sm:inline text-[11px]">لون الخط</span>
+                <Palette className="w-3.5 h-3.5 text-red-500" />
+                <span className="hidden sm:inline text-[11px]">اللون</span>
                 <ChevronDown className="w-3 h-3 text-gray-400" />
               </button>
 
               {activeDropdown === 'top_color' && (
-                <div className="absolute top-full right-0 mt-1 p-2.5 bg-white dark:bg-[var(--dk-surface)] border border-gray-200 dark:border-[var(--dk-border)] rounded-2xl shadow-xl z-50 min-w-[210px]">
-                  <div className="text-[11px] font-bold text-gray-500 dark:text-[var(--dk-text-2)] mb-2">ألوان شائعة:</div>
-                  <div className="grid grid-cols-4 gap-2 mb-3">
+                <div className="absolute top-full right-0 mt-1 p-2 bg-white dark:bg-[var(--dk-surface)] border border-gray-200 dark:border-[var(--dk-border)] rounded-xl shadow-xl z-50 min-w-[190px]">
+                  <p className="text-[10px] font-bold text-gray-500 mb-1.5 px-1">اختر لون النص:</p>
+                  <div className="grid grid-cols-4 gap-1.5 mb-2">
                     {TEXT_COLORS.map(c => (
                       <button
                         key={c.value}
                         type="button"
-                        onClick={() => applyWrap('span', `color: ${c.value}`)}
+                        onClick={() => applyInlineStyle('color', c.value)}
                         title={c.label}
-                        className="w-8 h-8 rounded-xl flex items-center justify-center border border-gray-200 dark:border-gray-700 shadow-sm hover:scale-110 transition-transform"
+                        className="w-7 h-7 rounded-lg border border-black/10 hover:scale-110 transition-transform flex items-center justify-center"
                         style={{ backgroundColor: c.value }}
                       />
                     ))}
                   </div>
-                  <div className="pt-2 border-t border-gray-150 dark:border-[var(--dk-border)] flex items-center justify-between gap-1 text-xs">
-                    <span className="text-[11px] font-bold text-gray-600 dark:text-[var(--dk-text-2)]">درجة مخصصة:</span>
-                    <div className="flex items-center gap-1.5">
-                      <input
-                        type="color"
-                        value={customColor}
-                        onChange={(e) => setCustomColor(e.target.value)}
-                        className="w-7 h-7 rounded-lg cursor-pointer border-0 bg-transparent"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => applyWrap('span', `color: ${customColor}`)}
-                        className="px-2.5 py-1 rounded-lg bg-blue-600 text-white font-bold text-xs hover:bg-blue-700 transition-colors"
-                      >
-                        تطبيق
-                      </button>
-                    </div>
+                  <div className="pt-2 border-t border-gray-100 dark:border-[var(--dk-border)] flex items-center gap-1.5">
+                    <input
+                      type="color"
+                      value={customColor}
+                      onChange={(e) => setCustomColor(e.target.value)}
+                      className="w-7 h-7 rounded cursor-pointer border-0 p-0"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => applyInlineStyle('color', customColor)}
+                      className="flex-1 py-1 text-xs font-bold bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
+                    >
+                      تطبيق اللون
+                    </button>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Highlight Background Dropdown */}
+            {/* Top Highlight Dropdown */}
             <div className="relative">
               <button
                 type="button"
-                onClick={() => setActiveDropdown(activeDropdown === 'top_highlight' ? null : 'top_highlight')}
-                title="تظليل النص"
+                onClick={() => { saveSelection(); setActiveDropdown(d => d === 'top_highlight' ? null : 'top_highlight'); }}
+                title="تظليل النص وتمييزه"
                 className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold transition-all ${
                   activeDropdown === 'top_highlight'
-                    ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300'
+                    ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
                     : 'text-gray-700 dark:text-[var(--dk-text-1)] hover:bg-white dark:hover:bg-[var(--dk-surface)]'
                 }`}
               >
-                <Highlighter className="w-3.5 h-3.5 text-yellow-600 dark:text-yellow-400" />
+                <Highlighter className="w-3.5 h-3.5 text-amber-500" />
                 <span className="hidden sm:inline text-[11px]">تظليل</span>
                 <ChevronDown className="w-3 h-3 text-gray-400" />
               </button>
 
               {activeDropdown === 'top_highlight' && (
-                <div className="absolute top-full right-0 mt-1 p-2.5 bg-white dark:bg-[var(--dk-surface)] border border-gray-200 dark:border-[var(--dk-border)] rounded-2xl shadow-xl z-50 min-w-[210px]">
-                  <div className="text-[11px] font-bold text-gray-500 dark:text-[var(--dk-text-2)] mb-2">ألوان التظليل:</div>
-                  <div className="grid grid-cols-3 gap-1.5 mb-3">
+                <div className="absolute top-full right-0 mt-1 p-2 bg-white dark:bg-[var(--dk-surface)] border border-gray-200 dark:border-[var(--dk-border)] rounded-xl shadow-xl z-50 min-w-[190px]">
+                  <p className="text-[10px] font-bold text-gray-500 mb-1.5 px-1">لون التظليل:</p>
+                  <div className="grid grid-cols-3 gap-1.5 mb-2">
                     {HIGHLIGHT_COLORS.map(c => (
                       <button
                         key={c.value}
                         type="button"
-                        onClick={() => applyWrap('mark', `background-color: ${c.value}; padding: 0 4px; border-radius: 4px;`)}
+                        onClick={() => applyInlineStyle('backgroundColor', c.value)}
                         title={c.label}
-                        className="py-1 px-2 rounded-lg text-xs font-bold text-gray-900 border border-gray-200 shadow-sm hover:scale-105 transition-transform text-center"
+                        className="h-7 rounded-lg text-[10px] font-bold text-gray-900 border border-black/10 hover:scale-105 transition-transform flex items-center justify-center"
                         style={{ backgroundColor: c.value }}
                       >
                         {c.label}
                       </button>
                     ))}
                   </div>
-                  <div className="pt-2 border-t border-gray-150 dark:border-[var(--dk-border)] flex items-center justify-between gap-1 text-xs">
-                    <span className="text-[11px] font-bold text-gray-600 dark:text-[var(--dk-text-2)]">تظليل حر:</span>
-                    <div className="flex items-center gap-1.5">
-                      <input
-                        type="color"
-                        value={customHighlight}
-                        onChange={(e) => setCustomHighlight(e.target.value)}
-                        className="w-7 h-7 rounded-lg cursor-pointer border-0 bg-transparent"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => applyWrap('mark', `background-color: ${customHighlight}; padding: 0 4px; border-radius: 4px;`)}
-                        className="px-2.5 py-1 rounded-lg bg-yellow-600 text-white font-bold text-xs hover:bg-yellow-700 transition-colors"
-                      >
-                        تطبيق
-                      </button>
-                    </div>
+                  <div className="pt-2 border-t border-gray-100 dark:border-[var(--dk-border)] flex items-center gap-1.5">
+                    <input
+                      type="color"
+                      value={customHighlight}
+                      onChange={(e) => setCustomHighlight(e.target.value)}
+                      className="w-7 h-7 rounded cursor-pointer border-0 p-0"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => applyInlineStyle('backgroundColor', customHighlight)}
+                      className="flex-1 py-1 text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors"
+                    >
+                      تطبيق التظليل
+                    </button>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Font Size Dropdown */}
+            {/* Top Font Size Dropdown */}
             <div className="relative">
               <button
                 type="button"
-                onClick={() => setActiveDropdown(activeDropdown === 'top_size' ? null : 'top_size')}
-                title="حجم الخط"
+                onClick={() => { saveSelection(); setActiveDropdown(d => d === 'top_size' ? null : 'top_size'); }}
+                title="تغيير حجم الخط"
                 className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold transition-all ${
                   activeDropdown === 'top_size'
                     ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300'
@@ -614,7 +426,7 @@ export default function RichTextPalette({
                     <button
                       key={s.value}
                       type="button"
-                      onClick={() => applyWrap('span', `font-size: ${s.value}`)}
+                      onClick={() => applyInlineStyle('fontSize', s.value)}
                       className="w-full flex items-center justify-between px-2.5 py-1.5 text-xs font-bold text-gray-700 dark:text-[var(--dk-text-1)] hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors text-right"
                     >
                       <span>{s.label}</span>
@@ -625,42 +437,35 @@ export default function RichTextPalette({
               )}
             </div>
 
-            {/* Subscript / Superscript */}
-            <button
-              type="button"
-              onClick={() => applyWrap('sub')}
-              title="دليل سفلي (Subscript: X₂)"
-              className="p-1.5 rounded-lg text-gray-700 dark:text-[var(--dk-text-1)] hover:bg-white dark:hover:bg-[var(--dk-surface)] transition-all font-bold text-xs"
-            >
-              <Subscript className="w-4 h-4 text-gray-600 dark:text-[var(--dk-text-2)]" />
-            </button>
-            <button
-              type="button"
-              onClick={() => applyWrap('sup')}
-              title="أس علوي (Superscript: X²)"
-              className="p-1.5 rounded-lg text-gray-700 dark:text-[var(--dk-text-1)] hover:bg-white dark:hover:bg-[var(--dk-surface)] transition-all font-bold text-xs"
-            >
-              <Superscript className="w-4 h-4 text-gray-600 dark:text-[var(--dk-text-2)]" />
-            </button>
-
-            {/* Clear Formatting */}
-            <button
-              type="button"
-              onClick={clearFormatting}
-              title="إزالة التنسيق من النص المحدد"
-              className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all text-xs"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-            </button>
+            <button type="button" onClick={() => execCmd('subscript')} title="دليل سفلي (X₂)" className="p-1.5 rounded-lg text-gray-700 dark:text-[var(--dk-text-1)] hover:bg-white dark:hover:bg-[var(--dk-surface)] font-bold text-xs"><Subscript className="w-4 h-4" /></button>
+            <button type="button" onClick={() => execCmd('superscript')} title="أس علوي (X²)" className="p-1.5 rounded-lg text-gray-700 dark:text-[var(--dk-text-1)] hover:bg-white dark:hover:bg-[var(--dk-surface)] font-bold text-xs"><Superscript className="w-4 h-4" /></button>
+            <button type="button" onClick={clearFormatting} title="إزالة التنسيق" className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 text-xs"><RotateCcw className="w-3.5 h-3.5" /></button>
           </div>
 
-          {/* Right Group: Math Toolbar & Live Preview Toggles */}
           <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                setIsSourceMode(m => !m);
+                setActiveDropdown(null);
+                setBubbleVisible(false);
+              }}
+              title={isSourceMode ? 'العودة للمحرر المرئي (WYSIWYG)' : 'عرض كود HTML'}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                isSourceMode
+                  ? 'bg-amber-600 text-white shadow-sm'
+                  : 'bg-white dark:bg-[var(--dk-surface)] border border-gray-200 dark:border-[var(--dk-border)] text-gray-600 dark:text-[var(--dk-text-2)] hover:border-amber-400'
+              }`}
+            >
+              <Code className="w-3.5 h-3.5" />
+              <span className="text-[11px] hidden sm:inline">{isSourceMode ? 'الوضع المرئي' : 'كود HTML'}</span>
+            </button>
+
             {enableMath && (
               <button
                 type="button"
                 onClick={() => setShowMathToolbar(m => !m)}
-                title="أدوات ومعادلات الرياضيات (KaTeX)"
+                title="أدوات ومعادلات الرياضيات"
                 className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
                   showMathToolbar
                     ? 'bg-purple-600 text-white shadow-sm'
@@ -688,10 +493,9 @@ export default function RichTextPalette({
               </button>
             )}
           </div>
-
         </div>
 
-        {/* ── Sub Math Toolbar (Collapsible) ── */}
+        {/* Math Toolbar (Collapsible) */}
         {enableMath && showMathToolbar && (
           <div className="p-2 bg-purple-50/80 dark:bg-purple-950/30 border-b border-purple-100 dark:border-purple-900/30">
             <div className="flex items-center justify-between mb-1.5 text-[11px]">
@@ -721,23 +525,42 @@ export default function RichTextPalette({
           </div>
         )}
 
-        {/* ── Textarea Input ── */}
-        <AutoResizeTextarea
-          ref={textareaRef}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          minHeight={minHeight}
-          maxHeight={maxHeight}
-          className={`w-full px-3.5 py-3 bg-transparent text-gray-900 dark:text-[var(--dk-text-1)] text-sm focus:outline-none placeholder:text-gray-400 dark:placeholder:text-[var(--dk-text-3)] leading-relaxed resize-none ${className}`}
-        />
+        {/* Visual ContentEditable Body OR Raw Code Mode */}
+        {isSourceMode ? (
+          <textarea
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={placeholder}
+            dir="rtl"
+            style={{ minHeight: `${minHeight}px`, maxHeight: `${maxHeight}px` }}
+            className={`w-full px-3.5 py-3 bg-gray-50/50 dark:bg-gray-900/50 font-mono text-xs text-gray-800 dark:text-[var(--dk-text-1)] focus:outline-none placeholder:text-gray-400 leading-relaxed resize-y ${className}`}
+          />
+        ) : (
+          <div className="relative">
+            <div
+              ref={editorRef}
+              contentEditable
+              dir="rtl"
+              onInput={emitChange}
+              onKeyDown={handleKeyDown}
+              onKeyUp={checkSelection}
+              onMouseUp={checkSelection}
+              onBlur={emitChange}
+              style={{ minHeight: `${minHeight}px`, maxHeight: `${maxHeight}px` }}
+              data-placeholder={placeholder}
+              className={`w-full px-3.5 py-3 text-sm text-gray-900 dark:text-[var(--dk-text-1)] focus:outline-none leading-relaxed overflow-y-auto ${
+                !value ? 'before:content-[attr(data-placeholder)] before:text-gray-400 dark:before:text-[var(--dk-text-3)] before:pointer-events-none before:block' : ''
+              } ${className}`}
+            />
+          </div>
+        )}
 
-        {/* ── Live Preview Box (Appears when toggled or when text has rich tags) ── */}
-        {(showLivePreview || (hasFormatting && showLivePreview !== false)) && (
+        {/* Live Preview Box */}
+        {showLivePreview && (
           <div className="border-t border-dashed border-gray-200 dark:border-[var(--dk-border)] bg-gray-50/70 dark:bg-gray-900/30 px-3.5 py-2.5">
             <div className="flex items-center justify-between mb-1">
               <span className="text-[10px] font-bold text-gray-400 dark:text-[var(--dk-text-3)] flex items-center gap-1">
-                <Eye className="w-3 h-3 text-green-500" /> معاينة العرض للطالب:
+                <Eye className="w-3 h-3 text-green-500" /> معاينة العرض النهائي للطالب:
               </span>
             </div>
             <div className="text-sm text-gray-800 dark:text-[var(--dk-text-1)] font-semibold min-h-[1.5rem] leading-relaxed">
@@ -749,153 +572,269 @@ export default function RichTextPalette({
             </div>
           </div>
         )}
-
       </div>
     </div>
   );
 }
 
 /**
- * Compact formatting button for single-line inputs (e.g. Option A, B, C, D)
+ * Compact visual formatting button and input for single-line options (e.g. Option A, B, C, D)
  */
-export function CompactOptionFormatter({ inputRef, value, onChange, placeholder, className = '' }) {
+export function CompactOptionFormatter({ value = '', onChange, placeholder = '', className = '' }) {
   const [showPalette, setShowPalette] = useState(false);
   const [customColor, setCustomColor] = useState('#ef4444');
+  const [customHighlight, setCustomHighlight] = useState('#fef08a');
+  const editableRef = useRef(null);
+  const savedRangeRef = useRef(null);
+  const lastEmittedValue = useRef(value || '');
 
-  const applyWrap = (tag, styleString = '') => {
-    const el = inputRef?.current;
-    if (!el) return;
-    const start = el.selectionStart || 0;
-    const end = el.selectionEnd || 0;
-    const selected = (value || '').slice(start, end);
-    const styleAttr = styleString ? ` style="${styleString}"` : '';
-    const openTag = `<${tag}${styleAttr}>`;
-    const closeTag = `</${tag}>`;
+  // Sync external value
+  useEffect(() => {
+    if (!editableRef.current) return;
+    const currentHtml = editableRef.current.innerHTML;
+    const targetHtml = value || '';
 
-    const val = value || '';
-    let newVal;
-    let newCursorPos;
+    if (targetHtml !== lastEmittedValue.current && targetHtml !== currentHtml) {
+      editableRef.current.innerHTML = targetHtml;
+      lastEmittedValue.current = targetHtml;
+    }
+  }, [value]);
 
-    if (selected) {
-      newVal = val.slice(0, start) + openTag + selected + closeTag + val.slice(end);
-      newCursorPos = start + openTag.length + selected.length + closeTag.length;
+  const saveSelection = () => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      if (editableRef.current && editableRef.current.contains(range.commonAncestorContainer)) {
+        savedRangeRef.current = range.cloneRange();
+      }
+    }
+  };
+
+  const restoreSelection = () => {
+    if (savedRangeRef.current) {
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(savedRangeRef.current);
+    }
+  };
+
+  const emitChange = () => {
+    if (!editableRef.current) return;
+    const raw = editableRef.current.innerHTML;
+    const cleaned = sanitizeEditorOutput(raw);
+    lastEmittedValue.current = cleaned;
+    onChange(cleaned);
+  };
+
+  const execCmd = (cmd, val = null) => {
+    restoreSelection();
+    if (editableRef.current) {
+      editableRef.current.focus();
+    }
+    document.execCommand(cmd, false, val);
+    emitChange();
+  };
+
+  const applyInlineStyle = (styleProp, styleVal) => {
+    restoreSelection();
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    if (!editableRef.current || !editableRef.current.contains(range.commonAncestorContainer)) return;
+
+    if (range.collapsed) {
+      const span = document.createElement('span');
+      span.style[styleProp] = styleVal;
+      span.textContent = 'نص';
+      range.insertNode(span);
+      const newRange = document.createRange();
+      newRange.selectNodeContents(span);
+      sel.removeAllRanges();
+      sel.addRange(newRange);
+      savedRangeRef.current = newRange.cloneRange();
     } else {
-      newVal = val.slice(0, start) + openTag + 'نص' + closeTag + val.slice(end);
-      newCursorPos = start + openTag.length + 2;
+      const span = document.createElement('span');
+      span.style[styleProp] = styleVal;
+      if (styleProp === 'backgroundColor') {
+        span.style.padding = '0.15em 0.35em';
+        span.style.borderRadius = '0.3em';
+      }
+      const extracted = range.extractContents();
+      span.appendChild(extracted);
+      range.insertNode(span);
+      const newRange = document.createRange();
+      newRange.selectNodeContents(span);
+      sel.removeAllRanges();
+      sel.addRange(newRange);
+      savedRangeRef.current = newRange.cloneRange();
     }
 
-    onChange(newVal);
+    emitChange();
     setShowPalette(false);
-
-    setTimeout(() => {
-      el.focus();
-      el.setSelectionRange(newCursorPos, newCursorPos);
-    }, 0);
   };
 
   const clearFormatting = () => {
-    const el = inputRef?.current;
-    if (!el) return;
-    const start = el.selectionStart || 0;
-    const end = el.selectionEnd || 0;
-    const selected = (value || '').slice(start, end);
-    if (!selected) return;
-
-    const cleanText = selected.replace(/<[^>]*>/g, '');
-    const val = value || '';
-    const newVal = val.slice(0, start) + cleanText + val.slice(end);
-
-    onChange(newVal);
+    restoreSelection();
+    if (editableRef.current) {
+      editableRef.current.focus();
+    }
+    document.execCommand('removeFormat', false, null);
+    emitChange();
     setShowPalette(false);
   };
 
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+    }
+    if (e.ctrlKey || e.metaKey) {
+      if (e.key === 'b' || e.key === 'B') {
+        e.preventDefault();
+        execCmd('bold');
+      } else if (e.key === 'i' || e.key === 'I') {
+        e.preventDefault();
+        execCmd('italic');
+      } else if (e.key === 'u' || e.key === 'U') {
+        e.preventDefault();
+        execCmd('underline');
+      }
+    }
+  };
+
   return (
-    <div className="relative flex-1 flex items-center">
-      <input
-        ref={inputRef}
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className={`w-full rounded-xl pl-9 pr-3 py-2 border border-gray-200 dark:border-[var(--dk-border)] bg-white dark:bg-[var(--dk-elevated)] text-gray-900 dark:text-[var(--dk-text-1)] text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 dark:focus:ring-purple-600/50 placeholder:text-gray-400 dark:placeholder:text-[var(--dk-text-3)] ${className}`}
+    <div className="relative flex items-center flex-1 min-w-0" dir="rtl">
+      {/* Visual contenteditable single line input */}
+      <div
+        ref={editableRef}
+        contentEditable
+        dir="rtl"
+        onInput={emitChange}
+        onKeyDown={handleKeyDown}
+        onBlur={emitChange}
+        onMouseUp={saveSelection}
+        onKeyUp={saveSelection}
+        data-placeholder={placeholder}
+        className={`flex-1 min-h-[38px] px-3.5 py-2 rounded-xl border border-gray-200 dark:border-[var(--dk-border)] bg-white dark:bg-[var(--dk-elevated)] text-gray-900 dark:text-[var(--dk-text-1)] text-xs sm:text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-purple-400 dark:focus:ring-purple-600/50 transition-all overflow-x-auto whitespace-nowrap leading-relaxed ${
+          !value ? 'before:content-[attr(data-placeholder)] before:text-gray-400 dark:before:text-[var(--dk-text-3)] before:pointer-events-none before:block' : ''
+        } ${className}`}
       />
-      <button
-        type="button"
-        onClick={() => setShowPalette(p => !p)}
-        title="تنسيق وتلوين الخيار"
-        className={`absolute left-2 p-1 rounded-lg text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-all ${
-          showPalette ? 'text-purple-600 bg-purple-50 dark:bg-purple-900/40' : ''
-        }`}
-      >
-        <Palette className="w-4 h-4" />
-      </button>
 
-      {showPalette && (
-        <div className="absolute top-full left-0 mt-1 p-2 bg-white dark:bg-[var(--dk-surface)] border border-gray-200 dark:border-[var(--dk-border)] rounded-2xl shadow-xl z-50 min-w-[220px]">
-          <div className="flex items-center justify-between mb-1.5 pb-1.5 border-b border-gray-150 dark:border-[var(--dk-border)]">
-            <span className="text-[10px] font-bold text-gray-500 dark:text-[var(--dk-text-2)]">تنسيق الخيار</span>
-            <button type="button" onClick={() => setShowPalette(false)} className="text-gray-400 hover:text-gray-600">
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
+      {/* Trigger formatting popover */}
+      <div className="relative mr-1.5 flex-shrink-0">
+        <button
+          type="button"
+          onClick={() => {
+            saveSelection();
+            setShowPalette(p => !p);
+          }}
+          title="تنسيق وتلوين هذا الخيار"
+          className={`p-2 rounded-xl border transition-all ${
+            showPalette
+              ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
+              : 'bg-gray-50 dark:bg-[var(--dk-elevated)] border-gray-200 dark:border-[var(--dk-border)] text-gray-500 dark:text-[var(--dk-text-2)] hover:text-purple-600 hover:border-purple-300'
+          }`}
+        >
+          <Palette className="w-3.5 h-3.5" />
+        </button>
 
-          <div className="flex items-center gap-1 mb-2">
-            <button type="button" onClick={() => applyWrap('b')} title="عريض" className="p-1 rounded hover:bg-gray-100 dark:hover:bg-[var(--dk-elevated)]">
-              <Bold className="w-3.5 h-3.5" />
-            </button>
-            <button type="button" onClick={() => applyWrap('i')} title="مائل" className="p-1 rounded hover:bg-gray-100 dark:hover:bg-[var(--dk-elevated)]">
-              <Italic className="w-3.5 h-3.5" />
-            </button>
-            <button type="button" onClick={() => applyWrap('u')} title="تسطير" className="p-1 rounded hover:bg-gray-100 dark:hover:bg-[var(--dk-elevated)]">
-              <Underline className="w-3.5 h-3.5" />
-            </button>
-            <button type="button" onClick={() => applyWrap('s')} title="شطب" className="p-1 rounded hover:bg-gray-100 dark:hover:bg-[var(--dk-elevated)]">
-              <Strikethrough className="w-3.5 h-3.5" />
-            </button>
-            <button type="button" onClick={() => applyWrap('sub')} title="دليل سفلي" className="p-1 rounded hover:bg-gray-100 dark:hover:bg-[var(--dk-elevated)]">
-              <Subscript className="w-3.5 h-3.5" />
-            </button>
-            <button type="button" onClick={() => applyWrap('sup')} title="أس علوي" className="p-1 rounded hover:bg-gray-100 dark:hover:bg-[var(--dk-elevated)]">
-              <Superscript className="w-3.5 h-3.5" />
-            </button>
-            <button type="button" onClick={clearFormatting} title="إزالة التنسيق" className="p-1 rounded text-red-500 hover:bg-red-50">
-              <RotateCcw className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          <div className="text-[10px] font-bold text-gray-400 mb-1">لون الخط:</div>
-          <div className="grid grid-cols-4 gap-1.5 mb-2">
-            {TEXT_COLORS.map(c => (
-              <button
-                key={c.value}
-                type="button"
-                onClick={() => applyWrap('span', `color: ${c.value}`)}
-                className="w-6 h-6 rounded-lg border border-gray-200 dark:border-gray-700 hover:scale-110 transition-transform"
-                style={{ backgroundColor: c.value }}
-              />
-            ))}
-          </div>
-
-          <div className="pt-1.5 border-t border-gray-150 dark:border-[var(--dk-border)] flex items-center justify-between gap-1 text-[10px]">
-            <span className="text-gray-500">لون مخصص:</span>
-            <div className="flex items-center gap-1">
-              <input
-                type="color"
-                value={customColor}
-                onChange={(e) => setCustomColor(e.target.value)}
-                className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent"
-              />
-              <button
-                type="button"
-                onClick={() => applyWrap('span', `color: ${customColor}`)}
-                className="px-2 py-0.5 rounded bg-purple-600 text-white font-bold text-[10px]"
-              >
-                تطبيق
+        {showPalette && (
+          <div className="absolute top-full left-0 mt-1.5 p-2 bg-white dark:bg-[var(--dk-surface)] border border-gray-200 dark:border-[var(--dk-border)] rounded-2xl shadow-2xl z-50 min-w-[210px] animate-in fade-in zoom-in-95 duration-100">
+            <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-gray-100 dark:border-[var(--dk-border)]">
+              <span className="text-[11px] font-black text-gray-700 dark:text-[var(--dk-text-1)]">تنسيق الخيار</span>
+              <button type="button" onClick={() => setShowPalette(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-3 h-3" />
               </button>
             </div>
+
+            {/* Basic Styles */}
+            <div className="flex items-center gap-1 mb-2">
+              <button
+                type="button"
+                onClick={() => execCmd('bold')}
+                className="flex-1 py-1 rounded-lg bg-gray-100 dark:bg-gray-700/50 hover:bg-purple-100 hover:text-purple-700 font-black text-xs transition-colors text-center"
+                title="عريض"
+              >
+                <b>B</b>
+              </button>
+              <button
+                type="button"
+                onClick={() => execCmd('italic')}
+                className="flex-1 py-1 rounded-lg bg-gray-100 dark:bg-gray-700/50 hover:bg-purple-100 hover:text-purple-700 font-serif italic text-xs transition-colors text-center"
+                title="مائل"
+              >
+                <i>I</i>
+              </button>
+              <button
+                type="button"
+                onClick={() => execCmd('underline')}
+                className="flex-1 py-1 rounded-lg bg-gray-100 dark:bg-gray-700/50 hover:bg-purple-100 hover:text-purple-700 underline text-xs transition-colors text-center"
+                title="تسطير"
+              >
+                <u>U</u>
+              </button>
+              <button
+                type="button"
+                onClick={clearFormatting}
+                className="p-1 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 text-xs transition-colors"
+                title="إزالة التنسيق"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Quick Text Colors */}
+            <div className="mb-2">
+              <p className="text-[10px] font-bold text-gray-400 mb-1">لون النص:</p>
+              <div className="grid grid-cols-4 gap-1">
+                {TEXT_COLORS.slice(0, 8).map(c => (
+                  <button
+                    key={c.value}
+                    type="button"
+                    onClick={() => applyInlineStyle('color', c.value)}
+                    title={c.label}
+                    className="h-6 rounded-md border border-black/10 hover:scale-110 transition-transform"
+                    style={{ backgroundColor: c.value }}
+                  />
+                ))}
+              </div>
+              <div className="mt-1.5 flex items-center gap-1.5">
+                <input
+                  type="color"
+                  value={customColor}
+                  onChange={e => setCustomColor(e.target.value)}
+                  className="w-5 h-5 rounded cursor-pointer border-0 p-0"
+                />
+                <button
+                  type="button"
+                  onClick={() => applyInlineStyle('color', customColor)}
+                  className="flex-1 py-0.5 text-[10px] font-bold bg-purple-600 text-white rounded transition-colors"
+                >
+                  لون مخصص
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Highlights */}
+            <div>
+              <p className="text-[10px] font-bold text-gray-400 mb-1">تظليل:</p>
+              <div className="grid grid-cols-3 gap-1">
+                {HIGHLIGHT_COLORS.map(c => (
+                  <button
+                    key={c.value}
+                    type="button"
+                    onClick={() => applyInlineStyle('backgroundColor', c.value)}
+                    className="h-5 rounded text-[9px] font-bold text-gray-900 border border-black/10 hover:scale-105 transition-transform"
+                    style={{ backgroundColor: c.value }}
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
