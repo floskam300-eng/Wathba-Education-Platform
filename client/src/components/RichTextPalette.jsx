@@ -264,10 +264,13 @@ export default function RichTextPalette({
   };
 
   const colorMap = {
-    purple: { border: 'border-purple-200', bgToolbar: 'bg-purple-50/50', ring: 'focus-within:ring-purple-400' },
-    orange: { border: 'border-orange-200', bgToolbar: 'bg-orange-50/50', ring: 'focus-within:ring-orange-400' },
-    blue: { border: 'border-blue-200', bgToolbar: 'bg-blue-50/50', ring: 'focus-within:ring-blue-400' },
+    purple: { border: 'border-purple-200 dark:border-purple-900/40', bgToolbar: 'bg-purple-50/60 dark:bg-purple-950/20', ring: 'focus-within:ring-purple-400 dark:focus-within:ring-purple-600/50' },
+    orange: { border: 'border-orange-200 dark:border-orange-900/40', bgToolbar: 'bg-orange-50/60 dark:bg-orange-950/20', ring: 'focus-within:ring-orange-400 dark:focus-within:ring-orange-600/50' },
+    blue: { border: 'border-blue-200 dark:border-blue-900/40', bgToolbar: 'bg-blue-50/60 dark:bg-blue-950/20', ring: 'focus-within:ring-blue-400 dark:focus-within:ring-blue-600/50' },
   };
+  const theme = colorMap[accentColor] || colorMap.purple;
+  const hasContent = !!(value && value.trim());
+
   return (
     <div ref={containerRef} className="relative w-full text-right" dir="rtl">
       {/* ── Floating Bubble Toolbar on Selection ── */}
