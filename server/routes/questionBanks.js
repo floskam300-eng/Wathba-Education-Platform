@@ -353,7 +353,7 @@ router.post('/:id/questions/import', requireRole('teacher', 'assistant'), checkM
 });
 
 // ── Update bank question ──
-router.put('/questions/:qid', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
+router.put(['/questions/:qid', '/:id/questions/:qid'], requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
   // [QB1-FIX] Validate question ID before any DB call
   const qid = parseParamId(req.params.qid);
   if (!qid) return res.status(400).json({ error: 'معرّف السؤال غير صالح' });
@@ -417,6 +417,7 @@ router.put('/questions/:qid', requireRole('teacher', 'assistant'), checkManageEx
       finalPoints = calculatedPoints;
     } else if (qType === 'true_false') {
       optA = 'صح'; optB = 'خطأ';
+      correctLetter = correct_answer_letter || 'A';
     }
 
     if (!correctLetter || !VALID_ANSWER_LETTERS.has(String(correctLetter).toUpperCase())) {
@@ -442,7 +443,7 @@ router.put('/questions/:qid', requireRole('teacher', 'assistant'), checkManageEx
 });
 
 // ── Delete bank question ──
-router.delete('/questions/:qid', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
+router.delete(['/questions/:qid', '/:id/questions/:qid'], requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
   // [QB1-FIX] Validate question ID before any DB call
   const qid = parseParamId(req.params.qid);
   if (!qid) return res.status(400).json({ error: 'معرّف السؤال غير صالح' });

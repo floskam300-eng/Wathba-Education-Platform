@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   BookOpen, Clock, CheckCircle, XCircle, Trophy,
   ChevronLeft, ChevronRight, AlertCircle, BarChart2, RefreshCw, Lock, Eye, Loader2, ZoomIn,
-  ChevronDown, ChevronUp, X, Play, RotateCcw
+  ChevronDown, ChevronUp, X, Play, RotateCcw, ArrowRight
 } from 'lucide-react';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
@@ -64,7 +64,18 @@ export default function StudentRecitations() {
   const { dark } = useTheme();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const qc = useQueryClient();
+
+  const handleGoBack = () => {
+    if (location.state?.backTo) {
+      navigate(location.state.backTo);
+    } else if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate('/student/courses');
+    }
+  };
 
   const getAnsKey = useCallback((recId) => user?.id ? `recitation_answers_${user.id}_${recId}` : `recitation_answers_${recId}`, [user?.id]);
   const getActKey = useCallback((recId) => user?.id ? `recitation_active_${user.id}_${recId}` : `recitation_active_${recId}`, [user?.id]);
@@ -384,9 +395,24 @@ export default function StudentRecitations() {
     return (
       <div className="p-4 lg:p-6 space-y-6" dir="rtl">
         {/* Header */}
-        <h1 className={`text-xl font-black flex items-center gap-2 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>
-          <BookOpen className="w-6 h-6 text-purple-500" /> التسميع
-        </h1>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handleGoBack}
+            className={`p-2.5 rounded-xl transition-all duration-200 flex items-center justify-center flex-shrink-0 cursor-pointer ${
+              dark
+                ? 'bg-[var(--dk-surface)] hover:bg-[var(--dk-elevated)] text-[var(--dk-text-1)] border border-[var(--dk-border)] hover:border-purple-500/50 active:scale-95'
+                : 'bg-white hover:bg-purple-50 text-navy-700 hover:text-purple-600 border border-gray-200 hover:border-purple-200 shadow-sm active:scale-95'
+            }`}
+            title="رجوع"
+            aria-label="رجوع"
+          >
+            <ArrowRight className="w-5 h-5" />
+          </button>
+          <h1 className={`text-xl font-black flex items-center gap-2 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>
+            <BookOpen className="w-6 h-6 text-purple-500" /> التسميع
+          </h1>
+        </div>
 
         {/* ── Active In-Progress Recitation Banner (Dedicated Card) ── */}
         {activeInProgressRec && (
@@ -517,7 +543,7 @@ export default function StudentRecitations() {
                               {r.score}/{r.total_score}
                             </span>
                             <button
-                              onClick={() => navigate(`/student/recitation-review/${r.id}`)}
+                              onClick={() => navigate(`/student/recitation-review/${r.id}`, { state: { backTo: location.state?.backTo || '/student/recitations' } })}
                               className={`p-1.5 rounded-lg transition-colors ${dark ? 'text-gray-500 hover:text-purple-400 hover:bg-purple-900/20' : 'text-gray-400 hover:text-purple-500 hover:bg-purple-50'}`}
                               title="مراجعة الإجابات"
                             >
@@ -562,16 +588,16 @@ export default function StudentRecitations() {
             ) : (
               <>
                 {open.length > 0 && (
-                  <Section title="متاح الآن 🟢" items={open} dark={dark} cardCls={cardCls} onStart={startRec} navigate={navigate} startingId={startingId} getAnsKey={getAnsKey} getActKey={getActKey} />
+                  <Section title="متاح الآن 🟢" items={open} dark={dark} cardCls={cardCls} onStart={startRec} navigate={navigate} startingId={startingId} getAnsKey={getAnsKey} getActKey={getActKey} backTo={location.state?.backTo} />
                 )}
                 {upcoming.length > 0 && (
-                  <Section title="قادم قريباً ⏳" items={upcoming} dark={dark} cardCls={cardCls} onStart={null} navigate={navigate} onExpire={() => qc.invalidateQueries({ queryKey: ['student-recitations'] })} getAnsKey={getAnsKey} getActKey={getActKey} />
+                  <Section title="قادم قريباً ⏳" items={upcoming} dark={dark} cardCls={cardCls} onStart={null} navigate={navigate} onExpire={() => qc.invalidateQueries({ queryKey: ['student-recitations'] })} getAnsKey={getAnsKey} getActKey={getActKey} backTo={location.state?.backTo} />
                 )}
                 {done.length > 0 && (
-                  <Section title="أديته ✅" items={done} dark={dark} cardCls={cardCls} onStart={startRec} navigate={navigate} startingId={startingId} getAnsKey={getAnsKey} getActKey={getActKey} />
+                  <Section title="أديته ✅" items={done} dark={dark} cardCls={cardCls} onStart={startRec} navigate={navigate} startingId={startingId} getAnsKey={getAnsKey} getActKey={getActKey} backTo={location.state?.backTo} />
                 )}
                 {expired.length > 0 && (
-                  <Section title="منتهي ❌" items={expired} dark={dark} cardCls={cardCls} onStart={null} navigate={navigate} getAnsKey={getAnsKey} getActKey={getActKey} />
+                  <Section title="منتهي ❌" items={expired} dark={dark} cardCls={cardCls} onStart={null} navigate={navigate} getAnsKey={getAnsKey} getActKey={getActKey} backTo={location.state?.backTo} />
                 )}
               </>
             )}
@@ -790,7 +816,7 @@ export default function StudentRecitations() {
 
           <div className="flex gap-3">
             {result?.result?.id && (
-              <button onClick={() => navigate(`/student/recitation-review/${result.result.id}`)}
+              <button onClick={() => navigate(`/student/recitation-review/${result.result.id}`, { state: { backTo: location.state?.backTo || '/student/recitations' } })}
                 className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-black text-sm bg-indigo-500 hover:bg-indigo-600 text-white transition-colors">
                 <Eye className="w-4 h-4" />
                 مراجعة مفصّلة
@@ -850,7 +876,7 @@ export default function StudentRecitations() {
   return null;
 }
 
-function Section({ title, items, dark, cardCls, onStart, navigate, startingId = null, onExpire = null, getAnsKey = (id) => `recitation_answers_${id}`, getActKey = (id) => `recitation_active_${id}` }) {
+function Section({ title, items, dark, cardCls, onStart, navigate, startingId = null, onExpire = null, getAnsKey = (id) => `recitation_answers_${id}`, getActKey = (id) => `recitation_active_${id}`, backTo = null }) {
   return (
     <div>
       <h2 className={`font-black mb-3 text-base sm:text-lg flex items-center gap-2 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>
@@ -973,7 +999,7 @@ function Section({ title, items, dark, cardCls, onStart, navigate, startingId = 
                   <div className="w-full sm:w-auto flex items-center gap-2 flex-wrap sm:flex-nowrap justify-end">
                     {rec.result_id && navigate && (
                       <button
-                        onClick={() => navigate(`/student/recitation-review/${rec.result_id}`)}
+                        onClick={() => navigate(`/student/recitation-review/${rec.result_id}`, { state: { backTo: backTo || '/student/recitations' } })}
                         className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all active:scale-95 ${
                           dark
                             ? 'bg-indigo-900/30 text-indigo-300 hover:bg-indigo-900/50 border border-indigo-700/30'

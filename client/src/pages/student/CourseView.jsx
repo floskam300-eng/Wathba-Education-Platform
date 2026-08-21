@@ -1832,7 +1832,7 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
         {/* [C2-FIX] Link to standalone recitations so students can still access non-course-linked ones */}
         <div className="px-3 pb-3 border-t border-gray-200 dark:border-white/10 pt-3 flex-shrink-0">
           <button
-            onClick={() => navigate('/student/recitations')}
+            onClick={() => navigate('/student/recitations', { state: { backTo: `/student/courses/${courseId}` } })}
             className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[11px] font-black text-purple-600 dark:text-purple-300 bg-purple-50 dark:bg-purple-500/10 hover:bg-purple-100 dark:hover:bg-purple-500/20 transition-all border border-purple-300 dark:border-purple-500/40 shadow-sm hover:shadow-purple-200 dark:hover:shadow-none active:scale-95">
             <BookOpen className="w-3.5 h-3.5" /> عرض كل التسميعات
           </button>
@@ -1855,7 +1855,7 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
         </div>
         <div className="px-3 pb-3 border-t border-gray-200 dark:border-white/10 pt-2 flex-shrink-0">
           <button
-            onClick={() => navigate('/student/recitations')}
+            onClick={() => navigate('/student/recitations', { state: { backTo: `/student/courses/${courseId}` } })}
             className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[11px] font-black text-purple-600 dark:text-purple-300 bg-purple-50 dark:bg-purple-500/10 hover:bg-purple-100 dark:hover:bg-purple-500/20 transition-all border border-purple-300 dark:border-purple-500/40 shadow-sm hover:shadow-purple-200 dark:hover:shadow-none active:scale-95">
             <BookOpen className="w-3.5 h-3.5" /> عرض كل التسميعات (المكتملة) ✓
           </button>
@@ -2069,7 +2069,7 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
           (pending + completed) so the student can review past results. */}
       <div className="px-3 pb-3 border-t border-gray-200 dark:border-white/10 pt-2 flex-shrink-0 bg-white dark:bg-gray-900">
         <button
-          onClick={() => navigate('/student/recitations')}
+          onClick={() => navigate('/student/recitations', { state: { backTo: `/student/courses/${courseId}` } })}
           className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[11px] font-black text-purple-600 dark:text-purple-300 bg-purple-50 dark:bg-purple-500/10 hover:bg-purple-100 dark:hover:bg-purple-500/20 transition-all border border-purple-300 dark:border-purple-500/40 shadow-sm hover:shadow-purple-200 dark:hover:shadow-none active:scale-95">
           <BookOpen className="w-3.5 h-3.5" /> عرض كل التسميعات
         </button>

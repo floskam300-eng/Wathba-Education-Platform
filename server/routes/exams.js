@@ -843,7 +843,7 @@ router.post('/:id/questions/import', requireRole('teacher', 'assistant'), checkM
 });
 
 // ── Update question ──
-router.put('/questions/:qid', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
+router.put(['/questions/:qid', '/:id/questions/:qid'], requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
   const qid = parseParamId(req.params.qid);
   if (!qid) return res.status(400).json({ error: 'معرّف السؤال غير صالح' });
   const teacherId = getTeacherId(req);
@@ -920,7 +920,7 @@ router.put('/questions/:qid', requireRole('teacher', 'assistant'), checkManageEx
 });
 
 // ── Delete question ──
-router.delete('/questions/:qid', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
+router.delete(['/questions/:qid', '/:id/questions/:qid'], requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
   const qid = parseParamId(req.params.qid);
   if (!qid) return res.status(400).json({ error: 'معرّف السؤال غير صالح' });
   const teacherId = getTeacherId(req);
