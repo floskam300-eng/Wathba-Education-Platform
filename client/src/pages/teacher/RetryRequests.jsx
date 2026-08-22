@@ -10,6 +10,7 @@ import api from '../../lib/api';
 import toast from 'react-hot-toast';
 import { useTheme } from '../../context/ThemeContext';
 import AttemptHistoryModal from '../../components/ui/AttemptHistoryModal';
+import useUrlState from '../../hooks/useUrlState';
 
 const STATUS_META = {
   pending:  { label: '⏳ معلق',    bg: 'bg-yellow-100', text: 'text-yellow-800', stripe: 'bg-yellow-400', avatarGrad: 'from-orange-400 to-amber-500' },
@@ -62,8 +63,8 @@ export default function TeacherRetryRequests() {
   const qc = useQueryClient();
   const navigate = useNavigate();
 
-  const [statusFilter, setStatusFilter] = useState('الكل');
-  const [examFilter, setExamFilter] = useState('الكل');
+  const [statusFilter, setStatusFilter] = useUrlState('status', 'الكل');
+  const [examFilter, setExamFilter] = useUrlState('exam', 'الكل');
   const [expandedId, setExpandedId] = useState(null);
   const [noteMap, setNoteMap] = useState({});
   const [confirmBulk, setConfirmBulk] = useState(null);

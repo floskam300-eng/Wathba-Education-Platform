@@ -13,6 +13,7 @@ import { generatePDFReport } from '../../lib/pdfReport';
 import { formatDuration } from '../../lib/format';
 import StudentArchiveModal from '../../components/ui/StudentArchiveModal';
 import ItemArchiveDetailView from '../../components/ui/ItemArchiveDetailView';
+import useUrlState from '../../hooks/useUrlState';
 
 const SORT_OPTIONS = [
   { value: 'name',        label: 'الاسم (أ–ي)' },
@@ -87,25 +88,37 @@ const PillGroup = ({ options, value, onChange, dark }) => (
   </div>
 );
 
-const DEFAULT_FILTERS = { q: '', stage: '', has_type: '', sort: 'name', order: 'asc', page: 1, limit: 50 };
 
 export default function ArchivePage() {
   const { dark } = useTheme();
 
   // Tab State: 'students' (سجل الطلاب) or 'items' (سجل الاختبارات والتسميعات)
-  const [activeTab, setActiveTab] = useState('students');
+  const [activeTab, setActiveTab] = useUrlState('tab', 'students');
 
   // Modals & Selected items
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
 
-  // Tab 1: Student Archive Filters
+  // Tab 1: Student Archive Filters — kept in the URL so they survive back-navigation
   const [filtersOpen, setFiltersOpen] = useState(true);
-  const [filters, setFilters] = useState({ ...DEFAULT_FILTERS });
+  const [fq, setFq] = useUrlState('q', '');
+  const [fstage, setFstage] = useUrlState('stage', '');
+  const [ftype, setFtype] = useUrlState('type', '');
+  const [fsort, setFsort] = useUrlState('sort', 'name');
+  const [forder, setForder] = useUrlState('order', 'asc');
+  const [fpage, setFpage] = useUrlState('page', 1, { parse: Number });
+
+  const filters = { q: fq, stage: fstage, has_type: ftype, sort: fsort, order: forder, page: fpage, limit: 50 };
 
   const setF = useCallback((key, val) => {
-    setFilters(f => ({ ...f, [key]: val, page: key !== 'page' ? 1 : val }));
-  }, []);
+    // Any filter change other than paging itself resets back to page 1
+    if (key === 'q') { setFq(val); setFpage(1); }
+    else if (key === 'stage') { setFstage(val); setFpage(1); }
+    else if (key === 'has_type') { setFtype(val); setFpage(1); }
+    else if (key === 'sort') { setFsort(val); setFpage(1); }
+    else if (key === 'order') { setForder(val); setFpage(1); }
+    else if (key === 'page') setFpage(val);
+  }, [setFq, setFstage, setFtype, setFsort, setForder, setFpage]);
 
   const activeFilterCount = useMemo(() => {
     let n = 0;
@@ -144,15 +157,15 @@ export default function ArchivePage() {
   const totalExams = useMemo(() => students.reduce((s, st) => s + Number(st.total_exams), 0),       [students]);
   const totalRecs  = useMemo(() => students.reduce((s, st) => s + Number(st.total_recitations), 0), [students]);
 
-  // Tab 2: Items (Exams & Recitations) Archive State & Query
-  const [itemsSearch, setItemsSearch] = useState('');
-  const [itemsType, setItemsType] = useState('all');
-  const [itemsStage, setItemsStage] = useState('');
-  const [itemsPublished, setItemsPublished] = useState('all');
-  const [itemsMinMinutes, setItemsMinMinutes] = useState('');
-  const [itemsMaxMinutes, setItemsMaxMinutes] = useState('');
-  const [itemsSort, setItemsSort] = useState('date');
-  const [itemsOrder, setItemsOrder] = useState('desc');
+  // Tab 2: Items (Exams & Recitations) Archive State & Query — URL-synced
+  const [itemsSearch, setItemsSearch] = useUrlState('iq', '');
+  const [itemsType, setItemsType] = useUrlState('itype', 'all');
+  const [itemsStage, setItemsStage] = useUrlState('istage', '');
+  const [itemsPublished, setItemsPublished] = useUrlState('ipub', 'all');
+  const [itemsMinMinutes, setItemsMinMinutes] = useUrlState('imin', '');
+  const [itemsMaxMinutes, setItemsMaxMinutes] = useUrlState('imax', '');
+  const [itemsSort, setItemsSort] = useUrlState('isort', 'date');
+  const [itemsOrder, setItemsOrder] = useUrlState('iorder', 'desc');
 
   const itemsDurationActive = itemsMinMinutes !== '' || itemsMaxMinutes !== '';
 
@@ -521,7 +534,7 @@ export default function ArchivePage() {
                   </div>
 
                   <button
-                    onClick={() => setFilters({ ...DEFAULT_FILTERS })}
+                    onClick={() => { setF('q', ''); setF('stage', ''); setF('has_type', ''); setF('sort', 'name'); setF('order', 'asc'); }}
                     className={`flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl border transition self-end cursor-pointer ${
                       activeFilterCount > 0
                         ? (dark ? 'border-red-800 text-red-400 hover:bg-red-900/20' : 'border-red-200 text-red-500 hover:bg-red-50')
@@ -560,7 +573,7 @@ export default function ArchivePage() {
                 </div>
                 <p className="text-sm font-bold text-gray-400">لا يوجد طلاب يطابقون البحث</p>
                 {activeFilterCount > 0 && (
-                  <button onClick={() => setFilters({ ...DEFAULT_FILTERS })} className="text-xs font-bold text-orange-500 hover:underline cursor-pointer">
+                  <button onClick={() => { setF('q', ''); setF('stage', ''); setF('has_type', ''); setF('sort', 'name'); setF('order', 'asc'); }} className="text-xs font-bold text-orange-500 hover:underline cursor-pointer">
                     إزالة الفلاتر
                   </button>
                 )}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import ConfirmModal from '../../components/ConfirmModal';
+import useUrlState from '../../hooks/useUrlState';
 import { Plus, Edit, Trash2, Search, Filter, Calendar } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -11,9 +12,9 @@ export default function SubscriptionsList() {
   const [loading, setLoading] = useState(true);
 
   // Filters
-  const [filterTeacher, setFilterTeacher] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
-  const [search, setSearch] = useState('');
+  const [filterTeacher, setFilterTeacher] = useUrlState('teacher', '');
+  const [filterStatus, setFilterStatus] = useUrlState('status', '');
+  const [search, setSearch] = useUrlState('q', '');
 
   // Add/Edit Modal
   const [modalOpen, setModalOpen] = useState(false);

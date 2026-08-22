@@ -10,11 +10,13 @@ import TeacherDetail from './pages/teachers/TeacherDetail';
 import PlansList from './pages/plans/PlansList';
 import SubscriptionsList from './pages/subscriptions/SubscriptionsList';
 import PaymentsList from './pages/payments/PaymentsList';
+import ScrollRestoration from './components/ScrollRestoration';
 import { Toaster } from 'react-hot-toast';
 
 export default function App() {
   return (
     <BrowserRouter>
+      <ScrollRestoration />
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<Login />} />

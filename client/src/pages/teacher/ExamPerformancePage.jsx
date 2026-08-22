@@ -10,6 +10,7 @@ import ReactECharts from 'echarts-for-react';
 import api from '../../lib/api';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import useUrlState from '../../hooks/useUrlState';
 
 const CHART_COLORS = ['#6366f1','#f97316','#10b981','#f59e0b','#8b5cf6','#06b6d4','#ec4899','#f43f5e'];
 
@@ -70,12 +71,12 @@ export default function ExamPerformancePage() {
   const backPath  = isAssistant ? '/assistant/analytics'  : '/teacher/analytics';
   const queryKey  = isAssistant ? 'assistant-analytics'   : 'teacher-analytics';
 
-  const [search, setSearch] = useState('');
-  const [stageFilter, setStageFilter] = useState('الكل');
-  const [sortBy, setSortBy] = useState('newest');
-  const [avgFilter, setAvgFilter] = useState('الكل');
+  const [search, setSearch] = useUrlState('q', '');
+  const [stageFilter, setStageFilter] = useUrlState('stage', 'الكل');
+  const [sortBy, setSortBy] = useUrlState('sort', 'newest');
+  const [avgFilter, setAvgFilter] = useUrlState('avg', 'الكل');
   const [showFilters, setShowFilters] = useState(false);
-  const [viewMode, setViewMode] = useState('table'); // 'table' | 'chart'
+  const [viewMode, setViewMode] = useUrlState('view', 'table');
 
   const { data, isLoading } = useQuery({
     queryKey: [queryKey],

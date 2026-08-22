@@ -6,6 +6,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { LiveStreamProvider } from './context/LiveStreamContext';
 import { TeacherWrapper, TeacherNotFound } from './context/TeacherContext';
 import { getTenantSlug } from './lib/tenant';
+import ScrollRestoration from './components/ui/ScrollRestoration';
 const Login = React.lazy(() => import('./pages/Login'));
 const PlatformHome = React.lazy(() => import('./pages/PlatformHome'));
 const LandingPage = React.lazy(() => import('./pages/LandingPage'));
@@ -360,6 +361,7 @@ export default function App() {
                 <div className="animate-spin w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full" />
               </div>
             }>
+              <ScrollRestoration />
               <AppRoutes />
             </React.Suspense>
             <OfflineIndicator />

@@ -8,6 +8,7 @@ import {
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
 import WhatsAppTab from '../../components/WhatsAppTab';
+import useUrlState from '../../hooks/useUrlState';
 
 const PLATFORM_TYPES = [
   { value: 'general',             label: '📢 إعلان عام' },
@@ -180,11 +181,11 @@ function StudentPicker({
 // ── Main Component ──────────────────────────────────────────────────────────
 export default function Notifications() {
   const qc = useQueryClient();
-  const [search, setSearch] = useState('');
-  const [stageFilter, setStageFilter] = useState('الكل');
+  const [search, setSearch] = useUrlState('q', '');
+  const [stageFilter, setStageFilter] = useUrlState('stage', 'الكل');
   const [selectedStudents, setSelectedStudents] = useState([]);
   const [message, setMessage] = useState('');
-  const [tab, setTab] = useState('platform');
+  const [tab, setTab] = useUrlState('tab', 'platform');
 
   const [platformType, setPlatformType] = useState('general');
   const [platformTemplateOpen, setPlatformTemplateOpen] = useState(false);

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../api/axios';
 import ConfirmModal from '../../components/ConfirmModal';
+import useUrlState from '../../hooks/useUrlState';
 import { Search, Plus, Eye, Edit, Trash2, ShieldAlert, X, ShieldCheck, LayoutGrid } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -126,8 +127,8 @@ function FeaturesPopup({ teacher, onToggle, onClose }) {
 export default function TeachersList() {
   const [teachers, setTeachers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all'); // all, active, suspended
+  const [search, setSearch] = useUrlState('q', '');
+  const [filterStatus, setFilterStatus] = useUrlState('status', 'all'); // all, active, suspended
 
   // Modal states
   const [deleteId, setDeleteId] = useState(null);

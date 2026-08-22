@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import api from '../../lib/api';
 import MathText from '../../components/MathText';
+import useUrlState from '../../hooks/useUrlState';
 
 const LETTER_COLORS = { A: '#6366f1', B: '#f59e0b', C: '#10b981', D: '#f43f5e' };
 const OPTION_KEYS = ['option_a', 'option_b', 'option_c', 'option_d'];
@@ -143,12 +144,12 @@ function ExamSection({ exam, wrongPctFilter, sortQuestionsBy }) {
 
 export default function WrongQuestionsPage() {
   const navigate = useNavigate();
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useUrlState('q', '');
   const [showFilters, setShowFilters] = useState(false);
-  const [wrongPctFilter, setWrongPctFilter] = useState('الكل');
-  const [sortExamsBy, setSortExamsBy] = useState('wrong_desc');
-  const [sortQuestionsBy, setSortQuestionsBy] = useState('wrong_desc');
-  const [examFilter, setExamFilter] = useState('الكل');
+  const [wrongPctFilter, setWrongPctFilter] = useUrlState('pct', 'الكل');
+  const [sortExamsBy, setSortExamsBy] = useUrlState('esort', 'wrong_desc');
+  const [sortQuestionsBy, setSortQuestionsBy] = useUrlState('qsort', 'wrong_desc');
+  const [examFilter, setExamFilter] = useUrlState('exam', 'الكل');
 
   const { data: exams = [], isLoading } = useQuery({
     queryKey: ['wrong-questions-full'],

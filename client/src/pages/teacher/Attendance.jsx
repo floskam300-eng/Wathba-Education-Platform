@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import api from '../../lib/api';
 import { useTheme } from '../../context/ThemeContext';
+import useUrlState from '../../hooks/useUrlState';
 
 const PRESENT_THRESHOLD = 70;
 const PARTIAL_THRESHOLD = 20;
@@ -46,17 +47,17 @@ const StatusIcon = ({ status }) => {
 
 export default function Attendance() {
   const { dark } = useTheme();
-  const [selectedCourse, setSelectedCourse] = useState('');
+  const [selectedCourse, setSelectedCourse] = useUrlState('course', '');
 
-  // ── Filters & Sorting State ──
-  const [searchQ, setSearchQ] = useState('');
-  const [sortBy, setSortBy] = useState('most_watched'); // 'most_watched' | 'least_watched' | 'name_asc' | 'name_desc' | 'code_asc' | 'default'
-  const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'present' | 'partial' | 'absent' | 'zero'
-  const [stageFilter, setStageFilter] = useState('الكل');
-  const [selectedVideoFilter, setSelectedVideoFilter] = useState('all'); // 'all' | videoId string
-  const [videoStatusFilter, setVideoStatusFilter] = useState('all'); // 'all' | 'present' | 'partial' | 'absent' | 'zero'
+  // ── Filters & Sorting State (URL-synced so they survive back-navigation) ──
+  const [searchQ, setSearchQ] = useUrlState('q', '');
+  const [sortBy, setSortBy] = useUrlState('sort', 'most_watched');
+  const [statusFilter, setStatusFilter] = useUrlState('status', 'all');
+  const [stageFilter, setStageFilter] = useUrlState('stage', 'الكل');
+  const [selectedVideoFilter, setSelectedVideoFilter] = useUrlState('video', 'all');
+  const [videoStatusFilter, setVideoStatusFilter] = useUrlState('vstatus', 'all');
   const [pageSize, setPageSize] = useState(25); // 25 | 50 | 100 | -1 (all)
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useUrlState('page', 1, { parse: Number });
 
   const { data: courses, isLoading: loadingCourses } = useQuery({
     queryKey: ['courses-list'],

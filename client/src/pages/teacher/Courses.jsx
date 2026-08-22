@@ -12,6 +12,7 @@ import api from '../../lib/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import { validateCourseForm, hasErrors } from '../../lib/validation';
+import useUrlState from '../../hooks/useUrlState';
 
 function FieldError({ error }) {
   if (!error) return null;
@@ -92,7 +93,7 @@ export default function TeacherCourses() {
   const [editData, setEditData] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [deleteId, setDeleteId] = useState(null);
-  const [stageFilter, setStageFilter] = useState('الكل');
+  const [stageFilter, setStageFilter] = useUrlState('stage', 'الكل');
   const [thumbnailFile, setThumbnailFile] = useState(null);
   const [thumbnailUploading, setThumbnailUploading] = useState(false);
   const thumbnailFileRef = useRef(null);

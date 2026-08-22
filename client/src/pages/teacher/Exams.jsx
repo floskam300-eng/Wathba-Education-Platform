@@ -15,6 +15,7 @@ import api from '../../lib/api';
 import toast from 'react-hot-toast';
 import { generatePDFReport } from '../../lib/pdfReport';
 import { validateExamForm, hasErrors } from '../../lib/validation';
+import useUrlState from '../../hooks/useUrlState';
 import { toUTCDate, fmtDateLocal as _fmtDateLocal, getServerNow, formatEgyptDateTime, parseEgyptDateTimeToUTC } from '../../lib/dateUtils';
 
 function FieldError({ error }) {
@@ -68,7 +69,7 @@ export default function TeacherExams() {
   const [form, setForm] = useState(emptyExam);
   const [deleteId, setDeleteId] = useState(null);
   const [expandedExam, setExpandedExam] = useState(null);
-  const [stageFilter, setStageFilter] = useState('الكل');
+  const [stageFilter, setStageFilter] = useUrlState('stage', 'الكل');
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [studentSearch, setStudentSearch] = useState('');
   const [showStudentDropdown, setShowStudentDropdown] = useState(false);

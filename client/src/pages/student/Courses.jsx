@@ -9,6 +9,7 @@ import {
 import api from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
+import useUrlState from '../../hooks/useUrlState';
 
 const STAGE_COLORS = {
   'الصف الأول الابتدائي': 'bg-rose-50 text-rose-700 border-rose-200',
@@ -116,8 +117,8 @@ export default function StudentCourses() {
   const navigate = useNavigate();
   const location = useLocation();
   const qc = useQueryClient();
-  const [tab, setTab] = useState('enrolled');
-  const [stageFilter, setStageFilter] = useState('الكل');
+  const [tab, setTab] = useUrlState('tab', 'enrolled');
+  const [stageFilter, setStageFilter] = useUrlState('stage', 'الكل');
   const [requestMsg, setRequestMsg] = useState({});
 
   useEffect(() => {
@@ -125,7 +126,7 @@ export default function StudentCourses() {
       setTab(location.state.tab);
       window.history.replaceState({}, '');
     }
-  }, [location.state]);
+  }, [location.state, setTab]);
 
   const { data: courses = [], isLoading } = useQuery({
     queryKey: ['student-courses'],

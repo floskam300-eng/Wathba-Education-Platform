@@ -17,6 +17,7 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import { generatePDFReport } from '../../lib/pdfReport';
 import { validateStudentForm, hasErrors } from '../../lib/validation';
+import useUrlState from '../../hooks/useUrlState';
 
 function FieldError({ error }) {
   if (!error) return null;
@@ -520,20 +521,31 @@ export default function TeacherStudents() {
   const location = useLocation();
   const navigate = useNavigate();
   const baseRole = user?.role === 'assistant' ? 'assistant' : 'teacher';
-  const [mainView, setMainView] = useState('students'); // 'students' | 'alerts'
-  const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [stageFilter, setStageFilter] = useState('الكل');
-  const [page, setPage] = useState(1);
+  // Filter/search/page state lives in the URL so it survives back-navigation
+  const [mainView, setMainView] = useUrlState('view', 'students');
+  const [search, setSearch] = useUrlState('q', '');
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
+  const [stageFilter, setStageFilter] = useUrlState('stage', 'الكل');
+  const [page, setPage] = useUrlState('page', 1, { parse: Number });
   const [totalCount, setTotalCount] = useState(0);
   const [reportLoading, setReportLoading] = useState(false);
 
+  // Reset page to 1 only when search/stage actually change after mount —
+  // never on mount, so a restored URL (?q=…&stage=…&page=3) keeps its page.
+  const prevSearch = useRef(search);
   useEffect(() => {
+    if (prevSearch.current === search) return;
+    prevSearch.current = search;
     const t = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 400);
     return () => clearTimeout(t);
-  }, [search]);
+  }, [search, setPage]);
 
-  useEffect(() => { setPage(1); }, [stageFilter]);
+  const prevStage = useRef(stageFilter);
+  useEffect(() => {
+    if (prevStage.current === stageFilter) return;
+    prevStage.current = stageFilter;
+    setPage(1);
+  }, [stageFilter, setPage]);
 
   // Instantly refresh alerts when switching to the alerts tab
   useEffect(() => {

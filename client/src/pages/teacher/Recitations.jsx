@@ -12,6 +12,7 @@ import toast from 'react-hot-toast';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { withToken } from '../../lib/mediaAccess';
+import useUrlState from '../../hooks/useUrlState';
 import { fmtDateLocal, toUTCDate, getServerNow, formatEgyptDateTime, parseEgyptDateTimeToUTC } from '../../lib/dateUtils';
 import MathText from '../../components/MathText';
 import RichTextPalette, { CompactOptionFormatter } from '../../components/RichTextPalette';
@@ -176,15 +177,15 @@ export default function Recitations() {
     return isNaN(d.getTime()) ? null : d.toISOString();
   };
 
-  const [tab, setTab] = useState('list');
+  const [tab, setTab] = useUrlState('tab', 'list');
   const [modal, setModal] = useState(false);
   const [editRec, setEditRec] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [formErrors, setFormErrors] = useState({});
   const [selectedId, setSelectedId] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
-  const [search, setSearch] = useState('');
-  const [stageFilter, setStageFilter] = useState('');
+  const [search, setSearch] = useUrlState('q', '');
+  const [stageFilter, setStageFilter] = useUrlState('stage', '');
   // [retake-grant] Modal showing every student who took the selected recitation
   // with a "grant retake" button next to each name.
   const [grantModalRecId, setGrantModalRecId] = useState(null);

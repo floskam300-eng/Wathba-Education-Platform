@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import api from '../../api/axios';
 import ConfirmModal from '../../components/ConfirmModal';
+import useUrlState from '../../hooks/useUrlState';
 import { Plus, Trash2, Search, Calendar, Landmark } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -10,7 +11,7 @@ export default function PaymentsList() {
   const [loading, setLoading] = useState(true);
 
   // Filters
-  const [filterTeacher, setFilterTeacher] = useState('');
+  const [filterTeacher, setFilterTeacher] = useUrlState('teacher', '');
 
   // Add Payment Modal
   const [modalOpen, setModalOpen] = useState(false);

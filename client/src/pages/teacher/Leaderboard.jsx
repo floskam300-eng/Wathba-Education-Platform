@@ -5,6 +5,7 @@ import api from '../../lib/api';
 import toast from 'react-hot-toast';
 import { useTheme } from '../../context/ThemeContext';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
+import useUrlState from '../../hooks/useUrlState';
 
 const MEDAL = ['🥇', '🥈', '🥉'];
 
@@ -108,8 +109,8 @@ function HistoryCard({ record }) {
 
 export default function TeacherLeaderboard() {
   const { dark } = useTheme();
-  const [stageFilter, setStageFilter] = useState('الكل');
-  const [tab, setTab] = useState('current');
+  const [stageFilter, setStageFilter] = useUrlState('stage', 'الكل');
+  const [tab, setTab] = useUrlState('tab', 'current');
   const [confirmReset, setConfirmReset] = useState(false);
   const queryClient = useQueryClient();
 

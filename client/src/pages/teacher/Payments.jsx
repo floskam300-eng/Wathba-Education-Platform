@@ -5,6 +5,7 @@ import {
   AlertCircle, Search, Filter, Calendar, GraduationCap
 } from 'lucide-react';
 import { validatePaymentForm, hasErrors } from '../../lib/validation';
+import useUrlState from '../../hooks/useUrlState';
 
 function FieldError({ error }) {
   if (!error) return null;
@@ -57,10 +58,10 @@ export default function TeacherPayments() {
   const [verifyModal, setVerifyModal] = useState(null);
   const [verifyForm, setVerifyForm] = useState(emptyVerify);
 
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [stageFilter, setStageFilter] = useState('الكل');
-  const [monthFilter, setMonthFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useUrlState('status', 'all');
+  const [searchQuery, setSearchQuery] = useUrlState('q', '');
+  const [stageFilter, setStageFilter] = useUrlState('stage', 'الكل');
+  const [monthFilter, setMonthFilter] = useUrlState('month', '');
 
   const clearError = (field) => setFormErrors(prev => { const n = { ...prev }; delete n[field]; return n; });
 
