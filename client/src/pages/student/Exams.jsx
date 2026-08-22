@@ -436,6 +436,13 @@ export default function StudentExams() {
         const elapsedSecs = Math.max(0, Math.floor((serverNowMs - startedAtMs) / 1000));
         remainingSecs = Math.max(0, durationSecs - elapsedSecs);
       }
+      if (examData.exam?.end_date) {
+        const endMs = toUTCDate(examData.exam.end_date)?.getTime();
+        if (endMs && !isNaN(endMs)) {
+          const timeUntilEndSec = Math.max(0, Math.floor((endMs - serverNowMs) / 1000));
+          remainingSecs = Math.min(remainingSecs, timeUntilEndSec);
+        }
+      }
     }
 
     const startIso = examData.server_started_at || examData.serverStartedAt || new Date().toISOString();

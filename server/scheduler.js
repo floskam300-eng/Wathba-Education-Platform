@@ -477,6 +477,24 @@ async function runEndedExamCheck() {
 
     for (const exam of endedExams) {
       try {
+        // Auto-submit any active in-progress exam sessions for this ended exam first
+        const { rows: openSessions } = await _pool.query(`
+          SELECT es.student_id, es.exam_id, es.started_at, es.questions_snapshot, es.answers,
+                 e.id, e.title, e.total_score, e.pass_score, e.points_on_pass, e.points_on_attempt,
+                 e.badge_name, e.badge_color, e.teacher_id, e.question_source, e.bank_id,
+                 COALESCE(e.duration_minutes, 60) AS duration_minutes
+          FROM exam_sessions es
+          JOIN exams e ON es.exam_id = e.id
+          WHERE es.exam_id = $1
+        `, [exam.id]);
+        for (const sess of openSessions) {
+          try {
+            await autoSubmitExpiredExamSession(_pool, sess, sess, sess.student_id, sess.exam_id);
+          } catch (sessErr) {
+            console.error(`[Scheduler] Error auto-submitting session for ended exam ${exam.id}:`, sessErr.message);
+          }
+        }
+
         // N4 FIX: delegate to markAbsentStudents() instead of duplicating its logic here.
         // Previously this block was a copy of that function — any future fix to the
         // shared function (e.g. new eligibility rules) now automatically applies here.
@@ -566,6 +584,8 @@ async function runExpiredExamSessionsCheck() {
       FROM exam_sessions es
       JOIN exams e ON es.exam_id = e.id
       WHERE es.started_at + ((COALESCE(e.duration_minutes, 60) * 60 + 90) * interval '1 second') < NOW()
+         OR (e.end_date IS NOT NULL AND e.end_date <= NOW())
+         OR e.deleted_at IS NOT NULL
       LIMIT 100
     `);
 

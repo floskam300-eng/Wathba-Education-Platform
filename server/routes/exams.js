@@ -33,11 +33,11 @@ fs.mkdirSync(QUESTION_IMG_DIR, { recursive: true });
 
 // ── Helper: mark absent records for students who missed a published exam ──────
 // Called on manual unpublish and from the ended-exam scheduler.
-// Only inserts for students who have NO existing result for this exam.
+// Only inserts for students who have NO existing result and NO active session for this exam.
 async function markAbsentStudents(poolOrClient, examId, teacherId) {
   try {
     const examInfo = await poolOrClient.query(
-      'SELECT course_id, start_date FROM exams WHERE id=$1 AND deleted_at IS NULL', [examId]
+      'SELECT id, title, total_score, pass_score, points_on_pass, points_on_attempt, badge_name, badge_color, teacher_id, question_source, bank_id, duration_minutes, course_id, start_date FROM exams WHERE id=$1 AND deleted_at IS NULL', [examId]
     );
     if (!examInfo.rows.length) return 0;
     const { course_id: courseId, start_date: startDate } = examInfo.rows[0];
@@ -52,6 +52,25 @@ async function markAbsentStudents(poolOrClient, examId, teacherId) {
       );
       console.log(`[markAbsentStudents] exam=${examId} start_date is in the future (${startDate}) — skipped absent marking and cleaned any phantom records`);
       return 0;
+    }
+
+    // Auto-submit any remaining open in-progress sessions before marking absentees
+    const { rows: openSessions } = await poolOrClient.query(
+      `SELECT es.student_id, es.exam_id, es.started_at, es.questions_snapshot, es.answers,
+              e.id, e.title, e.total_score, e.pass_score, e.points_on_pass, e.points_on_attempt,
+              e.badge_name, e.badge_color, e.teacher_id, e.question_source, e.bank_id,
+              COALESCE(e.duration_minutes, 60) AS duration_minutes
+       FROM exam_sessions es
+       JOIN exams e ON es.exam_id = e.id
+       WHERE es.exam_id = $1`,
+      [examId]
+    );
+    for (const sess of openSessions) {
+      try {
+        await autoSubmitExpiredExamSession(poolOrClient, sess, sess, sess.student_id, sess.exam_id);
+      } catch (sessErr) {
+        console.error(`[markAbsentStudents] Error auto-submitting session for exam ${examId}:`, sessErr.message);
+      }
     }
 
     // [ABS-1 FIX] Use is_latest=true in NOT EXISTS to avoid blocking absent-marking
@@ -69,6 +88,10 @@ async function markAbsentStudents(poolOrClient, examId, teacherId) {
              SELECT 1 FROM exam_results er
              WHERE er.student_id=sce.student_id AND er.exam_id=$2
                AND er.is_latest=true
+           )
+           AND NOT EXISTS (
+             SELECT 1 FROM exam_sessions es
+             WHERE es.student_id=sce.student_id AND es.exam_id=$2
            )`,
         [courseId, examId]
       );
@@ -82,6 +105,10 @@ async function markAbsentStudents(poolOrClient, examId, teacherId) {
              SELECT 1 FROM exam_results er
              WHERE er.student_id=s.id AND er.exam_id=$2
                AND er.is_latest=true
+           )
+           AND NOT EXISTS (
+             SELECT 1 FROM exam_sessions es
+             WHERE es.student_id=s.id AND es.exam_id=$2
            )`,
         [teacherId, examId]
       );
@@ -99,6 +126,10 @@ async function markAbsentStudents(poolOrClient, examId, teacherId) {
          WHERE NOT EXISTS (
            SELECT 1 FROM exam_results er
            WHERE er.student_id=s_id AND er.exam_id=$2 AND er.is_latest=true
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM exam_sessions es
+           WHERE es.student_id=s_id AND es.exam_id=$2
          )`,
         [studentIds, examId]
       );
@@ -1394,7 +1425,16 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
     const durationMinutes = Math.max(1, parseInt(exam.duration_minutes, 10) || 60);
     const maxDurationMs = (durationMinutes * 60 + 90) * 1000;
     let isResumed = false;
-    let remainingSeconds = durationMinutes * 60;
+
+    const getCappedRemainingSeconds = (timeByDurationSec) => {
+      if (exam.end_date && retryRes.rows.length === 0) {
+        const timeUntilEndSec = Math.max(0, Math.floor((new Date(exam.end_date).getTime() - serverNow.getTime()) / 1000));
+        return Math.min(timeByDurationSec, timeUntilEndSec);
+      }
+      return timeByDurationSec;
+    };
+
+    let remainingSeconds = getCappedRemainingSeconds(durationMinutes * 60);
 
     try {
       // Check if session already exists
@@ -1407,10 +1447,11 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
         const sess = sessionRow.rows[0];
         const sessStartedAtMs = new Date(sess.started_at).getTime();
         const elapsedMs = serverNow.getTime() - sessStartedAtMs;
+        const hasRetry = retryRes.rows.length > 0;
+        const isPastEndDate = exam.end_date && new Date(exam.end_date) <= serverNow && !hasRetry;
 
-        if (elapsedMs > maxDurationMs) {
+        if (elapsedMs > maxDurationMs || isPastEndDate) {
           // Abandoned / expired session
-          const hasRetry = retryRes.rows.length > 0;
           if (!hasRetry) {
             const existingResRow = await pool.query(
               'SELECT id FROM exam_results WHERE student_id=$1 AND exam_id=$2 AND is_latest=true AND is_absent=false',
@@ -1422,7 +1463,7 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
               await pool.query('DELETE FROM exam_sessions WHERE student_id=$1 AND exam_id=$2', [studentId, examId]);
             }
             return res.status(403).json({
-              error: 'لقد انتهت مهلة محاولتك السابقة — يُرجى طلب الإعادة من المعلم',
+              error: 'لقد انتهت مهلة محاولتك لهذا الاختبار — يُرجى طلب الإعادة من المعلم',
               timer_expired: true,
               already_submitted: true,
             });
@@ -1435,13 +1476,14 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
               [studentId, examId, JSON.stringify(questions)]
             );
             serverStartedAt = insertRes.rows[0]?.started_at || serverNow.toISOString();
-            remainingSeconds = durationMinutes * 60;
+            remainingSeconds = getCappedRemainingSeconds(durationMinutes * 60);
             isResumed = false;
           }
         } else {
           // Active session — resume seamlessly
           serverStartedAt = sess.started_at;
-          remainingSeconds = Math.max(0, Math.floor(((durationMinutes * 60 * 1000) - elapsedMs) / 1000));
+          const timeByDurationSec = Math.max(0, Math.floor(((durationMinutes * 60 * 1000) - elapsedMs) / 1000));
+          remainingSeconds = getCappedRemainingSeconds(timeByDurationSec);
           isResumed = true;
           const storedSnap = sess.questions_snapshot;
           if (Array.isArray(storedSnap) && storedSnap.length > 0) {
@@ -1470,7 +1512,7 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
             questions = freshCheck.rows[0].questions_snapshot;
           }
         }
-        remainingSeconds = durationMinutes * 60;
+        remainingSeconds = getCappedRemainingSeconds(durationMinutes * 60);
         isResumed = false;
       }
     } catch (sessionErr) {
@@ -1568,8 +1610,9 @@ router.post('/:id/submit', submitLimiter, requireRole('student'), async (req, re
       'SELECT id FROM exam_results WHERE student_id=$1 AND exam_id=$2 AND is_latest=true AND is_absent=false',
       [studentId, examId]
     );
+    let retryApproved = { rows: [] };
     if (existing.rows.length > 0) {
-      const retryApproved = await pool.query(
+      retryApproved = await pool.query(
         "SELECT id FROM exam_retry_requests WHERE student_id=$1 AND exam_id=$2 AND status='approved' ORDER BY created_at DESC LIMIT 1",
         [studentId, examId]
       );
@@ -1592,21 +1635,25 @@ router.post('/:id/submit', submitLimiter, requireRole('student'), async (req, re
 
     eligibilityRow = ec.rows[0];
 
-    // Reject if exam window has not yet opened
-    const nowCheck = new Date();
-    if (eligibilityRow.start_date && new Date(eligibilityRow.start_date) > nowCheck)
-      return res.status(409).json({ error: 'الاختبار لم يبدأ بعد — لا يمكن تسليم الإجابات قبل موعد البدء' });
-
-    // Reject if exam window has closed
-    if (eligibilityRow.end_date && new Date(eligibilityRow.end_date) < nowCheck)
-      return res.status(409).json({ error: 'انتهى وقت الاختبار — لا يمكن تسليم الإجابات بعد انقضاء المهلة' });
-
     // ── Fetch server-side session (start time + question snapshot) ──
     const sessionRes = await pool.query(
       'SELECT started_at, questions_snapshot FROM exam_sessions WHERE student_id=$1 AND exam_id=$2',
       [studentId, examId]
     );
     serverSession = sessionRes.rows[0] || null;
+
+    // Reject if exam window has not yet opened
+    const nowCheck = new Date();
+    if (eligibilityRow.start_date && new Date(eligibilityRow.start_date) > nowCheck)
+      return res.status(409).json({ error: 'الاختبار لم يبدأ بعد — لا يمكن تسليم الإجابات قبل موعد البدء' });
+
+    // If exam window has closed:
+    // If the student started a valid session before end_date or has an approved retry,
+    // we ALLOW them to submit their completed questions instead of rejecting with 409.
+    const isRetryApproved = retryApproved?.rows && retryApproved.rows.length > 0;
+    const hasValidSession = serverSession && (!eligibilityRow.end_date || new Date(serverSession.started_at) <= new Date(eligibilityRow.end_date));
+    if (eligibilityRow.end_date && new Date(eligibilityRow.end_date) < nowCheck && !isRetryApproved && !hasValidSession)
+      return res.status(409).json({ error: 'انتهى وقت الاختبار — لا يمكن تسليم الإجابات بعد انقضاء المهلة' });
 
     // Note: If elapsedMs > maxMs, we do NOT reject with 409 — we accept and grade
     // the submission with locked=false (no early bonus), ensuring answers are recorded
