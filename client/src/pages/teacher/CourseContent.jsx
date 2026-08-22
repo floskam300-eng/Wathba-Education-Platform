@@ -670,7 +670,10 @@ export default function CourseContent() {
       <div className="flex-shrink-0 bg-white border-b border-gray-200 shadow-sm">
         <div className="px-4 lg:px-6 py-3 flex items-center gap-2 sm:gap-3">
           <button
-            onClick={() => navigate(`/${baseRole}/courses`)}
+            onClick={() => {
+              if ((window.history.state?.idx ?? 0) > 0) navigate(-1);
+              else navigate(`/${baseRole}/courses`);
+            }}
             className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-xl text-gray-600 hover:bg-gray-100 transition-all font-bold text-sm flex-shrink-0">
             <ArrowRight className="w-4 h-4" />
             <span className="hidden sm:inline">رجوع للكورسات</span>

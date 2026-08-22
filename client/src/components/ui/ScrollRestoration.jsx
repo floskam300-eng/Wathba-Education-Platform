@@ -120,7 +120,10 @@ export default function ScrollRestoration() {
   const pathname = location.pathname;
   const search = location.search;
 
-  // On page change: flush old positions, then restore (back/forward) or reset.
+  // On page change: flush old positions, then restore (back/forward), reset
+  // (new route), or do nothing (query-param tweak on the same route).
+  const prevPathnameRef = useRef(pathname);
+
   useEffect(() => {
     const prevKey = keyRef.current;
     const nextKey = pathname + search;
@@ -132,7 +135,17 @@ export default function ScrollRestoration() {
     }
     keyRef.current = nextKey;
 
+    // Same route, different query string (filter typed, tab/rec selected,
+    // page changed…): leave the scroll position exactly where it is.
+    // Resetting here would yank the user to the top on every keystroke
+    // because url-state updates replace the query string as you interact.
+    const sameRoute = prevPathnameRef.current === pathname;
+    prevPathnameRef.current = pathname;
+
     let cancelled = false;
+
+    if (sameRoute) return () => { cancelled = true; };
+
     const saved = navType === 'POP' ? loadMap()[nextKey] : null;
 
     if (saved && saved.some(t => t > 0)) {

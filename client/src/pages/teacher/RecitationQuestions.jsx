@@ -203,7 +203,16 @@ export default function RecitationQuestions() {
       <div className="flex-shrink-0 bg-white dark:bg-[var(--dk-surface)] border-b border-gray-200 dark:border-[var(--dk-border)] shadow-sm">
         <div className="px-4 lg:px-6 py-3 flex items-center gap-2 sm:gap-3">
           <button
-            onClick={() => navigate(`/${baseRole}/recitations`)}
+            onClick={() => {
+              // Return to wherever the teacher came from (usually the
+              // recitations list with its ?rec/&q/&stage filters intact).
+              // navigate(-1) restores the exact previous URL so all
+              // URL-synced list state and the scroll position come back.
+              // history.state.idx > 0 guarantees an in-app entry exists to
+              // go back to; deep links fall back to the plain list.
+              if ((window.history.state?.idx ?? 0) > 0) navigate(-1);
+              else navigate(`/${baseRole}/recitations`);
+            }}
             className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-xl text-gray-600 dark:text-[var(--dk-text-2)] hover:bg-gray-100 dark:hover:bg-[var(--dk-elevated)] transition-all font-bold text-sm flex-shrink-0">
             <ArrowRight className="w-4 h-4" />
             <span className="hidden sm:inline">رجوع للتسميعات</span>
