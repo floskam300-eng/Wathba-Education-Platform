@@ -526,6 +526,7 @@ export default function TeacherStudents() {
   const [stageFilter, setStageFilter] = useState('الكل');
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+  const [reportLoading, setReportLoading] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 400);
@@ -1009,22 +1010,39 @@ export default function TeacherStudents() {
     return val;
   };
 
+  const fetchAllStudents = () => api.get('/students', {
+    params: {
+      ...(debouncedSearch ? { search: debouncedSearch } : {}),
+      ...(stageFilter !== 'الكل' ? { stage: stageFilter } : {}),
+    },
+  }).then(r => r.data);
+
   const handleExportExcel = async () => {
-    const XLSX = await import('xlsx');
-    const exportData = filtered.map(s => ({
-      'الاسم': sanitizeCell(s.name),
-      'الهاتف': sanitizeCell(s.phone || ''),
-      'هاتف ولي الأمر': sanitizeCell(s.parent_phone || ''),
-      'المرحلة': sanitizeCell(s.academic_stage || ''),
-      'الجنس': sanitizeCell(s.gender || ''),
-      'النقاط': s.points ?? 0,
-    }));
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    ws['!cols'] = [{ wch: 25 }, { wch: 15 }, { wch: 18 }, { wch: 28 }, { wch: 10 }, { wch: 8 }];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'الطلاب');
-    XLSX.writeFile(wb, `students_${new Date().toISOString().slice(0, 10)}.xlsx`);
-    toast.success(`تم تصدير ${exportData.length} طالب`);
+    if (reportLoading) return;
+    setReportLoading(true);
+    try {
+      const [XLSX, all] = await Promise.all([import('xlsx'), fetchAllStudents()]);
+      const exportData = all.map(s => ({
+        'الاسم': sanitizeCell(s.name),
+        'اسم المستخدم': sanitizeCell(s.username || ''),
+        'كلمة المرور': sanitizeCell(s.plain_password || ''),
+        'الهاتف': sanitizeCell(s.phone || ''),
+        'هاتف ولي الأمر': sanitizeCell(s.parent_phone || ''),
+        'المرحلة': sanitizeCell(s.academic_stage || ''),
+        'الجنس': sanitizeCell(s.gender || ''),
+        'النقاط': s.points ?? 0,
+      }));
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      ws['!cols'] = [{ wch: 25 }, { wch: 15 }, { wch: 18 }, { wch: 15 }, { wch: 18 }, { wch: 28 }, { wch: 10 }, { wch: 8 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'الطلاب');
+      XLSX.writeFile(wb, `students_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      toast.success(`تم تصدير ${exportData.length} طالب`);
+    } catch {
+      toast.error('فشل تصدير الطلاب');
+    } finally {
+      setReportLoading(false);
+    }
   };
 
   const canAdd = user?.role === 'teacher' || user?.can_add_students;
@@ -1091,19 +1109,28 @@ export default function TeacherStudents() {
 
   const filtered = students;
 
-  const handlePrint = () => {
-    const headers = ['الاسم', 'اسم المستخدم', 'الهاتف', 'هاتف ولي الأمر', 'المرحلة', 'الجنس', 'الكورسات المسجّلة', 'النقاط'];
-    const data = filtered.map(s => [
-      s.name || '—', s.username || '—', s.phone || '—', s.parent_phone || '—',
-      s.academic_stage || '—', s.gender || '—',
-      (s.enrolled_courses ?? 0).toString(), (s.points ?? 0).toString(),
-    ]);
-    generatePDFReport('تقرير الطلاب', headers, data, 'students_report.pdf', {
-      stats: [
-        { label: 'إجمالي الطلاب', value: filtered.length, color: '#1e3a5f' },
-        { label: 'إجمالي النقاط', value: filtered.reduce((a, s) => a + (s.points ?? 0), 0), color: '#f97316' },
-      ],
-    });
+  const handlePrint = async () => {
+    if (reportLoading) return;
+    setReportLoading(true);
+    try {
+      const all = await fetchAllStudents();
+      const headers = ['الاسم', 'اسم المستخدم', 'كلمة المرور', 'الهاتف', 'هاتف ولي الأمر', 'المرحلة', 'الجنس', 'الكورسات المسجّلة', 'النقاط'];
+      const data = all.map(s => [
+        s.name || '—', s.username || '—', s.plain_password || '—', s.phone || '—', s.parent_phone || '—',
+        s.academic_stage || '—', s.gender || '—',
+        (s.enrolled_courses ?? 0).toString(), (s.points ?? 0).toString(),
+      ]);
+      generatePDFReport('تقرير الطلاب', headers, data, 'students_report.pdf', {
+        stats: [
+          { label: 'إجمالي الطلاب', value: all.length, color: '#1e3a5f' },
+          { label: 'إجمالي النقاط', value: all.reduce((a, s) => a + (s.points ?? 0), 0), color: '#f97316' },
+        ],
+      });
+    } catch {
+      toast.error('فشل تحميل بيانات الطباعة');
+    } finally {
+      setReportLoading(false);
+    }
   };
 
   return (
@@ -1116,12 +1143,12 @@ export default function TeacherStudents() {
         </h1>
         <div className="flex gap-2 flex-wrap items-center">
           {canPrint && (
-            <button onClick={handlePrint} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-semibold transition-all">
+            <button onClick={handlePrint} disabled={reportLoading} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-slate-100">
               <Printer className="w-4 h-4" /> طباعة
             </button>
           )}
           {canPrint && (
-            <button onClick={handleExportExcel} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm font-semibold transition-all">
+            <button onClick={handleExportExcel} disabled={reportLoading} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-50">
               <Download className="w-4 h-4" /> تصدير
             </button>
           )}
