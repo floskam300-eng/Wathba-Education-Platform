@@ -182,7 +182,7 @@ export default function Recitations() {
   const [editRec, setEditRec] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [formErrors, setFormErrors] = useState({});
-  const [selectedId, setSelectedId] = useState(null);
+  const [selectedId, setSelectedId] = useUrlState('rec', null, { parse: (v) => parseInt(v, 10) });
   const [deleteId, setDeleteId] = useState(null);
   const [search, setSearch] = useUrlState('q', '');
   const [stageFilter, setStageFilter] = useUrlState('stage', '');
