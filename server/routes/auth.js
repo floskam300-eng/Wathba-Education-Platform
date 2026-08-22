@@ -6,6 +6,7 @@ const pool = require('../db/connection');
 const { generateToken, authenticate, blacklistToken, invalidateStudentAuthCache, extractJti } = require('../middleware/auth');
 const { logActivity, getIp } = require('../lib/activityLog');
 const { pushSessionKicked, broadcastToTeacherAndAssistants } = require('../sse');
+const { computeSimilarityScore, computeHardwareHash, MATCH_THRESHOLD } = require('../lib/hardwareFingerprint');
 
 const router = express.Router();
 
@@ -332,7 +333,7 @@ router.post('/login', loginLimiter, async (req, res) => {
   // Instruct browsers to send high-entropy client hints on future requests
   res.setHeader('Accept-CH', 'Sec-CH-UA-Model, Sec-CH-UA-Platform-Version, Sec-CH-UA-Full-Version-List, Sec-CH-UA-Mobile');
 
-  const { username, password, role, device_id, device_origin, device_name } = req.body;
+  const { username, password, role, device_id, device_origin, device_name, hardware_profile, hardware_hash } = req.body;
   // [H-3] Mutable session-wide flag set inside the student device-check
   // transaction. The Login page uses it to decide whether to show the
   // DeviceWarningModal ("first time on this device") — so the warning is
@@ -376,23 +377,22 @@ router.post('/login', loginLimiter, async (req, res) => {
 
       if (r === 'teacher') {
         result = slugTeacherId
-          ? await pool.query('SELECT * FROM teachers WHERE username = $1 AND id = $2', [username, slugTeacherId])
-          : await pool.query('SELECT * FROM teachers WHERE username = $1', [username]);
+          ? await pool.query('SELECT * FROM teachers WHERE LOWER(TRIM(username)) = LOWER(TRIM($1)) AND id = $2', [username, slugTeacherId])
+          : await pool.query('SELECT * FROM teachers WHERE LOWER(TRIM(username)) = LOWER(TRIM($1))', [username]);
       } else if (r === 'assistant') {
         // Assistants MUST belong to a specific tenant — no cross-tenant or main-domain login
         if (!slugTeacherId) continue;
-        result = await pool.query('SELECT * FROM assistants WHERE username = $1 AND teacher_id = $2', [username, slugTeacherId]);
+        result = await pool.query('SELECT * FROM assistants WHERE LOWER(TRIM(username)) = LOWER(TRIM($1)) AND teacher_id = $2', [username, slugTeacherId]);
       } else if (r === 'student') {
         // Students MUST belong to a specific tenant — no cross-tenant or main-domain login
         if (!slugTeacherId) { console.log(`[LOGIN] student skip: no tenant`); continue; }
-        // R-4 OPT: explicit columns instead of SELECT * — avoids pulling large JSONB/array
-        // fields on every login. Includes all fields the auth flow + safeUser response needs.
+        // Case-insensitive, trimmed username query for resilient student login
         result = await pool.query(
           `SELECT id, username, password, name, phone, parent_phone, academic_stage,
                   gender, points, teacher_id, is_suspended,
                   created_at, fcm_token
            FROM students
-           WHERE username = $1 AND deleted_at IS NULL AND teacher_id = $2`,
+           WHERE LOWER(TRIM(username)) = LOWER(TRIM($1)) AND deleted_at IS NULL AND teacher_id = $2`,
           [username, slugTeacherId]
         );
       } else continue;
@@ -412,7 +412,7 @@ router.post('/login', loginLimiter, async (req, res) => {
       clearAttempts(attemptKey);
       console.log(`[LOGIN] password OK for user id=${user.id} role="${r}"`);
 
-      // ── Student-specific: device limit enforcement ─────────────────────
+      // ── Student-specific: hardware identity & device limit enforcement ────
       if (r === 'student') {
         console.log(`[LOGIN] student device check: is_suspended=${user.is_suspended} device_id="${device_id ? device_id.slice(0,12)+'...' : 'MISSING'}"`);
 
@@ -426,8 +426,6 @@ router.post('/login', loginLimiter, async (req, res) => {
         }
 
         // H-7 fix: device_id is mandatory for student logins.
-        // Without this guard, API callers could omit device_id entirely and
-        // bypass the device-limit check that protects account sharing.
         if (!device_id) {
           console.log(`[LOGIN] student id=${user.id} missing device_id`);
           return res.status(400).json({
@@ -436,18 +434,16 @@ router.post('/login', loginLimiter, async (req, res) => {
           });
         }
 
-        // Track device
+        // Track device with Hardware Identity Matrix & Self-Healing
         if (device_id) {
           const ip         = getIp(req);
           const ua         = req.headers['user-agent'] || '';
           const deviceName = parseDeviceName(ua, device_name, req.headers);
+          const hwProfile  = (hardware_profile && typeof hardware_profile === 'object') ? hardware_profile : {};
+          const hwHash     = hardware_hash || computeHardwareHash(hwProfile);
 
           console.log(`[LOGIN] acquiring DB connection for device transaction... (device: "${deviceName}")`);
-          // Use a transaction + SELECT FOR UPDATE to prevent race conditions
-          // when two concurrent logins from different unknown devices happen
-          // simultaneously (without the lock, both could slip under the limit).
           const client = await pool.connect();
-          console.log(`[LOGIN] DB connection acquired, starting transaction`);
           try {
             await client.query('BEGIN');
 
@@ -456,9 +452,8 @@ router.post('/login', loginLimiter, async (req, res) => {
               'SELECT id, is_suspended FROM students WHERE id = $1 FOR UPDATE',
               [user.id]
             );
-            console.log(`[LOGIN] lock acquired for student id=${user.id}`);
 
-            // Re-check suspension inside the transaction (manual suspension by teacher)
+            // Re-check suspension inside the transaction
             if (lockRes.rows[0]?.is_suspended) {
               await client.query('ROLLBACK');
               return res.status(403).json({
@@ -467,31 +462,44 @@ router.post('/login', loginLimiter, async (req, res) => {
               });
             }
 
-            // Get current registered devices (inside the lock)
+            // Get current registered devices with hardware profiles (inside the lock)
             const devicesRes = await client.query(
-              'SELECT device_id FROM student_devices WHERE student_id = $1',
+              `SELECT id, device_id, device_name, hardware_profile, hardware_hash, ip_address, device_origin
+                 FROM student_devices
+                WHERE student_id = $1`,
               [user.id]
             );
-            const knownIds = devicesRes.rows.map(d => d.device_id);
-            const isKnown  = knownIds.includes(device_id);
-            console.log(`[LOGIN] student id=${user.id} known_devices=${knownIds.length} is_known=${isKnown}`);
+            const registeredDevices = devicesRes.rows;
+            const exactMatch = registeredDevices.find(d => d.device_id === device_id);
+
+            let isKnown = !!exactMatch;
+            let selfHealedDevice = null;
+            let maxSimilarityScore = 0;
+
+            // If not exact device_id match, run hardware similarity engine against registered devices
+            if (!isKnown && registeredDevices.length > 0) {
+              for (const regDev of registeredDevices) {
+                const score = computeSimilarityScore(hwProfile, regDev.hardware_profile, ip, regDev.ip_address);
+                if (score > maxSimilarityScore) {
+                  maxSimilarityScore = score;
+                  selfHealedDevice = regDev;
+                }
+              }
+
+              if (maxSimilarityScore >= MATCH_THRESHOLD && selfHealedDevice) {
+                isKnown = true;
+                console.log(`[LOGIN] SELF-HEALING MATCH: student id=${user.id} matched registered device id=${selfHealedDevice.id} with similarity=${maxSimilarityScore}%. Self-healing device_id to "${device_id.slice(0,12)}..."`);
+              }
+            }
+
+            const safeOrigin = ['browser','pwa_ios','pwa_android','twa','unknown'].includes(device_origin)
+              ? device_origin : 'browser';
 
             if (!isKnown) {
-              // 1-device policy (matches the warning shown at login:
-              // "حسابك مسجّل على جهاز واحد فقط").
-              // If a device slot is already taken and this is a brand-new
-              // device_id, block immediately, alert the teacher, AND
-              // increment the failure counter. After 3 blocked attempts the
-              // account is auto-suspended and the teacher is notified. This
-              // makes the security warning deterministic rather than
-              // dependent on the teacher manually checking the dashboard.
-              if (knownIds.length >= 1) {
-                console.log(`[LOGIN] NEW_DEVICE_BLOCKED for student id=${user.id}: inserting device_alert`);
-                // 2nd (new) device → alert teacher; do NOT suspend on the first hit.
-                // [BUG FIX] Split INSERT...SELECT...WHERE NOT EXISTS into two separate
-                // queries to avoid "inconsistent types deduced for parameter $3" error
-                // that occurs when the same placeholder is used in both the SELECT list
-                // and the WHERE subquery in a single parameterized statement.
+              // 1-device policy with hardware verification
+              if (registeredDevices.length >= 1) {
+                console.log(`[LOGIN] NEW_DEVICE_BLOCKED for student id=${user.id} (maxSimilarity=${maxSimilarityScore}%): inserting device_alert`);
+
                 const alertExists = await client.query(
                   `SELECT 1 FROM device_alerts
                    WHERE student_id = $1 AND device_id = $2 AND status = 'pending'`,
@@ -500,18 +508,14 @@ router.post('/login', loginLimiter, async (req, res) => {
                 if (alertExists.rows.length === 0) {
                   await client.query(
                     `INSERT INTO device_alerts
-                       (teacher_id, student_id, alert_type, device_id, device_name, ip_address, status)
-                     VALUES ($1, $2, 'device_limit_exceeded', $3, $4, $5, 'pending')`,
-                    [user.teacher_id, user.id, device_id, deviceName, ip]
+                       (teacher_id, student_id, alert_type, device_id, device_name, ip_address, status, hardware_profile, similarity_score)
+                     VALUES ($1, $2, 'device_limit_exceeded', $3, $4, $5, 'pending', $6, $7)`,
+                    [user.teacher_id, user.id, device_id, deviceName, ip, JSON.stringify(hwProfile), maxSimilarityScore]
                   );
                   console.log(`[LOGIN] device_alert inserted for student id=${user.id}`);
-                } else {
-                  console.log(`[LOGIN] device_alert already exists for student id=${user.id}, skipping insert`);
                 }
 
-                // [H-2] Increment the failure counter so that a student cannot
-                // keep trying new devices forever. After 3 blocked attempts
-                // the account is auto-suspended (handled below).
+                // Increment failure counter
                 const counterRes = await client.query(
                   `UPDATE students
                      SET failed_device_attempts = COALESCE(failed_device_attempts, 0) + 1
@@ -524,16 +528,15 @@ router.post('/login', loginLimiter, async (req, res) => {
 
                 let autoSuspended = false;
                 if (attemptCount >= 3) {
-                  // Auto-suspend + flush auth cache so subsequent requests fail.
                   await client.query(
                     'UPDATE students SET is_suspended = true WHERE id = $1',
                     [user.id]
                   );
                   await client.query(
                     `INSERT INTO device_alerts
-                       (teacher_id, student_id, alert_type, device_id, device_name, ip_address, status)
-                     VALUES ($1, $2, 'auto_suspended', $3, $4, $5, 'pending')`,
-                    [user.teacher_id, user.id, device_id, deviceName, ip]
+                       (teacher_id, student_id, alert_type, device_id, device_name, ip_address, status, hardware_profile, similarity_score)
+                     VALUES ($1, $2, 'auto_suspended', $3, $4, $5, 'pending', $6, $7)`,
+                    [user.teacher_id, user.id, device_id, deviceName, ip, JSON.stringify(hwProfile), maxSimilarityScore]
                   );
                   autoSuspended = true;
                   console.log(`[LOGIN] AUTO-SUSPENDED student id=${user.id} after ${attemptCount} blocked attempts`);
@@ -541,7 +544,6 @@ router.post('/login', loginLimiter, async (req, res) => {
                 }
 
                 await client.query('COMMIT');
-                console.log(`[LOGIN] NEW_DEVICE_BLOCKED committed for student id=${user.id}`);
 
                 // Real-time instant notification via SSE to teacher and assistants
                 setImmediate(() => {
@@ -551,6 +553,7 @@ router.post('/login', loginLimiter, async (req, res) => {
                     student_username: user.username,
                     device_name: deviceName,
                     ip_address: ip,
+                    similarity_score: maxSimilarityScore,
                     alert_type: autoSuspended ? 'auto_suspended' : 'device_limit_exceeded',
                     created_at: new Date().toISOString(),
                   }).catch(e => console.error('[SSE] device_alert broadcast error:', e.message));
@@ -565,49 +568,61 @@ router.post('/login', loginLimiter, async (req, res) => {
                   auto_suspended: autoSuspended,
                 });
               }
+
               // No registered device yet → register this one as the primary device
               console.log(`[LOGIN] registering first device for student id=${user.id}`);
-              // [H-4] device_origin is informational only — never used as a
-              // dedup key for the 1-device quota. Same phone in Chrome and as
-              // a PWA still counts as ONE device.
-              const safeOrigin = ['browser','pwa_ios','pwa_android','twa','unknown'].includes(device_origin)
-                ? device_origin : 'browser';
               await client.query(
-                `INSERT INTO student_devices (student_id, device_id, device_name, user_agent, ip_address, device_origin)
-                 VALUES ($1, $2, $3, $4, $5, $6)
+                `INSERT INTO student_devices (student_id, device_id, device_name, user_agent, ip_address, device_origin, hardware_profile, hardware_hash)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                  ON CONFLICT (student_id, device_id) DO UPDATE
                    SET last_seen = NOW(),
                        device_name = EXCLUDED.device_name,
                        device_origin = EXCLUDED.device_origin,
                        ip_address = EXCLUDED.ip_address,
-                       user_agent = EXCLUDED.user_agent`,
-                [user.id, device_id, deviceName, ua, ip, safeOrigin]
+                       user_agent = EXCLUDED.user_agent,
+                       hardware_profile = COALESCE(NULLIF(EXCLUDED.hardware_profile, '{}'::jsonb), student_devices.hardware_profile),
+                       hardware_hash = COALESCE(EXCLUDED.hardware_hash, student_devices.hardware_hash)`,
+                [user.id, device_id, deviceName, ua, ip, safeOrigin, JSON.stringify(hwProfile), hwHash]
               );
-              // [H-2] First-time registration wipes the failure counter.
               await client.query(
                 'UPDATE students SET failed_device_attempts = 0 WHERE id = $1',
                 [user.id]
               );
-              // [H-3] Surface "first time on this device" only when at least one
-              // device slot was previously empty. If the student replaces an
-              // existing registration we keep the warning since they explicitly
-              // lost the previous slot.
               loginMeta.is_new_device = true;
+            } else if (selfHealedDevice) {
+              // Self-healing match: update the existing device record with new storage id and fresh telemetry
+              console.log(`[LOGIN] self-healing DB update for student id=${user.id} device_row_id=${selfHealedDevice.id}`);
+              await client.query(
+                `UPDATE student_devices
+                    SET device_id = $1,
+                        last_seen = NOW(),
+                        device_origin = $2,
+                        device_name = COALESCE(NULLIF($3, ''), device_name),
+                        ip_address = $4,
+                        user_agent = $5,
+                        hardware_profile = $6,
+                        hardware_hash = $7
+                  WHERE id = $8`,
+                [device_id, safeOrigin, deviceName, ip, ua, JSON.stringify(hwProfile), hwHash, selfHealedDevice.id]
+              );
+              await client.query(
+                'UPDATE students SET failed_device_attempts = 0 WHERE id = $1',
+                [user.id]
+              );
             } else {
-              // Known device → update last_seen, device_name, ip_address, and device_origin
-              // so existing devices automatically upgrade to richer names, and reset the failure counter.
-              console.log(`[LOGIN] known device — updating last_seen and device_name for student id=${user.id}`);
-              const safeOrigin = ['browser','pwa_ios','pwa_android','twa','unknown'].includes(device_origin)
-                ? device_origin : 'browser';
+              // Exact match: refresh last_seen and enrich hardware profile
+              console.log(`[LOGIN] known device — updating last_seen and telemetry for student id=${user.id}`);
               await client.query(
                 `UPDATE student_devices
                     SET last_seen = NOW(),
                         device_origin = $3,
                         device_name = COALESCE(NULLIF($4, ''), device_name),
                         ip_address = $5,
-                        user_agent = $6
+                        user_agent = $6,
+                        hardware_profile = CASE WHEN $7::jsonb != '{}'::jsonb THEN $7::jsonb ELSE hardware_profile END,
+                        hardware_hash = COALESCE($8, hardware_hash)
                   WHERE student_id = $1 AND device_id = $2`,
-                [user.id, device_id, safeOrigin, deviceName, ip, ua]
+                [user.id, device_id, safeOrigin, deviceName, ip, ua, JSON.stringify(hwProfile), hwHash]
               );
               await client.query(
                 'UPDATE students SET failed_device_attempts = 0 WHERE id = $1',

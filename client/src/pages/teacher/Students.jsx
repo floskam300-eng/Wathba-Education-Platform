@@ -340,10 +340,15 @@ function DeviceAlertsPanel({ canEdit }) {
                         )}
                       </p>
                       <p className="text-xs text-gray-500 mt-0.5">{alert.academic_stage}</p>
-                      <p className="text-xs text-orange-700 font-semibold mt-1">
+                      <p className="text-xs text-orange-700 font-semibold mt-1 flex items-center flex-wrap gap-1">
                         {alert.count > 1
                           ? `أجهزة جديدة: ${[...new Set(alert.devices)].join(' · ')}`
                           : `محاولة دخول من جهاز جديد: ${alert.device_name}`}
+                        {typeof alert.similarity_score === 'number' && alert.similarity_score > 0 && (
+                          <span className="bg-purple-100 text-purple-800 text-[10px] font-bold px-2 py-0.5 rounded-full mr-2">
+                            تطابق عتادي: {alert.similarity_score}%
+                          </span>
+                        )}
                       </p>
                       <p className="text-[10px] text-blue-600 font-medium mt-0.5">
                         ✓ جهازه الأصلي لا يزال يعمل بشكل طبيعي

@@ -1357,6 +1357,9 @@ router.post('/device-alerts/:alertId/action', requireRole('teacher', 'assistant'
 
     if (action === 'reactivate') {
       await pool.query('UPDATE students SET is_suspended=false, failed_device_attempts=0 WHERE id=$1', [alert.student_id]);
+      if (alert.device_id) {
+        await upsertDevice(alert.student_id, alert.device_id, alert.device_name, alert.ip_address);
+      }
       await pool.query(
         "UPDATE device_alerts SET status='reactivated', resolved_at=NOW() WHERE student_id=$1 AND teacher_id=$2 AND status='pending'",
         [alert.student_id, teacherId]

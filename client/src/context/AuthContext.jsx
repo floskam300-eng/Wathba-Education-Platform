@@ -90,17 +90,14 @@ export const AuthProvider = ({ children }) => {
     setSuspendedNotice(null);
   };
 
-  const login = async (username, password, role, _slug, deviceId, deviceOrigin, deviceName) => {
+  const login = async (username, password, role, _slug, deviceId, deviceOrigin, deviceName, hardwareProfile, hardwareHash) => {
     const body = { username, password };
     if (role) body.role = role;
     if (deviceId) body.device_id = deviceId;
     if (deviceName) body.device_name = deviceName;
-    // [H-4] Pass the device origin (browser | pwa_ios | pwa_android | twa |
-    // unknown) alongside the hardware-only device_id. The server uses this
-    // purely for analytics on the teacher dashboard; it does NOT affect the
-    // 1-device quota, so opening the same phone in Chrome and as a PWA no
-    // longer burns the single device slot allotted to this student.
     if (deviceOrigin) body.device_origin = deviceOrigin;
+    if (hardwareProfile && Object.keys(hardwareProfile).length > 0) body.hardware_profile = hardwareProfile;
+    if (hardwareHash) body.hardware_hash = hardwareHash;
     const res = await api.post('/auth/login', body);
     const { token, user, force_password_change, is_new_device } = res.data;
     // [CACHE-FIX] Clear any previously cached query data from a different user
