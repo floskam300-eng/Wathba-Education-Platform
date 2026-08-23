@@ -10,6 +10,7 @@
     "start": "NODE_ENV=production node server/index.js",
     "seed": "node server/db/seed.js",
     "reset": "node server/db/reset.js",
+    "test:attendance": "node tests/class-attendance.test.js",
     "test:courses": "node tests/course-system.test.js",
     "test:live": "node tests/live-stream.test.js",
     "test:comprehensive": "node tests/comprehensive-edge-cases.test.js"
