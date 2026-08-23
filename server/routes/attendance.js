@@ -200,10 +200,13 @@ router.get('/records', requireRole('teacher', 'assistant'), requireAttendancePer
       if (r.exam_total !== null) sharedExamTotal = r.exam_total;
     }
 
+    // Normalize NUMERIC exam_score (pg returns "8.00"-style strings) to JSON numbers
+    const toScore = (v) => (v === null || v === undefined ? null : Number(v));
+
     const students = studentsRes.rows.map(s => ({
       ...s,
       status: recordMap[s.id]?.status ?? null,        // null = not recorded yet
-      exam_score: recordMap[s.id]?.exam_score ?? null,
+      exam_score: toScore(recordMap[s.id]?.exam_score),
       notes: recordMap[s.id]?.notes ?? null,
     }));
 
@@ -283,12 +286,15 @@ router.post('/records/bulk', requireRole('teacher', 'assistant'), requireAttenda
 
       // If absent, exam score must be null
       if (status === 'present' && r.exam_score !== null && r.exam_score !== undefined && r.exam_score !== '') {
-        examScore = parseInt(r.exam_score, 10);
-        if (isNaN(examScore) || examScore < 0) {
+        // Decimal grades are allowed (e.g. 13.5/20)
+        examScore = Number(r.exam_score);
+        if (!Number.isFinite(examScore) || examScore < 0) {
           await client.query('ROLLBACK');
           client.release();
           return res.status(400).json({ error: `درجة الامتحان غير صحيحة للطالب ID ${r.student_id}` });
         }
+        // Guard against float precision junk (keep max 2 decimals)
+        examScore = Math.round(examScore * 100) / 100;
         if (examTotalVal !== null && examScore > examTotalVal) {
           await client.query('ROLLBACK');
           client.release();
@@ -398,7 +404,7 @@ router.get('/analytics', requireRole('teacher', 'assistant'), requireAttendanceP
          COUNT(car.id)                                    AS total_sessions,
          COUNT(car.id) FILTER (WHERE car.status='present') AS present_count,
          COUNT(car.id) FILTER (WHERE car.status='absent')  AS absent_count,
-         ROUND(AVG(car.exam_score) FILTER (WHERE car.exam_score IS NOT NULL), 1) AS avg_exam_score
+         ROUND(AVG(car.exam_score) FILTER (WHERE car.exam_score IS NOT NULL), 2) AS avg_exam_score
        FROM students s
        JOIN class_attendance_records car ON car.student_id = s.id ${subjectWhere}
        JOIN class_subjects cs ON cs.id = car.subject_id AND cs.teacher_id = $1

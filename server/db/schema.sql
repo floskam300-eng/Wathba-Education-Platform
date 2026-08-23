@@ -1392,7 +1392,7 @@ CREATE TABLE IF NOT EXISTS class_attendance_records (
   subject_id      INTEGER NOT NULL REFERENCES class_subjects(id) ON DELETE CASCADE,
   attendance_date DATE NOT NULL,
   status          VARCHAR(20) NOT NULL DEFAULT 'present',
-  exam_score      INTEGER DEFAULT NULL,
+  exam_score      NUMERIC(6,2) DEFAULT NULL,
   exam_total      INTEGER DEFAULT NULL,
   notes           TEXT,
   created_at      TIMESTAMPTZ DEFAULT NOW(),
@@ -1401,6 +1401,15 @@ CREATE TABLE IF NOT EXISTS class_attendance_records (
 CREATE INDEX IF NOT EXISTS idx_class_att_teacher      ON class_attendance_records(teacher_id, attendance_date DESC);
 CREATE INDEX IF NOT EXISTS idx_class_att_student      ON class_attendance_records(student_id);
 CREATE INDEX IF NOT EXISTS idx_class_att_subject_date ON class_attendance_records(subject_id, attendance_date DESC);
+
+-- exam_score supports decimal grades (e.g. 13.5/20). Idempotent: no-op when
+-- the column is already NUMERIC — needed because CREATE TABLE IF NOT EXISTS
+-- above does not alter pre-existing INTEGER columns.
+DO $$
+BEGIN
+  ALTER TABLE class_attendance_records ALTER COLUMN exam_score TYPE NUMERIC(6,2);
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
 
 -- New assistant permission for attendance management
 ALTER TABLE assistants ADD COLUMN IF NOT EXISTS can_manage_attendance BOOLEAN DEFAULT false;

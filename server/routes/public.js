@@ -278,6 +278,14 @@ router.get('/parent-lookup', parentLookupLimiter, async (req, res) => {
     const vpSummary = videoProgressRes.rows[0] || {};
     vpSummary.total_course_videos = parseInt(totalVideosRes.rows[0]?.total_course_videos || 0);
 
+    // Normalize NUMERIC exam_score (pg returns "8.00"-style strings) to JSON numbers
+    const classAttendanceRows = attendanceEnabled
+      ? classAttendanceRes.rows.map(r => ({
+          ...r,
+          exam_score: (r.exam_score === null || r.exam_score === undefined) ? null : Number(r.exam_score),
+        }))
+      : [];
+
     res.json({
       multiple: false,
       student: {
@@ -301,7 +309,7 @@ router.get('/parent-lookup', parentLookupLimiter, async (req, res) => {
       recitation_results: recitationsRes.rows,
       video_progress: vpSummary,
       video_details: videoDetailsRes.rows,
-      class_attendance: attendanceEnabled ? classAttendanceRes.rows : null,
+      class_attendance: attendanceEnabled ? classAttendanceRows : null,
       attendance_enabled: attendanceEnabled,
     });
   } catch (err) {

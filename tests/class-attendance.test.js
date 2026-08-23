@@ -56,6 +56,11 @@ function assert(condition, label, detail = '') {
   }
 }
 
+function skip(label) {
+  skipped++;
+  console.log(`  ⏭️  [SKIP] ${label}`);
+}
+
 /** Today's date in Africa/Cairo as YYYY-MM-DD (mirrors server validation). */
 function cairoDate(offsetDays = 0) {
   const d = new Date(Date.now() + offsetDays * 86400000);
@@ -188,6 +193,7 @@ async function testValidation(token, subjectId, students) {
     ['future date',           { date: cairoDate(+2), subject_id: subjectId, records: [{ student_id: sid, status: 'present' }] }, 400],
     ['grade > total',         { date: cairoDate(), subject_id: subjectId, exam_total: 10, records: [{ student_id: sid, status: 'present', exam_score: 15 }] }, 400],
     ['negative grade',        { date: cairoDate(), subject_id: subjectId, records: [{ student_id: sid, status: 'present', exam_score: -3 }] }, 400],
+    ['negative decimal grade',{ date: cairoDate(), subject_id: subjectId, records: [{ student_id: sid, status: 'present', exam_score: -3.5 }] }, 400],
     ['invalid student id',    { date: cairoDate(), subject_id: subjectId, records: [{ student_id: 999999999, status: 'present' }] }, 400],
     ['duplicate student ids', { date: cairoDate(), subject_id: subjectId, records: [{ student_id: sid, status: 'present' }, { student_id: sid, status: 'absent' }] }, 400],
   ];
@@ -229,10 +235,10 @@ async function testBulkSaveAndUpsert(token, subjectId, students) {
   const rowA = day.body.students.find((s) => s.id === a.id);
   const rowB = day.body.students.find((s) => s.id === b.id);
   assert(day.body.exam_total === 10, 'exam_total persisted as 10');
-  assert(rowA.status === 'present' && rowA.exam_score === 8, 'student A present with grade 8');
-  assert(rowB.status === 'absent' && rowB.exam_score === null, 'student B absent without grade');
+  assert(rowA.status === 'present' && Number(rowA.exam_score) === 8, 'student A present with grade 8');
+  assert(rowB.status === 'absent' && (rowB.exam_score === null || rowB.exam_score === undefined), 'student B absent without grade');
 
-  // Edit: flip both
+  // Edit: flip both — use decimal grades to cover NUMERIC(6,2) support
   const save2 = await request({
     method: 'POST',
     path  : '/api/attendance/records/bulk',
@@ -242,8 +248,8 @@ async function testBulkSaveAndUpsert(token, subjectId, students) {
       subject_id: subjectId,
       exam_total: 20,
       records: [
-        { student_id: a.id, status: 'absent',  exam_score: null },
-        { student_id: b.id, status: 'present', exam_score: '17' },
+        { student_id: a.id, status: 'absent',   exam_score: null },
+        { student_id: b.id, status: 'present', exam_score: '13.75' },
       ],
     },
   });
@@ -253,7 +259,7 @@ async function testBulkSaveAndUpsert(token, subjectId, students) {
   const updA = day.body.students.find((s) => s.id === a.id);
   const updB = day.body.students.find((s) => s.id === b.id);
   assert(updA.status === 'absent', 'student A updated to absent (upsert)');
-  assert(updB.status === 'present' && updB.exam_score === 17, 'student B updated to present 17 (upsert)');
+  assert(updB.status === 'present' && Number(updB.exam_score) === 13.75, 'student B decimal grade 13.75 persisted (upsert)', `got ${updB.exam_score}`);
   const idCounts = {};
   for (const s of day.body.students) idCounts[s.id] = (idCounts[s.id] || 0) + 1;
   assert(
@@ -261,7 +267,7 @@ async function testBulkSaveAndUpsert(token, subjectId, students) {
     'each saved student appears exactly once (no duplicates)'
   );
 
-  return { today, grades: { [a.id]: [8, null], [b.id]: [null, 17] } };
+  return { today, grades: { [a.id]: [8, null], [b.id]: [null, 13.75] } };
 }
 
 async function testCalendarAnalytics(token, subjectId, students, ctx) {
@@ -283,7 +289,7 @@ async function testCalendarAnalytics(token, subjectId, students, ctx) {
   const rowB = analytics.body.find((r) => r.id === b.id);
   if (rowA && rowB) {
     assert(parseInt(rowA.total_sessions) >= 1 && parseInt(rowA.present_count) + parseInt(rowA.absent_count) === parseInt(rowA.total_sessions), 'analytics A: present+absent = total');
-    assert(parseInt(rowB.present_count) >= 1 && parseFloat(rowB.avg_exam_score) === 17.0, 'analytics B avg score = 17.0', `got ${rowB.avg_exam_score}`);
+    assert(parseInt(rowB.present_count) >= 1 && parseFloat(rowB.avg_exam_score) === 13.75, 'analytics B avg score = 13.75', `got ${rowB.avg_exam_score}`);
   } else {
     skip('analytics rows for test students not found');
   }
@@ -318,9 +324,9 @@ async function testParentPortal(subjectName) {
     assert(typeof rec.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(rec.date), 'record has YYYY-MM-DD date');
     assert(['present', 'absent'].includes(rec.status), 'record status valid');
     assert(typeof rec.subject_name === 'string' && rec.subject_name.length > 0, 'record has subject name');
-    const graded = lookup.body.class_attendance.filter((x) => x.exam_score !== null);
+    const graded = lookup.body.class_attendance.filter((x) => x.exam_score !== null && x.exam_score !== undefined);
     if (graded.length > 0) {
-      assert(graded.every((x) => x.exam_total === null || x.exam_score <= x.exam_total), 'grades never exceed totals');
+      assert(graded.every((x) => x.exam_total === null || Number(x.exam_score) <= x.exam_total), 'grades never exceed totals');
     } else {
       skip('no graded attendance records yet for this student');
     }

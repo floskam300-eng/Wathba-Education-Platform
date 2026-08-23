@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   CalendarDays, ChevronRight, ChevronLeft, Users, BookOpen,
   CheckCircle2, XCircle, Save, Plus, Trash2, BarChart3,
-  Download, AlertCircle, ClipboardList, Settings2, Pencil, X
+  Download, AlertCircle, ClipboardList, Settings2, Pencil, X, Search
 } from 'lucide-react';
 import api from '../../lib/api';
 import { useTheme } from '../../context/ThemeContext';
@@ -439,6 +439,7 @@ function AttendanceTableTab({ dark }) {
   const [saving, setSaving]             = useState(false);
   const [savedMsg, setSavedMsg]         = useState('');
   const [showSubjectModal, setShowSubjectModal] = useState(false);
+  const [searchQuery, setSearchQuery]   = useState('');
 
   const calYear  = calendarCursor.year;
   const calMonth = calendarCursor.month;
@@ -478,6 +479,18 @@ function AttendanceTableTab({ dark }) {
       setExamTotal(dayData.exam_total !== null && dayData.exam_total !== undefined ? String(dayData.exam_total) : '');
     }
   }, [dayData]);
+
+  // Students visible in the table after applying the search filter
+  const visibleStudents = useMemo(() => {
+    if (!dayData?.students) return [];
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return dayData.students;
+    return dayData.students.filter(s =>
+      (s.name || '').toLowerCase().includes(q) ||
+      (s.username || '').toLowerCase().includes(q) ||
+      (s.phone || '').toLowerCase().includes(q)
+    );
+  }, [dayData, searchQuery]);
 
   const toggleStatus = useCallback((id) => {
     setRows(prev => ({
@@ -549,7 +562,7 @@ function AttendanceTableTab({ dark }) {
             </div>
             <select
               value={subjectId}
-              onChange={e => { setSubjectId(e.target.value); setRows({}); setExamTotal(''); }}
+              onChange={e => { setSubjectId(e.target.value); setRows({}); setExamTotal(''); setSearchQuery(''); }}
               className="input-field text-sm">
               <option value="">— اختر مادة —</option>
               {subjects.map(s => (
@@ -612,7 +625,35 @@ function AttendanceTableTab({ dark }) {
                     <XCircle className="w-3.5 h-3.5" />تغييب الكل
                   </button>
                 </div>
+
+                {/* Student search */}
+                {dayData.students.length > 0 && (
+                  <div className="relative flex-1 min-w-[200px] sm:max-w-xs">
+                    <Search className={`w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`} />
+                    <input
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      placeholder="ابحث عن طالب (اسم / كود / هاتف)..."
+                      className={`input-field w-full text-sm pr-9 pl-8 ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text-1)]' : ''}`}
+                    />
+                    {searchQuery && (
+                      <button onClick={() => setSearchQuery('')}
+                        className={`absolute left-2 top-1/2 -translate-y-1/2 p-1 rounded-full transition-colors ${dark ? 'hover:bg-[var(--dk-hover)] text-[var(--dk-text-2)]' : 'hover:bg-gray-100 text-gray-400'}`}>
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 <div className={`mr-auto flex items-center gap-2 text-xs ${text2}`}>
+                  {searchQuery.trim() && (
+                    <>
+                      <span className="font-bold text-blue-600">
+                        {visibleStudents.length} من {dayData.students.length}
+                      </span>
+                      <span>·</span>
+                    </>
+                  )}
                   <span className="font-bold text-green-600">
                     {(dayData.students || []).filter(s => (rows[s.id]?.status ?? 'present') === 'present').length} حاضر
                   </span>
@@ -632,6 +673,15 @@ function AttendanceTableTab({ dark }) {
                       : 'لا يوجد طلاب مسجلون'}
                   </p>
                 </div>
+              ) : visibleStudents.length === 0 ? (
+                <div className="card text-center py-12">
+                  <Search className="w-12 h-12 mx-auto mb-3 opacity-20" style={{ color: '#94a3b8' }} />
+                  <p className={`font-semibold ${text2}`}>لا يوجد طلاب مطابقون للبحث</p>
+                  <button onClick={() => setSearchQuery('')}
+                    className="mt-2 text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors">
+                    مسح البحث
+                  </button>
+                </div>
               ) : (
                 <div className="card !p-0 overflow-hidden">
                   <div className="overflow-x-auto">
@@ -649,7 +699,7 @@ function AttendanceTableTab({ dark }) {
                         </tr>
                       </thead>
                       <tbody>
-                        {dayData.students.map((student, idx) => {
+                        {visibleStudents.map((student, idx) => {
                           const row = rows[student.id] || { status: 'present', exam_score: '' };
                           const isPresent = row.status === 'present';
                           return (
@@ -688,10 +738,10 @@ function AttendanceTableTab({ dark }) {
                                 {isPresent ? (
                                   <div className="flex items-center justify-center gap-1">
                                     <input
-                                      type="number" min="0" max={examTotal || undefined}
+                                      type="number" min="0" step="any" max={examTotal || undefined}
                                       value={row.exam_score}
                                       onChange={e => setScore(student.id, e.target.value)}
-                                      placeholder="—"
+                                      placeholder="مثال: 13.5"
                                       className={`w-16 text-center text-sm font-bold rounded-lg border px-2 py-1 outline-none transition-colors
                                         ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text-1)]' : 'bg-white border-gray-300 text-navy-700'}
                                         focus:border-blue-400 focus:ring-1 focus:ring-blue-200`}
