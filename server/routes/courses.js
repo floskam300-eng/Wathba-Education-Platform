@@ -190,10 +190,11 @@ router.get('/', requireRole('teacher', 'assistant'), async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT c.*,
-              COUNT(DISTINCT CASE WHEN sce.status = 'active' THEN sce.student_id END)::int as enrolled_count,
+              COUNT(DISTINCT CASE WHEN sce.status = 'active' AND (s.is_simulation IS NOT TRUE) AND s.deleted_at IS NULL THEN sce.student_id END)::int as enrolled_count,
               COUNT(DISTINCT v.id)::int as video_count, COUNT(DISTINCT p.id)::int as pdf_count
        FROM courses c
        LEFT JOIN student_course_enrollment sce ON c.id = sce.course_id
+       LEFT JOIN students s ON sce.student_id = s.id
        LEFT JOIN videos v ON c.id = v.course_id
        LEFT JOIN pdf_files p ON c.id = p.course_id
        WHERE c.teacher_id = $1
@@ -1202,7 +1203,7 @@ router.get('/enrollment-requests', requireRole('teacher', 'assistant'), checkMan
          FROM payments p
          WHERE p.student_id = cer.student_id AND p.course_id = cer.course_id
        ) pay ON true
-       WHERE c.teacher_id = $1
+       WHERE c.teacher_id = $1 AND s.deleted_at IS NULL AND (s.is_simulation IS NOT TRUE)
        ORDER BY cer.created_at DESC`,
       [teacherId]
     );

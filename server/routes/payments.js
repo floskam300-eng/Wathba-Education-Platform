@@ -99,7 +99,7 @@ async function doLeaderboardReset(teacherId, monthLabel, skipTrackerUpdate = fal
               COUNT(DISTINCT b.id) as badge_count
        FROM students s
        LEFT JOIN badges b ON s.id = b.student_id
-       WHERE s.teacher_id = $1 AND s.deleted_at IS NULL
+       WHERE s.teacher_id = $1 AND s.deleted_at IS NULL AND s.is_simulation IS NOT TRUE
        GROUP BY s.id
        ORDER BY s.points DESC`,
       [teacherId]
@@ -404,7 +404,7 @@ router.get('/leaderboard', requireRole('teacher', 'assistant', 'student'), async
        LEFT JOIN exam_results er ON s.id=er.student_id AND er.is_latest = true
        LEFT JOIN exams e ON er.exam_id = e.id
        LEFT JOIN badges b ON s.id=b.student_id
-       WHERE s.teacher_id=$1 AND s.deleted_at IS NULL
+       WHERE s.teacher_id=$1 AND s.deleted_at IS NULL AND s.is_simulation IS NOT TRUE
        GROUP BY s.id ORDER BY s.points DESC LIMIT 50`,
       [teacherId]
     );

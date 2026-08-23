@@ -243,11 +243,12 @@ router.get('/', requireRole('teacher', 'assistant'), async (req, res) => {
                 WHEN e.question_source = 'bank' THEN e.bank_question_count
                 ELSE COUNT(DISTINCT q.id)::int
               END as question_count,
-              COUNT(DISTINCT er.id)::int as attempt_count
+              COUNT(DISTINCT CASE WHEN (s.is_simulation IS NOT TRUE) AND s.deleted_at IS NULL THEN er.id END)::int as attempt_count
        FROM exams e
        LEFT JOIN courses c ON e.course_id = c.id
        LEFT JOIN questions q ON e.id = q.exam_id AND e.question_source != 'bank'
        LEFT JOIN exam_results er ON e.id = er.exam_id
+       LEFT JOIN students s ON er.student_id = s.id
        WHERE e.teacher_id = $1 AND e.deleted_at IS NULL
        GROUP BY e.id, c.name ORDER BY e.created_at DESC`,
       [teacherId]
@@ -543,13 +544,14 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExams
           `SELECT s.id FROM students s
              JOIN student_course_enrollment sce ON s.id = sce.student_id
             WHERE sce.course_id = $1 AND sce.status = 'active'
-              AND s.deleted_at IS NULL AND s.is_suspended = false`,
+              AND s.deleted_at IS NULL AND s.is_suspended = false
+              AND s.is_simulation IS NOT TRUE`,
           [exam.course_id]
         );
         studentIds = sRes.rows.map(r => r.id);
       } else {
         const sRes = await pool.query(
-          'SELECT id FROM students WHERE teacher_id=$1 AND deleted_at IS NULL AND is_suspended = false',
+          'SELECT id FROM students WHERE teacher_id=$1 AND deleted_at IS NULL AND is_suspended = false AND is_simulation IS NOT TRUE',
           [teacherId]
         );
         studentIds = sRes.rows.map(r => r.id);
@@ -594,7 +596,8 @@ router.put('/:id/publish', requireRole('teacher', 'assistant'), checkManageExams
           `SELECT s.id FROM students s
              JOIN student_course_enrollment sce ON s.id = sce.student_id
             WHERE sce.course_id = $1 AND sce.status = 'active'
-              AND s.deleted_at IS NULL AND s.is_suspended = false`,
+              AND s.deleted_at IS NULL AND s.is_suspended = false
+              AND s.is_simulation IS NOT TRUE`,
           [exam.course_id]
         );
         unpubStudentIds = sRes.rows.map(r => r.id);

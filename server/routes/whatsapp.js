@@ -112,7 +112,7 @@ router.get('/students', requireRole('teacher', 'assistant'), async (req, res) =>
        FROM students s
        LEFT JOIN exam_results er ON s.id = er.student_id
        LEFT JOIN exams e         ON er.exam_id = e.id
-       WHERE s.teacher_id = $1 AND s.deleted_at IS NULL
+       WHERE s.teacher_id = $1 AND s.deleted_at IS NULL AND s.is_simulation IS NOT TRUE
        GROUP BY s.id ORDER BY s.name ASC`,
       [teacherId]
     );
@@ -167,7 +167,7 @@ router.post('/send', waSendLimiter, requireRole('teacher', 'assistant'), checkSe
               COUNT(er.id)::int               AS exam_count
        FROM students s
        LEFT JOIN exam_results er ON s.id = er.student_id
-       WHERE s.id = ANY($1) AND s.teacher_id = $2 AND s.deleted_at IS NULL
+       WHERE s.id = ANY($1) AND s.teacher_id = $2 AND s.deleted_at IS NULL AND s.is_simulation IS NOT TRUE
        GROUP BY s.id`,
       [student_ids, teacherId]
     );

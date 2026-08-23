@@ -573,6 +573,8 @@ app.use('/api', subdomainTenant);
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/public', require('./routes/public'));
 app.use('/api/auth', require('./routes/auth'));
+app.use('/api/teachers/simulation', require('./routes/simulation'));
+app.use('/api/simulation', require('./routes/simulation'));
 app.use('/api/teachers', require('./routes/teachers'));
 // Hard-coded route to bypass any Express router ordering mystery in students.js
 app.delete('/api/students/import-model', subdomainTenant, authenticate, requireRole('teacher', 'assistant'), async (req, res) => {
@@ -800,6 +802,8 @@ const initDB = async () => {
     // Migrations: add columns that may not exist in older deployments
     await pool.query('ALTER TABLE students ADD COLUMN IF NOT EXISTS plain_password VARCHAR(255)');
     await pool.query('ALTER TABLE students ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP');
+    await pool.query('ALTER TABLE students ADD COLUMN IF NOT EXISTS is_simulation BOOLEAN DEFAULT false');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_students_teacher_sim ON students(teacher_id, is_simulation)');
     await pool.query("ALTER TABLE exam_sessions ADD COLUMN IF NOT EXISTS answers JSONB DEFAULT '{}'::jsonb");
     await pool.query("ALTER TABLE recitation_sessions ADD COLUMN IF NOT EXISTS answers JSONB DEFAULT '{}'::jsonb");
 

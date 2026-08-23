@@ -469,7 +469,7 @@ function RecitationItem({ r, onDragStart, onDragEnd, isDragging, onOpen, onDelet
 export default function CourseContent() {
   const { courseId } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, startSimulation } = useAuth();
   const qc = useQueryClient();
   const baseRole = user?.role === 'assistant' ? 'assistant' : 'teacher';
 
@@ -687,6 +687,26 @@ export default function CourseContent() {
             </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  await startSimulation({
+                    academic_stage: course?.target_stage || 'الصف الأول الثانوي عام',
+                    auto_enroll: true,
+                    destination: `/student/courses/${courseId}`,
+                  });
+                  toast.success(`معاينة الكورس كطالب (${course?.target_stage || 'طالب'})`, { icon: '👁️' });
+                } catch (e) {
+                  toast.error('فشل بدء المعاينة');
+                }
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 active:scale-95 text-white text-xs font-black transition-all shadow-sm shadow-indigo-500/20 flex-shrink-0"
+              title="معاينة هذا الكورس كطالب"
+            >
+              <Eye className="w-3.5 h-3.5 text-amber-300" />
+              <span className="hidden sm:inline">معاينة الكورس كطالب</span>
+            </button>
             <span className="text-xs text-gray-500 font-bold hidden sm:flex items-center gap-1">
               <Video className="w-3.5 h-3.5" /> {videos.length} فيديو
             </span>

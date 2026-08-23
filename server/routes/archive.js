@@ -89,7 +89,7 @@ router.get('/exam-results', requireRole('teacher', 'assistant'), checkExamPerm, 
     return res.status(400).json({ error: 'min_minutes يجب أن يكون أقل من max_minutes' });
 
   try {
-    const conditions = ['e.teacher_id = $1', 's.deleted_at IS NULL'];
+    const conditions = ['e.teacher_id = $1', 's.deleted_at IS NULL', 's.is_simulation IS NOT TRUE'];
     const params = [teacherId];
     let p = 2;
 
@@ -251,7 +251,7 @@ router.get('/recitation-results', requireRole('teacher', 'assistant'), checkRecP
     return res.status(400).json({ error: 'min_minutes يجب أن يكون أقل من max_minutes' });
 
   try {
-    const conditions = ['r.teacher_id = $1', 's.deleted_at IS NULL'];
+    const conditions = ['r.teacher_id = $1', 's.deleted_at IS NULL', 's.is_simulation IS NOT TRUE'];
     const params = [teacherId];
     let p = 2;
 
@@ -376,7 +376,7 @@ router.get('/students', requireRole('teacher', 'assistant'), checkAnyPerm, async
   try {
     // Dynamic outer WHERE conditions (s.teacher_id = $1 is always first).
     // $1 is also reused inside the two subqueries — PostgreSQL allows this.
-    const conditions = ['s.teacher_id = $1', 's.deleted_at IS NULL'];
+    const conditions = ['s.teacher_id = $1', 's.deleted_at IS NULL', 's.is_simulation IS NOT TRUE'];
     // has_type: '' = any results, 'exams' = has exams, 'recitations' = has recitations, 'both' = has both
     const { has_type } = req.query;
     // BUG-4+6 FIX: include absent_exams in the "has exams" filters so that
@@ -433,7 +433,8 @@ router.get('/students', requireRole('teacher', 'assistant'), checkAnyPerm, async
               FILTER (WHERE er.is_latest = true AND er.is_absent = false), 1) AS avg_exam_score
       FROM exam_results er
       JOIN exams e ON er.exam_id = e.id
-      WHERE e.teacher_id = $1
+      JOIN students s ON er.student_id = s.id
+      WHERE e.teacher_id = $1 AND s.deleted_at IS NULL AND s.is_simulation IS NOT TRUE
       GROUP BY er.student_id`;
 
     // Subquery for recitation stats (per student, this teacher only)
@@ -444,7 +445,8 @@ router.get('/students', requireRole('teacher', 'assistant'), checkAnyPerm, async
         ROUND(AVG(rr.score::numeric / NULLIF(r.total_score,0) * 100), 1) AS avg_rec_score
       FROM recitation_results rr
       JOIN recitations r ON rr.recitation_id = r.id
-      WHERE r.teacher_id = $1
+      JOIN students s ON rr.student_id = s.id
+      WHERE r.teacher_id = $1 AND s.deleted_at IS NULL AND s.is_simulation IS NOT TRUE
       GROUP BY rr.student_id`;
 
     const fromClause = `
@@ -563,7 +565,7 @@ router.get('/student/:id/exam-results', requireRole('teacher', 'assistant'), che
 
   try {
     const check = await pool.query(
-      'SELECT id FROM students WHERE id=$1 AND teacher_id=$2 AND deleted_at IS NULL',
+      'SELECT id FROM students WHERE id=$1 AND teacher_id=$2 AND deleted_at IS NULL AND is_simulation IS NOT TRUE',
       [studentId, teacherId]
     );
     if (!check.rows.length) return res.status(404).json({ error: 'الطالب غير موجود' });
@@ -602,7 +604,7 @@ router.get('/student/:id/recitation-results', requireRole('teacher', 'assistant'
 
   try {
     const check = await pool.query(
-      'SELECT id FROM students WHERE id=$1 AND teacher_id=$2 AND deleted_at IS NULL',
+      'SELECT id FROM students WHERE id=$1 AND teacher_id=$2 AND deleted_at IS NULL AND is_simulation IS NOT TRUE',
       [studentId, teacherId]
     );
     if (!check.rows.length) return res.status(404).json({ error: 'الطالب غير موجود' });
@@ -630,48 +632,58 @@ router.get('/student/:id/recitation-results', requireRole('teacher', 'assistant'
 });
 
 // ── GET /api/archive/student/:id/summary ────────────────────────────────────
-// Quick stats summary for one student (for the modal header)
-// FIX-B1: summary shows both exam+rec stats so uses checkAnyPerm
-router.get('/student/:id/summary', requireRole('teacher', 'assistant'), checkAnyPerm, async (req, res) => {
+// Returns top-level summary stats for a single student across all exams & recitations
+// [PERM-FIX] uses checkStudentsPerm (assistant with can_manage_students or can_view_analytics)
+router.get('/student/:id/summary', requireRole('teacher', 'assistant'), checkStudentsPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
   if (!teacherId) return res.status(400).json({ error: 'بيانات المعلم غير صالحة' });
 
-  const studentId = parseParamId(req.params.id);
-  if (!studentId) return res.status(400).json({ error: 'معرّف الطالب غير صالح' });
+  const studentId = parseInt(req.params.id, 10);
+  if (!studentId || isNaN(studentId)) return res.status(400).json({ error: 'معرّف الطالب غير صالح' });
 
   try {
-    // Check student ownership first before running stats queries
     const studentQ = await pool.query(
-      'SELECT id, name, username, academic_stage, phone, points FROM students WHERE id=$1 AND teacher_id=$2 AND deleted_at IS NULL',
+      `SELECT id, name, username, phone, parent_phone, academic_stage, created_at
+       FROM students
+       WHERE id = $1 AND teacher_id = $2 AND deleted_at IS NULL AND is_simulation IS NOT TRUE`,
       [studentId, teacherId]
     );
-    if (!studentQ.rows.length) return res.status(404).json({ error: 'الطالب غير موجود' });
+    if (studentQ.rows.length === 0) {
+      return res.status(404).json({ error: 'الطالب غير موجود' });
+    }
 
-    // FIX-A2: avg_score returns percentage (0-100) not raw score
-    // N3 FIX: exclude absent records from total/passed/failed/avg — absent ≠ "took the exam";
-    // count them separately so the modal can show a distinct "غائب" pill.
     const [examStatsQ, recStatsQ] = await Promise.all([
       pool.query(
         `SELECT
-           COUNT(*) FILTER (WHERE er.is_latest=true AND er.is_absent=false) AS total_exams,
-           COUNT(*) FILTER (WHERE er.is_latest=true AND er.is_absent=false AND er.score >= e.pass_score) AS passed_exams,
-           COUNT(*) FILTER (WHERE er.is_latest=true AND er.is_absent=false AND er.score < e.pass_score) AS failed_exams,
-           COUNT(*) FILTER (WHERE er.is_latest=true AND er.is_absent=true) AS absent_exams,
-           ROUND(AVG(er.score::numeric / NULLIF(e.total_score, 0) * 100) FILTER (WHERE er.is_latest=true AND er.is_absent=false), 1) AS avg_score
+           COUNT(*) FILTER (WHERE er.is_latest = true AND er.is_absent = false)::int AS total_exams,
+           COUNT(*) FILTER (WHERE er.is_latest = true AND er.is_absent = false AND er.score >= e.pass_score)::int AS passed_exams,
+           COUNT(*) FILTER (WHERE er.is_latest = true AND er.is_absent = false AND er.score < e.pass_score)::int AS failed_exams,
+           COUNT(*) FILTER (WHERE er.is_latest = true AND er.is_absent = true)::int AS absent_exams,
+           COALESCE(ROUND(AVG(er.score::numeric / NULLIF(e.total_score,0) * 100)
+             FILTER (WHERE er.is_latest = true AND er.is_absent = false), 1), 0) AS avg_exam_score,
+           COALESCE(MAX(er.score::numeric / NULLIF(e.total_score,0) * 100)
+             FILTER (WHERE er.is_latest = true AND er.is_absent = false), 0)::numeric(5,1) AS max_exam_score,
+           COALESCE(MIN(er.score::numeric / NULLIF(e.total_score,0) * 100)
+             FILTER (WHERE er.is_latest = true AND er.is_absent = false), 0)::numeric(5,1) AS min_exam_score,
+           COUNT(DISTINCT er.exam_id) FILTER (WHERE er.attempt_number > 1)::int AS retried_exams
          FROM exam_results er
          JOIN exams e ON er.exam_id = e.id
-         WHERE er.student_id=$1 AND e.teacher_id=$2`,
+         WHERE er.student_id = $1 AND e.teacher_id = $2`,
         [studentId, teacherId]
       ),
       pool.query(
         `SELECT
-           COUNT(*) AS total_recitations,
-           COUNT(*) FILTER (WHERE rr.passed=true) AS passed_recitations,
-           COUNT(*) FILTER (WHERE rr.passed=false) AS failed_recitations,
-           ROUND(AVG(rr.score::numeric / NULLIF(r.total_score, 0) * 100), 1) AS avg_score
+           COUNT(*)::int AS total_recitations,
+           COUNT(*) FILTER (WHERE rr.passed = true)::int AS passed_recitations,
+           COUNT(*) FILTER (WHERE rr.passed = false)::int AS failed_recitations,
+           COUNT(*) FILTER (WHERE rr.is_absent = true)::int AS absent_recitations,
+           COALESCE(ROUND(AVG(rr.score::numeric / NULLIF(r.total_score,0) * 100), 1), 0) AS avg_rec_score,
+           COALESCE(MAX(rr.score::numeric / NULLIF(r.total_score,0) * 100), 0)::numeric(5,1) AS max_rec_score,
+           COALESCE(MIN(rr.score::numeric / NULLIF(r.total_score,0) * 100), 0)::numeric(5,1) AS min_rec_score,
+           COUNT(rr.id) - COUNT(DISTINCT rr.recitation_id) AS retried_recitations
          FROM recitation_results rr
-         JOIN recitations r ON rr.recitation_id=r.id
-         WHERE rr.student_id=$1 AND r.teacher_id=$2`,
+         JOIN recitations r ON rr.recitation_id = r.id
+         WHERE rr.student_id = $1 AND r.teacher_id = $2`,
         [studentId, teacherId]
       ),
     ]);
@@ -725,7 +737,7 @@ router.get('/items', requireRole('teacher', 'assistant'), checkAnyPerm, async (r
         examConditions.push(`e.is_published = false`);
       }
       if (stage && stage !== 'الكل') {
-        examConditions.push(`(c.target_stage = $${ep} OR (e.course_id IS NULL AND EXISTS (SELECT 1 FROM students s WHERE s.teacher_id = $1 AND s.academic_stage = $${ep} AND s.deleted_at IS NULL)))`);
+        examConditions.push(`(c.target_stage = $${ep} OR (e.course_id IS NULL AND EXISTS (SELECT 1 FROM students s WHERE s.teacher_id = $1 AND s.academic_stage = $${ep} AND s.deleted_at IS NULL AND s.is_simulation IS NOT TRUE)))`);
         examParams.push(stage);
         ep++;
       }
@@ -764,11 +776,11 @@ router.get('/items', requireRole('teacher', 'assistant'), checkAnyPerm, async (r
                  FROM student_course_enrollment sce
                  JOIN students s ON sce.student_id = s.id
                  WHERE sce.course_id = e.course_id AND sce.status = 'active'
-                   AND s.teacher_id = $1 AND s.deleted_at IS NULL AND s.is_suspended = false)
+                   AND s.teacher_id = $1 AND s.deleted_at IS NULL AND s.is_suspended = false AND s.is_simulation IS NOT TRUE)
               ELSE
                 (SELECT COUNT(*)::int
                  FROM students s
-                 WHERE s.teacher_id = $1 AND s.deleted_at IS NULL AND s.is_suspended = false)
+                 WHERE s.teacher_id = $1 AND s.deleted_at IS NULL AND s.is_suspended = false AND s.is_simulation IS NOT TRUE)
             END) AS total_targeted,
            COALESCE(er_stats.attended_count, 0)::int AS attended_count,
            COALESCE(er_stats.passed_count, 0)::int AS passed_count,
@@ -798,7 +810,8 @@ router.get('/items', requireRole('teacher', 'assistant'), checkAnyPerm, async (r
                FILTER (WHERE er.is_latest = true AND er.is_absent = false AND er.end_time IS NOT NULL AND er.start_time IS NOT NULL), 1) AS slowest_time_minutes
            FROM exam_results er
            JOIN exams ex_inner ON er.exam_id = ex_inner.id
-           WHERE ex_inner.teacher_id = $1
+           JOIN students s ON er.student_id = s.id
+           WHERE ex_inner.teacher_id = $1 AND s.deleted_at IS NULL AND s.is_simulation IS NOT TRUE
            GROUP BY er.exam_id
          ) er_stats ON er_stats.exam_id = e.id
          WHERE ${examWhere}
@@ -879,16 +892,16 @@ router.get('/items', requireRole('teacher', 'assistant'), checkAnyPerm, async (r
                  FROM student_course_enrollment sce
                  JOIN students s ON sce.student_id = s.id
                  WHERE sce.course_id = r.course_id AND sce.status = 'active'
-                   AND s.teacher_id = $1 AND s.deleted_at IS NULL AND s.is_suspended = false)
+                   AND s.teacher_id = $1 AND s.deleted_at IS NULL AND s.is_suspended = false AND s.is_simulation IS NOT TRUE)
               WHEN r.academic_stage IS NOT NULL THEN
                 (SELECT COUNT(*)::int
                  FROM students s
                  WHERE s.teacher_id = $1 AND s.academic_stage = r.academic_stage
-                   AND s.deleted_at IS NULL AND s.is_suspended = false)
+                   AND s.deleted_at IS NULL AND s.is_suspended = false AND s.is_simulation IS NOT TRUE)
               ELSE
                 (SELECT COUNT(*)::int
                  FROM students s
-                 WHERE s.teacher_id = $1 AND s.deleted_at IS NULL AND s.is_suspended = false)
+                 WHERE s.teacher_id = $1 AND s.deleted_at IS NULL AND s.is_suspended = false AND s.is_simulation IS NOT TRUE)
             END) AS total_targeted,
            COALESCE(rr_stats.attended_count, 0)::int AS attended_count,
            COALESCE(rr_stats.passed_count, 0)::int AS passed_count,
@@ -918,7 +931,8 @@ router.get('/items', requireRole('teacher', 'assistant'), checkAnyPerm, async (r
                FILTER (WHERE rr.is_absent = false AND rr.end_time IS NOT NULL AND rr.start_time IS NOT NULL), 1) AS slowest_time_minutes
            FROM recitation_results rr
            JOIN recitations rc_inner ON rr.recitation_id = rc_inner.id
-           WHERE rc_inner.teacher_id = $1
+           JOIN students s ON rr.student_id = s.id
+           WHERE rc_inner.teacher_id = $1 AND s.deleted_at IS NULL AND s.is_simulation IS NOT TRUE
            GROUP BY rr.recitation_id
          ) rr_stats ON rr_stats.recitation_id = r.id
          WHERE ${recWhere}
@@ -1012,23 +1026,23 @@ router.get('/item/:type/:id/students', requireRole('teacher', 'assistant'), chec
           FROM students s
           JOIN student_course_enrollment sce ON s.id = sce.student_id
           WHERE sce.course_id = $5 AND sce.status = 'active'
-            AND s.teacher_id = $2 AND s.deleted_at IS NULL AND s.is_suspended = false
+            AND s.teacher_id = $2 AND s.deleted_at IS NULL AND s.is_suspended = false AND s.is_simulation IS NOT TRUE
           UNION
           SELECT DISTINCT s.id, s.name, s.username, s.academic_stage, s.phone, s.parent_phone
           FROM students s
           JOIN exam_results er ON s.id = er.student_id
-          WHERE er.exam_id = $1 AND s.teacher_id = $2 AND s.deleted_at IS NULL
+          WHERE er.exam_id = $1 AND s.teacher_id = $2 AND s.deleted_at IS NULL AND s.is_simulation IS NOT TRUE
         `;
       } else {
         targetStudentsSql = `
           SELECT s.id, s.name, s.username, s.academic_stage, s.phone, s.parent_phone
           FROM students s
-          WHERE s.teacher_id = $2 AND s.deleted_at IS NULL AND s.is_suspended = false
+          WHERE s.teacher_id = $2 AND s.deleted_at IS NULL AND s.is_suspended = false AND s.is_simulation IS NOT TRUE
           UNION
           SELECT DISTINCT s.id, s.name, s.username, s.academic_stage, s.phone, s.parent_phone
           FROM students s
           JOIN exam_results er ON s.id = er.student_id
-          WHERE er.exam_id = $1 AND s.teacher_id = $2 AND s.deleted_at IS NULL
+          WHERE er.exam_id = $1 AND s.teacher_id = $2 AND s.deleted_at IS NULL AND s.is_simulation IS NOT TRUE
         `;
       }
 
@@ -1243,12 +1257,12 @@ router.get('/item/:type/:id/students', requireRole('teacher', 'assistant'), chec
           FROM students s
           JOIN student_course_enrollment sce ON s.id = sce.student_id
           WHERE sce.course_id = $5 AND sce.status = 'active'
-            AND s.teacher_id = $2 AND s.deleted_at IS NULL AND s.is_suspended = false
+            AND s.teacher_id = $2 AND s.deleted_at IS NULL AND s.is_suspended = false AND s.is_simulation IS NOT TRUE
           UNION
           SELECT DISTINCT s.id, s.name, s.username, s.academic_stage, s.phone, s.parent_phone
           FROM students s
           JOIN recitation_results rr ON s.id = rr.student_id
-          WHERE rr.recitation_id = $1 AND s.teacher_id = $2 AND s.deleted_at IS NULL
+          WHERE rr.recitation_id = $1 AND s.teacher_id = $2 AND s.deleted_at IS NULL AND s.is_simulation IS NOT TRUE
         `;
       } else if (itemInfo.academic_stage) {
         fullParams.push(itemInfo.academic_stage);
@@ -1256,23 +1270,23 @@ router.get('/item/:type/:id/students', requireRole('teacher', 'assistant'), chec
           SELECT s.id, s.name, s.username, s.academic_stage, s.phone, s.parent_phone
           FROM students s
           WHERE s.academic_stage = $5 AND s.teacher_id = $2
-            AND s.deleted_at IS NULL AND s.is_suspended = false
+            AND s.deleted_at IS NULL AND s.is_suspended = false AND s.is_simulation IS NOT TRUE
           UNION
           SELECT DISTINCT s.id, s.name, s.username, s.academic_stage, s.phone, s.parent_phone
           FROM students s
           JOIN recitation_results rr ON s.id = rr.student_id
-          WHERE rr.recitation_id = $1 AND s.teacher_id = $2 AND s.deleted_at IS NULL
+          WHERE rr.recitation_id = $1 AND s.teacher_id = $2 AND s.deleted_at IS NULL AND s.is_simulation IS NOT TRUE
         `;
       } else {
         targetStudentsSql = `
           SELECT s.id, s.name, s.username, s.academic_stage, s.phone, s.parent_phone
           FROM students s
-          WHERE s.teacher_id = $2 AND s.deleted_at IS NULL AND s.is_suspended = false
+          WHERE s.teacher_id = $2 AND s.deleted_at IS NULL AND s.is_suspended = false AND s.is_simulation IS NOT TRUE
           UNION
           SELECT DISTINCT s.id, s.name, s.username, s.academic_stage, s.phone, s.parent_phone
           FROM students s
           JOIN recitation_results rr ON s.id = rr.student_id
-          WHERE rr.recitation_id = $1 AND s.teacher_id = $2 AND s.deleted_at IS NULL
+          WHERE rr.recitation_id = $1 AND s.teacher_id = $2 AND s.deleted_at IS NULL AND s.is_simulation IS NOT TRUE
         `;
       }
 

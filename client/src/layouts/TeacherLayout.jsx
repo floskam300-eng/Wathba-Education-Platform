@@ -10,8 +10,9 @@ import {
   LayoutDashboard, Users, BookOpen, FileText, UserCog,
   BarChart3, CreditCard, Trophy, LogOut, Menu, MessageCircle,
   Bell, Database, ClipboardList, Moon, Sun, Inbox, BookMarked, Radio,
-  StopCircle, ExternalLink, Activity, Settings, GraduationCap, Archive, CalendarCheck
+  StopCircle, ExternalLink, Activity, Settings, GraduationCap, Archive, CalendarCheck, Eye
 } from 'lucide-react';
+import StudentSimulatorModal from '../components/ui/StudentSimulatorModal';
 import WathbaLogo from '../assets/wathba_logo.png';
 
 export default function TeacherLayout() {
@@ -22,6 +23,7 @@ export default function TeacherLayout() {
   const { teacherLive, endTeacherStream } = useLiveStream();
   const { platformName, logoUrl, features } = useTeacher();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [simulatorOpen, setSimulatorOpen] = useState(false);
 
   const onLivePage = location.pathname.endsWith('/livestream');
 
@@ -115,6 +117,14 @@ export default function TeacherLayout() {
       </nav>
 
       <div className="p-3 border-t border-white/10 space-y-1">
+        <button
+          type="button"
+          onClick={() => { setSidebarOpen(false); setSimulatorOpen(true); }}
+          className="sidebar-link w-full text-indigo-200 hover:bg-indigo-500/20 hover:text-white"
+        >
+          <Eye className="w-5 h-5 text-indigo-300" />
+          <span>معاينة كطالب</span>
+        </button>
         {(user?.support_form_url || user?.whatsapp_phone) && (
           <a
             href={user.support_form_url || `https://wa.me/${user.whatsapp_phone}`}
@@ -161,7 +171,17 @@ export default function TeacherLayout() {
                   aria-label="فتح القائمة الجانبية">
             <Menu className="w-5 h-5" />
           </button>
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-2.5 flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => setSimulatorOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 active:scale-95 text-white text-xs font-black transition-all shadow-sm shadow-indigo-500/20"
+              title="معاينة المنصة كطالب"
+            >
+              <Eye className="w-4 h-4 text-amber-300" />
+              <span className="hidden sm:inline">معاينة كطالب</span>
+            </button>
+
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
               <span className={`text-sm font-medium ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-700'}`}>متصل</span>
@@ -220,6 +240,8 @@ export default function TeacherLayout() {
           )}
         </main>
       </div>
+
+      <StudentSimulatorModal isOpen={simulatorOpen} onClose={() => setSimulatorOpen(false)} />
     </div>
   );
 }

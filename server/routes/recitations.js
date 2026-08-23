@@ -187,7 +187,7 @@ router.get('/', requireRole('teacher', 'assistant'), checkManageRecitationsPerm,
     const { rows } = await pool.query(
       `SELECT r.*,
               (SELECT COUNT(*) FROM recitation_questions WHERE recitation_id = r.id) AS question_count,
-              (SELECT COUNT(*) FROM recitation_results WHERE recitation_id = r.id) AS result_count
+              (SELECT COUNT(*) FROM recitation_results rr JOIN students s ON rr.student_id = s.id WHERE rr.recitation_id = r.id AND s.deleted_at IS NULL AND (s.is_simulation IS NOT TRUE)) AS result_count
          FROM recitations r
         WHERE r.teacher_id = $1 AND r.deleted_at IS NULL
         ORDER BY r.created_at DESC`,
@@ -369,16 +369,18 @@ router.get('/analytics', requireRole('teacher', 'assistant'), async (req, res) =
 
     const [totalRec, totalResults, avgScore, byStage, topStudents, recentActivity] = await Promise.all([
       pool.query('SELECT COUNT(*) AS cnt FROM recitations WHERE teacher_id=$1 AND deleted_at IS NULL', [teacherId]),
-      // [STATS-FIX] Exclude absent rows from result count so the number reflects
+      // [STATS-FIX] Exclude absent rows and simulation from result count so the number reflects
       // actual participants, not students marked absent after unpublishing.
       pool.query(
         `SELECT COUNT(*) AS cnt FROM recitation_results rr
            JOIN recitations r ON rr.recitation_id=r.id
-          WHERE r.teacher_id=$1 AND (rr.is_absent IS NULL OR rr.is_absent=false)`,
+           JOIN students s ON rr.student_id=s.id
+          WHERE r.teacher_id=$1 AND (rr.is_absent IS NULL OR rr.is_absent=false)
+            AND s.deleted_at IS NULL AND (s.is_simulation IS NOT TRUE)`,
         [teacherId]
       ),
       // [N3-FIX] Normalize score to percentage (0–100) so the UI's "%" display is correct.
-      // [STATS-FIX] Exclude absent rows so their score=0 doesn't skew the average down.
+      // [STATS-FIX] Exclude absent rows and simulation so their score doesn't skew the average.
       pool.query(
         `SELECT COALESCE(
            AVG(CASE WHEN r.total_score > 0
@@ -387,7 +389,9 @@ router.get('/analytics', requireRole('teacher', 'assistant'), async (req, res) =
          )::numeric(5,1) AS avg
            FROM recitation_results rr
            JOIN recitations r ON rr.recitation_id=r.id
-          WHERE r.teacher_id=$1 AND (rr.is_absent IS NULL OR rr.is_absent=false)`,
+           JOIN students s ON rr.student_id=s.id
+          WHERE r.teacher_id=$1 AND (rr.is_absent IS NULL OR rr.is_absent=false)
+            AND s.deleted_at IS NULL AND (s.is_simulation IS NOT TRUE)`,
         [teacherId]
       ),
       pool.query(
@@ -401,6 +405,7 @@ router.get('/analytics', requireRole('teacher', 'assistant'), async (req, res) =
            JOIN recitations r ON rr.recitation_id=r.id
            JOIN students s ON rr.student_id=s.id
           WHERE r.teacher_id=$1 AND (rr.is_absent IS NULL OR rr.is_absent=false)
+            AND s.deleted_at IS NULL AND (s.is_simulation IS NOT TRUE)
           GROUP BY s.academic_stage
           ORDER BY total_attempts DESC`,
         [teacherId]
@@ -416,7 +421,7 @@ router.get('/analytics', requireRole('teacher', 'assistant'), async (req, res) =
            FROM students s
            JOIN recitation_results rr ON s.id=rr.student_id
            JOIN recitations rec ON rr.recitation_id=rec.id
-          WHERE rec.teacher_id=$1 AND s.deleted_at IS NULL
+          WHERE rec.teacher_id=$1 AND s.deleted_at IS NULL AND (s.is_simulation IS NOT TRUE)
             AND (rr.is_absent IS NULL OR rr.is_absent=false)
           GROUP BY s.id, s.name, s.academic_stage
           ORDER BY total_completed DESC, avg_score DESC
@@ -424,22 +429,21 @@ router.get('/analytics', requireRole('teacher', 'assistant'), async (req, res) =
         [teacherId]
       ),
       // [A1-FIX] Normalize avg_score to percentage (0–100) — consistent with
-      // global summary.avg_score and by_stage.avg_score.  Before this fix
-      // recent_recitations.avg_score was the raw score (e.g. 7) while others
-      // returned a percentage (e.g. 70).
-      // [STATS-FIX] Exclude absent rows from all per-recitation stats.
+      // global summary.avg_score and by_stage.avg_score.
+      // [STATS-FIX] Exclude absent rows and simulation from all per-recitation stats.
       pool.query(
         `SELECT r.id, r.title, r.academic_stage,
-                COUNT(CASE WHEN rr.is_absent IS NULL OR rr.is_absent=false THEN 1 END) AS participant_count,
-                COALESCE(AVG(CASE WHEN (rr.is_absent IS NULL OR rr.is_absent=false) AND r.total_score > 0
+                COUNT(CASE WHEN (rr.is_absent IS NULL OR rr.is_absent=false) AND s.id IS NOT NULL THEN 1 END) AS participant_count,
+                COALESCE(AVG(CASE WHEN (rr.is_absent IS NULL OR rr.is_absent=false) AND s.id IS NOT NULL AND r.total_score > 0
                                   THEN rr.score::float / r.total_score * 100
                                   END), 0)::numeric(5,1) AS avg_score,
                 COALESCE(
-                  AVG(CASE WHEN (rr.is_absent IS NULL OR rr.is_absent=false) AND rr.passed THEN 1
-                           WHEN (rr.is_absent IS NULL OR rr.is_absent=false) THEN 0
+                  AVG(CASE WHEN (rr.is_absent IS NULL OR rr.is_absent=false) AND s.id IS NOT NULL AND rr.passed THEN 1
+                           WHEN (rr.is_absent IS NULL OR rr.is_absent=false) AND s.id IS NOT NULL THEN 0
                            END)*100, 0)::numeric(5,1) AS pass_rate
            FROM recitations r
            LEFT JOIN recitation_results rr ON r.id=rr.recitation_id
+           LEFT JOIN students s ON rr.student_id=s.id AND s.deleted_at IS NULL AND (s.is_simulation IS NOT TRUE)
           WHERE r.teacher_id=$1 AND r.deleted_at IS NULL
           GROUP BY r.id
           ORDER BY r.created_at DESC
@@ -1374,6 +1378,7 @@ router.get('/:id/participants', requireRole('teacher', 'assistant'), checkManage
           JOIN recitations r ON r.id = rr.recitation_id
           JOIN students s ON s.id = rr.student_id
          WHERE rr.recitation_id = $1 AND s.teacher_id = $2
+           AND s.deleted_at IS NULL AND (s.is_simulation IS NOT TRUE)
       ), participant_summaries AS (
         SELECT a.id, a.student_id, a.student_name, a.student_username, a.student_phone,
                a.academic_stage, a.total_score, a.pass_score, a.score,

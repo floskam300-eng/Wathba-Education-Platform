@@ -168,7 +168,7 @@ export default function Recitations() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const qc = useQueryClient();
-  const { user } = useAuth();
+  const { user, startSimulation } = useAuth();
   const baseRole = user?.role === 'assistant' ? 'assistant' : 'teacher';
 
   const toUTCIso = (localStr) => {
@@ -348,6 +348,21 @@ export default function Recitations() {
               ? 'bg-purple-500 text-white'
               : dark ? 'text-[var(--dk-text-2)] hover:bg-[var(--dk-elevated)]' : 'text-gray-600 hover:bg-gray-100'}`}>
             <BarChart2 className="w-4 h-4 inline ml-1" />التحليلات
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              startSimulation({
+                academic_stage: stageFilter || undefined,
+                auto_enroll: true,
+                destination: '/student/recitations',
+              });
+            }}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold border border-purple-200 dark:border-purple-800/50 text-purple-600 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/40 transition-colors shadow-sm"
+            title="معاينة وتجربة صفحة التسميع كطالب"
+          >
+            <Eye className="w-4 h-4 text-purple-500" />
+            <span className="hidden sm:inline">تجربة التسميع كطالب</span>
           </button>
           <button
             onClick={() => { setEditRec(null); setForm(emptyForm); setModal(true); }}

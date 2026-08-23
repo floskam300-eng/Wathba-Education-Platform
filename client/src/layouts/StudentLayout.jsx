@@ -18,6 +18,7 @@ import api from '../lib/api';
 import { useAntiCapture } from '../hooks/useAntiCapture';
 import DisableDevtool from 'disable-devtool';
 import toast from 'react-hot-toast';
+import SimulationBanner from '../components/ui/SimulationBanner';
 
 const EVENTS_NAV_CSS = `
   .events-nav-link {
@@ -380,7 +381,7 @@ export default function StudentLayout() {
   // ── Auto push-permission prompt ───────────────────────────────────────────
   // Show once after login when permission is 'default' and not snoozed before.
   useEffect(() => {
-    if (!user || user.role !== 'student') return;
+    if (!user || user.role !== 'student' || user.is_simulation) return;
     if (!isFCMSupported()) return;
     if (Notification.permission !== 'default') return;
     if (localStorage.getItem(`fcm_prompt_snoozed_${user.id}`)) return;
@@ -388,10 +389,12 @@ export default function StudentLayout() {
     // Small delay so the page renders first
     const t = setTimeout(() => setShowPushPrompt(true), 1500);
     return () => clearTimeout(t);
-  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user?.id, user?.is_simulation]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Content protection: block right-click & DevTools for student pages ──
   useEffect(() => {
+    if (user?.is_simulation) return; // Allow devtools and inspection for teachers previewing
+
     // 1. Global right-click prevention
     const blockContextMenu = (e) => e.preventDefault();
     document.addEventListener('contextmenu', blockContextMenu);
@@ -426,11 +429,12 @@ export default function StudentLayout() {
       document.removeEventListener('contextmenu', blockContextMenu);
       document.removeEventListener('keydown', blockKeys, true);
     };
-  }, []);
+  }, [user?.is_simulation]);
 
   const handleLogout = () => { logout(); };
 
   const handleCaptureAttempt = () => {
+    if (user?.is_simulation) return;
     setCaptureWarning(true);
     clearTimeout(warningTimer.current);
     warningTimer.current = setTimeout(() => setCaptureWarning(false), 4000);
@@ -507,8 +511,8 @@ export default function StudentLayout() {
       className={`app-root-layout flex overflow-hidden ${dark ? '' : 'bg-navy-50'}`}
       style={{
         ...(dark ? { backgroundColor: 'var(--dk-bg)' } : {}),
-        userSelect: 'none',
-        WebkitUserSelect: 'none',
+        userSelect: user?.is_simulation ? 'auto' : 'none',
+        WebkitUserSelect: user?.is_simulation ? 'auto' : 'none',
       }}
     >
       {captureWarning && (
@@ -550,7 +554,8 @@ export default function StudentLayout() {
         </div>
       )}
 
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+        {user?.is_simulation && <SimulationBanner />}
         <div className="flex-shrink-0 w-full"
              style={{ height: 'env(safe-area-inset-top)', backgroundColor: dark ? 'var(--dk-surface)' : 'white' }} />
         <header className={`app-header-safe border-b px-4 py-3 flex items-center justify-between gap-2 flex-shrink-0 ${dark ? '' : 'bg-white border-gray-200 shadow-sm'}`}

@@ -75,7 +75,7 @@ router.get('/students', requireRole('teacher', 'assistant'), checkNotifPermissio
               COALESCE(AVG(er.score) FILTER (WHERE er.is_latest = true), 0)::int as avg_score
        FROM students s
        LEFT JOIN exam_results er ON s.id = er.student_id
-       WHERE s.teacher_id = $1 AND s.deleted_at IS NULL
+       WHERE s.teacher_id = $1 AND s.deleted_at IS NULL AND s.is_simulation IS NOT TRUE
        GROUP BY s.id ORDER BY s.name ASC`,
       [teacherId]
     );
@@ -122,7 +122,7 @@ router.post('/platform', requireRole('teacher', 'assistant'), checkNotifPermissi
 
     // Fetch names in one query + verify students belong to this teacher
     const namesRes = await pool.query(
-      'SELECT id, name FROM students WHERE id = ANY($1) AND teacher_id=$2 AND deleted_at IS NULL',
+      'SELECT id, name FROM students WHERE id = ANY($1) AND teacher_id=$2 AND deleted_at IS NULL AND is_simulation IS NOT TRUE',
       [student_ids, teacherId]
     );
     const nameMap = Object.fromEntries(namesRes.rows.map(r => [r.id, r.name]));

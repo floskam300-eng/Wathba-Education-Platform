@@ -13,6 +13,7 @@ const SAFE_STORAGE_FIELDS = [
   'can_add_students', 'can_edit_students', 'can_delete_students',
   'can_manage_exams', 'can_view_analytics',
   'can_manage_payments', 'can_manage_courses', 'can_send_notifications',
+  'is_simulation', 'simulated_by_teacher_id',
 ];
 
 const pickStorable = (userData) => {
@@ -157,10 +158,116 @@ export const AuthProvider = ({ children }) => {
     });
   };
 
+  // ── Simulation Mode Helpers ────────────────────────────────────────────────
+  const isSimulating = Boolean(user?.is_simulation);
+
+  const startSimulation = async ({ academic_stage, auto_enroll = true, reset_data = false, destination = '/student' }) => {
+    // 1. Backup current teacher token and user if not already in simulation
+    if (!isSimulating) {
+      const currentToken = localStorage.getItem('wathba_token');
+      const currentUser = localStorage.getItem('wathba_user');
+      if (currentToken) sessionStorage.setItem('wathba_teacher_backup_token', currentToken);
+      if (currentUser) sessionStorage.setItem('wathba_teacher_backup_user', currentUser);
+      sessionStorage.setItem('wathba_sim_return_path', window.location.pathname);
+    }
+
+    // 2. Call backend simulation endpoint
+    const res = await api.post('/teachers/simulation/start', {
+      academic_stage,
+      auto_enroll,
+      reset_data,
+      destination,
+    });
+
+    const { token, user: simUser } = res.data;
+
+    // 3. Clear react-query cache and swap active token
+    localStorage.removeItem('WATHBA_QUERY_CACHE');
+    clearMediaToken();
+    localStorage.setItem('wathba_token', token);
+    localStorage.setItem('wathba_user', JSON.stringify(pickStorable(simUser)));
+    if (simUser.teacher_slug) localStorage.setItem('wathba_teacher_slug', simUser.teacher_slug);
+    setUser(simUser);
+
+    // 4. Navigate to student destination
+    navigate(destination || '/student', { replace: true });
+    return res.data;
+  };
+
+  const switchSimulatedStage = async (newStage, autoEnroll = true) => {
+    const res = await api.post('/teachers/simulation/switch-stage', {
+      academic_stage: newStage,
+      auto_enroll: autoEnroll,
+    });
+
+    const { token, user: updatedUser } = res.data;
+    localStorage.removeItem('WATHBA_QUERY_CACHE');
+    localStorage.setItem('wathba_token', token);
+    localStorage.setItem('wathba_user', JSON.stringify(pickStorable(updatedUser)));
+    setUser(updatedUser);
+    return res.data;
+  };
+
+  const resetSimulationProgress = async () => {
+    const res = await api.post('/teachers/simulation/reset');
+    localStorage.removeItem('WATHBA_QUERY_CACHE');
+    try {
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('recitation_') || key.startsWith('exam_answers_') || key.startsWith('exam_active_')) {
+          localStorage.removeItem(key);
+        }
+      });
+    } catch (_) {}
+    return res.data;
+  };
+
+  const exitSimulation = async () => {
+    const backupToken = sessionStorage.getItem('wathba_teacher_backup_token');
+    const returnPath = sessionStorage.getItem('wathba_sim_return_path') || '/teacher';
+
+    localStorage.removeItem('WATHBA_QUERY_CACHE');
+    clearMediaToken();
+    try {
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('recitation_') || key.startsWith('exam_answers_') || key.startsWith('exam_active_')) {
+          localStorage.removeItem(key);
+        }
+      });
+    } catch (_) {}
+
+    if (backupToken) {
+      localStorage.setItem('wathba_token', backupToken);
+      sessionStorage.removeItem('wathba_teacher_backup_token');
+      sessionStorage.removeItem('wathba_teacher_backup_user');
+      sessionStorage.removeItem('wathba_sim_return_path');
+
+      try {
+        const res = await api.get('/auth/me');
+        const teacherUser = res.data;
+        localStorage.setItem('wathba_user', JSON.stringify(pickStorable(teacherUser)));
+        if (teacherUser.teacher_slug) localStorage.setItem('wathba_teacher_slug', teacherUser.teacher_slug);
+        setUser(teacherUser);
+      } catch (e) {
+        console.warn('[auth] Could not restore teacher profile on exit simulation:', e);
+      }
+
+      const targetUrl = (returnPath.startsWith('/teacher') || returnPath.startsWith('/assistant'))
+        ? returnPath
+        : '/teacher';
+      navigate(targetUrl, { replace: true });
+    } else {
+      logout();
+    }
+  };
+
   const isLock = suspendedNotice?.icon === '🔒';
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading, updateUser, suspendedNotice, dismissSuspendedNotice }}>
+    <AuthContext.Provider value={{
+      user, login, logout, loading, updateUser,
+      suspendedNotice, dismissSuspendedNotice,
+      isSimulating, startSimulation, switchSimulatedStage, resetSimulationProgress, exitSimulation
+    }}>
       {children}
       {suspendedNotice && (
         <div

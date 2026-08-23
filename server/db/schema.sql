@@ -48,9 +48,12 @@ CREATE TABLE IF NOT EXISTS students (
   gender VARCHAR(10),
   teacher_id INTEGER REFERENCES teachers(id) ON DELETE CASCADE,
   points INTEGER DEFAULT 0,
+  is_simulation BOOLEAN DEFAULT false,
   created_at TIMESTAMP DEFAULT NOW()
 );
 ALTER TABLE students ADD COLUMN IF NOT EXISTS plain_password VARCHAR(255);
+ALTER TABLE students ADD COLUMN IF NOT EXISTS is_simulation BOOLEAN DEFAULT false;
+CREATE INDEX IF NOT EXISTS idx_students_teacher_sim ON students(teacher_id, is_simulation);
 
 CREATE TABLE IF NOT EXISTS courses (
   id SERIAL PRIMARY KEY,

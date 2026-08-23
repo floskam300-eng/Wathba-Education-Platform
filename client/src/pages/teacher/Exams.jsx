@@ -59,7 +59,7 @@ const fmtDateLocal = _fmtDateLocal;
 export default function TeacherExams() {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, startSimulation } = useAuth();
   const canPrint = user?.role === 'teacher' || user?.can_view_analytics;
   const canManageExams = user?.role === 'teacher' || user?.can_manage_exams;
   const baseRole = user?.role === 'assistant' ? 'assistant' : 'teacher';
@@ -299,6 +299,21 @@ export default function TeacherExams() {
           <span className="text-sm font-semibold text-gray-600">({exams.length})</span>
         </h1>
         <div className="page-header-actions">
+          <button
+            type="button"
+            onClick={() => {
+              startSimulation({
+                academic_stage: stageFilter !== 'الكل' ? stageFilter : undefined,
+                auto_enroll: true,
+                destination: '/student/exams',
+              });
+            }}
+            className="btn-secondary flex items-center gap-1.5 text-indigo-600 hover:bg-indigo-50 border-indigo-200"
+            title="معاينة وتجربة صفحة الاختبارات كطالب"
+          >
+            <Eye className="w-4 h-4 text-indigo-600" />
+            <span className="hidden sm:inline">تجربة الاختبارات كطالب</span>
+          </button>
           {canPrint && (
             <button onClick={handlePrint} className="btn-secondary flex items-center gap-2">
               <Printer className="w-4 h-4" /> <span className="hidden sm:inline">طباعة</span>

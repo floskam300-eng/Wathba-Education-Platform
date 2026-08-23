@@ -392,7 +392,10 @@ router.post('/login', loginLimiter, async (req, res) => {
                   gender, points, teacher_id, is_suspended,
                   created_at, fcm_token
            FROM students
-           WHERE LOWER(TRIM(username)) = LOWER(TRIM($1)) AND deleted_at IS NULL AND teacher_id = $2`,
+           WHERE LOWER(TRIM(username)) = LOWER(TRIM($1))
+             AND deleted_at IS NULL
+             AND teacher_id = $2
+             AND is_simulation IS NOT TRUE`,
           [username, slugTeacherId]
         );
       } else continue;

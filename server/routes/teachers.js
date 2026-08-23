@@ -32,7 +32,7 @@ router.get('/dashboard', requireRole('teacher'), async (req, res) => {
     if (cached) return res.json(cached);
 
     const [students, courses, exams, assistants, payments, pendingRequests, pendingPayments, retryRequests] = await Promise.all([
-      pool.query('SELECT COUNT(*) FROM students WHERE teacher_id = $1 AND deleted_at IS NULL', [teacherId]),
+      pool.query('SELECT COUNT(*) FROM students WHERE teacher_id = $1 AND deleted_at IS NULL AND is_simulation IS NOT TRUE', [teacherId]),
       pool.query('SELECT COUNT(*) FROM courses WHERE teacher_id = $1', [teacherId]),
       pool.query('SELECT COUNT(*) FROM exams WHERE teacher_id = $1 AND deleted_at IS NULL', [teacherId]),
       pool.query('SELECT COUNT(*) FROM assistants WHERE teacher_id = $1', [teacherId]),
@@ -40,7 +40,7 @@ router.get('/dashboard', requireRole('teacher'), async (req, res) => {
       pool.query(
         `SELECT COALESCE(SUM(p.amount),0) AS total
          FROM payments p
-         JOIN students s ON s.id = p.student_id AND s.teacher_id = $1 AND s.deleted_at IS NULL
+         JOIN students s ON s.id = p.student_id AND s.teacher_id = $1 AND s.deleted_at IS NULL AND s.is_simulation IS NOT TRUE
          WHERE p.status = 'verified'`,
         [teacherId]
       ),
@@ -53,7 +53,7 @@ router.get('/dashboard', requireRole('teacher'), async (req, res) => {
       pool.query(
         `SELECT COUNT(*) FROM payments p
          JOIN students s ON s.id = p.student_id
-         WHERE s.teacher_id = $1 AND p.status = 'pending' AND s.deleted_at IS NULL`,
+         WHERE s.teacher_id = $1 AND p.status = 'pending' AND s.deleted_at IS NULL AND s.is_simulation IS NOT TRUE`,
         [teacherId]
       ),
       pool.query(
@@ -208,7 +208,8 @@ router.get('/at-risk-students', requireRole('teacher', 'assistant'), async (req,
           MAX(er.created_at) AS last_exam_at
         FROM exam_results er
         JOIN exams e ON er.exam_id = e.id
-        WHERE e.teacher_id = $1 AND er.is_latest = true
+        JOIN students s ON er.student_id = s.id
+        WHERE e.teacher_id = $1 AND er.is_latest = true AND s.deleted_at IS NULL AND (s.is_simulation IS NOT TRUE)
         GROUP BY er.student_id
       ),
       -- Count total videos in enrolled courses vs actually watched (any progress)
@@ -228,10 +229,11 @@ router.get('/at-risk-students', requireRole('teacher', 'assistant'), async (req,
           MIN(sce.enrollment_date) AS first_enrolled_at
         FROM student_course_enrollment sce
         JOIN courses c ON sce.course_id = c.id
+        JOIN students s ON sce.student_id = s.id
         LEFT JOIN sections sec ON sec.course_id = c.id
         LEFT JOIN videos v ON v.course_id = c.id
         LEFT JOIN video_progress vp ON vp.video_id = v.id AND vp.student_id = sce.student_id
-        WHERE c.teacher_id = $1 AND sce.status = 'active'
+        WHERE c.teacher_id = $1 AND sce.status = 'active' AND s.deleted_at IS NULL AND (s.is_simulation IS NOT TRUE)
         GROUP BY sce.student_id
       ),
       enrollment_stats AS (
@@ -240,7 +242,8 @@ router.get('/at-risk-students', requireRole('teacher', 'assistant'), async (req,
           MIN(sce.enrollment_date) AS first_enrolled_at
         FROM student_course_enrollment sce
         JOIN courses c ON sce.course_id = c.id
-        WHERE c.teacher_id = $1 AND sce.status = 'active'
+        JOIN students s ON sce.student_id = s.id
+        WHERE c.teacher_id = $1 AND sce.status = 'active' AND s.deleted_at IS NULL AND (s.is_simulation IS NOT TRUE)
         GROUP BY sce.student_id
       )
       SELECT
@@ -268,7 +271,7 @@ router.get('/at-risk-students', requireRole('teacher', 'assistant'), async (req,
       LEFT JOIN exam_stats    es ON s.id = es.student_id
       LEFT JOIN video_stats   vs ON s.id = vs.student_id
       LEFT JOIN enrollment_stats en ON s.id = en.student_id
-      WHERE s.teacher_id = $1 AND s.deleted_at IS NULL
+      WHERE s.teacher_id = $1 AND s.deleted_at IS NULL AND (s.is_simulation IS NOT TRUE)
         AND (
           (es.avg_exam_pct IS NOT NULL AND es.avg_exam_pct < 60)
           OR
@@ -322,7 +325,7 @@ router.get('/analytics', requireRole('teacher'), async (req, res) => {
              COUNT(er.id) FILTER (WHERE er.is_absent = true)  as absent_count
       FROM exams e
       LEFT JOIN courses c ON e.course_id = c.id
-      LEFT JOIN exam_results er ON er.exam_id = e.id AND er.is_latest = true
+      LEFT JOIN exam_results er ON er.exam_id = e.id AND er.is_latest = true AND er.student_id IN (SELECT id FROM students WHERE teacher_id = $1 AND is_simulation IS NOT TRUE AND deleted_at IS NULL)
       LEFT JOIN (
         SELECT course_id, COUNT(*)::int AS sales_count
         FROM payments
@@ -342,7 +345,7 @@ router.get('/analytics', requireRole('teacher'), async (req, res) => {
         FROM students s
         LEFT JOIN exam_results er ON s.id = er.student_id AND er.is_latest = true AND er.is_absent = false
         LEFT JOIN exams e ON er.exam_id = e.id
-        WHERE s.teacher_id = $1 AND s.deleted_at IS NULL
+        WHERE s.teacher_id = $1 AND s.deleted_at IS NULL AND s.is_simulation IS NOT TRUE
         GROUP BY s.id, s.name, s.username, s.points, s.academic_stage, s.gender
         ORDER BY s.points DESC LIMIT 50
       `, [teacherId]),
@@ -354,11 +357,11 @@ router.get('/analytics', requireRole('teacher'), async (req, res) => {
         FROM exam_results er
         JOIN students s ON er.student_id = s.id
         JOIN exams e ON er.exam_id = e.id
-        WHERE e.teacher_id = $1 AND er.is_latest = true
+        WHERE e.teacher_id = $1 AND er.is_latest = true AND s.deleted_at IS NULL AND s.is_simulation IS NOT TRUE
         ORDER BY er.created_at DESC LIMIT 100
       `, [teacherId]),
       pool.query(
-        `SELECT COUNT(*)::int AS count FROM students WHERE teacher_id = $1 AND deleted_at IS NULL`,
+        `SELECT COUNT(*)::int AS count FROM students WHERE teacher_id = $1 AND deleted_at IS NULL AND is_simulation IS NOT TRUE`,
         [teacherId]
       ),
       // FIX-DIST-1: Compute stage distribution over ALL students (not just top-50).
@@ -368,7 +371,7 @@ router.get('/analytics', requireRole('teacher'), async (req, res) => {
         SELECT COALESCE(academic_stage, 'غير محدد') AS stage,
                COUNT(*)::int AS count
         FROM students
-        WHERE teacher_id = $1 AND deleted_at IS NULL
+        WHERE teacher_id = $1 AND deleted_at IS NULL AND is_simulation IS NOT TRUE
         GROUP BY academic_stage
         ORDER BY count DESC
       `, [teacherId]),
@@ -377,7 +380,7 @@ router.get('/analytics', requireRole('teacher'), async (req, res) => {
         SELECT COALESCE(gender, 'غير محدد') AS gender,
                COUNT(*)::int AS count
         FROM students
-        WHERE teacher_id = $1 AND deleted_at IS NULL
+        WHERE teacher_id = $1 AND deleted_at IS NULL AND is_simulation IS NOT TRUE
         GROUP BY gender
         ORDER BY count DESC
       `, [teacherId]),
@@ -443,10 +446,11 @@ router.get('/analytics/wrong-questions', requireRole('teacher', 'assistant'), as
         ) AS wrong_pct
       FROM exam_results er
       JOIN exams e ON er.exam_id = e.id
+      JOIN students s ON er.student_id = s.id
       JOIN LATERAL jsonb_array_elements(er.answers) AS ans ON true
       LEFT JOIN questions q ON q.id = (ans->>'question_id')::integer AND e.question_source != 'bank'
       LEFT JOIN bank_questions bq ON bq.id = (ans->>'question_id')::integer AND e.question_source = 'bank'
-      WHERE e.teacher_id = $1
+      WHERE e.teacher_id = $1 AND s.deleted_at IS NULL AND (s.is_simulation IS NOT TRUE)
         AND jsonb_typeof(er.answers) = 'array'
         AND (ans->>'question_type' = 'mcq' OR ans->>'question_type' IS NULL OR ans->>'question_type' = '')
         AND ans->>'is_correct' IS NOT NULL
@@ -497,7 +501,8 @@ router.get('/analytics/trend', requireRole('teacher'), async (req, res) => {
         COUNT(CASE WHEN er.score >= e.pass_score THEN 1 END)::int AS pass_count
       FROM exam_results er
       JOIN exams e ON er.exam_id = e.id
-      WHERE e.teacher_id = $1 AND er.is_latest = true
+      JOIN students s ON er.student_id = s.id
+      WHERE e.teacher_id = $1 AND er.is_latest = true AND s.deleted_at IS NULL AND (s.is_simulation IS NOT TRUE)
         ${intervalClause}
       GROUP BY DATE_TRUNC('month', er.created_at)
       ORDER BY DATE_TRUNC('month', er.created_at) ASC
@@ -556,7 +561,8 @@ router.get('/analytics/exam/:examId', requireRole('teacher', 'assistant'), async
         ROUND(MAX(EXTRACT(EPOCH FROM (er.end_time - er.start_time)) / 60.0)
               FILTER (WHERE er.is_absent = false AND er.start_time IS NOT NULL AND er.end_time IS NOT NULL), 1) AS slowest_time_minutes
       FROM exam_results er
-      WHERE er.exam_id = $1 AND er.is_latest = true
+      JOIN students s ON er.student_id = s.id
+      WHERE er.exam_id = $1 AND er.is_latest = true AND s.deleted_at IS NULL AND (s.is_simulation IS NOT TRUE)
     `, [examId, exam.total_score, exam.pass_score]);
     const ov = overviewRow.rows[0];
     const totalAttempts = parseInt(ov.total_attempts) || 0;
@@ -589,7 +595,9 @@ router.get('/analytics/exam/:examId', requireRole('teacher', 'assistant'), async
       FROM (
         SELECT ROUND(er.score::numeric / NULLIF($2::int, 0) * 100)::int AS pct
         FROM exam_results er
+        JOIN students s ON er.student_id = s.id
         WHERE er.exam_id = $1 AND er.is_latest = true AND er.is_absent = false
+          AND s.deleted_at IS NULL AND (s.is_simulation IS NOT TRUE)
       ) sub
       GROUP BY range
       ORDER BY range
@@ -632,12 +640,14 @@ router.get('/analytics/exam/:examId', requireRole('teacher', 'assistant'), async
         COUNT(*) FILTER (WHERE UPPER(ans->>'student_answer') = 'T')::int AS ans_t,
         COUNT(*) FILTER (WHERE UPPER(ans->>'student_answer') = 'F')::int AS ans_f
       FROM exam_results er
+      JOIN students s ON er.student_id = s.id
       JOIN LATERAL jsonb_array_elements(er.answers) AS ans ON true
       LEFT JOIN questions q ON q.id = (ans->>'question_id')::integer AND $2 != 'bank'
       LEFT JOIN bank_questions bq ON bq.id = (ans->>'question_id')::integer AND $2 = 'bank'
       WHERE er.exam_id = $1
         AND er.is_latest = true
         AND er.is_absent = false
+        AND s.deleted_at IS NULL AND (s.is_simulation IS NOT TRUE)
         AND jsonb_typeof(er.answers) = 'array'
         AND ans->>'is_correct' IS NOT NULL
         AND (q.id IS NOT NULL OR bq.id IS NOT NULL)
@@ -682,7 +692,7 @@ router.get('/analytics/exam/:examId', requireRole('teacher', 'assistant'), async
         er.created_at
       FROM exam_results er
       JOIN students s ON er.student_id = s.id
-      WHERE er.exam_id = $1 AND er.is_latest = true AND er.is_absent = false AND s.deleted_at IS NULL
+      WHERE er.exam_id = $1 AND er.is_latest = true AND er.is_absent = false AND s.deleted_at IS NULL AND (s.is_simulation IS NOT TRUE)
       ORDER BY er.score DESC, er.created_at ASC
     `, [examId, exam.total_score, exam.pass_score]);
 
@@ -716,24 +726,25 @@ router.get('/course-stats', requireRole('teacher'), async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT c.id, c.name, c.target_stage,
-             COUNT(DISTINCT sce.student_id)::int AS enrolled_count,
-             COUNT(DISTINCT v.id)::int            AS total_videos,
+             COUNT(DISTINCT s.id)::int AS enrolled_count,
+             COUNT(DISTINCT v.id)::int AS total_videos,
              -- BUG-4/5 FIX: restrict vp to enrolled students only; compute true engagement
              -- (sum of all student-video progress / total possible combinations)
              -- so students who never watched count as 0%, not excluded from AVG
              CASE
-               WHEN COUNT(DISTINCT sce.student_id) > 0 AND COUNT(DISTINCT v.id) > 0
+               WHEN COUNT(DISTINCT s.id) > 0 AND COUNT(DISTINCT v.id) > 0
                THEN ROUND(
                  SUM(COALESCE(vp.progress_percentage, 0))::numeric
-                 / (COUNT(DISTINCT sce.student_id)::numeric * COUNT(DISTINCT v.id)::numeric)
+                 / (COUNT(DISTINCT s.id)::numeric * COUNT(DISTINCT v.id)::numeric)
                , 0)::int
                ELSE 0
              END AS avg_progress,
              COUNT(DISTINCT CASE WHEN vp.progress_percentage >= 80 THEN vp.student_id END)::int AS active_students
       FROM courses c
       LEFT JOIN student_course_enrollment sce ON c.id = sce.course_id AND sce.status = 'active'
+      LEFT JOIN students s ON sce.student_id = s.id AND s.deleted_at IS NULL AND (s.is_simulation IS NOT TRUE)
       LEFT JOIN videos v  ON v.course_id = c.id
-      LEFT JOIN video_progress vp ON v.id = vp.video_id AND vp.student_id = sce.student_id
+      LEFT JOIN video_progress vp ON v.id = vp.video_id AND vp.student_id = s.id
       WHERE c.teacher_id = $1
       GROUP BY c.id, c.name, c.target_stage
       ORDER BY enrolled_count DESC
@@ -771,7 +782,7 @@ router.get('/export', requireRole('teacher'), async (req, res) => {
         `SELECT id, username, name, phone, parent_phone, academic_stage, gender,
                 points, is_suspended, plain_password, created_at
            FROM students
-          WHERE teacher_id=$1 AND deleted_at IS NULL
+          WHERE teacher_id=$1 AND deleted_at IS NULL AND is_simulation IS NOT TRUE
           ORDER BY name LIMIT 10000`, [teacherId]),
 
       exportQuery('SELECT * FROM courses WHERE teacher_id=$1 ORDER BY created_at', [teacherId]),
@@ -789,7 +800,7 @@ router.get('/export', requireRole('teacher'), async (req, res) => {
            FROM exam_results er
            JOIN students s ON er.student_id=s.id
            JOIN exams e ON er.exam_id=e.id
-          WHERE e.teacher_id=$1 AND s.deleted_at IS NULL
+          WHERE e.teacher_id=$1 AND s.deleted_at IS NULL AND s.is_simulation IS NOT TRUE
           ORDER BY er.created_at DESC`, [teacherId]),
 
       // payments — include verifier info
@@ -798,14 +809,14 @@ router.get('/export', requireRole('teacher'), async (req, res) => {
                 p.status, p.reference_number, p.notes, p.verified_at, p.verified_by_name
            FROM payments p
            JOIN students s ON p.student_id=s.id
-          WHERE s.teacher_id=$1 AND s.deleted_at IS NULL
+          WHERE s.teacher_id=$1 AND s.deleted_at IS NULL AND s.is_simulation IS NOT TRUE
           ORDER BY p.payment_date DESC`, [teacherId]),
 
       exportQuery(
         `SELECT sce.student_id, sce.course_id, sce.enrollment_date, sce.status
            FROM student_course_enrollment sce
            JOIN students s ON sce.student_id=s.id
-          WHERE s.teacher_id=$1 AND s.deleted_at IS NULL`, [teacherId]),
+          WHERE s.teacher_id=$1 AND s.deleted_at IS NULL AND s.is_simulation IS NOT TRUE`, [teacherId]),
 
       // video_progress — include resume-position columns
       exportQuery(
@@ -813,7 +824,7 @@ router.get('/export', requireRole('teacher'), async (req, res) => {
                 vp.progress_percentage, vp.last_watched_at, vp.last_position, vp.actual_watched_seconds
            FROM video_progress vp
            JOIN students s ON vp.student_id=s.id
-          WHERE s.teacher_id=$1 AND s.deleted_at IS NULL`, [teacherId]),
+          WHERE s.teacher_id=$1 AND s.deleted_at IS NULL AND s.is_simulation IS NOT TRUE`, [teacherId]),
 
       // question banks
       exportQuery('SELECT * FROM question_banks WHERE teacher_id=$1 ORDER BY created_at', [teacherId]),
@@ -834,7 +845,7 @@ router.get('/export', requireRole('teacher'), async (req, res) => {
         `SELECT rr.* FROM recitation_results rr
            JOIN students s ON rr.student_id=s.id
            JOIN recitations r ON rr.recitation_id=r.id
-          WHERE r.teacher_id=$1 AND s.deleted_at IS NULL
+          WHERE r.teacher_id=$1 AND s.deleted_at IS NULL AND s.is_simulation IS NOT TRUE
           ORDER BY rr.created_at DESC`, [teacherId]),
     ]);
 

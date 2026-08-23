@@ -204,6 +204,10 @@ const _captureLog = new Map(); // studentId → lastLoggedAt (ms)
 const CAPTURE_LOG_TTL_MS = 10_000;
 
 router.post('/capture-attempt', requireRole('student'), async (req, res) => {
+  if (req.user?.is_simulation) {
+    return res.json({ logged: false, reason: 'simulation' });
+  }
+
   const studentId = req.user.id;
   const now = Date.now();
   const last = _captureLog.get(studentId) || 0;

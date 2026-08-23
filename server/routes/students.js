@@ -45,7 +45,7 @@ const checkStudentLimit = async (teacherId, toAddCount = 1, dbPool = pool) => {
   if (maxStudents === null) return { allowed: true }; // Unlimited
 
   const countRes = await dbPool.query(
-    'SELECT COUNT(*)::int AS count FROM students WHERE teacher_id = $1 AND deleted_at IS NULL',
+    'SELECT COUNT(*)::int AS count FROM students WHERE teacher_id = $1 AND deleted_at IS NULL AND is_simulation IS NOT TRUE',
     [teacherId]
   );
   const currentCount = countRes.rows[0].count;
@@ -97,7 +97,7 @@ router.get('/stages', requireRole('teacher', 'assistant'), async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT DISTINCT academic_stage FROM students
-       WHERE teacher_id=$1 AND deleted_at IS NULL AND academic_stage IS NOT NULL
+       WHERE teacher_id=$1 AND deleted_at IS NULL AND academic_stage IS NOT NULL AND is_simulation IS NOT TRUE
        ORDER BY academic_stage`,
       [teacherId]
     );
@@ -115,7 +115,7 @@ router.get('/stage-counts', requireRole('teacher', 'assistant'), async (req, res
     const result = await pool.query(
       `SELECT academic_stage AS stage, COUNT(*)::int AS count
          FROM students
-        WHERE teacher_id=$1 AND deleted_at IS NULL AND academic_stage IS NOT NULL
+        WHERE teacher_id=$1 AND deleted_at IS NULL AND academic_stage IS NOT NULL AND is_simulation IS NOT TRUE
         GROUP BY academic_stage
         ORDER BY academic_stage`,
       [teacherId]
@@ -170,7 +170,7 @@ router.get('/', requireRole('teacher', 'assistant'), (req, res, next) => checkAn
       params.push(pageSize, offset);
       const countParams = params.slice(0, -2);
       const countRes = await pool.query(
-        `SELECT COUNT(*)::int AS total FROM students s WHERE s.teacher_id = $1 AND s.deleted_at IS NULL ${stageClause} ${searchClause}`,
+        `SELECT COUNT(*)::int AS total FROM students s WHERE s.teacher_id = $1 AND s.deleted_at IS NULL AND (s.is_simulation IS NOT TRUE) ${stageClause} ${searchClause}`,
         countParams
       );
       const result = await pool.query(
@@ -180,7 +180,7 @@ router.get('/', requireRole('teacher', 'assistant'), (req, res, next) => checkAn
                 COUNT(CASE WHEN sce.status = 'active' THEN sce.course_id END)::int as enrolled_courses
          FROM students s
          LEFT JOIN student_course_enrollment sce ON s.id = sce.student_id
-         WHERE s.teacher_id = $1 AND s.deleted_at IS NULL ${stageClause} ${searchClause}
+         WHERE s.teacher_id = $1 AND s.deleted_at IS NULL AND (s.is_simulation IS NOT TRUE) ${stageClause} ${searchClause}
          GROUP BY s.id ORDER BY s.created_at DESC
          LIMIT $${countParams.length + 1} OFFSET $${countParams.length + 2}`,
         params
@@ -194,7 +194,7 @@ router.get('/', requireRole('teacher', 'assistant'), (req, res, next) => checkAn
               COUNT(CASE WHEN sce.status = 'active' THEN sce.course_id END)::int as enrolled_courses
        FROM students s
        LEFT JOIN student_course_enrollment sce ON s.id = sce.student_id
-       WHERE s.teacher_id = $1 AND s.deleted_at IS NULL ${stageClause} ${searchClause}
+       WHERE s.teacher_id = $1 AND s.deleted_at IS NULL AND (s.is_simulation IS NOT TRUE) ${stageClause} ${searchClause}
        GROUP BY s.id ORDER BY s.created_at DESC`,
       params
     );
@@ -1201,7 +1201,7 @@ router.get('/attendance/:courseId', requireRole('teacher', 'assistant'), async (
         `SELECT s.id, s.name, s.username, s.academic_stage
          FROM students s
          JOIN student_course_enrollment sce ON s.id = sce.student_id
-         WHERE sce.course_id = $1 AND s.deleted_at IS NULL
+         WHERE sce.course_id = $1 AND s.deleted_at IS NULL AND s.is_simulation IS NOT TRUE
          ORDER BY s.name`,
         [courseId]
       ),

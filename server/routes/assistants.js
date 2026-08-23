@@ -162,7 +162,7 @@ router.get('/analytics', requireRole('teacher', 'assistant'), checkAnalyticsPerm
         FROM students s
         LEFT JOIN exam_results er ON s.id = er.student_id AND er.is_latest = true
         LEFT JOIN exams e ON er.exam_id = e.id
-        WHERE s.teacher_id = $1 AND s.deleted_at IS NULL
+        WHERE s.teacher_id = $1 AND s.deleted_at IS NULL AND s.is_simulation IS NOT TRUE
         GROUP BY s.id, s.name, s.username, s.points, s.academic_stage, s.gender
         ORDER BY s.points DESC LIMIT 50
       `, [teacherId]),
@@ -174,7 +174,7 @@ router.get('/analytics', requireRole('teacher', 'assistant'), checkAnalyticsPerm
         FROM exam_results er
         JOIN students s ON er.student_id = s.id
         JOIN exams e ON er.exam_id = e.id
-        WHERE e.teacher_id = $1 AND er.is_latest = true
+        WHERE e.teacher_id = $1 AND er.is_latest = true AND s.deleted_at IS NULL AND s.is_simulation IS NOT TRUE
         ORDER BY er.created_at DESC LIMIT 100
       `, [teacherId]),
       pool.query(`
@@ -183,12 +183,12 @@ router.get('/analytics', requireRole('teacher', 'assistant'), checkAnalyticsPerm
         FROM students s
         LEFT JOIN exam_results er ON s.id = er.student_id AND er.is_latest = true
         LEFT JOIN exams e ON er.exam_id = e.id
-        WHERE s.teacher_id = $1 AND s.deleted_at IS NULL
+        WHERE s.teacher_id = $1 AND s.deleted_at IS NULL AND s.is_simulation IS NOT TRUE
         GROUP BY s.academic_stage
         ORDER BY student_count DESC
       `, [teacherId]),
       pool.query(
-        `SELECT COUNT(*)::int AS count FROM students WHERE teacher_id = $1 AND deleted_at IS NULL`,
+        `SELECT COUNT(*)::int AS count FROM students WHERE teacher_id = $1 AND deleted_at IS NULL AND is_simulation IS NOT TRUE`,
         [teacherId]
       ),
       // FIX-DIST-1: Stage distribution over ALL students (not top-50 by points).
@@ -196,7 +196,7 @@ router.get('/analytics', requireRole('teacher', 'assistant'), checkAnalyticsPerm
         SELECT COALESCE(academic_stage, 'غير محدد') AS stage,
                COUNT(*)::int AS count
         FROM students
-        WHERE teacher_id = $1 AND deleted_at IS NULL
+        WHERE teacher_id = $1 AND deleted_at IS NULL AND is_simulation IS NOT TRUE
         GROUP BY academic_stage
         ORDER BY count DESC
       `, [teacherId]),
@@ -205,7 +205,7 @@ router.get('/analytics', requireRole('teacher', 'assistant'), checkAnalyticsPerm
         SELECT COALESCE(gender, 'غير محدد') AS gender,
                COUNT(*)::int AS count
         FROM students
-        WHERE teacher_id = $1 AND deleted_at IS NULL
+        WHERE teacher_id = $1 AND deleted_at IS NULL AND is_simulation IS NOT TRUE
         GROUP BY gender
         ORDER BY count DESC
       `, [teacherId]),

@@ -181,7 +181,7 @@ router.get('/records', requireRole('teacher', 'assistant'), requireAttendancePer
     const studentsRes = await pool.query(
       `SELECT s.id, s.username, s.name, s.phone, s.academic_stage
        FROM students s
-       WHERE s.teacher_id = $1${stageWhere} AND s.deleted_at IS NULL
+       WHERE s.teacher_id = $1${stageWhere} AND s.deleted_at IS NULL AND s.is_simulation IS NOT TRUE
        ORDER BY s.name`,
       stageParams
     );
@@ -265,7 +265,7 @@ router.post('/records/bulk', requireRole('teacher', 'assistant'), requireAttenda
     // Validate all student IDs belong to this teacher
     const studentIds = records.map(r => r.student_id);
     const studentCheck = await client.query(
-      `SELECT id FROM students WHERE id = ANY($1::int[]) AND teacher_id=$2 AND deleted_at IS NULL`,
+      `SELECT id FROM students WHERE id = ANY($1::int[]) AND teacher_id=$2 AND deleted_at IS NULL AND is_simulation IS NOT TRUE`,
       [studentIds, teacherId]
     );
     if (studentCheck.rows.length !== studentIds.length) {
@@ -402,7 +402,7 @@ router.get('/analytics', requireRole('teacher', 'assistant'), requireAttendanceP
        FROM students s
        JOIN class_attendance_records car ON car.student_id = s.id ${subjectWhere}
        JOIN class_subjects cs ON cs.id = car.subject_id AND cs.teacher_id = $1
-       WHERE s.teacher_id = $1 ${stageWhere} AND s.deleted_at IS NULL
+       WHERE s.teacher_id = $1 ${stageWhere} AND s.deleted_at IS NULL AND s.is_simulation IS NOT TRUE
        GROUP BY s.id, s.name, s.username, s.phone, s.academic_stage, cs.id, cs.name
        ORDER BY cs.name, s.name`,
       params
@@ -427,7 +427,7 @@ router.get('/stages', requireRole('teacher', 'assistant'), requireAttendancePerm
         [teacherId]
       ),
       pool.query(
-        'SELECT DISTINCT academic_stage FROM students WHERE teacher_id=$1 AND deleted_at IS NULL AND academic_stage IS NOT NULL ORDER BY academic_stage',
+        'SELECT DISTINCT academic_stage FROM students WHERE teacher_id=$1 AND deleted_at IS NULL AND is_simulation IS NOT TRUE AND academic_stage IS NOT NULL ORDER BY academic_stage',
         [teacherId]
       ),
     ]);
