@@ -20,6 +20,9 @@
 
 const DEVICE_KEY = 'wathba_device_id';
 const ORIGIN_KEY = 'wathba_device_origin';
+// Last-known-good audio fingerprint: a transient rendering timeout must never
+// silently change this device's identity signals.
+const AUDIO_FP_CACHE_KEY = 'wathba_audio_fp';
 
 // ── Cookie Helpers ─────────────────────────────────────────────────────────────
 function getCookie(name) {
@@ -554,11 +557,15 @@ export async function collectHardwareProfile() {
     }
   } catch (_) {}
 
-  // 2. Audio Engine Fingerprint (Fast OfflineAudioContext dynamics processing)
+  // 2. Audio Engine Fingerprint (Fast OfflineAudioContext dynamics processing).
+  //    Two attempts with a generous timeout each, then fall back to the
+  //    last-known-good cached value so a slow/busy device doesn't flip the
+  //    identity signal to empty (which previously caused false "new device"
+  //    scores on the server).
   try {
     const AudioCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
     if (AudioCtx) {
-      const audioPromise = (async () => {
+      const renderAudioFp = async () => {
         const ctx = new AudioCtx(1, 4410, 44100);
         const osc = ctx.createOscillator();
         osc.type = 'triangle';
@@ -583,10 +590,27 @@ export async function collectHardwareProfile() {
           sum += Math.abs(output[i]);
         }
         return sum ? sum.toFixed(6) : '';
-      })();
+      };
+      const attempt = async () => {
+        try {
+          return await Promise.race([
+            renderAudioFp(),
+            new Promise(resolve => setTimeout(() => resolve(''), 400))
+          ]);
+        } catch (_) {
+          return '';
+        }
+      };
 
-      const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(''), 250));
-      profile.audio = await Promise.race([audioPromise, timeoutPromise]);
+      let audio = await attempt();
+      if (!audio) audio = await attempt();
+
+      if (audio) {
+        try { localStorage.setItem(AUDIO_FP_CACHE_KEY, audio); } catch (_) {}
+      } else {
+        try { audio = localStorage.getItem(AUDIO_FP_CACHE_KEY) || ''; } catch (_) {}
+      }
+      profile.audio = audio;
     }
   } catch (_) {}
 

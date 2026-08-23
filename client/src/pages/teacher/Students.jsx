@@ -195,6 +195,18 @@ function DeviceAlertsPanel({ canEdit }) {
     return { text: s, cls: 'bg-gray-100 text-gray-600' };
   };
 
+  // Short hardware identifiers that survive random device_id changes — helps
+  // the teacher recognize that several alerts come from the same machine.
+  const gpuRenderer = (a) => {
+    const r = a?.hardware_profile?.gpu?.renderer;
+    return typeof r === 'string' && r.trim() ? r.trim().slice(0, 60) : '';
+  };
+  const hwTag = (a) => {
+    const gpu = gpuRenderer(a);
+    const hash = a?.hardware_hash ? `HW:${String(a.hardware_hash).slice(0, 10)}` : '';
+    return [gpu, hash].filter(Boolean).join(' · ');
+  };
+
   const hasActiveFilters = alertSearch.trim() || stageFilterA !== 'الكل' || statusFilter !== 'all';
 
   if (isLoading) return (
@@ -358,6 +370,11 @@ function DeviceAlertsPanel({ canEdit }) {
                         {new Date(alert.created_at).toLocaleString('ar-EG')}
                         {alert.ip_address && <span className="mr-2 font-mono">IP: {alert.ip_address}</span>}
                       </p>
+                      {hwTag(alert) && (
+                        <p className="text-[10px] font-mono text-gray-500 mt-0.5 truncate" dir="ltr" title="بصمة العتاد — نفس القيمة تعني نفس الجهاز الفعلي">
+                          {hwTag(alert)}
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
@@ -431,6 +448,11 @@ function DeviceAlertsPanel({ canEdit }) {
                       <span className="font-mono text-xs text-gray-500 mr-2">({alert.student_username})</span>
                     </p>
                     <p className="text-xs text-gray-400 mt-0.5">{alert.academic_stage && <span className="ml-2">{alert.academic_stage}</span>}{new Date(alert.created_at).toLocaleString('ar-EG')} — {alert.device_name}</p>
+                    {hwTag(alert) && (
+                      <p className="text-[10px] font-mono text-gray-400 mt-0.5 truncate" dir="ltr" title="بصمة العتاد — نفس القيمة تعني نفس الجهاز الفعلي">
+                        {hwTag(alert)}
+                      </p>
+                    )}
                   </div>
                   <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${st.cls}`}>{st.text}</span>
                 </div>

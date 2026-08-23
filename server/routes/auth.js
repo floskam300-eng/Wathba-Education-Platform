@@ -444,6 +444,13 @@ router.post('/login', loginLimiter, async (req, res) => {
           const deviceName = parseDeviceName(ua, device_name, req.headers);
           const hwProfile  = (hardware_profile && typeof hardware_profile === 'object') ? hardware_profile : {};
           const hwHash     = hardware_hash || computeHardwareHash(hwProfile);
+          // Server-side canonical hash + machine identity used for hash-first
+          // matching and alert dedup. Only trusted when the profile carries
+          // real telemetry — an empty profile hashes to a constant that would
+          // falsely match across unrelated devices.
+          const serverHwHash   = computeHardwareHash(hwProfile);
+          const hasRealProfile = !!(hwProfile.gpu?.renderer || hwProfile.screen?.w || hwProfile.screen?.h || hwProfile.system?.cores);
+          const machineHash    = hasRealProfile ? (hwHash || serverHwHash) : null;
 
           console.log(`[LOGIN] acquiring DB connection for device transaction... (device: "${deviceName}")`);
           const client = await pool.connect();
@@ -479,7 +486,25 @@ router.post('/login', loginLimiter, async (req, res) => {
             let selfHealedDevice = null;
             let maxSimilarityScore = 0;
 
-            // If not exact device_id match, run hardware similarity engine against registered devices
+            // Hash-first identity: an identical hardware hash is conclusive
+            // proof of the same physical machine even when browser storage was
+            // cleared, an incognito window was used, or a different browser on
+            // the same computer logged in. Accepts both client-format and
+            // server-format hashes.
+            if (!isKnown && hasRealProfile && registeredDevices.length > 0) {
+              const incomingHashes = [hwHash, serverHwHash].filter(Boolean);
+              const hashMatch = incomingHashes.length > 0
+                ? registeredDevices.find(d => d.hardware_hash && incomingHashes.includes(d.hardware_hash))
+                : null;
+              if (hashMatch) {
+                isKnown = true;
+                selfHealedDevice = hashMatch;
+                maxSimilarityScore = 100;
+                console.log(`[LOGIN] HASH MATCH: student id=${user.id} matched registered device id=${hashMatch.id} via hardware_hash — collapsing storage id "${device_id.slice(0,12)}..."`);
+              }
+            }
+
+            // If still unknown, run hardware similarity engine against registered devices
             if (!isKnown && registeredDevices.length > 0) {
               for (const regDev of registeredDevices) {
                 const score = computeSimilarityScore(hwProfile, regDev.hardware_profile, ip, regDev.ip_address);
@@ -503,17 +528,26 @@ router.post('/login', loginLimiter, async (req, res) => {
               if (registeredDevices.length >= 1) {
                 console.log(`[LOGIN] NEW_DEVICE_BLOCKED for student id=${user.id} (maxSimilarity=${maxSimilarityScore}%): inserting device_alert`);
 
+                // Dedup by machine identity (hardware_hash) so the same
+                // physical computer never spawns multiple pending alerts when
+                // each attempt mints a fresh random device_id. Falls back to
+                // device_id when no trustworthy hash exists.
                 const alertExists = await client.query(
                   `SELECT 1 FROM device_alerts
-                   WHERE student_id = $1 AND device_id = $2 AND status = 'pending'`,
-                  [user.id, device_id]
+                    WHERE student_id = $1
+                      AND status = 'pending'
+                      AND (
+                        ($2::text IS NOT NULL AND hardware_hash IS NOT DISTINCT FROM $2)
+                        OR ($2::text IS NULL AND device_id IS NOT DISTINCT FROM $3)
+                      )`,
+                  [user.id, machineHash, device_id]
                 );
                 if (alertExists.rows.length === 0) {
                   await client.query(
                     `INSERT INTO device_alerts
-                       (teacher_id, student_id, alert_type, device_id, device_name, ip_address, status, hardware_profile, similarity_score)
-                     VALUES ($1, $2, 'device_limit_exceeded', $3, $4, $5, 'pending', $6, $7)`,
-                    [user.teacher_id, user.id, device_id, deviceName, ip, JSON.stringify(hwProfile), maxSimilarityScore]
+                       (teacher_id, student_id, alert_type, device_id, device_name, ip_address, status, hardware_profile, similarity_score, hardware_hash)
+                     VALUES ($1, $2, 'device_limit_exceeded', $3, $4, $5, 'pending', $6, $7, $8)`,
+                    [user.teacher_id, user.id, device_id, deviceName, ip, JSON.stringify(hwProfile), maxSimilarityScore, machineHash]
                   );
                   console.log(`[LOGIN] device_alert inserted for student id=${user.id}`);
                 }
@@ -537,9 +571,9 @@ router.post('/login', loginLimiter, async (req, res) => {
                   );
                   await client.query(
                     `INSERT INTO device_alerts
-                       (teacher_id, student_id, alert_type, device_id, device_name, ip_address, status, hardware_profile, similarity_score)
-                     VALUES ($1, $2, 'auto_suspended', $3, $4, $5, 'pending', $6, $7)`,
-                    [user.teacher_id, user.id, device_id, deviceName, ip, JSON.stringify(hwProfile), maxSimilarityScore]
+                       (teacher_id, student_id, alert_type, device_id, device_name, ip_address, status, hardware_profile, similarity_score, hardware_hash)
+                     VALUES ($1, $2, 'auto_suspended', $3, $4, $5, 'pending', $6, $7, $8)`,
+                    [user.teacher_id, user.id, device_id, deviceName, ip, JSON.stringify(hwProfile), maxSimilarityScore, machineHash]
                   );
                   autoSuspended = true;
                   console.log(`[LOGIN] AUTO-SUSPENDED student id=${user.id} after ${attemptCount} blocked attempts`);

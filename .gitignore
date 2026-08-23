@@ -51,3 +51,6 @@ artifacts/
 
 # WhatsApp session files — contain auth credentials, must never be committed
 whatsapp-sessions/
+
+# Device data backups — contain IPs/user-agents, must never be committed
+scratch/

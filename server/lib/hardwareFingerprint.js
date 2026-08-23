@@ -24,9 +24,12 @@ function compareGpu(incomingGpu = {}, storedGpu = {}) {
   // Check substring / model match (e.g. "mali-g57" in "mali-g57 mc2" or "apple gpu" in "apple gpu 5-core")
   if (inRend.includes(stRend) || stRend.includes(inRend)) return 26;
 
-  // Extract key chipset tokens (e.g. "adreno 618", "geforce rtx 3060", "apple")
-  const inTokens = inRend.split(' ').filter(t => t.length > 2);
-  const stTokens = stRend.split(' ').filter(t => t.length > 2);
+  // Extract key chipset tokens (e.g. "adreno 618", "geforce rtx 3060", "apple").
+  // Split on any non-alphanumeric char so ANGLE wrapper strings like
+  // "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11...)" tokenize cleanly
+  // against Firefox-style renderers like "NVIDIA GeForce RTX 3060/PCIe/SSE2".
+  const inTokens = normalizeString(inRend).split(/[^a-z0-9]+/).filter(t => t.length > 2);
+  const stTokens = normalizeString(stRend).split(/[^a-z0-9]+/).filter(t => t.length > 2);
   const overlap = inTokens.filter(t => stTokens.includes(t));
   if (overlap.length >= 2) return 22;
 
@@ -151,7 +154,7 @@ function compareIp(incomingIp = '', storedIp = '') {
 function computeSimilarityScore(incomingProfile = {}, storedProfile = {}, incomingIp = '', storedIp = '') {
   if (!incomingProfile || !storedProfile) return 0;
 
-  const gpuScore    = compareGpu(incomingProfile.gpu, storedProfile.gpu);         // Max 35
+  const gpuScore    = compareGpu(incomingProfile.gpu, storedProfile.gpu);         // Max 30
   const screenScore = compareScreen(incomingProfile.screen, storedProfile.screen); // Max 25
   const sysScore    = compareSystem(incomingProfile.system, storedProfile.system); // Max 20
   const audioScore  = compareAudioAndPlatform(incomingProfile, storedProfile);     // Max 10
@@ -183,5 +186,10 @@ function computeHardwareHash(profile = {}) {
 module.exports = {
   computeSimilarityScore,
   computeHardwareHash,
-  MATCH_THRESHOLD: 80, // >= 80% is guaranteed same physical device
+  // 65% strongly indicates the same physical machine. The old 80% threshold was
+  // unreachable for cross-browser logins on the SAME computer (GPU renderer
+  // strings, deviceMemory availability and audio fingerprints all differ across
+  // browser engines), which caused false "new device" alerts. A genuinely
+  // different device on the same WiFi still scores ~25-50, well below this.
+  MATCH_THRESHOLD: 65,
 };

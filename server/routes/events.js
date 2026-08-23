@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const pool = require('../db/connection');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { broadcastToTeacherAndAssistants } = require('../sse');
+const { getIp } = require('../lib/activityLog');
 
 const router = express.Router();
 router.use(authenticate);
@@ -219,30 +220,44 @@ router.post('/capture-attempt', requireRole('student'), async (req, res) => {
   const type = (req.body.type || 'unknown').toString().slice(0, 50);
 
   try {
-    // Log to device_alerts table so teacher sees it in the students panel
+    // Log to device_alerts table so teacher sees it in the students panel.
+    // DB-level debounce: at most one pending capture_attempt alert per student
+    // per 15-minute window, so repeated triggers never flood the alerts area
+    // (the in-memory map alone doesn't survive restarts or multi-process runs).
     const ins = await pool.query(
       `INSERT INTO device_alerts
          (teacher_id, student_id, alert_type, device_name, ip_address, status)
        SELECT s.teacher_id, $1, 'capture_attempt', $2, $3, 'pending'
-       FROM students s WHERE s.id = $1
+         FROM students s
+        WHERE s.id = $1
+          AND NOT EXISTS (
+            SELECT 1 FROM device_alerts da
+             WHERE da.student_id = $1
+               AND da.alert_type = 'capture_attempt'
+               AND da.status = 'pending'
+               AND da.created_at > NOW() - INTERVAL '15 minutes'
+          )
        RETURNING teacher_id`,
-      [studentId, `محاولة نسخ: ${type}`, req.ip || '']
+      [studentId, `محاولة نسخ: ${type}`, getIp(req) || '']
     );
 
     const teacherId = ins.rows[0]?.teacher_id;
-    if (teacherId) {
-      setImmediate(() => {
-        broadcastToTeacherAndAssistants(pool, teacherId, 'device_alert', {
-          student_id: studentId,
-          student_name: req.user.name,
-          student_username: req.user.username,
-          device_name: `محاولة نسخ/تصوير: ${type}`,
-          ip_address: req.ip || '',
-          alert_type: 'capture_attempt',
-          created_at: new Date().toISOString(),
-        }).catch(e => console.error('[SSE] capture_attempt alert broadcast error:', e.message));
-      });
+    if (!teacherId) {
+      // Suppressed by the debounce window — nothing new for the teacher to see.
+      return res.json({ logged: false, reason: 'debounced' });
     }
+
+    setImmediate(() => {
+      broadcastToTeacherAndAssistants(pool, teacherId, 'device_alert', {
+        student_id: studentId,
+        student_name: req.user.name,
+        student_username: req.user.username,
+        device_name: `محاولة نسخ/تصوير: ${type}`,
+        ip_address: getIp(req) || '',
+        alert_type: 'capture_attempt',
+        created_at: new Date().toISOString(),
+      }).catch(e => console.error('[SSE] capture_attempt alert broadcast error:', e.message));
+    });
 
     res.json({ logged: true });
   } catch (err) {

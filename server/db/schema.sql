@@ -775,19 +775,22 @@ ALTER TABLE student_devices         ADD COLUMN IF NOT EXISTS device_origin VARCH
 ALTER TABLE student_active_sessions ADD COLUMN IF NOT EXISTS device_origin VARCHAR(20) DEFAULT 'browser';
 
 CREATE TABLE IF NOT EXISTS device_alerts (
-  id          SERIAL PRIMARY KEY,
-  teacher_id  INTEGER REFERENCES teachers(id) ON DELETE CASCADE,
-  student_id  INTEGER REFERENCES students(id) ON DELETE CASCADE,
-  alert_type  VARCHAR(50) DEFAULT 'device_limit_exceeded',
-  device_id   VARCHAR(128),
-  device_name VARCHAR(300),
-  ip_address  VARCHAR(45),
-  status      VARCHAR(20) DEFAULT 'pending',
-  created_at  TIMESTAMP DEFAULT NOW(),
-  resolved_at TIMESTAMP
+  id            SERIAL PRIMARY KEY,
+  teacher_id    INTEGER REFERENCES teachers(id) ON DELETE CASCADE,
+  student_id    INTEGER REFERENCES students(id) ON DELETE CASCADE,
+  alert_type    VARCHAR(50) DEFAULT 'device_limit_exceeded',
+  device_id     VARCHAR(128),
+  device_name   VARCHAR(300),
+  ip_address    VARCHAR(45),
+  status        VARCHAR(20) DEFAULT 'pending',
+  created_at    TIMESTAMP DEFAULT NOW(),
+  resolved_at   TIMESTAMP,
+  hardware_hash VARCHAR(128)
 );
 CREATE INDEX IF NOT EXISTS idx_device_alerts_teacher ON device_alerts(teacher_id, status);
 CREATE INDEX IF NOT EXISTS idx_device_alerts_student ON device_alerts(student_id);
+ALTER TABLE device_alerts ADD COLUMN IF NOT EXISTS hardware_hash VARCHAR(128);
+CREATE INDEX IF NOT EXISTS idx_device_alerts_dedup   ON device_alerts(student_id, status, hardware_hash);
 DO $$ BEGIN
   ALTER TABLE device_alerts ADD CONSTRAINT chk_alert_type CHECK (alert_type IN ('device_limit_exceeded', 'capture_attempt', 'auto_suspended', 'concurrent_session_kick'));
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
