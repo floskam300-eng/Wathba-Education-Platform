@@ -219,7 +219,7 @@ function SubjectModal({ stages, onClose, dark }) {
           </div>
 
           {/* List */}
-          {loading ? (
+          {isLoading ? (
             <div className="space-y-2">
               {[1,2,3].map(i => <div key={i} className="h-12 rounded-xl bg-gray-100 animate-pulse" />)}
             </div>
