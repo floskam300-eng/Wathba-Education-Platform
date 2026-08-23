@@ -380,6 +380,14 @@ async function runTests() {
   console.log('\n▶  BUG-9: Video progress tracking');
 
   await test('[B9] Video progress update succeeds', async () => {
+    // Pre-seed a backdated heartbeat so the server's wall-clock anti-cheat
+    // accepts this honest 450s delta in a single request.
+    await pool.query(
+      `INSERT INTO video_progress (student_id, video_id, watch_count, watched_minutes,
+                                   progress_percentage, last_watched_at, last_position, actual_watched_seconds)
+       VALUES ($1,$2,0,0,0, NOW() - INTERVAL '400 seconds', 0, 0)`,
+      [T.studentAId, T.videoId]
+    );
     const r = await request('POST', '/api/students/me/video-progress', {
       video_id: T.videoId,
       progress_percentage: 50,
@@ -394,7 +402,9 @@ async function runTests() {
       [T.studentAId, T.videoId]
     );
     assert(rows.length > 0, 'Progress should exist');
-    assert(parseFloat(rows[0].progress_percentage) >= 50, 'Progress should be >= 50%');
+    assertEqual(rows[0].actual_watched_seconds, 450, `Expected 450 accumulated seconds, got ${rows[0].actual_watched_seconds}`);
+    assert(Math.abs(parseFloat(rows[0].progress_percentage) - 50) < 0.01, `Progress should be ~50%, got ${rows[0].progress_percentage}`);
+    assertEqual(rows[0].watched_minutes, 7, `watched_minutes must be server-derived (floor(450/60)), got ${rows[0].watched_minutes}`);
   });
 
   // ──────── BUG-10: Exam submit security — forged question IDs ────────

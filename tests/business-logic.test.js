@@ -115,24 +115,44 @@ async function runTests() {
     assertEqual(s.points, 500);
   });
 
-  await test('Video progress tracking updates correctly', async () => {
+  await test('Video progress tracking updates correctly (server-derived)', async () => {
     const [v] = (await pool.query(
       "INSERT INTO videos (course_id,section_id,title,file_path_or_url,duration_minutes) VALUES ($1,$2,'Test Video','/test.mp4',30) RETURNING id",
       [T.courseId, T.sectionId])).rows;
-    
-    const r = await request('POST', '/api/students/me/video-progress', {
+
+    // First heartbeat establishes the progress row.
+    const r1 = await request('POST', '/api/students/me/video-progress', {
       video_id: v.id,
-      progress_percentage: 50,
-      watched_minutes: 15,
+      actual_watched_seconds: 10,
+      last_position: 300,
+    }, T.studentToken);
+    assertEqual(r1.status, 200, `Video progress update failed: ${JSON.stringify(r1.body)}`);
+
+    // Simulate real elapsed time between heartbeats so the server's
+    // wall-clock anti-cheat allows the next honest delta.
+    await pool.query(
+      "UPDATE video_progress SET last_watched_at = NOW() - INTERVAL '400 seconds' WHERE student_id=$1 AND video_id=$2",
+      [T.studentId, v.id]);
+
+    // Second heartbeat: 15 minutes watched of a 30-minute video. Client-sent
+    // watched_minutes / progress_percentage must be IGNORED (server-derived).
+    const r2 = await request('POST', '/api/students/me/video-progress', {
+      video_id: v.id,
+      actual_watched_seconds: 890,
+      watched_minutes: 999,
+      progress_percentage: 100,
       last_position: 900,
     }, T.studentToken);
-    assertEqual(r.status, 200, `Video progress update failed: ${JSON.stringify(r.body)}`);
+    assertEqual(r2.status, 200, `Video progress update failed: ${JSON.stringify(r2.body)}`);
 
     const { rows: [vp] } = await pool.query(
       "SELECT * FROM video_progress WHERE student_id=$1 AND video_id=$2",
       [T.studentId, v.id]);
     assert(vp, 'Video progress should exist');
-    assert(parseFloat(vp.progress_percentage) >= 50, `Expected >=50%, got ${vp.progress_percentage}`);
+    assertEqual(vp.actual_watched_seconds, 900, `Expected 900 accumulated seconds, got ${vp.actual_watched_seconds}`);
+    assert(Math.abs(parseFloat(vp.progress_percentage) - 50) < 0.01, `Expected ~50%, got ${vp.progress_percentage}`);
+    assertEqual(vp.watched_minutes, 15, `watched_minutes must be derived from watch time, got ${vp.watched_minutes}`);
+    assert(parseInt(vp.last_position) <= 1800, `last_position must stay within duration, got ${vp.last_position}`);
 
     await pool.query('DELETE FROM videos WHERE id=$1', [v.id]);
   });

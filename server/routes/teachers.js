@@ -739,7 +739,7 @@ router.get('/course-stats', requireRole('teacher'), async (req, res) => {
                , 0)::int
                ELSE 0
              END AS avg_progress,
-             COUNT(DISTINCT CASE WHEN vp.progress_percentage >= 80 THEN vp.student_id END)::int AS active_students
+             COUNT(DISTINCT CASE WHEN vp.progress_percentage >= 90 THEN vp.student_id END)::int AS active_students
       FROM courses c
       LEFT JOIN student_course_enrollment sce ON c.id = sce.course_id AND sce.status = 'active'
       LEFT JOIN students s ON sce.student_id = s.id AND s.deleted_at IS NULL AND (s.is_simulation IS NOT TRUE)

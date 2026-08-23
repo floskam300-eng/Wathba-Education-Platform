@@ -22,6 +22,18 @@ const addStudentLimiter = rateLimit({
   message: { error: 'محاولات إضافة طلاب كثيرة جداً، حاول مرة أخرى بعد دقيقة' },
 });
 
+// Rate limiter for video-progress heartbeats — legit clients post once per 10s
+// plus a few flushes (pause/unmount); keyed per student, not per IP, because
+// many students can share one NAT IP.
+const videoProgressLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `vp:${req.user.id}`,
+  message: { error: 'تحديثات تقدم المشاهدة كثيرة جداً — أعد المحاولة لاحقاً' },
+});
+
 const getTeacherId = (req) => {
   if (req.user.role === 'teacher') return req.user.id;
   return req.user.teacher_id;
@@ -996,16 +1008,28 @@ router.post('/bulk', requireRole('teacher', 'assistant'), (req, res, next) => ch
 });
 
 // ── Save video progress ──
-router.post('/me/video-progress', requireRole('student'), async (req, res) => {
+// Anti-tamper model (server-authoritative):
+//   • The client reports only a DELTA of watch-seconds since its previous report.
+//   • The server accepts at most (real elapsed time since this student's last
+//     update for this video) × MAX_SPEED_FACTOR + GRACE — so a forged single
+//     request can never grant more than ~GRACE seconds of watch credit.
+//   • watched_minutes and progress_percentage are derived SERVER-SIDE from the
+//     accumulated seconds; client-supplied values for those fields are ignored.
+router.post('/me/video-progress', requireRole('student'), videoProgressLimiter, async (req, res) => {
   const studentId = req.user.id;
-  const { video_id, watched_minutes, watch_count_increment, last_position, actual_watched_seconds } = req.body;
+  const { video_id, watch_count_increment, last_position, actual_watched_seconds } = req.body;
   if (!video_id) return res.status(400).json({ error: 'video_id required' });
   try {
-    // Verify the video belongs to a course the student is actively enrolled in
+    // Verify the video belongs to a course the student is actively enrolled in,
+    // and load any existing progress row for wall-clock validation.
     const ownershipCheck = await pool.query(
-      `SELECT v.id, v.course_id, v.section_id, v.duration_minutes FROM videos v
-       JOIN student_course_enrollment sce ON v.course_id = sce.course_id
-       WHERE v.id = $1 AND sce.student_id = $2 AND sce.status = 'active'`,
+      `SELECT v.id, v.course_id, v.section_id, v.duration_minutes,
+              vp.actual_watched_seconds AS prev_actual_seconds,
+              vp.last_watched_at        AS prev_last_watched_at
+         FROM videos v
+         JOIN student_course_enrollment sce ON v.course_id = sce.course_id
+         LEFT JOIN video_progress vp ON vp.video_id = v.id AND vp.student_id = $2
+        WHERE v.id = $1 AND sce.student_id = $2 AND sce.status = 'active'`,
       [video_id, studentId]
     );
     if (!ownershipCheck.rows.length) {
@@ -1049,38 +1073,80 @@ router.post('/me/video-progress', requireRole('student'), async (req, res) => {
         }
       }
     }
-    const durationMinutes = parseFloat(videoRow.duration_minutes) || 0;
-    const maxWatchedSeconds = durationMinutes > 0 ? durationMinutes * 60 : 86400;
-    const safeWatchedSeconds = Math.round(Math.max(0, Math.min(actual_watched_seconds || 0, maxWatchedSeconds)));
-    // BUG-12: cap watched_minutes at actual video duration — prevents inflated watch-time from malicious clients
-    const safeWatchedMinutes = Math.round(durationMinutes > 0
-      ? Math.max(0, Math.min(watched_minutes || 0, durationMinutes))
-      : Math.max(0, watched_minutes || 0));
+    let durationMinutes = parseFloat(videoRow.duration_minutes) || 0;
 
-    // Compute progress server-side: use actual_watched_seconds if duration is known
-    let serverProgress = 0;
-    if (durationMinutes > 0 && safeWatchedSeconds > 0) {
-      serverProgress = Math.min(100, (safeWatchedSeconds / (durationMinutes * 60)) * 100);
-    } else if (durationMinutes > 0 && safeWatchedMinutes > 0) {
-      serverProgress = Math.min(100, (safeWatchedMinutes / durationMinutes) * 100);
-    } else {
-      // duration_minutes not set (URL videos without duration) — use client-provided value capped at 100
-      const clientProgress = parseFloat(req.body.progress_percentage) || 0;
-      serverProgress = Math.min(100, Math.max(0, clientProgress));
+    // [Duration adoption] URL videos added without a duration can't be verified
+    // against anything. When the player measures a sane one, persist it ONCE
+    // (only while still unset) so future updates become fully verifiable.
+    const measuredSec = parseFloat(req.body.measured_duration_seconds) || 0;
+    if (durationMinutes <= 0 && measuredSec >= 30 && measuredSec <= 86400) {
+      const measuredMinutes = Math.ceil(measuredSec / 60);
+      const adoptRes = await pool.query(
+        `UPDATE videos SET duration_minutes = $2
+          WHERE id = $1 AND (duration_minutes IS NULL OR duration_minutes = 0)
+          RETURNING duration_minutes`,
+        [video_id, measuredMinutes]
+      );
+      if (adoptRes.rows.length) durationMinutes = parseFloat(adoptRes.rows[0].duration_minutes) || 0;
     }
+
+    // [Anti-cheat] Wall-clock cap: each request may add at most the real time
+    // elapsed since this student's previous update × MAX_SPEED_FACTOR + GRACE.
+    // 2.5× covers max playback speed (2×); +30s covers timer throttling in
+    // background tabs and flush timing. A brand-new row gets a small fixed
+    // grant instead — enough for an honest first heartbeat (~10s of playback),
+    // far short of the full duration a forged request would claim.
+    const VIDEO_MAX_SPEED_FACTOR = 2.5;
+    const VIDEO_GRACE_SECONDS = 30;
+    const FIRST_UPDATE_GRACE_SECONDS = 45;
+    const prevActual = parseInt(videoRow.prev_actual_seconds, 10) || 0;
+    const elapsedSec = videoRow.prev_last_watched_at
+      ? Math.max(0, (Date.now() - new Date(videoRow.prev_last_watched_at).getTime()) / 1000)
+      : null;
+    const wallClockAllowance = elapsedSec === null
+      ? FIRST_UPDATE_GRACE_SECONDS
+      : Math.ceil(elapsedSec * VIDEO_MAX_SPEED_FACTOR) + VIDEO_GRACE_SECONDS;
+
+    const maxWatchedSeconds = durationMinutes > 0 ? durationMinutes * 60 : 86400;
+    const rawDelta = Math.max(0, Math.min(actual_watched_seconds || 0, wallClockAllowance));
+    // Absolute accumulated total, capped by the real duration.
+    const totalActualSeconds = Math.min(prevActual + Math.round(rawDelta), maxWatchedSeconds);
+
+    // Server-derived stats — client-reported watched_minutes/progress ignored.
+    const newWatchedMinutes = Math.floor(totalActualSeconds / 60);
+    let serverProgress = 0;
+    if (durationMinutes > 0) {
+      serverProgress = Math.min(100, (totalActualSeconds / (durationMinutes * 60)) * 100);
+    } else {
+      // Duration genuinely unknown (adoption didn't apply) — fall back to the
+      // client-provided percentage capped at 100.
+      serverProgress = Math.min(100, Math.max(0, parseFloat(req.body.progress_percentage) || 0));
+    }
+    serverProgress = Math.round(serverProgress * 100) / 100;
+
+    const positionCap = durationMinutes > 0 ? durationMinutes * 60 : 86400;
+    const safePosition = Math.max(0, Math.min(parseFloat(last_position) || 0, positionCap));
 
     await pool.query(
       `INSERT INTO video_progress (student_id, video_id, watch_count, watched_minutes, progress_percentage, last_watched_at, last_position, actual_watched_seconds)
        VALUES ($1, $2, $3, $4, $5, NOW(), $6, $7)
        ON CONFLICT (student_id, video_id) DO UPDATE SET
          watch_count = CASE WHEN $3 > 0 THEN video_progress.watch_count + $3 ELSE video_progress.watch_count END,
-         watched_minutes = GREATEST(video_progress.watched_minutes, $4),
+         watched_minutes = $4,
          progress_percentage = GREATEST(video_progress.progress_percentage, $5),
          last_watched_at = NOW(),
          last_position = $6,
-         actual_watched_seconds = video_progress.actual_watched_seconds + $7`,
-      [studentId, video_id, watch_count_increment || 0, safeWatchedMinutes, serverProgress, last_position || 0, safeWatchedSeconds]
+         actual_watched_seconds = $7`,
+      [studentId, video_id, watch_count_increment || 0, newWatchedMinutes, serverProgress, safePosition, totalActualSeconds]
     );
+
+    res.json({
+      ok: true,
+      actual_watched_seconds: totalActualSeconds,
+      watched_minutes: newWatchedMinutes,
+      progress_percentage: serverProgress,
+      duration_adopted: durationMinutes > 0 && !(parseFloat(videoRow.duration_minutes) > 0),
+    });
 
     // ── Award course completion points if all videos watched (race-safe) ──
     try {
@@ -1116,8 +1182,6 @@ router.post('/me/video-progress', requireRole('student'), async (req, res) => {
     } catch (completionErr) {
       console.error('[video-progress completion]', completionErr.message);
     }
-
-    res.json({ ok: true });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });

@@ -2,7 +2,7 @@ import axios from 'axios';
 import { getTenantSlug } from './tenant';
 import { syncServerTime } from './dateUtils';
 
-const API_BASE = import.meta.env.VITE_API_URL
+export const API_BASE = import.meta.env.VITE_API_URL
   ? `${import.meta.env.VITE_API_URL}/api`
   : '/api';
 

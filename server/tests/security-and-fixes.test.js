@@ -41,7 +41,8 @@ function assertEqual(a, b, msg) {
   if (a !== b) throw new Error(msg || `Expected ${JSON.stringify(b)}, got ${JSON.stringify(a)}`);
 }
 function assertMatch(str, regex, msg) {
-  if (!regex.test(str)) throw new Error(msg || `Expected "${str}" to match ${regex}`);
+  const re = regex instanceof RegExp ? regex : new RegExp(regex);
+  if (!re.test(str)) throw new Error(msg || `Expected "${str}" to match ${re}`);
 }
 
 function request(method, path, body, token) {
@@ -74,8 +75,8 @@ async function setup() {
   await pool.query('DELETE FROM teachers WHERE username = $1', [TEST_USERNAME]);
   const hashed = await bcrypt.hash(TEST_PASSWORD, 10);
   const r = await pool.query(
-    `INSERT INTO teachers (username, password, name, phone)
-     VALUES ($1, $2, 'Test Teacher Fixes', '01000000000')
+    `INSERT INTO teachers (username, password, name)
+     VALUES ($1, $2, 'Test Teacher Fixes')
      ON CONFLICT (username) DO UPDATE SET password = EXCLUDED.password
      RETURNING id`,
     [TEST_USERNAME, hashed]
@@ -215,8 +216,8 @@ async function runTests() {
   // ── 10. Health / Database Check ─────────────────────────────────────
   console.log('\n▶ Fix 10 — API Health Check');
 
-  await test('GET /api/health returns ok', async () => {
-    const res = await request('GET', '/api/health', null, null);
+  await test('GET /health returns ok', async () => {
+    const res = await request('GET', '/health', null, null);
     assertEqual(res.status, 200, `Expected 200, got ${res.status}`);
     assert(res.body?.ok || res.body?.status === 'ok', 'Health endpoint ok');
   });

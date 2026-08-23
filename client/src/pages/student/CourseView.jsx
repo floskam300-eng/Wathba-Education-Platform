@@ -11,9 +11,10 @@ import {
 import SecurePdfViewer from '../../components/SecurePdfViewer';
 import ImageLightbox from '../../components/ImageLightbox';
 import toast from 'react-hot-toast';
-import api from '../../lib/api';
+import api, { API_BASE } from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 import { withToken } from '../../lib/mediaAccess';
+import { getTenantSlug } from '../../lib/tenant';
 import QuestionImage from '../../components/ui/QuestionImage';
 import { toUTCDate, getServerNow, getServerNowMs } from '../../lib/dateUtils';
 import MathText from '../../components/MathText';
@@ -56,6 +57,31 @@ const saveSpeed   = (s) => { try { localStorage.setItem(STORAGE_SPEED,  String(s
 const _vidUserId = () => { try { return JSON.parse(localStorage.getItem('wathba_user') || '{}').id || ''; } catch { return ''; } };
 const saveVidPos  = (id, pos) => { try { if (pos > 5) localStorage.setItem(`wathba_vid_pos_${_vidUserId()}_${id}`, String(Math.round(pos))); } catch {} };
 const loadVidPos  = (id) => { try { return parseInt(localStorage.getItem(`wathba_vid_pos_${_vidUserId()}_${id}`) || '0', 10); } catch { return 0; } };
+
+/* ─── Keepalive progress flush ──────────────────────────────────────────
+   Regular progress posts go through axios; but flushes fired from
+   beforeunload / unmount are usually dropped by the browser because the
+   page is being torn down. fetch(..., {keepalive:true}) survives unload.
+   The server treats every request as a DELTA of watch-seconds and applies
+   its own wall-clock cap, so this is a pure reliability fix — a forged or
+   duplicated flush can't inflate anything. */
+const postProgressKeepalive = (videoId, payload) => {
+  try {
+    const token = localStorage.getItem('wathba_token');
+    if (!token || !videoId) return;
+    const slug = getTenantSlug();
+    fetch(`${API_BASE}/students/me/video-progress`, {
+      method: 'POST',
+      keepalive: true,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        ...(slug ? { 'X-Tenant-Slug': slug } : {}),
+      },
+      body: JSON.stringify({ video_id: videoId, ...payload }),
+    }).catch(() => {});
+  } catch (_) {}
+};
 
 /* ─── Device-orientation aware "force landscape" helper ──────────
    The rotate button fakes a landscape presentation (via CSS rotate) for
@@ -273,7 +299,19 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
       const d  = playerRef.current?.getDuration?.() || 0;
       const watchedMin = d > 0 ? (maxPct.current / 100) * (d / 60) : 0;
       saveVidPos(videoIdRef.current, ct);
-      onProgressUpdateRef.current(videoIdRef.current, watchedMin, maxPct.current, false, ct, actualWatched.current);
+      // Send-and-reset: actualWatched holds ONLY seconds not yet sent by the
+      // periodic timer, so every request carries a pure delta (the server
+      // accumulates totals itself).
+      const unsentSec = actualWatched.current;
+      actualWatched.current = 0;
+      postProgressKeepalive(videoIdRef.current, {
+        watched_minutes: Math.round(watchedMin),
+        progress_percentage: Math.min(100, Math.round(maxPct.current)),
+        watch_count_increment: 0,
+        last_position: Math.round(ct || 0),
+        actual_watched_seconds: unsentSec,
+        ...(d > 0 ? { measured_duration_seconds: Math.round(d) } : {}),
+      });
     } catch (_) {}
   };
 
@@ -400,7 +438,7 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
                   saveVidPos(videoIdRef.current, ct);
                   const intervalSec = playStart.current ? Math.round((Date.now() - playStart.current) / 1000) : 0;
                   playStart.current = Date.now();
-                  onProgressUpdateRef.current(videoIdRef.current, watchedMin, maxPct.current, false, ct, intervalSec);
+                  onProgressUpdateRef.current(videoIdRef.current, watchedMin, maxPct.current, false, ct, intervalSec, dur > 0 ? Math.round(dur) : undefined);
                 } catch (_) {}
               }, 10000);
             } else if (e.data === S.BUFFERING) {
@@ -421,14 +459,19 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
                 const dur = playerRef.current?.getDuration?.() || 0;
                 setProgress(100);
                 saveVidPos(videoIdRef.current, dur);
-                onProgressUpdateRef.current(videoIdRef.current, dur / 60, 100, true, dur, actualWatched.current);
+                // Send-and-reset: only unsent seconds go out (server accumulates).
+                const unsentSec = actualWatched.current;
+                actualWatched.current = 0;
+                onProgressUpdateRef.current(videoIdRef.current, dur / 60, 100, true, dur, unsentSec, dur > 0 ? Math.round(dur) : undefined);
               } else if (onProgressUpdateRef.current && videoIdRef.current) {
                 try {
                   const dur = playerRef.current?.getDuration?.() || 0;
                   const ct  = playerRef.current?.getCurrentTime?.() || 0;
                   const watchedMin = dur > 0 ? (maxPct.current / 100) * (dur / 60) : 0;
                   saveVidPos(videoIdRef.current, ct);
-                  onProgressUpdateRef.current(videoIdRef.current, watchedMin, maxPct.current, false, ct, actualWatched.current);
+                  const unsentSec = actualWatched.current;
+                  actualWatched.current = 0;
+                  onProgressUpdateRef.current(videoIdRef.current, watchedMin, maxPct.current, false, ct, unsentSec, dur > 0 ? Math.round(dur) : undefined);
                 } catch (_) {}
               }
             }
@@ -795,7 +838,18 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
     const ct = videoRef.current.currentTime || 0;
     const watchedMin = d > 0 ? (maxProgress.current / 100) * (d / 60) : 0;
     saveVidPos(videoIdRef.current, ct);
-    onProgressUpdateRef.current(videoIdRef.current, watchedMin, maxProgress.current, false, ct, actualWatched.current);
+    // Send-and-reset: only seconds not yet reported by the periodic timer go
+    // out, and always via keepalive so page teardown can't drop the request.
+    const unsentSec = actualWatched.current;
+    actualWatched.current = 0;
+    postProgressKeepalive(videoIdRef.current, {
+      watched_minutes: Math.round(watchedMin),
+      progress_percentage: Math.min(100, Math.round(maxProgress.current)),
+      watch_count_increment: 0,
+      last_position: Math.round(ct || 0),
+      actual_watched_seconds: unsentSec,
+      ...(d > 0 ? { measured_duration_seconds: Math.round(d) } : {}),
+    });
   };
 
   /* ── save previous video's progress before switching ── */
@@ -1070,7 +1124,10 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
           if (onProgressUpdate && video?.id) {
             const d = videoRef.current?.duration || 0;
             saveVidPos(video.id, d);
-            onProgressUpdate(video.id, d / 60, 100, true, d, actualWatched.current);
+            // Send-and-reset: only unsent seconds go out (server accumulates).
+            const unsentSec = actualWatched.current;
+            actualWatched.current = 0;
+            onProgressUpdate(video.id, d / 60, 100, true, d, unsentSec, d > 0 ? Math.round(d) : undefined);
           }
         }}
         onPlay={() => {
@@ -1083,11 +1140,12 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
             const d   = videoRef.current.duration || 0;
             const ct  = videoRef.current.currentTime || 0;
             const watchedMin = d > 0 ? (maxProgress.current / 100) * (d / 60) : 0;
+            // Delta since the previous tick — the server accumulates the total.
+            // (Sending cumulative values here made the server double-count.)
             const elapsed = playStart.current ? Math.round((Date.now() - playStart.current) / 1000) : 0;
-            actualWatched.current += elapsed;
             playStart.current = Date.now();
             saveVidPos(video.id, ct);
-            if (onProgressUpdate && video?.id) onProgressUpdate(video.id, watchedMin, maxProgress.current, false, ct, actualWatched.current);
+            if (onProgressUpdate && video?.id) onProgressUpdate(video.id, watchedMin, maxProgress.current, false, ct, elapsed, d > 0 ? Math.round(d) : undefined);
           }, 10000);
         }}
         onPause={() => {
@@ -1099,7 +1157,9 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
             const ct = videoRef.current.currentTime || 0;
             const watchedMin = d > 0 ? (maxProgress.current / 100) * (d / 60) : 0;
             saveVidPos(video.id, ct);
-            onProgressUpdate(video.id, watchedMin, maxProgress.current, false, ct, actualWatched.current);
+            const unsentSec = actualWatched.current;
+            actualWatched.current = 0;
+            onProgressUpdate(video.id, watchedMin, maxProgress.current, false, ct, unsentSec, d > 0 ? Math.round(d) : undefined);
           }
         }}
         onClick={handleScreenTap}
@@ -2397,7 +2457,7 @@ export default function CourseView() {
 
   const contentRef = useRef(null);
 
-  const handleProgressUpdate = (videoId, watchedMinutes, progressPct, completed, lastPosition = 0, actualWatchedSec = 0) => {
+  const handleProgressUpdate = (videoId, watchedMinutes, progressPct, completed, lastPosition = 0, actualWatchedSec = 0, measuredDurationSec) => {
     saveVidPos(videoId, lastPosition);
     api.post('/students/me/video-progress', {
       video_id: videoId,
@@ -2406,6 +2466,8 @@ export default function CourseView() {
       watch_count_increment: completed ? 1 : 0,
       last_position: Math.round(lastPosition || 0),
       actual_watched_seconds: Math.round(actualWatchedSec || 0),
+      // Lets the server adopt a real duration for URL videos added without one.
+      ...(measuredDurationSec > 0 ? { measured_duration_seconds: Math.round(measuredDurationSec) } : {}),
     }).catch(() => {});
 
     if (completed) {
