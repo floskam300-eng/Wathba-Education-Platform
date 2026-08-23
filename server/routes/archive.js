@@ -46,9 +46,10 @@ const makePerm = (checker) => async (req, res, next) => {
   }
 };
 
-const checkExamPerm = makePerm(p => p.can_view_analytics || p.can_manage_exams);
-const checkRecPerm  = makePerm(p => p.can_view_analytics || p.can_manage_recitations);
-const checkAnyPerm  = makePerm(p => p.can_view_analytics || p.can_manage_exams || p.can_manage_recitations);
+const checkExamPerm     = makePerm(p => p.can_view_analytics || p.can_manage_exams);
+const checkRecPerm      = makePerm(p => p.can_view_analytics || p.can_manage_recitations);
+const checkAnyPerm      = makePerm(p => p.can_view_analytics || p.can_manage_exams || p.can_manage_recitations);
+const checkStudentsPerm = makePerm(p => p.can_view_analytics || p.can_manage_students || p.can_manage_exams || p.can_manage_recitations);
 
 // ── GET /api/archive/exam-results ──────────────────────────────────────────
 // Filters: q (text search), student_id, course_id, exam_id, stage,
