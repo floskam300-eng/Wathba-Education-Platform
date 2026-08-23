@@ -85,7 +85,7 @@ export default function TeacherPayments() {
   const createMut = useMutation({
     mutationFn: (data) => api.post('/payments', data),
     onSuccess: () => {
-      qc.invalidateQueries(['payments']);
+      qc.invalidateQueries({ queryKey: ['payments'] });
       toast.success('تم تسجيل الدفعة');
       setModal(false);
       setForm(emptyForm);
@@ -97,7 +97,7 @@ export default function TeacherPayments() {
     mutationFn: ({ id, status, method, reference_number }) =>
       api.put(`/payments/${id}/verify`, { status, method: method || undefined, reference_number: reference_number || undefined }),
     onSuccess: (_, vars) => {
-      qc.invalidateQueries(['payments']);
+      qc.invalidateQueries({ queryKey: ['payments'] });
       if (vars.status === 'verified') toast.success('✅ تم تأكيد الدفعة وفتح الكورس للطالب');
       else toast.success('تم رفض الدفعة');
       setVerifyModal(null);

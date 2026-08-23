@@ -33,19 +33,19 @@ export default function QuestionBanks() {
 
   const createBankMut = useMutation({
     mutationFn: (data) => api.post('/question-banks', data),
-    onSuccess: () => { qc.invalidateQueries(['question-banks']); toast.success('تم إنشاء البنك'); closeBankModal(); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['question-banks'] }); toast.success('تم إنشاء البنك'); closeBankModal(); },
     onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
   });
 
   const updateBankMut = useMutation({
     mutationFn: ({ id, data }) => api.put(`/question-banks/${id}`, data),
-    onSuccess: () => { qc.invalidateQueries(['question-banks']); toast.success('تم تحديث البنك'); closeBankModal(); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['question-banks'] }); toast.success('تم تحديث البنك'); closeBankModal(); },
     onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
   });
 
   const deleteBankMut = useMutation({
     mutationFn: (id) => api.delete(`/question-banks/${id}`),
-    onSuccess: () => { qc.invalidateQueries(['question-banks']); toast.success('تم حذف البنك'); setDeleteBankId(null); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['question-banks'] }); toast.success('تم حذف البنك'); setDeleteBankId(null); },
   });
 
   const openAddBank = () => { setEditBank(null); setBankForm(emptyBank); setBankModal(true); };

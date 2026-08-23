@@ -48,18 +48,18 @@ export default function TeacherAssistants() {
 
   const createMut = useMutation({
     mutationFn: (data) => api.post('/assistants', data),
-    onSuccess: () => { qc.invalidateQueries(['assistants']); toast.success('تم إضافة المساعد'); setModal(false); setForm(emptyForm); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['assistants'] }); toast.success('تم إضافة المساعد'); setModal(false); setForm(emptyForm); },
     onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
   });
 
   const permMut = useMutation({
     mutationFn: ({ id, data }) => api.put(`/assistants/${id}/permissions`, data),
-    onSuccess: () => { qc.invalidateQueries(['assistants']); toast.success('تم تحديث الصلاحيات'); setPermModal(null); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['assistants'] }); toast.success('تم تحديث الصلاحيات'); setPermModal(null); },
   });
 
   const deleteMut = useMutation({
     mutationFn: (id) => api.delete(`/assistants/${id}`),
-    onSuccess: () => { qc.invalidateQueries(['assistants']); toast.success('تم حذف المساعد'); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['assistants'] }); toast.success('تم حذف المساعد'); },
   });
 
   const openPerm = (a) => {

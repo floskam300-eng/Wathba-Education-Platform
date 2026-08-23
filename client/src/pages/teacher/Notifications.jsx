@@ -214,7 +214,7 @@ export default function Notifications() {
   const platformMut = useMutation({
     mutationFn: (data) => api.post('/notifications/platform', data),
     onSuccess: (res) => {
-      qc.invalidateQueries(['notif-logs']);
+      qc.invalidateQueries({ queryKey: ['notif-logs'] });
       setLogPage(1);
       toast.success(`تم إرسال الإشعار لـ ${res.data.sent} طالب بنجاح ✅`);
       setSelectedStudents([]);

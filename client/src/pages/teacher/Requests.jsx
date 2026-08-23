@@ -151,7 +151,7 @@ export default function TeacherRequests() {
   const handleRequestMut = useMutation({
     mutationFn: ({ id, action }) => api.put(`/courses/enrollment-requests/${id}`, { action }),
     onSuccess: (_, { action }) => {
-      qc.invalidateQueries(['enrollment-requests']);
+      qc.invalidateQueries({ queryKey: ['enrollment-requests'] });
       toast.success(action === 'approve' ? 'تم قبول الطالب في الكورس' : 'تم رفض الطلب');
     },
     onError: e => toast.error(e.response?.data?.error || 'حدث خطأ'),
@@ -160,7 +160,7 @@ export default function TeacherRequests() {
   const approveMut = useMutation({
     mutationFn: ({ reqId, note }) => api.put(`/exams/retry-requests/${reqId}/approve`, { teacher_note: note }),
     onSuccess: () => {
-      qc.invalidateQueries(['retry-requests']);
+      qc.invalidateQueries({ queryKey: ['retry-requests'] });
       toast.success('تمت الموافقة على الطلب');
       setRetryNoteModal(null);
       setRetryNote('');
@@ -171,7 +171,7 @@ export default function TeacherRequests() {
   const rejectMut = useMutation({
     mutationFn: ({ reqId, note }) => api.put(`/exams/retry-requests/${reqId}/reject`, { teacher_note: note }),
     onSuccess: () => {
-      qc.invalidateQueries(['retry-requests']);
+      qc.invalidateQueries({ queryKey: ['retry-requests'] });
       toast.success('تم رفض الطلب');
       setRetryNoteModal(null);
       setRetryNote('');
@@ -252,7 +252,7 @@ export default function TeacherRequests() {
         ok++;
       } catch { fail++; }
     }
-    await qc.invalidateQueries(['enrollment-requests']);
+    await qc.invalidateQueries({ queryKey: ['enrollment-requests'] });
     setBulkLoading(false);
     setConfirmBulk(null);
     if (ok > 0) toast.success(`تم ${action === 'approve' ? 'قبول' : 'رفض'} ${ok} طلب`);
@@ -268,7 +268,7 @@ export default function TeacherRequests() {
         ok++;
       } catch { fail++; }
     }
-    await qc.invalidateQueries(['retry-requests']);
+    await qc.invalidateQueries({ queryKey: ['retry-requests'] });
     setBulkLoading(false);
     setConfirmBulk(null);
     if (ok > 0) toast.success(`تم ${action === 'approve' ? 'قبول' : 'رفض'} ${ok} طلب`);

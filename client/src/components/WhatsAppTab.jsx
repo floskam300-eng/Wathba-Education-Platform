@@ -475,7 +475,7 @@ export default function WhatsAppTab() {
     if (!confirm('هل تريد قطع الاتصال وحذف الجلسة؟')) return;
     try {
       await api.post('/whatsapp/disconnect');
-      qc.invalidateQueries(['wa-status']);
+      qc.invalidateQueries({ queryKey: ['wa-status'] });
       toast.success('تم قطع الاتصال');
     } catch { toast.error('حدث خطأ'); }
   };

@@ -129,8 +129,8 @@ export default function TeacherLeaderboard() {
     mutationFn: () => api.post('/payments/leaderboard/reset'),
     onSuccess: () => {
       toast.success('تم تصفير اللوحة وحفظ سجل الشهر ✅');
-      queryClient.invalidateQueries(['leaderboard']);
-      queryClient.invalidateQueries(['leaderboard-history']);
+      queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
+      queryClient.invalidateQueries({ queryKey: ['leaderboard-history'] });
     },
     onError: () => toast.error('حدث خطأ أثناء التصفير'),
   });

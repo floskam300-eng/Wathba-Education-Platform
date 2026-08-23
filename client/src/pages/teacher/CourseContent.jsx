@@ -504,9 +504,9 @@ export default function CourseContent() {
   });
 
   const refreshContent = useCallback(() => {
-    qc.invalidateQueries(['course-content', courseId]);
-    qc.invalidateQueries(['courses']);
-    qc.invalidateQueries(['course-single', courseId]);
+    qc.invalidateQueries({ queryKey: ['course-content', courseId] });
+    qc.invalidateQueries({ queryKey: ['courses'] });
+    qc.invalidateQueries({ queryKey: ['course-single', courseId] });
   }, [qc, courseId]);
 
   const deleteVideoMut = useMutation({

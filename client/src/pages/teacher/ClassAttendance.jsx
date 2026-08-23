@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   CalendarDays, ChevronRight, ChevronLeft, Users, BookOpen,
@@ -125,9 +125,13 @@ function MiniCalendar({ selectedDate, onSelectDate, onMonthChange, markedDates =
 /* ═══════════════════════════════════════════════════════════
    SUBJECT MANAGER MODAL
 ═══════════════════════════════════════════════════════════ */
-function SubjectModal({ stages, onClose, onRefresh, dark }) {
-  const [subjects, setSubjects] = useState([]);
-  const [loading, setLoading]   = useState(true);
+function SubjectModal({ stages, onClose, dark }) {
+  const qc = useQueryClient();
+  // Shared cache key with the main page — updates reflect everywhere instantly
+  const { data: subjects = [], isLoading } = useQuery({
+    queryKey: ['class-subjects'],
+    queryFn: () => api.get('/attendance/subjects').then(r => r.data),
+  });
   const [newName, setNewName]   = useState('');
   const [newStage, setNewStage] = useState('');
   const [saving, setSaving]     = useState(false);
@@ -135,18 +139,15 @@ function SubjectModal({ stages, onClose, onRefresh, dark }) {
   const [editName, setEditName] = useState('');
   const [editStage, setEditStage] = useState('');
 
-  useEffect(() => {
-    api.get('/attendance/subjects').then(r => { setSubjects(r.data); setLoading(false); });
-  }, []);
+  const refreshSubjects = () => qc.invalidateQueries({ queryKey: ['class-subjects'] });
 
   const addSubject = async () => {
     if (!newName.trim()) return;
     setSaving(true);
     try {
-      const r = await api.post('/attendance/subjects', { name: newName.trim(), academic_stage: newStage || null });
-      setSubjects(prev => [...prev, r.data]);
+      await api.post('/attendance/subjects', { name: newName.trim(), academic_stage: newStage || null });
       setNewName(''); setNewStage('');
-      onRefresh();
+      refreshSubjects();
     } catch (e) {
       alert(e.response?.data?.error || 'خطأ في الحفظ');
     } finally { setSaving(false); }
@@ -155,10 +156,9 @@ function SubjectModal({ stages, onClose, onRefresh, dark }) {
   const saveEdit = async (id) => {
     if (!editName.trim()) return;
     try {
-      const r = await api.put(`/attendance/subjects/${id}`, { name: editName.trim(), academic_stage: editStage || null });
-      setSubjects(prev => prev.map(s => s.id === id ? r.data : s));
+      await api.put(`/attendance/subjects/${id}`, { name: editName.trim(), academic_stage: editStage || null });
       setEditId(null);
-      onRefresh();
+      refreshSubjects();
     } catch (e) { alert(e.response?.data?.error || 'خطأ في الحفظ'); }
   };
 
@@ -166,8 +166,11 @@ function SubjectModal({ stages, onClose, onRefresh, dark }) {
     if (!confirm(`حذف مادة "${name}" وكل سجلات الحضور المرتبطة بها؟ هذا الإجراء لا يمكن التراجع عنه.`)) return;
     try {
       await api.delete(`/attendance/subjects/${id}`);
-      setSubjects(prev => prev.filter(s => s.id !== id));
-      onRefresh();
+      // Deleted subject may be selected in the day sheet — clear related caches too
+      qc.removeQueries({ queryKey: ['attendance-day'] });
+      qc.removeQueries({ queryKey: ['attendance-calendar'] });
+      qc.invalidateQueries({ queryKey: ['attendance-analytics'] });
+      refreshSubjects();
     } catch (e) { alert(e.response?.data?.error || 'خطأ في الحذف'); }
   };
 
@@ -448,37 +451,51 @@ function AttendanceTableTab({ dark }) {
     setCalendarCursor({ year: y, month: m });
   }, []);
 
-  const { data: subjects = [], refetch: refetchSubjects } = useQuery({
+  // Data-entry page: always fetch fresh lists/rosters (never serve stale cache),
+  // so newly added students/subjects appear immediately.
+  const { data: subjects = [] } = useQuery({
     queryKey: ['class-subjects'],
     queryFn: () => api.get('/attendance/subjects').then(r => r.data),
+    staleTime: 0,
   });
   const { data: stages = [] } = useQuery({
     queryKey: ['attendance-stages'],
     queryFn: () => api.get('/attendance/stages').then(r => r.data),
+    staleTime: 0,
   });
   const { data: markedDates = [] } = useQuery({
     queryKey: ['attendance-calendar', subjectId, calYear, calMonth],
     queryFn: () => api.get('/attendance/calendar', { params: { subject_id: subjectId, year: calYear, month: calMonth } }).then(r => r.data),
     enabled: !!subjectId,
+    staleTime: 0,
   });
 
   const { data: dayData, isLoading: loadingDay } = useQuery({
     queryKey: ['attendance-day', selectedDate, subjectId],
     queryFn: () => api.get('/attendance/records', { params: { date: selectedDate, subject_id: subjectId } }).then(r => r.data),
     enabled: !!(selectedDate && subjectId),
+    staleTime: 0,
   });
 
-  // Reset rows when query data changes
+  // Guards the teacher's unsaved edits: a background refetch must never wipe
+  // rows mid-typing. Rows are only re-initialized when the subject/date changes
+  // or after an explicit save (dirty flag cleared there).
+  const loadedKeyRef = useRef('');
+  const dirtyRef = useRef(false);
+
   useEffect(() => {
-    if (dayData) {
-      const init = {};
-      dayData.students.forEach(s => {
-        init[s.id] = { status: s.status ?? 'present', exam_score: s.exam_score !== null && s.exam_score !== undefined ? String(s.exam_score) : '' };
-      });
-      setRows(init);
-      setExamTotal(dayData.exam_total !== null && dayData.exam_total !== undefined ? String(dayData.exam_total) : '');
-    }
-  }, [dayData]);
+    if (!dayData) return;
+    const key = `${subjectId}|${selectedDate}`;
+    if (loadedKeyRef.current === key && dirtyRef.current) return;
+    loadedKeyRef.current = key;
+    dirtyRef.current = false;
+    const init = {};
+    dayData.students.forEach(s => {
+      init[s.id] = { status: s.status ?? 'present', exam_score: s.exam_score !== null && s.exam_score !== undefined ? String(s.exam_score) : '' };
+    });
+    setRows(init);
+    setExamTotal(dayData.exam_total !== null && dayData.exam_total !== undefined ? String(dayData.exam_total) : '');
+  }, [dayData, subjectId, selectedDate]);
 
   // Students visible in the table after applying the search filter
   const visibleStudents = useMemo(() => {
@@ -493,6 +510,7 @@ function AttendanceTableTab({ dark }) {
   }, [dayData, searchQuery]);
 
   const toggleStatus = useCallback((id) => {
+    dirtyRef.current = true;
     setRows(prev => ({
       ...prev,
       [id]: { ...prev[id], status: (prev[id]?.status === 'present' ? 'absent' : 'present') }
@@ -500,10 +518,12 @@ function AttendanceTableTab({ dark }) {
   }, []);
 
   const setScore = useCallback((id, val) => {
+    dirtyRef.current = true;
     setRows(prev => ({ ...prev, [id]: { ...prev[id], exam_score: val } }));
   }, []);
 
   const markAll = (status) => {
+    dirtyRef.current = true;
     const next = {};
     dayData?.students.forEach(s => { next[s.id] = { status, exam_score: rows[s.id]?.exam_score ?? '' }; });
     setRows(next);
@@ -524,9 +544,11 @@ function AttendanceTableTab({ dark }) {
         exam_total: examTotal !== '' ? examTotal : null,
         records,
       });
-      qc.invalidateQueries(['attendance-calendar', subjectId, calYear, calMonth]);
-      qc.invalidateQueries(['attendance-day', selectedDate, subjectId]);
-      qc.invalidateQueries(['attendance-analytics']);
+      // Saved — allow the refetch below to sync authoritative values (e.g. rounded decimals)
+      dirtyRef.current = false;
+      qc.invalidateQueries({ queryKey: ['attendance-calendar', subjectId, calYear, calMonth] });
+      qc.invalidateQueries({ queryKey: ['attendance-day', selectedDate, subjectId] });
+      qc.invalidateQueries({ queryKey: ['attendance-analytics'] });
       setSavedMsg('تم الحفظ بنجاح ✓');
       setTimeout(() => setSavedMsg(''), 2500);
     } catch (e) {
@@ -785,7 +807,6 @@ function AttendanceTableTab({ dark }) {
           stages={stages}
           dark={dark}
           onClose={() => setShowSubjectModal(false)}
-          onRefresh={() => { refetchSubjects(); }}
         />
       )}
     </div>

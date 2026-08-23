@@ -38,7 +38,7 @@ export default function AssistantPayments() {
   const verifyMut = useMutation({
     mutationFn: ({ id, status }) => api.put(`/payments/${id}/verify`, { status }),
     onSuccess: () => {
-      qc.invalidateQueries(['payments']);
+      qc.invalidateQueries({ queryKey: ['payments'] });
       toast.success('تم تحديث حالة الدفعة');
     },
     onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),

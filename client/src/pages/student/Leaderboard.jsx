@@ -240,7 +240,7 @@ export default function StudentLeaderboard() {
           {tracker && (
             <CountdownBadge
               nextResetAt={tracker.next_reset_at}
-              onExpire={() => { refetchLb(); qc.invalidateQueries(['leaderboard']); }}
+              onExpire={() => { refetchLb(); qc.invalidateQueries({ queryKey: ['leaderboard'] }); }}
             />
           )}
         </div>

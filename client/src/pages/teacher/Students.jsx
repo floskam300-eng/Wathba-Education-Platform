@@ -819,7 +819,7 @@ export default function TeacherStudents() {
     setModelSaving(true);
     try {
       await api.post('/students/import-model', { headers: modelHeaders, sample_row: modelSample, mappings: modelMappings });
-      qc.invalidateQueries(['import-model']);
+      qc.invalidateQueries({ queryKey: ['import-model'] });
       toast.success('تم حفظ نموذج الاستيراد بنجاح');
       setModelModal(false);
       setModelStep(1);
@@ -830,7 +830,7 @@ export default function TeacherStudents() {
   const handleDeleteModel = async () => {
     try {
       await api.delete('/students/import-model');
-      qc.invalidateQueries(['import-model']);
+      qc.invalidateQueries({ queryKey: ['import-model'] });
       toast.success('تم حذف نموذج الاستيراد');
       setDeleteModelConfirm(false);
       setModelModal(false);

@@ -12,8 +12,10 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: 1,
-      // Data is considered fresh for 15 minutes — no refetch while fresh
-      staleTime: 15 * 60 * 1000,
+      // Data is considered fresh for 60 seconds — balances server load against
+      // staleness when teachers switch pages right after a mutation elsewhere
+      // (e.g. add a student → open Attendance; roster must show them promptly)
+      staleTime: 60 * 1000,
       // Keep unused cache entries for 2 hours before garbage-collecting
       gcTime: 2 * 60 * 60 * 1000,
       refetchOnWindowFocus: false,

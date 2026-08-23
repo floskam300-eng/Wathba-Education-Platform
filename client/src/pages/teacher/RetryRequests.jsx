@@ -86,8 +86,8 @@ export default function TeacherRetryRequests() {
     mutationFn: ({ reqId, note }) =>
       api.put(`/exams/retry-requests/${reqId}/approve`, { teacher_note: note }),
     onSuccess: () => {
-      qc.invalidateQueries(['retry-requests']);
-      qc.invalidateQueries(['teacher-stats']);
+      qc.invalidateQueries({ queryKey: ['retry-requests'] });
+      qc.invalidateQueries({ queryKey: ['teacher-stats'] });
       toast.success('تم قبول الطلب');
     },
     onError: e => toast.error(e.response?.data?.error || 'حدث خطأ'),
@@ -97,8 +97,8 @@ export default function TeacherRetryRequests() {
     mutationFn: ({ reqId, note }) =>
       api.put(`/exams/retry-requests/${reqId}/reject`, { teacher_note: note }),
     onSuccess: () => {
-      qc.invalidateQueries(['retry-requests']);
-      qc.invalidateQueries(['teacher-stats']);
+      qc.invalidateQueries({ queryKey: ['retry-requests'] });
+      qc.invalidateQueries({ queryKey: ['teacher-stats'] });
       toast.success('تم رفض الطلب');
     },
     onError: e => toast.error(e.response?.data?.error || 'حدث خطأ'),
@@ -144,8 +144,8 @@ export default function TeacherRetryRequests() {
         ok++;
       } catch { fail++; }
     }
-    await qc.invalidateQueries(['retry-requests']);
-    await qc.invalidateQueries(['teacher-stats']);
+    await qc.invalidateQueries({ queryKey: ['retry-requests'] });
+    await qc.invalidateQueries({ queryKey: ['teacher-stats'] });
     setBulkLoading(false);
     setConfirmBulk(null);
     if (ok > 0) toast.success(`تم ${action === 'approve' ? 'قبول' : 'رفض'} ${ok} طلب`);

@@ -145,8 +145,8 @@ export default function StudentCourses() {
   const requestMut = useMutation({
     mutationFn: ({ courseId, message }) => api.post(`/courses/student/request/${courseId}`, { message }),
     onSuccess: (res) => {
-      qc.invalidateQueries(['student-courses-all']);
-      qc.invalidateQueries(['student-courses']);
+      qc.invalidateQueries({ queryKey: ['student-courses-all'] });
+      qc.invalidateQueries({ queryKey: ['student-courses'] });
       if (res.data?.enrolled) {
         toast.success('🎁 تم تسجيلك تلقائياً في الكورس المجاني');
       } else {
