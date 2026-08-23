@@ -11,6 +11,13 @@ const { logActivity, getActor, getIp } = require('../lib/activityLog');
 const router = express.Router();
 router.use(authenticate);
 
+// ── Timezone helper ──────────────────────────────────────────────────────────
+// All date validation is anchored to the Egypt (Africa/Cairo) calendar — the
+// platform's operating timezone — NOT the server/browser timezone.
+function egyptTodayStr() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(new Date());
+}
+
 // ── Permission helper ─────────────────────────────────────────────────────────
 // Teacher always passes. Assistant passes only if can_manage_attendance = true.
 async function requireAttendancePerm(req, res, next) {
@@ -234,8 +241,7 @@ router.post('/records/bulk', requireRole('teacher', 'assistant'), requireAttenda
   }
 
   // Prevent recording for future dates (compared against Egypt calendar date)
-  const nowEgyptStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(new Date());
-  if (date > nowEgyptStr) {
+  if (date > egyptTodayStr()) {
     return res.status(400).json({ error: 'لا يمكن تسجيل الحضور لتاريخ في المستقبل' });
   }
 
@@ -329,6 +335,150 @@ router.post('/records/bulk', requireRole('teacher', 'assistant'), requireAttenda
     res.status(500).json({ error: 'Server error' });
   } finally {
     client.release();
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════
+//  DATE EDITING  (تعديل تاريخ سجلات محفوظة)
+// ════════════════════════════════════════════════════════════════════
+
+/**
+ * POST /attendance/records/move
+ * Body: { subject_id, from_date, to_date, overwrite? }
+ * Atomically moves a submitted day's records to another date.
+ * Statuses, exam scores/totals and notes all travel with the rows.
+ * If the target date already has records for this subject:
+ *   - without overwrite=true → 409 { conflict: true, existing }
+ *   - with overwrite=true    → target rows are replaced by the moved ones
+ */
+router.post('/records/move', requireRole('teacher', 'assistant'), requireAttendancePerm, async (req, res) => {
+  const { subject_id, from_date, to_date, overwrite } = req.body || {};
+  if (!subject_id || !from_date || !to_date) {
+    return res.status(400).json({ error: 'subject_id و from_date و to_date مطلوبة' });
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from_date) || !/^\d{4}-\d{2}-\d{2}$/.test(to_date)) {
+    return res.status(400).json({ error: 'صيغة التاريخ غير صحيحة (YYYY-MM-DD)' });
+  }
+  if (from_date === to_date) {
+    return res.status(400).json({ error: 'لا يمكن نقل السجلات إلى نفس التاريخ' });
+  }
+  // Target must not be in the future (Egypt calendar date)
+  if (to_date > egyptTodayStr()) {
+    return res.status(400).json({ error: 'لا يمكن النقل إلى تاريخ في المستقبل' });
+  }
+
+  const client = await pool.connect();
+  try {
+    const teacherId = await resolveTeacherId(req);
+
+    // Validate subject ownership
+    const subjectCheck = await client.query(
+      'SELECT id FROM class_subjects WHERE id=$1 AND teacher_id=$2',
+      [subject_id, teacherId]
+    );
+    if (!subjectCheck.rows.length) {
+      return res.status(403).json({ error: 'المادة غير موجودة أو لا تملك صلاحية' });
+    }
+
+    await client.query('BEGIN');
+
+    // Lock + verify source day actually has saved records
+    const srcRes = await client.query(
+      `SELECT id FROM class_attendance_records
+       WHERE subject_id=$1 AND attendance_date=$2 AND teacher_id=$3 FOR UPDATE`,
+      [subject_id, from_date, teacherId]
+    );
+    if (!srcRes.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'لا توجد سجلات محفوظة في التاريخ الأصلي' });
+    }
+
+    // Target occupancy
+    const dstRes = await client.query(
+      `SELECT COUNT(*)::int AS count FROM class_attendance_records
+       WHERE subject_id=$1 AND attendance_date=$2 AND teacher_id=$3`,
+      [subject_id, to_date, teacherId]
+    );
+    const existing = dstRes.rows[0].count;
+    if (existing > 0 && !overwrite) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({
+        error: `التاريخ الهدف يحتوي على ${existing} سجل لهذه المادة`,
+        conflict: true,
+        existing,
+      });
+    }
+
+    if (existing > 0) {
+      await client.query(
+        `DELETE FROM class_attendance_records
+         WHERE subject_id=$1 AND attendance_date=$2 AND teacher_id=$3`,
+        [subject_id, to_date, teacherId]
+      );
+    }
+
+    // Atomic move — unique constraint is safe after target cleanup above
+    const moved = await client.query(
+      `UPDATE class_attendance_records
+       SET attendance_date=$2
+       WHERE subject_id=$1 AND attendance_date=$3 AND teacher_id=$4`,
+      [subject_id, to_date, from_date, teacherId]
+    );
+
+    await client.query('COMMIT');
+
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'move_attendance',
+      entity: { type: 'class_attendance', id: subject_id, name: `${from_date} -> ${to_date}` },
+      details: { from: from_date, to: to_date, moved: moved.rowCount, overwritten: existing },
+    });
+
+    res.json({ moved: moved.rowCount, overwritten: existing });
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch (_) { /* no transaction */ }
+    console.error('attendance/records/move POST:', err);
+    if (!res.headersSent) res.status(500).json({ error: 'Server error' });
+  } finally {
+    client.release();
+  }
+});
+
+/**
+ * DELETE /attendance/records/day?subject_id=&date=
+ * Removes a whole submitted day's records for a subject (undo a wrong submission).
+ */
+router.delete('/records/day', requireRole('teacher', 'assistant'), requireAttendancePerm, async (req, res) => {
+  const { subject_id, date } = req.query;
+  if (!subject_id || !date) {
+    return res.status(400).json({ error: 'subject_id و date مطلوبان' });
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return res.status(400).json({ error: 'صيغة التاريخ غير صحيحة (YYYY-MM-DD)' });
+  }
+
+  try {
+    const teacherId = await resolveTeacherId(req);
+    const del = await pool.query(
+      `DELETE FROM class_attendance_records
+       WHERE subject_id=$1 AND attendance_date=$2 AND teacher_id=$3`,
+      [subject_id, date, teacherId]
+    );
+    if (!del.rowCount) {
+      return res.status(404).json({ error: 'لا توجد سجلات محفوظة في هذا التاريخ' });
+    }
+
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'delete_attendance_day',
+      entity: { type: 'class_attendance', id: subject_id, name: `${date}` },
+      details: { date, deleted: del.rowCount },
+    });
+
+    res.json({ deleted: del.rowCount });
+  } catch (err) {
+    console.error('attendance/records/day DELETE:', err);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 

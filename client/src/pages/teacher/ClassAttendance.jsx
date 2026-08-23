@@ -18,8 +18,9 @@ const MONTH_NAMES   = [
 ];
 
 function todayStr() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  // Anchor "today" to the Egypt (Africa/Cairo) calendar — matches server-side
+  // validation so teachers near midnight never hit future-date rejections.
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(new Date());
 }
 
 function formatDateAr(dateStr) {
@@ -427,6 +428,73 @@ function AnalyticsTab({ dark }) {
 }
 
 /* ═══════════════════════════════════════════════════════════
+   MOVE DATE MODAL — transfer a submitted day to another date
+═══════════════════════════════════════════════════════════ */
+function MoveDateModal({ dark, currentDate, submitting, onClose, onSubmit }) {
+  const [newDate, setNewDate] = useState('');
+  const maxDate = todayStr(); // Egypt calendar "today" — matches server validation
+
+  const valid = /^\d{4}-\d{2}-\d{2}$/.test(newDate) && newDate !== currentDate;
+  const bg = dark ? 'bg-[var(--dk-surface)]' : 'bg-white';
+  const border = dark ? 'border-[var(--dk-border)]' : 'border-gray-200';
+  const text1 = dark ? 'text-[var(--dk-text-1)]' : 'text-navy-700';
+  const text2 = dark ? 'text-[var(--dk-text-2)]' : 'text-gray-500';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
+      <div className={`w-full max-w-md rounded-2xl shadow-2xl overflow-hidden ${bg} border ${border}`} onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: dark ? 'var(--dk-border)' : '#e2e8f0' }}>
+          <h2 className={`font-black text-lg ${text1}`}>تعديل تاريخ السجلات</h2>
+          <button onClick={onClose} className={`p-2 rounded-lg hover:bg-red-50 transition-colors ${text2}`}><X className="w-5 h-5" /></button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          {/* From */}
+          <div>
+            <label className={`block text-xs font-bold mb-1.5 ${text2}`}>التاريخ الحالي</label>
+            <div className={`rounded-xl border px-4 py-2.5 text-sm font-bold ${dark ? 'border-[var(--dk-border)] bg-[var(--dk-elevated)] text-[var(--dk-text-1)]' : 'border-blue-200 bg-blue-50 text-navy-700'}`}>
+              {formatDateAr(currentDate)}
+            </div>
+          </div>
+
+          {/* To */}
+          <div>
+            <label className={`block text-xs font-bold mb-1.5 ${text2}`}>التاريخ الجديد *</label>
+            <input
+              type="date"
+              value={newDate}
+              max={maxDate}
+              onChange={e => setNewDate(e.target.value)}
+              className="input-field w-full text-sm"
+            />
+            {newDate === currentDate && (
+              <p className={`text-[11px] mt-1 ${text2}`}>اختر تاريخاً مختلفاً عن التاريخ الحالي</p>
+            )}
+            <p className={`text-[11px] mt-2 leading-relaxed ${text2}`}>
+              سيتم نقل جميع سجلات الحضور والدرجات لهذا اليوم إلى التاريخ الجديد كما هي.
+              {newDate && newDate !== currentDate && ` اليوم المحدد: ${formatDateAr(newDate)}`}
+            </p>
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center gap-3 pt-1">
+            <button onClick={() => valid && onSubmit(newDate)} disabled={!valid || submitting}
+              className="btn-primary flex-1 flex items-center justify-center gap-2 text-sm disabled:opacity-50">
+              <CalendarDays className="w-4 h-4" />{submitting ? 'جارٍ النقل...' : 'نقل السجلات'}
+            </button>
+            <button onClick={onClose} disabled={submitting}
+              className={`px-5 py-2 rounded-xl text-sm font-bold border transition-colors ${dark ? 'border-[var(--dk-border)] text-[var(--dk-text-2)] hover:bg-[var(--dk-hover)]' : 'border-gray-200 text-gray-600 hover:bg-gray-100'}`}>
+              إلغاء
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
    ATTENDANCE TABLE TAB (main recording page)
 ═══════════════════════════════════════════════════════════ */
 function AttendanceTableTab({ dark }) {
@@ -443,6 +511,9 @@ function AttendanceTableTab({ dark }) {
   const [savedMsg, setSavedMsg]         = useState('');
   const [showSubjectModal, setShowSubjectModal] = useState(false);
   const [searchQuery, setSearchQuery]   = useState('');
+  const [showMoveModal, setShowMoveModal] = useState(false);
+  const [moving, setMoving]             = useState(false);
+  const [deletingDay, setDeletingDay]   = useState(false);
 
   const calYear  = calendarCursor.year;
   const calMonth = calendarCursor.month;
@@ -557,6 +628,57 @@ function AttendanceTableTab({ dark }) {
   };
 
   const selectedSubject = subjects.find(s => String(s.id) === String(subjectId));
+
+  // The viewed day counts as "submitted" when at least one student has a status
+  const hasSavedRecords = !!dayData?.students?.some(s => s.status !== null);
+
+  // Move a submitted day's records to another date (server returns 409 if occupied)
+  const handleMoveDay = async (newDate, force = false) => {
+    try {
+      setMoving(true);
+      await api.post('/attendance/records/move', {
+        subject_id: subjectId,
+        from_date: selectedDate,
+        to_date: newDate,
+        overwrite: force,
+      });
+      dirtyRef.current = false;
+      // Both dates (+ any month) are affected — invalidate broadly by root keys
+      qc.invalidateQueries({ queryKey: ['attendance-calendar'] });
+      qc.invalidateQueries({ queryKey: ['attendance-day'] });
+      qc.invalidateQueries({ queryKey: ['attendance-analytics'] });
+      setSelectedDate(newDate);
+      setShowMoveModal(false);
+      setSavedMsg('تم نقل السجلات إلى التاريخ الجديد ✓');
+      setTimeout(() => setSavedMsg(''), 2500);
+    } catch (e) {
+      if (e.response?.status === 409 && e.response.data?.conflict) {
+        if (confirm(`التاريخ الجديد يحتوي على ${e.response.data.existing} سجل لهذه المادة — هل تريد استبدالها بالسجلات المنقولة؟`)) {
+          return handleMoveDay(newDate, true);
+        }
+      } else {
+        alert(e.response?.data?.error || 'خطأ في نقل السجلات');
+      }
+    } finally { setMoving(false); }
+  };
+
+  // Delete the whole submitted day for this subject
+  const handleDeleteDay = async () => {
+    if (!confirm(`حذف جميع سجلات يوم ${formatDateAr(selectedDate)} لهذه المادة؟ لا يمكن التراجع عن هذا الإجراء.`)) return;
+    try {
+      setDeletingDay(true);
+      await api.delete('/attendance/records/day', { params: { subject_id: subjectId, date: selectedDate } });
+      dirtyRef.current = false;
+      qc.invalidateQueries({ queryKey: ['attendance-calendar', subjectId, calYear, calMonth] });
+      qc.invalidateQueries({ queryKey: ['attendance-day', selectedDate, subjectId] });
+      qc.invalidateQueries({ queryKey: ['attendance-analytics'] });
+      setSavedMsg('تم حذف سجل اليوم ✓');
+      setTimeout(() => setSavedMsg(''), 2500);
+    } catch (e) {
+      alert(e.response?.data?.error || 'خطأ في الحذف');
+    } finally { setDeletingDay(false); }
+  };
+
   const text1 = dark ? 'text-[var(--dk-text-1)]' : 'text-navy-700';
   const text2 = dark ? 'text-[var(--dk-text-2)]' : 'text-gray-500';
 
@@ -783,13 +905,29 @@ function AttendanceTableTab({ dark }) {
                 </div>
               )}
 
-              {/* Save button */}
+              {/* Save + day-edit actions */}
               {dayData.students.length > 0 && (
-                <div className="flex items-center gap-3">
-                  <button onClick={handleSave} disabled={saving}
+                <div className="flex flex-wrap items-center gap-3">
+                  <button onClick={handleSave} disabled={saving || moving || deletingDay}
                     className="btn-primary flex items-center gap-2 disabled:opacity-50 px-8">
                     <Save className="w-4 h-4" />{saving ? 'جارٍ الحفظ...' : 'حفظ سجل اليوم'}
                   </button>
+                  {hasSavedRecords && (
+                    <>
+                      <button onClick={() => setShowMoveModal(true)} disabled={saving || moving || deletingDay}
+                        className="btn-secondary flex items-center gap-2 text-sm disabled:opacity-50">
+                        <CalendarDays className="w-4 h-4" />تعديل التاريخ
+                      </button>
+                      <button onClick={handleDeleteDay} disabled={saving || moving || deletingDay}
+                        className={`flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-xl border transition-colors disabled:opacity-50 ${
+                          dark
+                            ? 'bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20'
+                            : 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100'
+                        }`}>
+                        <Trash2 className="w-4 h-4" />حذف سجل اليوم
+                      </button>
+                    </>
+                  )}
                   {savedMsg && (
                     <span className="flex items-center gap-1.5 text-green-600 text-sm font-bold animate-pulse">
                       <CheckCircle2 className="w-4 h-4" />{savedMsg}
@@ -807,6 +945,16 @@ function AttendanceTableTab({ dark }) {
           stages={stages}
           dark={dark}
           onClose={() => setShowSubjectModal(false)}
+        />
+      )}
+
+      {showMoveModal && (
+        <MoveDateModal
+          dark={dark}
+          currentDate={selectedDate}
+          submitting={moving}
+          onClose={() => setShowMoveModal(false)}
+          onSubmit={handleMoveDay}
         />
       )}
     </div>

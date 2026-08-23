@@ -366,6 +366,130 @@ async function testCascadeDelete(token, subjectId) {
   assert(delAgain.status === 404, 're-delete same subject → 404');
 }
 
+async function testDateEditAndCleanup(token) {
+  console.log('\n── [H] Date Move & Delete Day ────────────────────────────────');
+  const uniq = Date.now();
+
+  // Dedicated throwaway subject — cascade-deleted at the end
+  const created = await request({
+    method: 'POST',
+    path  : '/api/attendance/subjects',
+    token,
+    body  : { name: `اختبار نقل التاريخ ${uniq}`, academic_stage: null },
+  });
+  assert(created.status === 201 && created.body.id, '[H] create throwaway subject');
+  const subjectId = created.body.id;
+
+  const roster = await request({ path: `/api/attendance/records?date=${cairoDate()}&subject_id=${subjectId}`, token });
+  if (roster.status !== 200 || !roster.body.students || roster.body.students.length < 2) {
+    skip('[H] needs ≥2 active students');
+    return;
+  }
+  const [a] = roster.body.students.slice(0, 2);
+  const D1 = cairoDate(-3);
+  const D2 = cairoDate(-2);
+
+  // Seed a submitted day on D1
+  const save = await request({
+    method: 'POST',
+    path  : '/api/attendance/records/bulk',
+    token,
+    body  : {
+      date: D1,
+      subject_id: subjectId,
+      exam_total: 10,
+      records: [{ student_id: a.id, status: 'present', exam_score: '7.5' }],
+    },
+  });
+  assert(save.status === 200, '[H] seed records on source date');
+
+  // ── Validation rejections ──
+  const sameDate = await request({
+    method: 'POST', path: '/api/attendance/records/move', token,
+    body: { subject_id: subjectId, from_date: D1, to_date: D1 },
+  });
+  assert(sameDate.status === 400, '[H] move to same date → 400', `got ${sameDate.status}`);
+
+  const future = await request({
+    method: 'POST', path: '/api/attendance/records/move', token,
+    body: { subject_id: subjectId, from_date: D1, to_date: cairoDate(+2) },
+  });
+  assert(future.status === 400, '[H] move to future date → 400 (Egypt calendar)', `got ${future.status}`);
+
+  const badFmt = await request({
+    method: 'POST', path: '/api/attendance/records/move', token,
+    body: { subject_id: subjectId, from_date: D1, to_date: '2026/08/01' },
+  });
+  assert(badFmt.status === 400, '[H] move with bad date format → 400', `got ${badFmt.status}`);
+
+  const noSrc = await request({
+    method: 'POST', path: '/api/attendance/records/move', token,
+    body: { subject_id: subjectId, from_date: cairoDate(-1), to_date: cairoDate(-2) },
+  });
+  assert(noSrc.status === 404, '[H] move from empty date → 404', `got ${noSrc.status}`);
+
+  const foreign = await request({
+    method: 'POST', path: '/api/attendance/records/move', token,
+    body: { subject_id: 999999999, from_date: D1, to_date: D2 },
+  });
+  assert(foreign.status === 403, '[H] move foreign subject → 403', `got ${foreign.status}`);
+
+  // ── Successful move ──
+  const move = await request({
+    method: 'POST', path: '/api/attendance/records/move', token,
+    body: { subject_id: subjectId, from_date: D1, to_date: D2 },
+  });
+  assert(move.status === 200 && move.body.moved >= 1, `[H] move ${D1} → ${D2} succeeds`, JSON.stringify(move.body));
+
+  let d1 = await request({ path: `/api/attendance/records?date=${D1}&subject_id=${subjectId}`, token });
+  let d2 = await request({ path: `/api/attendance/records?date=${D2}&subject_id=${subjectId}`, token });
+  const srcRow = d1.body.students.find((s) => s.id === a.id);
+  const dstRow = d2.body.students.find((s) => s.id === a.id);
+  assert(srcRow.status === null, '[H] source date empty after move');
+  assert(dstRow.status === 'present' && Number(dstRow.exam_score) === 7.5 && d2.body.exam_total === 10, '[H] grades/status traveled intact');
+
+  // ── Conflict handling: re-seed D1 then attempt occupied-target move ──
+  await request({
+    method: 'POST', path: '/api/attendance/records/bulk', token,
+    body: { date: D1, subject_id: subjectId, records: [{ student_id: a.id, status: 'absent' }] },
+  });
+
+  const conflict = await request({
+    method: 'POST', path: '/api/attendance/records/move', token,
+    body: { subject_id: subjectId, from_date: D1, to_date: D2 },
+  });
+  assert(conflict.status === 409 && conflict.body.conflict === true, '[H] move onto occupied date without overwrite → 409', `got ${conflict.status}`);
+
+  // Target must be untouched after the rejected move
+  d2 = await request({ path: `/api/attendance/records?date=${D2}&subject_id=${subjectId}`, token });
+  const dstAfterConflict = d2.body.students.find((s) => s.id === a.id);
+  assert(dstAfterConflict.status === 'present' && Number(dstAfterConflict.exam_score) === 7.5, '[H] rejected move left target intact');
+
+  const overwrite = await request({
+    method: 'POST', path: '/api/attendance/records/move', token,
+    body: { subject_id: subjectId, from_date: D1, to_date: D2, overwrite: true },
+  });
+  assert(overwrite.status === 200 && overwrite.body.overwritten >= 1, '[H] move with overwrite=true replaces target', JSON.stringify(overwrite.body));
+
+  d2 = await request({ path: `/api/attendance/records?date=${D2}&subject_id=${subjectId}`, token });
+  const dstOverwritten = d2.body.students.find((s) => s.id === a.id);
+  assert(dstOverwritten.status === 'absent', '[H] target now holds the moved (overwriting) record');
+
+  // ── Delete day ──
+  const delDay = await request({ method: 'DELETE', path: `/api/attendance/records/day?subject_id=${subjectId}&date=${D2}`, token });
+  assert(delDay.status === 200 && delDay.body.deleted >= 1, '[H] delete submitted day → 200');
+
+  const delAgain = await request({ method: 'DELETE', path: `/api/attendance/records/day?subject_id=${subjectId}&date=${D2}`, token });
+  assert(delAgain.status === 404, '[H] re-delete empty day → 404');
+
+  d2 = await request({ path: `/api/attendance/records?date=${D2}&subject_id=${subjectId}`, token });
+  const afterDel = d2.body.students.find((s) => s.id === a.id);
+  assert(afterDel.status === null, '[H] day sheet blank after delete');
+
+  // Cleanup
+  await request({ method: 'DELETE', path: `/api/attendance/subjects/${subjectId}`, token });
+}
+
 /* ══════════════════════════════════════════════════════════════════
    MAIN
 ══════════════════════════════════════════════════════════════════ */
@@ -395,6 +519,9 @@ async function main() {
 
   // Cascade delete cleans up everything this suite created
   await testCascadeDelete(token, subjectId);
+
+  // Date-move + delete-day (self-contained subject, cascade-cleaned)
+  await testDateEditAndCleanup(token);
 
   // ── Summary ───────────────────────────────────────────────────
   const total = passed + failed + skipped;
