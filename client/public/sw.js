@@ -2,9 +2,16 @@
 // subdomain gets its own isolated cache. This allows a student to install
 // the PWA from multiple teacher subdomains on the same device without
 // cache conflicts (e.g. teacher1.wathba.site and teacher2.wathba.site).
+//
+// v3: stopped caching /assets/* in the Cache API. Hashed assets are immutable
+// and now served with `Cache-Control: max-age=31536000, immutable`, so the
+// browser HTTP cache handles them correctly on its own. Caching them here too
+// meant WebKit could mix chunks from different deploy generations under disk
+// pressure ("Importing binding name 'x' is not found"). Bumping the version
+// purges all stale per-tenant caches on devices that are currently stuck.
 const _hostname = self.location.hostname;
 const _subdomain = _hostname.split('.')[0] || 'default';
-const CACHE_NAME = `wathba-${_subdomain}-v2`;
+const CACHE_NAME = `wathba-${_subdomain}-v3`;
 
 // NOTE: '/' (the HTML shell) is intentionally NOT cache-first — see the fetch
 // handler below. Caching index.html cache-first meant browsers kept serving a
@@ -68,20 +75,11 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Immutable hashed assets (Vite fingerprints the filename per build) are
-  // safe to cache-first — a new build always produces a new URL.
-  if (url.pathname.startsWith('/assets/') || STATIC_ASSETS.includes(url.pathname)) {
-    event.respondWith(
-      caches.match(request).then((cached) => cached || fetch(request).then((res) => {
-        if (res.ok) {
-          const clone = res.clone();
-          caches.open(CACHE_NAME).then((c) => c.put(request, clone));
-        }
-        return res;
-      }))
-    );
-    return;
-  }
+  // Hashed assets (/assets/*) are NOT cached here anymore. They are immutable
+  // (content-hashed filenames + `Cache-Control: max-age=31536000, immutable`
+  // from the server), so the browser HTTP cache serves repeat visits without
+  // revalidation and without any risk of mixing deploy generations. The generic
+  // network-first branch below still gives them an offline fallback.
 
   event.respondWith(
     fetch(request).catch(() => caches.match(request))

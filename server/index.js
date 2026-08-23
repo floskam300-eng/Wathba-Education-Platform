@@ -720,7 +720,24 @@ app.get('/robots.txt', (req, res) => {
 
 const clientDist = path.join(__dirname, '../client/dist');
 if (process.env.NODE_ENV === 'production' || fs.existsSync(clientDist)) {
-  app.use(express.static(clientDist));
+  app.use(express.static(clientDist, {
+    setHeaders(res, filePath) {
+      if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+        // Vite content-hashes asset filenames — a new build always produces new
+        // URLs, so these are immutable and safe to cache for a year. Without an
+        // explicit policy, WebKit (iOS/Mac, incl. WhatsApp in-app WebView)
+        // re-fetches every chunk on each visit over flaky mobile networks and
+        // sometimes serves truncated/stale copies, producing module errors like
+        // "Importing binding name 'x' is not found".
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      } else {
+        // index.html / sw.js / icons: always revalidate so devices pick up the
+        // new generation after every deploy instead of a stale shell that
+        // references deleted chunks.
+        res.setHeader('Cache-Control', 'no-cache');
+      }
+    },
+  }));
 
   // ── SPA catch-all: inject per-tenant branding into the HTML shell ──────────
   // iOS Safari completely ignores manifest.json and reads these HTML tags
@@ -740,7 +757,10 @@ if (process.env.NODE_ENV === 'production' || fs.existsSync(clientDist)) {
     const branding = await getTenantBranding(slug);
 
     if (!branding) {
-      // No tenant or no branding data — serve the static file as-is
+      // No tenant or no branding data — serve the static file as-is.
+      // Same rule as the branded branch below: the shell must never be cached,
+      // otherwise devices keep booting a stale bundle graph after deploys.
+      res.set('Cache-Control', 'no-store');
       return res.sendFile(indexPath);
     }
 

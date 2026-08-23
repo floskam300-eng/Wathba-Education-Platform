@@ -66,6 +66,7 @@ const PrivacyPolicy = React.lazy(() => import('./pages/PrivacyPolicy'));
 const TermsAndConditions = React.lazy(() => import('./pages/TermsAndConditions'));
 const NotFoundPage = React.lazy(() => import('./pages/NotFoundPage'));
 import OfflineIndicator from './components/ui/OfflineIndicator';
+import { isModuleLoadError, selfHealAndReload } from './lib/cacheSelfHeal';
 
 // ─── Error Boundary ────────────────────────────────────────────────────────────
 class ErrorBoundary extends React.Component {
@@ -77,6 +78,9 @@ class ErrorBoundary extends React.Component {
   componentDidCatch(error, info) {
     console.error('[ErrorBoundary]', error, info.componentStack);
     this.setState({ info });
+    // Stale/corrupted chunk graphs after a deploy (mostly iOS in-app WebViews):
+    // purge caches and reload once instead of leaving the student stuck.
+    if (isModuleLoadError(error)) selfHealAndReload();
   }
   render() {
     if (this.state.hasError) {
