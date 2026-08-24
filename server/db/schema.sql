@@ -1111,19 +1111,18 @@ CREATE TABLE IF NOT EXISTS recitation_results (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
-/*
+-- Recitation streaks — written by lib/recitationScoring.js on every passed
+-- recitation (inside the auto-submit/submit transaction). This table MUST
+-- exist or the whole submit transaction rolls back and the student's result
+-- is never recorded. Columns match the upsert in recitationScoring.js.
 CREATE TABLE IF NOT EXISTS recitation_streaks (
   id SERIAL PRIMARY KEY,
-  student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
-  teacher_id INTEGER NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
-  current_streak INTEGER DEFAULT 0,
-  max_streak INTEGER DEFAULT 0,
-  last_completed_at TIMESTAMP,
-  total_completed INTEGER DEFAULT 0,
-  updated_at TIMESTAMP DEFAULT NOW(),
-  UNIQUE(student_id, teacher_id)
+  student_id INTEGER NOT NULL UNIQUE REFERENCES students(id) ON DELETE CASCADE,
+  current_streak INTEGER NOT NULL DEFAULT 0,
+  best_streak INTEGER NOT NULL DEFAULT 0,
+  last_recitation_date DATE,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
-*/
 
 
 ALTER TABLE assistants ADD COLUMN IF NOT EXISTS can_manage_recitations BOOLEAN DEFAULT false;

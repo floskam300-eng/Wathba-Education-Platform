@@ -522,14 +522,16 @@ async function runDataRetentionCleanup() {
       // Recitation results older than 1 year — only delete a row if a NEWER
       // result exists for the same (student, recitation), so the student's latest
       // grade is never erased even after 365 days.
+      // NOTE: recitation_results has no submitted_at column — created_at is
+      // the insertion timestamp used for retention comparisons.
       _pool.query(`
         DELETE FROM recitation_results rr
-        WHERE rr.submitted_at < NOW() - INTERVAL '365 days'
+        WHERE rr.created_at < NOW() - INTERVAL '365 days'
           AND EXISTS (
             SELECT 1 FROM recitation_results newer
             WHERE newer.student_id     = rr.student_id
               AND newer.recitation_id  = rr.recitation_id
-              AND newer.submitted_at   > rr.submitted_at
+              AND newer.created_at     > rr.created_at
           )
       `),
     ]);
