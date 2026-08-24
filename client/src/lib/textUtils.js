@@ -110,13 +110,25 @@ const ARABIC_RE = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\
 // Anything that can legitimately appear inside a latin/math expression.
 const LTR_HINT_RE = /[0-9A-Za-z\u00B0\u00B1\u00D7\u00F7\u221A\u221E\u0391-\u03C9\u2260\u2264\u2265]/;
 const WHITESPACE_RE = /^\s+$/;
+// A token with no latin letter/digit — pure punctuation/operator (e.g. "=",
+// ".....", "-", "(,)"). Such tokens only belong INSIDE an island when they
+// sit between two non-Arabic tokens; at an edge they are sentence-flow
+// separators that the RTL bidi must place (see isolateLtrRuns).
+const PURE_PUNCT_RE = /^[^A-Za-z0-9]*$/;
 
 /**
- * Wrap maximal runs of non-Arabic tokens in LTR bidi isolates so numbers,
- * comparisons (`5 > 8`), and formulas keep their visual order inside RTL
- * paragraphs. Whitespace between tokens of the same run is preserved
- * (including newlines — callers rely on white-space: pre-wrap).
- * Tokens mixing Arabic + latin are left untouched (default bidi applies).
+ * Wrap runs of non-Arabic tokens in LTR bidi isolates so numbers, comparisons
+ * (`5 > 8`) and formulas keep their visual order inside RTL paragraphs.
+ *
+ * Edge trimming: operators/punctuation at the BOUNDARY between a run and
+ * neighbouring Arabic text stay OUTSIDE the island. Example — typed
+ * `60,000 = ..... الف`:
+ *   - isolating `60,000 = .....` as one unit would flip the sentence into
+ *     `...... = 60,000 الف` for readers;
+ *   - isolating only `60,000` lets `=` and the dots flow in natural RTL
+ *     order, exactly as the teacher typed it.
+ * Whitespace and newlines are preserved verbatim (callers rely on
+ * white-space: pre-wrap). Tokens mixing Arabic + latin are left untouched.
  */
 export function isolateLtrRuns(str) {
   if (!str) return str;
@@ -124,29 +136,52 @@ export function isolateLtrRuns(str) {
   if (!LTR_HINT_RE.test(s)) return s;
 
   const tokens = s.split(/(\s+)/);
-  let out = '';
-  let run = '';
-  const flush = () => {
-    if (!run) return;
-    // Keep trailing whitespace outside the isolate — cleaner output.
-    const trimmed = run.replace(/\s+$/, '');
-    const trail = run.slice(trimmed.length);
-    out += '\u2066' + trimmed + '\u2069' + trail;
-    run = '';
-  };
 
-  for (const tok of tokens) {
-    if (!tok) continue;
-    if (WHITESPACE_RE.test(tok)) {
-      if (run) run += tok;
-      else out += tok;
-    } else if (ARABIC_RE.test(tok)) {
-      flush();
-      out += tok;
-    } else {
-      run += tok;
+  // Pass 1 — classify word/punct tokens (whitespace kept for pass 2).
+  const kinds = tokens.map((tok) =>
+    !tok || WHITESPACE_RE.test(tok)
+      ? null
+      : ARABIC_RE.test(tok)
+        ? 'A'
+        : PURE_PUNCT_RE.test(tok)
+          ? 'P'
+          : 'W'
+  );
+
+  // Pass 2 — mark which tokens fall INSIDE a non-Arabic run: everything
+  // between the FIRST and LAST word-token of the stretch (whitespace and
+  // inter-word punctuation included). Pure-punctuation tokens at the stretch
+  // edges belong to the surrounding RTL sentence flow and stay unwrapped.
+  const inIsland = new Array(tokens.length).fill(false);
+  let start = -1;
+  const markStretch = (from, to) => { // [from, to)
+    let firstW = -1, lastW = -1;
+    for (let i = from; i < to; i++) {
+      if (kinds[i] === 'W') { if (firstW === -1) firstW = i; lastW = i; }
+    }
+    if (firstW === -1) return;
+    for (let i = firstW; i <= lastW; i++) inIsland[i] = true;
+  };
+  for (let i = 0; i <= tokens.length; i++) {
+    const isBoundary = i === tokens.length || kinds[i] === 'A';
+    if (isBoundary) {
+      if (start !== -1) { markStretch(start, i); start = -1; }
+    } else if (start === -1 && kinds[i] === 'W') {
+      start = i;
     }
   }
-  flush();
+
+  // Pass 3 — emit, opening/closing the isolate on membership transitions.
+  let out = '';
+  let open = false;
+  for (let i = 0; i < tokens.length; i++) {
+    const tok = tokens[i];
+    if (!tok) continue;
+    const want = inIsland[i];
+    if (want && !open) { out += '\u2066'; open = true; }
+    else if (!want && open) { out += '\u2069'; open = false; }
+    out += tok;
+  }
+  if (open) out += '\u2069';
   return out;
 }

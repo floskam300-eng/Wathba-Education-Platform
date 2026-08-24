@@ -127,6 +127,25 @@ const PDI = '\u2069';
     eq(isolateLtrRuns(null), null);
     eq(isolateLtrRuns(''), '');
   });
+  await test('N1 · REGRESSION: "60,000 = ..... الف" isolates ONLY the number', () => {
+    // The = and the dots belong to the RTL sentence flow; wrapping them with
+    // the number flipped the sentence into "...... = 60,000 الف".
+    const out = isolateLtrRuns('60,000 = ..... الف.');
+    eq(out, `${LRI}60,000${PDI} = ..... الف.`);
+  });
+  await test('N2 · operator BEFORE a number also stays in RTL flow', () => {
+    eq(isolateLtrRuns('س = 60'), `س = ${LRI}60${PDI}`);
+  });
+  await test('N3 · operators between two numbers stay inside the island', () => {
+    eq(isolateLtrRuns('10 - 3 + 2'), `${LRI}10 - 3 + 2${PDI}`);
+    // Trailing dangling operator stays in the RTL flow (edge rule).
+    eq(isolateLtrRuns('احسب 5 × 3 ÷'), `احسب ${LRI}5 × 3${PDI} ÷`);
+  });
+  await test('N4 · pure-punctuation stretch between Arabic words never wraps', () => {
+    const out = isolateLtrRuns('اكتب الإجابة : ، . في الفراغ');
+    eq(out.includes(LRI), false);
+    eq(out, 'اكتب الإجابة : ، . في الفراغ');
+  });
 
   console.log('\n── escapeStrayAngleBrackets ──');
 
