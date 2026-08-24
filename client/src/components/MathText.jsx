@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
+import { decodeEntities, looksLikeRichHtml, isolateLtrRuns, escapeStrayAngleBrackets } from '../lib/textUtils';
 
 function escapeHtml(s) {
   return String(s)
@@ -11,6 +12,7 @@ function escapeHtml(s) {
     .replace(/'/g, '&#39;');
 }
 
+// Keep in sync with RICH_TAG_RE in lib/textUtils.js
 const ALLOWED_TAGS = new Set([
   'B', 'STRONG', 'I', 'EM', 'U', 'S', 'DEL', 'STRIKE',
   'MARK', 'SPAN', 'SUB', 'SUP', 'BR', 'CODE', 'PRE', 'P', 'DIV', 'SMALL'
@@ -34,7 +36,10 @@ export function sanitizeRichHtml(html) {
 
   try {
     const parser = new DOMParser();
-    const doc = parser.parseFromString(`<body>${html}</body>`, 'text/html');
+    // Escape angle brackets that don't belong to allow-listed tags BEFORE
+    // parsing — otherwise the browser's parser treats typed math like
+    // `x<y ... y>x` as a fake element and silently deletes the text.
+    const doc = parser.parseFromString(`<body>${escapeStrayAngleBrackets(html)}</body>`, 'text/html');
 
     const cleanNode = (node) => {
       const children = Array.from(node.childNodes);
@@ -75,9 +80,26 @@ export function sanitizeRichHtml(html) {
     };
 
     cleanNode(doc.body);
+    isolateTextNodeBidi(doc.body);
     return doc.body.innerHTML;
   } catch {
     return escapeHtml(html);
+  }
+}
+
+/**
+ * Apply LTR bidi isolation to every text node of the cleaned tree so math
+ * comparisons inside formatted (rich HTML) questions keep their visual
+ * order in RTL paragraphs, exactly like the plain-text path does.
+ */
+function isolateTextNodeBidi(root) {
+  if (typeof root.createTreeWalker !== 'function') return;
+  const walker = root.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  for (const node of nodes) {
+    const isolated = isolateLtrRuns(node.data);
+    if (isolated !== node.data) node.data = isolated;
   }
 }
 
@@ -140,17 +162,25 @@ function parseMath(text) {
 }
 
 export default function MathText({ text, className = '' }) {
-  const parts = useMemo(() => parseMath(text), [text]);
+  // The rich-text editor stores HTML, so a typed `5 > 8` is saved as
+  // `5 &gt; 8`. Decode entities up front and do all parsing/detection on
+  // the decoded string so real symbols render in every view.
+  const decoded = useMemo(() => decodeEntities(text), [text]);
+  const parts = useMemo(() => parseMath(decoded), [decoded]);
 
   if (!text) return null;
 
   const hasMath = parts.some((p) => p.type !== 'text');
-  const strText = String(text);
-  const hasHtml = /<[a-z][\s\S]*>/i.test(strText);
+  const decodedText = String(decoded ?? '');
+  const hasHtml = looksLikeRichHtml(decodedText);
 
   // Plain text optimization (no math, no html)
   if (!hasMath && !hasHtml) {
-    return <span className={className} style={{ whiteSpace: 'pre-wrap' }}>{strText}</span>;
+    return (
+      <span className={className} style={{ whiteSpace: 'pre-wrap' }}>
+        {isolateLtrRuns(decodedText)}
+      </span>
+    );
   }
 
   // Pure HTML rich text with no math
@@ -160,7 +190,7 @@ export default function MathText({ text, className = '' }) {
         className={`rich-text ${className}`}
         dir="rtl"
         style={{ whiteSpace: 'pre-wrap' }}
-        dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(strText) }}
+        dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(decodedText) }}
       />
     );
   }

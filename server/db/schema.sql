@@ -471,7 +471,9 @@ END $$;
 -- ── Question Image URL indexes for fast file-access permission checks ──────────
 CREATE INDEX IF NOT EXISTS idx_questions_img ON questions(question_image_url) WHERE question_image_url IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_bank_questions_img ON bank_questions(question_image_url) WHERE question_image_url IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_recitation_questions_img ON recitation_questions(question_image_url) WHERE question_image_url IS NOT NULL;
+-- NOTE: idx_recitation_questions_img lives next to the recitation_questions
+-- table (bottom of this file) — referencing the table here, before its
+-- CREATE TABLE, aborts schema bootstrap on fresh/empty databases.
 
 CREATE INDEX IF NOT EXISTS idx_live_stream_viewers_stream_active ON live_stream_viewers(stream_id, is_active);
 CREATE INDEX IF NOT EXISTS idx_students_deleted_at ON students(teacher_id, deleted_at);
@@ -1075,6 +1077,7 @@ CREATE TABLE IF NOT EXISTS recitation_questions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_recitation_questions_recitation ON recitation_questions(recitation_id);
+CREATE INDEX IF NOT EXISTS idx_recitation_questions_img ON recitation_questions(question_image_url) WHERE question_image_url IS NOT NULL;
 ALTER TABLE recitation_questions ADD COLUMN IF NOT EXISTS sub_questions JSONB DEFAULT '[]';
 DO $$ BEGIN
   ALTER TABLE recitation_questions DROP CONSTRAINT IF EXISTS chk_recitation_question_type;
