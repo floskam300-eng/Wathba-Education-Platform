@@ -2059,6 +2059,7 @@ export default function TeacherStudents() {
           studentId={devicesOverviewModal.id}
           studentName={devicesOverviewModal.name}
           onClose={() => setDevicesOverviewModal(null)}
+          canEdit={canEdit}
         />
       )}
 

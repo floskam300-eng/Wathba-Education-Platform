@@ -1,22 +1,25 @@
-import React, { useEffect, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Monitor, Smartphone, Tablet, Wifi, WifiOff, Clock,
   Globe, ShieldCheck, AlertTriangle, RefreshCw, X,
+  Trash2, Loader2,
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import api from '../../lib/api';
 
 const fmtDt = (d) => d ? new Date(d).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' }) : '—';
 const fmtDay = (d) => d ? new Date(d).toLocaleDateString('ar-EG', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
 const KICK_REASON_LABELS = {
-  new_login_replaced_session: { text: 'استُبدلت بدخول جديد', cls: 'bg-amber-100 text-amber-700 border-amber-200' },
-  student_logout:              { text: 'خرج الطالب',            cls: 'bg-gray-100 text-gray-600 border-gray-200' },
-  teacher_suspended_account:   { text: 'أوقف المدرس الحساب',    cls: 'bg-red-100 text-red-700 border-red-200' },
-  teacher_removed_device:      { text: 'أزال المدرس الجهاز',    cls: 'bg-red-100 text-red-700 border-red-200' },
-  teacher_kicked_session:      { text: 'طرد المدرس الجلسة',     cls: 'bg-red-100 text-red-700 border-red-200' },
-  teacher_kept_original_device:{ text: 'أبقى المدرس على الأصلي',cls: 'bg-gray-100 text-gray-600 border-gray-200' },
-  session_kicked:              { text: 'تم إنهاء الجلسة',       cls: 'bg-gray-100 text-gray-600 border-gray-200' },
+  new_login_replaced_session:  { text: 'استُبدلت بدخول جديد',    cls: 'bg-amber-100 text-amber-700 border-amber-200' },
+  student_logout:               { text: 'خرج الطالب',             cls: 'bg-gray-100 text-gray-600 border-gray-200' },
+  teacher_suspended_account:    { text: 'أوقف المدرس الحساب',      cls: 'bg-red-100 text-red-700 border-red-200' },
+  teacher_removed_device:       { text: 'أزال المدرس الجهاز',      cls: 'bg-red-100 text-red-700 border-red-200' },
+  teacher_kicked_session:       { text: 'طرد المدرس الجلسة',       cls: 'bg-red-100 text-red-700 border-red-200' },
+  teacher_cleared_all_devices:  { text: 'مسح المدرس جميع الأجهزة', cls: 'bg-red-100 text-red-700 border-red-200' },
+  teacher_kept_original_device: { text: 'أبقى المدرس على الأصلي',  cls: 'bg-gray-100 text-gray-600 border-gray-200' },
+  session_kicked:               { text: 'تم إنهاء الجلسة',         cls: 'bg-gray-100 text-gray-600 border-gray-200' },
 };
 
 const ORIGIN_LABELS = {
@@ -76,7 +79,11 @@ function Section({ title, icon: Icon, iconBg, iconColor, count, badge, children,
   );
 }
 
-export default function StudentDevicesModal({ studentId, studentName, onClose }) {
+export default function StudentDevicesModal({ studentId, studentName, onClose, canEdit = false }) {
+  const qc = useQueryClient();
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
+
   const { data, isLoading, isError, dataUpdatedAt, refetch } = useQuery({
     queryKey: ['student-devices-overview', studentId],
     queryFn: () => api.get(`/students/${studentId}/devices-overview`).then(r => r.data),
@@ -85,11 +92,32 @@ export default function StudentDevicesModal({ studentId, studentName, onClose })
     staleTime: 0,
   });
 
+  const clearAllMut = useMutation({
+    mutationFn: () => api.delete(`/students/${studentId}/devices`).then(r => r.data),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['student-devices-overview', studentId] });
+      qc.invalidateQueries({ queryKey: ['student-devices', studentId] });
+      qc.invalidateQueries({ queryKey: ['device-alerts'] });
+      qc.invalidateQueries({ queryKey: ['students'] });
+      toast.success(
+        res?.devices_removed || res?.sessions_kicked
+          ? `تم مسح ${res.devices_removed} جهاز وإنهاء ${res.sessions_kicked} جلسة نشطة`
+          : 'تم مسح جميع الأجهزة'
+      );
+      setConfirmClear(false);
+      setConfirmText('');
+    },
+    onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ أثناء مسح الأجهزة'),
+  });
+
   useEffect(() => {
-    const handler = (e) => { if (e.key === 'Escape') onClose(); };
+    const handler = (e) => { if (e.key === 'Escape') {
+      if (confirmClear) { setConfirmClear(false); return; }
+      onClose();
+    } };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [onClose]);
+  }, [onClose, confirmClear]);
 
   const registeredDevices = data?.registeredDevices || [];
   const activeSessions    = data?.activeSessions || [];
@@ -301,6 +329,92 @@ export default function StudentDevicesModal({ studentId, studentName, onClose })
             </>
           )}
         </div>
+
+        {/* ── Footer with clear-all action (gated by can_edit_students) ── */}
+        {canEdit && !isLoading && !isError && (
+          <div className="border-t border-gray-100 p-4 sm:p-6 bg-gray-50/50 flex-shrink-0">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <Trash2 className="w-4 h-4 text-red-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-gray-800">منطقة خطرة</p>
+                <p className="text-[11px] text-gray-500 mt-0.5">
+                  مسح جميع الأجهزة سيُنهي كل الجلسات النشطة ويُلغي تسجيل كل الأجهزة. الطالب سيحتاج لإعادة تسجيل الدخول من جهازه.
+                </p>
+              </div>
+              <button
+                onClick={() => setConfirmClear(true)}
+                disabled={clearAllMut.isPending}
+                className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white font-bold text-xs px-3 py-2 rounded-xl transition-colors disabled:opacity-50 flex-shrink-0"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                مسح جميع الأجهزة
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Confirm dialog ── */}
+        {confirmClear && (
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4"
+            onClick={() => !clearAllMut.isPending && setConfirmClear(false)}
+          >
+            <div
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="w-12 h-12 rounded-xl bg-red-100 flex items-center justify-center mx-auto mb-4">
+                <Trash2 className="w-6 h-6 text-red-600" />
+              </div>
+              <h3 className="text-lg font-black text-center text-navy-700 mb-1">
+                مسح جميع الأجهزة؟
+              </h3>
+              <p className="text-sm text-gray-500 text-center mb-4">
+                الطالب: <strong>{studentName}</strong>
+              </p>
+
+              <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-4 text-[12px] text-red-800 leading-relaxed">
+                سيتم حذف <strong>{registeredDevices.length}</strong> جهاز مسجّل وإنهاء <strong>{activeSessions.length}</strong> جلسة نشطة.
+                سيُطلب من الطالب إعادة تسجيل الدخول من جهازه في المرة القادمة.
+              </div>
+
+              <p className="text-xs text-gray-600 mb-2 text-center">
+                للتأكيد، اكتب <strong className="text-red-600">مسح</strong> في المربع أدناه:
+              </p>
+              <input
+                type="text"
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+                placeholder="اكتب: مسح"
+                className="w-full text-center input-field font-bold tracking-wider"
+                dir="rtl"
+                disabled={clearAllMut.isPending}
+                autoFocus
+              />
+
+              <div className="flex gap-2 mt-5">
+                <button
+                  onClick={() => { setConfirmClear(false); setConfirmText(''); }}
+                  disabled={clearAllMut.isPending}
+                  className="flex-1 btn-secondary"
+                >
+                  إلغاء
+                </button>
+                <button
+                  onClick={() => clearAllMut.mutate()}
+                  disabled={clearAllMut.isPending || confirmText.trim() !== 'مسح'}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {clearAllMut.isPending
+                    ? <><Loader2 className="w-4 h-4 animate-spin" /> جاري المسح...</>
+                    : <><Trash2 className="w-4 h-4" /> مسح نهائياً</>}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

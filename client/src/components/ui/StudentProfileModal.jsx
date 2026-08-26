@@ -8,6 +8,7 @@ import {
   Monitor, Activity,
 } from 'lucide-react';
 import api from '../../lib/api';
+import { useAuth } from '../../context/AuthContext';
 import AttemptHistoryModal from './AttemptHistoryModal';
 import StudentDevicesModal from './StudentDevicesModal';
 
@@ -56,6 +57,8 @@ function QuickStat({ label, value, color, bg }) {
 
 export default function StudentProfileModal({ studentId, onClose }) {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const canEdit = user?.role === 'teacher' || user?.can_edit_students;
   const [attemptHistory, setAttemptHistory] = useState(null); // { examId, studentName, examTitle }
   const [showDevices, setShowDevices] = useState(false); // opens the devices-overview modal
   const { data, isLoading, isError } = useQuery({
@@ -527,6 +530,7 @@ export default function StudentProfileModal({ studentId, onClose }) {
           studentId={studentId}
           studentName={s?.name || ''}
           onClose={() => setShowDevices(false)}
+          canEdit={canEdit}
         />
       )}
 

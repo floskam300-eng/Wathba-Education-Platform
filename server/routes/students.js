@@ -1760,4 +1760,90 @@ router.post('/:id/suspend',
   }
 );
 
+// ── DELETE /students/:id/devices ──────────────────────────────────────────────
+// Wipes every registered device for the student AND kicks every active session
+// in one shot. After this the student is logged out everywhere and will have to
+// re-authorize on their next login (a fresh device entry will be created at that
+// point). Used by the "Clear all devices" button in the teacher-side
+// devices-overview modal.
+router.delete('/:id/devices',
+  requireRole('teacher', 'assistant'),
+  (req, res, next) => checkPermission(req, res, next, 'can_edit_students'),
+  async (req, res) => {
+    const teacherId = getTeacherId(req);
+    const studentId = parseInt(req.params.id, 10);
+    if (isNaN(studentId)) return res.status(400).json({ error: 'Invalid student ID' });
+    try {
+      const check = await pool.query(
+        'SELECT id, name FROM students WHERE id=$1 AND teacher_id=$2 AND deleted_at IS NULL',
+        [studentId, teacherId]
+      );
+      if (!check.rows.length) return res.status(403).json({ error: 'Access denied' });
+
+      // Kick every live session so the student gets a force_logout SSE event
+      // and the JWT is rejected on the next request.
+      const kickRes = await pool.query(
+        `UPDATE student_active_sessions
+            SET kicked_at = NOW(),
+                kicked_reason = 'teacher_cleared_all_devices'
+          WHERE student_id = $1 AND kicked_at IS NULL
+          RETURNING id`,
+        [studentId]
+      );
+
+      // Delete every registered device for this student.
+      const delRes = await pool.query(
+        'DELETE FROM student_devices WHERE student_id=$1 RETURNING id',
+        [studentId]
+      );
+
+      // Also resolve any pending device-alerts so they don't re-surface.
+      await pool.query(
+        "UPDATE device_alerts SET status='dismissed', resolved_at=NOW() WHERE student_id=$1 AND status='pending'",
+        [studentId]
+      );
+
+      // Force a re-auth so the cached validation re-checks the (now empty)
+      // device list on the student's next request.
+      invalidateStudentAuthCache(studentId);
+
+      // Push SSE force_logout to any connected student tab.
+      setImmediate(() => pushSessionKicked(
+        studentId,
+        'teacher_cleared_all_devices',
+        'تم مسح جميع أجهزة حسابك من قِبل المدرس. ستحتاج لتسجيل الدخول مرة أخرى.'
+      ));
+
+      // Broadcast to all teacher/assistant tabs so the roster badge / alerts
+      // panel refresh immediately.
+      setImmediate(() => {
+        broadcastToTeacherAndAssistants(pool, teacherId, 'device_alert_resolved', {
+          student_id: studentId,
+          action: 'clear_all_devices',
+          devices_removed: delRes.rowCount,
+          sessions_kicked: kickRes.rowCount,
+        }).catch(() => {});
+      });
+
+      logActivity({
+        teacherId,
+        actor: getActor(req),
+        ip: getIp(req),
+        action: 'clear_all_devices',
+        entity: { type: 'student', id: studentId, name: check.rows[0].name },
+        details: { devices_removed: delRes.rowCount, sessions_kicked: kickRes.rowCount },
+      });
+
+      res.json({
+        success: true,
+        devices_removed: delRes.rowCount,
+        sessions_kicked: kickRes.rowCount,
+      });
+    } catch (err) {
+      console.error('[CLEAR_ALL_DEVICES_ERROR]', err);
+      res.status(500).json({ error: 'Server error' });
+    }
+  }
+);
+
 module.exports = router;

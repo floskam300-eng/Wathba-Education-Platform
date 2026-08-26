@@ -62,6 +62,7 @@ const ACTION_LABELS = {
   end_livestream:            'إنهاء بث مباشر',
   cancel_scheduled_livestream: 'إلغاء بث مجدول',
   kick_student_livestream:  'إخراج طالب من البث',
+  clear_all_devices:        'مسح جميع أجهزة طالب',
   update_stream_permissions: 'تعديل صلاحيات طالب في البث',
   mute_all_students:         'كتم صوت جميع الطلاب',
   lock_livestream:           'قفل/فتح البث المباشر',
