@@ -331,7 +331,7 @@ export default function QuestionBankQuestions() {
           </div>
 
           {/* Add/Edit Question Form */}
-          <div ref={formScrollRef} className="lg:col-span-2 order-1 lg:order-2 lg:sticky lg:top-4 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:overscroll-contain lg:pl-1">
+          <div ref={formScrollRef} className="lg:col-span-2 order-1 lg:order-2 lg:sticky lg:top-4 lg:max-h-[calc(100vh-9.5rem)] lg:overflow-y-auto lg:overscroll-contain lg:pl-1">
             <div className="bg-white dark:bg-[var(--dk-surface)] rounded-2xl border-2 border-dashed border-purple-300 dark:border-[var(--dk-border-md)] p-5 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-black text-navy-700 dark:text-[var(--dk-text-1)] flex items-center gap-2">

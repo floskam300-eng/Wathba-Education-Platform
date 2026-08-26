@@ -286,7 +286,7 @@ export default function RecitationQuestions() {
           </div>
 
           {/* ── Add / Edit form ────────────────────────────────────────── */}
-          <div ref={formTopRef} className="lg:col-span-2 order-1 lg:order-2 lg:sticky lg:top-4 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:overscroll-contain lg:pl-1">
+          <div ref={formTopRef} className="lg:col-span-2 order-1 lg:order-2 lg:sticky lg:top-4 lg:max-h-[calc(100vh-9.5rem)] lg:overflow-y-auto lg:overscroll-contain lg:pl-1">
             {recitation?.is_published ? (
               <div className="bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-300 dark:border-amber-700/50 rounded-2xl p-5 text-center">
                 <AlertCircle className="w-8 h-8 text-amber-500 mx-auto mb-2" />
