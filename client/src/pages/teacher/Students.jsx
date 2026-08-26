@@ -12,6 +12,7 @@ import {
 import Modal from '../../components/ui/Modal';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import Badge from '../../components/ui/Badge';
+import StudentDevicesModal from '../../components/ui/StudentDevicesModal';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
@@ -593,6 +594,10 @@ export default function TeacherStudents() {
 
   // Suspend / unsuspend state
   const [suspendTarget, setSuspendTarget] = useState(null); // { id, name, is_suspended }
+
+  // Devices-overview modal: shows registered devices + active sessions + recent
+  // logins for a single student. View-only (no kick / suspend actions inside).
+  const [devicesOverviewModal, setDevicesOverviewModal] = useState(null); // { id, name }
 
   // Bulk delete-by-stage modal state
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
@@ -1539,6 +1544,17 @@ export default function TeacherStudents() {
                       <td data-label="الكورسات" className="td-cell hidden lg:table-cell"><Badge variant="info">{s.enrolled_courses || 0} كورس</Badge></td>
                       <td data-label="إجراءات" className="td-cell">
                         <div className="flex items-center gap-1.5">
+                          {/* Devices overview (open sessions + registered devices + history) */}
+                          {canPrint && (
+                            <button
+                              onClick={() => setDevicesOverviewModal({ id: s.id, name: s.name })}
+                              className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors"
+                              title="عرض الأجهزة والدخول"
+                              aria-label={`عرض أجهزة ودخول الطالب ${s.name}`}
+                            >
+                              <Monitor className="w-4 h-4" aria-hidden="true" />
+                            </button>
+                          )}
                           {/* Suspend / Reactivate button (replaces old Eye/results button) */}
                           {canEdit && (
                             <button
@@ -2036,6 +2052,15 @@ export default function TeacherStudents() {
         message="سيتم حذف التعيينات المحفوظة. ستحتاج لرفع ملف نموذجي مرة أخرى لإعادة الضبط."
         danger
       />
+
+      {/* ── Student devices overview: registered devices + active sessions + recent logins ── */}
+      {devicesOverviewModal && (
+        <StudentDevicesModal
+          studentId={devicesOverviewModal.id}
+          studentName={devicesOverviewModal.name}
+          onClose={() => setDevicesOverviewModal(null)}
+        />
+      )}
 
       {/* Bulk delete by stage — soft delete every active student in a single stage */}
       {bulkDeleteOpen && (

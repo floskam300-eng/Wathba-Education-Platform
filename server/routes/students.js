@@ -1554,6 +1554,84 @@ router.get('/:id/devices', requireRole('teacher', 'assistant'), async (req, res)
   }
 });
 
+// ── GET /students/:id/devices-overview ────────────────────────────────────────
+// Combined view for the teacher: registered devices + currently open sessions +
+// recent login history. View-only; no mutation endpoints are added here.
+router.get('/:id/devices-overview', requireRole('teacher', 'assistant'), async (req, res) => {
+  const teacherId = getTeacherId(req);
+  const studentId = parseInt(req.params.id, 10);
+  if (isNaN(studentId)) return res.status(400).json({ error: 'Invalid student ID' });
+  try {
+    if (req.user.role === 'assistant') {
+      const perms = await getPermissions(req.user.id, pool);
+      if (!perms?.can_view_analytics) return res.status(403).json({ error: 'Access denied: missing permission' });
+    }
+    const check = await pool.query(
+      'SELECT id FROM students WHERE id=$1 AND teacher_id=$2 AND deleted_at IS NULL',
+      [studentId, teacherId]
+    );
+    if (!check.rows.length) return res.status(403).json({ error: 'Access denied' });
+
+    // Three independent queries, each LEFT-JOINed with student_devices so the UI
+    // can show a friendly device_name without an extra round-trip.
+    const [devicesRes, activeRes, historyRes] = await Promise.all([
+      pool.query(
+        `SELECT id, device_id, device_name, device_origin, ip_address, first_seen, last_seen
+           FROM student_devices
+          WHERE student_id = $1
+          ORDER BY last_seen DESC`,
+        [studentId]
+      ),
+      pool.query(
+        `SELECT s.id              AS session_id,
+                s.device_id,
+                s.device_origin,
+                s.ip_address,
+                s.user_agent,
+                s.logged_in_at,
+                s.last_active_at,
+                d.device_name,
+                d.first_seen
+           FROM student_active_sessions s
+           LEFT JOIN student_devices d
+             ON d.student_id = s.student_id AND d.device_id = s.device_id
+          WHERE s.student_id = $1
+            AND s.kicked_at IS NULL
+          ORDER BY s.last_active_at DESC`,
+        [studentId]
+      ),
+      pool.query(
+        `SELECT s.id              AS session_id,
+                s.device_id,
+                s.device_origin,
+                s.ip_address,
+                s.user_agent,
+                s.logged_in_at,
+                s.last_active_at,
+                s.kicked_at,
+                s.kicked_reason,
+                d.device_name
+           FROM student_active_sessions s
+           LEFT JOIN student_devices d
+             ON d.student_id = s.student_id AND d.device_id = s.device_id
+          WHERE s.student_id = $1
+          ORDER BY s.logged_in_at DESC
+          LIMIT 30`,
+        [studentId]
+      ),
+    ]);
+
+    res.json({
+      registeredDevices: devicesRes.rows,
+      activeSessions:    activeRes.rows,
+      recentLogins:      historyRes.rows,
+    });
+  } catch (err) {
+    console.error('[DEVICES_OVERVIEW_ERROR]', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ── DELETE /students/:id/devices/:deviceId ────────────────────────────────────
 router.delete('/:id/devices/:deviceId',
   requireRole('teacher', 'assistant'),

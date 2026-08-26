@@ -4,10 +4,12 @@ import { useNavigate } from 'react-router-dom';
 import {
   X, User, Phone, BookOpen, Award, CreditCard,
   CheckCircle2, XCircle, Star, GraduationCap, Calendar, Clock,
-  Trophy, Wallet, Play, FileText, AlertCircle, ChevronDown, ChevronUp, Eye, History
+  Trophy, Wallet, Play, FileText, AlertCircle, ChevronDown, ChevronUp, Eye, History,
+  Monitor, Activity,
 } from 'lucide-react';
 import api from '../../lib/api';
 import AttemptHistoryModal from './AttemptHistoryModal';
+import StudentDevicesModal from './StudentDevicesModal';
 
 const fmt = (date) => date ? new Date(date).toLocaleDateString('ar-EG', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 const fmtShort = (date) => date ? new Date(date).toLocaleDateString('ar-EG', { day: '2-digit', month: 'short' }) : '—';
@@ -55,6 +57,7 @@ function QuickStat({ label, value, color, bg }) {
 export default function StudentProfileModal({ studentId, onClose }) {
   const navigate = useNavigate();
   const [attemptHistory, setAttemptHistory] = useState(null); // { examId, studentName, examTitle }
+  const [showDevices, setShowDevices] = useState(false); // opens the devices-overview modal
   const { data, isLoading, isError } = useQuery({
     queryKey: ['student-profile', studentId],
     queryFn: () => api.get(`/students/${studentId}/profile`).then(r => r.data),
@@ -173,7 +176,7 @@ export default function StudentProfileModal({ studentId, onClose }) {
             </button>
           </div>
 
-          {/* Quick Stats Strip */}
+{/* Quick Stats Strip */}
           {!isLoading && !isError && (
             <div className="grid grid-cols-4 gap-2 bg-white/10 rounded-2xl p-3 mb-0">
               {[
@@ -184,9 +187,22 @@ export default function StudentProfileModal({ studentId, onClose }) {
               ].map(({ label, value, color }) => (
                 <div key={label} className="text-center py-1">
                   <p className={`text-lg font-black ${color}`}>{value}</p>
-                  <p className="text-[11px] text-white/60 font-medium mt-0.5">{label}</p>
+                  <p className={`text-[11px] text-white/60 font-medium mt-0.5`}>{label}</p>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Devices overview trigger */}
+          {!isLoading && !isError && (
+            <div className="flex justify-end mt-3 mb-1">
+              <button
+                onClick={() => setShowDevices(true)}
+                className="inline-flex items-center gap-1.5 text-[11px] font-bold text-white/90 bg-white/15 hover:bg-white/25 px-3 py-1.5 rounded-full transition-colors"
+                aria-label={`عرض أجهزة ودخول ${s?.name || 'الطالب'}`}
+              >
+                <Activity className="w-3.5 h-3.5" /> الأجهزة والدخول
+              </button>
             </div>
           )}
 
@@ -502,6 +518,15 @@ export default function StudentProfileModal({ studentId, onClose }) {
           studentName={attemptHistory.studentName}
           examTitle={attemptHistory.examTitle}
           onClose={() => setAttemptHistory(null)}
+        />
+      )}
+
+      {/* Devices overview modal — registered devices + active sessions + recent logins */}
+      {showDevices && (
+        <StudentDevicesModal
+          studentId={studentId}
+          studentName={s?.name || ''}
+          onClose={() => setShowDevices(false)}
         />
       )}
 
