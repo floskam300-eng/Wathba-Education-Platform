@@ -27,6 +27,11 @@ let _tokenExpiry = 0; // Unix ms timestamp when the token expires
 // which can confuse downstream caches.
 let _pendingFetch = null;
 
+// Subscribers are notified whenever the in-memory media token rotates.
+// Components like the video player subscribe so they can rebuild their
+// <video src> URL before the next range request fails with 403.
+const _listeners = new Set();
+
 const TOKEN_LIFETIME_MS = 15 * 60 * 1000; // 15 min (matches server-side expiresIn: '15m')
 const REFRESH_AHEAD_MS  =  2 * 60 * 1000; // Refresh 2 min before expiry
 
@@ -75,10 +80,35 @@ export async function refreshMediaToken() {
         return _mediaToken;
       })
       .catch(() => _mediaToken)
-      .finally(() => { _pendingFetch = null; });
+      .finally(() => {
+        _pendingFetch = null;
+        // Notify subscribers AFTER the in-flight fetch settles so they
+        // see the freshest token. Even if the fetch failed (token ===
+        // null), we still emit — components can decide whether to retry.
+        if (_mediaToken) _emitMediaTokenRefresh();
+      });
   }
 
   return _pendingFetch;
+}
+
+/**
+ * Subscribe to media-token rotations. The callback fires every time
+ * refreshMediaToken() successfully stores a new token (i.e. once on the
+ * initial prime, plus on each subsequent 12-min background refresh).
+ * Returns an unsubscribe function.
+ *
+ * This lets components like the video player remount their <video> element
+ * with a fresh URL before the next HTTP Range request fails with 403 —
+ * the "thumbnail freezes" symptom reported by teachers.
+ */
+export function onMediaTokenRefresh(cb) {
+  _listeners.add(cb);
+  return () => _listeners.delete(cb);
+}
+
+function _emitMediaTokenRefresh() {
+  _listeners.forEach((cb) => { try { cb(_mediaToken); } catch (_) {} });
 }
 
 /**

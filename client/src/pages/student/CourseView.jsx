@@ -13,7 +13,7 @@ import ImageLightbox from '../../components/ImageLightbox';
 import toast from 'react-hot-toast';
 import api, { API_BASE } from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
-import { withToken } from '../../lib/mediaAccess';
+import { withToken, refreshMediaToken, onMediaTokenRefresh } from '../../lib/mediaAccess';
 import { getTenantSlug } from '../../lib/tenant';
 import QuestionImage from '../../components/ui/QuestionImage';
 import { toUTCDate, getServerNow, getServerNowMs } from '../../lib/dateUtils';
@@ -823,6 +823,43 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
   const [showSpeed,    setShowSpeed]    = useState(false);
   const pendingSeekRef = useRef(null);
 
+  /* ── H-NEW: media-token resilience ───────────────────────────
+     The 15-min media token embedded in the <video src> expires while a
+     student is still watching. Without intervention, the next HTTP Range
+     request returns 403 and the player shows the first frame frozen
+     (the "thumbnail freezes" symptom reported by teachers).
+
+     Fix:
+       • tokenReady   — block first render until a fresh token is fetched
+       • urlVersion   — bump on every background token refresh so the
+                        <video> remounts with a fresh URL automatically
+       • onVideoError — explicit recovery: refresh + bump + load()
+   */
+  const [tokenReady,  setTokenReady]  = useState(false);
+  const [urlVersion,  setUrlVersion]  = useState(0);
+  const tokenErrorRetryRef = useRef(0);
+
+  /* Prime the media token before the first <video> render, and re-prime
+     whenever the active video changes (the layout's 12-min background
+     refresh may have raced ahead of this component mounting). */
+  useEffect(() => {
+    let cancelled = false;
+    setTokenReady(false);
+    (async () => {
+      await refreshMediaToken();
+      if (!cancelled) setTokenReady(true);
+    })();
+    return () => { cancelled = true; };
+  }, [video?.id]);
+
+  /* Auto-bump URL on every background token rotation. The layout calls
+     refreshMediaToken() every 12 min; this listener propagates the new
+     token into our <video src> via the urlVersion counter in the key. */
+  useEffect(() => {
+    const off = onMediaTokenRefresh(() => setUrlVersion((v) => v + 1));
+    return off;
+  }, []);
+
   /* ── keep prop refs current ── */
   useEffect(() => { onProgressUpdateRef.current = onProgressUpdate; }, [onProgressUpdate]);
   useEffect(() => { videoIdRef.current = video?.id; }, [video?.id]);
@@ -933,6 +970,28 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
       if (playing) videoRef.current.pause();
       else         videoRef.current.play();
     } catch (_) {}
+  };
+
+  /* ── H-NEW: auto-recover from an expired-token 403 ─────────
+     Fires when the <video> element hits a media error (most commonly
+     a 403 from the protected /uploads/videos/* endpoint after the
+     15-min media token expired). Refresh the token, bump the URL
+     version so the element remounts, and try again. Cap at 3 retries
+     to avoid an infinite loop on a real 404 / corrupt file. */
+  const onVideoError = async () => {
+    if (tokenErrorRetryRef.current >= 3) return;
+    tokenErrorRetryRef.current += 1;
+    try {
+      await refreshMediaToken();
+    } catch (_) { /* refreshMediaToken is already try/catch'd internally */ }
+    // Remember where the student was so the remount can resume them.
+    if (videoRef.current && videoRef.current.currentTime > 5) {
+      pendingSeekRef.current = {
+        time: videoRef.current.currentTime,
+        play: false,
+      };
+    }
+    setUrlVersion((v) => v + 1);
   };
 
   const fmtSec = (s) => {
@@ -1082,9 +1141,20 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
     >
       <FloatingWatermark name={studentName} code={studentCode} />
 
+      {!tokenReady && (
+        <div
+          className="absolute inset-0 z-10 flex items-center justify-center bg-black"
+          role="status"
+          aria-label="جاري التحميل"
+        >
+          <div className="w-10 h-10 border-4 border-white/20 border-t-orange-500 rounded-full animate-spin" />
+        </div>
+      )}
+
+      {tokenReady && (
       <video
         ref={videoRef}
-        key={video.id}
+        key={`${video.id}-${urlVersion}`}
         src={withToken(currentSrc)}
         className="w-full h-full object-contain cursor-pointer"
         muted={muted}
@@ -1092,6 +1162,7 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
         disablePictureInPicture
         disableRemotePlayback
         onContextMenu={(e) => e.preventDefault()}
+        onError={onVideoError}
         onTimeUpdate={() => {
           if (!videoRef.current || seeking.current) return;
           const ct = videoRef.current.currentTime;
@@ -1164,6 +1235,7 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
         }}
         onClick={handleScreenTap}
       />
+      )}
 
       {/* Centered play/pause overlay — shows on hover (showControls) or when paused */}
       {(showControls || !playing) && (
