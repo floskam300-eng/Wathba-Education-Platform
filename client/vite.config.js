@@ -35,6 +35,10 @@ export default defineConfig({
     },
   },
   build: {
+    // [FIX] Old Android WebViews (Chrome < 80) fail to parse ES2020 syntax
+    // (`?.`, `??`) silently, leaving students with a blank white screen.
+    // Transpile down to ES2018 so any WebView from Chrome 66+ can run the app.
+    target: 'es2018',
     outDir: 'dist',
     // Prevent the browser from preloading lazy-loaded vendor chunks (echarts, livekit,
     // pdfjs, xlsx, jspdf) on the initial page load. These are only needed on specific
@@ -84,6 +88,9 @@ export default defineConfig({
   },
   optimizeDeps: {
     exclude: ['pdfjs-dist'],
+    esbuildOptions: {
+      target: 'es2018',
+    },
   },
   worker: {
     format: 'es',
