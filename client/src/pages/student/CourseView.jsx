@@ -853,11 +853,19 @@ function DrivePlayer({ video, onProgressUpdate, studentName, studentCode, initia
   const [cssLandscape,  setCssLandscape]  = useState(false);
   const [loadError,     setLoadError]     = useState(false);
 
+  // Real device orientation (not CSS state) — used to skip the fake-rotate
+  // when the phone is already physically landscape (which would make the
+  // video appear sideways). Same hook YoutubePlayer uses.
+  const deviceIsLandscape = useDeviceOrientation();
+
   // Resolve the Drive id: prefer the server-provided drive_id (which hides the
   // raw URL from the API response); fall back to extracting it from
   // file_path_or_url for teacher preview / backwards compatibility.
+  // embedded=true strips Drive's built-in toolbar/header so only the video
+  // is visible — fixes the "two layouts stacked" complaint where Drive's
+  // own header bar showed up next to the platform's overlay UI.
   const driveId = video?.drive_id || extractDriveId(video?.file_path_or_url);
-  const embedUrl = driveId ? `https://drive.google.com/file/d/${driveId}/preview` : null;
+  const embedUrl = driveId ? `https://drive.google.com/file/d/${driveId}/preview?embedded=true` : null;
 
   /* ── keep prop refs current ── */
   useEffect(() => { onProgressUpdateRef.current = onProgressUpdate; }, [onProgressUpdate]);
@@ -947,15 +955,40 @@ function DrivePlayer({ video, onProgressUpdate, studentName, studentCode, initia
   /* ── CSS fullscreen (iframe doesn't expose a controllable Fullscreen API) ── */
   const enterCssFullscreen = async () => {
     setCssFullscreen(true);
+    // Try real browser fullscreen first (gives us screen.orientation.lock +
+    // hides the platform's surrounding chrome). Falls back silently — most
+    // desktops and some mobile browsers refuse programmatic fullscreen.
+    const el = containerRef.current;
+    if (el) {
+      const fsReq = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen;
+      if (fsReq) {
+        try { await fsReq.call(el); } catch (_) { /* fall back to CSS */ }
+      }
+    }
     try { await screen.orientation?.lock?.('landscape'); } catch (_) {}
   };
   const exitCssFullscreen = () => {
+    try { (document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen)?.call(document); } catch (_) {}
+    try { screen.orientation?.unlock?.(); } catch (_) {}
     setCssFullscreen(false);
     setCssLandscape(false);
   };
   const toggleLandscape = async () => {
-    if (!cssFullscreen) await enterCssFullscreen();
-    setCssLandscape((v) => !v);
+    if (!cssFullscreen) {
+      await enterCssFullscreen();
+      return;
+    }
+    // Toggle the fake-rotate. We ONLY rotate when the device is held in
+    // portrait — if the phone is already physically landscape, the rotate
+    // would just flip it sideways (see the YouTubePlayer comment for the
+    // same logic).
+    if (deviceIsLandscape) {
+      // Already landscape — just unlock the orientation we forced.
+      try { screen.orientation?.unlock?.(); } catch (_) {}
+      setCssLandscape(false);
+    } else {
+      setCssLandscape((v) => !v);
+    }
   };
 
   if (!driveId || !embedUrl) {
@@ -969,8 +1002,28 @@ function DrivePlayer({ video, onProgressUpdate, studentName, studentCode, initia
     );
   }
 
+  // Compute the rotation transform. Only apply when:
+  //   • we're in fullscreen AND
+  //   • the user requested landscape AND
+  //   • the device is still physically held in portrait
+  // (otherwise rotating would make the video appear sideways)
+  const fakeRotate = cssFullscreen && cssLandscape && !deviceIsLandscape;
   const fsStyle = cssFullscreen
-    ? { position: 'fixed', inset: 0, zIndex: 9999, width: '100vw', height: cssLandscape ? '100vw' : '100vh' }
+    ? {
+        position: 'fixed',
+        left: 0,
+        right: 0,
+        top: 0,
+        bottom: 0,
+        zIndex: 9999,
+        // When fake-rotating, the *visible* box becomes viewport-height-wide
+        // and viewport-width-tall, centered. The iframe inside does the
+        // actual transform so the video stays the right shape.
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        overflow: 'hidden',
+      }
     : {};
 
   return (
@@ -984,7 +1037,16 @@ function DrivePlayer({ video, onProgressUpdate, studentName, studentCode, initia
 
       {/* ── Drive iframe wrapper — keeps the official player chrome but lets our
             watermark overlay sit on top via z-index ── */}
-      <div className="absolute inset-0">
+      <div className={fakeRotate ? '' : 'absolute inset-0'}
+           style={fakeRotate ? {
+             // Fake-landscape presentation: rotate the iframe 90° and swap
+             // width/height so the video fills the viewport like a real
+             // landscape player would. transformOrigin=center keeps it centered.
+             width: '100vh',
+             height: '100vw',
+             transform: 'rotate(90deg)',
+             transformOrigin: 'center center',
+           } : undefined}>
         {loadError ? (
           <div className="w-full h-full flex items-center justify-center bg-gray-900">
             <div className="text-center text-gray-400 px-6">
