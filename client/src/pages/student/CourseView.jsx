@@ -1008,45 +1008,47 @@ function DrivePlayer({ video, onProgressUpdate, studentName, studentCode, initia
   //   • the device is still physically held in portrait
   // (otherwise rotating would make the video appear sideways)
   const fakeRotate = cssFullscreen && cssLandscape && !deviceIsLandscape;
-  const fsStyle = cssFullscreen
-    ? {
-        position: 'fixed',
-        left: 0,
-        right: 0,
-        top: 0,
-        bottom: 0,
-        zIndex: 9999,
-        // When fake-rotating, the *visible* box becomes viewport-height-wide
-        // and viewport-width-tall, centered. The iframe inside does the
-        // actual transform so the video stays the right shape.
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        overflow: 'hidden',
-      }
+
+  // Outer container: fills the viewport when in fullscreen, otherwise the
+  // parent's normal flow (the existing player slot in CourseView).
+  const outerStyle = cssFullscreen
+    ? { position: 'fixed', inset: 0, zIndex: 9999, background: '#000' }
     : {};
+
+  // Iframe wrapper:
+  //   • Normal mode: fills the outer container (position:absolute inset:0)
+  //   • Fake-rotate mode: a 100vh×100vw box centered on the viewport then
+  //     rotated 90°. After rotation the visible box is 100vw wide × 100vh
+  //     tall — i.e. it fills the viewport in landscape orientation. The
+  //     translate(-50%,-50%) trick puts the wrapper's CENTER at the
+  //     viewport's center, so rotate spins it in place.
+  const iframeWrapperStyle = fakeRotate
+    ? {
+        position: 'absolute',
+        top: '50%',
+        left: '50%',
+        width: '100vh',
+        height: '100vw',
+        transform: 'translate(-50%, -50%) rotate(90deg)',
+        transformOrigin: 'center center',
+      }
+    : { position: 'absolute', inset: 0 };
 
   return (
     <div
       ref={containerRef}
       className="relative w-full h-full bg-black select-none overflow-hidden"
-      style={fsStyle}
+      style={outerStyle}
       onContextMenu={(e) => e.preventDefault()}
     >
       <FloatingWatermark name={studentName} code={studentCode} />
 
-      {/* ── Drive iframe wrapper — keeps the official player chrome but lets our
-            watermark overlay sit on top via z-index ── */}
-      <div className={fakeRotate ? '' : 'absolute inset-0'}
-           style={fakeRotate ? {
-             // Fake-landscape presentation: rotate the iframe 90° and swap
-             // width/height so the video fills the viewport like a real
-             // landscape player would. transformOrigin=center keeps it centered.
-             width: '100vh',
-             height: '100vw',
-             transform: 'rotate(90deg)',
-             transformOrigin: 'center center',
-           } : undefined}>
+      {/* ── Drive iframe ──
+           No gradient overlays here: Drive's own player chrome is already
+           visible inside the iframe, and adding dark gradients on top made
+           the layout look "double" (two dark headers stacked). The
+           watermark above is the only platform-side overlay. */}
+      <div style={iframeWrapperStyle}>
         {loadError ? (
           <div className="w-full h-full flex items-center justify-center bg-gray-900">
             <div className="text-center text-gray-400 px-6">
@@ -1070,26 +1072,66 @@ function DrivePlayer({ video, onProgressUpdate, studentName, studentCode, initia
         )}
       </div>
 
-      {/* ── Subtle top/bottom gradient masks so watermark stays readable when
-            Drive's own controls aren't showing ── */}
-      <div className="absolute top-0 left-0 right-0 pointer-events-none" style={{ height: 70, background: 'linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, transparent 100%)', zIndex: 5 }} />
-      <div className="absolute bottom-0 left-0 right-0 pointer-events-none" style={{ height: 70, background: 'linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 100%)', zIndex: 5 }} />
+      {/* ── Floating controls ──────────────────────────────────────────────
+           Only shown in fullscreen. A single compact button group pinned to
+           the top-right corner with a translucent background — placed in a
+           spot that doesn't collide with Drive's header (top-left) or
+           player controls (bottom-center). Click anywhere on the video
+           to show them; they auto-hide after 3s. */}
+      {cssFullscreen && (
+        <ControlsOverlay
+          onFullscreen={exitCssFullscreen}
+          onRotate={toggleLandscape}
+          rotated={!!cssLandscape}
+          isLandscape={deviceIsLandscape}
+        />
+      )}
+    </div>
+  );
+}
 
-      {/* ── Floating fullscreen toggle (CSS-only; we can't programmatically
-            requestFullscreen on a cross-origin Drive iframe) ── */}
+/* ─── Auto-hiding control overlay for the DrivePlayer ──────────────────
+   Tiny compact pill anchored to top-right. Shows for 3s after any
+   interaction, then fades to invisible (still clickable via the
+   invisible hotspot). Avoids the "two layouts stacked" feel of having
+   permanent dark buttons on top of Drive's own header. */
+function ControlsOverlay({ onFullscreen, onRotate, rotated, isLandscape }) {
+  const [show, setShow] = useState(true);
+  const timer = useRef(null);
+  const reset = () => {
+    setShow(true);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setShow(false), 3000);
+  };
+  useEffect(() => {
+    reset();
+    return () => clearTimeout(timer.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return (
+    <div
+      className="absolute top-3 right-3 z-30 flex items-center gap-1.5"
+      onClick={reset}
+      onMouseMove={reset}
+      onTouchStart={reset}
+    >
       <button
-        onClick={cssFullscreen ? exitCssFullscreen : enterCssFullscreen}
-        className="absolute top-3 right-3 z-20 w-9 h-9 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center transition-colors backdrop-blur-sm"
-        title={cssFullscreen ? 'إنهاء ملء الشاشة' : 'ملء الشاشة'}
-      >
-        {cssFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-      </button>
-      <button
-        onClick={toggleLandscape}
-        className={`sm:hidden absolute top-3 left-3 z-20 w-9 h-9 rounded-full ${cssFullscreen && cssLandscape ? 'bg-orange-500/80' : 'bg-black/60'} hover:bg-black/80 text-white flex items-center justify-center transition-colors backdrop-blur-sm`}
-        title="تدوير الشاشة"
+        onClick={(e) => { e.stopPropagation(); onRotate(); reset(); }}
+        className={`w-9 h-9 rounded-full text-white flex items-center justify-center transition-all duration-300 backdrop-blur-sm ${
+          show ? 'opacity-90' : 'opacity-0 pointer-events-none'
+        } ${rotated ? 'bg-orange-500/80' : 'bg-black/60 hover:bg-black/80'}`}
+        title={isLandscape ? 'إعادة إلى طولي' : 'تدوير إلى أفقي'}
       >
         <RotateCw className="w-4 h-4" />
+      </button>
+      <button
+        onClick={(e) => { e.stopPropagation(); onFullscreen(); }}
+        className={`w-9 h-9 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center transition-all duration-300 backdrop-blur-sm ${
+          show ? 'opacity-90' : 'opacity-0 pointer-events-none'
+        }`}
+        title="إنهاء ملء الشاشة"
+      >
+        <Minimize2 className="w-4 h-4" />
       </button>
     </div>
   );
