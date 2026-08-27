@@ -14,6 +14,7 @@ const { initFCM } = require('./lib/fcm');
 const subdomainTenant = require('./middleware/subdomainTenant');
 const { verifyFullToken, authenticate, requireRole } = require('./middleware/auth');
 const { consumeSSETicket } = require('./routes/auth');
+const { extractDriveId } = require('./routes/courses');
 
 // Global unhandled rejection / uncaught exception guards
 process.on('unhandledRejection', (reason, promise) => {
@@ -44,9 +45,10 @@ app.use(helmet({
       mediaSrc:       ["'self'", 'blob:', 'https:'],
       // YouTube embedded player iframes load from www.youtube.com and
       // www.youtube-nocookie.com; both must be whitelisted in frame-src.
-      // Google Drive preview iframes load from drive.google.com (and sometimes
-      // docs.google.com for the player UI); both must be whitelisted too.
-      frameSrc:       ["'self'", 'https://www.youtube.com', 'https://www.youtube-nocookie.com', 'https://drive.google.com', 'https://docs.google.com'],
+      // Google Drive videos are proxied through our server (see /uploads/drive
+      // below) so the student uses a native <video> element — no iframe, no
+      // CSP whitelist needed.
+      frameSrc:       ["'self'", 'https://www.youtube.com', 'https://www.youtube-nocookie.com'],
       objectSrc:      ["'none'"],
       upgradeInsecureRequests: [],
     },
@@ -215,6 +217,68 @@ const checkFileAccess = async (decoded, fileType, fullPath) => {
         }
       }
 
+    } else if (fileType === 'drive-video') {
+      // Drive videos are proxied via /uploads/drive/:videoId. The lookup uses
+      // the videos.id (extracted from the URL path's trailing segment) so
+      // the proxy can stream the actual Drive file bytes while the access
+      // check still ties back to enrollment + section locks — same logic as
+      // uploaded videos.
+      // fullPath = '/uploads/drive/<videoId>' → take the trailing number only.
+      const tail = fullPath.split('/').pop() || '';
+      const videoId = parseInt(tail, 10);
+      if (!videoId || videoId <= 0) return null;
+      const r = await pool.query(
+        `SELECT v.course_id, v.section_id, c.teacher_id, c.is_published
+           FROM videos v
+           JOIN courses c ON v.course_id = c.id
+          WHERE v.id = $1
+          LIMIT 1`,
+        [videoId]
+      );
+      if (!r.rows.length) return null;
+      const { course_id, section_id, teacher_id, is_published } = r.rows[0];
+      if (decoded.role === 'teacher') {
+        hasAccess = decoded.id === teacher_id;
+      } else if (decoded.role === 'assistant') {
+        hasAccess = decoded.teacher_id === teacher_id;
+      } else if (decoded.role === 'student' && is_published) {
+        const e = await pool.query(
+          `SELECT 1
+             FROM student_course_enrollment sce
+             JOIN students s ON s.id = sce.student_id
+            WHERE sce.student_id=$1 AND sce.course_id=$2
+              AND sce.status='active' AND s.is_suspended = false`,
+          [decoded.id, course_id]
+        );
+        hasAccess = e.rows.length > 0;
+
+        // Section-lock gate (mirrors the uploaded-video branch above).
+        if (hasAccess && section_id) {
+          const orderRes = await pool.query(
+            `SELECT id FROM sections WHERE course_id = $1 ORDER BY sort_order ASC, id ASC LIMIT 1`,
+            [course_id]
+          );
+          const firstSectionId = orderRes.rows[0] ? Number(orderRes.rows[0].id) : null;
+          if (Number(section_id) !== firstSectionId) {
+            const gateRes = await pool.query(
+              `SELECT bool_or(rr.passed IS NULL OR rr.passed = false) AS has_unpassed
+                 FROM recitations r
+                 LEFT JOIN recitation_results rr
+                   ON rr.recitation_id = r.id AND rr.student_id = $2
+                     AND (rr.is_absent IS NULL OR rr.is_absent=false)
+                WHERE r.course_id = $1
+                  AND r.section_id = $3
+                  AND r.is_published = true
+                  AND r.deleted_at IS NULL`,
+              [course_id, decoded.id, section_id]
+            );
+            if (gateRes.rows[0]?.has_unpassed === true) {
+              hasAccess = false;
+            }
+          }
+        }
+      }
+
     } else if (fileType === 'pdf') {
       const r = await pool.query(
         `SELECT p.course_id, c.teacher_id, c.is_published
@@ -225,7 +289,7 @@ const checkFileAccess = async (decoded, fileType, fullPath) => {
         [fullPath]
       );
       if (!r.rows.length) return null;
-      const { course_id, teacher_id, is_published } = r.rows[0];
+      const { course_id, section_id, teacher_id, is_published } = r.rows[0];
       if (decoded.role === 'teacher') {
         hasAccess = decoded.id === teacher_id;
       } else if (decoded.role === 'assistant') {
@@ -487,12 +551,103 @@ app.use('/pdfjs/standard_fonts',
   (req, res, next) => { _pdfjsCacheHeader(req, res); next(); },
   express.static(_pdfjsFontsDir));
 
+// ── /uploads/drive/:videoId ────────────────────────────────────────────────
+// Proxies Google Drive video files so students get a clean native <video>
+// element — no Drive chrome, no iframe. Auth + access control reuse the
+// existing makeProtectedUploadsMiddleware pattern (media-token JWT).
+//
+// MUST be registered BEFORE the generic /uploads static-file handler below,
+// otherwise the catch-all matches /uploads/drive/* first and the file path
+// doesn't start with any protected subdir so the request would 404 (or
+// accidentally serve a same-named file from disk if one ever existed).
+app.use('/uploads/drive',
+        uploadsLimiter,
+        makeProtectedUploadsMiddleware('drive-video'),
+        async (req, res) => {
+  const videoId = parseInt(req.path.replace(/^\/+/, ''), 10);
+  if (!videoId || videoId <= 0) return res.status(400).send('Bad Request');
+
+  // Look up the video's drive_id (also re-validates that it IS a Drive video).
+  const r = await pool.query(
+    `SELECT id, file_path_or_url FROM videos WHERE id = $1`,
+    [videoId]
+  );
+  if (!r.rows.length) return res.status(404).send('Not Found');
+  const fileUrl = r.rows[0].file_path_or_url || '';
+  const driveId = extractDriveId(fileUrl);
+  if (!driveId) return res.status(404).send('Not Found');
+
+  // Drive's direct streaming URL. For most files this returns the raw bytes
+  // with proper Content-Length and Accept-Ranges. For larger files Drive
+  // returns a small HTML "virus scan" page; we detect that, extract the
+  // confirm=<uuid> token, and refetch with confirm=t to skip the page.
+  const targetUrl = `https://drive.google.com/uc?export=download&id=${encodeURIComponent(driveId)}`;
+
+  try {
+    let upstream = await fetchWithRange(targetUrl, req.headers.range);
+
+    // Virus-scan interstitial — Drive returns HTML with a form action that
+    // re-issues the same download with a confirm=<uuid> appended. Refetch with
+    // confirm=t so we get the raw bytes.
+    const ct = upstream.headers.get('content-type') || '';
+    if (ct.includes('text/html') && upstream.status === 200) {
+      const body = await upstream.text();
+      const confirmMatch = body.match(/confirm=([0-9a-zA-Z_-]+)/);
+      if (confirmMatch) {
+        upstream = await fetchWithRange(
+          `${targetUrl}&confirm=${encodeURIComponent(confirmMatch[1])}`,
+          req.headers.range
+        );
+      } else {
+        // Still HTML — file likely private / scan warning we can't bypass.
+        return res.status(403).send('Drive file unavailable');
+      }
+    }
+
+    // Forward only the headers the client (HTML5 video) needs.
+    const headersToForward = ['content-type', 'content-length', 'content-range', 'accept-ranges'];
+    for (const h of headersToForward) {
+      const v = upstream.headers.get(h);
+      if (v) res.setHeader(h, v);
+    }
+    // Cache privately (same student might seek/rewind). Don't let shared
+    // proxies cache because the token in the URL is bearer-like.
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    // Don't leak Drive's internal headers / cookies.
+    res.status(upstream.status);
+    if (!upstream.body) return res.end();
+    const reader = upstream.body.getReader();
+    const pump = async () => {
+      const { done, value } = await reader.read();
+      if (done) { res.end(); return; }
+      if (!res.write(value)) {
+        await new Promise((resolve) => res.once('drain', resolve));
+      }
+      return pump();
+    };
+    await pump();
+  } catch (err) {
+    console.error('[drive proxy] upstream error:', err.message);
+    if (!res.headersSent) res.status(502).send('Bad Gateway');
+    else res.end();
+  }
+});
+
+// Helper: forward Range header to Drive's upstream URL and return the
+// response. Times out after 15s if Drive is unreachable.
+async function fetchWithRange(url, rangeHeader) {
+  const headers = { 'User-Agent': 'WathbaLMS/1.0' };
+  if (rangeHeader) headers['Range'] = rangeHeader;
+  return await fetch(url, { headers, redirect: 'follow' });
+}
+
 // Images and thumbnails remain public (needed for login page / course cards)
 // Safety guard: block direct access to protected subdirs through the general handler.
 app.use('/uploads', (req, res, next) => {
   if (req._uploadsAuthed) return next();
   const normalized = req.path.replace(/\/+/g, '/');
-  const protected_ = ['/pdfs/', '/videos/', '/question-images/'];
+  const protected_ = ['/pdfs/', '/videos/', '/question-images/', '/drive/'];
   if (protected_.some(p => normalized.startsWith(p) || normalized === p.slice(0, -1))) {
     return res.status(401).send('Unauthorized');
   }

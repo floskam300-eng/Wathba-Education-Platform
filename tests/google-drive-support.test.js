@@ -375,7 +375,11 @@ async function testNetwork() {
     skip(`N-5..N-8: GET /content returned ${content.status}`);
   }
 
-  // N-9: CSP frame-src includes drive.google.com (so the iframe isn't blocked)
+  // N-9: Drive videos are now proxied via /uploads/drive/<id>, so the
+  // student's <video> element fetches from OUR server — NO iframe is used.
+  // That means drive.google.com / docs.google.com must NOT appear in the
+  // CSP frame-src whitelist (it would be a security/audit smell if they
+  // did, since nothing on the student page actually frames those origins).
   const csp = await new Promise((resolve, reject) => {
     const req = http.request({
       hostname: 'localhost', port: PORT, path: '/', method: 'GET',
@@ -388,24 +392,106 @@ async function testNetwork() {
     // In dev NODE_ENV !== 'production' → CSP is disabled → check index.js source instead
     const indexSrc = fs.readFileSync(path.join(__dirname, '..', 'server', 'index.js'), 'utf8');
     assert(
-      indexSrc.includes('https://drive.google.com') && indexSrc.includes('https://docs.google.com'),
-      'N-9 [DEV fallback]: server/index.js frameSrc whitelists drive.google.com + docs.google.com'
+      !indexSrc.includes('https://drive.google.com') && !indexSrc.includes('https://docs.google.com'),
+      'N-9 [DEV fallback]: server/index.js frameSrc does NOT whitelist drive.google.com (no iframe needed)'
     );
   } else {
     assert(
-      csp.includes('drive.google.com') && csp.includes('docs.google.com'),
-      'N-9: production CSP frame-src whitelists drive.google.com + docs.google.com'
+      !csp.includes('drive.google.com') && !csp.includes('docs.google.com'),
+      'N-9: production CSP frame-src does NOT whitelist drive.google.com (no iframe needed)'
     );
   }
 
   // Cleanup: remove the test videos we created so the suite is idempotent.
   try {
     await pool.query(
-      `DELETE FROM videos WHERE course_id=$1 AND title IN ($2,$3,$4,$5)`,
+      `DELETE FROM videos WHERE course_id=$1 AND title IN ($2,$3,$4,$5) RETURNING id`,
       [courseId, 'Test — Drive /view', 'Test — Drive /open', 'Test — Drive edit', 'Test — YouTube (regression)']
     );
   } catch (e) {
     console.warn('  🟡  cleanup failed:', e.message);
+  }
+
+  // N-10..N-13: Drive proxy endpoint /uploads/drive/:videoId
+  // We need a video id that STILL EXISTS for these tests, so create one
+  // specifically for them and capture its id before the cleanup above.
+  const driveProxyVideo = await pool.query(
+    `INSERT INTO videos (title, file_path_or_url, duration_minutes, course_id, sort_order)
+     VALUES ('Test — Drive proxy', $1, 0, $2, 99) RETURNING id`,
+    [`https://drive.google.com/file/d/${DRIVE_ID}/preview`, courseId]
+  );
+  const driveVideoId = driveProxyVideo.rows[0]?.id;
+
+  if (driveVideoId) {
+    // The /uploads/drive/* route is NOT under /api/* — it's a top-level
+    // protected file route like /uploads/videos and /uploads/pdfs. We can't
+    // use tenantRequest (which prepends /api via BASE_URL) — must hit the
+    // raw host.
+    const driveReq = ({ method = 'GET', path: p, body, token, headers = {} }) =>
+      new Promise((resolve, reject) => {
+        const url = new URL(BASE_HOST + p);
+        const strBody = body ? JSON.stringify(body) : null;
+        const opts = {
+          hostname: url.hostname, port: url.port || 80,
+          path: url.pathname + url.search,
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            Host: `${realSlug}.wathba.site`,
+            ...headers,
+          },
+        };
+        if (strBody) opts.headers['Content-Length'] = Buffer.byteLength(strBody);
+        const r = http.request(opts, (res) => {
+          let d = '';
+          res.on('data', (c) => (d += c));
+          res.on('end', () => {
+            try { resolve({ status: res.statusCode, body: JSON.parse(d), headers: res.headers }); }
+            catch { resolve({ status: res.statusCode, body: d, headers: res.headers }); }
+          });
+        });
+        r.on('error', reject);
+        const timer = setTimeout(() => { r.destroy(); reject(new Error('Timeout')); }, TIMEOUT);
+        r.on('close', () => clearTimeout(timer));
+        if (strBody) r.write(strBody);
+        r.end();
+      });
+
+    // N-10: GET /uploads/drive/:id without token → 401
+    const noAuth = await driveReq({ path: `/uploads/drive/${driveVideoId}` });
+    assert(noAuth.status === 401, `N-10: GET /uploads/drive/:id without token → 401 (got ${noAuth.status})`);
+
+    // N-11: GET /uploads/drive/:id with valid teacher token. Acceptable
+    // responses: 200 (Drive served the file), 206 (Range response), 403
+    // (Drive rejected — e.g. test file is private), 502/504 (Drive
+    // unreachable). The test environment typically sees 403 because it
+    // doesn't have access to the teacher's actual Drive file.
+    const withTeacherToken = await driveReq({
+      path: `/uploads/drive/${driveVideoId}`, token: teacherToken,
+    });
+    assert(
+      [200, 206, 403, 502, 504].includes(withTeacherToken.status),
+      `N-11: GET /uploads/drive/:id with teacher token → 200/206/403/502/504 (got ${withTeacherToken.status})`
+    );
+
+    // N-12: Range header is forwarded — request bytes=0-99. Same acceptable
+    // response set: 200/206/403/502/504. We just verify the proxy accepts
+    // the Range header without choking.
+    const withRange = await driveReq({
+      path: `/uploads/drive/${driveVideoId}`, token: teacherToken,
+      headers: { Range: 'bytes=0-99' },
+    });
+    assert(
+      [200, 206, 403, 502, 504].includes(withRange.status),
+      `N-12: GET /uploads/drive/:id with Range header → 200/206/403/502/504 (got ${withRange.status})`
+    );
+
+    // N-13: Bogus video id → 400 (not a number) or 404 (number but no row)
+    const badId = await driveReq({ path: '/uploads/drive/notanumber', token: teacherToken });
+    assert([400, 404].includes(badId.status), `N-13: GET /uploads/drive/:id with non-numeric id → 400/404 (got ${badId.status})`);
+  } else {
+    skip('N-10..N-13: Could not create test video for proxy endpoint tests');
   }
 
   // If we self-seeded the DB, remove our fixtures too.
@@ -422,15 +508,20 @@ function checkStudentContent(body) {
     skip('N-5..N-8: No provider:drive video in student response (student not enrolled in test course)');
     return;
   }
-  assert(driveVideo.drive_id === DRIVE_ID, 'N-5: student response carries drive_id for Drive videos');
+  // New contract (after server-side proxy): student sees provider='drive' +
+  // file_path_or_url pointing to OUR proxy route (/uploads/drive/<id>),
+  // NOT the raw Drive URL. The proxy enforces enrollment + section locks
+  // server-side, mirroring YouTube's "hide the raw URL" pattern.
   assert(
-    driveVideo.file_path_or_url === undefined,
-    'N-6: student response strips raw file_path_or_url (privacy pattern)'
+    driveVideo.file_path_or_url === `/uploads/drive/${driveVideo.id}`,
+    'N-5: student response carries /uploads/drive/<id> proxy URL (not the raw Drive URL)'
+  );
+  assert(
+    driveVideo.file_path_or_url !== undefined,
+    'N-6 [contract change]: file_path_or_url is present (= proxy URL); was previously undefined'
   );
   // Belt-and-suspenders: the raw Drive URL (any form) must NOT appear anywhere
-  // in the entire response payload. Note the bare file id IS present (inside
-  // drive_id) — that's required for the iframe to load. The privacy contract
-  // hides the URL FORM (the /view?usp=sharing etc. variants), not the bare id.
+  // in the entire response payload — only the proxy URL is exposed.
   const json = JSON.stringify(body);
   assert(
     !json.includes('drive.google.com'),

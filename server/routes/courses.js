@@ -682,8 +682,15 @@ router.get('/:id/content', requireRole('teacher', 'assistant', 'student'), async
         if (ytId) {
           base = { ...v, provider: 'youtube', youtube_id: ytId, file_path_or_url: undefined };
         } else if (driveId) {
-          // Same privacy pattern as YouTube: raw URL is stripped, only the id is sent.
-          base = { ...v, provider: 'drive', drive_id: driveId, file_path_or_url: undefined, youtube_id: null };
+          // Drive videos are proxied through /uploads/drive/:id so the client
+          // can use a native <video> tag — no iframe, no Drive chrome. The
+          // proxy enforces enrollment + section locks server-side.
+          base = {
+            ...v,
+            provider: 'drive',
+            file_path_or_url: `/uploads/drive/${v.id}`,
+            youtube_id: null,
+          };
         } else {
           base = { ...v, provider: 'upload', youtube_id: null, drive_id: null };
         }
@@ -1350,3 +1357,5 @@ router.put('/enrollment-requests/:id', requireRole('teacher', 'assistant'), chec
 });
 
 module.exports = router;
+module.exports.extractDriveId   = extractDriveId;
+module.exports.toDrivePreviewUrl = toDrivePreviewUrl;

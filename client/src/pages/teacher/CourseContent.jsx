@@ -201,9 +201,9 @@ function VideoPreviewModal({ video, onClose }) {
   let embedUrl = url;
   if (isYoutube && ytId) {
     embedUrl = `https://www.youtube.com/embed/${ytId}?autoplay=1&rel=0`;
-  } else if (isDrive) {
-    embedUrl = `https://drive.google.com/file/d/${driveId}/preview`;
   }
+  // Drive videos: use our proxy with media-token so the teacher gets the
+  // same clean native player students see — no Drive chrome.
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={onClose}>
@@ -215,13 +215,22 @@ function VideoPreviewModal({ video, onClose }) {
           </button>
         </div>
         <div className="relative" style={{ paddingTop: '56.25%' }}>
-          {(isYoutube && ytId) || isDrive ? (
+          {(isYoutube && ytId) ? (
             <iframe
               src={embedUrl}
               className="absolute inset-0 w-full h-full"
               allowFullScreen
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               title={video.title}
+            />
+          ) : isDrive ? (
+            <video
+              src={withToken(`/uploads/drive/${video.id}`)}
+              className="absolute inset-0 w-full h-full object-contain bg-black"
+              controls
+              autoPlay
+              preload="metadata"
+              onContextMenu={(e) => e.preventDefault()}
             />
           ) : isYoutube && !ytId ? (
             /* YouTube URL but couldn't extract ID — fallback to external link */
