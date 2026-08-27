@@ -137,10 +137,23 @@ setInterval(() => {
   if (_fileAccessCache.size > FILE_ACCESS_MAX_SIZE) {
     const sorted = [..._fileAccessCache.entries()].sort((a, b) => (a[1].at || 0) - (b[1].at || 0));
     for (const [k] of sorted.slice(0, sorted.length - FILE_ACCESS_MAX_SIZE)) {
-      _fileAccessCache.delete(k);
-    }
-  }
-}, 5 * 60_000).unref();
+       _fileAccessCache.delete(k);
+     }
+   }
+ }, 5 * 60_000).unref();
+
+// ── Drive UUID cache ───────────────────────────────────────────────
+// Drive serves a "virus scan warning" HTML page for large files (typically
+// ≥100 MB). The HTML contains a session UUID; without it, the actual
+// download endpoint drive.usercontent.google.com/download returns the same
+// warning. UUIDs stay valid for several minutes — caching them per video
+// saves a round-trip to drive.google.com on every browser Range request
+// (video players fire many of these for seeking/scrubbing).
+//
+// Key: drive id, Value: { uuid, at }  (1 hour TTL)
+const _driveUuidCache = new Map();
+const DRIVE_UUID_TTL_MS = 60 * 60_000;
+
 
 /**
  * [C-1] Check ownership / enrollment for a protected file.
@@ -577,32 +590,51 @@ app.use('/uploads/drive',
   const driveId = extractDriveId(fileUrl);
   if (!driveId) return res.status(404).send('Not Found');
 
-  // Drive's direct streaming URL. For most files this returns the raw bytes
-  // with proper Content-Length and Accept-Ranges. For larger files Drive
-  // returns a small HTML "virus scan" page; we detect that, extract the
-  // confirm=<uuid> token, and refetch with confirm=t to skip the page.
-  const targetUrl = `https://drive.google.com/uc?export=download&id=${encodeURIComponent(driveId)}`;
-
   try {
-    let upstream = await fetchWithRange(targetUrl, req.headers.range);
-
-    // Virus-scan interstitial — Drive returns HTML with a form action that
-    // re-issues the same download with a confirm=<uuid> appended. Refetch with
-    // confirm=t so we get the raw bytes.
-    const ct = upstream.headers.get('content-type') || '';
-    if (ct.includes('text/html') && upstream.status === 200) {
-      const body = await upstream.text();
-      const confirmMatch = body.match(/confirm=([0-9a-zA-Z_-]+)/);
-      if (confirmMatch) {
-        upstream = await fetchWithRange(
-          `${targetUrl}&confirm=${encodeURIComponent(confirmMatch[1])}`,
-          req.headers.range
-        );
+    // Drive has two streaming endpoints, depending on file size:
+    //   • Small files (<~100 MB): drive.google.com/uc?export=download&id=...
+    //     serves the file directly with proper Range support.
+    //   • Large files (≥~100 MB): drive.google.com/uc?export=download&id=...
+    //     serves an HTML "virus scan warning" interstitial asking the user
+    //     to confirm. The HTML form posts to drive.usercontent.google.com/
+    //     download with id, export=download, confirm=t, and a session UUID.
+    //
+    // For large files we cache the session UUID per drive id so we don't
+    // round-trip to drive.google.com on every Range request (browsers fire
+    // many of these while seeking/scrubbing). UUIDs stay valid for at
+    // least several minutes in practice.
+    let downloadUrl;
+    const cached = _driveUuidCache.get(driveId);
+    if (cached && Date.now() - cached.at < DRIVE_UUID_TTL_MS) {
+      downloadUrl = cached.url;
+    } else {
+      // Probe the small-file endpoint first.
+      let probe = await fetchWithRange(
+        `https://drive.google.com/uc?export=download&id=${encodeURIComponent(driveId)}`,
+        req.headers.range
+      );
+      const ct = probe.headers.get('content-type') || '';
+      if (ct.includes('text/html') && probe.status === 200) {
+        // Large-file virus-scan interstitial. Parse the form to find the
+        // session UUID — without it, drive.usercontent.google.com returns
+        // the same warning page.
+        const body = await probe.text();
+        const uuidMatch = body.match(/name="uuid"\s+value="([0-9a-f-]+)"/i);
+        if (!uuidMatch) {
+          // HTML page but no UUID form — file likely private / scan warning
+          // we can't bypass (e.g. file is quarantined, link requires login).
+          return res.status(403).send('Drive file unavailable — cannot bypass virus-scan confirmation');
+        }
+        downloadUrl = `https://drive.usercontent.google.com/download?id=${encodeURIComponent(driveId)}&export=download&confirm=t&uuid=${encodeURIComponent(uuidMatch[1])}`;
+        _driveUuidCache.set(driveId, { url: downloadUrl, at: Date.now() });
       } else {
-        // Still HTML — file likely private / scan warning we can't bypass.
-        return res.status(403).send('Drive file unavailable');
+        // Small file — small-file endpoint IS the download endpoint.
+        downloadUrl = `https://drive.google.com/uc?export=download&id=${encodeURIComponent(driveId)}`;
+        _driveUuidCache.set(driveId, { url: downloadUrl, at: Date.now() });
       }
     }
+
+    let upstream = await fetchWithRange(downloadUrl, req.headers.range);
 
     // Forward only the headers the client (HTML5 video) needs.
     const headersToForward = ['content-type', 'content-length', 'content-range', 'accept-ranges'];

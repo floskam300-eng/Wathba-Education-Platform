@@ -426,7 +426,8 @@ async function testNetwork() {
     // The /uploads/drive/* route is NOT under /api/* — it's a top-level
     // protected file route like /uploads/videos and /uploads/pdfs. We can't
     // use tenantRequest (which prepends /api via BASE_URL) — must hit the
-    // raw host.
+    // raw host. We MUST use a Range header so the test doesn't try to
+    // buffer a 12 GB video response into a single string (would OOM).
     const driveReq = ({ method = 'GET', path: p, body, token, headers = {} }) =>
       new Promise((resolve, reject) => {
         const url = new URL(BASE_HOST + p);
@@ -437,6 +438,10 @@ async function testNetwork() {
           method,
           headers: {
             'Content-Type': 'application/json',
+            // Default to a tiny Range so we don't buffer a huge response
+            // (real Drive videos can be many GB). Individual tests can
+            // override by passing headers.Range.
+            Range: 'bytes=0-1023',
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
             Host: `${realSlug}.wathba.site`,
             ...headers,
@@ -444,22 +449,24 @@ async function testNetwork() {
         };
         if (strBody) opts.headers['Content-Length'] = Buffer.byteLength(strBody);
         const r = http.request(opts, (res) => {
-          let d = '';
-          res.on('data', (c) => (d += c));
-          res.on('end', () => {
-            try { resolve({ status: res.statusCode, body: JSON.parse(d), headers: res.headers }); }
-            catch { resolve({ status: res.statusCode, body: d, headers: res.headers }); }
-          });
+          // Drain the response (we only care about status + headers).
+          let totalBytes = 0;
+          res.on('data', (c) => { totalBytes += c.length; });
+          res.on('end', () => resolve({
+            status: res.statusCode,
+            len: totalBytes,
+            headers: res.headers,
+          }));
         });
         r.on('error', reject);
-        const timer = setTimeout(() => { r.destroy(); reject(new Error('Timeout')); }, TIMEOUT);
+        const timer = setTimeout(() => { r.destroy(); reject(new Error('Timeout')); }, 30000);
         r.on('close', () => clearTimeout(timer));
         if (strBody) r.write(strBody);
         r.end();
       });
 
     // N-10: GET /uploads/drive/:id without token → 401
-    const noAuth = await driveReq({ path: `/uploads/drive/${driveVideoId}` });
+    const noAuth = await driveReq({ path: `/uploads/drive/${driveVideoId}`, headers: {} });
     assert(noAuth.status === 401, `N-10: GET /uploads/drive/:id without token → 401 (got ${noAuth.status})`);
 
     // N-11: GET /uploads/drive/:id with valid teacher token. Acceptable
@@ -468,7 +475,7 @@ async function testNetwork() {
     // unreachable). The test environment typically sees 403 because it
     // doesn't have access to the teacher's actual Drive file.
     const withTeacherToken = await driveReq({
-      path: `/uploads/drive/${driveVideoId}`, token: teacherToken,
+      path: `/uploads/drive/${driveVideoId}`, token: teacherToken, headers: {},
     });
     assert(
       [200, 206, 403, 502, 504].includes(withTeacherToken.status),
