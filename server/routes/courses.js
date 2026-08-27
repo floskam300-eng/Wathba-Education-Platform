@@ -42,6 +42,38 @@ function extractYoutubeId(url) {
   return null;
 }
 
+// Extract a Google Drive file id from any accepted URL form.
+// Accepted forms:
+//   https://drive.google.com/file/d/{ID}/view
+//   https://drive.google.com/file/d/{ID}/preview
+//   https://drive.google.com/file/d/{ID}/edit
+//   https://drive.google.com/open?id={ID}
+//   https://drive.google.com/uc?id={ID}&export=download
+//   https://drive.google.com/uc?export=download&id={ID}
+// Drive file ids are [a-zA-Z0-9_-]{25,50}. Used by the content endpoint to send
+// ONLY the id (not the raw URL) to students, mirroring YouTube's privacy pattern.
+const DRIVE_RE = [
+  /drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]{25,50})/,
+  /drive\.google\.com\/open\?.*?id=([a-zA-Z0-9_-]{25,50})/,
+  /drive\.google\.com\/uc\?(?:[^#]*&)?id=([a-zA-Z0-9_-]{25,50})/,
+];
+function extractDriveId(url) {
+  if (!url || typeof url !== 'string') return null;
+  for (const re of DRIVE_RE) {
+    const m = url.match(re);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+// Normalize any accepted Google Drive URL to the canonical /preview embed form.
+// Returns the original string unchanged if it isn't a Drive URL we recognize.
+function toDrivePreviewUrl(url) {
+  const id = extractDriveId(url);
+  if (!id) return url;
+  return `https://drive.google.com/file/d/${id}/preview`;
+}
+
 // Middleware: check course ownership BEFORE multer writes to disk
 const preCheckOwnership = async (req, res, next) => {
   const teacherId = getTeacherId(req);
@@ -644,10 +676,17 @@ router.get('/:id/content', requireRole('teacher', 'assistant', 'student'), async
     let videoRows = videoRowsRaw;
     if (isStudent) {
       videoRows = videoRows.map((v) => {
-        const ytId = extractYoutubeId(v.file_path_or_url);
-        const base = ytId
-          ? { ...v, provider: 'youtube', youtube_id: ytId, file_path_or_url: undefined }
-          : { ...v, provider: 'upload', youtube_id: null };
+        const ytId   = extractYoutubeId(v.file_path_or_url);
+        const driveId = extractDriveId(v.file_path_or_url);
+        let base;
+        if (ytId) {
+          base = { ...v, provider: 'youtube', youtube_id: ytId, file_path_or_url: undefined };
+        } else if (driveId) {
+          // Same privacy pattern as YouTube: raw URL is stripped, only the id is sent.
+          base = { ...v, provider: 'drive', drive_id: driveId, file_path_or_url: undefined, youtube_id: null };
+        } else {
+          base = { ...v, provider: 'upload', youtube_id: null, drive_id: null };
+        }
         return { ...base, is_locked: false };
       });
     }
@@ -863,9 +902,12 @@ router.post('/:id/videos/url', requireRole('teacher', 'assistant'), checkManageC
       const secCheck = await pool.query('SELECT id FROM sections WHERE id=$1 AND course_id=$2', [section_id, req.params.id]);
       if (!secCheck.rows.length) return res.status(400).json({ error: 'القسم المحدد لا ينتمي لهذا الكورس' });
     }
+    // Normalize any accepted Drive URL form to canonical /preview before storing.
+    // Teacher can paste /view?usp=sharing, /open?id=, /uc?id= — we always store /preview.
+    const normalizedUrl = toDrivePreviewUrl(url.trim());
     const result = await pool.query(
       'INSERT INTO videos (title,file_path_or_url,duration_minutes,course_id,sort_order,section_id,url_480,url_720,url_1080) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',
-      [title.trim(), url.trim(), parseInt(duration_minutes) || 0, req.params.id, parseInt(sort_order) || 0, section_id || null, url_480?.trim() || null, url_720?.trim() || null, url_1080?.trim() || null]
+      [title.trim(), normalizedUrl, parseInt(duration_minutes) || 0, req.params.id, parseInt(sort_order) || 0, section_id || null, url_480?.trim() || null, url_720?.trim() || null, url_1080?.trim() || null]
     );
     logActivity({
       teacherId, actor: getActor(req), ip: getIp(req),
@@ -948,9 +990,11 @@ router.put('/:id/videos/:videoId', requireRole('teacher', 'assistant'), checkMan
     if (!/^https?:\/\//.test(url.trim()))
       return res.status(400).json({ error: 'رابط الفيديو غير صالح' });
 
+    // Normalize any accepted Drive URL form to canonical /preview before storing.
+    const normalizedUrl = toDrivePreviewUrl(url.trim());
     const updated = await pool.query(
       'UPDATE videos SET title=$1, file_path_or_url=$2, duration_minutes=$3 WHERE id=$4 AND course_id=$5 RETURNING *',
-      [title.trim(), url.trim(), parseInt(duration_minutes) || 0, videoId, req.params.id]
+      [title.trim(), normalizedUrl, parseInt(duration_minutes) || 0, videoId, req.params.id]
     );
     logActivity({
       teacherId, actor: getActor(req), ip: getIp(req),

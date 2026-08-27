@@ -217,6 +217,33 @@ function isYoutubeUrl(url) {
   return !!extractYoutubeId(url);
 }
 
+/* ─── Google Drive URL helpers ─────────────────────────── */
+// Same regex set as server/routes/courses.js — used as a fallback when the
+// server-supplied drive_id is missing (legacy data, teacher preview).
+function extractDriveId(url) {
+  if (!url) return null;
+  const patterns = [
+    /drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]{25,50})/,
+    /drive\.google\.com\/open\?.*?id=([a-zA-Z0-9_-]{25,50})/,
+    /drive\.google\.com\/uc\?(?:[^#]*&)?id=([a-zA-Z0-9_-]{25,50})/,
+  ];
+  for (const re of patterns) {
+    const m = url.match(re);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+function isDriveUrl(url) {
+  return !!extractDriveId(url);
+}
+
+function toDrivePreviewUrl(url) {
+  const id = extractDriveId(url);
+  if (!id) return url;
+  return `https://drive.google.com/file/d/${id}/preview`;
+}
+
 /* ─── YouTube IFrame API global loader ─────────────────── */
 let _ytApiReady = false;
 const _ytApiQueue = [];
@@ -796,6 +823,216 @@ function YoutubePlayer({ video, onProgressUpdate, studentName, studentCode, init
   );
 }
 
+/* ─── Custom Google Drive Player (IFrame + wall-clock timer) ──────────── */
+// Drive's <iframe preview> has no public playback API, so we cannot read
+// currentTime/duration from it the way we do for YouTube. Instead we:
+//   1. Embed the official /preview iframe (CSP-whitelisted in server/index.js)
+//   2. Run a wall-clock timer on our side, gated by document.visibility —
+//      only counts seconds while the tab is foreground AND the page has focus.
+//   3. Derive progress_percentage from elapsedSeconds vs duration_minutes
+//      (teacher-set ceiling; honest upper bound, no cheating the clock by
+//      sitting on the page past duration).
+//   4. last_position = elapsedSeconds (best estimate we have).
+// Same flush/keepalive pattern as YoutubePlayer — existing /students/me/
+// video-progress endpoint is unchanged.
+function DrivePlayer({ video, onProgressUpdate, studentName, studentCode, initialPosition = 0 }) {
+  const containerRef = useRef(null);
+  const iframeRef    = useRef(null);
+
+  const saveTimer           = useRef(null);
+  const progressTimer       = useRef(null);
+  const actualWatched       = useRef(0);
+  const playStart           = useRef(null);
+  const maxPct              = useRef(0);
+  const onProgressUpdateRef = useRef(onProgressUpdate);
+  const videoIdRef          = useRef(video?.id);
+  const initialPositionRef  = useRef(initialPosition);
+  const durationMinRef      = useRef(video?.duration_minutes || 0);
+
+  const [cssFullscreen, setCssFullscreen] = useState(false);
+  const [cssLandscape,  setCssLandscape]  = useState(false);
+  const [loadError,     setLoadError]     = useState(false);
+
+  // Resolve the Drive id: prefer the server-provided drive_id (which hides the
+  // raw URL from the API response); fall back to extracting it from
+  // file_path_or_url for teacher preview / backwards compatibility.
+  const driveId = video?.drive_id || extractDriveId(video?.file_path_or_url);
+  const embedUrl = driveId ? `https://drive.google.com/file/d/${driveId}/preview` : null;
+
+  /* ── keep prop refs current ── */
+  useEffect(() => { onProgressUpdateRef.current = onProgressUpdate; }, [onProgressUpdate]);
+  useEffect(() => { videoIdRef.current = video?.id; }, [video?.id]);
+  useEffect(() => { initialPositionRef.current = initialPosition; }, [initialPosition]);
+  useEffect(() => { durationMinRef.current = video?.duration_minutes || 0; }, [video?.duration_minutes]);
+
+  /* ── flush helper (safe to call from cleanup) ── */
+  const flushDriveProgress = (forceComplete = false) => {
+    if (!onProgressUpdateRef.current || !videoIdRef.current) return;
+    if (playStart.current) {
+      actualWatched.current += Math.round((Date.now() - playStart.current) / 1000);
+      playStart.current = null;
+    }
+    const totalElapsedSec = actualWatched.current;
+    const durMin          = durationMinRef.current || 0;
+    const durSec          = durMin * 60;
+    // progress_pct = wall-clock elapsed / teacher's duration, capped at 100.
+    let pct = 0;
+    if (durSec > 0)      pct = Math.min(100, (totalElapsedSec / durSec) * 100);
+    else if (forceComplete) pct = 100;
+    if (pct > maxPct.current) maxPct.current = pct;
+    const watchedMin = durMin > 0 ? (maxPct.current / 100) * durMin : 0;
+    try {
+      saveVidPos(videoIdRef.current, Math.round(totalElapsedSec));
+      // Send-and-reset: actualWatched holds ONLY seconds not yet sent by the
+      // periodic timer, so every request carries a pure delta.
+      const unsentSec = actualWatched.current;
+      actualWatched.current = 0;
+      postProgressKeepalive(videoIdRef.current, {
+        watched_minutes: Math.round(watchedMin),
+        progress_percentage: Math.min(100, Math.round(maxPct.current)),
+        watch_count_increment: 0,
+        last_position: Math.round(totalElapsedSec),
+        actual_watched_seconds: unsentSec,
+        ...(durSec > 0 ? { measured_duration_seconds: Math.round(durSec) } : {}),
+      });
+    } catch (_) {}
+  };
+
+  /* ── visibility/focus gating: only count seconds while student is engaged ── */
+  useEffect(() => {
+    if (!video?.id) return;
+    const start = () => {
+      if (!playStart.current) playStart.current = Date.now();
+    };
+    const stop = () => {
+      if (playStart.current) {
+        actualWatched.current += Math.round((Date.now() - playStart.current) / 1000);
+        playStart.current = null;
+      }
+    };
+    const onVis    = () => { if (document.visibilityState === 'visible') start(); else stop(); };
+    const onFocus  = () => start();
+    const onBlur   = () => stop();
+    const onBeforeUnload = () => flushDriveProgress();
+
+    if (document.visibilityState === 'visible') start();
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('blur', onBlur);
+    window.addEventListener('beforeunload', onBeforeUnload);
+    window.addEventListener('pagehide', onBeforeUnload);
+
+    return () => {
+      stop();
+      flushDriveProgress();
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('blur', onBlur);
+      window.removeEventListener('beforeunload', onBeforeUnload);
+      window.removeEventListener('pagehide', onBeforeUnload);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [video?.id]);
+
+  /* ── periodic progress flush every 30s ── */
+  useEffect(() => {
+    if (!video?.id) return;
+    progressTimer.current = setInterval(() => flushDriveProgress(), 30000);
+    return () => {
+      if (progressTimer.current) clearInterval(progressTimer.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [video?.id]);
+
+  /* ── CSS fullscreen (iframe doesn't expose a controllable Fullscreen API) ── */
+  const enterCssFullscreen = async () => {
+    setCssFullscreen(true);
+    try { await screen.orientation?.lock?.('landscape'); } catch (_) {}
+  };
+  const exitCssFullscreen = () => {
+    setCssFullscreen(false);
+    setCssLandscape(false);
+  };
+  const toggleLandscape = async () => {
+    if (!cssFullscreen) await enterCssFullscreen();
+    setCssLandscape((v) => !v);
+  };
+
+  if (!driveId || !embedUrl) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-gray-900">
+        <div className="text-center text-gray-500 px-6">
+          <Video className="w-16 h-16 mx-auto mb-3 opacity-30" />
+          <p className="text-gray-400 font-semibold">رابط Google Drive غير صالح</p>
+        </div>
+      </div>
+    );
+  }
+
+  const fsStyle = cssFullscreen
+    ? { position: 'fixed', inset: 0, zIndex: 9999, width: '100vw', height: cssLandscape ? '100vw' : '100vh' }
+    : {};
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative w-full h-full bg-black select-none overflow-hidden"
+      style={fsStyle}
+      onContextMenu={(e) => e.preventDefault()}
+    >
+      <FloatingWatermark name={studentName} code={studentCode} />
+
+      {/* ── Drive iframe wrapper — keeps the official player chrome but lets our
+            watermark overlay sit on top via z-index ── */}
+      <div className="absolute inset-0">
+        {loadError ? (
+          <div className="w-full h-full flex items-center justify-center bg-gray-900">
+            <div className="text-center text-gray-400 px-6">
+              <Video className="w-16 h-16 mx-auto mb-3 opacity-30" />
+              <p className="font-semibold">تعذّر تشغيل فيديو Google Drive</p>
+              <p className="text-xs text-gray-500 mt-2">تأكّد أن الملف مشارَك بشكل عام</p>
+            </div>
+          </div>
+        ) : (
+          <iframe
+            ref={iframeRef}
+            src={embedUrl}
+            className="w-full h-full"
+            allowFullScreen
+            allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+            sandbox="allow-scripts allow-same-origin allow-presentation allow-popups allow-forms"
+            referrerPolicy="no-referrer"
+            title={video?.title || 'Google Drive video'}
+            onError={() => setLoadError(true)}
+          />
+        )}
+      </div>
+
+      {/* ── Subtle top/bottom gradient masks so watermark stays readable when
+            Drive's own controls aren't showing ── */}
+      <div className="absolute top-0 left-0 right-0 pointer-events-none" style={{ height: 70, background: 'linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, transparent 100%)', zIndex: 5 }} />
+      <div className="absolute bottom-0 left-0 right-0 pointer-events-none" style={{ height: 70, background: 'linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 100%)', zIndex: 5 }} />
+
+      {/* ── Floating fullscreen toggle (CSS-only; we can't programmatically
+            requestFullscreen on a cross-origin Drive iframe) ── */}
+      <button
+        onClick={cssFullscreen ? exitCssFullscreen : enterCssFullscreen}
+        className="absolute top-3 right-3 z-20 w-9 h-9 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center transition-colors backdrop-blur-sm"
+        title={cssFullscreen ? 'إنهاء ملء الشاشة' : 'ملء الشاشة'}
+      >
+        {cssFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+      </button>
+      <button
+        onClick={toggleLandscape}
+        className={`sm:hidden absolute top-3 left-3 z-20 w-9 h-9 rounded-full ${cssFullscreen && cssLandscape ? 'bg-orange-500/80' : 'bg-black/60'} hover:bg-black/80 text-white flex items-center justify-center transition-colors backdrop-blur-sm`}
+        title="تدوير الشاشة"
+      >
+        <RotateCw className="w-4 h-4" />
+      </button>
+    </div>
+  );
+}
+
 /* ─── Custom Video Player ──────────────────────────────── */
 function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initialPosition = 0 }) {
   const containerRef  = useRef(null);
@@ -1118,6 +1355,14 @@ function VideoPlayer({ video, onProgressUpdate, studentName, studentCode, initia
   // raw URL) OR its raw file_path_or_url looks like a YouTube link (teacher preview).
   if (video.youtube_id || isYoutubeUrl(video.file_path_or_url)) {
     return <YoutubePlayer video={video} onProgressUpdate={onProgressUpdate} studentName={studentName} studentCode={studentCode} initialPosition={initialPosition} />;
+  }
+
+  // A video is a Google Drive video if it carries a drive_id (student API hides
+  // the raw URL) OR its raw file_path_or_url looks like a Drive link (teacher preview).
+  // Mirrors the YouTube branch above — same privacy pattern, separate player
+  // because Drive's <iframe preview> has no public playback API.
+  if (video.drive_id || isDriveUrl(video.file_path_or_url)) {
+    return <DrivePlayer video={video} onProgressUpdate={onProgressUpdate} studentName={studentName} studentCode={studentCode} initialPosition={initialPosition} />;
   }
 
   const currentSrc = video.file_path_or_url;

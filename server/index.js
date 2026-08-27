@@ -44,7 +44,9 @@ app.use(helmet({
       mediaSrc:       ["'self'", 'blob:', 'https:'],
       // YouTube embedded player iframes load from www.youtube.com and
       // www.youtube-nocookie.com; both must be whitelisted in frame-src.
-      frameSrc:       ["'self'", 'https://www.youtube.com', 'https://www.youtube-nocookie.com'],
+      // Google Drive preview iframes load from drive.google.com (and sometimes
+      // docs.google.com for the player UI); both must be whitelisted too.
+      frameSrc:       ["'self'", 'https://www.youtube.com', 'https://www.youtube-nocookie.com', 'https://drive.google.com', 'https://docs.google.com'],
       objectSrc:      ["'none'"],
       upgradeInsecureRequests: [],
     },

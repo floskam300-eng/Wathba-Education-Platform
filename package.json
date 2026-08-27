@@ -13,7 +13,8 @@
     "test:attendance": "node tests/class-attendance.test.js",
     "test:courses": "node tests/course-system.test.js",
     "test:live": "node tests/live-stream.test.js",
-    "test:comprehensive": "node tests/comprehensive-edge-cases.test.js"
+    "test:comprehensive": "node tests/comprehensive-edge-cases.test.js",
+    "test:drive": "node tests/google-drive-support.test.js"
   },
   "dependencies": {
     "@whiskeysockets/baileys": "^7.0.0-rc13",

@@ -14,6 +14,29 @@ import ConfirmDialog from '../../components/ui/ConfirmDialog';
 
 import { withToken } from '../../lib/mediaAccess';
 
+/* ─── Google Drive URL helpers (mirror of server/routes/courses.js) ──── */
+// Kept here so the teacher-side UI can preview / convert / pre-fill without
+// waiting for the server round-trip. Server still re-normalizes on save.
+function extractDriveId(url) {
+  if (!url) return null;
+  const patterns = [
+    /drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]{25,50})/,
+    /drive\.google\.com\/open\?.*?id=([a-zA-Z0-9_-]{25,50})/,
+    /drive\.google\.com\/uc\?(?:[^#]*&)?id=([a-zA-Z0-9_-]{25,50})/,
+  ];
+  for (const re of patterns) {
+    const m = url.match(re);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+function toDrivePreviewUrl(url) {
+  const id = extractDriveId(url);
+  if (!id) return url;
+  return `https://drive.google.com/file/d/${id}/preview`;
+}
+
 function VideoUrlSection({ courseId, onSuccess, sections = [] }) {
   const [title, setTitle] = useState('');
   const [url, setUrl] = useState('');
@@ -168,7 +191,8 @@ function VideoPreviewModal({ video, onClose }) {
   if (!video) return null;
   const url = video.file_path_or_url || '';
   const isYoutube = /youtube\.com|youtu\.be/.test(url);
-  const isDrive = /drive\.google\.com/.test(url);
+  const driveId   = extractDriveId(url);
+  const isDrive   = !!driveId;
   const isLocal = url.startsWith('/uploads/');
 
   const ytIdMatch = url.match(/(?:v=|youtu\.be\/|embed\/)([a-zA-Z0-9_-]{11})/);
@@ -178,8 +202,7 @@ function VideoPreviewModal({ video, onClose }) {
   if (isYoutube && ytId) {
     embedUrl = `https://www.youtube.com/embed/${ytId}?autoplay=1&rel=0`;
   } else if (isDrive) {
-    const match = url.match(/\/d\/([^/]+)/);
-    if (match) embedUrl = `https://drive.google.com/file/d/${match[1]}/preview`;
+    embedUrl = `https://drive.google.com/file/d/${driveId}/preview`;
   }
 
   return (
@@ -222,6 +245,113 @@ function VideoPreviewModal({ video, onClose }) {
               </a>
             </div>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Drive URL converter modal ──────────────────────────────── */
+// Tiny helper: paste any Google Drive URL form → get the canonical /preview
+// embed URL. Server still re-normalizes on save (defense in depth), but this
+// saves the teacher from having to manually rewrite the link.
+function DriveUrlConverterModal({ onClose, onUse }) {
+  const [input,   setInput]   = useState('');
+  const [copied,  setCopied]  = useState(false);
+
+  const driveId   = extractDriveId(input.trim());
+  const output    = driveId ? toDrivePreviewUrl(input.trim()) : '';
+  const isValid   = !!output;
+
+  const handleCopy = async () => {
+    if (!output) return;
+    try {
+      await navigator.clipboard.writeText(output);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      toast.error('تعذّر النسخ — انسخ يدوياً');
+    }
+  };
+
+  const handleUse = () => {
+    if (!output) return;
+    if (onUse) onUse(output);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-gradient-to-l from-blue-50 to-white">
+          <div className="flex items-center gap-2">
+            <Link className="w-5 h-5 text-blue-600" />
+            <h2 className="font-black text-gray-800 text-base">محول رابط Google Drive</h2>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors p-1" title="إغلاق">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="p-5 space-y-4">
+          <p className="text-xs text-gray-600 leading-relaxed">
+            الصق أي رابط Google Drive (<span className="font-mono text-[11px]">/view</span>, <span className="font-mono text-[11px]">/open?id=</span>, <span className="font-mono text-[11px]">/uc?id=</span>, …) وسيحوّلها المنصة تلقائياً إلى صيغة <span className="font-mono text-[11px] bg-gray-100 px-1 rounded">/preview</span> القابلة للتشغيل داخل الكورس.
+          </p>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1.5">الرابط الأصلي</label>
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="https://drive.google.com/file/d/…/view?usp=sharing"
+              rows={3}
+              dir="ltr"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-mono resize-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1.5">رابط /preview الجاهز</label>
+            <div className="flex items-stretch gap-2">
+              <input
+                type="text"
+                value={output}
+                readOnly
+                placeholder="— الصق رابط Drive صالح أولاً —"
+                dir="ltr"
+                className={`flex-1 px-3 py-2 border rounded-lg text-sm font-mono outline-none ${
+                  isValid ? 'bg-green-50 border-green-300 text-green-800' : 'bg-gray-50 border-gray-200 text-gray-400'
+                }`}
+              />
+              <button
+                onClick={handleCopy}
+                disabled={!isValid}
+                className="px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed text-gray-700 font-bold text-xs transition-colors flex items-center gap-1"
+                title="نسخ الرابط"
+              >
+                {copied ? <Check className="w-4 h-4 text-green-600" /> : <ExternalLink className="w-4 h-4" />}
+                <span className="hidden sm:inline">{copied ? 'تم النسخ' : 'نسخ'}</span>
+              </button>
+            </div>
+            {input.trim() && !isValid && (
+              <p className="mt-1.5 text-[11px] text-red-600 font-bold">⚠️ الرابط لا يبدو كـ Google Drive. تأكد من الشكل (drive.google.com/file/d/…).</p>
+            )}
+          </div>
+        </div>
+        <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between gap-2">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-200 font-bold text-sm transition-colors"
+          >
+            إلغاء
+          </button>
+          <button
+            onClick={handleUse}
+            disabled={!isValid}
+            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm transition-colors flex items-center gap-1.5"
+          >
+            <Check className="w-4 h-4" />
+            استخدم الرابط في إضافة فيديو
+          </button>
         </div>
       </div>
     </div>
@@ -483,6 +613,7 @@ export default function CourseContent() {
   const [previewPdf, setPreviewPdf] = useState(null);
   const [editingVideo, setEditingVideo] = useState(null);
   const [expandedSections, setExpandedSections] = useState({});
+  const [showDriveConverter, setShowDriveConverter] = useState(false);
 
   // Drag-and-drop state
   const dragItem = useRef(null); // { type: 'video'|'pdf', id, sectionId }
@@ -687,6 +818,15 @@ export default function CourseContent() {
             </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => setShowDriveConverter(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-blue-200 hover:bg-blue-50 hover:border-blue-300 active:scale-95 text-blue-700 text-xs font-black transition-all shadow-sm flex-shrink-0"
+              title="تحويل رابط Google Drive إلى صيغة /preview"
+            >
+              <Link className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">محول رابط Drive</span>
+            </button>
             <button
               type="button"
               onClick={async () => {
@@ -1369,6 +1509,12 @@ export default function CourseContent() {
       <ConfirmDialog open={!!deleteRecId} onClose={() => setDeleteRecId(null)}
         onConfirm={() => deleteRecMut.mutate(deleteRecId)}
         title="حذف التسميع" message="هل أنت متأكد من حذف هذا التسميع نهائياً؟ (نتائج الطلاب ستبقى محفوظة في الأرشيف)" danger />
+
+      {showDriveConverter && (
+        <DriveUrlConverterModal
+          onClose={() => setShowDriveConverter(false)}
+        />
+      )}
     </div>
   );
 }
