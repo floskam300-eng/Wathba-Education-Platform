@@ -5,11 +5,12 @@ import {
   Archive, Search, ChevronDown, ChevronUp, Users,
   FileText, GraduationCap, ChevronRight, ChevronLeft,
   Eye, RotateCcw, Printer, Filter, Layers, CheckCircle,
-  XCircle, AlertTriangle, Clock, Award, ArrowLeft
+  XCircle, AlertTriangle, Clock, Award, ArrowLeft, FileSpreadsheet, Download
 } from 'lucide-react';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
 import { generatePDFReport } from '../../lib/pdfReport';
+import { generateExcelReport } from '../../lib/excelReport';
 import { formatDuration } from '../../lib/format';
 import StudentArchiveModal from '../../components/ui/StudentArchiveModal';
 import ItemArchiveDetailView from '../../components/ui/ItemArchiveDetailView';
@@ -65,28 +66,74 @@ const StageBadge = ({ stage, dark }) => {
   );
 };
 
-const PillGroup = ({ options, value, onChange, dark }) => (
-  <div className="flex flex-wrap gap-1.5">
-    {options.map(o => {
-      const active = value === o.value;
-      return (
-        <button
-          key={o.value}
-          onClick={() => onChange(o.value)}
-          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border whitespace-nowrap cursor-pointer ${
-            active
-              ? 'bg-orange-500 text-white border-orange-500 shadow-sm'
-              : dark
-                ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text-2)] hover:text-[var(--dk-text-1)]'
-                : 'bg-white border-gray-200 text-gray-600 hover:border-orange-300 hover:text-orange-600'
-          }`}
-        >
-          {o.label}
-        </button>
-      );
-    })}
-  </div>
-);
+const PillGroup = ({ options, value, onChange, dark, defaultVal = '' }) => {
+  const handlePillClick = (optVal) => {
+    // If clicking on the default/clear option, reset to defaultVal
+    if (optVal === defaultVal || optVal === '' || optVal === 'all') {
+      onChange(defaultVal);
+      return;
+    }
+    const isIncluded = value === optVal;
+    const isExcluded = value === `!${optVal}`;
+
+    if (isIncluded) {
+      // 2nd click: Switch to Exclude
+      onChange(`!${optVal}`);
+    } else if (isExcluded) {
+      // 3rd click: Switch back to neutral
+      onChange(defaultVal);
+    } else {
+      // 1st click: Switch to Include
+      onChange(optVal);
+    }
+  };
+
+  return (
+    <div className="flex flex-wrap gap-1.5 items-center">
+      {options.map(o => {
+        const isAll = o.value === defaultVal || o.value === '' || o.value === 'all';
+        const isIncluded = !isAll && value === o.value;
+        const isExcluded = !isAll && value === `!${o.value}`;
+        const isAllActive = isAll && (value === defaultVal || value === '' || value === 'all' || !value);
+
+        let style = '';
+        let label = o.label;
+
+        if (isAllActive) {
+          style = 'bg-orange-500 text-white border-orange-500 shadow-sm font-black';
+        } else if (isIncluded) {
+          style = 'bg-orange-500 text-white border-orange-500 shadow-sm ring-2 ring-orange-400/30 font-black';
+        } else if (isExcluded) {
+          style = 'bg-red-600 text-white border-red-600 shadow-sm ring-2 ring-red-400/30 font-black';
+          const cleanText = o.label.replace(/^[📄📚✅❌⚠️🔄●○\s]+/, '');
+          label = `🚫 ما عدا: ${cleanText}`;
+        } else {
+          style = dark
+            ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text-2)] hover:text-[var(--dk-text-1)]'
+            : 'bg-white border-gray-200 text-gray-600 hover:border-orange-300 hover:text-orange-600';
+        }
+
+        return (
+          <button
+            key={o.value}
+            onClick={() => handlePillClick(o.value)}
+            title={
+              isIncluded
+                ? 'محدد (تضمين) — انقر مرة أخرى للاستثناء (عرض كل شيء ما عدا هذا الخيار)'
+                : isExcluded
+                ? 'مستثنى (ما عدا) — انقر مرة أخرى لإلغاء الفلتر'
+                : 'انقر للتحديد، وانقر مجدداً للاستثناء'
+            }
+            className={`px-3 py-1.5 rounded-xl text-xs transition-all border whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${style}`}
+          >
+            {isIncluded && <span className="text-[10px] font-black">✓</span>}
+            <span>{label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+};
 
 
 export default function ArchivePage() {
@@ -195,41 +242,274 @@ export default function ArchivePage() {
   const totalItemsTargeted   = useMemo(() => itemsList.reduce((s, i) => s + (Number(i.total_targeted) || 0), 0), [itemsList]);
   const totalItemsAttended   = useMemo(() => itemsList.reduce((s, i) => s + (Number(i.attended_count) || 0), 0), [itemsList]);
 
-  // Handle Group Print for Students Tab
-  const handleGroupPrint = () => {
+  // Fetch all students matching current filters (bypassing page limit for export/print)
+  const fetchAllFilteredStudents = async () => {
+    if (totalCount <= students.length) return students;
+    try {
+      const res = await api.get('/archive/students', {
+        params: { ...params, page: 1, limit: 5000 }
+      });
+      return res.data?.students || students;
+    } catch {
+      return students;
+    }
+  };
+
+  // Handle Group Print (PDF) for Students Tab
+  const handleGroupPrint = async () => {
     if (!students.length) { toast.error('لا يوجد طلاب للطباعة'); return; }
-    const stageLabel = filters.stage || 'كل المراحل';
-    const hasLabel   = HAS_TYPE_OPTIONS.find(o => o.value === filters.has_type)?.label || 'الكل';
+    toast.loading('جاري تجهيز تقرير الطباعة...', { id: 'group-print' });
+    const allStudents = await fetchAllFilteredStudents();
+    toast.dismiss('group-print');
+
+    const isStageExcluded = filters.stage.startsWith('!');
+    const rawStage = isStageExcluded ? filters.stage.slice(1) : filters.stage;
+    const stageLabel = !filters.stage ? 'كل المراحل' : (isStageExcluded ? `ما عدا: ${rawStage}` : rawStage);
+
+    const isTypeExcluded = filters.has_type.startsWith('!');
+    const rawType = isTypeExcluded ? filters.has_type.slice(1) : filters.has_type;
+    const matchedType = HAS_TYPE_OPTIONS.find(o => o.value === rawType)?.label || rawType;
+    const hasLabel = !filters.has_type ? 'الكل' : (isTypeExcluded ? `ما عدا: ${matchedType}` : matchedType);
+
     generatePDFReport(
-      'أرشيف النتائج — قائمة الطلاب',
-      ['اسم الطالب', 'كود الطالب', 'المرحلة', 'الاختبارات', 'ناجح/راسب', 'متوسط الاختبارات', 'التسميع', 'ناجح/راسب (تسميع)', 'متوسط التسميع'],
-      students.map(st => [
+      'أرشيف النتائج — سجل الطلاب',
+      ['اسم الطالب', 'كود الطالب', 'المرحلة الدراسية', 'الاختبارات', 'ناجح/راسب (اختبارات)', 'متوسط الاختبارات', 'التسميع', 'ناجح/راسب (تسميع)', 'متوسط التسميع'],
+      allStudents.map(st => [
         st.name,
         st.username || '—',
         st.academic_stage || '—',
         Number(st.total_exams) > 0      ? `${st.total_exams}`       : '—',
-        Number(st.total_exams) > 0      ? `${st.passed_exams} ناجح / ${Number(st.total_exams) - Number(st.passed_exams)} راسب` : '—',
+        Number(st.total_exams) > 0      ? `${st.passed_exams} ناجح / ${Math.max(0, Number(st.total_exams) - Number(st.passed_exams))} راسب` : '—',
         Number(st.total_exams) > 0      ? `${st.avg_exam_score}%`   : '—',
         Number(st.total_recitations) > 0 ? `${st.total_recitations}` : '—',
-        Number(st.total_recitations) > 0 ? `${st.passed_recitations} ناجح / ${Number(st.total_recitations) - Number(st.passed_recitations)} راسب` : '—',
+        Number(st.total_recitations) > 0 ? `${st.passed_recitations} ناجح / ${Math.max(0, Number(st.total_recitations) - Number(st.passed_recitations))} راسب` : '—',
         Number(st.total_recitations) > 0 ? `${st.avg_rec_score}%`   : '—',
       ]),
       'archive-students.pdf',
       {
-        subtitle: `المرحلة: ${stageLabel} | النوع: ${hasLabel} | إجمالي: ${totalCount} طالب`,
+        subtitle: `المرحلة: ${stageLabel} | نوع النتائج: ${hasLabel} | إجمالي الطلاب: ${totalCount}`,
         stats: [
           { label: 'إجمالي الطلاب',  value: totalCount, color: '#1e3a5f' },
           { label: 'اختبارات مؤدّاة', value: totalExams, color: '#f97316' },
           { label: 'تسميع مؤدّى',    value: totalRecs,  color: '#7c3aed' },
         ],
-        note: filters.page > 1
-          ? `هذا التقرير يعرض الصفحة ${filters.page} فقط (${students.length} طالب). استخدم "الكل" في عدد الصفحة لطباعة كامل القائمة.`
-          : undefined,
+        note: `تم استخراج هذا التقرير الشامل لعدد (${allStudents.length}) طالب وفق الفلاتر المحددة.`,
       }
     );
   };
 
-  // Quick Print for a single item from the list
+  // Handle Group Export (Excel) for Students Tab
+  const handleGroupExportExcel = async () => {
+    if (!students.length) { toast.error('لا يوجد طلاب للتصدير'); return; }
+    try {
+      toast.loading('جاري تجهيز ملف Excel...', { id: 'excel-export' });
+      const allStudents = await fetchAllFilteredStudents();
+      toast.dismiss('excel-export');
+
+      const isStageExcluded = filters.stage.startsWith('!');
+      const rawStage = isStageExcluded ? filters.stage.slice(1) : filters.stage;
+      const stageLabel = !filters.stage ? 'كل المراحل' : (isStageExcluded ? `ما عدا: ${rawStage}` : rawStage);
+
+      const isTypeExcluded = filters.has_type.startsWith('!');
+      const rawType = isTypeExcluded ? filters.has_type.slice(1) : filters.has_type;
+      const matchedType = HAS_TYPE_OPTIONS.find(o => o.value === rawType)?.label || rawType;
+      const hasLabel = !filters.has_type ? 'الكل' : (isTypeExcluded ? `ما عدا: ${matchedType}` : matchedType);
+
+      await generateExcelReport(
+        'أرشيف النتائج — سجل الطلاب',
+        [
+          'اسم الطالب',
+          'كود الطالب',
+          'المرحلة الدراسية',
+          'إجمالي الاختبارات',
+          'الاختبارات الناجحة',
+          'الاختبارات الراسبة',
+          'مرات الغياب (اختبارات)',
+          'متوسط درجات الاختبارات',
+          'إجمالي التسميع',
+          'التسميع الناجح',
+          'التسميع الراسب',
+          'متوسط درجات التسميع'
+        ],
+        allStudents.map(st => [
+          st.name,
+          st.username || '—',
+          st.academic_stage || '—',
+          Number(st.total_exams) || 0,
+          Number(st.passed_exams) || 0,
+          Math.max(0, Number(st.total_exams) - Number(st.passed_exams)),
+          Number(st.absent_exams) || 0,
+          Number(st.total_exams) > 0 ? `${st.avg_exam_score}%` : '—',
+          Number(st.total_recitations) || 0,
+          Number(st.passed_recitations) || 0,
+          Math.max(0, Number(st.total_recitations) - Number(st.passed_recitations)),
+          Number(st.total_recitations) > 0 ? `${st.avg_rec_score}%` : '—',
+        ]),
+        `archive-students-${new Date().toISOString().slice(0, 10)}.xlsx`,
+        {
+          subtitle: `المرحلة: ${stageLabel} | نوع النتائج: ${hasLabel} | إجمالي الطلاب: ${totalCount}`,
+          sheetName: 'سجل الطلاب',
+          stats: [
+            { label: 'إجمالي الطلاب',  value: totalCount },
+            { label: 'اختبارات مؤدّاة', value: totalExams },
+            { label: 'تسميع مؤدّى',    value: totalRecs  },
+          ],
+          note: `تم استخراج هذا الملف لعدد (${allStudents.length}) طالب من منصة وثبة التعليمية.`
+        }
+      );
+      toast.success(`تم تصدير ملف Excel بنجاح (${allStudents.length} طالب)`);
+    } catch (err) {
+      toast.dismiss('excel-export');
+      toast.error('حدث خطأ أثناء تصدير ملف Excel');
+    }
+  };
+
+  // Handle Group Print (PDF) for Items Tab
+  const handleItemsPrint = () => {
+    if (!itemsList.length) { toast.error('لا توجد عناصر للطباعة'); return; }
+
+    const isItemsStageExcluded = itemsStage.startsWith('!');
+    const rawItemsStage = isItemsStageExcluded ? itemsStage.slice(1) : itemsStage;
+    const itemsStageLabel = !itemsStage ? 'كل المراحل' : (isItemsStageExcluded ? `ما عدا: ${rawItemsStage}` : rawItemsStage);
+
+    const isItemsTypeExcluded = itemsType.startsWith('!');
+    const rawItemsType = isItemsTypeExcluded ? itemsType.slice(1) : itemsType;
+    const matchedItemsType = ITEM_TYPE_OPTIONS.find(o => o.value === rawItemsType)?.label || rawItemsType;
+    const itemsTypeLabel = itemsType === 'all' ? 'الكل' : (isItemsTypeExcluded ? `ما عدا: ${matchedItemsType}` : matchedItemsType);
+    const itemsSubtitle = `المرحلة: ${itemsStageLabel} | النوع: ${itemsTypeLabel} | إجمالي العناصر: ${itemsList.length} (اختبارات: ${totalItemsExamsCount} | تسميعات: ${totalItemsRecsCount})`;
+
+    generatePDFReport(
+      'أرشيف النتائج — قائمة الاختبارات والتسميعات',
+      [
+        'العنوان',
+        'النوع',
+        'المرحلة / الكورس',
+        'الحالة',
+        'الدرجة الكلية',
+        'درجة النجاح',
+        'المستهدفون',
+        'المؤدون',
+        'الناجحون',
+        'الراسبون',
+        'الغائبون',
+        'أعادوا المحاولة',
+        'متوسط الدرجة',
+        'متوسط الوقت'
+      ],
+      itemsList.map(it => {
+        const isExam = it.item_type === 'exam';
+        const courseOrStage = it.course_name && it.course_name !== '—'
+          ? it.course_name
+          : (it.academic_stage || it.course_target_stage || 'عام');
+        return [
+          it.title,
+          isExam ? 'اختبار' : 'تسميع',
+          courseOrStage,
+          it.is_published ? 'منشور' : 'مغلق',
+          it.total_score,
+          it.pass_score,
+          Number(it.total_targeted) || 0,
+          Number(it.attended_count) || 0,
+          Number(it.passed_count) || 0,
+          Number(it.failed_count) || 0,
+          Number(it.absent_count) || 0,
+          Number(it.retried_count) || 0,
+          `${it.avg_score || 0}%`,
+          it.avg_time_minutes ? `${Number(it.avg_time_minutes).toFixed(1)} دقيقة` : '—',
+        ];
+      }),
+      'archive-items.pdf',
+      {
+        subtitle: itemsSubtitle,
+        stats: [
+          { label: 'إجمالي الاختبارات', value: totalItemsExamsCount, color: '#f97316' },
+          { label: 'إجمالي التسميعات', value: totalItemsRecsCount,  color: '#7c3aed' },
+          { label: 'الطلاب المستهدفون', value: totalItemsTargeted,   color: '#2563eb' },
+          { label: 'الطلاب المؤدون',   value: totalItemsAttended,   color: '#16a34a' },
+        ],
+      }
+    );
+  };
+
+  // Handle Group Export (Excel) for Items Tab
+  const handleItemsExportExcel = async () => {
+    if (!itemsList.length) { toast.error('لا توجد عناصر للتصدير'); return; }
+    try {
+      toast.loading('جاري تجهيز ملف Excel...', { id: 'items-excel' });
+
+      const isItemsStageExcluded = itemsStage.startsWith('!');
+      const rawItemsStage = isItemsStageExcluded ? itemsStage.slice(1) : itemsStage;
+      const itemsStageLabel = !itemsStage ? 'كل المراحل' : (isItemsStageExcluded ? `ما عدا: ${rawItemsStage}` : rawItemsStage);
+
+      const isItemsTypeExcluded = itemsType.startsWith('!');
+      const rawItemsType = isItemsTypeExcluded ? itemsType.slice(1) : itemsType;
+      const matchedItemsType = ITEM_TYPE_OPTIONS.find(o => o.value === rawItemsType)?.label || rawItemsType;
+      const itemsTypeLabel = itemsType === 'all' ? 'الكل' : (isItemsTypeExcluded ? `ما عدا: ${matchedItemsType}` : matchedItemsType);
+      const itemsSubtitle = `المرحلة: ${itemsStageLabel} | النوع: ${itemsTypeLabel} | إجمالي العناصر: ${itemsList.length} (اختبارات: ${totalItemsExamsCount} | تسميعات: ${totalItemsRecsCount})`;
+
+      await generateExcelReport(
+        'أرشيف النتائج — قائمة الاختبارات والتسميعات',
+        [
+          'عنوان العنصر',
+          'النوع',
+          'المرحلة / الكورس',
+          'حالة النشر',
+          'الدرجة الكلية',
+          'درجة النجاح',
+          'الطلاب المستهدفون',
+          'الطلاب المؤدون',
+          'الناجحون',
+          'الراسبون',
+          'الغائبون',
+          'أعادوا المحاولة',
+          'متوسط الدرجات',
+          'متوسط وقت الأداء (دقيقة)',
+          'تاريخ الإنشاء'
+        ],
+        itemsList.map(it => {
+          const isExam = it.item_type === 'exam';
+          const courseOrStage = it.course_name && it.course_name !== '—'
+            ? it.course_name
+            : (it.academic_stage || it.course_target_stage || 'عام');
+          return [
+            it.title,
+            isExam ? 'اختبار' : 'تسميع',
+            courseOrStage,
+            it.is_published ? 'منشور' : 'مغلق',
+            it.total_score,
+            it.pass_score,
+            Number(it.total_targeted) || 0,
+            Number(it.attended_count) || 0,
+            Number(it.passed_count) || 0,
+            Number(it.failed_count) || 0,
+            Number(it.absent_count) || 0,
+            Number(it.retried_count) || 0,
+            `${it.avg_score || 0}%`,
+            it.avg_time_minutes ? Number(it.avg_time_minutes).toFixed(1) : '—',
+            it.created_at ? new Date(it.created_at).toLocaleDateString('ar-EG') : '—',
+          ];
+        }),
+        `archive-exams-recitations-${new Date().toISOString().slice(0, 10)}.xlsx`,
+        {
+          subtitle: itemsSubtitle,
+          sheetName: 'الاختبارات والتسميعات',
+          stats: [
+            { label: 'إجمالي الاختبارات', value: totalItemsExamsCount },
+            { label: 'إجمالي التسميعات', value: totalItemsRecsCount  },
+            { label: 'الطلاب المستهدفون', value: totalItemsTargeted   },
+            { label: 'الطلاب المؤدون',   value: totalItemsAttended   },
+          ],
+        }
+      );
+      toast.dismiss('items-excel');
+      toast.success(`تم تصدير ${itemsList.length} عنصر بنجاح`);
+    } catch (err) {
+      toast.dismiss('items-excel');
+      toast.error('حدث خطأ أثناء تصدير ملف Excel');
+    }
+  };
+
+  // Quick Print for a single item from the list (PDF)
   const handleQuickPrintItem = async (e, it) => {
     e.stopPropagation();
     try {
@@ -327,6 +607,130 @@ export default function ArchivePage() {
     }
   };
 
+  // Quick Export for a single item from the list (Excel)
+  const handleQuickExportItemExcel = async (e, it) => {
+    e.stopPropagation();
+    try {
+      toast.loading('جاري تجهيز ملف Excel...', { id: 'quick-excel' });
+      const res = await api.get(`/archive/item/${it.item_type}/${it.id}/students`);
+      const { item: fullItem, students: itemStudents } = res.data;
+      toast.dismiss('quick-excel');
+
+      if (!itemStudents || !itemStudents.length) {
+        toast.error('لا توجد بيانات للتصدير');
+        return;
+      }
+
+      const typeLabel = it.item_type === 'exam' ? 'اختبار' : 'تسميع';
+      const courseOrStage = fullItem.course_name && fullItem.course_name !== '—'
+        ? fullItem.course_name
+        : (fullItem.academic_stage || fullItem.course_target_stage || 'كل المراحل');
+      const pubLabel = fullItem.is_published ? 'منشور' : 'غير منشور / مغلق';
+
+      const excelRows = [];
+      itemStudents.forEach((st, sIdx) => {
+        const isAbsent = st.status === 'absent' || !st.attempts || st.attempts.length === 0;
+        if (isAbsent) {
+          excelRows.push({
+            cells: [
+              st.student_name || '—',
+              st.student_username || '—',
+              st.academic_stage || '—',
+              st.phone || '—',
+              st.parent_phone || '—',
+              'غائب',
+              '—',
+              '—',
+              '—',
+              '—',
+              0,
+              0,
+              0,
+              0,
+              '—',
+            ],
+            isFirstOfGroup: true,
+            groupIndex: sIdx,
+          });
+        } else {
+          st.attempts.forEach((att, idx) => {
+            const isFirstAttempt = idx === 0;
+            const attNum = att.attempt_number || (idx + 1);
+            const attemptLabel = attNum === 1 ? 'المحاولة 1 (أولى)' : `المحاولة ${attNum} (إعادة ${attNum - 1})`;
+            const isPassed = att.passed === true || (att.score !== null && Number(att.score) >= Number(fullItem.pass_score));
+            const scoreVal = att.score !== null && att.score !== undefined ? `${att.score}/${fullItem.total_score}` : '—';
+            const pctVal = att.percentage !== null && att.percentage !== undefined ? `${att.percentage}%` : '—';
+            const durationStr = formatDuration(att);
+            const dateStr = att.created_at ? new Date(att.created_at).toLocaleDateString('ar-EG') : '—';
+
+            excelRows.push({
+              cells: [
+                st.student_name || '—',
+                st.student_username || '—',
+                st.academic_stage || '—',
+                st.phone || '—',
+                st.parent_phone || '—',
+                isPassed ? 'ناجح' : 'راسب',
+                attemptLabel,
+                scoreVal,
+                pctVal,
+                durationStr,
+                att.correct_count ?? 0,
+                att.wrong_count ?? 0,
+                att.unanswered_count ?? 0,
+                att.points_earned ?? 0,
+                dateStr,
+              ],
+              isFirstOfGroup: isFirstAttempt,
+              groupIndex: sIdx,
+            });
+          });
+        }
+      });
+
+      await generateExcelReport(
+        `تقرير نتائج ${typeLabel}: ${fullItem.title}`,
+        [
+          'اسم الطالب',
+          'كود الطالب',
+          'المرحلة الدراسية',
+          'رقم الهاتف',
+          'هاتف ولي الأمر',
+          'الحالة',
+          'المحاولة',
+          'الدرجة',
+          'النسبة المئوية',
+          'المدة',
+          'الإجابات الصحيحة',
+          'الإجابات الخاطئة',
+          'لم يجب',
+          'النقاط المكتسبة',
+          'تاريخ الأداء'
+        ],
+        excelRows,
+        `${it.item_type}-${it.id}-results.xlsx`,
+        {
+          subtitle: `المرحلة / الكورس: ${courseOrStage} | درجة النجاح: ${fullItem.pass_score}/${fullItem.total_score} | الحالة: ${pubLabel} | إجمالي المستهدفين: ${fullItem.total_targeted} طالب`,
+          sheetName: 'نتائج الطلاب',
+          stats: [
+            { label: 'الطلاب المستهدفون', value: fullItem.total_targeted || itemStudents.length },
+            { label: 'حضروا / أدوا', value: fullItem.attended_count || 0 },
+            { label: 'الناجحون', value: fullItem.passed_count || 0 },
+            { label: 'الراسبون', value: fullItem.failed_count || 0 },
+            { label: 'الغائبون', value: fullItem.absent_count || 0 },
+            { label: 'أعادوا المحاولة', value: fullItem.retried_count || 0 },
+            { label: 'متوسط الدرجات', value: `${fullItem.avg_pct || 0}%` },
+          ],
+          note: `تقرير شامل لجميع محاولات الطلاب في ${typeLabel} (${fullItem.title}).`
+        }
+      );
+      toast.success(`تم تصدير ملف Excel لـ ${fullItem.title}`);
+    } catch (err) {
+      toast.dismiss('quick-excel');
+      toast.error('حدث خطأ أثناء تصدير ملف Excel');
+    }
+  };
+
   const card        = dark ? 'bg-[var(--dk-surface)] border-[var(--dk-border)]' : 'bg-white border-gray-100';
   const textPrimary = dark ? 'text-[var(--dk-text-1)]' : 'text-gray-800';
   const textSec    = dark ? 'text-[var(--dk-text-2)]' : 'text-gray-500';
@@ -356,22 +760,57 @@ export default function ArchivePage() {
               <div>
                 <h1 className={`text-xl font-black ${textPrimary}`}>أرشيف النتائج</h1>
                 <p className={`text-xs font-medium ${textSec}`}>
-                  {activeTab === 'students' ? 'عرض نتائج كل طالب مع سجله الشامل' : 'سجل كافة الاختبارات والتسميعات ومتابعة الطلاب المستهدفين'}
+                  {activeTab === 'students' ? 'عرض نتائج كل طالب مع سجله الشامل وطباعة التقارير' : 'سجل كافة الاختبارات والتسميعات ومتابعة الطلاب المستهدفين وطباعة النتائج'}
                 </p>
               </div>
             </div>
 
-            {/* Tab 1 Action */}
-            {activeTab === 'students' && (
-              <button
-                onClick={handleGroupPrint}
-                disabled={isLoading || students.length === 0}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-purple-600 to-orange-500 text-white hover:opacity-90 transition disabled:opacity-40 shadow-sm cursor-pointer"
-              >
-                <Printer className="w-3.5 h-3.5" />
-                طباعة القائمة الجماعية
-              </button>
-            )}
+            {/* Top Action Buttons (PDF & Excel for Active Tab) */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {activeTab === 'students' ? (
+                <>
+                  <button
+                    onClick={handleGroupExportExcel}
+                    disabled={isLoading || students.length === 0}
+                    className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition disabled:opacity-40 shadow-sm cursor-pointer"
+                    title="تصدير سجل الطلاب الحالي إلى ملف Excel"
+                  >
+                    <FileSpreadsheet className="w-4 h-4" />
+                    <span>تصدير Excel</span>
+                  </button>
+                  <button
+                    onClick={handleGroupPrint}
+                    disabled={isLoading || students.length === 0}
+                    className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-purple-600 to-orange-500 text-white hover:opacity-90 transition disabled:opacity-40 shadow-sm cursor-pointer"
+                    title="طباعة تقرير سجل الطلاب بصيغة PDF"
+                  >
+                    <Printer className="w-4 h-4" />
+                    <span>طباعة PDF</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={handleItemsExportExcel}
+                    disabled={itemsLoading || itemsList.length === 0}
+                    className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition disabled:opacity-40 shadow-sm cursor-pointer"
+                    title="تصدير قائمة الاختبارات والتسميعات إلى ملف Excel"
+                  >
+                    <FileSpreadsheet className="w-4 h-4" />
+                    <span>تصدير Excel</span>
+                  </button>
+                  <button
+                    onClick={handleItemsPrint}
+                    disabled={itemsLoading || itemsList.length === 0}
+                    className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-purple-600 to-orange-500 text-white hover:opacity-90 transition disabled:opacity-40 shadow-sm cursor-pointer"
+                    title="طباعة قائمة الاختبارات والتسميعات بصيغة PDF"
+                  >
+                    <Printer className="w-4 h-4" />
+                    <span>طباعة PDF</span>
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
           {/* ── Navigation Tabs ── */}
@@ -1017,17 +1456,29 @@ export default function ArchivePage() {
                     </div>
 
                     {/* Footer Actions */}
-                    <div className="flex items-center justify-between pt-2 border-t dark:border-[var(--dk-border)] border-gray-100">
-                      <button
-                        onClick={(e) => handleQuickPrintItem(e, it)}
-                        className={`p-2 rounded-xl text-xs font-bold border transition flex items-center gap-1 cursor-pointer ${
-                          dark ? 'border-[var(--dk-border)] text-[var(--dk-text-2)] hover:text-white hover:bg-[var(--dk-elevated)]' : 'border-gray-200 text-gray-600 hover:bg-gray-100'
-                        }`}
-                        title="طباعة تقرير هذا الاختبار"
-                      >
-                        <Printer className="w-3.5 h-3.5" />
-                        <span className="text-[10px]">طباعة</span>
-                      </button>
+                    <div className="flex items-center justify-between pt-2.5 border-t dark:border-[var(--dk-border)] border-gray-100 gap-2 flex-wrap">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={(e) => handleQuickPrintItem(e, it)}
+                          className={`p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl text-xs font-bold border transition flex items-center gap-1 cursor-pointer ${
+                            dark ? 'border-[var(--dk-border)] text-[var(--dk-text-2)] hover:text-white hover:bg-[var(--dk-elevated)]' : 'border-gray-200 text-gray-600 hover:bg-gray-100'
+                          }`}
+                          title="طباعة تقرير هذا العنصر (PDF)"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                          <span className="text-[10px]">PDF</span>
+                        </button>
+                        <button
+                          onClick={(e) => handleQuickExportItemExcel(e, it)}
+                          className={`p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl text-xs font-bold border transition flex items-center gap-1 cursor-pointer ${
+                            dark ? 'border-emerald-800 text-emerald-300 hover:bg-emerald-950/40' : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'
+                          }`}
+                          title="تصدير نتائج هذا العنصر (Excel)"
+                        >
+                          <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                          <span className="text-[10px]">Excel</span>
+                        </button>
+                      </div>
 
                       <div className="flex items-center gap-1 text-xs font-bold text-orange-500 group-hover:translate-x-[-2px] transition-transform">
                         <span>عرض النتائج</span>

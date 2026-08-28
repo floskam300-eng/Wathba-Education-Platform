@@ -4,11 +4,12 @@ import { useTheme } from '../../context/ThemeContext';
 import {
   ArrowRight, Search, Printer, Users, CheckCircle, XCircle,
   AlertTriangle, RotateCcw, Eye, ChevronDown, ChevronUp,
-  FileText, GraduationCap, Clock, Award, History, X
+  FileText, GraduationCap, Clock, Award, History, X, FileSpreadsheet
 } from 'lucide-react';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
 import { generatePDFReport } from '../../lib/pdfReport';
+import { generateExcelReport } from '../../lib/excelReport';
 import { formatDuration } from '../../lib/format';
 import StudentArchiveModal from './StudentArchiveModal';
 
@@ -137,9 +138,130 @@ export default function ItemArchiveDetailView({ item, onBack, onOpenStudent }) {
           { label: 'أعادوا المحاولة', value: fullItem.retried_count || 0, color: '#9333ea' },
           { label: 'متوسط الدرجات', value: `${fullItem.avg_pct || 0}%`, color: '#7c3aed' },
         ],
-        note: `تم استخراج هذا التقرير الشامل لجميع المحاولات (المحاولات الأولى وكافة الإعادات). الطلاب الذين لم يؤدوا يظهرون بحالة "غائب".`,
-      }
-    );
+      note: `تم استخراج هذا التقرير الشامل لجميع المحاولات (المحاولات الأولى وكافة الإعادات). الطلاب الذين لم يؤدوا يظهرون بحالة "غائب".`,
+    }
+  );
+};
+
+  // Handle Full Export Excel Report
+  const handleExportExcel = async () => {
+    if (!students.length) {
+      toast.error('لا توجد بيانات للتصدير');
+      return;
+    }
+
+    try {
+      toast.loading('جاري تجهيز ملف Excel...', { id: 'item-excel' });
+      const typeLabel = isExam ? 'اختبار' : 'تسميع';
+      const courseOrStage = fullItem.course_name && fullItem.course_name !== '—'
+        ? fullItem.course_name
+        : (fullItem.academic_stage || fullItem.course_target_stage || 'كل المراحل');
+      const pubLabel = fullItem.is_published ? 'منشور' : 'غير منشور / مغلق';
+
+      const excelRows = [];
+      students.forEach((st, sIdx) => {
+        const isAbsent = st.status === 'absent' || !st.attempts || st.attempts.length === 0;
+
+        if (isAbsent) {
+          excelRows.push({
+            cells: [
+              st.student_name || '—',
+              st.student_username || '—',
+              st.academic_stage || '—',
+              st.phone || '—',
+              st.parent_phone || '—',
+              'غائب',
+              '—',
+              '—',
+              '—',
+              '—',
+              0,
+              0,
+              0,
+              0,
+              '—',
+            ],
+            isFirstOfGroup: true,
+            groupIndex: sIdx,
+          });
+        } else {
+          st.attempts.forEach((att, idx) => {
+            const isFirstAttempt = idx === 0;
+            const attNum = att.attempt_number || (idx + 1);
+            const attemptLabel = attNum === 1 ? 'المحاولة 1 (أولى)' : `المحاولة ${attNum} (إعادة ${attNum - 1})`;
+            const isPassed = att.passed === true || (att.score !== null && Number(att.score) >= Number(fullItem.pass_score));
+            const scoreStr = att.score !== null && att.score !== undefined ? `${att.score}/${fullItem.total_score}` : '—';
+            const pctStr = att.percentage !== null && att.percentage !== undefined ? `${att.percentage}%` : '—';
+            const durationStr = formatDuration(att);
+            const dateStr = att.created_at ? new Date(att.created_at).toLocaleDateString('ar-EG') : '—';
+
+            excelRows.push({
+              cells: [
+                st.student_name || '—',
+                st.student_username || '—',
+                st.academic_stage || '—',
+                st.phone || '—',
+                st.parent_phone || '—',
+                isPassed ? 'ناجح' : 'راسب',
+                attemptLabel,
+                scoreStr,
+                pctStr,
+                durationStr,
+                att.correct_count ?? 0,
+                att.wrong_count ?? 0,
+                att.unanswered_count ?? 0,
+                att.points_earned ?? 0,
+                dateStr,
+              ],
+              isFirstOfGroup: isFirstAttempt,
+              groupIndex: sIdx,
+            });
+          });
+        }
+      });
+
+      await generateExcelReport(
+        `تقرير نتائج ${typeLabel}: ${fullItem.title}`,
+        [
+          'اسم الطالب',
+          'كود الطالب',
+          'المرحلة الدراسية',
+          'رقم الهاتف',
+          'هاتف ولي الأمر',
+          'الحالة',
+          'المحاولة',
+          'الدرجة',
+          'النسبة المئوية',
+          'المدة',
+          'الإجابات الصحيحة',
+          'الإجابات الخاطئة',
+          'لم يجب',
+          'النقاط المكتسبة',
+          'تاريخ الأداء'
+        ],
+        excelRows,
+        `${fullItem.item_type}-${fullItem.id}-results.xlsx`,
+        {
+          subtitle: `المرحلة / الكورس: ${courseOrStage} | درجة النجاح: ${fullItem.pass_score}/${fullItem.total_score} | الحالة: ${pubLabel} | إجمالي المستهدفين: ${fullItem.total_targeted} طالب`,
+          sheetName: 'نتائج الطلاب',
+          stats: [
+            { label: 'الطلاب المستهدفون', value: fullItem.total_targeted || students.length },
+            { label: 'حضروا / أدوا', value: fullItem.attended_count || 0 },
+            { label: 'الناجحون', value: fullItem.passed_count || 0 },
+            { label: 'الراسبون', value: fullItem.failed_count || 0 },
+            { label: 'الغائبون', value: fullItem.absent_count || 0 },
+            { label: 'أعادوا المحاولة', value: fullItem.retried_count || 0 },
+            { label: 'متوسط الدرجات', value: `${fullItem.avg_pct || 0}%` },
+          ],
+          note: `تقرير شامل لجميع محاولات الطلاب في ${typeLabel} (${fullItem.title}).`
+        }
+      );
+      toast.dismiss('item-excel');
+      toast.success(`تم تصدير ملف Excel بنجاح (${students.length} طالب)`);
+    } catch (err) {
+      toast.dismiss('item-excel');
+      toast.error('حدث خطأ أثناء تصدير ملف Excel');
+    }
   };
 
   const card = dark ? 'bg-[var(--dk-surface)] border-[var(--dk-border)]' : 'bg-white border-gray-100';
@@ -162,7 +284,7 @@ export default function ItemArchiveDetailView({ item, onBack, onOpenStudent }) {
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <button
           onClick={onBack}
-          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border transition ${
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
             dark
               ? 'bg-[var(--dk-surface)] border-[var(--dk-border)] text-[var(--dk-text-1)] hover:bg-[var(--dk-elevated)]'
               : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
@@ -172,14 +294,24 @@ export default function ItemArchiveDetailView({ item, onBack, onOpenStudent }) {
           العودة لقائمة الاختبارات والتسميعات
         </button>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={handleExportExcel}
+            disabled={isLoading || students.length === 0}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white transition disabled:opacity-40 shadow-sm cursor-pointer"
+            title="تصدير نتائج الطلاب إلى ملف Excel"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            <span>تصدير Excel</span>
+          </button>
           <button
             onClick={handlePrintReport}
             disabled={isLoading || students.length === 0}
             className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black bg-gradient-to-r from-orange-500 to-purple-600 text-white hover:opacity-90 transition disabled:opacity-40 shadow-sm cursor-pointer"
+            title="طباعة التقرير بصيغة PDF"
           >
             <Printer className="w-4 h-4" />
-            طباعة تقرير شامل (PDF)
+            <span>طباعة PDF</span>
           </button>
         </div>
       </div>
@@ -258,28 +390,75 @@ export default function ItemArchiveDetailView({ item, onBack, onOpenStudent }) {
       <div className={`rounded-2xl border p-4 shadow-sm space-y-3 ${card}`}>
         <div className="flex items-center justify-between gap-3 flex-wrap">
           {/* Status Filter Pills */}
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1.5 items-center">
             {[
               { id: 'all',     label: `الكل (${fullItem.total_targeted || students.length})` },
-              { id: 'passed',  label: `✅ الناجحون (${fullItem.passed_count || 0})` },
-              { id: 'failed',  label: `❌ الراسبون (${fullItem.failed_count || 0})` },
-              { id: 'absent',  label: `⚠️ الغائبون (${fullItem.absent_count || 0})` },
-              { id: 'retried', label: `🔄 أعادوا الاختبار (${fullItem.retried_count || 0})` },
-            ].map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setStatusFilter(tab.id)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border whitespace-nowrap cursor-pointer ${
-                  statusFilter === tab.id
-                    ? 'bg-orange-500 text-white border-orange-500 shadow-sm'
-                    : dark
-                      ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text-2)] hover:text-[var(--dk-text-1)]'
-                      : 'bg-white border-gray-200 text-gray-600 hover:border-orange-300'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+              { id: 'passed',  label: `✅ الناجحون (${fullItem.passed_count || 0})`, cleanLabel: 'الناجحين' },
+              { id: 'failed',  label: `❌ الراسبون (${fullItem.failed_count || 0})`, cleanLabel: 'الراسبين' },
+              { id: 'absent',  label: `⚠️ الغائبون (${fullItem.absent_count || 0})`, cleanLabel: 'الغائبين' },
+              { id: 'retried', label: `🔄 أعادوا الاختبار (${fullItem.retried_count || 0})`, cleanLabel: 'من أعادوا الاختبار' },
+            ].map(tab => {
+              const isAll = tab.id === 'all';
+              const isIncluded = !isAll && statusFilter === tab.id;
+              const isExcluded = !isAll && statusFilter === `!${tab.id}`;
+              const isAllActive = isAll && (statusFilter === 'all' || !statusFilter);
+
+              const handleTabClick = () => {
+                if (tab.id === 'all') {
+                  setStatusFilter('all');
+                  return;
+                }
+                if (statusFilter === tab.id) {
+                  // 2nd click: Switch to Exclude
+                  setStatusFilter(`!${tab.id}`);
+                } else if (statusFilter === `!${tab.id}`) {
+                  // 3rd click: Switch back to all
+                  setStatusFilter('all');
+                } else {
+                  // 1st click: Switch to Include
+                  setStatusFilter(tab.id);
+                }
+              };
+
+              let style = '';
+              let label = tab.label;
+
+              if (isAllActive) {
+                style = 'bg-orange-500 text-white border-orange-500 shadow-sm font-black';
+              } else if (isIncluded) {
+                style = 'bg-orange-500 text-white border-orange-500 shadow-sm ring-2 ring-orange-400/30 font-black';
+              } else if (isExcluded) {
+                style = 'bg-red-600 text-white border-red-600 shadow-sm ring-2 ring-red-400/30 font-black';
+                const excludedCount =
+                  tab.id === 'passed' ? ((fullItem.failed_count || 0) + (fullItem.absent_count || 0)) :
+                  tab.id === 'failed' ? ((fullItem.passed_count || 0) + (fullItem.absent_count || 0)) :
+                  tab.id === 'absent' ? (fullItem.attended_count || 0) :
+                  tab.id === 'retried' ? (Math.max(0, (fullItem.total_targeted || students.length) - (fullItem.retried_count || 0))) : '';
+                label = `🚫 ما عدا ${tab.cleanLabel || tab.label} (${excludedCount})`;
+              } else {
+                style = dark
+                  ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text-2)] hover:text-[var(--dk-text-1)]'
+                  : 'bg-white border-gray-200 text-gray-600 hover:border-orange-300 hover:text-orange-600';
+              }
+
+              return (
+                <button
+                  key={tab.id}
+                  onClick={handleTabClick}
+                  title={
+                    isIncluded
+                      ? 'محدد (تضمين) — انقر مرة أخرى للاستثناء (عرض كل شيء ما عدا هذا الخيار)'
+                      : isExcluded
+                      ? 'مستثنى (ما عدا) — انقر مرة أخرى لإلغاء الفلتر'
+                      : 'انقر للتحديد، وانقر مجدداً للاستثناء'
+                  }
+                  className={`px-3 py-1.5 rounded-xl text-xs transition-all border whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${style}`}
+                >
+                  {isIncluded && <span className="text-[10px] font-black">✓</span>}
+                  <span>{label}</span>
+                </button>
+              );
+            })}
           </div>
 
           {/* Reset Filters */}

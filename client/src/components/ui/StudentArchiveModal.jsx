@@ -3,10 +3,11 @@ import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '../../context/ThemeContext';
 import {
   X, FileText, GraduationCap, CheckCircle2, XCircle,
-  Printer, ChevronDown, ChevronUp, Eye, Clock,
+  Printer, ChevronDown, ChevronUp, Eye, Clock, FileSpreadsheet
 } from 'lucide-react';
 import api from '../../lib/api';
 import { generatePDFReport } from '../../lib/pdfReport';
+import { generateExcelReport } from '../../lib/excelReport';
 import { formatDuration } from '../../lib/format';
 import toast from 'react-hot-toast';
 import ExamReviewModal from './ExamReviewModal';
@@ -171,6 +172,118 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
     );
   };
 
+  // Export Full Student History (Multi-sheet Excel)
+  const handleExportExcelFull = async () => {
+    const hasExams = examRows.length > 0;
+    const hasRecs  = recRows.length > 0;
+    if (!hasExams && !hasRecs) { toast.error('لا توجد بيانات للتصدير'); return; }
+    try {
+      toast.loading('جاري تجهيز ملف Excel...', { id: 'st-excel-full' });
+      const s = summary?.student;
+      const subtitle = `المرحلة: ${s?.academic_stage || '—'} | كود الدخول: ${s?.username || '—'} | النقاط: ${s?.points || 0}`;
+
+      await generateExcelReport(
+        `التقرير الكامل للطالب: ${student.name}`,
+        [],
+        [],
+        `student-full-${student.id}.xlsx`,
+        {
+          subtitle,
+          stats: [
+            { label: 'الاختبارات',       value: summary?.exams?.total_exams || 0 },
+            { label: 'ناجح (اختبارات)', value: summary?.exams?.passed_exams || 0 },
+            { label: 'متوسط الاختبارات',value: `${summary?.exams?.avg_score || 0}%` },
+            { label: 'التسميع',          value: summary?.recitations?.total_recitations || 0 },
+            { label: 'ناجح (تسميع)',    value: summary?.recitations?.passed_recitations || 0 },
+            { label: 'متوسط التسميع',   value: `${summary?.recitations?.avg_score || 0}%` },
+          ],
+          sections: [
+            {
+              title: `نتائج الاختبارات — الطالب: ${student.name}`,
+              sheetName: 'الاختبارات',
+              headers: ['الكورس', 'الاختبار', 'الدرجة', 'النسبة', 'الحالة', 'المحاولة', 'المدة', 'الإجابات', 'النقاط', 'التاريخ'],
+              data: examRows,
+            },
+            {
+              title: `نتائج التسميع — الطالب: ${student.name}`,
+              sheetName: 'التسميع',
+              headers: ['التسميع', 'الدرجة', 'النسبة', 'الحالة', 'المحاولة', 'المدة', 'الإجابات', 'النقاط', 'التاريخ'],
+              data: recRows,
+            },
+          ],
+          note: `تقرير صادر آلياً من منصة وثبة التعليمية للطالب ${student.name}.`,
+        }
+      );
+      toast.dismiss('st-excel-full');
+      toast.success('تم تصدير ملف Excel الشامل للطالب بنجاح');
+    } catch (err) {
+      toast.dismiss('st-excel-full');
+      toast.error('حدث خطأ أثناء تصدير ملف Excel');
+    }
+  };
+
+  // Export Exams to Excel
+  const handleExportExcelExams = async () => {
+    if (!examRows.length) { toast.error('لا توجد بيانات للاختبارات'); return; }
+    try {
+      toast.loading('جاري تجهيز ملف Excel...', { id: 'st-excel-exams' });
+      const s = summary?.student;
+      await generateExcelReport(
+        `نتائج اختبارات الطالب: ${student.name}`,
+        ['الكورس', 'الاختبار', 'الدرجة', 'النسبة', 'الحالة', 'المحاولة', 'المدة', 'الإجابات', 'النقاط', 'التاريخ'],
+        examRows,
+        `student-exams-${student.id}.xlsx`,
+        {
+          subtitle: `المرحلة: ${s?.academic_stage || '—'} | كود: ${s?.username || '—'} | النقاط: ${s?.points || 0}`,
+          sheetName: 'نتائج الاختبارات',
+          stats: [
+            { label: 'إجمالي الاختبارات', value: summary?.exams?.total_exams || 0 },
+            { label: 'ناجح',              value: summary?.exams?.passed_exams || 0 },
+            { label: 'راسب',              value: summary?.exams?.failed_exams || 0 },
+            { label: 'متوسط الدرجات',    value: `${summary?.exams?.avg_score || 0}%` },
+          ],
+          note: `سجل اختبارات الطالب ${student.name}.`,
+        }
+      );
+      toast.dismiss('st-excel-exams');
+      toast.success('تم تصدير ملف Excel للاختبارات بنجاح');
+    } catch (err) {
+      toast.dismiss('st-excel-exams');
+      toast.error('حدث خطأ أثناء تصدير ملف Excel');
+    }
+  };
+
+  // Export Recitations to Excel
+  const handleExportExcelRecs = async () => {
+    if (!recRows.length) { toast.error('لا توجد بيانات للتسميع'); return; }
+    try {
+      toast.loading('جاري تجهيز ملف Excel...', { id: 'st-excel-recs' });
+      const s = summary?.student;
+      await generateExcelReport(
+        `نتائج تسميع الطالب: ${student.name}`,
+        ['التسميع', 'الدرجة', 'النسبة', 'الحالة', 'المحاولة', 'المدة', 'الإجابات', 'النقاط', 'التاريخ'],
+        recRows,
+        `student-recs-${student.id}.xlsx`,
+        {
+          subtitle: `المرحلة: ${s?.academic_stage || '—'} | كود: ${s?.username || '—'} | النقاط: ${s?.points || 0}`,
+          sheetName: 'نتائج التسميع',
+          stats: [
+            { label: 'إجمالي التسميع', value: summary?.recitations?.total_recitations || 0 },
+            { label: 'ناجح',           value: summary?.recitations?.passed_recitations || 0 },
+            { label: 'راسب',           value: summary?.recitations?.failed_recitations || 0 },
+            { label: 'متوسط الدرجات', value: `${summary?.recitations?.avg_score || 0}%` },
+          ],
+          note: `سجل تسميع الطالب ${student.name}.`,
+        }
+      );
+      toast.dismiss('st-excel-recs');
+      toast.success('تم تصدير ملف Excel للتسميع بنجاح');
+    } catch (err) {
+      toast.dismiss('st-excel-recs');
+      toast.error('حدث خطأ أثناء تصدير ملف Excel');
+    }
+  };
+
   const exE = summary?.exams;
   const exR = summary?.recitations;
 
@@ -241,7 +354,7 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
           </div>
         )}
 
-        {/* Tabs + Print */}
+        {/* Tabs + Export / Print Actions */}
         <div className={`flex flex-wrap items-center justify-between gap-2 px-5 py-3 border-b flex-shrink-0 ${divider}`}>
           {/* When mode is fixed, show a plain label instead of a tab switcher */}
           {mode === 'both' ? (
@@ -286,7 +399,16 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
             </div>
           )}
           {mode === 'both' ? (
-            <div className="flex items-center gap-1.5 flex-shrink-0">
+            <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap">
+              {/* Tab specific export */}
+              <button
+                onClick={tab === 'exams' ? handleExportExcelExams : handleExportExcelRecs}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all border border-emerald-600/40 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 cursor-pointer"
+                title={tab === 'exams' ? 'تصدير نتائج الاختبارات إلى Excel' : 'تصدير نتائج التسميع إلى Excel'}
+              >
+                <FileSpreadsheet className="w-3 h-3 text-emerald-600" />
+                {tab === 'exams' ? 'Excel اختبارات' : 'Excel تسميع'}
+              </button>
               <button
                 onClick={tab === 'exams' ? handlePrintExams : handlePrintRecs}
                 className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all border cursor-pointer ${
@@ -294,29 +416,52 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
                     ? (dark ? 'border-orange-700 text-orange-300 hover:bg-orange-900/30' : 'border-orange-200 text-orange-600 hover:bg-orange-50')
                     : (dark ? 'border-purple-700 text-purple-300 hover:bg-purple-900/30' : 'border-purple-200 text-purple-600 hover:bg-purple-50')
                 }`}
+                title={tab === 'exams' ? 'طباعة تقرير الاختبارات بصيغة PDF' : 'طباعة تقرير التسميع بصيغة PDF'}
               >
                 <Printer className="w-3 h-3" />
-                {tab === 'exams' ? 'طباعة الاختبارات' : 'طباعة التسميع'}
+                {tab === 'exams' ? 'PDF اختبارات' : 'PDF تسميع'}
+              </button>
+
+              {/* Full student report buttons */}
+              <button
+                onClick={handleExportExcelFull}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-all shadow-sm cursor-pointer"
+                title="تصدير السجل الشامل للطالب (شامل الاختبارات والتسميع) إلى ملف Excel"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+                Excel شامل
               </button>
               <button
                 onClick={handlePrintFull}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-l from-orange-500 to-purple-600 text-white hover:opacity-90 transition-all shadow-sm cursor-pointer"
+                title="طباعة التقرير الشامل للطالب بصيغة PDF"
               >
                 <Printer className="w-3.5 h-3.5" />
-                التقرير الكامل
+                PDF شامل
               </button>
             </div>
           ) : (
-            <button
-              onClick={tab === 'exams' ? handlePrintExams : handlePrintRecs}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${tab === 'exams'
-                ? 'bg-orange-500 hover:bg-orange-600 text-white'
-                : 'bg-purple-600 hover:bg-purple-700 text-white'
-              }`}
-            >
-              <Printer className="w-3.5 h-3.5" />
-              طباعة التقرير الفردي
-            </button>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <button
+                onClick={tab === 'exams' ? handleExportExcelExams : handleExportExcelRecs}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-all shadow-sm cursor-pointer"
+                title="تصدير النتائج إلى ملف Excel"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+                تصدير Excel
+              </button>
+              <button
+                onClick={tab === 'exams' ? handlePrintExams : handlePrintRecs}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${tab === 'exams'
+                  ? 'bg-orange-500 hover:bg-orange-600 text-white'
+                  : 'bg-purple-600 hover:bg-purple-700 text-white'
+                }`}
+                title="طباعة التقرير بصيغة PDF"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                طباعة PDF
+              </button>
+            </div>
           )}
         </div>
 

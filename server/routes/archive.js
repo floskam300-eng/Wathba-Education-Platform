@@ -166,7 +166,7 @@ router.get('/exam-results', requireRole('teacher', 'assistant'), checkExamPerm, 
 
     // FIX-B2: Cap page at 10000 to prevent massive OFFSET queries
     const pageNum = Math.min(10000, Math.max(1, parseInt(page, 10) || 1));
-    const limitNum = Math.min(200, Math.max(1, parseInt(limit, 10) || 50));
+    const limitNum = Math.min(5000, Math.max(1, parseInt(limit, 10) || 50));
     const offset = (pageNum - 1) * limitNum;
 
     const whereClause = conditions.map((c, i) => (i === 0 ? `WHERE ${c}` : `AND ${c}`)).join('\n      ');
@@ -315,7 +315,7 @@ router.get('/recitation-results', requireRole('teacher', 'assistant'), checkRecP
 
     // FIX-B2: Cap page at 10000 to prevent massive OFFSET queries
     const pageNum = Math.min(10000, Math.max(1, parseInt(page, 10) || 1));
-    const limitNum = Math.min(200, Math.max(1, parseInt(limit, 10) || 50));
+    const limitNum = Math.min(5000, Math.max(1, parseInt(limit, 10) || 50));
     const offset = (pageNum - 1) * limitNum;
 
     const whereClause = conditions.map((c, i) => (i === 0 ? `WHERE ${c}` : `AND ${c}`)).join('\n      ');
@@ -385,11 +385,17 @@ router.get('/students', requireRole('teacher', 'assistant'), checkAnyPerm, async
     // appear in the archive list. Without this fix they are completely invisible.
     if (has_type === 'exams') {
       conditions.push('(COALESCE(ex.total_exams,0) + COALESCE(ex.absent_exams,0)) > 0');
+    } else if (has_type === '!exams') {
+      conditions.push('(COALESCE(ex.total_exams,0) + COALESCE(ex.absent_exams,0)) = 0');
     } else if (has_type === 'recitations') {
       conditions.push('COALESCE(rec.total_recitations,0) > 0');
+    } else if (has_type === '!recitations') {
+      conditions.push('COALESCE(rec.total_recitations,0) = 0');
     } else if (has_type === 'both') {
       conditions.push('(COALESCE(ex.total_exams,0) + COALESCE(ex.absent_exams,0)) > 0');
       conditions.push('COALESCE(rec.total_recitations,0) > 0');
+    } else if (has_type === '!both') {
+      conditions.push('((COALESCE(ex.total_exams,0) + COALESCE(ex.absent_exams,0)) = 0 OR COALESCE(rec.total_recitations,0) = 0)');
     } else {
       conditions.push('((COALESCE(ex.total_exams,0) + COALESCE(ex.absent_exams,0)) > 0 OR COALESCE(rec.total_recitations,0) > 0)');
     }
@@ -402,9 +408,14 @@ router.get('/students', requireRole('teacher', 'assistant'), checkAnyPerm, async
       params.push(like);
       p++;
     }
-    if (stage && stage !== 'الكل') {
-      conditions.push(`s.academic_stage = $${p++}`);
-      params.push(stage);
+    if (stage && stage !== 'الكل' && stage !== '!الكل') {
+      if (stage.startsWith('!')) {
+        conditions.push(`(s.academic_stage IS NULL OR s.academic_stage != $${p++})`);
+        params.push(stage.slice(1));
+      } else {
+        conditions.push(`s.academic_stage = $${p++}`);
+        params.push(stage);
+      }
     }
 
     const sortMap = {
@@ -417,7 +428,7 @@ router.get('/students', requireRole('teacher', 'assistant'), checkAnyPerm, async
     const sortDir = order === 'desc' ? 'DESC' : 'ASC';
 
     const pageNum  = Math.min(10000, Math.max(1, parseInt(page,  10) || 1));
-    const limitNum = Math.min(200,   Math.max(1, parseInt(limit, 10) || 50));
+    const limitNum = Math.min(5000,   Math.max(1, parseInt(limit, 10) || 50));
     const offset   = (pageNum - 1) * limitNum;
 
     const whereClause = conditions
@@ -721,8 +732,11 @@ router.get('/items', requireRole('teacher', 'assistant'), checkAnyPerm, async (r
   try {
     const items = [];
 
-    // 1. Fetch Exams (if type is 'all' or 'exam')
-    if (type === 'all' || type === 'exam') {
+    const shouldFetchExams = type === 'all' || type === 'exam' || type === '!recitation';
+    const shouldFetchRecs  = type === 'all' || type === 'recitation' || type === '!exam';
+
+    // 1. Fetch Exams
+    if (shouldFetchExams) {
       const examConditions = ['e.teacher_id = $1', 'e.deleted_at IS NULL'];
       const examParams = [teacherId];
       let ep = 2;
@@ -732,15 +746,22 @@ router.get('/items', requireRole('teacher', 'assistant'), checkAnyPerm, async (r
         examParams.push(`%${q.trim().slice(0, 100)}%`);
         ep++;
       }
-      if (published === 'true') {
+      if (published === 'true' || published === '!false') {
         examConditions.push(`e.is_published = true`);
-      } else if (published === 'false') {
+      } else if (published === 'false' || published === '!true') {
         examConditions.push(`e.is_published = false`);
       }
-      if (stage && stage !== 'الكل') {
-        examConditions.push(`(c.target_stage = $${ep} OR (e.course_id IS NULL AND EXISTS (SELECT 1 FROM students s WHERE s.teacher_id = $1 AND s.academic_stage = $${ep} AND s.deleted_at IS NULL AND s.is_simulation IS NOT TRUE)))`);
-        examParams.push(stage);
-        ep++;
+      if (stage && stage !== 'الكل' && stage !== '!الكل') {
+        if (stage.startsWith('!')) {
+          const excludedStage = stage.slice(1);
+          examConditions.push(`NOT (c.target_stage = $${ep} OR (e.course_id IS NULL AND EXISTS (SELECT 1 FROM students s WHERE s.teacher_id = $1 AND s.academic_stage = $${ep} AND s.deleted_at IS NULL AND s.is_simulation IS NOT TRUE)))`);
+          examParams.push(excludedStage);
+          ep++;
+        } else {
+          examConditions.push(`(c.target_stage = $${ep} OR (e.course_id IS NULL AND EXISTS (SELECT 1 FROM students s WHERE s.teacher_id = $1 AND s.academic_stage = $${ep} AND s.deleted_at IS NULL AND s.is_simulation IS NOT TRUE)))`);
+          examParams.push(stage);
+          ep++;
+        }
       }
       if (itemsMinMinutes !== null) {
         examConditions.push(`er_stats.avg_time_minutes IS NOT NULL AND er_stats.avg_time_minutes >= $${ep}`);
@@ -837,8 +858,8 @@ router.get('/items', requireRole('teacher', 'assistant'), checkAnyPerm, async (r
       });
     }
 
-    // 2. Fetch Recitations (if type is 'all' or 'recitation')
-    if (type === 'all' || type === 'recitation') {
+    // 2. Fetch Recitations
+    if (shouldFetchRecs) {
       const recConditions = ['r.teacher_id = $1', 'r.deleted_at IS NULL'];
       const recParams = [teacherId];
       let rp = 2;
@@ -848,15 +869,22 @@ router.get('/items', requireRole('teacher', 'assistant'), checkAnyPerm, async (r
         recParams.push(`%${q.trim().slice(0, 100)}%`);
         rp++;
       }
-      if (published === 'true') {
+      if (published === 'true' || published === '!false') {
         recConditions.push(`r.is_published = true`);
-      } else if (published === 'false') {
+      } else if (published === 'false' || published === '!true') {
         recConditions.push(`r.is_published = false`);
       }
-      if (stage && stage !== 'الكل') {
-        recConditions.push(`(r.academic_stage = $${rp} OR (r.course_id IS NOT NULL AND c.target_stage = $${rp}))`);
-        recParams.push(stage);
-        rp++;
+      if (stage && stage !== 'الكل' && stage !== '!الكل') {
+        if (stage.startsWith('!')) {
+          const excludedStage = stage.slice(1);
+          recConditions.push(`NOT (r.academic_stage = $${rp} OR (r.course_id IS NOT NULL AND c.target_stage = $${rp}))`);
+          recParams.push(excludedStage);
+          rp++;
+        } else {
+          recConditions.push(`(r.academic_stage = $${rp} OR (r.course_id IS NOT NULL AND c.target_stage = $${rp}))`);
+          recParams.push(stage);
+          rp++;
+        }
       }
       if (itemsMinMinutes !== null) {
         recConditions.push(`rr_stats.avg_time_minutes IS NOT NULL AND rr_stats.avg_time_minutes >= $${rp}`);
@@ -1158,15 +1186,23 @@ router.get('/item/:type/:id/students', requireRole('teacher', 'assistant'), chec
                (s.student_username && s.student_username.toLowerCase().includes(queryTerm))
         );
       }
-      if (status && status !== 'all') {
+      if (status && status !== 'all' && status !== '!all') {
         if (status === 'passed') {
           processedStudents = processedStudents.filter(s => s.status === 'passed');
+        } else if (status === '!passed') {
+          processedStudents = processedStudents.filter(s => s.status !== 'passed');
         } else if (status === 'failed') {
           processedStudents = processedStudents.filter(s => s.status === 'failed');
+        } else if (status === '!failed') {
+          processedStudents = processedStudents.filter(s => s.status !== 'failed');
         } else if (status === 'absent') {
           processedStudents = processedStudents.filter(s => s.status === 'absent');
+        } else if (status === '!absent') {
+          processedStudents = processedStudents.filter(s => s.status !== 'absent');
         } else if (status === 'retried') {
           processedStudents = processedStudents.filter(s => s.attempts_count > 1);
+        } else if (status === '!retried') {
+          processedStudents = processedStudents.filter(s => s.attempts_count <= 1);
         }
       }
 
@@ -1413,15 +1449,23 @@ router.get('/item/:type/:id/students', requireRole('teacher', 'assistant'), chec
                (s.student_username && s.student_username.toLowerCase().includes(queryTerm))
         );
       }
-      if (status && status !== 'all') {
+      if (status && status !== 'all' && status !== '!all') {
         if (status === 'passed') {
           processedStudents = processedStudents.filter(s => s.status === 'passed');
+        } else if (status === '!passed') {
+          processedStudents = processedStudents.filter(s => s.status !== 'passed');
         } else if (status === 'failed') {
           processedStudents = processedStudents.filter(s => s.status === 'failed');
+        } else if (status === '!failed') {
+          processedStudents = processedStudents.filter(s => s.status !== 'failed');
         } else if (status === 'absent') {
           processedStudents = processedStudents.filter(s => s.status === 'absent');
+        } else if (status === '!absent') {
+          processedStudents = processedStudents.filter(s => s.status !== 'absent');
         } else if (status === 'retried') {
           processedStudents = processedStudents.filter(s => s.attempts_count > 1);
+        } else if (status === '!retried') {
+          processedStudents = processedStudents.filter(s => s.attempts_count <= 1);
         }
       }
 
