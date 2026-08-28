@@ -156,21 +156,37 @@ export default function StudentRecitations() {
       setExamData(data);
       setSelectedRec(rec);
 
+      // If starting a fresh (non-resumed) session, clear stale localStorage answers
+      // to prevent old attempts or shared-device data from leaking into the new session
+      if (!data.resumed) {
+        try {
+          localStorage.removeItem(getAnsKey(rec.id));
+          localStorage.removeItem(getActKey(rec.id));
+        } catch (_) {}
+      }
+
       // Restore saved answers from server session and localStorage
       let loadedAnswers = {};
-      try {
-        const saved = localStorage.getItem(getAnsKey(rec.id));
-        const parsed = saved ? JSON.parse(saved) : {};
-        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-          loadedAnswers = parsed;
-        }
-      } catch (_) {}
+      if (data.resumed) {
+        try {
+          const saved = localStorage.getItem(getAnsKey(rec.id));
+          const parsed = saved ? JSON.parse(saved) : {};
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            loadedAnswers = parsed;
+          }
+        } catch (_) {}
+      }
 
       const serverSaved = (data.saved_answers && typeof data.saved_answers === 'object' && !Array.isArray(data.saved_answers))
         ? data.saved_answers
         : {};
       const mergedAnswers = { ...serverSaved, ...loadedAnswers };
       setAnswers(mergedAnswers);
+
+      // Set active indicator in localStorage immediately
+      try {
+        localStorage.setItem(getActKey(rec.id), '1');
+      } catch (_) {}
 
       // Safe fallback for duration (at least 1 min, default 10)
       const durationSecs = (data.recitation?.duration_minutes || rec.duration_minutes || 10) * 60;

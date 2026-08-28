@@ -185,18 +185,17 @@ export default function ExamReviewModal({ resultId, onClose }) {
               : !!studentAns;
 
             const displayOpts = isImgMulti ? [] : isTrueFalse ? ['A', 'B'] : getShuffledOpts(q, studentId, shuffleOptions);
-            const displayLabels = isTrueFalse
-              ? { A: '✅ صح', B: '❌ خطأ' }
-              : (() => {
-                  // [LABEL-FIX] Build label map from the ORIGINAL letter position.
-                  // option_labels[0] → A, [1] → B, etc. — independent of shuffle order.
-                  const ALL_LETTERS = ['A', 'B', 'C', 'D'];
-                  const defaultArabic = ['أ', 'ب', 'ج', 'د'];
-                  const rawLabels = Array.isArray(q.option_labels) && q.option_labels.length > 0 ? q.option_labels : defaultArabic;
-                  return Object.fromEntries(
-                    ALL_LETTERS.map((letter, i) => [letter, rawLabels?.[i] || defaultArabic[i] || letter])
-                  );
-                })();
+            const defaultArabic = ['أ', 'ب', 'ج', 'د'];
+            const rawLabels = Array.isArray(q.option_labels) && q.option_labels.length > 0 ? q.option_labels : defaultArabic;
+
+            const studentOptIdx = displayOpts.indexOf(studentAns);
+            const correctOptIdx = displayOpts.indexOf(correctAns);
+            const studentLabel = isTrueFalse
+              ? (studentAns === 'A' ? 'صح' : studentAns === 'B' ? 'خطأ' : studentAns)
+              : (studentOptIdx >= 0 ? (rawLabels[studentOptIdx] || defaultArabic[studentOptIdx]) : studentAns);
+            const correctLabel = isTrueFalse
+              ? (correctAns === 'A' ? 'صح' : correctAns === 'B' ? 'خطأ' : correctAns)
+              : (correctOptIdx >= 0 ? (rawLabels[correctOptIdx] || defaultArabic[correctOptIdx]) : correctAns);
 
             // Card border + background per state
             const cardCls = !answered
@@ -313,19 +312,21 @@ export default function ExamReviewModal({ resultId, onClose }) {
                 {/* MCQ / True-False options */}
                 {!isImgMulti && (
                   <div className={`grid gap-2 ${isTrueFalse ? 'grid-cols-2' : 'grid-cols-1 sm:grid-cols-2'}`}>
-                    {displayOpts.map(opt => {
+                    {displayOpts.map((opt, idx) => {
                       const text = isTrueFalse
                         ? (opt === 'A' ? 'صح' : 'خطأ')
                         : q[`option_${opt.toLowerCase()}`];
                       if (!text || text === '-') return null;
-                      const label = displayLabels[opt];
+                      const badgeLabel = isTrueFalse
+                        ? (opt === 'A' ? '✓' : '✗')
+                        : (rawLabels[idx] || defaultArabic[idx] || opt);
                       return (
                         <div key={opt}
                           className={`flex items-center gap-2.5 p-3 rounded-xl border-2 transition-all ${optStyle(opt, studentAns, correctAns)}`}>
                           <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 ${optBadge(opt, studentAns, correctAns)}`}>
-                            {isTrueFalse ? (opt === 'A' ? '✓' : '✗') : label}
+                            {badgeLabel}
                           </span>
-                          <span className="text-sm font-medium flex-1 leading-snug">{isTrueFalse ? label : <MathText text={text} />}</span>
+                          <span className="text-sm font-medium flex-1 leading-snug">{isTrueFalse ? (opt === 'A' ? '✅ صح' : '❌ خطأ') : <MathText text={text} />}</span>
                           {optIcon(opt, studentAns, correctAns)}
                         </div>
                       );
@@ -338,11 +339,11 @@ export default function ExamReviewModal({ resultId, onClose }) {
                   <div className="mt-3 flex flex-wrap gap-3 text-xs font-semibold">
                     <span className="flex items-center gap-1 text-red-600 dark:text-red-400">
                       <XCircle className="w-3.5 h-3.5" />
-                      إجابتك: {displayLabels[studentAns] || studentAns}
+                      إجابتك: {studentLabel}
                     </span>
                     <span className="flex items-center gap-1 text-green-700 dark:text-green-400">
                       <CheckCircle className="w-3.5 h-3.5" />
-                      الصحيح: {displayLabels[correctAns] || correctAns}
+                      الصحيح: {correctLabel}
                     </span>
                   </div>
                 )}

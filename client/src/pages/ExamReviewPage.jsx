@@ -258,19 +258,17 @@ export default function ExamReviewPage() {
                     ? ['A', 'B']
                     : getShuffledOpts(q, studentId, shuffleOptions);
 
-                const displayLabels = isTrueFalse
-                  ? { A: '✅ صح', B: '❌ خطأ' }
-                  : (() => {
-                      // [LABEL-FIX] Build label map keyed by the ORIGINAL option letter (A/B/C/D),
-                      // not by shuffled position. option_labels[0] is always the label for A,
-                      // option_labels[1] for B, etc., regardless of display order.
-                      const ALL_LETTERS = ['A', 'B', 'C', 'D'];
-                      const defaultArabic = ['أ', 'ب', 'ج', 'د'];
-                      const rawLabels = Array.isArray(q.option_labels) && q.option_labels.length > 0 ? q.option_labels : defaultArabic;
-                      return Object.fromEntries(
-                        ALL_LETTERS.map((letter, i) => [letter, rawLabels?.[i] || defaultArabic[i] || letter])
-                      );
-                    })();
+                const defaultArabic = ['أ', 'ب', 'ج', 'د'];
+                const rawLabels = Array.isArray(q.option_labels) && q.option_labels.length > 0 ? q.option_labels : defaultArabic;
+
+                const studentOptIdx = displayOpts.indexOf(studentAns);
+                const correctOptIdx = displayOpts.indexOf(correctAns);
+                const studentLabel = isTrueFalse
+                  ? (studentAns === 'A' ? 'صح' : studentAns === 'B' ? 'خطأ' : studentAns)
+                  : (studentOptIdx >= 0 ? (rawLabels[studentOptIdx] || defaultArabic[studentOptIdx]) : studentAns);
+                const correctLabel = isTrueFalse
+                  ? (correctAns === 'A' ? 'صح' : correctAns === 'B' ? 'خطأ' : correctAns)
+                  : (correctOptIdx >= 0 ? (rawLabels[correctOptIdx] || defaultArabic[correctOptIdx]) : correctAns);
 
                 return (
                   <div key={q.id} className={`rounded-2xl border-2 shadow-sm overflow-hidden ${
@@ -380,20 +378,22 @@ export default function ExamReviewPage() {
                       {/* MCQ / True-False options */}
                       {!isImgMulti && (
                         <div className={`grid gap-2.5 mt-4 ${isTrueFalse ? 'grid-cols-2' : 'grid-cols-1 sm:grid-cols-2'}`}>
-                          {displayOpts.map(opt => {
+                          {displayOpts.map((opt, idx) => {
                             const text = isTrueFalse
                               ? (opt === 'A' ? 'صح' : 'خطأ')
                               : q[`option_${opt.toLowerCase()}`];
                             if (!text || text === '-') return null;
-                            const label = displayLabels[opt];
+                            const badgeLabel = isTrueFalse
+                              ? (opt === 'A' ? '✓' : '✗')
+                              : (rawLabels[idx] || defaultArabic[idx] || opt);
                             return (
                               <div key={opt}
                                 className={`flex items-center gap-3 p-3.5 rounded-xl border-2 transition-all ${optStyle(opt, studentAns, correctAns)}`}>
                                 <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 ${optBadge(opt, studentAns, correctAns)}`}>
-                                  {isTrueFalse ? (opt === 'A' ? '✓' : '✗') : label}
+                                  {badgeLabel}
                                 </span>
                                 <span className={`text-sm flex-1 leading-snug ${optTextColor(opt, studentAns, correctAns)}`}>
-                                  {isTrueFalse ? label : <MathText text={text} />}
+                                  {isTrueFalse ? (opt === 'A' ? '✅ صح' : '❌ خطأ') : <MathText text={text} />}
                                 </span>
                                 {optIcon(opt, studentAns, correctAns)}
                               </div>
@@ -411,7 +411,7 @@ export default function ExamReviewPage() {
                           </span>
                           <span className={`flex items-center gap-1.5 ${dark ? 'text-green-400' : 'text-green-800'}`}>
                             <CheckCircle className="w-3.5 h-3.5" />
-                            الصحيح: <strong>{displayLabels[correctAns] || correctAns}</strong>{!isTrueFalse && q[`option_${correctAns?.toLowerCase()}`] && <> — <MathText text={q[`option_${correctAns?.toLowerCase()}`]} /></>}
+                            الصحيح: <strong>{correctLabel}</strong>{!isTrueFalse && q[`option_${correctAns?.toLowerCase()}`] && <> — <MathText text={q[`option_${correctAns?.toLowerCase()}`]} /></>}
                           </span>
                         </div>
                       )}
@@ -420,11 +420,11 @@ export default function ExamReviewPage() {
                         <div className={`mt-3 flex flex-wrap items-center gap-4 text-xs font-semibold border rounded-xl px-4 py-2.5 ${dark ? 'bg-orange-900/20 border-orange-700/40' : 'bg-orange-50 border-orange-200'}`}>
                           <span className={`flex items-center gap-1.5 ${dark ? 'text-red-400' : 'text-red-700'}`}>
                             <XCircle className="w-3.5 h-3.5" />
-                            اخترت: <strong>{displayLabels[studentAns] || studentAns}</strong>{!isTrueFalse && q[`option_${studentAns?.toLowerCase()}`] && <> — <MathText text={q[`option_${studentAns?.toLowerCase()}`]} /></>}
+                            اخترت: <strong>{studentLabel}</strong>{!isTrueFalse && q[`option_${studentAns?.toLowerCase()}`] && <> — <MathText text={q[`option_${studentAns?.toLowerCase()}`]} /></>}
                           </span>
                           <span className={`flex items-center gap-1.5 ${dark ? 'text-green-400' : 'text-green-800'}`}>
                             <CheckCircle className="w-3.5 h-3.5" />
-                            الصحيح: <strong>{displayLabels[correctAns] || correctAns}</strong>{!isTrueFalse && q[`option_${correctAns?.toLowerCase()}`] && <> — <MathText text={q[`option_${correctAns?.toLowerCase()}`]} /></>}
+                            الصحيح: <strong>{correctLabel}</strong>{!isTrueFalse && q[`option_${correctAns?.toLowerCase()}`] && <> — <MathText text={q[`option_${correctAns?.toLowerCase()}`]} /></>}
                           </span>
                         </div>
                       )}

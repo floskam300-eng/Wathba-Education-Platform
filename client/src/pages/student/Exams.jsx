@@ -547,29 +547,55 @@ export default function StudentExams() {
         return;
       }
 
+      // If starting a fresh (non-resumed) session, clear stale localStorage answers
+      // to prevent old attempts or shared-device data from leaking into the new session
+      if (!data.resumed) {
+        clearExamKeys(exam.id);
+      }
+
       // Restore saved answers from server session and localStorage
       let loadedAnswers = {};
-      try {
-        const uId = user?.id || 0;
-        const saved = localStorage.getItem(`exam_answers_${uId}_${exam.id}`) || localStorage.getItem(`exam_answers_${exam.id}`);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-            loadedAnswers = parsed;
+      if (data.resumed) {
+        try {
+          const uId = user?.id || 0;
+          const saved = localStorage.getItem(`exam_answers_${uId}_${exam.id}`);
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+              loadedAnswers = parsed;
+            }
           }
-        }
-      } catch (_) {}
+        } catch (_) {}
+      }
 
       const serverSaved = (data.saved_answers && typeof data.saved_answers === 'object' && !Array.isArray(data.saved_answers))
         ? data.saved_answers
         : {};
       const mergedAnswers = { ...serverSaved, ...loadedAnswers };
 
+      // Freeze shuffled options immutably on each question object upon opening the exam
+      const effectiveStudentId = user?.id || data.exam?.student_id || studentId || 1;
+      const frozenQuestions = (data.questions || []).map(q => ({
+        ...q,
+        _displayOpts: getShuffledOpts(q, effectiveStudentId, data.exam?.shuffle_options),
+      }));
+
+      const frozenData = {
+        ...data,
+        questions: frozenQuestions,
+      };
+
       setAnswers(mergedAnswers);
       setResult(null);
       submittedRef.current = false;
       setCurrentQuestionIdx(0);
-      setExamData(data);
+      setExamData(frozenData);
+
+      // Set active indicator in localStorage immediately
+      try {
+        const uId = user?.id || 0;
+        localStorage.setItem(`exam_active_${uId}_${exam.id}`, 'true');
+      } catch (_) {}
 
       const examForTaking = { ...exam };
       if (retryMap[exam.id]?.status === 'approved') {
@@ -800,7 +826,7 @@ export default function StudentExams() {
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                     {(() => {
-                       const shuffledOpts = shuffledQuestionsOpts[q.id] || getShuffledOpts(q, studentId, exam.shuffle_options);
+                       const shuffledOpts = q._displayOpts || shuffledQuestionsOpts[q.id] || getShuffledOpts(q, studentId, exam.shuffle_options);
                        const defaultArabic = ['أ', 'ب', 'ج', 'د'];
                        const displayLabels = Array.isArray(q.option_labels) && q.option_labels.length > 0 ? q.option_labels : defaultArabic;
                        return shuffledOpts.map((origOpt, idx) => (

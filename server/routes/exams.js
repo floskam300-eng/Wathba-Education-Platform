@@ -2054,6 +2054,15 @@ router.get('/results/:resultId/review', requireRole('teacher', 'assistant', 'stu
       }
     } else {
       storedAnswers.forEach(a => { answerMap[String(a.question_id)] = a; });
+      // Sort questions to match the exact sequence recorded in the student's submission snapshot
+      if (Array.isArray(storedAnswers) && storedAnswers.length > 0) {
+        const idOrderMap = new Map(storedAnswers.map((a, i) => [String(a.question_id), i]));
+        questionsRes.rows.sort((a, b) => {
+          const orderA = idOrderMap.has(String(a.id)) ? idOrderMap.get(String(a.id)) : 9999;
+          const orderB = idOrderMap.has(String(b.id)) ? idOrderMap.get(String(b.id)) : 9999;
+          return orderA - orderB;
+        });
+      }
     }
 
     const questions = questionsRes.rows.map(q => {
