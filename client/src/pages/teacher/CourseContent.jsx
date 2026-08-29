@@ -593,6 +593,11 @@ function RecitationItem({ r, onDragStart, onDragEnd, isDragging, onOpen, onDelet
               {r.result_count} محاولة
             </span>
           )}
+          {r.is_gate_required && (
+            <span className="text-[10px] bg-purple-50 text-purple-700 font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+              🔒 إلزامي لفتح الفصل التالي
+            </span>
+          )}
         </div>
       </div>
       <button onClick={() => onOpen(r)} className="p-1.5 text-navy-500 hover:bg-navy-50 rounded-lg flex-shrink-0 transition-colors mt-0.5" title="إدارة التسميع">

@@ -105,6 +105,7 @@ const emptyForm = {
   course_id: '', section_id: '',
   allow_retry: true,
   max_retry_attempts: '',
+  is_gate_required: false,
 };
 
 const emptyQ = { question_text: '', question_image_url: '', question_type: 'mcq', option_a: '', option_b: '', option_c: '', option_d: '', correct_answer_letter: 'A', points: 1, sub_questions: [] };
@@ -289,6 +290,7 @@ export default function Recitations() {
       section_id: rec.section_id ? String(rec.section_id) : '',
       allow_retry: rec.allow_retry !== false,
       max_retry_attempts: rec.max_retry_attempts != null ? String(rec.max_retry_attempts) : '',
+      is_gate_required: !!rec.is_gate_required,
     });
     setFormErrors({});
     setModal(true);
@@ -419,6 +421,11 @@ export default function Recitations() {
                               🔗 مرتبط بكورس
                             </span>
                           )}
+                          {rec.is_gate_required && (
+                            <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-semibold flex items-center gap-0.5">
+                              🔒 إلزامي لفتح الفصل التالي
+                            </span>
+                          )}
                         </div>
                         <h3 className={`font-bold text-sm truncate ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>{rec.title}</h3>
                         <div className={`flex items-center gap-3 mt-1 text-xs ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>
@@ -478,6 +485,11 @@ export default function Recitations() {
                         <StatusBadge rec={selectedRec} />
                         {selectedRec.academic_stage && (
                           <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-semibold">{selectedRec.academic_stage}</span>
+                        )}
+                        {selectedRec.is_gate_required && (
+                          <span className="text-xs bg-purple-100 text-purple-700 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1">
+                            🔒 إلزامي لفتح الفصل التالي
+                          </span>
                         )}
                       </div>
                       <h2 className={`text-lg font-black ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>{selectedRec.title}</h2>
@@ -885,6 +897,36 @@ export default function Recitations() {
                 </div>
               )}
 
+              {/* Gate required toggle — allows teacher to decide if this recitation locks the next chapter */}
+              {form.course_id && form.section_id && (
+                <button type="button"
+                  onClick={() => setForm(f => ({ ...f, is_gate_required: !f.is_gate_required }))}
+                  className={`flex items-start gap-3 p-3 rounded-2xl border-2 text-right transition-all ${
+                    form.is_gate_required
+                      ? 'border-purple-400 bg-purple-50 shadow-sm shadow-purple-100'
+                      : dark ? 'border-[var(--dk-border)] bg-[var(--dk-elevated)] hover:border-purple-400' : 'border-gray-200 bg-white hover:border-gray-300'
+                  }`}>
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0 transition-all ${
+                    form.is_gate_required ? 'bg-purple-500 text-white' : dark ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'
+                  }`}>🔒</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                      <span className={`font-black text-xs sm:text-sm leading-tight ${form.is_gate_required ? 'text-purple-800' : dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>
+                        إلزامي لفتح الفصل التالي (Gate)
+                      </span>
+                      <span className={`text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-full leading-none ${
+                        form.is_gate_required ? 'bg-purple-500 text-white' : dark ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'
+                      }`}>
+                        {form.is_gate_required ? 'مفعّل' : 'معطّل'}
+                      </span>
+                    </div>
+                    <p className={`text-[10px] sm:text-xs leading-relaxed hidden sm:block ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-500'}`}>
+                      عند تفعيله، لن يتمكن الطالب من فتح الفصل التالي في الكورس إلا بعد اجتياز هذا التسميع
+                    </p>
+                  </div>
+                </button>
+              )}
+
               <div className="flex gap-3 pt-2">
                 <button onClick={() => {
                   const errs = validateRecitationForm(form);
@@ -905,6 +947,7 @@ export default function Recitations() {
                     start_date: parseEgyptDateTimeToUTC(form.start_date),
                     end_date: parseEgyptDateTimeToUTC(form.end_date),
                     max_retry_attempts: form.allow_retry && !isNaN(rawMax) && rawMax >= 1 ? rawMax : null,
+                    is_gate_required: !!form.is_gate_required,
                   };
                   createMut.mutate(payload);
                 }} disabled={createMut.isPending || !form.title.trim()}

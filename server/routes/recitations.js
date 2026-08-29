@@ -208,6 +208,7 @@ router.post('/', requireRole('teacher', 'assistant'), checkManageRecitationsPerm
     schedule_type, schedule_day, start_date, end_date,
     shuffle_questions, shuffle_options,
     course_id, section_id, allow_retry, max_retry_attempts,
+    is_gate_required,
   } = req.body;
 
   if (!title || !String(title).trim())
@@ -302,8 +303,8 @@ router.post('/', requireRole('teacher', 'assistant'), checkManageRecitationsPerm
          (teacher_id, title, description, academic_stage, duration_minutes,
           total_score, pass_score, points_on_attempt, points_on_pass,
           schedule_type, schedule_day, start_date, end_date,
-          shuffle_questions, shuffle_options, course_id, section_id, allow_retry, max_retry_attempts)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+          shuffle_questions, shuffle_options, course_id, section_id, allow_retry, max_retry_attempts, is_gate_required)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
        RETURNING *`,
       [
         teacherId,
@@ -325,6 +326,7 @@ router.post('/', requireRole('teacher', 'assistant'), checkManageRecitationsPerm
         parsedSectionId,
         allow_retry !== false,
         parsedMaxRetry,
+        !!is_gate_required,
       ]
     );
     logActivity({
@@ -506,7 +508,7 @@ router.get('/student/course/:courseId', requireRole('student'), async (req, res)
     const { rows } = await pool.query(
       `SELECT r.id, r.title, r.description, r.duration_minutes, r.total_score, r.pass_score,
               r.start_date, r.end_date, r.allow_retry, r.max_retry_attempts,
-              r.schedule_type, r.section_id,
+              r.schedule_type, r.section_id, r.is_gate_required,
               (SELECT COUNT(*) FROM recitation_questions WHERE recitation_id=r.id) AS question_count,
               (SELECT COUNT(*) FROM recitation_results rr_cnt
                 WHERE rr_cnt.student_id=$1 AND rr_cnt.recitation_id=r.id
@@ -712,6 +714,7 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageRecitationsPe
     schedule_type, schedule_day, start_date, end_date,
     shuffle_questions, shuffle_options,
     course_id, section_id, allow_retry, max_retry_attempts,
+    is_gate_required,
   } = req.body;
 
   if (!title || !String(title).trim())
@@ -806,8 +809,8 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageRecitationsPe
          total_score=$5, pass_score=$6, points_on_attempt=$7, points_on_pass=$8,
          schedule_type=$9, schedule_day=$10, start_date=$11, end_date=$12,
          shuffle_questions=$13, shuffle_options=$14, course_id=$15, section_id=$16,
-         allow_retry=$17, max_retry_attempts=$18
-       WHERE id=$19 AND teacher_id=$20 RETURNING *`,
+         allow_retry=$17, max_retry_attempts=$18, is_gate_required=$19
+       WHERE id=$20 AND teacher_id=$21 RETURNING *`,
       [
         String(title).trim(), description || null, academic_stage || null, dur,
         totalSc, passSc,
@@ -820,6 +823,7 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageRecitationsPe
         parsedCourseId, parsedSectionId,
         allow_retry !== false,
         parsedMaxRetryPut,
+        is_gate_required !== undefined ? !!is_gate_required : rec.is_gate_required,
         id, teacherId,
       ]
     );

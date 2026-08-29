@@ -3028,7 +3028,7 @@ function ChapterCard({ section, expanded, onToggle, activeVideo, activePdf, acti
           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
             {isLocked ? (
               <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full flex items-center gap-1">
-                <Lock className="w-2.5 h-2.5" /> مقفل — يجب اجتياز {gateProgress?.required || 0} تسميع
+                <Lock className="w-2.5 h-2.5" /> مقفل — {gateProgress?.prevSectionTitle ? `يجب اجتياز تسميع فصل (${gateProgress.prevSectionTitle}) أولاً` : 'يجب اجتياز تسميع الفصل السابق أولاً'}
               </span>
             ) : (
               <>
@@ -3048,16 +3048,6 @@ function ChapterCard({ section, expanded, onToggle, activeVideo, activePdf, acti
                   </span>
                 )}
                 {totalItems === 0 && <span className="text-[10px] text-gray-400">فارغ</span>}
-                {gateProgress && gateProgress.required > 0 && gateProgress.passed > 0 && gateProgress.passed < gateProgress.required && (
-                  <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded-full">
-                    {gateProgress.passed}/{gateProgress.required} تسميع
-                  </span>
-                )}
-                {gateProgress && gateProgress.required > 0 && gateProgress.passed >= gateProgress.required && (
-                  <span className="text-[10px] font-bold text-green-600 dark:text-green-400 bg-green-500/10 px-1.5 py-0.5 rounded-full">
-                    ✓ اجتزت كل التسميعات
-                  </span>
-                )}
               </>
             )}
           </div>
@@ -3301,6 +3291,11 @@ function ChapterCard({ section, expanded, onToggle, activeVideo, activePdf, acti
                             </span>
                           ) : (
                             <span className={`text-[10px] ${isActive ? 'text-white/70' : 'text-purple-600/70 dark:text-purple-400/70 font-semibold'}`}>لم تُؤدَّ بعد</span>
+                          )}
+                          {rec.is_gate_required && (
+                            <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full ${isActive ? 'bg-white/20 text-white' : 'text-purple-600 dark:text-purple-300 bg-purple-500/10'}`}>
+                              🔒 إلزامي لفتح الفصل التالي
+                            </span>
                           )}
                         </div>
                       </div>

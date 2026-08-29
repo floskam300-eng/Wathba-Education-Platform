@@ -199,33 +199,41 @@ const checkFileAccess = async (decoded, fileType, fullPath) => {
         );
         hasAccess = e.rows.length > 0;
 
-        // [B11] Section lock check. If the video's section has an unpassed
+        // [B11] Section lock check. If any preceding section has an unpassed
         // gate-recitation, the student must NOT access the raw file even
         // if they had it loaded in their browser when the lock was created.
         // This mirrors the same check in /api/students/me/video-progress
         // so a stale browser can't keep streaming a now-locked video.
         if (hasAccess && section_id) {
-          const orderRes = await pool.query(
-            `SELECT id FROM sections WHERE course_id = $1 ORDER BY sort_order ASC, id ASC LIMIT 1`,
-            [course_id]
+          const gateRes = await pool.query(
+            `SELECT s.id
+               FROM sections s
+               JOIN sections target ON target.id = $3
+              WHERE s.course_id = $1
+                AND (s.sort_order < target.sort_order OR (s.sort_order = target.sort_order AND s.id < target.id))
+                AND EXISTS (
+                  SELECT 1 FROM recitations r
+                   WHERE r.section_id = s.id
+                     AND r.is_published = true
+                     AND r.deleted_at IS NULL
+                     AND r.is_gate_required = true
+                )
+                AND NOT EXISTS (
+                  SELECT 1 FROM recitations r
+                   JOIN recitation_results rr ON rr.recitation_id = r.id
+                  WHERE r.section_id = s.id
+                    AND r.is_published = true
+                    AND r.deleted_at IS NULL
+                    AND r.is_gate_required = true
+                    AND rr.student_id = $2
+                    AND rr.passed = true
+                    AND (rr.is_absent IS NULL OR rr.is_absent = false)
+                )
+              LIMIT 1`,
+            [course_id, decoded.id, section_id]
           );
-          const firstSectionId = orderRes.rows[0] ? Number(orderRes.rows[0].id) : null;
-          if (Number(section_id) !== firstSectionId) {
-            const gateRes = await pool.query(
-              `SELECT bool_or(rr.passed IS NULL OR rr.passed = false) AS has_unpassed
-                 FROM recitations r
-                 LEFT JOIN recitation_results rr
-                   ON rr.recitation_id = r.id AND rr.student_id = $2
-                     AND (rr.is_absent IS NULL OR rr.is_absent = false)
-                WHERE r.course_id = $1
-                  AND r.section_id = $3
-                  AND r.is_published = true
-                  AND r.deleted_at IS NULL`,
-              [course_id, decoded.id, section_id]
-            );
-            if (gateRes.rows[0]?.has_unpassed === true) {
-              hasAccess = false;
-            }
+          if (gateRes.rows.length > 0) {
+            hasAccess = false;
           }
         }
       }
@@ -267,27 +275,35 @@ const checkFileAccess = async (decoded, fileType, fullPath) => {
 
         // Section-lock gate (mirrors the uploaded-video branch above).
         if (hasAccess && section_id) {
-          const orderRes = await pool.query(
-            `SELECT id FROM sections WHERE course_id = $1 ORDER BY sort_order ASC, id ASC LIMIT 1`,
-            [course_id]
+          const gateRes = await pool.query(
+            `SELECT s.id
+               FROM sections s
+               JOIN sections target ON target.id = $3
+              WHERE s.course_id = $1
+                AND (s.sort_order < target.sort_order OR (s.sort_order = target.sort_order AND s.id < target.id))
+                AND EXISTS (
+                  SELECT 1 FROM recitations r
+                   WHERE r.section_id = s.id
+                     AND r.is_published = true
+                     AND r.deleted_at IS NULL
+                     AND r.is_gate_required = true
+                )
+                AND NOT EXISTS (
+                  SELECT 1 FROM recitations r
+                   JOIN recitation_results rr ON rr.recitation_id = r.id
+                  WHERE r.section_id = s.id
+                    AND r.is_published = true
+                    AND r.deleted_at IS NULL
+                    AND r.is_gate_required = true
+                    AND rr.student_id = $2
+                    AND rr.passed = true
+                    AND (rr.is_absent IS NULL OR rr.is_absent = false)
+                )
+              LIMIT 1`,
+            [course_id, decoded.id, section_id]
           );
-          const firstSectionId = orderRes.rows[0] ? Number(orderRes.rows[0].id) : null;
-          if (Number(section_id) !== firstSectionId) {
-            const gateRes = await pool.query(
-              `SELECT bool_or(rr.passed IS NULL OR rr.passed = false) AS has_unpassed
-                 FROM recitations r
-                 LEFT JOIN recitation_results rr
-                   ON rr.recitation_id = r.id AND rr.student_id = $2
-                     AND (rr.is_absent IS NULL OR rr.is_absent=false)
-                WHERE r.course_id = $1
-                  AND r.section_id = $3
-                  AND r.is_published = true
-                  AND r.deleted_at IS NULL`,
-              [course_id, decoded.id, section_id]
-            );
-            if (gateRes.rows[0]?.has_unpassed === true) {
-              hasAccess = false;
-            }
+          if (gateRes.rows.length > 0) {
+            hasAccess = false;
           }
         }
       }

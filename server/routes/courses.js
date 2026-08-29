@@ -617,56 +617,78 @@ router.get('/:id/content', requireRole('teacher', 'assistant', 'student'), async
     ]);
 
     // ── Compute section-level lock for students ──────────────────────────────
-    // A section is locked for a student if:
-    //   - it's NOT the first section (sort_order=1) — that one is always open
-    //   - there exists at least one published recitation in this course with
-    //     section_id = <this section> that the student has NOT passed
-    // The lock applies to the whole section: videos / pdfs / recitations inside
-    // are hidden until unlocked.
-    let sectionLockInfo = new Map(); // section_id → { required, passed, hasUnpassed }
+    // Sequential progression:
+    //   - First section (lowest sort_order) is always open.
+    //   - Each subsequent section is unlocked if the preceding section was unlocked
+    //     AND (preceding section has no published recitations OR student passed at least one recitation in it).
+    let sectionRecStats = new Map(); // section_id → { total, passed }
     if (isStudent) {
-      // [B5] Single round-trip: combine gate + progress with FILTER clauses.
       const { rows: gateRows } = await pool.query(
         `SELECT r.section_id,
                 count(*)::int AS total,
-                count(*) FILTER (WHERE rr.passed = true)::int AS passed,
-                bool_or(rr.passed IS NULL OR rr.passed = false) AS has_unpassed
+                count(*) FILTER (WHERE rr.passed = true)::int AS passed
            FROM recitations r
            LEFT JOIN recitation_results rr
              ON rr.recitation_id = r.id AND rr.student_id = $2
-               AND (rr.is_absent IS NULL OR rr.is_absent=false)
+               AND (rr.is_absent IS NULL OR rr.is_absent = false)
           WHERE r.course_id = $1
             AND r.is_published = true
             AND r.deleted_at IS NULL
             AND r.section_id IS NOT NULL
+            AND r.is_gate_required = true
           GROUP BY r.section_id`,
         [courseId, req.user.id]
       );
-      sectionLockInfo = new Map(
+      sectionRecStats = new Map(
         gateRows.map(r => [
           Number(r.section_id),
-          { required: r.total, passed: r.passed, hasUnpassed: r.has_unpassed },
+          { total: r.total, passed: r.passed },
         ])
       );
     }
 
-    // Identify the "first section" by sort_order. If none exists, treat as no
-    // sections at all (legacy flat-list mode — student UI will fallback).
+    // Sort sections by sort_order ASC, then id ASC
     const sortedSections = [...sectionRows].sort(
-      (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)
+      (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || (Number(a.id) - Number(b.id))
     );
-    const firstSectionId = sortedSections.length ? Number(sortedSections[0].id) : null;
 
-    // Annotate each section with lock state
-    const sectionRowsAnnotated = sortedSections.map(s => {
-      const id = Number(s.id);
-      const lock = sectionLockInfo.get(id);
-      const isFirst = firstSectionId === id;
-      const isLocked = isStudent && !isFirst && lock?.hasUnpassed === true;
+    let chainUnlocked = true;
+    let prevSec = null;
+    const sectionRowsAnnotated = sortedSections.map((s, idx) => {
+      const isFirst = idx === 0;
+      let isUnlocked = true;
+      let gateProgress = null;
+
+      if (!isStudent) {
+        isUnlocked = true;
+      } else if (isFirst) {
+        isUnlocked = true;
+      } else {
+        const prevStats = prevSec ? sectionRecStats.get(Number(prevSec.id)) : null;
+        const prevTotal = prevStats?.total || 0;
+        const prevPassed = prevStats?.passed || 0;
+        const prevHasRecs = prevTotal > 0;
+        const prevPassedGate = !prevHasRecs || prevPassed > 0;
+
+        if (chainUnlocked && prevPassedGate) {
+          isUnlocked = true;
+        } else {
+          isUnlocked = false;
+          gateProgress = {
+            prevSectionTitle: prevSec ? prevSec.title : '',
+            required: prevHasRecs ? 1 : 0,
+            passed: prevPassed > 0 ? 1 : 0,
+          };
+        }
+      }
+
+      chainUnlocked = isUnlocked;
+      prevSec = s;
+
       return {
         ...s,
-        is_unlocked_for_student: isStudent ? !isLocked : true,
-        gate_progress: lock ? { required: lock.required || 0, passed: lock.passed || 0 } : null,
+        is_unlocked_for_student: isUnlocked,
+        gate_progress: gateProgress,
       };
     });
 

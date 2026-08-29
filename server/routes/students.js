@@ -1046,31 +1046,39 @@ router.post('/me/video-progress', requireRole('student'), videoProgressLimiter, 
     const videoRow = ownershipCheck.rows[0];
     const videoSectionId = videoRow.section_id ? Number(videoRow.section_id) : null;
     if (videoSectionId) {
-      const sectionOrder = await pool.query(
-        `SELECT id, sort_order FROM sections WHERE course_id = $1 ORDER BY sort_order ASC, id ASC`,
-        [videoRow.course_id]
+      const gateRes = await pool.query(
+        `SELECT s.id, s.title
+           FROM sections s
+           JOIN sections target ON target.id = $3
+          WHERE s.course_id = $1
+            AND (s.sort_order < target.sort_order OR (s.sort_order = target.sort_order AND s.id < target.id))
+            AND EXISTS (
+              SELECT 1 FROM recitations r
+               WHERE r.section_id = s.id
+                 AND r.is_published = true
+                 AND r.deleted_at IS NULL
+                 AND r.is_gate_required = true
+            )
+            AND NOT EXISTS (
+              SELECT 1 FROM recitations r
+               JOIN recitation_results rr ON rr.recitation_id = r.id
+              WHERE r.section_id = s.id
+                AND r.is_published = true
+                AND r.deleted_at IS NULL
+                AND r.is_gate_required = true
+                AND rr.student_id = $2
+                AND rr.passed = true
+                AND (rr.is_absent IS NULL OR rr.is_absent = false)
+            )
+          ORDER BY s.sort_order ASC, s.id ASC
+          LIMIT 1`,
+        [videoRow.course_id, studentId, videoSectionId]
       );
-      const firstSectionId = sectionOrder.rows[0] ? Number(sectionOrder.rows[0].id) : null;
-      // Lock applies only to sections OTHER than the first.
-      if (videoSectionId !== firstSectionId) {
-        const gateRes = await pool.query(
-          `SELECT bool_or(rr.passed IS NULL OR rr.passed = false) AS has_unpassed
-             FROM recitations r
-             LEFT JOIN recitation_results rr
-               ON rr.recitation_id = r.id AND rr.student_id = $2
-                 AND (rr.is_absent IS NULL OR rr.is_absent = false)
-            WHERE r.course_id = $1
-              AND r.section_id = $3
-              AND r.is_published = true
-              AND r.deleted_at IS NULL`,
-          [videoRow.course_id, studentId, videoSectionId]
-        );
-        const locked = gateRes.rows[0]?.has_unpassed === true;
-        if (locked) {
-          return res.status(403).json({
-            error: 'هذا الفيديو في فصل مقفل — يجب اجتياز التسميعات المرتبطة به أولاً',
-          });
-        }
+      if (gateRes.rows.length > 0) {
+        const blockingTitle = gateRes.rows[0].title;
+        return res.status(403).json({
+          error: `هذا الفيديو في فصل مقفل — يجب اجتياز تسميع فصل (${blockingTitle}) أولاً`,
+        });
       }
     }
     let durationMinutes = parseFloat(videoRow.duration_minutes) || 0;
