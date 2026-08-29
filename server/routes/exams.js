@@ -83,7 +83,11 @@ async function markAbsentStudents(poolOrClient, examId, teacherId) {
       const r = await poolOrClient.query(
         `SELECT sce.student_id AS id
          FROM student_course_enrollment sce
+         JOIN students s ON s.id = sce.student_id
+         JOIN courses c ON c.id = sce.course_id
          WHERE sce.course_id=$1 AND sce.status='active'
+           AND s.deleted_at IS NULL AND s.is_suspended = false
+           AND (c.target_stage IS NULL OR c.target_stage = '' OR c.target_stage = s.academic_stage)
            AND NOT EXISTS (
              SELECT 1 FROM exam_results er
              WHERE er.student_id=sce.student_id AND er.exam_id=$2
@@ -314,6 +318,265 @@ router.post('/', requireRole('teacher', 'assistant'), checkManageExamsPerm, vali
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── Duplicate exam ──
+router.post('/:id/duplicate', requireRole('teacher', 'assistant'), checkManageExamsPerm, async (req, res) => {
+  const examId = parseParamId(req.params.id);
+  if (!examId) return res.status(400).json({ error: 'معرّف الاختبار غير صالح' });
+  const teacherId = getTeacherId(req);
+  const {
+    title,
+    course_id,
+    duration_minutes,
+    total_score,
+    pass_score,
+    badge_name,
+    badge_color,
+    start_date,
+    end_date,
+    shuffle_questions,
+    shuffle_options,
+    points_on_attempt,
+    points_on_pass
+  } = req.body;
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const origRes = await client.query(
+      'SELECT * FROM exams WHERE id=$1 AND teacher_id=$2 AND deleted_at IS NULL',
+      [examId, teacherId]
+    );
+    if (!origRes.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'الاختبار غير موجود' });
+    }
+    const orig = origRes.rows[0];
+
+    const targetCourseId = course_id !== undefined ? (course_id ? parseParamId(course_id) : null) : orig.course_id;
+    if (targetCourseId) {
+      const courseCheck = await client.query('SELECT id FROM courses WHERE id=$1 AND teacher_id=$2', [targetCourseId, teacherId]);
+      if (!courseCheck.rows.length) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({ error: 'الكورس المحدد غير متاح' });
+      }
+    }
+
+    const newTitle = title ? String(title).trim().slice(0, 300) : `${orig.title} (نسخة)`;
+    const newDuration = duration_minutes !== undefined ? parseInt(duration_minutes, 10) || 60 : orig.duration_minutes;
+    const newTotal = total_score !== undefined ? parseInt(total_score, 10) || 100 : orig.total_score;
+    const newPass = pass_score !== undefined ? parseInt(pass_score, 10) || 50 : orig.pass_score;
+    const newBadgeName = badge_name !== undefined ? badge_name : orig.badge_name;
+    const newBadgeColor = badge_color !== undefined ? badge_color : orig.badge_color;
+    const newShuffleQ = shuffle_questions !== undefined ? !!shuffle_questions : orig.shuffle_questions;
+    const newShuffleO = shuffle_options !== undefined ? !!shuffle_options : orig.shuffle_options;
+    const newPtsAttempt = points_on_attempt !== undefined ? parseInt(points_on_attempt, 10) || 0 : orig.points_on_attempt;
+    const newPtsPass = points_on_pass !== undefined ? parseInt(points_on_pass, 10) || 0 : orig.points_on_pass;
+    const newStartDate = start_date ? new Date(start_date) : null;
+    const newEndDate = end_date ? new Date(end_date) : null;
+
+    const newExamRes = await client.query(
+      `INSERT INTO exams (
+        title, duration_minutes, total_score, course_id, teacher_id, pass_score,
+        badge_name, badge_color, start_date, end_date, is_published,
+        shuffle_questions, shuffle_options, question_source, bank_id,
+        bank_question_count, points_on_attempt, points_on_pass,
+        bank_easy_count, bank_medium_count, bank_hard_count
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,false,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+      RETURNING *`,
+      [
+        newTitle, newDuration, newTotal, targetCourseId, teacherId, newPass,
+        newBadgeName, newBadgeColor, newStartDate, newEndDate,
+        newShuffleQ, newShuffleO, orig.question_source, orig.bank_id,
+        orig.bank_question_count, newPtsAttempt, newPtsPass,
+        orig.bank_easy_count, orig.bank_medium_count, orig.bank_hard_count
+      ]
+    );
+    const newExam = newExamRes.rows[0];
+
+    // Copy questions
+    if (orig.question_source !== 'bank') {
+      const origQuestions = await client.query(
+        'SELECT * FROM questions WHERE exam_id=$1 ORDER BY id ASC',
+        [examId]
+      );
+      for (const q of origQuestions.rows) {
+        await client.query(
+          `INSERT INTO questions (
+            question_text, question_image_url, option_a, option_b, option_c, option_d,
+            correct_answer_letter, points, exam_id, option_labels, question_type, sub_questions
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+          [
+            q.question_text || '', q.question_image_url, q.option_a || 'A', q.option_b || 'B', q.option_c || null, q.option_d || null,
+            q.correct_answer_letter || 'A', q.points || 1, newExam.id,
+            q.option_labels ? JSON.stringify(q.option_labels) : null,
+            q.question_type || 'mcq',
+            q.sub_questions ? JSON.stringify(q.sub_questions) : '[]'
+          ]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'duplicate_exam',
+      entity: { type: 'exam', id: newExam.id, name: newExam.title },
+      details: { original_exam_id: examId }
+    });
+
+    res.status(201).json(newExam);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[duplicate exam error]:', err);
+    res.status(500).json({ error: 'Server error' });
+  } finally {
+    client.release();
+  }
+});
+
+// ── Convert exam to recitation ──
+router.post('/:id/convert-to-recitation', requireRole('teacher', 'assistant'), async (req, res, next) => {
+  if (req.user.role === 'assistant') {
+    try {
+      const perms = await getPermissions(req.user.id, pool);
+      if (!perms?.can_manage_exams && !perms?.can_manage_recitations) {
+        return res.status(403).json({ error: 'Access denied: missing permission' });
+      }
+    } catch {
+      return res.status(500).json({ error: 'Server error' });
+    }
+  }
+  next();
+}, async (req, res) => {
+  const examId = parseParamId(req.params.id);
+  if (!examId) return res.status(400).json({ error: 'معرّف الاختبار غير صالح' });
+  const teacherId = getTeacherId(req);
+  const {
+    title,
+    description,
+    academic_stage,
+    course_id,
+    duration_minutes,
+    total_score,
+    pass_score,
+    schedule_type,
+    schedule_day,
+    start_date,
+    end_date,
+    allow_retry,
+    max_retry_attempts,
+    points_on_attempt,
+    points_on_pass,
+    shuffle_questions,
+    shuffle_options
+  } = req.body;
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const origRes = await client.query(
+      `SELECT e.*, c.target_stage
+       FROM exams e
+       LEFT JOIN courses c ON e.course_id = c.id
+       WHERE e.id=$1 AND e.teacher_id=$2 AND e.deleted_at IS NULL`,
+      [examId, teacherId]
+    );
+    if (!origRes.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'الاختبار غير موجود' });
+    }
+    const orig = origRes.rows[0];
+
+    const targetCourseId = course_id !== undefined ? (course_id ? parseParamId(course_id) : null) : orig.course_id;
+    let targetStage = academic_stage !== undefined ? (academic_stage || null) : (orig.target_stage || null);
+
+    if (targetCourseId) {
+      const courseCheck = await client.query('SELECT id, target_stage FROM courses WHERE id=$1 AND teacher_id=$2', [targetCourseId, teacherId]);
+      if (!courseCheck.rows.length) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({ error: 'الكورس المحدد غير متاح' });
+      }
+      if (!targetStage) targetStage = courseCheck.rows[0].target_stage || null;
+    }
+
+    const newTitle = title ? String(title).trim().slice(0, 300) : `تسميع: ${orig.title}`;
+    const newDuration = Math.min(60, Math.max(1, duration_minutes !== undefined ? parseInt(duration_minutes, 10) || 10 : Math.min(orig.duration_minutes || 10, 60)));
+    const newTotal = total_score !== undefined ? parseInt(total_score, 10) || 10 : orig.total_score;
+    const newPass = pass_score !== undefined ? parseInt(pass_score, 10) || 5 : orig.pass_score;
+    const newScheduleType = schedule_type && ['once', 'daily', 'weekly'].includes(schedule_type) ? schedule_type : 'once';
+    const newStartDate = start_date ? new Date(start_date) : null;
+    const newEndDate = end_date ? new Date(end_date) : null;
+
+    const newRecRes = await client.query(
+      `INSERT INTO recitations (
+        teacher_id, title, description, academic_stage, course_id, duration_minutes,
+        total_score, pass_score, points_on_attempt, points_on_pass, schedule_type,
+        schedule_day, start_date, end_date, is_published, shuffle_questions,
+        shuffle_options, allow_retry, max_retry_attempts
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,false,$15,$16,$17,$18)
+      RETURNING *`,
+      [
+        teacherId, newTitle, description || null, targetStage, targetCourseId, newDuration,
+        newTotal, newPass, points_on_attempt || 0, points_on_pass || 5, newScheduleType,
+        schedule_day || null, newStartDate, newEndDate,
+        shuffle_questions !== undefined ? !!shuffle_questions : orig.shuffle_questions,
+        shuffle_options !== undefined ? !!shuffle_options : orig.shuffle_options,
+        allow_retry !== undefined ? !!allow_retry : true,
+        max_retry_attempts !== undefined ? (max_retry_attempts ? parseInt(max_retry_attempts, 10) : null) : null
+      ]
+    );
+    const newRec = newRecRes.rows[0];
+
+    // Fetch questions from original exam (or bank questions if bank exam)
+    let questionsToCopy = [];
+    if (orig.question_source === 'bank' && orig.bank_id) {
+      const bankQs = await client.query('SELECT * FROM bank_questions WHERE bank_id=$1 ORDER BY id ASC', [orig.bank_id]);
+      questionsToCopy = bankQs.rows;
+    } else {
+      const examQs = await client.query('SELECT * FROM questions WHERE exam_id=$1 ORDER BY id ASC', [examId]);
+      questionsToCopy = examQs.rows;
+    }
+
+    let sortOrder = 0;
+    for (const q of questionsToCopy) {
+      const qType = q.question_type || 'mcq';
+      const safeType = ['mcq', 'true_false', 'image_multi'].includes(qType) ? qType : 'mcq';
+      await client.query(
+        `INSERT INTO recitation_questions (
+          recitation_id, question_text, question_image_url, question_type,
+          option_a, option_b, option_c, option_d, correct_answer_letter,
+          points, sort_order, option_labels, sub_questions
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+        [
+          newRec.id, q.question_text || null, q.question_image_url || null, safeType,
+          q.option_a || null, q.option_b || null, q.option_c || null, q.option_d || null,
+          q.correct_answer_letter, q.points || 1, sortOrder++,
+          q.option_labels ? JSON.stringify(q.option_labels) : null,
+          q.sub_questions ? JSON.stringify(q.sub_questions) : '[]'
+        ]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'convert_exam_to_recitation',
+      entity: { type: 'recitation', id: newRec.id, name: newRec.title },
+      details: { source_exam_id: examId, questions_copied: questionsToCopy.length }
+    });
+
+    res.status(201).json(newRec);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[convert exam to recitation error]:', err);
+    res.status(500).json({ error: 'Server error' });
+  } finally {
+    client.release();
   }
 });
 
@@ -1250,18 +1513,23 @@ router.get('/student/available', requireRole('student'), async (req, res) => {
               e.badge_name, e.start_date, e.end_date, c.name as course_name,
               er.id as already_taken, er.score
        FROM exams e
+       JOIN students st ON st.id = $1 AND st.teacher_id = e.teacher_id
        LEFT JOIN courses c ON e.course_id = c.id
-       LEFT JOIN student_course_enrollment sce ON e.course_id = sce.course_id AND sce.student_id = $1
+       LEFT JOIN student_course_enrollment sce ON e.course_id = sce.course_id AND sce.student_id = $1 AND sce.status = 'active'
        LEFT JOIN exam_results er ON e.id = er.exam_id AND er.student_id = $1 AND er.is_latest = true
          AND er.is_absent = false
          AND NOT EXISTS (
            SELECT 1 FROM exam_retry_requests rr
            WHERE rr.student_id = $1 AND rr.exam_id = e.id AND rr.status = 'approved'
          )
-       WHERE e.teacher_id = (SELECT teacher_id FROM students WHERE id = $1)
-         AND (e.course_id IS NULL OR sce.status = 'active')
+       WHERE e.teacher_id = st.teacher_id
          AND e.is_published = true
-         AND e.deleted_at IS NULL`,
+         AND e.deleted_at IS NULL
+         AND (
+           (e.course_id IS NOT NULL AND sce.status = 'active' AND (c.target_stage IS NULL OR c.target_stage = '' OR c.target_stage = st.academic_stage))
+           OR
+           (e.course_id IS NULL)
+         )`,
       [req.user.id]
     );
     res.json(result.rows);
@@ -1340,12 +1608,17 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
               e.question_source, e.bank_id, e.bank_question_count,
               e.bank_easy_count, e.bank_medium_count, e.bank_hard_count
        FROM exams e
-       LEFT JOIN student_course_enrollment sce ON e.course_id = sce.course_id AND sce.student_id = $1
+       JOIN students s ON s.id = $1 AND s.teacher_id = e.teacher_id
+       LEFT JOIN courses c ON e.course_id = c.id
+       LEFT JOIN student_course_enrollment sce ON e.course_id = sce.course_id AND sce.student_id = $1 AND sce.status = 'active'
        WHERE e.id = $2
          AND e.is_published = true
          AND e.deleted_at IS NULL
-         AND e.teacher_id = (SELECT teacher_id FROM students WHERE id = $1)
-         AND (e.course_id IS NULL OR sce.status = 'active')`,
+         AND (
+           (e.course_id IS NOT NULL AND sce.status = 'active' AND (c.target_stage IS NULL OR c.target_stage = '' OR c.target_stage = s.academic_stage))
+           OR
+           (e.course_id IS NULL)
+         )`,
       [studentId, examId]
     );
     if (!eligibilityCheck.rows.length) {
@@ -1625,12 +1898,17 @@ router.post('/:id/submit', submitLimiter, requireRole('student'), async (req, re
 
     const ec = await pool.query(
       `SELECT e.* FROM exams e
-       LEFT JOIN student_course_enrollment sce ON e.course_id = sce.course_id AND sce.student_id = $1
+       JOIN students s ON s.id = $1 AND s.teacher_id = e.teacher_id
+       LEFT JOIN courses c ON e.course_id = c.id
+       LEFT JOIN student_course_enrollment sce ON e.course_id = sce.course_id AND sce.student_id = $1 AND sce.status = 'active'
        WHERE e.id = $2
          AND e.is_published = true
          AND e.deleted_at IS NULL
-         AND e.teacher_id = (SELECT teacher_id FROM students WHERE id = $1)
-         AND (e.course_id IS NULL OR sce.status = 'active')`,
+         AND (
+           (e.course_id IS NOT NULL AND sce.status = 'active' AND (c.target_stage IS NULL OR c.target_stage = '' OR c.target_stage = s.academic_stage))
+           OR
+           (e.course_id IS NULL)
+         )`,
       [studentId, examId]
     );
     if (!ec.rows.length)

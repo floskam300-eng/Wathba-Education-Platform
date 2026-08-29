@@ -5,7 +5,7 @@ import {
   BookOpen, Plus, Trash2, Settings, ChevronDown, ChevronUp,
   CheckCircle, XCircle, Clock, Users, BarChart2, Edit3,
   AlertCircle, Eye, FileText, RefreshCw, Flame, Image as ImageIcon, Upload, ZoomIn,
-  Gift, X, Loader2, Search
+  Gift, X, Loader2, Search, Copy, ArrowRightLeft,
 } from 'lucide-react';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
@@ -190,6 +190,10 @@ export default function Recitations() {
   // [retake-grant] Modal showing every student who took the selected recitation
   // with a "grant retake" button next to each name.
   const [grantModalRecId, setGrantModalRecId] = useState(null);
+  // Duplicate modal: recitation object or null
+  const [duplicateModal, setDuplicateModal] = useState(null);
+  // Convert to exam modal: recitation object or null
+  const [convertModal, setConvertModal] = useState(null);
 
   const { data: recitations = [], isLoading } = useQuery({
     queryKey: ['recitations'],
@@ -246,6 +250,27 @@ export default function Recitations() {
       setDeleteId(null);
     },
     onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ'),
+  });
+
+  const duplicateMut = useMutation({
+    mutationFn: ({ id, data }) => api.post(`/recitations/${id}/duplicate`, data),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['recitations'] });
+      toast.success('تم تكرار التسميع بنجاح (كمسودة)');
+      setDuplicateModal(null);
+    },
+    onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ أثناء تكرار التسميع'),
+  });
+
+  const convertMut = useMutation({
+    mutationFn: ({ id, data }) => api.post(`/recitations/${id}/convert-to-exam`, data),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['recitations'] });
+      qc.invalidateQueries({ queryKey: ['exams'] });
+      toast.success('تم تحويل التسميع إلى اختبار بنجاح (كمسودة)');
+      setConvertModal(null);
+    },
+    onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ أثناء تحويل التسميع'),
   });
 
   const publishMut = useMutation({
@@ -448,6 +473,47 @@ export default function Recitations() {
                           className={`p-1.5 rounded-lg transition-colors ${dark ? 'text-emerald-400 hover:bg-[var(--dk-elevated)]' : 'text-emerald-500 hover:bg-emerald-50'}`}>
                           <Gift className="w-3.5 h-3.5" />
                         </button>
+                        {/* Duplicate */}
+                        <button
+                          onClick={e => {
+                            e.stopPropagation();
+                            setDuplicateModal({
+                              id: rec.id,
+                              title: `${rec.title} (نسخة)`,
+                              description: rec.description || '',
+                              academic_stage: rec.academic_stage || '',
+                              course_id: rec.course_id || '',
+                              duration_minutes: rec.duration_minutes || 10,
+                              total_score: rec.total_score || 10,
+                              pass_score: rec.pass_score || 5,
+                              schedule_type: rec.schedule_type || 'once',
+                              start_date: fmtDateLocal(rec.start_date) || '',
+                              end_date: fmtDateLocal(rec.end_date) || '',
+                            });
+                          }}
+                          title="تكرار التسميع (نسخة جديدة)"
+                          className={`p-1.5 rounded-lg transition-colors ${dark ? 'text-indigo-400 hover:bg-[var(--dk-elevated)]' : 'text-indigo-500 hover:bg-indigo-50'}`}>
+                          <Copy className="w-3.5 h-3.5" />
+                        </button>
+                        {/* Convert to exam */}
+                        <button
+                          onClick={e => {
+                            e.stopPropagation();
+                            setConvertModal({
+                              id: rec.id,
+                              title: `اختبار: ${rec.title}`,
+                              course_id: rec.course_id || '',
+                              duration_minutes: 60,
+                              total_score: rec.total_score || 100,
+                              pass_score: rec.pass_score || 50,
+                              start_date: fmtDateLocal(rec.start_date) || '',
+                              end_date: fmtDateLocal(rec.end_date) || '',
+                            });
+                          }}
+                          title="تحويل إلى اختبار"
+                          className={`p-1.5 rounded-lg transition-colors ${dark ? 'text-orange-400 hover:bg-[var(--dk-elevated)]' : 'text-orange-500 hover:bg-orange-50'}`}>
+                          <ArrowRightLeft className="w-3.5 h-3.5" />
+                        </button>
                         {/* [N5-FIX] Hide edit button for published recitations —
                             server rejects edits anyway (409) but showing the button
                             misleads the teacher. */}
@@ -542,6 +608,41 @@ export default function Recitations() {
                       عرض الأسئلة ({selectedRec.question_count})
                     </button>
                   )}
+
+                  <button
+                    onClick={() => setDuplicateModal({
+                      id: selectedRec.id,
+                      title: `${selectedRec.title} (نسخة)`,
+                      description: selectedRec.description || '',
+                      academic_stage: selectedRec.academic_stage || '',
+                      course_id: selectedRec.course_id || '',
+                      duration_minutes: selectedRec.duration_minutes || 10,
+                      total_score: selectedRec.total_score || 10,
+                      pass_score: selectedRec.pass_score || 5,
+                      schedule_type: selectedRec.schedule_type || 'once',
+                      start_date: fmtDateLocal(selectedRec.start_date) || '',
+                      end_date: fmtDateLocal(selectedRec.end_date) || '',
+                    })}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${dark ? 'bg-[var(--dk-elevated)] text-indigo-300 hover:bg-[var(--dk-surface)]' : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'}`}>
+                    <Copy className="w-4 h-4" />
+                    تكرار التسميع
+                  </button>
+
+                  <button
+                    onClick={() => setConvertModal({
+                      id: selectedRec.id,
+                      title: `اختبار: ${selectedRec.title}`,
+                      course_id: selectedRec.course_id || '',
+                      duration_minutes: 60,
+                      total_score: selectedRec.total_score || 100,
+                      pass_score: selectedRec.pass_score || 50,
+                      start_date: fmtDateLocal(selectedRec.start_date) || '',
+                      end_date: fmtDateLocal(selectedRec.end_date) || '',
+                    })}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${dark ? 'bg-[var(--dk-elevated)] text-orange-300 hover:bg-[var(--dk-surface)]' : 'bg-orange-50 text-orange-700 hover:bg-orange-100'}`}>
+                    <ArrowRightLeft className="w-4 h-4" />
+                    تحويل إلى اختبار
+                  </button>
                 </div>
 
                 {/* Results */}
@@ -995,6 +1096,286 @@ export default function Recitations() {
           onClose={() => setGrantModalRecId(null)}
           dark={dark}
         />
+      )}
+
+      {/* Duplicate Recitation Modal */}
+      {duplicateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" dir="rtl">
+          <div className={`w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl p-6 shadow-2xl ${dark ? 'bg-[var(--dk-surface)]' : 'bg-white'}`}>
+            <h3 className={`font-black text-lg mb-2 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>
+              تكرار التسميع (نسخ الأسئلة لتسميع جديد)
+            </h3>
+            <p className={`text-xs mb-4 ${dark ? 'text-indigo-300 bg-indigo-950/40 border-indigo-800' : 'text-indigo-800 bg-indigo-50 border-indigo-200'} p-3 rounded-xl border`}>
+              💡 سيتم نسخ جميع أسئلة هذا التسميع إلى تسميع جديد كمسودة، مع إمكانية تعديل الاسم، المرحلة، والمواعيد أدناه.
+            </p>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!duplicateModal.title?.trim()) {
+                  toast.error('عنوان التسميع مطلوب');
+                  return;
+                }
+                const payload = {
+                  ...duplicateModal,
+                  start_date: parseEgyptDateTimeToUTC(duplicateModal.start_date),
+                  end_date: parseEgyptDateTimeToUTC(duplicateModal.end_date),
+                };
+                duplicateMut.mutate({ id: duplicateModal.id, data: payload });
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className={`block text-xs font-bold mb-1 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>العنوان *</label>
+                <input
+                  type="text"
+                  value={duplicateModal.title}
+                  onChange={(e) => setDuplicateModal({ ...duplicateModal, title: e.target.value })}
+                  className={`w-full rounded-xl px-3 py-2 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`}
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={`block text-xs font-bold mb-1 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>المرحلة الدراسية</label>
+                  <select
+                    value={duplicateModal.academic_stage}
+                    onChange={(e) => setDuplicateModal({ ...duplicateModal, academic_stage: e.target.value })}
+                    className={`w-full rounded-xl px-3 py-2 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`}
+                  >
+                    <option value="">بدون مرحلة</option>
+                    {PG_STAGES.map((st) => (
+                      <option key={st} value={st}>{st}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className={`block text-xs font-bold mb-1 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>الكورس (اختياري)</label>
+                  <select
+                    value={duplicateModal.course_id}
+                    onChange={(e) => {
+                      const selCourse = courses.find((c) => String(c.id) === String(e.target.value));
+                      setDuplicateModal({
+                        ...duplicateModal,
+                        course_id: e.target.value,
+                        academic_stage: selCourse?.target_stage || duplicateModal.academic_stage,
+                      });
+                    }}
+                    className={`w-full rounded-xl px-3 py-2 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`}
+                  >
+                    <option value="">بدون كورس</option>
+                    {courses.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} {c.target_stage ? `(${c.target_stage})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className={`block text-xs font-bold mb-1 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>المدة (دقيقة)</label>
+                  <input
+                    type="number"
+                    value={duplicateModal.duration_minutes}
+                    onChange={(e) => setDuplicateModal({ ...duplicateModal, duration_minutes: e.target.value })}
+                    className={`w-full rounded-xl px-3 py-2 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`}
+                    min="1"
+                    max="60"
+                  />
+                </div>
+                <div>
+                  <label className={`block text-xs font-bold mb-1 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>الدرجة الكلية</label>
+                  <input
+                    type="number"
+                    value={duplicateModal.total_score}
+                    onChange={(e) => setDuplicateModal({ ...duplicateModal, total_score: e.target.value })}
+                    className={`w-full rounded-xl px-3 py-2 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`}
+                    min="1"
+                  />
+                </div>
+                <div>
+                  <label className={`block text-xs font-bold mb-1 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>درجة النجاح</label>
+                  <input
+                    type="number"
+                    value={duplicateModal.pass_score}
+                    onChange={(e) => setDuplicateModal({ ...duplicateModal, pass_score: e.target.value })}
+                    className={`w-full rounded-xl px-3 py-2 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`}
+                    min="0"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={`block text-xs font-bold mb-1 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>تاريخ البدء</label>
+                  <input
+                    type="datetime-local"
+                    value={duplicateModal.start_date}
+                    onChange={(e) => setDuplicateModal({ ...duplicateModal, start_date: e.target.value })}
+                    className={`w-full rounded-xl px-3 py-2 border text-xs ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`}
+                  />
+                </div>
+                <div>
+                  <label className={`block text-xs font-bold mb-1 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>تاريخ الانتهاء</label>
+                  <input
+                    type="datetime-local"
+                    value={duplicateModal.end_date}
+                    onChange={(e) => setDuplicateModal({ ...duplicateModal, end_date: e.target.value })}
+                    className={`w-full rounded-xl px-3 py-2 border text-xs ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`}
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-3 border-t border-gray-100 dark:border-[var(--dk-border)]">
+                <button
+                  type="button"
+                  onClick={() => setDuplicateModal(null)}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-bold ${dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-600'}`}
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  disabled={duplicateMut.isPending}
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl text-sm transition-colors"
+                >
+                  {duplicateMut.isPending ? 'جاري الإنشاء...' : 'تأكيد إنشاء النسخة'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Convert to Exam Modal */}
+      {convertModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" dir="rtl">
+          <div className={`w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl p-6 shadow-2xl ${dark ? 'bg-[var(--dk-surface)]' : 'bg-white'}`}>
+            <h3 className={`font-black text-lg mb-2 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>
+              تحويل التسميع إلى اختبار
+            </h3>
+            <p className={`text-xs mb-4 ${dark ? 'text-orange-300 bg-orange-950/40 border-orange-800' : 'text-orange-800 bg-orange-50 border-orange-200'} p-3 rounded-xl border`}>
+              🔄 سيتم إنشاء اختبار جديد يحتوي على نفس أسئلة التسميع الأصلية كمسودة، مع بقاء التسميع كما هو دون تعديل أو حذف.
+            </p>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!convertModal.title?.trim()) {
+                  toast.error('عنوان الاختبار مطلوب');
+                  return;
+                }
+                const payload = {
+                  ...convertModal,
+                  start_date: parseEgyptDateTimeToUTC(convertModal.start_date),
+                  end_date: parseEgyptDateTimeToUTC(convertModal.end_date),
+                };
+                convertMut.mutate({ id: convertModal.id, data: payload });
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className={`block text-xs font-bold mb-1 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>عنوان الاختبار الجديد *</label>
+                <input
+                  type="text"
+                  value={convertModal.title}
+                  onChange={(e) => setConvertModal({ ...convertModal, title: e.target.value })}
+                  className={`w-full rounded-xl px-3 py-2 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className={`block text-xs font-bold mb-1 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>الكورس المرتبط (اختياري)</label>
+                <select
+                  value={convertModal.course_id}
+                  onChange={(e) => setConvertModal({ ...convertModal, course_id: e.target.value })}
+                  className={`w-full rounded-xl px-3 py-2 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`}
+                >
+                  <option value="">عام (بدون كورس)</option>
+                  {courses.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} {c.target_stage ? `(${c.target_stage})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className={`block text-xs font-bold mb-1 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>المدة (دقيقة)</label>
+                  <input
+                    type="number"
+                    value={convertModal.duration_minutes}
+                    onChange={(e) => setConvertModal({ ...convertModal, duration_minutes: e.target.value })}
+                    className={`w-full rounded-xl px-3 py-2 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`}
+                    min="1"
+                    max="600"
+                  />
+                </div>
+                <div>
+                  <label className={`block text-xs font-bold mb-1 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>الدرجة الكلية</label>
+                  <input
+                    type="number"
+                    value={convertModal.total_score}
+                    onChange={(e) => setConvertModal({ ...convertModal, total_score: e.target.value })}
+                    className={`w-full rounded-xl px-3 py-2 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`}
+                    min="1"
+                  />
+                </div>
+                <div>
+                  <label className={`block text-xs font-bold mb-1 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>درجة النجاح</label>
+                  <input
+                    type="number"
+                    value={convertModal.pass_score}
+                    onChange={(e) => setConvertModal({ ...convertModal, pass_score: e.target.value })}
+                    className={`w-full rounded-xl px-3 py-2 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`}
+                    min="0"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={`block text-xs font-bold mb-1 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>تاريخ البدء</label>
+                  <input
+                    type="datetime-local"
+                    value={convertModal.start_date}
+                    onChange={(e) => setConvertModal({ ...convertModal, start_date: e.target.value })}
+                    className={`w-full rounded-xl px-3 py-2 border text-xs ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`}
+                  />
+                </div>
+                <div>
+                  <label className={`block text-xs font-bold mb-1 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>تاريخ الانتهاء</label>
+                  <input
+                    type="datetime-local"
+                    value={convertModal.end_date}
+                    onChange={(e) => setConvertModal({ ...convertModal, end_date: e.target.value })}
+                    className={`w-full rounded-xl px-3 py-2 border text-xs ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`}
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-3 border-t border-gray-100 dark:border-[var(--dk-border)]">
+                <button
+                  type="button"
+                  onClick={() => setConvertModal(null)}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-bold ${dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-600'}`}
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  disabled={convertMut.isPending}
+                  className="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-bold py-2.5 rounded-xl text-sm transition-colors"
+                >
+                  {convertMut.isPending ? 'جاري التحويل...' : 'تأكيد التحويل إلى اختبار'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

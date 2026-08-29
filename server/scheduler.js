@@ -54,8 +54,10 @@ async function runCheck() {
           const r = await _pool.query(
             `SELECT s.id FROM students s
                JOIN student_course_enrollment sce ON s.id = sce.student_id
+               JOIN courses c ON c.id = sce.course_id
               WHERE sce.course_id=$1 AND sce.status='active'
-                AND s.deleted_at IS NULL AND s.is_suspended = false`,
+                AND s.deleted_at IS NULL AND s.is_suspended = false
+                AND (c.target_stage IS NULL OR c.target_stage = '' OR c.target_stage = s.academic_stage)`,
             [exam.course_id]
           );
           studentIds = r.rows.map(row => row.id);
@@ -262,7 +264,13 @@ async function runRecitationSchedule() {
           let studentIds = [];
           if (rec.course_id) {
             const r = await _pool.query(
-              "SELECT student_id AS id FROM student_course_enrollment WHERE course_id=$1 AND status='active'",
+              `SELECT s.id
+                 FROM students s
+                 JOIN student_course_enrollment sce ON s.id = sce.student_id
+                 JOIN courses c ON c.id = sce.course_id
+                WHERE sce.course_id=$1 AND sce.status='active'
+                  AND s.deleted_at IS NULL AND s.is_suspended = false
+                  AND (c.target_stage IS NULL OR c.target_stage = '' OR c.target_stage = s.academic_stage)`,
               [rec.course_id]
             );
             studentIds = r.rows.map(row => row.id);
@@ -371,7 +379,13 @@ async function runRecitationSchedule() {
         let studentIds = [];
         if (rec.course_id) {
           const r = await _pool.query(
-            "SELECT student_id AS id FROM student_course_enrollment WHERE course_id=$1 AND status='active'",
+            `SELECT s.id
+               FROM students s
+               JOIN student_course_enrollment sce ON s.id = sce.student_id
+               JOIN courses c ON c.id = sce.course_id
+              WHERE sce.course_id=$1 AND sce.status='active'
+                AND s.deleted_at IS NULL AND s.is_suspended = false
+                AND (c.target_stage IS NULL OR c.target_stage = '' OR c.target_stage = s.academic_stage)`,
             [rec.course_id]
           );
           studentIds = r.rows.map(row => row.id);

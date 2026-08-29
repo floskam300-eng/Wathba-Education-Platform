@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import {
   FileText, Plus, Pencil, Trash2, HelpCircle, ChevronDown, ChevronUp,
   Printer, Filter, Calendar, User, Eye, Search, AlertCircle,
-  Globe, EyeOff, CheckCircle, XCircle, History,
+  Globe, EyeOff, CheckCircle, XCircle, History, Copy, ArrowRightLeft,
 } from 'lucide-react';
 import Modal from '../../components/ui/Modal';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
@@ -79,6 +79,10 @@ export default function TeacherExams() {
   const [formErrors, setFormErrors] = useState({});
   // Attempt history modal: { examId, studentId, studentName, examTitle }
   const [attemptHistory, setAttemptHistory] = useState(null);
+  // Duplicate modal: exam object or null
+  const [duplicateModal, setDuplicateModal] = useState(null);
+  // Convert to recitation modal: exam object or null
+  const [convertModal, setConvertModal] = useState(null);
 
   const { data: exams = [], isLoading } = useQuery({
     queryKey: ['exams'],
@@ -139,6 +143,27 @@ export default function TeacherExams() {
   const deleteMut = useMutation({
     mutationFn: (id) => api.delete(`/exams/${id}`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['exams'] }); toast.success('تم حذف الاختبار'); },
+  });
+
+  const duplicateMut = useMutation({
+    mutationFn: ({ id, data }) => api.post(`/exams/${id}/duplicate`, data),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['exams'] });
+      toast.success('تم تكرار الاختبار بنجاح (كمسودة)');
+      setDuplicateModal(null);
+    },
+    onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ أثناء تكرار الاختبار'),
+  });
+
+  const convertMut = useMutation({
+    mutationFn: ({ id, data }) => api.post(`/exams/${id}/convert-to-recitation`, data),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['exams'] });
+      qc.invalidateQueries({ queryKey: ['recitations'] });
+      toast.success('تم تحويل الاختبار إلى تسميع بنجاح (كمسودة)');
+      setConvertModal(null);
+    },
+    onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ أثناء تحويل الاختبار'),
   });
 
   const publishMut = useMutation({
@@ -434,6 +459,44 @@ export default function TeacherExams() {
                         {canManageExams && (
                           <button onClick={() => openEdit(ex)} className="p-1.5 text-navy-600 hover:bg-navy-50 rounded-lg" title="تعديل">
                             <Pencil className="w-4 h-4" />
+                          </button>
+                        )}
+                        {canManageExams && (
+                          <button
+                            onClick={() => setDuplicateModal({
+                              id: ex.id,
+                              title: `${ex.title} (نسخة)`,
+                              duration_minutes: ex.duration_minutes || 60,
+                              total_score: ex.total_score || 100,
+                              pass_score: ex.pass_score || 50,
+                              course_id: ex.course_id || '',
+                              start_date: fmtDateLocal(ex.start_date) || '',
+                              end_date: fmtDateLocal(ex.end_date) || '',
+                              shuffle_questions: !!ex.shuffle_questions,
+                              shuffle_options: !!ex.shuffle_options,
+                            })}
+                            className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg"
+                            title="تكرار الاختبار (نسخة جديدة)">
+                            <Copy className="w-4 h-4" />
+                          </button>
+                        )}
+                        {canManageExams && (
+                          <button
+                            onClick={() => setConvertModal({
+                              id: ex.id,
+                              title: `تسميع: ${ex.title}`,
+                              academic_stage: courseStageMap[ex.course_id] || '',
+                              course_id: ex.course_id || '',
+                              duration_minutes: Math.min(ex.duration_minutes || 10, 60),
+                              total_score: ex.total_score || 10,
+                              pass_score: ex.pass_score || 5,
+                              schedule_type: 'once',
+                              start_date: fmtDateLocal(ex.start_date) || '',
+                              end_date: fmtDateLocal(ex.end_date) || '',
+                            })}
+                            className="p-1.5 text-purple-600 hover:bg-purple-50 rounded-lg"
+                            title="تحويل إلى تسميع">
+                            <ArrowRightLeft className="w-4 h-4" />
                           </button>
                         )}
                         {canManageExams && (
@@ -1057,6 +1120,287 @@ export default function TeacherExams() {
           examTitle={attemptHistory.examTitle}
           onClose={() => setAttemptHistory(null)}
         />
+      )}
+
+      {/* Duplicate Exam Modal */}
+      {duplicateModal && (
+        <Modal
+          isOpen={true}
+          onClose={() => setDuplicateModal(null)}
+          title="تكرار الاختبار (نسخ الأسئلة إلى اختبار جديد)"
+        >
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!duplicateModal.title?.trim()) {
+                toast.error('عنوان الاختبار مطلوب');
+                return;
+              }
+              const payload = {
+                ...duplicateModal,
+                start_date: parseEgyptDateTimeToUTC(duplicateModal.start_date),
+                end_date: parseEgyptDateTimeToUTC(duplicateModal.end_date),
+              };
+              duplicateMut.mutate({ id: duplicateModal.id, data: payload });
+            }}
+            className="space-y-4"
+          >
+            <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-xs text-indigo-800 font-medium">
+              💡 سيتم نسخ جميع أسئلة هذا الاختبار إلى اختبار جديد كمسودة، مع إمكانية تعديل الاسم، الكورس، والتواريخ أدناه.
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-navy-700 mb-1">عنوان النسخة الجديدة *</label>
+              <input
+                type="text"
+                value={duplicateModal.title}
+                onChange={(e) => setDuplicateModal({ ...duplicateModal, title: e.target.value })}
+                className="input-field"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-navy-700 mb-1">الكورس المرتبط (اختياري)</label>
+              <select
+                value={duplicateModal.course_id}
+                onChange={(e) => setDuplicateModal({ ...duplicateModal, course_id: e.target.value })}
+                className="input-field"
+              >
+                <option value="">عام (بدون كورس)</option>
+                {courses.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} {c.target_stage ? `(${c.target_stage})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="block text-sm font-bold text-navy-700 mb-1">المدة (دقيقة)</label>
+                <input
+                  type="number"
+                  value={duplicateModal.duration_minutes}
+                  onChange={(e) => setDuplicateModal({ ...duplicateModal, duration_minutes: e.target.value })}
+                  className="input-field"
+                  min="1"
+                  max="600"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-navy-700 mb-1">الدرجة الكلية</label>
+                <input
+                  type="number"
+                  value={duplicateModal.total_score}
+                  onChange={(e) => setDuplicateModal({ ...duplicateModal, total_score: e.target.value })}
+                  className="input-field"
+                  min="1"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-navy-700 mb-1">درجة النجاح</label>
+                <input
+                  type="number"
+                  value={duplicateModal.pass_score}
+                  onChange={(e) => setDuplicateModal({ ...duplicateModal, pass_score: e.target.value })}
+                  className="input-field"
+                  min="0"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-bold text-navy-700 mb-1">تاريخ البدء</label>
+                <input
+                  type="datetime-local"
+                  value={duplicateModal.start_date}
+                  onChange={(e) => setDuplicateModal({ ...duplicateModal, start_date: e.target.value })}
+                  className="input-field text-xs"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-navy-700 mb-1">تاريخ الانتهاء</label>
+                <input
+                  type="datetime-local"
+                  value={duplicateModal.end_date}
+                  onChange={(e) => setDuplicateModal({ ...duplicateModal, end_date: e.target.value })}
+                  className="input-field text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-3 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setDuplicateModal(null)}
+                className="flex-1 btn-secondary"
+              >
+                إلغاء
+              </button>
+              <button
+                type="submit"
+                disabled={duplicateMut.isPending}
+                className="flex-1 btn-primary"
+              >
+                {duplicateMut.isPending ? 'جاري الإنشاء...' : 'تأكيد إنشاء النسخة'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Convert to Recitation Modal */}
+      {convertModal && (
+        <Modal
+          isOpen={true}
+          onClose={() => setConvertModal(null)}
+          title="تحويل الاختبار إلى تسميع"
+        >
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!convertModal.title?.trim()) {
+                toast.error('عنوان التسميع مطلوب');
+                return;
+              }
+              const payload = {
+                ...convertModal,
+                start_date: parseEgyptDateTimeToUTC(convertModal.start_date),
+                end_date: parseEgyptDateTimeToUTC(convertModal.end_date),
+              };
+              convertMut.mutate({ id: convertModal.id, data: payload });
+            }}
+            className="space-y-4"
+          >
+            <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 text-xs text-purple-800 font-medium">
+              🔄 سيتم إنشاء تسميع جديد يحتوي على نفس أسئلة الاختبار الأصلية كمسودة، مع بقاء هذا الاختبار كما هو دون تعديل أو حذف.
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-navy-700 mb-1">عنوان التسميع *</label>
+              <input
+                type="text"
+                value={convertModal.title}
+                onChange={(e) => setConvertModal({ ...convertModal, title: e.target.value })}
+                className="input-field"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-bold text-navy-700 mb-1">المرحلة الدراسية</label>
+                <select
+                  value={convertModal.academic_stage}
+                  onChange={(e) => setConvertModal({ ...convertModal, academic_stage: e.target.value })}
+                  className="input-field text-sm"
+                >
+                  <option value="">بدون تحديد مرحلة</option>
+                  {STAGES.map((st) => (
+                    <option key={st} value={st}>{st}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-navy-700 mb-1">الكورس (اختياري)</label>
+                <select
+                  value={convertModal.course_id}
+                  onChange={(e) => {
+                    const selectedC = courses.find((c) => String(c.id) === String(e.target.value));
+                    setConvertModal({
+                      ...convertModal,
+                      course_id: e.target.value,
+                      academic_stage: selectedC?.target_stage || convertModal.academic_stage,
+                    });
+                  }}
+                  className="input-field text-sm"
+                >
+                  <option value="">بدون كورس</option>
+                  {courses.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} {c.target_stage ? `(${c.target_stage})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="block text-sm font-bold text-navy-700 mb-1">المدة (دقيقة)</label>
+                <input
+                  type="number"
+                  value={convertModal.duration_minutes}
+                  onChange={(e) => setConvertModal({ ...convertModal, duration_minutes: e.target.value })}
+                  className="input-field"
+                  min="1"
+                  max="60"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-navy-700 mb-1">الدرجة الكلية</label>
+                <input
+                  type="number"
+                  value={convertModal.total_score}
+                  onChange={(e) => setConvertModal({ ...convertModal, total_score: e.target.value })}
+                  className="input-field"
+                  min="1"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-navy-700 mb-1">درجة النجاح</label>
+                <input
+                  type="number"
+                  value={convertModal.pass_score}
+                  onChange={(e) => setConvertModal({ ...convertModal, pass_score: e.target.value })}
+                  className="input-field"
+                  min="0"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-bold text-navy-700 mb-1">تاريخ البدء</label>
+                <input
+                  type="datetime-local"
+                  value={convertModal.start_date}
+                  onChange={(e) => setConvertModal({ ...convertModal, start_date: e.target.value })}
+                  className="input-field text-xs"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-navy-700 mb-1">تاريخ الانتهاء</label>
+                <input
+                  type="datetime-local"
+                  value={convertModal.end_date}
+                  onChange={(e) => setConvertModal({ ...convertModal, end_date: e.target.value })}
+                  className="input-field text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-3 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setConvertModal(null)}
+                className="flex-1 btn-secondary"
+              >
+                إلغاء
+              </button>
+              <button
+                type="submit"
+                disabled={convertMut.isPending}
+                className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 rounded-xl transition-colors"
+              >
+                {convertMut.isPending ? 'جاري التحويل...' : 'تأكيد التحويل إلى تسميع'}
+              </button>
+            </div>
+          </form>
+        </Modal>
       )}
     </div>
   );

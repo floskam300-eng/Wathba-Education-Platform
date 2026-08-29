@@ -499,8 +499,9 @@ router.get('/student/course/:courseId', requireRole('student'), async (req, res)
       `SELECT sce.id FROM student_course_enrollment sce
          JOIN courses c ON c.id = sce.course_id
         WHERE sce.student_id=$1 AND sce.course_id=$2 AND sce.status='active'
-          AND c.teacher_id=$3 AND c.is_published=true`,
-      [studentId, courseId, teacherId]
+          AND c.teacher_id=$3 AND c.is_published=true
+          AND (c.target_stage IS NULL OR c.target_stage = '' OR c.target_stage = $4)`,
+      [studentId, courseId, teacherId, academic_stage]
     );
     if (!enrRows.length) return res.status(403).json({ error: 'غير مسجل في هذا الكورس' });
 
@@ -545,7 +546,8 @@ router.get('/student/course/:courseId', requireRole('student'), async (req, res)
         WHERE r.teacher_id=$3
           AND r.is_published=true
           AND r.deleted_at IS NULL
-          AND (r.course_id=$2 OR (r.course_id IS NULL AND (r.academic_stage IS NULL OR r.academic_stage=$4)))
+          AND (r.academic_stage IS NULL OR r.academic_stage = '' OR r.academic_stage = $4)
+          AND (r.course_id=$2 OR r.course_id IS NULL)
         ORDER BY r.created_at ASC`,
       [studentId, courseId, teacherId, academic_stage]
     );
@@ -609,15 +611,14 @@ router.get('/student/list', requireRole('student'), async (req, res) => {
         WHERE r.teacher_id=$2
           AND r.is_published=true
           AND r.deleted_at IS NULL
+          AND (r.academic_stage IS NULL OR r.academic_stage = '' OR r.academic_stage=$3)
           AND (
-            r.academic_stage IS NULL
-            OR r.academic_stage=$3
-            OR (
-              r.course_id IS NOT NULL
-              AND EXISTS (
-                SELECT 1 FROM student_course_enrollment sce
-                WHERE sce.student_id=$1 AND sce.course_id=r.course_id AND sce.status='active'
-              )
+            r.course_id IS NULL
+            OR EXISTS (
+              SELECT 1 FROM student_course_enrollment sce
+              JOIN courses c ON c.id = sce.course_id
+              WHERE sce.student_id=$1 AND sce.course_id=r.course_id AND sce.status='active'
+                AND (c.target_stage IS NULL OR c.target_stage = '' OR c.target_stage = $3)
             )
           )
         ORDER BY r.start_date DESC NULLS LAST, r.created_at DESC`,
@@ -838,6 +839,254 @@ router.put('/:id', requireRole('teacher', 'assistant'), checkManageRecitationsPe
   } catch (err) {
     console.error('[recitations PUT /:id]', err.message);
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── Duplicate recitation ──
+router.post('/:id/duplicate', requireRole('teacher', 'assistant'), checkManageRecitationsPerm, async (req, res) => {
+  const recitationId = parseParamId(req.params.id);
+  if (!recitationId) return res.status(400).json({ error: 'معرّف التسميع غير صالح' });
+  const teacherId = getTeacherId(req);
+  const {
+    title,
+    description,
+    academic_stage,
+    course_id,
+    duration_minutes,
+    total_score,
+    pass_score,
+    schedule_type,
+    schedule_day,
+    start_date,
+    end_date,
+    allow_retry,
+    max_retry_attempts,
+    points_on_attempt,
+    points_on_pass,
+    shuffle_questions,
+    shuffle_options,
+    section_id,
+    is_gate_required
+  } = req.body;
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const origRes = await client.query(
+      'SELECT * FROM recitations WHERE id=$1 AND teacher_id=$2 AND deleted_at IS NULL',
+      [recitationId, teacherId]
+    );
+    if (!origRes.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'التسميع غير موجود' });
+    }
+    const orig = origRes.rows[0];
+
+    const targetCourseId = course_id !== undefined ? (course_id ? parseParamId(course_id) : null) : orig.course_id;
+    let targetStage = academic_stage !== undefined ? (academic_stage || null) : orig.academic_stage;
+
+    if (targetCourseId) {
+      const courseCheck = await client.query('SELECT id, target_stage FROM courses WHERE id=$1 AND teacher_id=$2', [targetCourseId, teacherId]);
+      if (!courseCheck.rows.length) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({ error: 'الكورس المحدد غير متاح' });
+      }
+      if (!targetStage) targetStage = courseCheck.rows[0].target_stage || null;
+    }
+
+    const newTitle = title ? String(title).trim().slice(0, 300) : `${orig.title} (نسخة)`;
+    const newDesc = description !== undefined ? (description || null) : orig.description;
+    const newDuration = Math.min(60, Math.max(1, duration_minutes !== undefined ? parseInt(duration_minutes, 10) || 10 : orig.duration_minutes || 10));
+    const newTotal = total_score !== undefined ? parseInt(total_score, 10) || 10 : orig.total_score;
+    const newPass = pass_score !== undefined ? parseInt(pass_score, 10) || 5 : orig.pass_score;
+    const newScheduleType = schedule_type && ['once', 'daily', 'weekly'].includes(schedule_type) ? schedule_type : (orig.schedule_type || 'once');
+    const newScheduleDay = schedule_day !== undefined ? schedule_day : orig.schedule_day;
+    const newStartDate = start_date ? new Date(start_date) : null;
+    const newEndDate = end_date ? new Date(end_date) : null;
+
+    const newRecRes = await client.query(
+      `INSERT INTO recitations (
+        teacher_id, title, description, academic_stage, course_id, duration_minutes,
+        total_score, pass_score, points_on_attempt, points_on_pass, schedule_type,
+        schedule_day, start_date, end_date, is_published, shuffle_questions,
+        shuffle_options, allow_retry, max_retry_attempts, section_id, is_gate_required
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,false,$15,$16,$17,$18,$19,$20)
+      RETURNING *`,
+      [
+        teacherId, newTitle, newDesc, targetStage, targetCourseId, newDuration,
+        newTotal, newPass,
+        points_on_attempt !== undefined ? parseInt(points_on_attempt, 10) || 0 : orig.points_on_attempt,
+        points_on_pass !== undefined ? parseInt(points_on_pass, 10) || 0 : orig.points_on_pass,
+        newScheduleType, newScheduleDay, newStartDate, newEndDate,
+        shuffle_questions !== undefined ? !!shuffle_questions : orig.shuffle_questions,
+        shuffle_options !== undefined ? !!shuffle_options : orig.shuffle_options,
+        allow_retry !== undefined ? !!allow_retry : orig.allow_retry,
+        max_retry_attempts !== undefined ? (max_retry_attempts ? parseInt(max_retry_attempts, 10) : null) : orig.max_retry_attempts,
+        section_id !== undefined ? section_id : orig.section_id,
+        is_gate_required !== undefined ? !!is_gate_required : orig.is_gate_required
+      ]
+    );
+    const newRec = newRecRes.rows[0];
+
+    // Copy questions
+    const origQuestions = await client.query(
+      'SELECT * FROM recitation_questions WHERE recitation_id=$1 ORDER BY sort_order ASC, id ASC',
+      [recitationId]
+    );
+    for (const q of origQuestions.rows) {
+      await client.query(
+        `INSERT INTO recitation_questions (
+          recitation_id, question_text, question_image_url, question_type,
+          option_a, option_b, option_c, option_d, correct_answer_letter,
+          points, sort_order, option_labels, sub_questions
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+        [
+          newRec.id, q.question_text, q.question_image_url, q.question_type || 'mcq',
+          q.option_a, q.option_b, q.option_c, q.option_d, q.correct_answer_letter,
+          q.points || 1, q.sort_order || 0,
+          q.option_labels ? JSON.stringify(q.option_labels) : null,
+          q.sub_questions ? JSON.stringify(q.sub_questions) : '[]'
+        ]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'duplicate_recitation',
+      entity: { type: 'recitation', id: newRec.id, name: newRec.title },
+      details: { original_recitation_id: recitationId }
+    });
+
+    res.status(201).json(newRec);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[duplicate recitation error]:', err);
+    res.status(500).json({ error: 'Server error' });
+  } finally {
+    client.release();
+  }
+});
+
+// ── Convert recitation to exam ──
+router.post('/:id/convert-to-exam', requireRole('teacher', 'assistant'), async (req, res, next) => {
+  if (req.user.role === 'assistant') {
+    try {
+      const perms = await getPermissions(req.user.id, pool);
+      if (!perms?.can_manage_recitations && !perms?.can_manage_exams) {
+        return res.status(403).json({ error: 'Access denied: missing permission' });
+      }
+    } catch {
+      return res.status(500).json({ error: 'Server error' });
+    }
+  }
+  next();
+}, async (req, res) => {
+  const recitationId = parseParamId(req.params.id);
+  if (!recitationId) return res.status(400).json({ error: 'معرّف التسميع غير صالح' });
+  const teacherId = getTeacherId(req);
+  const {
+    title,
+    course_id,
+    duration_minutes,
+    total_score,
+    pass_score,
+    badge_name,
+    badge_color,
+    start_date,
+    end_date,
+    shuffle_questions,
+    shuffle_options,
+    points_on_attempt,
+    points_on_pass
+  } = req.body;
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const origRes = await client.query(
+      'SELECT * FROM recitations WHERE id=$1 AND teacher_id=$2 AND deleted_at IS NULL',
+      [recitationId, teacherId]
+    );
+    if (!origRes.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'التسميع غير موجود' });
+    }
+    const orig = origRes.rows[0];
+
+    const targetCourseId = course_id !== undefined ? (course_id ? parseParamId(course_id) : null) : orig.course_id;
+    if (targetCourseId) {
+      const courseCheck = await client.query('SELECT id FROM courses WHERE id=$1 AND teacher_id=$2', [targetCourseId, teacherId]);
+      if (!courseCheck.rows.length) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({ error: 'الكورس المحدد غير متاح' });
+      }
+    }
+
+    const newTitle = title ? String(title).trim().slice(0, 300) : `اختبار: ${orig.title}`;
+    const newDuration = duration_minutes !== undefined ? parseInt(duration_minutes, 10) || 60 : 60;
+    const newTotal = total_score !== undefined ? parseInt(total_score, 10) || 100 : (orig.total_score || 100);
+    const newPass = pass_score !== undefined ? parseInt(pass_score, 10) || 50 : (orig.pass_score || 50);
+    const newStartDate = start_date ? new Date(start_date) : null;
+    const newEndDate = end_date ? new Date(end_date) : null;
+
+    const newExamRes = await client.query(
+      `INSERT INTO exams (
+        title, duration_minutes, total_score, course_id, teacher_id, pass_score,
+        badge_name, badge_color, start_date, end_date, is_published,
+        shuffle_questions, shuffle_options, question_source,
+        points_on_attempt, points_on_pass
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,false,$11,$12,'manual',$13,$14)
+      RETURNING *`,
+      [
+        newTitle, newDuration, newTotal, targetCourseId, teacherId, newPass,
+        badge_name || null, badge_color || '#FF8C00', newStartDate, newEndDate,
+        shuffle_questions !== undefined ? !!shuffle_questions : orig.shuffle_questions,
+        shuffle_options !== undefined ? !!shuffle_options : orig.shuffle_options,
+        points_on_attempt !== undefined ? parseInt(points_on_attempt, 10) || 0 : orig.points_on_attempt,
+        points_on_pass !== undefined ? parseInt(points_on_pass, 10) || 0 : orig.points_on_pass
+      ]
+    );
+    const newExam = newExamRes.rows[0];
+
+    // Copy recitation questions into questions
+    const origQuestions = await client.query(
+      'SELECT * FROM recitation_questions WHERE recitation_id=$1 ORDER BY sort_order ASC, id ASC',
+      [recitationId]
+    );
+    for (const q of origQuestions.rows) {
+      await client.query(
+        `INSERT INTO questions (
+          question_text, question_image_url, option_a, option_b, option_c, option_d,
+          correct_answer_letter, points, exam_id, option_labels, question_type, sub_questions
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+        [
+          q.question_text || '', q.question_image_url || null, q.option_a || 'A', q.option_b || 'B',
+          q.option_c || null, q.option_d || null, q.correct_answer_letter || 'A', q.points || 1,
+          newExam.id, q.option_labels ? JSON.stringify(q.option_labels) : null,
+          q.question_type || 'mcq',
+          q.sub_questions ? JSON.stringify(q.sub_questions) : '[]'
+        ]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    logActivity({
+      teacherId, actor: getActor(req), ip: getIp(req),
+      action: 'convert_recitation_to_exam',
+      entity: { type: 'exam', id: newExam.id, name: newExam.title },
+      details: { source_recitation_id: recitationId, questions_copied: origQuestions.rows.length }
+    });
+
+    res.status(201).json(newExam);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[convert recitation to exam error]:', err);
+    res.status(500).json({ error: 'Server error' });
+  } finally {
+    client.release();
   }
 });
 
@@ -1503,10 +1752,16 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
 
     // Load recitation — strict tenant + stage isolation
     const { rows: recRows } = await pool.query(
-      `SELECT * FROM recitations
-        WHERE id=$1 AND teacher_id=$2 AND is_published=true AND deleted_at IS NULL
-          AND (academic_stage IS NULL OR academic_stage=$3)`,
-      [id, teacherId, academic_stage]
+      `SELECT r.* FROM recitations r
+       LEFT JOIN courses c ON r.course_id = c.id
+       LEFT JOIN student_course_enrollment sce ON r.course_id = sce.course_id AND sce.student_id = $1 AND sce.status = 'active'
+       WHERE r.id=$2 AND r.teacher_id=$3 AND r.is_published=true AND r.deleted_at IS NULL
+         AND (r.academic_stage IS NULL OR r.academic_stage = '' OR r.academic_stage=$4)
+         AND (
+           r.course_id IS NULL
+           OR (sce.status = 'active' AND (c.target_stage IS NULL OR c.target_stage = '' OR c.target_stage = $4))
+         )`,
+      [studentId, id, teacherId, academic_stage]
     );
     if (!recRows.length) return res.status(404).json({ error: 'التسميع غير متاح' });
     const rec = recRows[0];
@@ -1749,10 +2004,16 @@ router.post('/:id/submit', recitationSubmitLimiter, requireRole('student'), asyn
 
     // Load recitation
     const { rows: recRows } = await pool.query(
-      `SELECT * FROM recitations
-        WHERE id=$1 AND teacher_id=$2 AND is_published=true AND deleted_at IS NULL
-          AND (academic_stage IS NULL OR academic_stage=$3)`,
-      [id, teacherId, academic_stage]
+      `SELECT r.* FROM recitations r
+       LEFT JOIN courses c ON r.course_id = c.id
+       LEFT JOIN student_course_enrollment sce ON r.course_id = sce.course_id AND sce.student_id = $1 AND sce.status = 'active'
+       WHERE r.id=$2 AND r.teacher_id=$3 AND r.is_published=true AND r.deleted_at IS NULL
+         AND (r.academic_stage IS NULL OR r.academic_stage = '' OR r.academic_stage=$4)
+         AND (
+           r.course_id IS NULL
+           OR (sce.status = 'active' AND (c.target_stage IS NULL OR c.target_stage = '' OR c.target_stage = $4))
+         )`,
+      [studentId, id, teacherId, academic_stage]
     );
     if (!recRows.length) return res.status(404).json({ error: 'التسميع غير متاح' });
     const rec = recRows[0];
@@ -2313,8 +2574,10 @@ async function markAbsentRecitationStudents(poolOrClient, recitationId, teacherI
         `SELECT s.id
            FROM students s
            JOIN student_course_enrollment sce ON s.id = sce.student_id
+           JOIN courses c ON c.id = sce.course_id
           WHERE sce.course_id = $1 AND sce.status = 'active'
             AND s.teacher_id = $2 AND s.deleted_at IS NULL AND s.is_suspended = false
+            AND (c.target_stage IS NULL OR c.target_stage = '' OR c.target_stage = s.academic_stage)
             AND NOT EXISTS (
               SELECT 1 FROM recitation_results rr
                WHERE rr.student_id = s.id AND rr.recitation_id = $3

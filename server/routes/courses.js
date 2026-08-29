@@ -518,7 +518,8 @@ router.get('/:id/content', requireRole('teacher', 'assistant', 'student'), async
          JOIN students s ON s.id = sce.student_id
          WHERE sce.student_id=$1 AND sce.course_id=$2 AND sce.status='active'
            AND c.teacher_id = s.teacher_id
-           AND c.is_published = true`,
+           AND c.is_published = true
+           AND (c.target_stage IS NULL OR c.target_stage = '' OR c.target_stage = s.academic_stage)`,
         [req.user.id, courseId]
       );
       if (!enrollment.rows.length) {
@@ -1131,6 +1132,7 @@ router.get('/student/my-courses', requireRole('student'), async (req, res) => {
        WHERE sce.student_id = $1
          AND sce.status = 'active'
          AND c.is_published = true
+         AND (c.target_stage IS NULL OR c.target_stage = '' OR c.target_stage = st.academic_stage)
        GROUP BY c.id, sce.enrollment_date, sce.status
        ORDER BY c.created_at DESC`,
       [req.user.id]

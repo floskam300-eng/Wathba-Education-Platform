@@ -361,11 +361,12 @@ router.put('/:id', requireRole('teacher', 'assistant'), (req, res, next) => chec
   const safeGender = gender || null;
   try {
     const existingRes = await pool.query(
-      'SELECT id, username FROM students WHERE id = $1 AND teacher_id = $2 AND deleted_at IS NULL',
+      'SELECT id, username, academic_stage FROM students WHERE id = $1 AND teacher_id = $2 AND deleted_at IS NULL',
       [studentId, teacherId]
     );
     if (!existingRes.rows.length) return res.status(404).json({ error: 'Student not found' });
     const currentStudent = existingRes.rows[0];
+    const oldStage = currentStudent.academic_stage;
 
     // Determine target username (if provided, use new one; otherwise keep existing)
     let newUsername = currentStudent.username;
@@ -395,6 +396,55 @@ router.put('/:id', requireRole('teacher', 'assistant'), (req, res, next) => chec
     }
     const result = await pool.query(query, params);
     if (!result.rows.length) return res.status(404).json({ error: 'Student not found' });
+
+    // When student's academic stage changes:
+    // 1. Deactivate active enrollments for courses belonging specifically to other academic stages
+    // 2. Auto-enroll in new stage free published courses
+    // 3. Clean up pending course enrollment requests for old stage courses
+    if (academic_stage !== undefined && academic_stage !== null && academic_stage !== oldStage) {
+      try {
+        await pool.query(
+          `UPDATE student_course_enrollment
+           SET status = 'inactive'
+           WHERE student_id = $1
+             AND course_id IN (
+               SELECT id FROM courses
+               WHERE teacher_id = $2
+                 AND target_stage IS NOT NULL
+                 AND target_stage != ''
+                 AND target_stage != $3
+             )`,
+          [studentId, teacherId, academic_stage || '']
+        );
+
+        await pool.query(
+          `INSERT INTO student_course_enrollment (student_id, course_id, status)
+           SELECT $1, c.id, 'active'
+           FROM courses c
+           WHERE c.teacher_id = $2 AND c.is_free = true AND c.is_published = true
+             AND (c.target_stage IS NULL OR c.target_stage = '' OR c.target_stage = $3)
+           ON CONFLICT (student_id, course_id) DO UPDATE SET status = 'active'`,
+          [studentId, teacherId, academic_stage || '']
+        );
+
+        await pool.query(
+          `DELETE FROM course_enrollment_requests
+           WHERE student_id = $1
+             AND course_id IN (
+               SELECT id FROM courses
+               WHERE teacher_id = $2
+                 AND target_stage IS NOT NULL
+                 AND target_stage != ''
+                 AND target_stage != $3
+             )
+             AND status = 'pending'`,
+          [studentId, teacherId, academic_stage || '']
+        );
+      } catch (stageUpdateErr) {
+        console.warn('[PUT /students/:id] Stage enrollment sync warning:', stageUpdateErr.message);
+      }
+    }
+
     invalidateStudentAuthCache(studentId);
     invalidateCache(teacherId);
     const { password: _, plain_password: __, ...safe } = result.rows[0];
@@ -1200,7 +1250,16 @@ router.get('/me/dashboard', requireRole('student'), async (req, res) => {
   const studentId = req.user.id;
   try {
     const [enrollments, results, progress, badges, student, totalExamsRes] = await Promise.all([
-      pool.query('SELECT sce.*, c.name, c.description, c.thumbnail_url FROM student_course_enrollment sce JOIN courses c ON sce.course_id=c.id WHERE sce.student_id=$1 AND c.is_published=true', [studentId]),
+      pool.query(`
+        SELECT sce.*, c.name, c.description, c.thumbnail_url
+        FROM student_course_enrollment sce
+        JOIN courses c ON sce.course_id = c.id
+        JOIN students s ON s.id = sce.student_id
+        WHERE sce.student_id = $1
+          AND sce.status = 'active'
+          AND c.is_published = true
+          AND (c.target_stage IS NULL OR c.target_stage = '' OR c.target_stage = s.academic_stage)
+      `, [studentId]),
       // BUG-5 FIX: filter e.deleted_at IS NULL so soft-deleted exams don't appear
       // in the student's recent results list on their dashboard.
       pool.query('SELECT er.*, e.title as exam_title, e.total_score, e.pass_score FROM exam_results er JOIN exams e ON er.exam_id=e.id WHERE er.student_id=$1 AND er.is_latest=true AND e.deleted_at IS NULL ORDER BY er.created_at DESC LIMIT 5', [studentId]),
