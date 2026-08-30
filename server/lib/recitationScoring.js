@@ -1,5 +1,6 @@
 const { sendEvent } = require('../sse');
 const { invalidateCache } = require('./analyticsCache');
+const pool = require('../db/connection');
 
 const VALID_ANSWER_LETTERS = new Set(['A', 'B', 'C', 'D']);
 

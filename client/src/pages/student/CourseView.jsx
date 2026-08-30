@@ -1717,7 +1717,17 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
         setCountdown(3);
       }
     } catch (e) {
-      toast.error(e.response?.data?.error || 'حدث خطأ');
+      const errData = e.response?.data || {};
+      if (errData.already_submitted) {
+        toast(errData.error || 'تم أداء هذا التسميع بالفعل', { icon: 'ℹ️' });
+        qc.invalidateQueries({ queryKey: ['course-content', courseId] });
+        qc.invalidateQueries({ queryKey: ['course-recitations', courseId] });
+        qc.invalidateQueries({ queryKey: ['student-recitations'] });
+        qc.invalidateQueries({ queryKey: ['student-recitation-results'] });
+        onRefresh?.();
+      } else {
+        toast.error(errData.error || 'حدث خطأ أثناء بدء التسميع');
+      }
     } finally {
       setStartingId(null); // [M3-FIX]
     }
@@ -1743,35 +1753,59 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
         localStorage.removeItem(getAnsKey(selectedRec.id));
         localStorage.removeItem(getActKey(selectedRec.id));
       } catch (_) {}
+      if (data.result) {
+        setSelectedRec(prev => prev ? {
+          ...prev,
+          result_id: data.result.id,
+          my_score: data.score,
+          my_passed: data.passed,
+          my_ever_passed: data.passed || prev.my_ever_passed,
+          my_correct: data.correct,
+          my_wrong: data.wrong,
+          my_submitted_at: data.result.created_at || new Date().toISOString(),
+          my_attempt_count: (parseInt(prev.my_attempt_count, 10) || 0) + 1,
+        } : prev);
+      }
       setResult(data);
       setView('result');
       setSubmitting(false);
       submittedRef.current = false;
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ['course-recitations', courseId] }),
-        qc.invalidateQueries({ queryKey: ['student-recitations'] }),
-        qc.invalidateQueries({ queryKey: ['student-recitation-results'] }),
-        qc.invalidateQueries({ queryKey: ['student-courses'] }),
-      ]);
-      onRefresh?.();
-      // [M4-FIX] If the student just passed, notify parent to switch to videos tab
-      if (data.passed) onPassed?.();
+      try {
+        await Promise.all([
+          qc.invalidateQueries({ queryKey: ['course-content', courseId] }),
+          qc.invalidateQueries({ queryKey: ['course-recitations', courseId] }),
+          qc.invalidateQueries({ queryKey: ['student-recitations'] }),
+          qc.invalidateQueries({ queryKey: ['student-recitation-results'] }),
+          qc.invalidateQueries({ queryKey: ['student-courses'] }),
+        ]);
+        onRefresh?.();
+        // [M4-FIX] If the student just passed, notify parent to switch to videos tab
+        if (data.passed) onPassed?.();
+      } catch (_) {}
     } catch (e) {
       if (!mountedRef.current) return;
       submittedRef.current = false;
       setSubmitting(false);
       const errData = e.response?.data || {};
-      if (errData.already_submitted) {
+      if (errData.already_submitted || errData.error?.includes('بالفعل') || errData.error?.includes('جلسة') || errData.error?.includes('استنفدت')) {
         toast('تم تسليم التسميع بالفعل', { icon: 'ℹ️' });
         try {
           localStorage.removeItem(getAnsKey(selectedRec?.id));
           localStorage.removeItem(getActKey(selectedRec?.id));
         } catch (_) {}
-        setView('list');
-        qc.invalidateQueries({ queryKey: ['course-recitations', courseId] });
-        qc.invalidateQueries({ queryKey: ['student-recitations'] });
-        qc.invalidateQueries({ queryKey: ['student-recitation-results'] });
-        onRefresh?.();
+        if (errData.result) {
+          setResult(errData);
+          setView('result');
+        } else {
+          setView('list');
+        }
+        try {
+          qc.invalidateQueries({ queryKey: ['course-content', courseId] });
+          qc.invalidateQueries({ queryKey: ['course-recitations', courseId] });
+          qc.invalidateQueries({ queryKey: ['student-recitations'] });
+          qc.invalidateQueries({ queryKey: ['student-recitation-results'] });
+          onRefresh?.();
+        } catch (_) {}
       } else if (errData.timer_expired) {
         toast.error('انتهى وقت التسميع');
         try {
@@ -1779,10 +1813,13 @@ function RecitationsTabPanel({ recitations, courseId, onRefresh, onPassed }) {
           localStorage.removeItem(getActKey(selectedRec?.id));
         } catch (_) {}
         setView('list');
-        qc.invalidateQueries({ queryKey: ['course-recitations', courseId] });
-        qc.invalidateQueries({ queryKey: ['student-recitations'] });
-        qc.invalidateQueries({ queryKey: ['student-recitation-results'] });
-        onRefresh?.();
+        try {
+          qc.invalidateQueries({ queryKey: ['course-content', courseId] });
+          qc.invalidateQueries({ queryKey: ['course-recitations', courseId] });
+          qc.invalidateQueries({ queryKey: ['student-recitations'] });
+          qc.invalidateQueries({ queryKey: ['student-recitation-results'] });
+          onRefresh?.();
+        } catch (_) {}
       } else {
         toast.error(errData.error || 'حدث خطأ أثناء التسليم');
       }
@@ -2663,6 +2700,22 @@ export default function CourseView() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [content]);
+
+  // Keep activeRec synchronized with latest content data after refetch/submission
+  useEffect(() => {
+    if (!activeRec || !content) return;
+    let found = null;
+    for (const s of (content.sections || [])) {
+      found = (s.recitations || []).find(r => String(r.id) === String(activeRec.id));
+      if (found) break;
+    }
+    if (!found && content.uncategorized) {
+      found = (content.uncategorized.recitations || []).find(r => String(r.id) === String(activeRec.id));
+    }
+    if (found) {
+      setActiveRec(found);
+    }
+  }, [content, activeRec?.id]);
 
   const toggleSection = (sectionId) => setExpandedSections(prev => ({ ...prev, [sectionId]: !prev[sectionId] }));
   const currentVideo = activeVideo;

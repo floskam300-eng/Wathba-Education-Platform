@@ -562,8 +562,13 @@ router.get('/:id/content', requireRole('teacher', 'assistant', 'student'), async
       ? pool.query(
           `SELECT r.id, r.title, r.description, r.duration_minutes, r.total_score, r.pass_score,
                   r.start_date, r.end_date, r.allow_retry, r.max_retry_attempts,
+                  r.schedule_type,
                   r.section_id, r.is_published, r.academic_stage,
                   (SELECT COUNT(*) FROM recitation_questions WHERE recitation_id=r.id) AS question_count,
+                  (SELECT COUNT(*) FROM recitation_results rr_cnt
+                    WHERE rr_cnt.student_id=$2 AND rr_cnt.recitation_id=r.id
+                      AND (r.schedule_type = 'once' OR r.schedule_type IS NULL OR r.start_date IS NULL OR rr_cnt.created_at >= r.start_date)
+                      AND (rr_cnt.is_absent IS NULL OR rr_cnt.is_absent=false)) AS my_attempt_count,
                   (SELECT bool_or(rr3.passed) FROM recitation_results rr3
                     WHERE rr3.student_id=$2 AND rr3.recitation_id=r.id
                       AND (rr3.is_absent IS NULL OR rr3.is_absent=false)) AS my_ever_passed,

@@ -2034,7 +2034,7 @@ router.post('/:id/submit', recitationSubmitLimiter, requireRole('student'), asyn
     const hasGrant = grantFastRows.length > 0;
 
     const { rows: existingResult } = await pool.query(
-      `SELECT id, passed FROM recitation_results
+      `SELECT id, score, correct_count, wrong_count, unanswered_count, passed, points_earned, created_at FROM recitation_results
         WHERE student_id=$1 AND recitation_id=$2
           AND ($3::timestamp IS NULL OR created_at >= $3::timestamp)
           AND (is_absent IS NULL OR is_absent=false)
@@ -2045,8 +2045,21 @@ router.post('/:id/submit', recitationSubmitLimiter, requireRole('student'), asyn
       const everPassed = existingResult.some(r => r.passed === true);
       const maxReached = rec.max_retry_attempts !== null && rec.max_retry_attempts !== undefined
         && existingResult.length >= rec.max_retry_attempts;
-      if (!hasGrant && (everPassed || !rec.allow_retry || maxReached))
-        return res.status(409).json({ error: 'لقد أديت هذا التسميع بالفعل', already_submitted: true });
+      if (!hasGrant && (everPassed || !rec.allow_retry || maxReached)) {
+        const lastRes = existingResult[0];
+        return res.json({
+          result: lastRes,
+          score: lastRes.score,
+          correct: lastRes.correct_count,
+          wrong: lastRes.wrong_count,
+          unanswered: lastRes.unanswered_count,
+          passed: lastRes.passed,
+          points_earned: lastRes.points_earned,
+          total_score: rec.total_score,
+          pass_score: rec.pass_score,
+          already_submitted: true,
+        });
+      }
     }
 
     // Load session (with server-side snapshot)
@@ -2054,7 +2067,31 @@ router.post('/:id/submit', recitationSubmitLimiter, requireRole('student'), asyn
       'SELECT student_id, recitation_id, started_at, questions_snapshot FROM recitation_sessions WHERE student_id=$1 AND recitation_id=$2',
       [studentId, id]
     );
-    if (!sessRows.length) return res.status(400).json({ error: 'لا توجد جلسة نشطة. ابدأ التسميع أولاً' });
+    if (!sessRows.length) {
+      const { rows: recentResult } = await pool.query(
+        `SELECT * FROM recitation_results
+          WHERE student_id=$1 AND recitation_id=$2
+            AND (is_absent IS NULL OR is_absent=false)
+          ORDER BY created_at DESC LIMIT 1`,
+        [studentId, id]
+      );
+      if (recentResult.length) {
+        const lastRes = recentResult[0];
+        return res.json({
+          result: lastRes,
+          score: lastRes.score,
+          correct: lastRes.correct_count,
+          wrong: lastRes.wrong_count,
+          unanswered: lastRes.unanswered_count,
+          passed: lastRes.passed,
+          points_earned: lastRes.points_earned,
+          total_score: rec.total_score,
+          pass_score: rec.pass_score,
+          already_submitted: true,
+        });
+      }
+      return res.status(400).json({ error: 'لا توجد جلسة نشطة. ابدأ التسميع أولاً' });
+    }
     const session = sessRows[0];
 
     // Timer check — server authoritative (+ 30s grace)
@@ -2100,7 +2137,7 @@ router.post('/:id/submit', recitationSubmitLimiter, requireRole('student'), asyn
       // concurrent second submit from also passing the pre-check and
       // inserting a duplicate result (double points bug).
       // If the session no longer exists (deleted by a racing commit), the
-      // student gets a clean "no active session" 400 rather than a 500.
+      // student gets the already-saved result rather than an error.
       const { rows: lockRows } = await client.query(
         'SELECT id FROM recitation_sessions WHERE student_id=$1 AND recitation_id=$2 FOR UPDATE',
         [studentId, id]
@@ -2108,6 +2145,28 @@ router.post('/:id/submit', recitationSubmitLimiter, requireRole('student'), asyn
       if (!lockRows.length) {
         await client.query('ROLLBACK');
         client.release();
+        const { rows: recentResult } = await pool.query(
+          `SELECT * FROM recitation_results
+            WHERE student_id=$1 AND recitation_id=$2
+              AND (is_absent IS NULL OR is_absent=false)
+            ORDER BY created_at DESC LIMIT 1`,
+          [studentId, id]
+        );
+        if (recentResult.length) {
+          const lastRes = recentResult[0];
+          return res.json({
+            result: lastRes,
+            score: lastRes.score,
+            correct: lastRes.correct_count,
+            wrong: lastRes.wrong_count,
+            unanswered: lastRes.unanswered_count,
+            passed: lastRes.passed,
+            points_earned: lastRes.points_earned,
+            total_score: rec.total_score,
+            pass_score: rec.pass_score,
+            already_submitted: true,
+          });
+        }
         return res.status(400).json({ error: 'لا توجد جلسة نشطة. ابدأ التسميع أولاً' });
       }
 
@@ -2123,7 +2182,7 @@ router.post('/:id/submit', recitationSubmitLimiter, requireRole('student'), asyn
       const hasGrantTx = grantTxRows.length > 0;
 
       const { rows: dupeRows } = await client.query(
-        `SELECT id, passed FROM recitation_results
+        `SELECT id, score, correct_count, wrong_count, unanswered_count, passed, points_earned, created_at FROM recitation_results
           WHERE student_id=$1 AND recitation_id=$2
             AND (
               $3 = 'once'
@@ -2141,7 +2200,19 @@ router.post('/:id/submit', recitationSubmitLimiter, requireRole('student'), asyn
         if (!hasGrantTx && (everPassedTx || !rec.allow_retry || maxReached)) {
           await client.query('ROLLBACK');
           client.release();
-          return res.status(409).json({ error: 'لقد أديت هذا التسميع بالفعل', already_submitted: true });
+          const lastRes = dupeRows[0];
+          return res.json({
+            result: lastRes,
+            score: lastRes.score,
+            correct: lastRes.correct_count,
+            wrong: lastRes.wrong_count,
+            unanswered: lastRes.unanswered_count,
+            passed: lastRes.passed,
+            points_earned: lastRes.points_earned,
+            total_score: rec.total_score,
+            pass_score: rec.pass_score,
+            already_submitted: true,
+          });
         }
       }
 

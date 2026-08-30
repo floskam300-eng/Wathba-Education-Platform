@@ -224,7 +224,15 @@ export default function StudentRecitations() {
     } catch (e) {
       // On error always release the lock so the user can retry.
       setStartingId(null);
-      toast.error(e.response?.data?.error || 'حدث خطأ');
+      const errData = e.response?.data || {};
+      if (errData.already_submitted) {
+        toast(errData.error || 'تم أداء هذا التسميع بالفعل', { icon: 'ℹ️' });
+        qc.invalidateQueries({ queryKey: ['student-recitations'] });
+        qc.invalidateQueries({ queryKey: ['student-recitation-results'] });
+        qc.invalidateQueries({ queryKey: ['course-content'] });
+      } else {
+        toast.error(errData.error || 'حدث خطأ أثناء بدء التسميع');
+      }
     }
     // No finally — intentional. Success path clears startingId at the right moment.
   };
@@ -400,31 +408,55 @@ export default function StudentRecitations() {
         localStorage.removeItem(getAnsKey(selectedRec.id));
         localStorage.removeItem(getActKey(selectedRec.id));
       } catch (_) {}
+      if (data.result) {
+        setSelectedRec(prev => prev ? {
+          ...prev,
+          result_id: data.result.id,
+          my_score: data.score,
+          my_passed: data.passed,
+          my_ever_passed: data.passed || prev.my_ever_passed,
+          my_correct: data.correct,
+          my_wrong: data.wrong,
+          my_submitted_at: data.result.created_at || new Date().toISOString(),
+          my_attempt_count: (parseInt(prev.my_attempt_count, 10) || 0) + 1,
+        } : prev);
+      }
       setResult(data);
       setView('result');
       setSubmitting(false);
       submittedRef.current = false;
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ['student-recitations'] }),
-        qc.invalidateQueries({ queryKey: ['student-recitation-results'] }),
-        qc.invalidateQueries({ queryKey: ['course-recitations'] }),
-        qc.invalidateQueries({ queryKey: ['student-courses'] }),
-      ]);
+      try {
+        await Promise.all([
+          qc.invalidateQueries({ queryKey: ['student-recitations'] }),
+          qc.invalidateQueries({ queryKey: ['student-recitation-results'] }),
+          qc.invalidateQueries({ queryKey: ['course-content'] }),
+          qc.invalidateQueries({ queryKey: ['course-recitations'] }),
+          qc.invalidateQueries({ queryKey: ['student-courses'] }),
+        ]);
+      } catch (_) {}
     } catch (e) {
       if (!mountedRef.current) return;
       submittedRef.current = false;
       setSubmitting(false);
       const data = e.response?.data || {};
       const msg = data.error || 'حدث خطأ أثناء التسليم';
-      if (data.already_submitted) {
+      if (data.already_submitted || data.error?.includes('بالفعل') || data.error?.includes('جلسة') || data.error?.includes('استنفدت')) {
         toast('تم تسليم التسميع بالفعل', { icon: 'ℹ️' });
         try {
           localStorage.removeItem(getAnsKey(selectedRec?.id));
           localStorage.removeItem(getActKey(selectedRec?.id));
         } catch (_) {}
-        setView('list');
-        qc.invalidateQueries({ queryKey: ['student-recitations'] });
-        qc.invalidateQueries({ queryKey: ['student-recitation-results'] });
+        if (data.result) {
+          setResult(data);
+          setView('result');
+        } else {
+          setView('list');
+        }
+        try {
+          qc.invalidateQueries({ queryKey: ['student-recitations'] });
+          qc.invalidateQueries({ queryKey: ['student-recitation-results'] });
+          qc.invalidateQueries({ queryKey: ['course-content'] });
+        } catch (_) {}
       } else if (data.timer_expired) {
         // [R8-FIX] Server rejected because time ran out — don't leave student stuck
         toast.error('انتهى وقت التسميع');
@@ -433,8 +465,11 @@ export default function StudentRecitations() {
           localStorage.removeItem(getActKey(selectedRec?.id));
         } catch (_) {}
         setView('list');
-        qc.invalidateQueries({ queryKey: ['student-recitations'] });
-        qc.invalidateQueries({ queryKey: ['student-recitation-results'] });
+        try {
+          qc.invalidateQueries({ queryKey: ['student-recitations'] });
+          qc.invalidateQueries({ queryKey: ['student-recitation-results'] });
+          qc.invalidateQueries({ queryKey: ['course-content'] });
+        } catch (_) {}
       } else {
         toast.error(msg);
       }
