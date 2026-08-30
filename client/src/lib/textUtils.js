@@ -107,14 +107,12 @@ export function looksLikeRichHtml(str) {
 }
 
 const ARABIC_RE = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
-// Anything that can legitimately appear inside a latin/math expression.
-const LTR_HINT_RE = /[0-9A-Za-z\u00B0\u00B1\u00D7\u00F7\u221A\u221E\u0391-\u03C9\u2260\u2264\u2265]/;
+// Anything that can legitimately appear inside a latin/math/physics expression
+// (including Greek letters, superscripts/subscripts, math symbols, arrows, etc.)
+const LTR_HINT_RE = /[0-9A-Za-z\u00B0\u00B1\u00D7\u00F7\u221A\u221E\u0370-\u03FF\u2260\u2264\u2265\u00B2\u00B3\u2070-\u209F\u2200-\u22FF\u2100-\u214F\u2190-\u21FF]/;
 const WHITESPACE_RE = /^\s+$/;
-// A token with no latin letter/digit — pure punctuation/operator (e.g. "=",
-// ".....", "-", "(,)"). Such tokens only belong INSIDE an island when they
-// sit between two non-Arabic tokens; at an edge they are sentence-flow
-// separators that the RTL bidi must place (see isolateLtrRuns).
-const PURE_PUNCT_RE = /^[^A-Za-z0-9]*$/;
+// Pure punctuation / operator tokens without alphanumeric or variable characters
+const PURE_PUNCT_RE = /^[^A-Za-z0-9\u0370-\u03FF\u00B2\u00B3\u2070-\u209F\u2100-\u214F]*$/;
 
 /**
  * Wrap runs of non-Arabic tokens in LTR bidi isolates so numbers, comparisons

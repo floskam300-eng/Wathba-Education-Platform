@@ -272,7 +272,7 @@ export default function RichTextPalette({
   const hasContent = !!(value && value.trim());
 
   return (
-    <div ref={containerRef} className="relative w-full text-right" dir="rtl">
+    <div ref={containerRef} className="relative w-full" dir="auto">
       {/* ── Floating Bubble Toolbar on Selection ── */}
       {bubbleVisible && !isSourceMode && (
         <div
@@ -534,8 +534,8 @@ export default function RichTextPalette({
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
-            dir="rtl"
-            style={{ minHeight: `${minHeight}px`, maxHeight: `${maxHeight}px` }}
+            dir="auto"
+            style={{ minHeight: `${minHeight}px`, maxHeight: `${maxHeight}px`, unicodeBidi: 'plaintext' }}
             className={`w-full px-3.5 py-3 bg-gray-50/50 dark:bg-gray-900/50 font-mono text-xs text-gray-800 dark:text-[var(--dk-text-1)] focus:outline-none placeholder:text-gray-400 leading-relaxed resize-y ${className}`}
           />
         ) : (
@@ -543,13 +543,13 @@ export default function RichTextPalette({
             <div
               ref={editorRef}
               contentEditable
-              dir="rtl"
+              dir="auto"
               onInput={emitChange}
               onKeyDown={handleKeyDown}
               onKeyUp={checkSelection}
               onMouseUp={checkSelection}
               onBlur={emitChange}
-              style={{ minHeight: `${minHeight}px`, maxHeight: `${maxHeight}px` }}
+              style={{ minHeight: `${minHeight}px`, maxHeight: `${maxHeight}px`, unicodeBidi: 'plaintext' }}
               data-placeholder={placeholder}
               className={`w-full px-3.5 py-3 text-sm text-gray-900 dark:text-[var(--dk-text-1)] focus:outline-none leading-relaxed overflow-y-auto ${
                 !value ? 'before:content-[attr(data-placeholder)] before:text-gray-400 dark:before:text-[var(--dk-text-3)] before:pointer-events-none before:block' : ''
@@ -560,13 +560,13 @@ export default function RichTextPalette({
 
         {/* Live Preview Box */}
         {showLivePreview && (
-          <div className="border-t border-dashed border-gray-200 dark:border-[var(--dk-border)] bg-gray-50/70 dark:bg-gray-900/30 px-3.5 py-2.5">
+          <div className="border-t border-dashed border-gray-200 dark:border-[var(--dk-border)] bg-gray-50/70 dark:bg-gray-900/30 px-3.5 py-2.5" dir="auto">
             <div className="flex items-center justify-between mb-1">
               <span className="text-[10px] font-bold text-gray-400 dark:text-[var(--dk-text-3)] flex items-center gap-1">
                 <Eye className="w-3 h-3 text-green-500" /> معاينة العرض النهائي للطالب:
               </span>
             </div>
-            <div className="text-sm text-gray-800 dark:text-[var(--dk-text-1)] font-semibold min-h-[1.5rem] leading-relaxed">
+            <div className="text-sm text-gray-800 dark:text-[var(--dk-text-1)] font-semibold min-h-[1.5rem] leading-relaxed" dir="auto">
               {hasContent ? (
                 <MathText text={value} />
               ) : (
@@ -705,17 +705,18 @@ export function CompactOptionFormatter({ value = '', onChange, placeholder = '',
   };
 
   return (
-    <div className="relative flex items-center flex-1 min-w-0" dir="rtl">
+    <div className="relative flex items-center flex-1 min-w-0" dir="auto">
       {/* Visual contenteditable single line input */}
       <div
         ref={editableRef}
         contentEditable
-        dir="rtl"
+        dir="auto"
         onInput={emitChange}
         onKeyDown={handleKeyDown}
         onBlur={emitChange}
         onMouseUp={saveSelection}
         onKeyUp={saveSelection}
+        style={{ unicodeBidi: 'plaintext' }}
         data-placeholder={placeholder}
         className={`flex-1 min-h-[38px] px-3.5 py-2 rounded-xl border border-gray-200 dark:border-[var(--dk-border)] bg-white dark:bg-[var(--dk-elevated)] text-gray-900 dark:text-[var(--dk-text-1)] text-xs sm:text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-purple-400 dark:focus:ring-purple-600/50 transition-all overflow-x-auto whitespace-nowrap leading-relaxed ${
           !value ? 'before:content-[attr(data-placeholder)] before:text-gray-400 dark:before:text-[var(--dk-text-3)] before:pointer-events-none before:block' : ''

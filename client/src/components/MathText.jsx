@@ -24,86 +24,7 @@ const ALLOWED_STYLES = [
   'text-decoration-color', 'border-radius', 'padding'
 ];
 
-/**
- * Sanitizes an HTML string to only allow safe formatting tags and style attributes.
- * Prevents XSS while allowing rich styling (colors, bold, highlight, font-size, etc.)
- */
-export function sanitizeRichHtml(html) {
-  if (!html) return '';
-  if (typeof window === 'undefined' || typeof DOMParser === 'undefined') {
-    return escapeHtml(html);
-  }
-
-  try {
-    const parser = new DOMParser();
-    // Escape angle brackets that don't belong to allow-listed tags BEFORE
-    // parsing — otherwise the browser's parser treats typed math like
-    // `x<y ... y>x` as a fake element and silently deletes the text.
-    const doc = parser.parseFromString(`<body>${escapeStrayAngleBrackets(html)}</body>`, 'text/html');
-
-    const cleanNode = (node) => {
-      const children = Array.from(node.childNodes);
-      for (const child of children) {
-        if (child.nodeType === Node.ELEMENT_NODE) {
-          const tag = child.tagName.toUpperCase();
-          if (!ALLOWED_TAGS.has(tag)) {
-            // Unwrap disallowed element into a text node
-            const textNode = doc.createTextNode(child.textContent || '');
-            node.replaceChild(textNode, child);
-          } else {
-            // Clean attributes — only allow safe style attribute
-            const attrs = Array.from(child.attributes);
-            for (const attr of attrs) {
-              const attrName = attr.name.toLowerCase();
-              if (attrName === 'style') {
-                const styleObj = child.style;
-                const safeStyles = [];
-                ALLOWED_STYLES.forEach((prop) => {
-                  const val = styleObj.getPropertyValue(prop);
-                  if (val && !val.includes('url(') && !val.includes('javascript:') && !val.includes('expression(')) {
-                    safeStyles.push(`${prop}: ${val}`);
-                  }
-                });
-                if (safeStyles.length > 0) {
-                  child.setAttribute('style', safeStyles.join('; '));
-                } else {
-                  child.removeAttribute('style');
-                }
-              } else {
-                child.removeAttribute(attr.name);
-              }
-            }
-            cleanNode(child);
-          }
-        }
-      }
-    };
-
-    cleanNode(doc.body);
-    isolateTextNodeBidi(doc.body);
-    return doc.body.innerHTML;
-  } catch {
-    return escapeHtml(html);
-  }
-}
-
-/**
- * Apply LTR bidi isolation to every text node of the cleaned tree so math
- * comparisons inside formatted (rich HTML) questions keep their visual
- * order in RTL paragraphs, exactly like the plain-text path does.
- */
-function isolateTextNodeBidi(root) {
-  if (typeof root.createTreeWalker !== 'function') return;
-  const walker = root.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  const nodes = [];
-  while (walker.nextNode()) nodes.push(walker.currentNode);
-  for (const node of nodes) {
-    const isolated = isolateLtrRuns(node.data);
-    if (isolated !== node.data) node.data = isolated;
-  }
-}
-
-function renderLatex(latex, displayMode = false) {
+export function renderLatex(latex, displayMode = false) {
   try {
     return katex.renderToString(latex, {
       displayMode,
@@ -116,7 +37,7 @@ function renderLatex(latex, displayMode = false) {
   }
 }
 
-function parseMath(text) {
+export function parseMath(text) {
   if (!text) return [];
   const parts = [];
   let remaining = String(text);
@@ -161,70 +82,144 @@ function parseMath(text) {
   return parts;
 }
 
+/**
+ * Process all text nodes inside a DOM element to:
+ * 1. Parse and render $...$ (inline) and $$...$$ (block) math via KaTeX.
+ * 2. Apply Unicode LTR isolation to non-math text runs for proper Arabic/English/Math flow.
+ */
+function processTextNodesWithMathAndBidi(root, doc) {
+  if (typeof root.createTreeWalker !== 'function') return;
+  const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const textNodes = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+  for (const node of textNodes) {
+    const rawText = node.data;
+    if (!rawText) continue;
+
+    if (rawText.includes('$')) {
+      const parts = parseMath(rawText);
+      const hasRealMath = parts.some(p => p.type !== 'text');
+      if (hasRealMath) {
+        const frag = doc.createDocumentFragment();
+        for (const part of parts) {
+          if (part.type === 'text') {
+            if (part.content) {
+              frag.appendChild(doc.createTextNode(isolateLtrRuns(part.content)));
+            }
+          } else if (part.type === 'block') {
+            const blockEl = doc.createElement('div');
+            blockEl.setAttribute('dir', 'ltr');
+            blockEl.setAttribute('style', 'direction: ltr; unicode-bidi: isolate; text-align: center; margin: 0.5rem 0; overflow-x: auto;');
+            blockEl.innerHTML = renderLatex(part.content, true);
+            frag.appendChild(blockEl);
+          } else {
+            const inlineEl = doc.createElement('span');
+            inlineEl.setAttribute('dir', 'ltr');
+            inlineEl.setAttribute('style', 'direction: ltr; unicode-bidi: isolate; display: inline-block; vertical-align: middle; margin: 0 0.15em;');
+            inlineEl.innerHTML = renderLatex(part.content, false);
+            frag.appendChild(inlineEl);
+          }
+        }
+        if (node.parentNode) {
+          node.parentNode.replaceChild(frag, node);
+        }
+        continue;
+      }
+    }
+
+    const isolated = isolateLtrRuns(rawText);
+    if (isolated !== rawText) {
+      node.data = isolated;
+    }
+  }
+}
+
+/**
+ * Universal renderer that sanitizes rich HTML and processes embedded math and BiDi isolation.
+ */
+export function renderRichMathHtml(input) {
+  if (!input) return '';
+  const decoded = decodeEntities(String(input));
+
+  if (typeof window === 'undefined' || typeof DOMParser === 'undefined') {
+    const parts = parseMath(decoded);
+    return parts.map(p => {
+      if (p.type === 'block') {
+        return `<div dir="ltr" style="direction: ltr; unicode-bidi: isolate; text-align: center; margin: 0.5rem 0; overflow-x: auto;">${renderLatex(p.content, true)}</div>`;
+      }
+      if (p.type === 'inline') {
+        return `<span dir="ltr" style="direction: ltr; unicode-bidi: isolate; display: inline-block; vertical-align: middle; margin: 0 0.15em;">${renderLatex(p.content, false)}</span>`;
+      }
+      return escapeHtml(isolateLtrRuns(p.content));
+    }).join('');
+  }
+
+  try {
+    const parser = new DOMParser();
+    const hasHtml = looksLikeRichHtml(decoded);
+    const rawContent = hasHtml ? escapeStrayAngleBrackets(decoded) : escapeHtml(decoded);
+    const doc = parser.parseFromString(`<body>${rawContent}</body>`, 'text/html');
+
+    const cleanNode = (node) => {
+      const children = Array.from(node.childNodes);
+      for (const child of children) {
+        if (child.nodeType === Node.ELEMENT_NODE) {
+          const tag = child.tagName.toUpperCase();
+          if (!ALLOWED_TAGS.has(tag)) {
+            const textNode = doc.createTextNode(child.textContent || '');
+            node.replaceChild(textNode, child);
+          } else {
+            const attrs = Array.from(child.attributes);
+            for (const attr of attrs) {
+              const attrName = attr.name.toLowerCase();
+              if (attrName === 'style') {
+                const styleObj = child.style;
+                const safeStyles = [];
+                ALLOWED_STYLES.forEach((prop) => {
+                  const val = styleObj.getPropertyValue(prop);
+                  if (val && !val.includes('url(') && !val.includes('javascript:') && !val.includes('expression(')) {
+                    safeStyles.push(`${prop}: ${val}`);
+                  }
+                });
+                if (safeStyles.length > 0) {
+                  child.setAttribute('style', safeStyles.join('; '));
+                } else {
+                  child.removeAttribute('style');
+                }
+              } else {
+                child.removeAttribute(attr.name);
+              }
+            }
+            cleanNode(child);
+          }
+        }
+      }
+    };
+
+    cleanNode(doc.body);
+    processTextNodesWithMathAndBidi(doc.body, doc);
+    return doc.body.innerHTML;
+  } catch {
+    return escapeHtml(isolateLtrRuns(decoded));
+  }
+}
+
+export function sanitizeRichHtml(html) {
+  return renderRichMathHtml(html);
+}
+
 export default function MathText({ text, className = '' }) {
-  // The rich-text editor stores HTML, so a typed `5 > 8` is saved as
-  // `5 &gt; 8`. Decode entities up front and do all parsing/detection on
-  // the decoded string so real symbols render in every view.
-  const decoded = useMemo(() => decodeEntities(text), [text]);
-  const parts = useMemo(() => parseMath(decoded), [decoded]);
+  const renderedHtml = useMemo(() => renderRichMathHtml(text), [text]);
 
   if (!text) return null;
 
-  const hasMath = parts.some((p) => p.type !== 'text');
-  const decodedText = String(decoded ?? '');
-  const hasHtml = looksLikeRichHtml(decodedText);
-
-  // Plain text optimization (no math, no html)
-  if (!hasMath && !hasHtml) {
-    return (
-      <span className={className} style={{ whiteSpace: 'pre-wrap' }}>
-        {isolateLtrRuns(decodedText)}
-      </span>
-    );
-  }
-
-  // Pure HTML rich text with no math
-  if (!hasMath && hasHtml) {
-    return (
-      <span
-        className={`rich-text ${className}`}
-        dir="rtl"
-        style={{ whiteSpace: 'pre-wrap' }}
-        dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(decodedText) }}
-      />
-    );
-  }
-
-  // Combined Math + Rich Text
   return (
-    <span className={`math-text rich-text ${className}`} dir="rtl" style={{ whiteSpace: 'pre-wrap' }}>
-      {parts.map((part, i) => {
-        if (part.type === 'text') {
-          return (
-            <span
-              key={i}
-              style={{ whiteSpace: 'pre-wrap' }}
-              dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(part.content) }}
-            />
-          );
-        }
-        if (part.type === 'block') {
-          return (
-            <span
-              key={i}
-              className="block my-2 overflow-x-auto text-center"
-              dangerouslySetInnerHTML={{ __html: renderLatex(part.content, true) }}
-            />
-          );
-        }
-        return (
-          <span
-            key={i}
-            className="inline-block align-middle mx-0.5"
-            dangerouslySetInnerHTML={{ __html: renderLatex(part.content, false) }}
-          />
-        );
-      })}
-    </span>
+    <span
+      className={`math-text-wrapper ${className}`}
+      dir="auto"
+      style={{ whiteSpace: 'pre-wrap', unicodeBidi: 'isolate' }}
+      dangerouslySetInnerHTML={{ __html: renderedHtml }}
+    />
   );
 }
