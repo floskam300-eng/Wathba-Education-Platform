@@ -1,29 +1,33 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../../context/AuthContext';
-import { getGameConfig, BOSS_POINTS } from './gameConfig';
+import gameAudio from '../../../lib/gameAudio';
+import GameHUD from '../../../components/games/GameHUD';
+import QuestionOverlay from '../../../components/games/QuestionOverlay';
+import GameResultModal from '../../../components/games/GameResultModal';
 import api from '../../../lib/api';
 import toast from 'react-hot-toast';
 
-// ── constants ──────────────────────────────────────────────────
-const CW = 900;
-const CH = 480;
-const GROUND = CH - 70;
-const PLAYER_X = 120;
-const GRAVITY = 0.65;
-const JUMP_V = -15;
-const DUCK_H = 24;
-const STAND_H = 52;
-const BASE_SPD = 3.2;
+// ── Game Constants ────────────────────────────────────────────────────────────
+const CW = 920;
+const CH = 500;
+const GROUND = CH - 75;
+const PLAYER_X = 130;
+const GRAVITY = 0.68;
+const JUMP_V = -15.5;
+const DUCK_H = 26;
+const STAND_H = 54;
+const BASE_SPD = 3.5;
 const MAX_SPD = 8.5;
 
-// Frame-based boss timing (at ~60fps)
-const BOSS1_FRAME     = 20 * 60;   // boss 1 appears after 20 seconds
-const BOSS_GAP_FRAMES = 25 * 60;   // ~25 seconds gap between bosses
+// Boss Timings (in frames at ~60fps)
+const BOSS1_FRAME = 16 * 60; // Boss 1 at ~16s
+const BOSS_GAP_FRAMES = 22 * 60; // ~22s gap
 
-// ── canvas helpers ─────────────────────────────────────────────
-function rr(ctx, x, y, w, h, r, fill, stroke) {
+// ── Drawing Helpers ──────────────────────────────────────────────────────────
+function roundRect(ctx, x, y, w, h, r, fill, stroke) {
   ctx.beginPath();
-  ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y);
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
   ctx.quadraticCurveTo(x + w, y, x + w, y + r);
   ctx.lineTo(x + w, y + h - r);
   ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
@@ -36,92 +40,166 @@ function rr(ctx, x, y, w, h, r, fill, stroke) {
   if (stroke) ctx.stroke();
 }
 
-function drawSky(ctx) {
-  const g = ctx.createLinearGradient(0, 0, 0, CH);
-  g.addColorStop(0, '#04040e'); g.addColorStop(1, '#120826');
-  ctx.fillStyle = g; ctx.fillRect(0, 0, CW, CH);
-}
+function drawBackground(ctx, offset, stars, frame) {
+  // Deep space neon gradient
+  const grad = ctx.createLinearGradient(0, 0, 0, CH);
+  grad.addColorStop(0, '#060312');
+  grad.addColorStop(0.5, '#12082b');
+  grad.addColorStop(1, '#1a0d3d');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, CW, CH);
 
-function drawStars(ctx, stars, fr) {
+  // Twinkling stars
   stars.forEach(s => {
-    ctx.globalAlpha = 0.2 + 0.6 * Math.abs(Math.sin(fr * 0.016 * s.speed + s.phase));
-    ctx.fillStyle = '#fff'; ctx.beginPath();
-    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 0.3 + 0.6 * Math.abs(Math.sin(frame * 0.02 * s.speed + s.phase));
+    ctx.fillStyle = s.color || '#fff';
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    ctx.fill();
   });
   ctx.globalAlpha = 1;
-}
 
-function drawMathBg(ctx, syms, off) {
-  ctx.globalAlpha = 0.05; ctx.fillStyle = '#c084fc';
-  syms.forEach(s => {
-    const x = ((s.x - off * s.spd * 0.12) % (CW + 120) + CW + 120) % (CW + 120) - 60;
-    ctx.font = `bold ${s.sz}px Georgia`; ctx.fillText(s.ch, x, s.y);
-  });
-  ctx.globalAlpha = 1;
-}
-
-function drawMountains(ctx, layers, off) {
-  layers.forEach(l => {
-    ctx.fillStyle = l.color;
-    l.peaks.forEach(p => {
-      const x = ((p.x - off * l.spd) % (CW + p.w * 2) + CW + p.w * 2) % (CW + p.w * 2) - p.w;
-      ctx.beginPath(); ctx.moveTo(x, GROUND - 6);
-      ctx.lineTo(x + p.w / 2, GROUND - p.h); ctx.lineTo(x + p.w, GROUND - 6);
-      ctx.closePath(); ctx.fill();
-    });
-  });
-}
-
-function drawGround(ctx, off) {
-  ctx.fillStyle = '#0e061e'; ctx.fillRect(0, GROUND, CW, CH - GROUND);
-  ctx.shadowBlur = 10; ctx.shadowColor = '#7c3aed';
-  ctx.strokeStyle = '#7c3aed'; ctx.lineWidth = 2.5;
-  ctx.beginPath(); ctx.moveTo(0, GROUND); ctx.lineTo(CW, GROUND); ctx.stroke();
-  ctx.shadowBlur = 0;
-  ctx.strokeStyle = 'rgba(124,58,237,0.15)'; ctx.lineWidth = 1;
-  const sp = 58, sx = -(off % sp);
-  for (let x = sx; x < CW; x += sp) {
-    ctx.beginPath(); ctx.moveTo(x, GROUND); ctx.lineTo(x - 36, CH); ctx.stroke();
+  // Futuristic city / grid skyline in distance
+  ctx.fillStyle = 'rgba(76, 29, 149, 0.25)';
+  for (let i = 0; i < 15; i++) {
+    const bx = ((i * 80 - offset * 0.2) % (CW + 160) + CW + 160) % (CW + 160) - 80;
+    const bh = 100 + ((i * 37) % 120);
+    const bw = 60;
+    ctx.fillRect(bx, GROUND - bh, bw, bh);
   }
 }
 
-function drawStickman(ctx, px, py, frame, ducking, inv) {
-  if (inv && Math.floor(frame * 0.1) % 2 === 1) return;
-  const col = '#00ff88';
-  ctx.strokeStyle = col; ctx.lineWidth = 2.8; ctx.lineCap = 'round';
-  ctx.shadowBlur = 11; ctx.shadowColor = col;
+function drawGround(ctx, offset) {
+  // Ground body
+  ctx.fillStyle = '#0a0518';
+  ctx.fillRect(0, GROUND, CW, CH - GROUND);
+
+  // Glowing neon line on top of ground
+  ctx.shadowBlur = 14;
+  ctx.shadowColor = '#8b5cf6';
+  ctx.strokeStyle = '#8b5cf6';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(0, GROUND);
+  ctx.lineTo(CW, GROUND);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Perspective ground grid
+  ctx.strokeStyle = 'rgba(139, 92, 246, 0.18)';
+  ctx.lineWidth = 1;
+  const sp = 50;
+  const sx = -(offset % sp);
+  for (let x = sx; x < CW; x += sp) {
+    ctx.beginPath();
+    ctx.moveTo(x, GROUND);
+    ctx.lineTo(x - 30, CH);
+    ctx.stroke();
+  }
+}
+
+function drawStickmanHero(ctx, px, py, frame, ducking, invincible, isDoubleJump) {
+  if (invincible && Math.floor(frame * 0.15) % 2 === 1) return;
+
+  const heroColor = isDoubleJump ? '#f59e0b' : '#00ffcc';
+  ctx.strokeStyle = heroColor;
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  ctx.shadowBlur = 12;
+  ctx.shadowColor = heroColor;
 
   if (ducking) {
-    const hy = py - 26;
-    ctx.beginPath(); ctx.arc(px, hy, 8, 0, Math.PI * 2); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(px, hy + 8); ctx.lineTo(px, hy + 22); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(px, hy + 13); ctx.lineTo(px - 18, hy + 6); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(px, hy + 13); ctx.lineTo(px + 18, hy + 6); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(px, hy + 22); ctx.lineTo(px - 14, hy + 34); ctx.lineTo(px - 7, hy + 34); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(px, hy + 22); ctx.lineTo(px + 14, hy + 34); ctx.lineTo(px + 7, hy + 34); ctx.stroke();
+    // Sliding duck pose with energy sparks
+    const hy = py - 24;
+    ctx.beginPath();
+    ctx.arc(px + 4, hy, 7, 0, Math.PI * 2);
+    ctx.stroke();
+    // Torso
+    ctx.beginPath();
+    ctx.moveTo(px + 4, hy + 7);
+    ctx.lineTo(px - 14, hy + 20);
+    ctx.stroke();
+    // Arms forward
+    ctx.beginPath();
+    ctx.moveTo(px, hy + 12);
+    ctx.lineTo(px + 18, hy + 10);
+    ctx.stroke();
+    // Legs back sliding
+    ctx.beginPath();
+    ctx.moveTo(px - 14, hy + 20);
+    ctx.lineTo(px - 26, hy + 24);
+    ctx.lineTo(px - 10, hy + 24);
+    ctx.stroke();
   } else {
-    const headY = py - 52;
-    const shouldY = headY + 17;
-    const hipY = headY + 36;
-    ctx.beginPath(); ctx.arc(px, headY, 8, 0, Math.PI * 2); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(px, headY + 8); ctx.lineTo(px, hipY); ctx.stroke();
+    const headY = py - 50;
+    const shouldY = headY + 16;
+    const hipY = headY + 34;
+
+    // Glowing head
+    ctx.beginPath();
+    ctx.arc(px, headY, 7.5, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Spine
+    ctx.beginPath();
+    ctx.moveTo(px, headY + 7.5);
+    ctx.lineTo(px, hipY);
+    ctx.stroke();
+
     const inAir = py < GROUND - 4;
     if (inAir) {
-      ctx.beginPath(); ctx.moveTo(px, shouldY); ctx.lineTo(px - 20, shouldY - 10); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(px, shouldY); ctx.lineTo(px + 20, shouldY - 10); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(px, hipY); ctx.lineTo(px - 12, hipY + 18); ctx.lineTo(px - 16, hipY + 30); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(px, hipY); ctx.lineTo(px + 12, hipY + 18); ctx.lineTo(px + 16, hipY + 30); ctx.stroke();
+      // Dynamic Jump Pose
+      ctx.beginPath();
+      ctx.moveTo(px, shouldY);
+      ctx.lineTo(px - 18, shouldY - 12);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(px, shouldY);
+      ctx.lineTo(px + 18, shouldY - 12);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(px, hipY);
+      ctx.lineTo(px - 12, hipY + 14);
+      ctx.lineTo(px - 16, hipY + 28);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(px, hipY);
+      ctx.lineTo(px + 10, hipY + 12);
+      ctx.lineTo(px + 14, hipY + 26);
+      ctx.stroke();
     } else {
-      const t = frame * 0.18;
+      // Running Animation
+      const t = frame * 0.22;
       const sw = Math.sin(t);
       const cw = Math.cos(t);
-      const armL = -sw * 16, armR = sw * 16;
-      ctx.beginPath(); ctx.moveTo(px, shouldY); ctx.lineTo(px - 13 + armL, shouldY + 15); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(px, shouldY); ctx.lineTo(px + 13 + armR, shouldY + 15); ctx.stroke();
-      const lLthighX = sw * 9, lLfootX = sw * 18, lLkneeY = hipY + 16 - Math.abs(cw) * 5;
-      ctx.beginPath(); ctx.moveTo(px, hipY); ctx.lineTo(px - 5 + lLthighX, lLkneeY); ctx.lineTo(px - 3 + lLfootX, hipY + 30); ctx.stroke();
-      const lRthighX = -sw * 9, lRfootX = -sw * 18, lRkneeY = hipY + 16 - Math.abs(cw) * 5;
-      ctx.beginPath(); ctx.moveTo(px, hipY); ctx.lineTo(px + 5 + lRthighX, lRkneeY); ctx.lineTo(px + 3 + lRfootX, hipY + 30); ctx.stroke();
+
+      // Arms
+      ctx.beginPath();
+      ctx.moveTo(px, shouldY);
+      ctx.lineTo(px - sw * 14, shouldY + 14);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(px, shouldY);
+      ctx.lineTo(px + sw * 14, shouldY + 14);
+      ctx.stroke();
+
+      // Legs
+      const lThighX = sw * 10;
+      const lFootX = sw * 20;
+      ctx.beginPath();
+      ctx.moveTo(px, hipY);
+      ctx.lineTo(px + lThighX, hipY + 16 - Math.abs(cw) * 4);
+      ctx.lineTo(px + lFootX, hipY + 30);
+      ctx.stroke();
+
+      const rThighX = -sw * 10;
+      const rFootX = -sw * 20;
+      ctx.beginPath();
+      ctx.moveTo(px, hipY);
+      ctx.lineTo(px + rThighX, hipY + 16 - Math.abs(cw) * 4);
+      ctx.lineTo(px + rFootX, hipY + 30);
+      ctx.stroke();
     }
   }
   ctx.shadowBlur = 0;
@@ -129,943 +207,557 @@ function drawStickman(ctx, px, py, frame, ducking, inv) {
 
 function drawObstacle(ctx, ob) {
   if (ob.type === 'jump') {
-    ctx.shadowBlur = 14; ctx.shadowColor = '#f97316';
-    ctx.fillStyle = '#200800'; ctx.strokeStyle = '#f97316'; ctx.lineWidth = 2;
-    rr(ctx, ob.x - 18, GROUND - ob.h, 36, ob.h, 6, true, true);
-    ctx.fillStyle = '#f97316'; ctx.font = 'bold 12px monospace'; ctx.textAlign = 'center';
-    ctx.fillText('x²', ob.x, GROUND - ob.h / 2 + 5); ctx.shadowBlur = 0;
+    // Cyber Laser Spike / Crystal Barrier
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = '#f97316';
+    ctx.fillStyle = '#2b0c03';
+    ctx.strokeStyle = '#f97316';
+    ctx.lineWidth = 2.5;
+
+    ctx.beginPath();
+    ctx.moveTo(ob.x, GROUND - ob.h);
+    ctx.lineTo(ob.x + 18, GROUND);
+    ctx.lineTo(ob.x - 18, GROUND);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Inner glow core
+    ctx.fillStyle = '#fbbf24';
+    ctx.beginPath();
+    ctx.arc(ob.x, GROUND - ob.h / 2, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
   } else {
-    ctx.shadowBlur = 14; ctx.shadowColor = '#06b6d4';
-    ctx.fillStyle = '#001520'; ctx.strokeStyle = '#06b6d4'; ctx.lineWidth = 2;
-    rr(ctx, ob.x - ob.w / 2, ob.y - 15, ob.w, 30, 7, true, true);
-    ctx.fillStyle = '#06b6d4'; ctx.font = 'bold 13px monospace'; ctx.textAlign = 'center';
-    ctx.fillText('÷', ob.x, ob.y + 5); ctx.shadowBlur = 0;
+    // Flying Drone Barrier (duck under)
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = '#06b6d4';
+    ctx.fillStyle = '#031b26';
+    ctx.strokeStyle = '#06b6d4';
+    ctx.lineWidth = 2.5;
+
+    roundRect(ctx, ob.x - ob.w / 2, ob.y - 14, ob.w, 28, 8, true, true);
+
+    // Glowing laser beam underneath
+    ctx.fillStyle = '#22d3ee';
+    ctx.beginPath();
+    ctx.arc(ob.x, ob.y, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
   }
 }
 
-function drawBoss1(ctx, x, y, fr) {
-  ctx.shadowBlur = 20; ctx.shadowColor = '#a855f7';
-  ctx.fillStyle = '#180040'; ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 2.5;
-  rr(ctx, x - 46, y - 88, 92, 88, 10, true, true); ctx.shadowBlur = 0;
-  ctx.fillStyle = '#7c3aed';
-  ctx.beginPath(); ctx.moveTo(x - 30, y - 88); ctx.lineTo(x - 20, y - 112); ctx.lineTo(x - 10, y - 88); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(x + 10, y - 88); ctx.lineTo(x + 20, y - 112); ctx.lineTo(x + 30, y - 88); ctx.fill();
-  const blink = Math.abs(Math.sin(fr * 0.045)) > 0.88;
-  if (!blink) {
-    ctx.fillStyle = '#ff2020';
-    ctx.beginPath(); ctx.ellipse(x - 16, y - 62, 10, 7, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(x + 16, y - 62, 10, 7, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#fff';
-    ctx.beginPath(); ctx.arc(x - 14, y - 62, 3, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(x + 14, y - 62, 3, 0, Math.PI * 2); ctx.fill();
-  }
-  ctx.fillStyle = '#e9d5ff'; ctx.font = 'bold 13px monospace'; ctx.textAlign = 'center';
-  ctx.fillText('x²+5x', x, y - 38); ctx.fillText('+6=0', x, y - 20);
-  const ls = Math.sin(fr * 0.13) * 10;
-  ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 3.5; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(x - 20, y); ctx.lineTo(x - 20 - ls, y + 26); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(x + 20, y); ctx.lineTo(x + 20 + ls, y + 26); ctx.stroke();
-}
+// ── Boss Monsters (Generic Sci-Fi / Cyber Overlords) ─────────────────────────
+function drawBossVillain(ctx, x, y, bossNum, frame) {
+  ctx.save();
+  const floatY = y + Math.sin(frame * 0.08) * 8;
 
-function drawBoss2(ctx, x, y, fr) {
-  ctx.shadowBlur = 22; ctx.shadowColor = '#ec4899';
-  ctx.fillStyle = '#1a0028'; ctx.strokeStyle = '#ec4899'; ctx.lineWidth = 2.5;
-  rr(ctx, x - 54, y - 106, 108, 106, 12, true, true); ctx.shadowBlur = 0;
-  const hornData = [[-32], [0], [32]];
-  ctx.fillStyle = '#9f1239';
-  hornData.forEach(([cx]) => {
-    ctx.beginPath(); ctx.moveTo(x + cx - 10, y - 106);
-    ctx.lineTo(x + cx, y - 132); ctx.lineTo(x + cx + 10, y - 106); ctx.fill();
-  });
-  const blink = Math.abs(Math.sin(fr * 0.038)) > 0.9;
-  if (!blink) {
-    ctx.fillStyle = '#ff4080';
-    ctx.beginPath(); ctx.ellipse(x - 18, y - 76, 13, 8, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(x + 18, y - 76, 13, 8, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#fff';
-    ctx.beginPath(); ctx.arc(x - 16, y - 76, 4, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(x + 16, y - 76, 4, 0, Math.PI * 2); ctx.fill();
-  }
-  ctx.fillStyle = '#fbcfe8'; ctx.font = 'bold 14px serif'; ctx.textAlign = 'center';
-  ctx.fillText('∫f(x)dx', x, y - 46); ctx.font = 'bold 11px monospace';
-  ctx.fillText('= F(x)+C', x, y - 26);
-  const ls = Math.sin(fr * 0.11) * 11;
-  ctx.strokeStyle = '#ec4899'; ctx.lineWidth = 4; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(x - 22, y); ctx.lineTo(x - 22 - ls, y + 28); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(x + 22, y); ctx.lineTo(x + 22 + ls, y + 28); ctx.stroke();
-}
+  if (bossNum === 1) {
+    // Boss 1: Flame Demon Guardian
+    ctx.shadowBlur = 25;
+    ctx.shadowColor = '#ef4444';
+    ctx.fillStyle = '#2a0808';
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 3;
+    roundRect(ctx, x - 45, floatY - 85, 90, 85, 14, true, true);
 
-function drawBoss3(ctx, x, y, fr, img) {
-  const pulse = 1 + Math.sin(fr * 0.09) * 0.035;
-  const iw = 118 * pulse, ih = 118 * pulse;
-  ctx.shadowBlur = 28; ctx.shadowColor = '#fbbf24';
-  ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 3.5;
-  rr(ctx, x - iw / 2 - 8, y - ih - 8, iw + 16, ih + 16, 14, false, true); ctx.shadowBlur = 0;
-  ctx.fillStyle = '#160900';
-  rr(ctx, x - iw / 2 - 8, y - ih - 8, iw + 16, ih + 16, 14, true, false);
-  if (img && img.complete && img.naturalWidth > 0) {
-    ctx.save();
-    ctx.beginPath(); rr(ctx, x - iw / 2, y - ih, iw, ih, 10, false, false); ctx.clip();
-    ctx.drawImage(img, x - iw / 2, y - ih, iw, ih);
-    ctx.restore();
+    // Eyes & Horns
+    ctx.fillStyle = '#fbbf24';
+    ctx.beginPath();
+    ctx.arc(x - 18, floatY - 55, 6, 0, Math.PI * 2);
+    ctx.arc(x + 18, floatY - 55, 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Horns
+    ctx.strokeStyle = '#f97316';
+    ctx.beginPath();
+    ctx.moveTo(x - 30, floatY - 85);
+    ctx.lineTo(x - 45, floatY - 115);
+    ctx.moveTo(x + 30, floatY - 85);
+    ctx.lineTo(x + 45, floatY - 115);
+    ctx.stroke();
+  } else if (bossNum === 2) {
+    // Boss 2: Cyber Mecha Dragon
+    ctx.shadowBlur = 25;
+    ctx.shadowColor = '#a855f7';
+    ctx.fillStyle = '#160829';
+    ctx.strokeStyle = '#a855f7';
+    ctx.lineWidth = 3;
+    roundRect(ctx, x - 50, floatY - 90, 100, 90, 16, true, true);
+
+    // Visor beam
+    ctx.fillStyle = '#ec4899';
+    roundRect(ctx, x - 35, floatY - 60, 70, 12, 6, true, false);
+
+    // Wings
+    ctx.strokeStyle = '#c084fc';
+    ctx.beginPath();
+    ctx.moveTo(x - 50, floatY - 60);
+    ctx.lineTo(x - 85, floatY - 95);
+    ctx.lineTo(x - 50, floatY - 30);
+    ctx.moveTo(x + 50, floatY - 60);
+    ctx.lineTo(x + 85, floatY - 95);
+    ctx.lineTo(x + 50, floatY - 30);
+    ctx.stroke();
   } else {
-    ctx.fillStyle = '#fbbf24'; ctx.font = `bold 64px serif`; ctx.textAlign = 'center';
-    ctx.fillText('👨‍🏫', x, y - ih / 2 + 20);
+    // Boss 3: Shadow Overlord Supreme
+    ctx.shadowBlur = 30;
+    ctx.shadowColor = '#3b82f6';
+    ctx.fillStyle = '#061329';
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 3.5;
+    roundRect(ctx, x - 55, floatY - 100, 110, 100, 18, true, true);
+
+    // Crown / Spikes
+    ctx.fillStyle = '#38bdf8';
+    ctx.beginPath();
+    ctx.moveTo(x - 45, floatY - 100);
+    ctx.lineTo(x - 30, floatY - 130);
+    ctx.lineTo(x - 15, floatY - 100);
+    ctx.lineTo(x, floatY - 135);
+    ctx.lineTo(x + 15, floatY - 100);
+    ctx.lineTo(x + 30, floatY - 130);
+    ctx.lineTo(x + 45, floatY - 100);
+    ctx.fill();
+
+    // Dark energy core
+    ctx.fillStyle = '#60a5fa';
+    ctx.beginPath();
+    ctx.arc(x, floatY - 45, 12, 0, Math.PI * 2);
+    ctx.fill();
   }
-  ctx.fillStyle = '#fbbf24'; ctx.font = 'bold 12px serif'; ctx.textAlign = 'center';
-  ctx.fillText('الأستاذ! 😤', x, y + 18);
+
+  ctx.restore();
 }
 
-function drawExplosion(ctx, parts) {
-  parts.forEach(p => {
-    ctx.globalAlpha = p.life / p.maxLife;
-    ctx.fillStyle = p.color; ctx.beginPath();
-    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+export default function StickmanRun({ onClose }) {
+  const { user } = useAuth();
+  const canvasRef = useRef(null);
+  const animRef = useRef(null);
+
+  const [gameState, setGameState] = useState('loading'); // loading, playing, question, gameOver, victory
+  const [sessionToken, setSessionToken] = useState(null);
+  const [questions, setQuestions] = useState([]);
+  const [currentQIndex, setCurrentQIndex] = useState(0);
+  const [activeQuestion, setActiveQuestion] = useState(null);
+  const [answersLog, setAnswersLog] = useState([]);
+  const [score, setScore] = useState(0);
+  const [lives, setLives] = useState(3);
+  const [pointsEarned, setPointsEarned] = useState(0);
+  const [muted, setMuted] = useState(() => gameAudio.isMuted());
+
+  // Mutable Game Loop State Ref
+  const gameRef = useRef({
+    frame: 0,
+    offset: 0,
+    speed: BASE_SPD,
+    score: 0,
+    lives: 3,
+    player: { y: GROUND, vy: 0, jumping: false, ducking: false, invincible: 0, isDoubleJump: false },
+    obstacles: [],
+    particles: [],
+    stars: [],
+    boss: null,
+    bossIndex: 0,
+    nextBossFrame: BOSS1_FRAME,
+    isPaused: false
   });
-  ctx.globalAlpha = 1;
-}
 
-function drawHUD(ctx, lives, defeated, spd, nextBossFrames, totalFrames) {
-  // hearts
-  for (let i = 0; i < 3; i++) {
-    ctx.font = '22px serif'; ctx.globalAlpha = i < lives ? 1 : 0.2;
-    ctx.fillText('❤️', 12 + i * 30, 32);
-  }
-  ctx.globalAlpha = 1;
-  // boss stars
-  for (let i = 0; i < 3; i++) {
-    ctx.font = '20px serif'; ctx.globalAlpha = i < defeated ? 1 : 0.2;
-    ctx.fillText('⭐', CW - 78 + i * 24, 32);
-  }
-  ctx.globalAlpha = 1;
-
-  // Next boss countdown
-  if (nextBossFrames > 0 && defeated < 3) {
-    const secs = Math.ceil(nextBossFrames / 60);
-    const mins = Math.floor(secs / 60);
-    const s = secs % 60;
-    const label = mins > 0 ? `${mins}:${String(s).padStart(2, '0')}` : `${s}ث`;
-    const isWarning = secs <= 10;
-    ctx.globalAlpha = isWarning ? (0.6 + 0.4 * Math.abs(Math.sin(totalFrames * 0.15))) : 0.7;
-    ctx.fillStyle = isWarning ? '#ef4444' : '#a855f7';
-    ctx.font = `bold ${isWarning ? 13 : 11}px monospace`;
-    ctx.textAlign = 'center';
-    ctx.fillText(isWarning ? `⚠️ البوس قادم! ${label}` : `👹 البوس بعد: ${label}`, CW / 2, 52);
-    ctx.globalAlpha = 1;
-    ctx.textAlign = 'left';
-  }
-
-  // Game time
-  const gameSecs = Math.floor(totalFrames / 60);
-  const gm = Math.floor(gameSecs / 60), gs2 = gameSecs % 60;
-  ctx.fillStyle = 'rgba(255,255,255,.25)'; ctx.font = '10px monospace';
-  ctx.textAlign = 'right';
-  ctx.fillText(`${gm}:${String(gs2).padStart(2, '0')}`, CW - 8, 48);
-  ctx.textAlign = 'left';
-}
-
-// Scrolling story text on canvas
-function drawStoryText(ctx, texts, fr) {
-  texts.forEach(t => {
-    if (fr < t.startFrame || fr > t.endFrame) return;
-    const life = fr - t.startFrame;
-    const duration = t.endFrame - t.startFrame;
-    const fadeIn = Math.min(life / 30, 1);
-    const fadeOut = Math.min((duration - life) / 30, 1);
-    ctx.globalAlpha = Math.min(fadeIn, fadeOut) * 0.9;
-    const x = t.x - life * 0.3;
-    ctx.font = `bold ${t.size || 16}px Tajawal, Cairo, sans-serif`;
-    ctx.fillStyle = t.color || '#c084fc';
-    ctx.textAlign = 'center';
-    ctx.shadowBlur = 12; ctx.shadowColor = t.color || '#c084fc';
-    ctx.fillText(t.text, x, t.y);
-    ctx.shadowBlur = 0; ctx.globalAlpha = 1; ctx.textAlign = 'left';
-  });
-}
-
-const MATH_SYMS = ['π', 'Σ', '∫', 'x²', '√', '∞', 'Δ', '∂', 'α', 'β', 'θ', 'λ'];
-
-// Story texts that appear during gameplay
-const STORY_TEXTS = [
-  { text: '🏃 اهرب! اهرب! العقبات في كل مكان!', x: CW / 2, y: GROUND - 120, startFrame: 60, endFrame: 300, color: '#86efac', size: 17 },
-  { text: '⚡ السرعة بتزيد... جهز نفسك!', x: CW / 2, y: GROUND - 100, startFrame: 400, endFrame: 640, color: '#fbbf24', size: 15 },
-  { text: '💪 كده كده! اقفز وتجنب العقبات!', x: CW / 2, y: GROUND - 110, startFrame: 800, endFrame: 1040, color: '#a855f7', size: 15 },
-  { text: '🎯 ممتاز! كمل وخليك جاهز!', x: CW / 2, y: GROUND - 100, startFrame: 1200, endFrame: 1440, color: '#22c55e', size: 15 },
-];
-
-function makeInitState() {
-  return {
-    frame: 0, distance: 0, speed: BASE_SPD,
-    lives: 3, bossesDefeated: 0, totalPoints: 0,
-    player: { y: GROUND, vy: 0, jumping: false, ducking: false, invincible: 0 },
-    obstacles: [], obTimer: 90,
-    boss: null, explosionParts: [],
-    bossTriggered: [false, false, false],
-    bossUnlockFrame: [BOSS1_FRAME, Infinity, Infinity],
-    bossDefeatFrame: [-1, -1, -1],
-    stars: Array.from({ length: 60 }, () => ({
-      x: Math.random() * CW, y: Math.random() * (GROUND - 80),
-      r: 0.5 + Math.random() * 1.5, speed: 0.4 + Math.random(), phase: Math.random() * Math.PI * 2,
-    })),
-    mathSymbols: Array.from({ length: 16 }, (_, i) => ({
-      ch: MATH_SYMS[i % MATH_SYMS.length], x: Math.random() * CW,
-      y: 25 + Math.random() * (GROUND - 90), sz: 18 + Math.random() * 22, spd: 0.18 + Math.random() * 0.28,
-    })),
-    mountains: [
-      { color: '#160830', spd: 0.16, peaks: Array.from({ length: 9 }, (_, i) => ({ x: i * 140 + Math.random() * 60, w: 130 + Math.random() * 80, h: 80 + Math.random() * 55 })) },
-      { color: '#0e041e', spd: 0.3, peaks: Array.from({ length: 11 }, (_, i) => ({ x: i * 115 + Math.random() * 50, w: 95 + Math.random() * 65, h: 50 + Math.random() * 40 })) },
-    ],
-    bgOffset: 0,
-    phase: 'running',
-  };
-}
-
-function makeObstacle(speed) {
-  // At higher speeds, more varied obstacles
-  const r = Math.random();
-  if (r < 0.52) return { type: 'jump', x: CW + 40, h: 38 + Math.random() * 32 };
-  return { type: 'duck', x: CW + 40, y: GROUND - 55, w: 68 + Math.random() * 36 };
-}
-
-function collides(p, ob) {
-  const ph = p.ducking ? DUCK_H : STAND_H;
-  const py1 = p.y - ph, py2 = p.y;
-  const px1 = PLAYER_X - 13, px2 = PLAYER_X + 13;
-  if (ob.type === 'jump') {
-    return px2 > ob.x - 17 && px1 < ob.x + 17 && py2 > GROUND - ob.h && py1 < GROUND;
-  }
-  return px2 > ob.x - ob.w / 2 && px1 < ob.x + ob.w / 2 && py2 > ob.y - 15 && py1 < ob.y + 15;
-}
-
-const BOSS_DIALOGUES = [
-  { title: 'شيطان الجبر', subtitle: 'البوس الأول', color: '#a855f7', emoji: '👹', taunt: 'هاهاها! تقدر تحل المعادلة دي يا شاطر؟ 😈', fight: 'واجهه!' },
-  { title: 'وحش التفاضل', subtitle: 'البوس الثاني', color: '#ec4899', emoji: '👾', taunt: '∫ و ∂ و لا فاهم حاجة؟ جرب الدلوقتي! 🔥', fight: 'هاجمه!' },
-  { title: 'الأستاذ نفسه!', subtitle: 'البوس الأخير', color: '#fbbf24', emoji: '👨‍🏫', taunt: 'أنت فاكرني مش موجود؟ هاتحدّيني في داري؟! 😤', fight: 'جاهز؟!' },
-];
-
-// ── COMPONENT ──────────────────────────────────────────────────
-export default function StickmanRun({ onClose, academicStage }) {
-  const { user, updateUser } = useAuth();
-  const canvasRef   = useRef(null);
-  const stateRef    = useRef(null);
-  const inputRef    = useRef({ duck: false });
-  const bossActiveRef = useRef(false);
-  const timerRef    = useRef(null);
-  const handleAnswerRef = useRef(null);
-  const startFightRef   = useRef(null);
-  const teacherImgs = useRef({});
-  const sessionTokenRef = useRef(null);
-
-  const [phase, setPhase]             = useState('loading');
-  const [dialogueUI, setDialogueUI]   = useState(null);
-  const [bossUI, setBossUI]           = useState(null);
-  const [selectedChoice, setSelectedChoice] = useState(null);
-  const [answerResult, setAnswerResult]     = useState(null);
-  const [timerPct, setTimerPct]       = useState(100);
-  const [lives, setLives]             = useState(3);
-  const [bossesDefeated, setBossesDefeated] = useState(0);
-  const [totalPoints, setTotalPoints] = useState(0);
-  const [resultData, setResultData]   = useState(null);
-  const [narrow, setNarrow]           = useState(() => window.innerWidth < 520);
-  const [isMobile, setIsMobile]       = useState(() => 'ontouchstart' in window || navigator.maxTouchPoints > 0);
-
+  // 1. Initialize Game Session from Backend
   useEffect(() => {
-    const onResize = () => {
-      setNarrow(window.innerWidth < 520);
-      setIsMobile('ontouchstart' in window || navigator.maxTouchPoints > 0);
-    };
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
+    let mounted = true;
+    api.post('/events/stickman_run/start')
+      .then(res => {
+        if (!mounted) return;
+        if (res.data.success) {
+          setSessionToken(res.data.sessionToken);
+          setQuestions(res.data.questions || []);
+          setGameState('playing');
 
-  // Lock to landscape when playing, unlock on exit
-  useEffect(() => {
-    if (phase === 'playing') {
-      try {
-        screen.orientation?.lock?.('landscape').catch(() => {});
-      } catch (_) {}
-    } else {
-      try {
-        screen.orientation?.unlock?.();
-      } catch (_) {}
-    }
+          // Initialize background stars
+          const stars = Array.from({ length: 45 }, () => ({
+            x: Math.random() * CW,
+            y: Math.random() * (GROUND - 40),
+            r: 1 + Math.random() * 2,
+            speed: 0.5 + Math.random() * 1.5,
+            phase: Math.random() * Math.PI * 2,
+            color: ['#fff', '#c4b5fd', '#67e8f9', '#fde047'][Math.floor(Math.random() * 4)]
+          }));
+          gameRef.current.stars = stars;
+        } else {
+          toast.error(res.data.error || 'تعذر بدء اللعبة');
+          onClose();
+        }
+      })
+      .catch(err => {
+        if (!mounted) return;
+        toast.error(err.response?.data?.error || 'حدث خطأ في تحميل اللعبة');
+        onClose();
+      });
+
     return () => {
-      try { screen.orientation?.unlock?.(); } catch (_) {}
+      mounted = false;
+      if (animRef.current) cancelAnimationFrame(animRef.current);
     };
-  }, [phase]);
-
-  const stage    = academicStage || user?.academic_stage;
-  const cfg      = getGameConfig(stage);
-  const bossCfgs = [cfg.boss1, cfg.boss2, cfg.boss3];
-
-  useEffect(() => {
-    ['normal', 'sad', 'fury'].forEach(k => {
-      const img = new Image(); img.src = `/teacher-${k}.png`;
-      teacherImgs.current[k] = img;
-    });
   }, []);
 
+  // 2. Keyboard Controls
   useEffect(() => {
-    api.get('/events/weekly-run/status')
-      .then(r => setPhase(r.data.played ? 'already_played' : 'intro'))
-      .catch(() => setPhase('intro'));
-  }, []);
+    const handleKeyDown = (e) => {
+      if (gameState !== 'playing') return;
+      const g = gameRef.current;
 
-  // Keyboard
-  useEffect(() => {
-    const dn = (e) => {
-      if (['Space', 'ArrowUp', 'KeyW'].includes(e.code)) {
+      if ((e.code === 'Space' || e.code === 'ArrowUp' || e.key === 'w' || e.key === 'W') && !e.repeat) {
         e.preventDefault();
-        const gs = stateRef.current;
-        if (gs?.phase === 'running' && gs.player.y >= GROUND && !gs.player.jumping) {
-          gs.player.vy = JUMP_V; gs.player.jumping = true;
+        if (!g.player.jumping && g.player.y >= GROUND - 4) {
+          g.player.vy = JUMP_V;
+          g.player.jumping = true;
+          g.player.isDoubleJump = false;
+          gameAudio.playJump();
+        } else if (g.player.jumping && !g.player.isDoubleJump) {
+          // Double Jump!
+          g.player.vy = JUMP_V * 0.85;
+          g.player.isDoubleJump = true;
+          gameAudio.playJump();
         }
       }
-      if (e.code === 'ArrowDown' || e.code === 'KeyS') inputRef.current.duck = true;
+
+      if ((e.code === 'ArrowDown' || e.key === 's' || e.key === 'S') && !e.repeat) {
+        e.preventDefault();
+        g.player.ducking = true;
+        gameAudio.playDuck();
+      }
     };
-    const up = (e) => { if (e.code === 'ArrowDown' || e.code === 'KeyS') inputRef.current.duck = false; };
-    window.addEventListener('keydown', dn);
-    window.addEventListener('keyup', up);
-    return () => { window.removeEventListener('keydown', dn); window.removeEventListener('keyup', up); };
-  }, []);
 
-  const onTouchStart = (e) => {
-    const rect = canvasRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const gs = stateRef.current;
-    if (!gs || gs.phase !== 'running') return;
-    const relY = (e.touches[0].clientY - rect.top) / rect.height;
-    if (relY < 0.55) {
-      if (gs.player.y >= GROUND && !gs.player.jumping) { gs.player.vy = JUMP_V; gs.player.jumping = true; }
-    } else inputRef.current.duck = true;
-  };
-  const onTouchEnd = () => { inputRef.current.duck = false; };
+    const handleKeyUp = (e) => {
+      if (e.code === 'ArrowDown' || e.key === 's' || e.key === 'S') {
+        gameRef.current.player.ducking = false;
+      }
+    };
 
-  // ── GAME LOOP ─────────────────────────────────────────────────
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [gameState]);
+
+  // 3. Main Game Loop
   useEffect(() => {
-    if (phase !== 'playing') return;
+    if (gameState !== 'playing') return;
+
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    const gs  = stateRef.current;
-    if (!gs) return;
 
-    // High-DPI fix: scale canvas buffer to match screen pixel density
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width  = CW * dpr;
-    canvas.height = CH * dpr;
-    ctx.scale(dpr, dpr);
+    const loop = () => {
+      const g = gameRef.current;
 
-    const finishGame = (state) => {
-      state.phase = 'gameover';
-      const pts = state.totalPoints, def = state.bossesDefeated;
-      setResultData({ won: def === 3, pts, def });
-      setPhase(def === 3 ? 'victory' : 'gameover');
-      // [M-18] FIX: use api helper (includes Authorization + X-Tenant-Slug headers)
-      api.post('/events/weekly-run/finish', { pointsEarned: pts, bossesDefeated: def, sessionToken: sessionTokenRef.current })
-        .then(res => res.data)
-        .then(data => { if (data.success && updateUser) updateUser({ points: data.newTotal }); })
-        .catch(() => {
-          toast.error('تعذّر حفظ نتيجة اللعبة — تأكد من اتصالك بالإنترنت');
-        });
-    };
+      if (!g.isPaused) {
+        g.frame++;
+        g.offset += g.speed;
+        g.score += Math.round(g.speed * 0.5);
+        setScore(g.score);
 
-    const handleAnswer = (bossIdx, choiceIdx) => {
-      clearInterval(timerRef.current);
-      const state = stateRef.current; if (!state) return;
-      const bcfg   = bossCfgs[bossIdx];
-      const correct = choiceIdx === bcfg.correctIndex;
-      setSelectedChoice(choiceIdx); setAnswerResult(correct ? 'correct' : 'wrong');
-      setTimeout(() => {
-        if (correct) {
-          state.totalPoints += BOSS_POINTS[bossIdx];
-          state.bossesDefeated += 1;
-          setBossesDefeated(state.bossesDefeated);
-          setTotalPoints(state.totalPoints);
-          // Record defeat frame and unlock next boss after 2 minutes
-          state.bossDefeatFrame[bossIdx] = state.frame;
-          if (bossIdx < 2) {
-            state.bossUnlockFrame[bossIdx + 1] = state.frame + BOSS_GAP_FRAMES;
-          }
-          const cx = state.boss?.x || CW * 0.65, cy = state.boss?.y || GROUND;
-          state.explosionParts = Array.from({ length: 40 }, () => ({
-            x: cx, y: cy - 50, vx: (Math.random() - 0.5) * 16, vy: -8 - Math.random() * 10,
-            r: 3 + Math.random() * 7,
-            color: ['#fbbf24', '#f97316', '#ec4899', '#a855f7', '#22c55e'][Math.floor(Math.random() * 5)],
-            life: 55, maxLife: 55,
-          }));
-          if (state.bossesDefeated === 3) { finishGame(state); return; }
-        } else {
-          // Boss defeated you → immediate game over
-          state.lives = 0;
-          setLives(0);
-          finishGame(state);
-          return;
-        }
-        state.boss = null; state.phase = 'running';
-        setBossUI(null); bossActiveRef.current = false;
-      }, 1400);
-    };
+        // Speed ramp
+        if (g.speed < MAX_SPD) g.speed += 0.0008;
 
-    handleAnswerRef.current = handleAnswer;
+        // Player physics
+        g.player.vy += GRAVITY;
+        g.player.y += g.player.vy;
 
-    const startFight = (bossIdx) => {
-      const state = stateRef.current; if (!state) return;
-      const bcfg = bossCfgs[bossIdx];
-      state.phase = 'boss_encounter';
-      setDialogueUI(null);
-      setBossUI({ bossIdx, cfg: bcfg });
-      setSelectedChoice(null); setAnswerResult(null);
-      let pct = 100;
-      const step = 100 / (bcfg.timeLimit * 20);
-      timerRef.current = setInterval(() => {
-        pct -= step; setTimerPct(Math.max(0, pct));
-        if (pct <= 0) { clearInterval(timerRef.current); handleAnswer(bossIdx, -1); }
-      }, 50);
-    };
-
-    startFightRef.current = startFight;
-
-    const triggerDialogue = (bossIdx) => {
-      if (bossActiveRef.current) return;
-      bossActiveRef.current = true;
-      const state = stateRef.current; if (!state) return;
-      state.phase = 'boss_dialogue';
-      setDialogueUI({ bossIdx, dlg: BOSS_DIALOGUES[bossIdx] });
-    };
-
-    let animId;
-    let lastFrameTime = 0;
-    const TARGET_MS = 1000 / 60;
-    const loop = (now) => {
-      const state = stateRef.current; if (!state) return;
-      const elapsed = now - lastFrameTime;
-      if (elapsed < TARGET_MS - 1) {
-        animId = requestAnimationFrame(loop);
-        return;
-      }
-      lastFrameTime = now - (elapsed % TARGET_MS);
-
-      if (state.phase === 'running') {
-        state.frame++;
-        state.distance += state.speed;
-        state.speed = Math.min(MAX_SPD, BASE_SPD + state.distance * 0.002);
-        state.bgOffset += state.speed;
-
-        const p = state.player;
-        if (p.jumping || p.y < GROUND) {
-          p.vy += GRAVITY;
-          p.y = Math.min(GROUND, p.y + p.vy);
-          if (p.y >= GROUND) { p.y = GROUND; p.vy = 0; p.jumping = false; }
-        }
-        p.ducking = !!inputRef.current.duck;
-        if (p.invincible > 0) p.invincible--;
-
-        // Obstacles — spacing decreases as time goes on
-        state.obTimer--;
-        const minGap = Math.max(35, 80 - Math.floor(state.frame / 600) * 5);
-        if (state.obTimer <= 0) {
-          state.obstacles.push(makeObstacle(state.speed));
-          state.obTimer = minGap + Math.random() * 55;
-        }
-        state.obstacles.forEach(o => { o.x -= state.speed; });
-        state.obstacles = state.obstacles.filter(o => o.x > -90);
-
-        for (const ob of state.obstacles) {
-          if (p.invincible === 0 && collides(p, ob)) {
-            state.lives = Math.max(0, state.lives - 1);
-            setLives(state.lives);
-            p.invincible = 120; ob.x = -300;
-            if (state.lives === 0) { finishGame(state); return; }
-            break;
-          }
+        if (g.player.y >= GROUND) {
+          g.player.y = GROUND;
+          g.player.vy = 0;
+          g.player.jumping = false;
+          g.player.isDoubleJump = false;
         }
 
-        // Frame-based boss triggers
-        if (!state.boss) {
-          for (let i = 0; i < 3; i++) {
-            if (!state.bossTriggered[i] && state.frame >= state.bossUnlockFrame[i]) {
-              state.bossTriggered[i] = true;
-              state.boss = { x: CW + 90, y: GROUND, idx: i, walkSpd: 2.0 };
+        if (g.player.invincible > 0) g.player.invincible--;
+
+        // Spawn obstacles when no boss is active
+        if (!g.boss && g.frame % Math.max(70, Math.floor(140 - g.speed * 8)) === 0) {
+          const type = Math.random() > 0.45 ? 'jump' : 'duck';
+          g.obstacles.push({
+            x: CW + 40,
+            type,
+            h: 36 + Math.random() * 14,
+            w: 38 + Math.random() * 16,
+            y: GROUND - (type === 'duck' ? 44 : 0)
+          });
+        }
+
+        // Move obstacles
+        g.obstacles.forEach(ob => { ob.x -= g.speed; });
+        g.obstacles = g.obstacles.filter(ob => ob.x > -60);
+
+        // Obstacle Collision Check
+        if (g.player.invincible <= 0) {
+          for (const ob of g.obstacles) {
+            let hit = false;
+            if (ob.type === 'jump' && !g.player.ducking) {
+              if (PLAYER_X + 15 > ob.x - 14 && PLAYER_X - 15 < ob.x + 14 && g.player.y > GROUND - ob.h + 8) {
+                hit = true;
+              }
+            } else if (ob.type === 'duck') {
+              if (PLAYER_X + 15 > ob.x - ob.w / 2 && PLAYER_X - 15 < ob.x + ob.w / 2 && !g.player.ducking) {
+                hit = true;
+              }
+            }
+
+            if (hit) {
+              g.lives--;
+              setLives(g.lives);
+              g.player.invincible = 75; // ~1.25s
+              gameAudio.playExplosion();
+
+              if (g.lives <= 0) {
+                handleGameOver(false);
+                return;
+              }
               break;
             }
           }
         }
 
-        // Boss walk-in → trigger dialogue
-        if (state.boss) {
-          const targetX = CW * 0.6;
-          if (state.boss.x > targetX) state.boss.x -= state.boss.walkSpd;
-          else if (!bossActiveRef.current) triggerDialogue(state.boss.idx);
+        // Boss Encounter Logic
+        if (!g.boss && g.bossIndex < questions.length && g.frame >= g.nextBossFrame) {
+          g.boss = {
+            num: g.bossIndex + 1,
+            x: CW + 80,
+            targetX: CW - 130,
+            hp: 1
+          };
+          gameAudio.playBossAlert();
         }
 
-      } else if (state.phase === 'boss_dialogue' || state.phase === 'boss_encounter') {
-        state.frame++;
-      }
-
-      // Explosions
-      state.explosionParts = state.explosionParts.filter(p => p.life > 0);
-      state.explosionParts.forEach(p => { p.x += p.vx; p.y += p.vy; p.vy += 0.32; p.life--; });
-
-      // Calculate next boss countdown
-      let nextBossFrames = 0;
-      if (state.phase === 'running' && !state.boss) {
-        for (let i = 0; i < 3; i++) {
-          if (!state.bossTriggered[i]) {
-            const remaining = state.bossUnlockFrame[i] - state.frame;
-            if (remaining > 0) nextBossFrames = remaining;
-            break;
+        if (g.boss) {
+          if (g.boss.x > g.boss.targetX) {
+            g.boss.x -= 4.5;
+          } else {
+            // Trigger Question Overlay!
+            g.isPaused = true;
+            setActiveQuestion(questions[g.bossIndex]);
+            setCurrentQIndex(g.bossIndex);
+            setGameState('question');
+            return;
           }
         }
       }
 
-      // ── Draw ──
-      drawSky(ctx);
-      drawStars(ctx, state.stars, state.frame);
-      drawMathBg(ctx, state.mathSymbols, state.bgOffset);
-      drawMountains(ctx, state.mountains, state.bgOffset);
-      drawGround(ctx, state.bgOffset);
-      drawStoryText(ctx, STORY_TEXTS, state.frame);
-      state.obstacles.forEach(ob => drawObstacle(ctx, ob));
+      // Render Everything
+      drawBackground(ctx, g.offset, g.stars, g.frame);
+      drawGround(ctx, g.offset);
 
-      if (state.boss && state.boss.x < CW + 10) {
-        const { x, y, idx } = state.boss;
-        if      (idx === 0) drawBoss1(ctx, x, y, state.frame);
-        else if (idx === 1) drawBoss2(ctx, x, y, state.frame);
-        else    drawBoss3(ctx, x, y, state.frame, teacherImgs.current.normal);
+      g.obstacles.forEach(ob => drawObstacle(ctx, ob));
+
+      if (g.boss) {
+        drawBossVillain(ctx, g.boss.x, GROUND - 10, g.boss.num, g.frame);
       }
 
-      drawStickman(ctx, PLAYER_X, state.player.y, state.frame, state.player.ducking, state.player.invincible > 0);
-      drawExplosion(ctx, state.explosionParts);
-      drawHUD(ctx, state.lives, state.bossesDefeated, state.speed, nextBossFrames, state.frame);
+      drawStickmanHero(ctx, PLAYER_X, g.player.y, g.frame, g.player.ducking, g.player.invincible > 0, g.player.isDoubleJump);
 
-      animId = requestAnimationFrame(loop);
+      animRef.current = requestAnimationFrame(loop);
     };
 
-    animId = requestAnimationFrame(loop);
-    return () => {
-      cancelAnimationFrame(animId);
-      clearInterval(timerRef.current);
-      handleAnswerRef.current = null;
-      startFightRef.current   = null;
-    };
-  }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
+    animRef.current = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(animRef.current);
+  }, [gameState, questions]);
 
-  const startGame = async () => {
-    try {
-      const res = await api.post('/events/weekly-run/start');
-      if (!res.data.success) {
-        setPhase('already_played');
-        return;
-      }
-      sessionTokenRef.current = res.data.sessionToken;
-    } catch {
-      toast.error('تعذّر بدء اللعبة — تأكد من اتصالك بالإنترنت');
-      return;
+  // 4. Handle Question Answer
+  const handleAnswerSubmit = (result) => {
+    const g = gameRef.current;
+    const newAnswers = [...answersLog, result];
+    setAnswersLog(newAnswers);
+
+    const isCorrect = result.selectedIndex === 0 || result.selectedIndex === (questions[currentQIndex]?.correctIndex ?? 0);
+
+    if (isCorrect) {
+      gameAudio.playCorrect();
+      g.score += 500;
+    } else {
+      gameAudio.playWrong();
+      g.lives--;
+      setLives(g.lives);
     }
-    stateRef.current = makeInitState();
-    setLives(3); setBossesDefeated(0); setTotalPoints(0);
-    bossActiveRef.current = false;
-    setBossUI(null); setDialogueUI(null);
-    setPhase('playing');
+
+    // Dismiss boss and resume
+    g.boss = null;
+    g.bossIndex++;
+    g.nextBossFrame = g.frame + BOSS_GAP_FRAMES;
+    g.isPaused = false;
+
+    if (g.lives <= 0) {
+      handleGameOver(false, newAnswers);
+    } else if (g.bossIndex >= questions.length) {
+      // Victory! All bosses cleared
+      handleGameOver(true, newAnswers);
+    } else {
+      setGameState('playing');
+    }
   };
 
-  const bossImg = bossUI?.bossIdx === 2
-    ? (answerResult === 'correct' ? teacherImgs.current.sad
-      : answerResult === 'wrong'   ? teacherImgs.current.fury
-      : teacherImgs.current.normal)
-    : null;
+  // 5. Finish Game & Submit to Server
+  const handleGameOver = (isVictory, finalAnswers = answersLog) => {
+    if (animRef.current) cancelAnimationFrame(animRef.current);
+    const g = gameRef.current;
+    g.isPaused = true;
 
-  const dlgBossImg = dialogueUI?.bossIdx === 2 ? teacherImgs.current.fury : null;
+    api.post('/events/stickman_run/finish', {
+      sessionToken,
+      answers: finalAnswers,
+      completed: isVictory,
+      rawScore: g.score
+    })
+      .then(res => {
+        if (res.data.success) {
+          setPointsEarned(res.data.pointsEarned);
+          setGameState(isVictory ? 'victory' : 'gameOver');
+        }
+      })
+      .catch(err => {
+        console.error('[finish game error]', err);
+        setGameState(isVictory ? 'victory' : 'gameOver');
+      });
+  };
 
-  // ── Render ────────────────────────────────────────────────────
+  const handleToggleMute = () => {
+    const isMuted = gameAudio.toggleMute();
+    setMuted(isMuted);
+  };
+
   return (
-    <div dir="rtl" style={{
-      position: 'relative', background: '#04040e',
-      width: '100%', height: '100%', display: 'flex', flexDirection: 'column',
-    }}>
-      <style>{`
-        @keyframes slideUp   { from{opacity:0;transform:translateY(30px)} to{opacity:1;transform:none} }
-        @keyframes slideDown { from{opacity:0;transform:translateY(-22px) scale(.97)} to{opacity:1;transform:none} }
-        @keyframes choiceIn  { from{opacity:0;transform:translateX(12px)} to{opacity:1;transform:none} }
-        @keyframes shakeX    { 0%,100%{transform:none} 25%{transform:translateX(-7px)} 75%{transform:translateX(7px)} }
-        @keyframes bossWarn  { 0%,100%{opacity:.85} 50%{opacity:1} }
-        @keyframes punchIn   { from{opacity:0;transform:scale(.7) rotate(-8deg)} to{opacity:1;transform:scale(1) rotate(0deg)} }
-        @keyframes spin      { to{transform:rotate(360deg)} }
-        @keyframes pulse     { 0%,100%{transform:scale(1)} 50%{transform:scale(1.04)} }
-      `}</style>
-
-      {/* Canvas — fills width, maintains aspect ratio */}
-      <canvas
-        ref={canvasRef} width={CW} height={CH}
-        onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}
-        style={{
-          display: 'block', width: '100%', height: 'auto',
-          touchAction: 'none',
-          visibility: phase === 'playing' ? 'visible' : 'hidden',
-        }}
+    <div className="fixed inset-0 z-50 bg-[#080414] flex flex-col items-center justify-center select-none overflow-hidden" dir="rtl">
+      <GameHUD
+        title="مغامرة الستيكمان"
+        lives={lives}
+        score={score}
+        currentQuestion={Math.min(currentQIndex + 1, questions.length)}
+        totalQuestions={questions.length || 3}
+        muted={muted}
+        onToggleMute={handleToggleMute}
+        onExit={onClose}
+        accentColor="#8b5cf6"
       />
 
-      {/* ── NON-PLAYING OVERLAYS ── */}
-      {phase !== 'playing' && (
-        <div style={{
-          position: 'absolute', inset: 0,
-          background: 'linear-gradient(145deg,#04040e 0%,#180838 100%)',
-          display: 'flex', flexDirection: 'column', alignItems: 'center',
-          justifyContent: 'flex-start', gap: 18, padding: '32px 28px', textAlign: 'center',
-          overflowY: 'auto', overflowX: 'hidden',
-        }}>
-          {phase === 'loading' && (
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
-              <div style={{ width: 44, height: 44, border: '4px solid #7c3aed', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-            </div>
-          )}
+      {/* Main Canvas Container with Gestures */}
+      <div
+        className="relative w-full max-w-[920px] aspect-[920/500] max-h-[78vh] rounded-2xl sm:rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(139,92,246,0.35)] border border-purple-500/20 touch-none select-none"
+        onTouchStart={(e) => {
+          if (gameState !== 'playing') return;
+          const touch = e.touches[0];
+          const rect = e.currentTarget.getBoundingClientRect();
+          const touchY = touch.clientY - rect.top;
+          const isTopHalf = touchY < rect.height * 0.55;
+          const g = gameRef.current;
 
-          {phase === 'intro' && (
-            <div style={{ animation: 'slideUp .45s both', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, width: '100%', maxWidth: 480 }}>
-              <div style={{ fontSize: 90, filter: 'drop-shadow(0 0 24px #7c3aed)', animation: 'pulse 2s ease-in-out infinite' }}>🏃</div>
-              <div>
-                <h2 style={{ color: '#fff', fontSize: 30, fontWeight: 900, margin: '0 0 8px' }}>تحدي الأسبوعي الرياضي</h2>
-                <p style={{ color: '#c084fc', fontSize: 15, margin: '0 0 4px' }}>اهرب من العقبات وهزم ٣ بوسات خلال رحلة طويلة!</p>
-                <p style={{ color: 'rgba(255,255,255,.35)', fontSize: 13, margin: 0 }}>فارق دقيقتين على الأقل بين كل بوس والتاني 💪</p>
-              </div>
+          if (isTopHalf) {
+            if (!g.player.jumping && g.player.y >= GROUND - 4) {
+              g.player.vy = JUMP_V;
+              g.player.jumping = true;
+              g.player.isDoubleJump = false;
+              gameAudio.playJump();
+            } else if (g.player.jumping && !g.player.isDoubleJump) {
+              g.player.vy = JUMP_V * 0.85;
+              g.player.isDoubleJump = true;
+              gameAudio.playJump();
+            }
+          } else {
+            g.player.ducking = true;
+            gameAudio.playDuck();
+          }
+        }}
+        onTouchEnd={() => {
+          gameRef.current.player.ducking = false;
+        }}
+      >
+        <canvas
+          ref={canvasRef}
+          width={CW}
+          height={CH}
+          className="w-full h-full object-contain block bg-[#060312]"
+        />
 
-              {/* Controls — device-aware */}
-              <div style={{ width: '100%', background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 14, padding: '14px 16px' }}>
-                <div style={{ color: 'rgba(255,255,255,.4)', fontSize: 12, marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                  {isMobile ? '📱 تحكم الموبايل' : '⌨️ تحكم الكيبورد'}
-                </div>
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
-                  {isMobile ? (
-                    <>
-                      <div style={{ background: 'rgba(0,255,136,.12)', border: '1px solid rgba(0,255,136,.3)', borderRadius: 11, padding: '10px 16px', minWidth: 100, flex: 1 }}>
-                        <div style={{ fontSize: 28 }}>🔼</div>
-                        <div style={{ color: '#00ff88', fontSize: 13, fontWeight: 700, marginTop: 4 }}>زر الأخضر</div>
-                        <div style={{ color: 'rgba(255,255,255,.4)', fontSize: 11, marginTop: 2 }}>اقفز</div>
-                      </div>
-                      <div style={{ background: 'rgba(6,182,212,.12)', border: '1px solid rgba(6,182,212,.3)', borderRadius: 11, padding: '10px 16px', minWidth: 100, flex: 1 }}>
-                        <div style={{ fontSize: 28 }}>🔽</div>
-                        <div style={{ color: '#06b6d4', fontSize: 13, fontWeight: 700, marginTop: 4 }}>زر الأزرق</div>
-                        <div style={{ color: 'rgba(255,255,255,.4)', fontSize: 11, marginTop: 2 }}>اركع (اضغط مع الاستمرار)</div>
-                      </div>
-                      <div style={{ background: 'rgba(168,85,247,.12)', border: '1px solid rgba(168,85,247,.3)', borderRadius: 11, padding: '10px 16px', minWidth: 100, flex: 1 }}>
-                        <div style={{ fontSize: 28 }}>🧠</div>
-                        <div style={{ color: '#c084fc', fontSize: 13, fontWeight: 700, marginTop: 4 }}>اختر الإجابة</div>
-                        <div style={{ color: 'rgba(255,255,255,.4)', fontSize: 11, marginTop: 2 }}>هزيمة البوس</div>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div style={{ background: 'rgba(0,255,136,.12)', border: '1px solid rgba(0,255,136,.3)', borderRadius: 11, padding: '10px 16px', minWidth: 90, flex: 1 }}>
-                        <div style={{ fontSize: 22, fontFamily: 'monospace', fontWeight: 900, color: '#00ff88' }}>↑ / Space</div>
-                        <div style={{ color: 'rgba(255,255,255,.4)', fontSize: 11, marginTop: 4 }}>اقفز</div>
-                      </div>
-                      <div style={{ background: 'rgba(6,182,212,.12)', border: '1px solid rgba(6,182,212,.3)', borderRadius: 11, padding: '10px 16px', minWidth: 90, flex: 1 }}>
-                        <div style={{ fontSize: 22, fontFamily: 'monospace', fontWeight: 900, color: '#06b6d4' }}>↓ / S</div>
-                        <div style={{ color: 'rgba(255,255,255,.4)', fontSize: 11, marginTop: 4 }}>اركع (اضغط مع الاستمرار)</div>
-                      </div>
-                      <div style={{ background: 'rgba(168,85,247,.12)', border: '1px solid rgba(168,85,247,.3)', borderRadius: 11, padding: '10px 16px', minWidth: 90, flex: 1 }}>
-                        <div style={{ fontSize: 24 }}>🖱️</div>
-                        <div style={{ color: 'rgba(255,255,255,.4)', fontSize: 11, marginTop: 4 }}>اختر إجابة البوس</div>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* Boss timeline */}
-              <div style={{ background: 'rgba(124,58,237,.1)', border: '1px solid rgba(124,58,237,.25)', borderRadius: 14, padding: '14px 20px', width: '100%', maxWidth: 420 }}>
-                <div style={{ color: 'rgba(255,255,255,.5)', fontSize: 12, marginBottom: 10 }}>🗺️ خريطة الرحلة</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {[
-                    { icon: '🏃', label: 'ابدأ الجري', sub: '٣٠ ثانية أولى', color: '#22c55e' },
-                    { icon: '👹', label: 'البوس الأول — شيطان الجبر', sub: `+${BOSS_POINTS[0]} نقطة`, color: '#a855f7' },
-                    { icon: '⏱️', label: 'استمر في الجري', sub: 'دقيقتين على الأقل', color: '#fbbf24' },
-                    { icon: '👾', label: 'البوس الثاني — وحش التفاضل', sub: `+${BOSS_POINTS[1]} نقطة`, color: '#ec4899' },
-                    { icon: '⏱️', label: 'استمر في الجري', sub: 'دقيقتين على الأقل', color: '#fbbf24' },
-                    { icon: '👨‍🏫', label: 'البوس الأخير — الأستاذ!', sub: `+${BOSS_POINTS[2]} نقطة`, color: '#fbbf24' },
-                  ].map((item, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span style={{ fontSize: 18, flexShrink: 0 }}>{item.icon}</span>
-                      <div style={{ flex: 1, textAlign: 'right' }}>
-                        <div style={{ color: item.color, fontSize: 13, fontWeight: 700 }}>{item.label}</div>
-                        <div style={{ color: 'rgba(255,255,255,.35)', fontSize: 11 }}>{item.sub}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <button onClick={startGame} style={{
-                padding: '16px 56px', borderRadius: 14, border: 'none', cursor: 'pointer',
-                background: 'linear-gradient(135deg,#7c3aed,#ec4899)', color: '#fff',
-                fontFamily: 'inherit', fontWeight: 900, fontSize: 20,
-                boxShadow: '0 8px 28px rgba(124,58,237,.55)',
-                animation: 'pulse 2s ease-in-out infinite',
-              }}>العب دلوقتي 🎮</button>
-            </div>
-          )}
-
-          {phase === 'already_played' && (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, animation: 'slideUp .4s both', width: '100%' }}>
-              <div style={{ fontSize: 68 }}>🗓️</div>
-              <h2 style={{ color: '#fff', fontSize: 24, fontWeight: 900, margin: 0 }}>لعبت هذا الأسبوع!</h2>
-              <p style={{ color: 'rgba(255,255,255,.4)', fontSize: 14, margin: 0 }}>تعالى تاني الأسبوع الجاي 🎮</p>
-              {onClose && <button onClick={onClose} style={{ padding: '10px 28px', borderRadius: 10, background: 'rgba(255,255,255,.1)', border: '1px solid rgba(255,255,255,.2)', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700 }}>رجوع</button>}
-            </div>
-          )}
-
-          {(phase === 'victory' || phase === 'gameover') && resultData && (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18, animation: 'slideUp .4s both', width: '100%' }}>
-              <div style={{ fontSize: 90, animation: 'pulse 1.5s ease-in-out infinite' }}>{phase === 'victory' ? '🏆' : '💔'}</div>
-              <h2 style={{ color: phase === 'victory' ? '#fbbf24' : '#ef4444', fontSize: 32, fontWeight: 900, margin: 0 }}>
-                {phase === 'victory' ? 'أنت بطل المنهج! 🌟' : 'حاول الأسبوع الجاي!'}
-              </h2>
-              <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', justifyContent: 'center' }}>
-                <div style={{ background: 'rgba(251,191,36,.1)', border: '1px solid rgba(251,191,36,.28)', borderRadius: 12, padding: '16px 28px' }}>
-                  <div style={{ color: '#fbbf24', fontSize: 40, fontWeight: 900 }}>{resultData.pts}</div>
-                  <div style={{ color: 'rgba(255,255,255,.4)', fontSize: 13 }}>نقطة مكسوبة</div>
-                </div>
-                <div style={{ background: 'rgba(124,58,237,.1)', border: '1px solid rgba(124,58,237,.28)', borderRadius: 12, padding: '16px 28px' }}>
-                  <div style={{ color: '#c084fc', fontSize: 40, fontWeight: 900 }}>{resultData.def}/3</div>
-                  <div style={{ color: 'rgba(255,255,255,.4)', fontSize: 13 }}>بوسات انهزمت</div>
-                </div>
-              </div>
-              <p style={{ color: 'rgba(255,255,255,.3)', fontSize: 13, margin: 0 }}>مرة واحدة في الأسبوع — شوفك الأسبوع الجاي!</p>
-              {onClose && <button onClick={onClose} style={{ padding: '14px 44px', borderRadius: 14, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg,#7c3aed,#ec4899)', color: '#fff', fontFamily: 'inherit', fontWeight: 900, fontSize: 17 }}>رجوع للفعاليات</button>}
-            </div>
-          )}
+        {/* Desktop Keyboard Helper Badge */}
+        <div className="hidden sm:flex absolute bottom-3 left-4 items-center gap-2 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 text-[11px] text-white/70 pointer-events-none">
+          <span>⌨️ تحكم الكيبورد:</span>
+          <span className="bg-white/10 px-1.5 py-0.5 rounded text-purple-300 font-mono font-bold">Space / ↑</span> قفز
+          <span className="bg-white/10 px-1.5 py-0.5 rounded text-indigo-300 font-mono font-bold">↓ / S</span> انحناء
         </div>
+
+        {/* Loading Spinner */}
+        {gameState === 'loading' && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm gap-3">
+            <div className="animate-spin w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full" />
+            <p className="text-white font-bold text-sm animate-pulse">جاري تجهيز مضمار السباق والتحديات...</p>
+          </div>
+        )}
+      </div>
+
+      {/* Mobile Touch Action Buttons */}
+      <div className="sm:hidden flex items-center justify-between w-full max-w-md px-4 mt-2.5 gap-3">
+        <button
+          type="button"
+          onTouchStart={(e) => {
+            e.preventDefault();
+            const g = gameRef.current;
+            if (!g.player.jumping && g.player.y >= GROUND - 4) {
+              g.player.vy = JUMP_V;
+              g.player.jumping = true;
+              gameAudio.playJump();
+            } else if (g.player.jumping && !g.player.isDoubleJump) {
+              g.player.vy = JUMP_V * 0.85;
+              g.player.isDoubleJump = true;
+              gameAudio.playJump();
+            }
+          }}
+          className="flex-1 py-3.5 bg-gradient-to-r from-purple-600 to-indigo-600 active:from-purple-500 active:to-indigo-500 border border-purple-400/50 rounded-2xl text-white font-black text-base text-center shadow-lg shadow-purple-900/40 active:scale-95 transition-transform"
+        >
+          ⬆️ قـفـز (Jump)
+        </button>
+
+        <button
+          type="button"
+          onTouchStart={(e) => {
+            e.preventDefault();
+            gameRef.current.player.ducking = true;
+            gameAudio.playDuck();
+          }}
+          onTouchEnd={(e) => {
+            e.preventDefault();
+            gameRef.current.player.ducking = false;
+          }}
+          className="flex-1 py-3.5 bg-gradient-to-r from-pink-600 to-purple-700 active:from-pink-500 active:to-purple-600 border border-pink-400/50 rounded-2xl text-white font-black text-base text-center shadow-lg shadow-pink-900/40 active:scale-95 transition-transform"
+        >
+          ⬇️ انـحـنـاء (Duck)
+        </button>
+      </div>
+
+      {/* Question Dialog Overlay */}
+      {gameState === 'question' && activeQuestion && (
+        <QuestionOverlay
+          question={activeQuestion}
+          questionIndex={currentQIndex}
+          totalQuestions={questions.length}
+          timeLimit={activeQuestion.timeLimit || 45}
+          enemyLabel={activeQuestion.enemyLabel || `الزعيم ${currentQIndex + 1}`}
+          onAnswer={handleAnswerSubmit}
+        />
       )}
 
-      {/* ── BOSS PRE-FIGHT DIALOGUE ── */}
-      {phase === 'playing' && dialogueUI && (
-        <div style={{
-          position: 'absolute', inset: 0, background: 'rgba(4,4,14,.9)',
-          backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center',
-          justifyContent: 'center', padding: narrow ? 16 : 28,
-          animation: 'slideUp .4s cubic-bezier(.34,1.56,.64,1) both',
-        }}>
-          <div style={{
-            background: `linear-gradient(145deg,#0a0820,rgba(${
-              dialogueUI.bossIdx === 0 ? '168,85,247' : dialogueUI.bossIdx === 1 ? '236,72,153' : '251,191,36'
-            },.14))`,
-            border: `1.5px solid rgba(${dialogueUI.bossIdx === 0 ? '168,85,247' : dialogueUI.bossIdx === 1 ? '236,72,153' : '251,191,36'},.45)`,
-            borderRadius: 20, padding: narrow ? '20px 18px' : '32px 36px', maxWidth: 500, width: '100%',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: narrow ? 12 : 20, textAlign: 'center',
-            boxShadow: `0 16px 60px rgba(${dialogueUI.bossIdx === 0 ? '168,85,247' : dialogueUI.bossIdx === 1 ? '236,72,153' : '251,191,36'},.4)`,
-          }}>
-            <div style={{ animation: 'punchIn .5s cubic-bezier(.34,1.56,.64,1) both' }}>
-              {dlgBossImg ? (
-                <img src={dlgBossImg.src} alt="boss" style={{ width: narrow ? 80 : 130, height: narrow ? 80 : 130, borderRadius: 16, objectFit: 'cover', border: `3px solid ${dialogueUI.dlg.color}`, boxShadow: `0 0 32px ${dialogueUI.dlg.color}66` }} />
-              ) : (
-                <div style={{ fontSize: narrow ? 72 : 110, lineHeight: 1, filter: `drop-shadow(0 0 26px ${dialogueUI.dlg.color})`, animation: 'bossWarn 1.2s ease-in-out infinite' }}>
-                  {dialogueUI.dlg.emoji}
-                </div>
-              )}
-            </div>
-            <div>
-              <div style={{ color: 'rgba(255,255,255,.38)', fontSize: narrow ? 11 : 13, fontWeight: 700, letterSpacing: 1 }}>{dialogueUI.dlg.subtitle}</div>
-              <div style={{ color: '#fff', fontSize: narrow ? 20 : 26, fontWeight: 900, marginTop: 4 }}>{dialogueUI.dlg.title}</div>
-            </div>
-            <div style={{
-              background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.14)',
-              borderRadius: 14, padding: narrow ? '12px 14px' : '16px 22px', position: 'relative',
-            }}>
-              <div style={{ position: 'absolute', top: -10, right: 34, width: 0, height: 0, borderLeft: '10px solid transparent', borderRight: '10px solid transparent', borderBottom: '10px solid rgba(255,255,255,.14)' }} />
-              <p style={{ color: '#fff', fontSize: narrow ? 14 : 16, fontWeight: 700, margin: 0 }}>{dialogueUI.dlg.taunt}</p>
-            </div>
-            <button
-              onClick={() => startFightRef.current?.(dialogueUI.bossIdx)}
-              style={{
-                padding: narrow ? '12px 36px' : '16px 60px', borderRadius: 14, border: 'none', cursor: 'pointer',
-                background: `linear-gradient(135deg, ${dialogueUI.dlg.color}, ${dialogueUI.bossIdx === 0 ? '#ec4899' : dialogueUI.bossIdx === 1 ? '#f97316' : '#f97316'})`,
-                color: '#fff', fontFamily: 'inherit', fontWeight: 900, fontSize: narrow ? 16 : 20,
-                boxShadow: `0 8px 28px ${dialogueUI.dlg.color}77`,
-                animation: 'bossWarn 1.5s ease-in-out infinite',
-              }}
-            >{dialogueUI.dlg.fight} ⚔️</button>
-          </div>
-        </div>
-      )}
-
-      {/* ── BOSS QUESTION (fight phase) ── */}
-      {phase === 'playing' && bossUI && (
-        <div style={{
-          position: 'absolute', inset: 0, background: 'rgba(4,4,14,.88)',
-          backdropFilter: 'blur(5px)', display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center',
-          padding: '20px 24px',
-          animation: 'slideDown .35s cubic-bezier(.34,1.56,.64,1) both',
-        }}>
-          {/* Timer bar */}
-          <div style={{ width: '100%', maxWidth: 600, height: 9, background: 'rgba(255,255,255,.1)', borderRadius: 5, marginBottom: 20 }}>
-            <div style={{
-              height: '100%', borderRadius: 5, transition: 'width .05s linear', width: `${timerPct}%`,
-              background: timerPct > 50 ? '#22c55e' : timerPct > 25 ? '#f59e0b' : '#ef4444',
-              boxShadow: `0 0 8px ${timerPct > 50 ? '#22c55e' : timerPct > 25 ? '#f59e0b' : '#ef4444'}`,
-            }} />
-          </div>
-
-          {/* Time label */}
-          <div style={{ color: timerPct > 50 ? '#86efac' : timerPct > 25 ? '#fcd34d' : '#fca5a5', fontSize: 13, fontWeight: 700, marginBottom: 16 }}>
-            ⏱️ الوقت المتبقي: {Math.ceil(timerPct * bossCfgs[bossUI.bossIdx].timeLimit / 100)}ث
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: narrow ? 'column' : 'row', gap: narrow ? 12 : 20, width: '100%', maxWidth: 600, alignItems: narrow ? 'center' : 'flex-start' }}>
-            {/* Boss face */}
-            <div style={{ flexShrink: 0, display: 'flex', flexDirection: narrow ? 'row' : 'column', alignItems: 'center', gap: 7 }}>
-              {bossImg ? (
-                <img src={bossImg.src} alt="boss"
-                  style={{ width: narrow ? 64 : 100, height: narrow ? 64 : 100, borderRadius: 16, objectFit: 'cover',
-                    border: `3px solid ${answerResult === 'correct' ? '#22c55e' : answerResult === 'wrong' ? '#ef4444' : '#fbbf24'}`,
-                    animation: answerResult === 'wrong' ? 'shakeX .4s ease' : 'none',
-                    boxShadow: `0 0 20px ${answerResult === 'correct' ? '#22c55e55' : answerResult === 'wrong' ? '#ef444455' : '#fbbf2455'}` }} />
-              ) : (
-                <div style={{ width: narrow ? 52 : 90, height: narrow ? 52 : 90, fontSize: narrow ? 44 : 72, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {bossUI.bossIdx === 0 ? '👹' : '👾'}
-                </div>
-              )}
-              <div style={{ color: 'rgba(255,255,255,.35)', fontSize: 11, fontWeight: 700 }}>بوس {bossUI.bossIdx + 1}</div>
-            </div>
-
-            {/* Question + choices */}
-            <div style={{ flex: 1, minWidth: 0, width: narrow ? '100%' : undefined }}>
-              <div style={{
-                background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.14)',
-                borderRadius: 14, padding: narrow ? '10px 12px' : '14px 18px', marginBottom: 12,
-              }}>
-                <p style={{ color: 'rgba(255,255,255,.5)', fontSize: narrow ? 12 : 13, margin: '0 0 6px' }}>
-                  {answerResult === 'correct' ? bossUI.cfg.correctDialog
-                    : answerResult === 'wrong' ? bossUI.cfg.wrongDialog
-                    : bossUI.cfg.dialog}
-                </p>
-                <p style={{ color: '#fff', fontWeight: 900, fontSize: narrow ? 15 : 17, margin: 0, lineHeight: 1.7, whiteSpace: 'pre-line' }}>
-                  {bossUI.cfg.question}
-                </p>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: narrow ? 8 : 10 }}>
-                {bossUI.cfg.choices.map((ch, idx) => {
-                  const sel = selectedChoice === idx, cor = idx === bossUI.cfg.correctIndex;
-                  let bg = 'rgba(255,255,255,.08)', bd = '1px solid rgba(255,255,255,.16)', cl = '#fff';
-                  if (answerResult && sel) {
-                    bg = answerResult === 'correct' ? 'rgba(34,197,94,.3)' : 'rgba(239,68,68,.3)';
-                    bd = `1px solid ${answerResult === 'correct' ? '#22c55e' : '#ef4444'}`;
-                    cl = answerResult === 'correct' ? '#86efac' : '#fca5a5';
-                  } else if (answerResult === 'wrong' && cor) {
-                    bg = 'rgba(34,197,94,.18)'; bd = '1px solid #22c55e'; cl = '#86efac';
-                  }
-                  return (
-                    <button key={idx} disabled={!!answerResult}
-                      onClick={() => { if (!answerResult) handleAnswerRef.current?.(bossUI.bossIdx, idx); }}
-                      style={{
-                        background: bg, border: bd, borderRadius: 11, padding: narrow ? '10px 10px' : '12px 14px',
-                        color: cl, fontFamily: 'inherit', fontWeight: 700, fontSize: narrow ? 13 : 15,
-                        cursor: answerResult ? 'default' : 'pointer', textAlign: 'center',
-                        transition: 'all .2s', animation: `choiceIn .3s ${.07 * idx}s both`,
-                      }}>
-                      {ch}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Controls hint strip */}
-      {phase === 'playing' && !dialogueUI && !bossUI && (
-        <div dir="rtl" style={{
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          padding: '5px 16px', background: 'rgba(0,0,0,.55)', flexShrink: 0,
-        }}>
-          <div style={{ color: 'rgba(255,255,255,.3)', fontSize: 12 }}>
-            {isMobile
-              ? '🟢 اقفز &nbsp;|&nbsp; 🔵 اركع'
-              : '⬆️ / Space قفز &nbsp;|&nbsp; ⬇️ / S اركع'}
-          </div>
-          <div style={{ color: '#fbbf24', fontSize: 14, fontWeight: 700 }}>⭐ {totalPoints} نقطة</div>
-        </div>
-      )}
-
-      {/* Mobile jump/duck buttons — visible only when playing, no dialogue/boss */}
-      {phase === 'playing' && !dialogueUI && !bossUI && (
-        <div style={{
-          position: 'absolute',
-          bottom: 44,
-          left: 0,
-          right: 0,
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-end',
-          padding: '0 18px',
-          pointerEvents: 'none',
-          zIndex: 50,
-        }}>
-          {/* Duck button — hold to duck */}
-          <button
-            onTouchStart={(e) => { e.preventDefault(); inputRef.current.duck = true; }}
-            onTouchEnd={(e) => { e.preventDefault(); inputRef.current.duck = false; }}
-            onMouseDown={() => { inputRef.current.duck = true; }}
-            onMouseUp={() => { inputRef.current.duck = false; }}
-            style={{
-              pointerEvents: 'auto',
-              width: 72, height: 72,
-              borderRadius: '50%',
-              border: '2px solid rgba(6,182,212,0.6)',
-              background: 'rgba(6,182,212,0.18)',
-              color: '#06b6d4',
-              fontSize: 30,
-              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer',
-              userSelect: 'none',
-              WebkitUserSelect: 'none',
-              touchAction: 'none',
-              boxShadow: '0 0 18px rgba(6,182,212,0.3)',
-              gap: 0,
-            }}
-          >
-            ⬇️
-            <span style={{ fontSize: 9, color: 'rgba(6,182,212,0.8)', fontWeight: 700, marginTop: 2 }}>اركع</span>
-          </button>
-
-          {/* Jump button — tap to jump */}
-          <button
-            onTouchStart={(e) => {
-              e.preventDefault();
-              const gs = stateRef.current;
-              if (gs?.phase === 'running' && gs.player.y >= GROUND && !gs.player.jumping) {
-                gs.player.vy = JUMP_V; gs.player.jumping = true;
-              }
-            }}
-            onMouseDown={() => {
-              const gs = stateRef.current;
-              if (gs?.phase === 'running' && gs.player.y >= GROUND && !gs.player.jumping) {
-                gs.player.vy = JUMP_V; gs.player.jumping = true;
-              }
-            }}
-            style={{
-              pointerEvents: 'auto',
-              width: 72, height: 72,
-              borderRadius: '50%',
-              border: '2px solid rgba(0,255,136,0.6)',
-              background: 'rgba(0,255,136,0.15)',
-              color: '#00ff88',
-              fontSize: 30,
-              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer',
-              userSelect: 'none',
-              WebkitUserSelect: 'none',
-              touchAction: 'none',
-              boxShadow: '0 0 18px rgba(0,255,136,0.3)',
-              gap: 0,
-            }}
-          >
-            ⬆️
-            <span style={{ fontSize: 9, color: 'rgba(0,255,136,0.8)', fontWeight: 700, marginTop: 2 }}>اقفز</span>
-          </button>
-        </div>
+      {/* Result Modal */}
+      {(gameState === 'victory' || gameState === 'gameOver') && (
+        <GameResultModal
+          isVictory={gameState === 'victory'}
+          score={score}
+          pointsEarned={pointsEarned}
+          correctCount={answersLog.filter(a => a.selectedIndex === 0 || a.selectedIndex === (questions[a.questionIndex]?.correctIndex ?? 0)).length}
+          totalQuestions={questions.length}
+          gameTitle="مغامرة الستيكمان"
+          onReplay={() => window.location.reload()}
+          onExit={onClose}
+        />
       )}
     </div>
   );

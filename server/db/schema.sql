@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS assistants (
   can_edit_students BOOLEAN DEFAULT true,
   can_delete_students BOOLEAN DEFAULT false,
   can_manage_exams BOOLEAN DEFAULT true,
+  can_manage_events BOOLEAN DEFAULT true,
   can_view_analytics BOOLEAN DEFAULT true,
   can_send_reports BOOLEAN DEFAULT true,
   created_at TIMESTAMP DEFAULT NOW()
@@ -383,6 +384,65 @@ CREATE TABLE IF NOT EXISTS event_plays (
 );
 CREATE INDEX IF NOT EXISTS idx_event_plays_student_event ON event_plays(student_id, event_id);
 
+CREATE TABLE IF NOT EXISTS teacher_game_events (
+  id SERIAL PRIMARY KEY,
+  teacher_id INTEGER REFERENCES teachers(id) ON DELETE CASCADE,
+  game_id VARCHAR(50) NOT NULL,
+  title VARCHAR(255),
+  description TEXT,
+  is_enabled BOOLEAN DEFAULT true,
+  points_per_question INTEGER DEFAULT 20,
+  completion_bonus_points INTEGER DEFAULT 50,
+  allowed_attempts INTEGER DEFAULT 0,
+  reset_frequency VARCHAR(20) DEFAULT 'weekly',
+  question_pull_mode VARCHAR(30) DEFAULT 'unseen_first',
+  questions_per_play INTEGER DEFAULT 3,
+  start_time TIMESTAMPTZ,
+  end_time TIMESTAMPTZ,
+  target_stages JSONB DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(teacher_id, game_id)
+);
+CREATE INDEX IF NOT EXISTS idx_teacher_game_events_teacher ON teacher_game_events(teacher_id);
+
+CREATE TABLE IF NOT EXISTS game_questions (
+  id SERIAL PRIMARY KEY,
+  teacher_id INTEGER REFERENCES teachers(id) ON DELETE CASCADE,
+  game_id VARCHAR(50),
+  academic_stage VARCHAR(100) DEFAULT 'جميع المراحل',
+  level_number INTEGER DEFAULT 1,
+  question_text TEXT NOT NULL,
+  question_image VARCHAR(500),
+  choices JSONB NOT NULL,
+  correct_index INTEGER NOT NULL DEFAULT 0,
+  time_limit_sec INTEGER DEFAULT 45,
+  explanation TEXT,
+  enemy_label VARCHAR(100),
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_game_questions_teacher_stage ON game_questions(teacher_id, academic_stage);
+CREATE INDEX IF NOT EXISTS idx_game_questions_game_level ON game_questions(game_id, level_number);
+
+CREATE TABLE IF NOT EXISTS game_plays_history (
+  id SERIAL PRIMARY KEY,
+  student_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
+  teacher_id INTEGER REFERENCES teachers(id) ON DELETE CASCADE,
+  game_id VARCHAR(50) NOT NULL,
+  session_token VARCHAR(64),
+  score INTEGER DEFAULT 0,
+  points_earned INTEGER DEFAULT 0,
+  questions_asked INTEGER DEFAULT 0,
+  questions_correct INTEGER DEFAULT 0,
+  completed BOOLEAN DEFAULT false,
+  seen_question_ids JSONB DEFAULT '[]'::jsonb,
+  played_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_game_plays_student_game ON game_plays_history(student_id, game_id, played_at DESC);
+CREATE INDEX IF NOT EXISTS idx_game_plays_teacher_game ON game_plays_history(teacher_id, game_id);
+ALTER TABLE assistants ADD COLUMN IF NOT EXISTS can_manage_events BOOLEAN DEFAULT true;
+
 -- ── Performance indexes ──────────────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_questions_exam_id ON questions(exam_id);
 CREATE INDEX IF NOT EXISTS idx_exam_results_student_id ON exam_results(student_id);
@@ -677,8 +737,9 @@ CREATE TABLE IF NOT EXISTS game_session_tokens (
   student_id  INTEGER REFERENCES students(id) ON DELETE CASCADE,
   token       VARCHAR(64) UNIQUE NOT NULL,
   event_id    VARCHAR(50) NOT NULL,
-  created_at  TIMESTAMP DEFAULT NOW(),
-  used_at     TIMESTAMP
+  session_data JSONB,
+  created_at  TIMESTAMPTZ DEFAULT NOW(),
+  used_at     TIMESTAMPTZ
 );
 CREATE INDEX IF NOT EXISTS idx_game_tokens_student
   ON game_session_tokens (student_id, event_id, created_at DESC);

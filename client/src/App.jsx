@@ -58,6 +58,8 @@ const StudentLeaderboard = React.lazy(() => import('./pages/student/Leaderboard'
 const StudentMyStats = React.lazy(() => import('./pages/student/MyStats'));
 const StudentNotifications = React.lazy(() => import('./pages/student/Notifications'));
 const StudentEvents = React.lazy(() => import('./pages/student/Events'));
+const TeacherEvents = React.lazy(() => import('./pages/teacher/EventsManagement'));
+const GameLauncherPage = React.lazy(() => import('./pages/student/games/GameLauncherPage'));
 const StickmanRunPage = React.lazy(() => import('./pages/student/games/StickmanRunPage'));
 const ExamReviewPage = React.lazy(() => import('./pages/ExamReviewPage'));
 const RecitationReviewPage = React.lazy(() => import('./pages/RecitationReviewPage'));
@@ -207,6 +209,7 @@ const TenantRoutes = () => {
           <Route path="students/add" element={<TeacherAddStudent />} />
           <Route path="courses" element={<TeacherCourses />} />
           <Route path="exams" element={<TeacherExams />} />
+          <Route path="events" element={<TeacherEvents />} />
           <Route path="assistants" element={<TeacherAssistants />} />
           <Route path="analytics" element={<TeacherAnalytics />} />
           <Route path="payments" element={<TeacherPayments />} />
@@ -251,6 +254,9 @@ const TenantRoutes = () => {
           } />
           <Route path="question-banks" element={
             <AssistantPermissionRoute permission="can_manage_exams"><QuestionBanks /></AssistantPermissionRoute>
+          } />
+          <Route path="events" element={
+            <AssistantPermissionRoute permission="can_manage_events"><TeacherEvents /></AssistantPermissionRoute>
           } />
           <Route path="courses" element={
             <AssistantPermissionRoute permission="can_manage_courses"><AssistantCourses /></AssistantPermissionRoute>
@@ -323,9 +329,12 @@ const TenantRoutes = () => {
           <Route path="recitations" element={<StudentRecitations />} />
         </Route>
 
-        {/* Stickman run — fullscreen game, outside StudentLayout intentionally */}
+        {/* Fullscreen interactive educational games, outside StudentLayout intentionally */}
         <Route path="student/events/stickman-run" element={
-          <ProtectedRoute allowedRoles={['student']}><StickmanRunPage /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['student']}><GameLauncherPage /></ProtectedRoute>
+        } />
+        <Route path="student/events/:gameId" element={
+          <ProtectedRoute allowedRoles={['student']}><GameLauncherPage /></ProtectedRoute>
         } />
 
         <Route path="*" element={<NotFoundPage />} />

@@ -13,7 +13,7 @@ router.use(authenticate);
 router.get('/', requireRole('teacher'), async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT id,username,name,phone,can_add_students,can_edit_students,can_delete_students,can_manage_exams,can_view_analytics,can_manage_payments,can_manage_courses,can_send_notifications,can_manage_recitations,can_manage_attendance,created_at FROM assistants WHERE teacher_id=$1 ORDER BY created_at DESC',
+      'SELECT id,username,name,phone,can_add_students,can_edit_students,can_delete_students,can_manage_exams,can_manage_events,can_view_analytics,can_manage_payments,can_manage_courses,can_send_notifications,can_manage_recitations,can_manage_attendance,created_at FROM assistants WHERE teacher_id=$1 ORDER BY created_at DESC',
       [req.user.id]
     );
     res.json(result.rows);
@@ -23,13 +23,13 @@ router.get('/', requireRole('teacher'), async (req, res) => {
 });
 
 router.post('/', requireRole('teacher'), validateAssistant, async (req, res) => {
-  const { username, password, name, phone, can_add_students, can_edit_students, can_delete_students, can_manage_exams, can_view_analytics, can_manage_payments, can_manage_courses, can_send_notifications, can_manage_recitations, can_manage_attendance } = req.body;
+  const { username, password, name, phone, can_add_students, can_edit_students, can_delete_students, can_manage_exams, can_manage_events, can_view_analytics, can_manage_payments, can_manage_courses, can_send_notifications, can_manage_recitations, can_manage_attendance } = req.body;
   try {
     const hashed = await bcrypt.hash(password, 10);
     const result = await pool.query(
-      `INSERT INTO assistants (username,password,name,phone,teacher_id,can_add_students,can_edit_students,can_delete_students,can_manage_exams,can_view_analytics,can_manage_payments,can_manage_courses,can_send_notifications,can_manage_recitations,can_manage_attendance)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id,username,name,phone,can_add_students,can_edit_students,can_delete_students,can_manage_exams,can_view_analytics,can_manage_payments,can_manage_courses,can_send_notifications,can_manage_recitations,can_manage_attendance`,
-      [username, hashed, name, phone, req.user.id, can_add_students ?? true, can_edit_students ?? true, can_delete_students ?? false, can_manage_exams ?? true, can_view_analytics ?? true, can_manage_payments ?? false, can_manage_courses ?? false, can_send_notifications ?? false, can_manage_recitations ?? false, can_manage_attendance ?? false]
+      `INSERT INTO assistants (username,password,name,phone,teacher_id,can_add_students,can_edit_students,can_delete_students,can_manage_exams,can_manage_events,can_view_analytics,can_manage_payments,can_manage_courses,can_send_notifications,can_manage_recitations,can_manage_attendance)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id,username,name,phone,can_add_students,can_edit_students,can_delete_students,can_manage_exams,can_manage_events,can_view_analytics,can_manage_payments,can_manage_courses,can_send_notifications,can_manage_recitations,can_manage_attendance`,
+      [username, hashed, name, phone, req.user.id, can_add_students ?? true, can_edit_students ?? true, can_delete_students ?? false, can_manage_exams ?? true, can_manage_events ?? true, can_view_analytics ?? true, can_manage_payments ?? false, can_manage_courses ?? false, can_send_notifications ?? false, can_manage_recitations ?? false, can_manage_attendance ?? false]
     );
     logActivity({
       teacherId: req.user.id, actor: getActor(req), ip: getIp(req),
@@ -45,21 +45,22 @@ router.post('/', requireRole('teacher'), validateAssistant, async (req, res) => 
 });
 
 router.put('/:id/permissions', requireRole('teacher'), async (req, res) => {
-  const { can_add_students, can_edit_students, can_delete_students, can_manage_exams, can_view_analytics, can_manage_payments, can_manage_courses, can_send_notifications, can_manage_recitations, can_manage_attendance } = req.body;
+  const { can_add_students, can_edit_students, can_delete_students, can_manage_exams, can_manage_events, can_view_analytics, can_manage_payments, can_manage_courses, can_send_notifications, can_manage_recitations, can_manage_attendance } = req.body;
   try {
     const oldPerms = await pool.query(
-      'SELECT name,can_add_students,can_edit_students,can_delete_students,can_manage_exams,can_view_analytics,can_manage_payments,can_manage_courses,can_send_notifications,can_manage_recitations,can_manage_attendance FROM assistants WHERE id=$1 AND teacher_id=$2',
+      'SELECT name,can_add_students,can_edit_students,can_delete_students,can_manage_exams,can_manage_events,can_view_analytics,can_manage_payments,can_manage_courses,can_send_notifications,can_manage_recitations,can_manage_attendance FROM assistants WHERE id=$1 AND teacher_id=$2',
       [req.params.id, req.user.id]
     );
     const result = await pool.query(
-      'UPDATE assistants SET can_add_students=$1,can_edit_students=$2,can_delete_students=$3,can_manage_exams=$4,can_view_analytics=$5,can_manage_payments=$6,can_manage_courses=$7,can_send_notifications=$8,can_manage_recitations=$9,can_manage_attendance=$10 WHERE id=$11 AND teacher_id=$12 RETURNING id,username,name,can_add_students,can_edit_students,can_delete_students,can_manage_exams,can_view_analytics,can_manage_payments,can_manage_courses,can_send_notifications,can_manage_recitations,can_manage_attendance',
-      [can_add_students, can_edit_students, can_delete_students, can_manage_exams, can_view_analytics, can_manage_payments ?? false, can_manage_courses ?? false, can_send_notifications ?? false, can_manage_recitations ?? false, can_manage_attendance ?? false, req.params.id, req.user.id]
+      'UPDATE assistants SET can_add_students=$1,can_edit_students=$2,can_delete_students=$3,can_manage_exams=$4,can_manage_events=$5,can_view_analytics=$6,can_manage_payments=$7,can_manage_courses=$8,can_send_notifications=$9,can_manage_recitations=$10,can_manage_attendance=$11 WHERE id=$12 AND teacher_id=$13 RETURNING id,username,name,can_add_students,can_edit_students,can_delete_students,can_manage_exams,can_manage_events,can_view_analytics,can_manage_payments,can_manage_courses,can_send_notifications,can_manage_recitations,can_manage_attendance',
+      [can_add_students, can_edit_students, can_delete_students, can_manage_exams, can_manage_events ?? true, can_view_analytics, can_manage_payments ?? false, can_manage_courses ?? false, can_send_notifications ?? false, can_manage_recitations ?? false, can_manage_attendance ?? false, req.params.id, req.user.id]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Assistant not found' });
     invalidatePermissions(parseInt(req.params.id));
     const PERM_LABELS = {
       can_add_students: 'إضافة طلاب', can_edit_students: 'تعديل طلاب',
       can_delete_students: 'حذف طلاب', can_manage_exams: 'إدارة اختبارات',
+      can_manage_events: 'إدارة الفعاليات والألعاب',
       can_view_analytics: 'عرض تحليلات', can_manage_payments: 'إدارة مدفوعات',
       can_manage_courses: 'إدارة كورسات', can_send_notifications: 'إرسال إشعارات',
       can_manage_recitations: 'إدارة التسميع', can_manage_attendance: 'إدارة الحضور والغياب',

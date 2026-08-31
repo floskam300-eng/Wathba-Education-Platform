@@ -10,7 +10,7 @@ import {
   LayoutDashboard, Users, BookOpen, FileText, UserCog,
   BarChart3, CreditCard, Trophy, LogOut, Menu, MessageCircle,
   Bell, Database, ClipboardList, Moon, Sun, Inbox, BookMarked, Radio,
-  StopCircle, ExternalLink, Activity, Settings, GraduationCap, Archive, CalendarCheck, Eye
+  StopCircle, ExternalLink, Activity, Settings, GraduationCap, Archive, CalendarCheck, Eye, Gamepad2
 } from 'lucide-react';
 import StudentSimulatorModal from '../components/ui/StudentSimulatorModal';
 import WathbaLogo from '../assets/wathba_logo.png';
@@ -42,6 +42,7 @@ export default function TeacherLayout() {
     { to: '/teacher/students',       icon: Users,           label: 'الطلاب',            featureKey: 'students' },
     { to: '/teacher/courses',        icon: BookOpen,        label: 'الكورسات',          featureKey: 'courses' },
     { to: '/teacher/exams',          icon: FileText,        label: 'الاختبارات',         featureKey: 'exams' },
+    { to: '/teacher/events',         icon: Gamepad2,        label: 'إدارة الفعاليات 🎮', featureKey: 'stickman_run' },
     { to: '/teacher/recitations',    icon: GraduationCap,   label: 'التسميع',           featureKey: 'recitations' },
     { to: '/teacher/archive',        icon: Archive,         label: 'أرشيف النتائج',     featureKey: 'archive' },
     { to: '/teacher/question-banks', icon: BookMarked,      label: 'بنوك الأسئلة',     featureKey: 'question_banks' },

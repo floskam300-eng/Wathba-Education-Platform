@@ -11,7 +11,7 @@ const SAFE_STORAGE_FIELDS = [
   'profile_image', 'logo_url', 'bio', 'slug', 'classification',
   'whatsapp_phone', 'subject', 'created_at',
   'can_add_students', 'can_edit_students', 'can_delete_students',
-  'can_manage_exams', 'can_view_analytics',
+  'can_manage_exams', 'can_manage_events', 'can_manage_recitations', 'can_manage_attendance', 'can_view_analytics',
   'can_manage_payments', 'can_manage_courses', 'can_send_notifications',
   'is_simulation', 'simulated_by_teacher_id',
 ];

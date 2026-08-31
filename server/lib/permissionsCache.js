@@ -1,3 +1,4 @@
+const defaultPool = require('../db/connection');
 const _permCache = new Map();
 const PERM_TTL = 5 * 60 * 1000;
 
@@ -9,14 +10,15 @@ setInterval(() => {
   }
 }, 10 * 60 * 1000).unref();
 
-async function getPermissions(assistantId, pool) {
+async function getPermissions(assistantId, pool = defaultPool) {
   const cached = _permCache.get(assistantId);
   if (cached && Date.now() - cached.ts < PERM_TTL) return cached.perms;
-  const r = await pool.query(
+  const db = pool || defaultPool;
+  const r = await db.query(
     `SELECT id, teacher_id,
             can_add_students, can_edit_students, can_delete_students,
-            can_manage_exams, can_view_analytics, can_send_reports,
-            can_manage_payments, can_manage_courses, can_send_notifications, can_manage_recitations
+            can_manage_exams, can_manage_events, can_view_analytics, can_send_reports,
+            can_manage_payments, can_manage_courses, can_send_notifications, can_manage_recitations, can_manage_attendance
      FROM assistants WHERE id=$1`,
     [assistantId]
   );
