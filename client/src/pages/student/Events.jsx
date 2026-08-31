@@ -1,8 +1,52 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { PlayCircle, Trophy, Zap, Shield, Timer, Star, ChevronLeft, Sparkles, Gamepad2, Award, Flame, Info } from 'lucide-react';
+import { PlayCircle, Trophy, Zap, Shield, Timer, Star, ChevronLeft, Sparkles, Gamepad2, Award, Flame, Info, Lock } from 'lucide-react';
 import api from '../../lib/api';
+
+const GAME_THEMES = {
+  stickman_run: {
+    badgeBg: 'bg-violet-500/25 text-violet-200 border-violet-400/40',
+    iconBg: 'from-violet-500/30 to-purple-600/30 border-violet-400/50',
+    btnPlay: 'bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white shadow-lg shadow-purple-600/40 border border-violet-400/40 hover:shadow-purple-500/60',
+    cardBorder: 'border-violet-500/30 hover:border-violet-400/60',
+    glowColor: 'bg-violet-500/15',
+    accentText: 'text-violet-300'
+  },
+  space_blaster: {
+    badgeBg: 'bg-cyan-500/25 text-cyan-200 border-cyan-400/40',
+    iconBg: 'from-cyan-500/30 to-blue-600/30 border-cyan-400/50',
+    btnPlay: 'bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-white shadow-lg shadow-cyan-600/40 border border-cyan-400/40 hover:shadow-cyan-500/60',
+    cardBorder: 'border-cyan-500/30 hover:border-cyan-400/60',
+    glowColor: 'bg-cyan-500/15',
+    accentText: 'text-cyan-300'
+  },
+  tower_of_riddles: {
+    badgeBg: 'bg-amber-500/25 text-amber-200 border-amber-400/40',
+    iconBg: 'from-amber-500/30 to-orange-600/30 border-amber-400/50',
+    btnPlay: 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400 text-white shadow-lg shadow-amber-600/40 border border-amber-400/40 hover:shadow-amber-500/60',
+    cardBorder: 'border-amber-500/30 hover:border-amber-400/60',
+    glowColor: 'bg-amber-500/15',
+    accentText: 'text-amber-300'
+  },
+  bubble_blitz: {
+    badgeBg: 'bg-emerald-500/25 text-emerald-200 border-emerald-400/40',
+    iconBg: 'from-emerald-500/30 to-teal-600/30 border-emerald-400/50',
+    btnPlay: 'bg-gradient-to-r from-emerald-500 via-teal-600 to-green-600 hover:from-emerald-400 hover:to-green-500 text-white shadow-lg shadow-emerald-600/40 border border-emerald-400/40 hover:shadow-emerald-500/60',
+    cardBorder: 'border-emerald-500/30 hover:border-emerald-400/60',
+    glowColor: 'bg-emerald-500/15',
+    accentText: 'text-emerald-300'
+  }
+};
+
+const DEFAULT_THEME = {
+  badgeBg: 'bg-purple-500/25 text-purple-200 border-purple-400/40',
+  iconBg: 'from-purple-500/30 to-indigo-600/30 border-purple-400/50',
+  btnPlay: 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-lg shadow-purple-600/40 border border-purple-400/40',
+  cardBorder: 'border-purple-500/30 hover:border-purple-400/60',
+  glowColor: 'bg-purple-500/15',
+  accentText: 'text-purple-300'
+};
 
 export default function StudentEvents() {
   const { user } = useAuth();
@@ -40,14 +84,21 @@ export default function StudentEvents() {
 
   const pts = user?.points || 0;
 
+  // Filter logic: correctly match 'all' or category or game id
   const filteredGames = games.filter(g => {
     if (selectedFilter === 'all') return true;
-    if (selectedFilter === 'runner' && g.category === 'runner') return true;
-    if (selectedFilter === 'arcade' && g.category === 'arcade') return true;
-    if (selectedFilter === 'puzzle' && g.category === 'puzzle') return true;
-    if (selectedFilter === 'action' && g.category === 'action') return true;
-    return true;
+    if (selectedFilter === g.category) return true;
+    if (selectedFilter === g.id) return true;
+    return false;
   });
+
+  const filterTabs = [
+    { id: 'all', label: 'جميع الألعاب 🎯' },
+    { id: 'runner', label: 'مغامرة الستيكمان 🏃' },
+    { id: 'arcade', label: 'صائد الفضاء 🚀' },
+    { id: 'puzzle', label: 'برج الفوازير 🏰' },
+    { id: 'action', label: 'فرقعة الفقاعات 🫧' }
+  ];
 
   return (
     <div className="min-h-full flex flex-col bg-[#070512] text-white font-sans selection:bg-purple-500/30" dir="rtl">
@@ -74,14 +125,14 @@ export default function StudentEvents() {
           </div>
 
           {/* Student Points Pill */}
-          <div className="flex items-center gap-3 bg-white/5 border border-purple-400/25 px-5 py-3 rounded-2xl backdrop-blur-md shadow-lg shadow-purple-900/30">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-400 font-bold">
-              <Trophy size={20} className="animate-bounce" />
+          <div className="flex items-center gap-3 bg-white/10 border border-purple-400/30 px-5 py-3 rounded-2xl backdrop-blur-md shadow-lg shadow-purple-900/40">
+            <div className="w-11 h-11 rounded-xl bg-amber-500/20 border border-amber-400/50 flex items-center justify-center text-amber-400 font-bold shadow-inner">
+              <Trophy size={22} className="animate-bounce" />
             </div>
             <div>
-              <div className="text-xs text-white/50 font-bold">نقاطك الحالية</div>
-              <div className="text-xl font-black text-amber-400 font-mono">
-                {pts.toLocaleString('ar-EG')} <span className="text-xs font-sans text-amber-400/80">نقطة</span>
+              <div className="text-xs text-purple-200 font-bold">نقاطك الحالية</div>
+              <div className="text-xl font-black text-amber-300 font-mono">
+                {pts.toLocaleString('ar-EG')} <span className="text-xs font-sans text-amber-300/80">نقطة</span>
               </div>
             </div>
           </div>
@@ -89,21 +140,15 @@ export default function StudentEvents() {
 
         {/* Filter Pills */}
         <div className="relative z-10 max-w-6xl mx-auto flex items-center gap-2 overflow-x-auto mt-6 pt-4 border-t border-white/10 pb-1 scrollbar-none">
-          {[
-            { id: 'all', label: 'جميع الألعاب 🎯' },
-            { id: 'runner', label: 'ركض وتخطي 🏃' },
-            { id: 'arcade', label: 'مغامرات الفضاء 🚀' },
-            { id: 'puzzle', label: 'فوازير وألغاز 🏰' },
-            { id: 'action', label: 'فرقعة وسرعة 🫧' }
-          ].map(f => (
+          {filterTabs.map(f => (
             <button
               key={f.id}
               type="button"
               onClick={() => setSelectedFilter(f.id)}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap active:scale-95 ${
+              className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-black transition-all whitespace-nowrap active:scale-95 flex items-center gap-1.5 ${
                 selectedFilter === f.id
-                  ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/40 border border-purple-400'
-                  : 'bg-white/5 text-white/70 hover:bg-white/10 border border-white/10'
+                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-600/50 border border-purple-300 scale-105'
+                  : 'bg-white/10 text-white/80 hover:bg-white/15 hover:text-white border border-white/15'
               }`}
             >
               {f.label}
@@ -123,36 +168,36 @@ export default function StudentEvents() {
         ) : filteredGames.length === 0 ? (
           <div className="text-center py-16 bg-white/5 border border-white/10 rounded-3xl p-8">
             <Gamepad2 size={48} className="mx-auto mb-3 text-purple-400 opacity-60" />
-            <h3 className="text-lg font-bold text-white mb-1">لا توجد ألعاب متاحة حالياً في هذا القسم</h3>
-            <p className="text-sm text-white/50">تابع الفعاليات الجديدة المضافة من قِبل معلمك قريباً!</p>
+            <h3 className="text-lg font-bold text-white mb-1">لا توجد ألعاب في هذا التصنيف حالياً</h3>
+            <p className="text-sm text-white/50">اختر "جميع الألعاب" لعرض كامل الألعاب المتاحة.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {filteredGames.map(game => {
+              const theme = GAME_THEMES[game.id] || DEFAULT_THEME;
               const isPlayable = game.isPlayable;
-              const hasPlayed = game.stats?.total_plays > 0;
 
               return (
                 <div
                   key={game.id}
-                  className="group relative rounded-3xl overflow-hidden bg-gradient-to-b from-[#160c2b] to-[#0d071b] border border-purple-500/25 hover:border-purple-500/50 shadow-xl transition-all duration-300 hover:-translate-y-1 flex flex-col justify-between"
+                  className={`group relative rounded-3xl overflow-hidden bg-gradient-to-b from-[#180e30] via-[#120a24] to-[#0c0618] border ${theme.cardBorder} shadow-2xl transition-all duration-300 hover:-translate-y-1.5 flex flex-col justify-between`}
                 >
-                  {/* Glowing corner flare */}
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full blur-2xl group-hover:bg-purple-500/20 transition-all pointer-events-none" />
+                  {/* Glowing background flare */}
+                  <div className={`absolute top-0 right-0 w-36 h-36 ${theme.glowColor} rounded-full blur-3xl group-hover:scale-125 transition-all pointer-events-none`} />
 
                   {/* Card Body */}
                   <div className="p-6 sm:p-7 relative z-10">
                     {/* Top Row: Icon + Badges */}
                     <div className="flex items-start justify-between gap-3 mb-4">
                       <div className="flex items-center gap-3.5">
-                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500/20 to-indigo-500/20 border border-purple-400/30 flex items-center justify-center text-3xl shadow-lg flex-shrink-0 group-hover:scale-110 transition-transform">
+                        <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${theme.iconBg} border flex items-center justify-center text-3xl shadow-xl flex-shrink-0 group-hover:scale-110 transition-transform`}>
                           {game.icon}
                         </div>
                         <div>
-                          <span className="inline-block px-2.5 py-0.5 rounded-md bg-purple-500/20 border border-purple-400/30 text-purple-300 text-[10px] font-extrabold mb-1">
+                          <span className={`inline-block px-2.5 py-0.5 rounded-md ${theme.badgeBg} border text-[11px] font-black mb-1`}>
                             {game.badge}
                           </span>
-                          <h3 className="text-lg sm:text-xl font-black text-white group-hover:text-purple-200 transition-colors">
+                          <h3 className="text-lg sm:text-xl font-black text-white group-hover:text-purple-100 transition-colors">
                             {game.title}
                           </h3>
                         </div>
@@ -161,44 +206,44 @@ export default function StudentEvents() {
                       {/* Status Tag */}
                       <div>
                         {game.scheduleNotice ? (
-                          <span className="px-3 py-1 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-bold whitespace-nowrap">
+                          <span className="px-3 py-1.5 rounded-xl bg-amber-500/25 border border-amber-400/50 text-amber-300 text-xs font-black whitespace-nowrap shadow-sm">
                             ⏳ {game.scheduleNotice}
                           </span>
                         ) : isPlayable ? (
-                          <span className="px-3 py-1 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold whitespace-nowrap animate-pulse">
+                          <span className="px-3 py-1.5 rounded-xl bg-emerald-500/25 border border-emerald-400/50 text-emerald-300 text-xs font-black whitespace-nowrap animate-pulse shadow-sm">
                             متاح الآن ⚡
                           </span>
                         ) : (
-                          <span className="px-3 py-1 rounded-xl bg-red-500/20 border border-red-500/40 text-red-300 text-xs font-bold whitespace-nowrap">
+                          <span className="px-3 py-1.5 rounded-xl bg-red-500/25 border border-red-400/50 text-red-300 text-xs font-black whitespace-nowrap shadow-sm">
                             مكتمل / غير متاح 🔒
                           </span>
                         )}
                       </div>
                     </div>
 
-                    <p className="text-xs sm:text-sm text-white/60 leading-relaxed mb-5 min-h-[40px]">
+                    <p className="text-xs sm:text-sm text-white/70 leading-relaxed mb-5 min-h-[42px]">
                       {game.subtitle}
                     </p>
 
                     {/* Stats pills */}
-                    <div className="grid grid-cols-3 gap-2.5 bg-black/40 border border-white/10 rounded-2xl p-3 mb-5 text-center">
+                    <div className="grid grid-cols-3 gap-2.5 bg-black/50 border border-white/10 rounded-2xl p-3.5 mb-5 text-center backdrop-blur-sm">
                       <div>
-                        <div className="text-[10px] text-white/40 font-bold mb-0.5">أقصى مكافأة</div>
-                        <div className="text-sm font-black text-amber-400 font-mono">+{game.maxPossiblePoints}</div>
+                        <div className="text-[11px] text-white/50 font-bold mb-0.5">أقصى مكافأة</div>
+                        <div className="text-base font-black text-amber-400 font-mono">+{game.maxPossiblePoints}</div>
                       </div>
                       <div>
-                        <div className="text-[10px] text-white/40 font-bold mb-0.5">الأسئلة</div>
-                        <div className="text-sm font-black text-indigo-300 font-mono">{game.questionsPerPlay}</div>
+                        <div className="text-[11px] text-white/50 font-bold mb-0.5">الأسئلة</div>
+                        <div className="text-base font-black text-cyan-300 font-mono">{game.questionsPerPlay}</div>
                       </div>
                       <div>
-                        <div className="text-[10px] text-white/40 font-bold mb-0.5">أعلى سكور</div>
-                        <div className="text-sm font-black text-emerald-400 font-mono">{game.stats?.high_score || 0}</div>
+                        <div className="text-[11px] text-white/50 font-bold mb-0.5">أعلى سكور</div>
+                        <div className="text-base font-black text-emerald-400 font-mono">{game.stats?.high_score || 0}</div>
                       </div>
                     </div>
 
                     {/* Rules Bullet Preview */}
                     {Array.isArray(game.rules) && (
-                      <div className="space-y-1.5 mb-5 bg-white/5 border border-white/5 rounded-xl p-3 text-[11px] text-white/70">
+                      <div className="space-y-1.5 mb-5 bg-white/5 border border-white/10 rounded-xl p-3 text-[11px] text-white/80">
                         {game.rules.map((rule, idx) => (
                           <div key={idx} className="flex items-center gap-2">
                             <span className="w-1.5 h-1.5 rounded-full bg-purple-400 flex-shrink-0" />
@@ -215,16 +260,16 @@ export default function StudentEvents() {
                       type="button"
                       disabled={!isPlayable}
                       onClick={() => navigate(`/student/events/${game.id.replace(/_/g, '-')}`)}
-                      className={`w-full py-3.5 px-5 rounded-2xl font-black text-sm sm:text-base flex items-center justify-center gap-2 shadow-xl transition-all duration-200 active:scale-98 ${
+                      className={`w-full py-4 px-6 rounded-2xl font-black text-base flex items-center justify-center gap-2.5 transition-all duration-200 active:scale-98 cursor-pointer ${
                         isPlayable
-                          ? `bg-gradient-to-r ${game.gradient} text-white hover:brightness-110 shadow-purple-600/40`
-                          : 'bg-white/10 border border-white/10 text-white/40 cursor-not-allowed'
+                          ? `${theme.btnPlay} cursor-pointer`
+                          : 'bg-slate-800/80 border border-white/10 text-slate-400 cursor-not-allowed shadow-none'
                       }`}
                     >
-                      <PlayCircle size={20} />
+                      {isPlayable ? <PlayCircle size={22} className="text-white" /> : <Lock size={20} className="text-slate-400" />}
                       <span>{isPlayable ? 'العب دلوقتي واكسب النقاط' : 'غير متاح حالياً'}</span>
                       {game.remainingAttempts !== null && isPlayable && (
-                        <span className="text-xs bg-black/25 px-2 py-0.5 rounded-lg mr-1 font-mono">
+                        <span className="text-xs bg-black/30 px-2.5 py-1 rounded-lg mr-1 font-mono font-bold border border-white/20">
                           (متبقي {game.remainingAttempts})
                         </span>
                       )}
@@ -237,32 +282,33 @@ export default function StudentEvents() {
         )}
 
         {/* ── LEADERBOARD SECTION ── */}
-        <div className="bg-gradient-to-b from-[#140b2b] to-[#0c061a] border border-purple-500/25 rounded-3xl p-6 sm:p-8 shadow-xl">
+        <div className="bg-gradient-to-b from-[#140b2b] to-[#0c061a] border border-purple-500/25 rounded-3xl p-6 sm:p-8 shadow-2xl">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6 pb-4 border-b border-white/10">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-400">
-                <Trophy size={20} />
+              <div className="w-11 h-11 rounded-xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-400 shadow-md">
+                <Trophy size={22} />
               </div>
               <div>
                 <h3 className="text-lg sm:text-xl font-black text-white">لوحة شرف الأبطال</h3>
-                <p className="text-xs text-white/50">أفضل الطلاب تفوقاً في الألعاب والفعاليات التعليمية</p>
+                <p className="text-xs text-white/60">أفضل الطلاب تفوقاً في الألعاب والفعاليات التعليمية</p>
               </div>
             </div>
 
             {/* Game Selector for Leaderboard */}
-            <div className="flex items-center gap-1.5 bg-black/40 border border-white/10 p-1 rounded-xl overflow-x-auto max-w-full">
+            <div className="flex items-center gap-1.5 bg-black/50 border border-white/15 p-1.5 rounded-xl overflow-x-auto max-w-full">
               {games.map(g => (
                 <button
                   key={g.id}
                   type="button"
                   onClick={() => setActiveLeaderboardGame(g.id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all whitespace-nowrap flex items-center gap-1 ${
                     activeLeaderboardGame === g.id
-                      ? 'bg-purple-600 text-white shadow-md'
-                      : 'text-white/60 hover:text-white'
+                      ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md border border-purple-400/40'
+                      : 'text-white/60 hover:text-white hover:bg-white/5'
                   }`}
                 >
-                  {g.icon} {g.title}
+                  <span>{g.icon}</span>
+                  <span>{g.title}</span>
                 </button>
               ))}
             </div>
@@ -294,13 +340,13 @@ export default function StudentEvents() {
 
                     return (
                       <tr key={row.id} className={`transition-colors ${isMe ? 'bg-purple-600/20' : 'hover:bg-white/5'}`}>
-                        <td className="py-3 pr-3 font-bold">
+                        <td className="py-3 pr-3 font-black text-sm">
                           {isTop1 ? '🥇 الأول' : isTop2 ? '🥈 الثاني' : isTop3 ? '🥉 الثالث' : `#${idx + 1}`}
                         </td>
                         <td className="py-3 font-bold text-white flex items-center gap-2">
                           <span>{row.name}</span>
                           {isMe && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500 text-white font-black">
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500 text-white font-black">
                               أنت
                             </span>
                           )}

@@ -721,10 +721,11 @@ router.put('/teachers/:id/features', requireAdminAuth, async (req, res) => {
 
   const prevLive = null; // we'll read below
   try {
-    // Fetch current features first so we only overwrite known keys
-    const current = await pool.query('SELECT features_enabled FROM teachers WHERE id = $1', [teacherId]);
+    // Fetch current features and slug
+    const current = await pool.query('SELECT slug, features_enabled FROM teachers WHERE id = $1', [teacherId]);
     if (current.rows.length === 0) return res.status(404).json({ error: 'المدرس غير موجود' });
 
+    const slug = current.rows[0].slug;
     const existing = current.rows[0].features_enabled || {};
     const prevLiveStreaming = existing.live_streaming !== false;
 
@@ -741,11 +742,28 @@ router.put('/teachers/:id/features', requireAdminAuth, async (req, res) => {
     // B4 FIX: invalidate stats cache whenever teacher features change
     _statsCache.ts = 0;
 
+    // Instantly invalidate public info cache & branding cache
+    const { invalidatePubInfoCache } = require('./public');
+    invalidatePubInfoCache(slug);
+    invalidateBrandingCache(slug);
+
+    const subdomainTenant = require('../middleware/subdomainTenant');
+    if (subdomainTenant && typeof subdomainTenant.invalidateCache === 'function') {
+      subdomainTenant.invalidateCache(slug);
+    }
+
     // Invalidate live feature cache when live_streaming flag changes
     const newLiveStreaming = features.live_streaming !== false;
     if ('live_streaming' in incoming && prevLiveStreaming !== newLiveStreaming) {
       try { require('./live').invalidateLiveFeatureCache(teacherId); } catch (_) {}
     }
+
+    // Realtime broadcast to teacher, assistants, and students
+    try {
+      const { broadcastToTeacherAndAssistants, broadcastToTeacherStudents } = require('../sse');
+      broadcastToTeacherAndAssistants(pool, teacherId, 'features_updated', { features, teacherId });
+      broadcastToTeacherStudents(pool, teacherId, 'features_updated', { features, teacherId });
+    } catch (_) {}
 
     res.json({ success: true, features });
   } catch (err) {

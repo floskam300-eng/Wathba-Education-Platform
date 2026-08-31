@@ -399,6 +399,18 @@ export function useSSE(enabled, role) {
           qc.invalidateQueries({ queryKey: ['teacher-dashboard'] });
         });
       }
+
+      // Realtime feature permissions & platform updates from Super Admin
+      es.addEventListener('features_updated', () => {
+        qc.invalidateQueries({ queryKey: ['teacher-public'] });
+        qc.refetchQueries({ queryKey: ['teacher-public'] });
+        qc.invalidateQueries({ queryKey: ['events-list'] });
+      });
+
+      es.addEventListener('teacher_updated', () => {
+        qc.invalidateQueries({ queryKey: ['teacher-public'] });
+        qc.refetchQueries({ queryKey: ['teacher-public'] });
+      });
     };
 
     connect();

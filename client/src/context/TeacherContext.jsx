@@ -97,7 +97,7 @@ export function TeacherProvider({ children }) {
     queryKey: ['teacher-public', teacherSlug],
     queryFn: () => api.get('/public/info').then(r => r.data),
     enabled: !!teacherSlug,
-    staleTime: 60 * 1000,
+    staleTime: 5 * 1000,
     retry: 2,
     retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 8000),
   });

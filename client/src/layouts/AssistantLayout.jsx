@@ -12,7 +12,7 @@ export default function AssistantLayout() {
   const { user, logout } = useAuth();
   const { dark, toggle } = useTheme();
   const navigate = useNavigate();
-  const { platformName, logoUrl, teacher } = useTeacher();
+  const { platformName, logoUrl, teacher, features = {} } = useTeacher();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useSSE(!!user, 'assistant');
@@ -31,22 +31,22 @@ export default function AssistantLayout() {
       { to: '/assistant', icon: LayoutDashboard, label: 'لوحة التحكم', end: true },
     ];
     if (user?.role === 'assistant') {
-      items.push({ to: '/assistant/students', icon: Users, label: 'الطلاب' });
-      if (user?.can_manage_exams) items.push({ to: '/assistant/exams', icon: FileText, label: 'الاختبارات' });
-      if (user?.can_manage_events) items.push({ to: '/assistant/events', icon: Gamepad2, label: 'إدارة الفعاليات 🎮' });
-      if (user?.can_manage_recitations) items.push({ to: '/assistant/recitations', icon: GraduationCap, label: 'التسميع' });
-      if (user?.can_view_analytics || user?.can_manage_exams || user?.can_manage_recitations)
+      if (features?.students !== false) items.push({ to: '/assistant/students', icon: Users, label: 'الطلاب' });
+      if (features?.exams !== false && user?.can_manage_exams) items.push({ to: '/assistant/exams', icon: FileText, label: 'الاختبارات' });
+      if (features?.stickman_run !== false && user?.can_manage_events) items.push({ to: '/assistant/events', icon: Gamepad2, label: 'إدارة الفعاليات 🎮' });
+      if (features?.recitations !== false && user?.can_manage_recitations) items.push({ to: '/assistant/recitations', icon: GraduationCap, label: 'التسميع' });
+      if ((features?.archive !== false) && (user?.can_view_analytics || user?.can_manage_exams || user?.can_manage_recitations))
         items.push({ to: '/assistant/archive', icon: Archive, label: 'أرشيف النتائج' });
-      if (user?.can_manage_exams) items.push({ to: '/assistant/question-banks', icon: BookMarked, label: 'بنوك الأسئلة' });
-      if (user?.can_manage_courses) items.push({ to: '/assistant/courses', icon: BookOpen, label: 'الكورسات' });
-      if (user?.can_manage_payments) items.push({ to: '/assistant/payments', icon: CreditCard, label: 'المدفوعات' });
-      if (user?.can_view_analytics) items.push({ to: '/assistant/analytics', icon: BarChart3, label: 'التحليلات' });
-      if (user?.can_send_notifications) items.push({ to: '/assistant/notifications', icon: MessageCircle, label: 'الإشعارات' });
-      if (user?.can_manage_exams || user?.can_manage_courses) items.push({ to: '/assistant/requests', icon: Inbox, label: 'الطلبات' });
-      if (user?.can_manage_attendance) items.push({ to: '/assistant/class-attendance', icon: CalendarCheck, label: 'الحضور والغياب' });
+      if (features?.question_banks !== false && user?.can_manage_exams) items.push({ to: '/assistant/question-banks', icon: BookMarked, label: 'بنوك الأسئلة' });
+      if (features?.courses !== false && user?.can_manage_courses) items.push({ to: '/assistant/courses', icon: BookOpen, label: 'الكورسات' });
+      if (features?.payments !== false && user?.can_manage_payments) items.push({ to: '/assistant/payments', icon: CreditCard, label: 'المدفوعات' });
+      if (features?.analytics !== false && user?.can_view_analytics) items.push({ to: '/assistant/analytics', icon: BarChart3, label: 'التحليلات' });
+      if (features?.notifications !== false && user?.can_send_notifications) items.push({ to: '/assistant/notifications', icon: MessageCircle, label: 'الإشعارات' });
+      if ((features?.requests !== false) && (user?.can_manage_exams || user?.can_manage_courses)) items.push({ to: '/assistant/requests', icon: Inbox, label: 'الطلبات' });
+      if (features?.class_attendance !== false && user?.can_manage_attendance) items.push({ to: '/assistant/class-attendance', icon: CalendarCheck, label: 'الحضور والغياب' });
     }
     return items;
-  }, [user]);
+  }, [user, features]);
 
   const displayLogo = logoUrl || WathbaLogo;
 
