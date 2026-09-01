@@ -7,289 +7,9 @@ import GameResultModal from '../../../components/games/GameResultModal';
 import api from '../../../lib/api';
 import toast from 'react-hot-toast';
 
-// ── Game Constants (Full Screen 1280x720 Native Canvas Resolution) ───────────
 const CW = 1280;
 const CH = 720;
-const GROUND = CH - 100;
-const PLAYER_X = 180;
-const GRAVITY = 0.76;
-const JUMP_V = -17.5;
-const DUCK_H = 34;
-const STAND_H = 68;
-const BASE_SPD = 4.5;
-const MAX_SPD = 10.5;
-
-// Boss Timings (in frames at ~60fps)
-const BOSS1_FRAME = 15 * 60; // Boss 1 at ~15s
-const BOSS_GAP_FRAMES = 22 * 60; // ~22s gap
-
-// ── Drawing Helpers ──────────────────────────────────────────────────────────
-function roundRect(ctx, x, y, w, h, r, fill, stroke) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  ctx.lineTo(x + r, y + h);
-  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-  ctx.lineTo(x, y + r);
-  ctx.quadraticCurveTo(x, y, x + r, y);
-  ctx.closePath();
-  if (fill) ctx.fill();
-  if (stroke) ctx.stroke();
-}
-
-function drawBackground(ctx, offset, stars, frame) {
-  // 1. Deep synthwave cyberpunk sky gradient (spans full 100% viewport)
-  const grad = ctx.createLinearGradient(0, 0, 0, GROUND);
-  grad.addColorStop(0, '#040112');
-  grad.addColorStop(0.35, '#120328');
-  grad.addColorStop(0.75, '#280645');
-  grad.addColorStop(1, '#0a0216');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, CW, CH);
-
-  // 2. Glowing Giant Cyber Moon with Rings
-  const moonX = CW - 240;
-  const moonY = 130;
-  const moonGrad = ctx.createRadialGradient(moonX, moonY, 12, moonX, moonY, 80);
-  moonGrad.addColorStop(0, '#fef08a');
-  moonGrad.addColorStop(0.35, '#f59e0b');
-  moonGrad.addColorStop(0.75, '#ec4899');
-  moonGrad.addColorStop(1, 'transparent');
-  ctx.fillStyle = moonGrad;
-  ctx.beginPath();
-  ctx.arc(moonX, moonY, 80, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Moon core
-  ctx.fillStyle = '#fde68a';
-  ctx.beginPath();
-  ctx.arc(moonX, moonY, 44, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Moon craters
-  ctx.fillStyle = 'rgba(217, 119, 6, 0.35)';
-  ctx.beginPath();
-  ctx.arc(moonX - 12, moonY - 10, 10, 0, Math.PI * 2);
-  ctx.arc(moonX + 15, moonY + 12, 13, 0, Math.PI * 2);
-  ctx.arc(moonX - 10, moonY + 20, 8, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Moon Ring
-  ctx.save();
-  ctx.translate(moonX, moonY);
-  ctx.rotate(-0.35);
-  ctx.strokeStyle = 'rgba(244, 114, 182, 0.45)';
-  ctx.lineWidth = 5;
-  ctx.beginPath();
-  ctx.ellipse(0, 0, 110, 26, 0, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.restore();
-
-  // 3. Twinkling Stars across wide sky
-  stars.forEach(s => {
-    ctx.globalAlpha = 0.3 + 0.7 * Math.abs(Math.sin(frame * 0.02 * s.speed + s.phase));
-    ctx.fillStyle = s.color || '#fff';
-    ctx.beginPath();
-    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-    ctx.fill();
-  });
-  ctx.globalAlpha = 1;
-
-  // 4. Distant Parallax Neon Mountains
-  ctx.fillStyle = 'rgba(45, 9, 76, 0.5)';
-  ctx.beginPath();
-  ctx.moveTo(0, GROUND);
-  for (let x = 0; x <= CW + 80; x += 80) {
-    const mx = ((x - offset * 0.08) % (CW + 160) + CW + 160) % (CW + 160);
-    const my = GROUND - 110 - Math.sin(mx * 0.012) * 65;
-    ctx.lineTo(x, my);
-  }
-  ctx.lineTo(CW, GROUND);
-  ctx.closePath();
-  ctx.fill();
-
-  // 5. Futuristic Cyber Skyline (Wide Screen Panoramic)
-  for (let i = 0; i < 24; i++) {
-    const bx = ((i * 70 - offset * 0.22) % (CW + 160) + CW + 160) % (CW + 160) - 70;
-    const bh = 110 + ((i * 47) % 160);
-    const bw = 55;
-
-    // Building body
-    ctx.fillStyle = 'rgba(20, 6, 40, 0.85)';
-    ctx.fillRect(bx, GROUND - bh, bw, bh);
-
-    // Neon edge highlight
-    ctx.fillStyle = i % 2 === 0 ? 'rgba(139, 92, 246, 0.65)' : 'rgba(236, 72, 153, 0.65)';
-    ctx.fillRect(bx + bw - 2, GROUND - bh, 2, bh);
-
-    // Illuminated window matrix
-    ctx.fillStyle = i % 3 === 0 ? '#38bdf8' : (i % 3 === 1 ? '#facc15' : '#c084fc');
-    ctx.globalAlpha = 0.5 + 0.3 * Math.sin(frame * 0.03 + i);
-    for (let wy = GROUND - bh + 14; wy < GROUND - 12; wy += 16) {
-      for (let wx = bx + 8; wx < bx + bw - 10; wx += 12) {
-        ctx.fillRect(wx, wy, 4, 7);
-      }
-    }
-    ctx.globalAlpha = 1;
-  }
-}
-
-function drawGround(ctx, offset) {
-  // Ground body
-  const gGrad = ctx.createLinearGradient(0, GROUND, 0, CH);
-  gGrad.addColorStop(0, '#0c031d');
-  gGrad.addColorStop(1, '#04010a');
-  ctx.fillStyle = gGrad;
-  ctx.fillRect(0, GROUND, CW, CH - GROUND);
-
-  // Glowing Neon Laser Line
-  ctx.save();
-  ctx.shadowBlur = 20;
-  ctx.shadowColor = '#8b5cf6';
-  ctx.strokeStyle = '#c084fc';
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.moveTo(0, GROUND);
-  ctx.lineTo(CW, GROUND);
-  ctx.stroke();
-
-  // Secondary Cyan Accent line
-  ctx.shadowColor = '#06b6d4';
-  ctx.strokeStyle = '#22d3ee';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(0, GROUND + 5);
-  ctx.lineTo(CW, GROUND + 5);
-  ctx.stroke();
-  ctx.restore();
-
-  // High-Speed Animated Perspective Grid
-  ctx.strokeStyle = 'rgba(168, 85, 247, 0.24)';
-  ctx.lineWidth = 2;
-  const sp = 55;
-  const sx = -(offset % sp);
-  for (let x = sx; x < CW + 80; x += sp) {
-    ctx.beginPath();
-    ctx.moveTo(x, GROUND);
-    ctx.lineTo(x - 60, CH);
-    ctx.stroke();
-  }
-
-  // Horizontal road depth lines
-  for (let dy = 20; dy < CH - GROUND; dy += 22) {
-    ctx.strokeStyle = `rgba(139, 92, 246, ${0.1 + (dy / (CH - GROUND)) * 0.22})`;
-    ctx.beginPath();
-    ctx.moveTo(0, GROUND + dy);
-    ctx.lineTo(CW, GROUND + dy);
-    ctx.stroke();
-  }
-}
-
-function drawStickmanHero(ctx, px, py, frame, ducking, invincible, isDoubleJump) {
-  if (invincible && Math.floor(frame * 0.15) % 2 === 1) return;
-
-  const heroColor = isDoubleJump ? '#f59e0b' : '#00ffcc';
-  ctx.strokeStyle = heroColor;
-  ctx.lineWidth = 4;
-  ctx.lineCap = 'round';
-  ctx.shadowBlur = 18;
-  ctx.shadowColor = heroColor;
-
-  if (ducking) {
-    // Sliding duck pose
-    const hy = py - 30;
-    ctx.beginPath();
-    ctx.arc(px + 4, hy, 10, 0, Math.PI * 2);
-    ctx.stroke();
-    // Torso
-    ctx.beginPath();
-    ctx.moveTo(px + 4, hy + 10);
-    ctx.lineTo(px - 20, hy + 26);
-    ctx.stroke();
-    // Arms forward
-    ctx.beginPath();
-    ctx.moveTo(px, hy + 16);
-    ctx.lineTo(px + 24, hy + 14);
-    ctx.stroke();
-    // Legs back sliding
-    ctx.beginPath();
-    ctx.moveTo(px - 20, hy + 26);
-    ctx.lineTo(px - 34, hy + 30);
-    ctx.lineTo(-14 + px - 20, hy + 30);
-    ctx.stroke();
-  } else {
-    const headY = py - 64;
-    const shouldY = headY + 19;
-    const hipY = headY + 41;
-
-    // Glowing head
-    ctx.beginPath();
-    ctx.arc(px, headY, 10, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Spine
-    ctx.beginPath();
-    ctx.moveTo(px, headY + 10);
-    ctx.lineTo(px, hipY);
-    ctx.stroke();
-
-    const inAir = py < GROUND - 4;
-    if (inAir) {
-      // Dynamic Jump Pose
-      ctx.beginPath();
-      ctx.moveTo(px, shouldY);
-      ctx.lineTo(px - 22, shouldY - 16);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(px, shouldY);
-      ctx.lineTo(px + 22, shouldY - 16);
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.moveTo(px, hipY);
-      ctx.lineTo(px - 16, hipY + 19);
-      ctx.lineTo(px - 22, hipY + 36);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(px, hipY);
-      ctx.lineTo(px + 14, hipY + 17);
-      ctx.lineTo(px + 19, hipY + 34);
-      ctx.stroke();
-    } else {
-      // Running Animation
-      const t = frame * 0.22;
-      const sw = Math.sin(t);
-      const cw = Math.cos(t);
-
-      // Arms
-      ctx.beginPath();
-      ctx.moveTo(px, shouldY);
-      ctx.lineTo(px - sw * 20, shouldY + 17);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(px, shouldY);
-      ctx.lineTo(px + sw * 20, shouldY + 17);
-      ctx.stroke();
-
-      // Legs
-      ctx.beginPath();
-      ctx.moveTo(px, hipY);
-      ctx.lineTo(px + sw * 22, hipY + 20);
-      ctx.lineTo(px + sw * 22 + cw * 10, py);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(px, hipY);
-      ctx.lineTo(px - sw * 22, hipY + 20);
-      ctx.lineTo(px - sw * 22 - cw * 10, py);
-      ctx.stroke();
-    }
-  }
-
-  ctx.shadowBlur = 0;
-}
+const GROUND_Y = 560;
 
 export default function StickmanRun({ onClose }) {
   const canvasRef = useRef(null);
@@ -306,28 +26,28 @@ export default function StickmanRun({ onClose }) {
   const [pointsEarned, setPointsEarned] = useState(0);
   const [muted, setMuted] = useState(() => gameAudio.isMuted());
 
-  // Mutable Game Engine State Ref
+  // Mutable Game Engine Ref
   const gameRef = useRef({
     frame: 0,
-    offset: 0,
-    speed: BASE_SPD,
+    speed: 6.5,
     score: 0,
     lives: 3,
-    player: {
-      y: GROUND,
+    hero: {
+      x: 180,
+      y: GROUND_Y - 70,
       vy: 0,
-      ducking: false,
-      jumping: false,
-      isDoubleJump: false,
-      invincible: 0
+      isGrounded: true,
+      isDucking: false,
+      invulnerable: 0,
+      animFrame: 0,
+      jumpCount: 0
     },
     obstacles: [],
     coins: [],
     particles: [],
-    stars: [],
-    bossActive: false,
+    boss: null,
     bossIndex: 0,
-    bossDefeatedCount: 0,
+    nextBossScore: 1000,
     isPaused: false,
     keys: {}
   });
@@ -342,17 +62,6 @@ export default function StickmanRun({ onClose }) {
           setSessionToken(res.data.sessionToken);
           setQuestions(res.data.questions || []);
           setGameState('playing');
-
-          // Initialize background stars across wide screen
-          const stars = Array.from({ length: 90 }, () => ({
-            x: Math.random() * CW,
-            y: Math.random() * (GROUND - 40),
-            r: 1 + Math.random() * 2.5,
-            speed: 0.5 + Math.random() * 2,
-            phase: Math.random() * Math.PI * 2,
-            color: ['#fff', '#a78bfa', '#fbcfe8', '#fed7aa', '#38bdf8'][Math.floor(Math.random() * 5)]
-          }));
-          gameRef.current.stars = stars;
         } else {
           toast.error(res.data.error || 'تعذر بدء اللعبة');
           onClose();
@@ -360,7 +69,7 @@ export default function StickmanRun({ onClose }) {
       })
       .catch(err => {
         if (!mounted) return;
-        toast.error(err.response?.data?.error || 'حدث خطأ في الاتصال بالخادم');
+        toast.error(err.response?.data?.error || 'حدث خطأ في تحميل اللعبة');
         onClose();
       });
 
@@ -374,20 +83,19 @@ export default function StickmanRun({ onClose }) {
   useEffect(() => {
     const handleKeyDown = (e) => {
       gameRef.current.keys[e.code] = true;
-      if ((e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') && gameState === 'playing') {
+      if (['Space', 'ArrowUp', 'KeyW'].includes(e.code)) {
         e.preventDefault();
-        triggerJump();
+        handleJump();
       }
-      if ((e.code === 'ArrowDown' || e.code === 'KeyS') && gameState === 'playing') {
+      if (['ArrowDown', 'KeyS'].includes(e.code)) {
         e.preventDefault();
-        gameRef.current.player.ducking = true;
-        try { gameAudio.playDuck(); } catch (_) {}
+        handleDuck(true);
       }
     };
     const handleKeyUp = (e) => {
       gameRef.current.keys[e.code] = false;
-      if (e.code === 'ArrowDown' || e.code === 'KeyS') {
-        gameRef.current.player.ducking = false;
+      if (['ArrowDown', 'KeyS'].includes(e.code)) {
+        handleDuck(false);
       }
     };
 
@@ -399,20 +107,42 @@ export default function StickmanRun({ onClose }) {
     };
   }, [gameState]);
 
-  const triggerJump = () => {
-    const g = gameRef.current;
-    if (g.isPaused) return;
+  // Jump Action (Supports Double Jump)
+  const handleJump = () => {
+    const hero = gameRef.current.hero;
+    if (gameRef.current.isPaused) return;
 
-    if (!g.player.jumping && g.player.y >= GROUND - 4) {
-      g.player.vy = JUMP_V;
-      g.player.jumping = true;
-      g.player.isDoubleJump = false;
+    if (hero.isGrounded) {
+      hero.vy = -16.5;
+      hero.isGrounded = false;
+      hero.jumpCount = 1;
+      hero.isDucking = false;
       try { gameAudio.playJump(); } catch (_) {}
-    } else if (g.player.jumping && !g.player.isDoubleJump) {
-      g.player.vy = JUMP_V * 0.85;
-      g.player.isDoubleJump = true;
+    } else if (hero.jumpCount === 1) {
+      hero.vy = -14.5;
+      hero.jumpCount = 2;
       try { gameAudio.playJump(); } catch (_) {}
+
+      // Double jump spark particles
+      for (let i = 0; i < 8; i++) {
+        gameRef.current.particles.push({
+          x: hero.x,
+          y: hero.y + 40,
+          vx: (Math.random() - 0.5) * 8,
+          vy: Math.random() * 4,
+          r: 3 + Math.random() * 3,
+          color: '#8b5cf6',
+          life: 20
+        });
+      }
     }
+  };
+
+  // Duck Action
+  const handleDuck = (ducking) => {
+    const hero = gameRef.current.hero;
+    if (gameRef.current.isPaused) return;
+    hero.isDucking = ducking;
   };
 
   // 3. Main Game Loop
@@ -428,110 +158,120 @@ export default function StickmanRun({ onClose }) {
 
       if (!g.isPaused) {
         g.frame++;
-        g.offset += g.speed;
-        g.speed = Math.min(MAX_SPD, BASE_SPD + Math.floor(g.frame / 600) * 0.35);
+        g.score += 2;
+        setScore(g.score);
 
-        // Player Physics
-        const p = g.player;
-        p.vy += GRAVITY;
-        p.y += p.vy;
+        // Update Hero Physics
+        const hero = g.hero;
+        if (!hero.isGrounded) {
+          hero.vy += 0.78; // Gravity
+          hero.y += hero.vy;
 
-        if (p.y >= GROUND) {
-          p.y = GROUND;
-          p.vy = 0;
-          p.jumping = false;
-          p.isDoubleJump = false;
-        }
-
-        if (p.invincible > 0) p.invincible--;
-
-        // Spawn Obstacles (Ground Crates & Aerial Drones)
-        if (!g.bossActive) {
-          if (g.frame % 105 === 0 && Math.random() > 0.35) {
-            const isFlying = Math.random() > 0.55;
-            g.obstacles.push({
-              x: CW + 50,
-              y: isFlying ? GROUND - 75 : GROUND - 46,
-              w: isFlying ? 50 : 44,
-              h: isFlying ? 36 : 46,
-              isFlying,
-              type: isFlying ? 'drone' : 'spike',
-              color: isFlying ? '#ec4899' : '#f59e0b'
-            });
-          }
-
-          // Spawn Star Coins
-          if (g.frame % 70 === 0) {
-            g.coins.push({
-              x: CW + 50,
-              y: GROUND - 45 - (Math.random() > 0.5 ? 70 : 0),
-              r: 16,
-              collected: false
-            });
+          if (hero.y >= GROUND_Y - 70) {
+            hero.y = GROUND_Y - 70;
+            hero.vy = 0;
+            hero.isGrounded = true;
+            hero.jumpCount = 0;
           }
         }
 
-        // Update Obstacles
-        g.obstacles.forEach(ob => { ob.x -= g.speed; });
-        g.obstacles = g.obstacles.filter(ob => ob.x > -80);
+        if (hero.invulnerable > 0) hero.invulnerable--;
 
-        // Update Coins
+        // ── SPAWN OBSTACLES ───────────────────────────────────────────
+        if (!g.boss && g.frame % 100 === 0 && Math.random() > 0.25) {
+          const isHigh = Math.random() > 0.55;
+          g.obstacles.push({
+            x: CW + 50,
+            y: isHigh ? GROUND_Y - 120 : GROUND_Y - 55,
+            w: 44,
+            h: isHigh ? 36 : 55,
+            type: isHigh ? 'drone' : 'barrier',
+            passed: false
+          });
+        }
+
+        // ── SPAWN COINS ───────────────────────────────────────────────
+        if (g.frame % 45 === 0 && Math.random() > 0.4) {
+          g.coins.push({
+            x: CW + 40,
+            y: GROUND_Y - 60 - (Math.random() > 0.5 ? 65 : 0),
+            r: 14,
+            collected: false
+          });
+        }
+
+        // Move & Filter Obstacles
+        g.obstacles.forEach(o => { o.x -= g.speed; });
+        g.obstacles = g.obstacles.filter(o => o.x > -80);
+
+        // Move & Filter Coins
         g.coins.forEach(c => { c.x -= g.speed; });
-        g.coins = g.coins.filter(c => c.x > -40 && !c.collected);
+        g.coins = g.coins.filter(c => c.x > -40);
 
-        // Update Particles
-        g.particles.forEach(pt => {
-          pt.x += pt.vx;
-          pt.y += pt.vy;
-          pt.life--;
+        // Move & Filter Particles
+        g.particles.forEach(p => {
+          p.x += p.vx;
+          p.y += p.vy;
+          p.life--;
         });
-        g.particles = g.particles.filter(pt => pt.life > 0);
+        g.particles = g.particles.filter(p => p.life > 0);
 
-        // Coin Collection Collision (Protected with try/catch)
+        // ── HERO COLLISION WITH COINS ─────────────────────────────────
+        const heroW = 34;
+        const heroH = hero.isDucking ? 35 : 70;
+        const heroTop = hero.isDucking ? hero.y + 35 : hero.y;
+
         g.coins.forEach(c => {
-          if (!c.collected) {
-            const playerH = p.ducking ? DUCK_H : STAND_H;
-            const playerTop = p.y - playerH;
-            if (PLAYER_X + 22 > c.x - c.r && PLAYER_X - 22 < c.x + c.r &&
-                p.y > c.y - c.r && playerTop < c.y + c.r) {
-              c.collected = true;
-              g.score += 50;
-              setScore(g.score);
+          if (!c.collected && Math.hypot(hero.x - c.x, (heroTop + heroH / 2) - c.y) < c.r + 28) {
+            c.collected = true;
+            g.score += 150;
+            setScore(g.score);
 
-              try {
+            try {
+              if (typeof gameAudio.playCoin === 'function') {
                 gameAudio.playCoin();
-              } catch (_) {}
-
-              // Sparkle particles
-              for (let i = 0; i < 10; i++) {
-                g.particles.push({
-                  x: c.x,
-                  y: c.y,
-                  vx: (Math.random() - 0.5) * 8,
-                  vy: (Math.random() - 0.5) * 8,
-                  r: 3 + Math.random() * 4,
-                  color: '#facc15',
-                  life: 22
-                });
+              } else if (typeof gameAudio.playPop === 'function') {
+                gameAudio.playPop();
               }
+            } catch (_) {}
+
+            for (let i = 0; i < 7; i++) {
+              g.particles.push({
+                x: c.x,
+                y: c.y,
+                vx: (Math.random() - 0.5) * 6,
+                vy: (Math.random() - 0.5) * 6,
+                r: 2 + Math.random() * 3,
+                color: '#fbbf24',
+                life: 18
+              });
             }
           }
         });
 
-        // Obstacle Hit Collision
-        if (p.invincible <= 0) {
-          for (const ob of g.obstacles) {
-            const playerH = p.ducking ? DUCK_H : STAND_H;
-            const playerTop = p.y - playerH;
+        // ── HERO COLLISION WITH OBSTACLES ─────────────────────────────
+        if (hero.invulnerable <= 0) {
+          for (const o of g.obstacles) {
+            const hitX = hero.x + heroW / 2 > o.x && hero.x - heroW / 2 < o.x + o.w;
+            const hitY = heroTop < o.y + o.h && heroTop + heroH > o.y;
 
-            // Box Collision
-            if (PLAYER_X + 18 > ob.x && PLAYER_X - 18 < ob.x + ob.w &&
-                p.y > ob.y && playerTop < ob.y + ob.h) {
-              // Hit obstacle!
+            if (hitX && hitY) {
               g.lives--;
               setLives(g.lives);
-              p.invincible = 65;
+              hero.invulnerable = 60; // 1 second invulnerability
               try { gameAudio.playExplosion(); } catch (_) {}
+
+              for (let i = 0; i < 14; i++) {
+                g.particles.push({
+                  x: hero.x,
+                  y: heroTop + heroH / 2,
+                  vx: (Math.random() - 0.5) * 8,
+                  vy: (Math.random() - 0.5) * 8,
+                  r: 3 + Math.random() * 4,
+                  color: '#ef4444',
+                  life: 25
+                });
+              }
 
               if (g.lives <= 0) {
                 handleGameOver(false);
@@ -542,13 +282,25 @@ export default function StickmanRun({ onClose }) {
           }
         }
 
-        // ── BOSS TRIGGER CHECK ───────────────────────────────────────
-        if (!g.bossActive && g.bossIndex < questions.length) {
-          const targetFrame = g.bossIndex === 0 ? BOSS1_FRAME : (BOSS1_FRAME + g.bossIndex * BOSS_GAP_FRAMES);
-          if (g.frame >= targetFrame) {
-            g.bossActive = true;
+        // ── BOSS ENCOUNTER ───────────────────────────────────────────
+        if (!g.boss && g.bossIndex < questions.length && g.score >= g.nextBossScore) {
+          g.boss = {
+            x: CW + 100,
+            targetX: CW - 240,
+            y: GROUND_Y - 140,
+            w: 120,
+            h: 140,
+            pulse: 0
+          };
+          try { gameAudio.playBossAlert(); } catch (_) {}
+        }
+
+        if (g.boss) {
+          g.boss.pulse += 0.08;
+          if (g.boss.x > g.boss.targetX) {
+            g.boss.x -= 4;
+          } else {
             g.isPaused = true;
-            try { gameAudio.playBossAlert(); } catch (_) {}
             setActiveQuestion(questions[g.bossIndex]);
             setCurrentQIndex(g.bossIndex);
             setGameState('question');
@@ -557,96 +309,232 @@ export default function StickmanRun({ onClose }) {
         }
       }
 
-      // ── RENDER CANVAS (Spans 100% full screen) ────────────────────
+      // ── CANVAS RENDERING ───────────────────────────────────────────
       ctx.clearRect(0, 0, CW, CH);
 
-      // 1. Synthwave Cyber Parallax Background
-      drawBackground(ctx, g.offset, g.stars, g.frame);
+      // 1. Synthwave Cyber Sky Gradient
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
+      skyGrad.addColorStop(0, '#090014');
+      skyGrad.addColorStop(0.5, '#1e053a');
+      skyGrad.addColorStop(1, '#3b0764');
+      ctx.fillStyle = skyGrad;
+      ctx.fillRect(0, 0, CW, GROUND_Y);
 
-      // 2. High-Speed Ground Grid
-      drawGround(ctx, g.offset);
+      // 2. Glowing Synthwave Moon
+      ctx.save();
+      const moonX = CW * 0.75;
+      const moonY = 160;
+      const moonGrad = ctx.createRadialGradient(moonX, moonY, 10, moonX, moonY, 80);
+      moonGrad.addColorStop(0, '#ffffff');
+      moonGrad.addColorStop(0.4, '#c084fc');
+      moonGrad.addColorStop(0.8, '#7e22ce');
+      moonGrad.addColorStop(1, 'transparent');
+      ctx.fillStyle = moonGrad;
+      ctx.beginPath();
+      ctx.arc(moonX, moonY, 80, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
 
-      // 3. Draw Star Coins ⭐
-      g.coins.forEach(c => {
-        if (!c.collected) {
-          ctx.save();
-          ctx.shadowBlur = 16;
-          ctx.shadowColor = '#f59e0b';
-          ctx.fillStyle = '#facc15';
-          ctx.strokeStyle = '#ffffff';
-          ctx.lineWidth = 2.5;
-          ctx.beginPath();
-          ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.stroke();
+      // 3. Parallax Skyline
+      ctx.fillStyle = 'rgba(23, 7, 45, 0.9)';
+      const skylineOffset = (g.frame * 0.4) % 180;
+      for (let bx = -skylineOffset; bx < CW + 180; bx += 100) {
+        const bHeight = 110 + ((bx * 37) % 130);
+        ctx.fillRect(bx, GROUND_Y - bHeight, 75, bHeight);
+      }
 
-          // Star Symbol inside coin
-          ctx.fillStyle = '#92400e';
-          ctx.font = 'bold 15px sans-serif';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText('★', c.x, c.y + 1);
-          ctx.restore();
-        }
-      });
+      // 4. Ground Grid & Cyber Glow
+      ctx.fillStyle = '#06010f';
+      ctx.fillRect(0, GROUND_Y, CW, CH - GROUND_Y);
 
-      // 4. Draw Obstacles
-      g.obstacles.forEach(ob => {
+      // Neon Top Border of Ground
+      ctx.strokeStyle = '#a855f7';
+      ctx.lineWidth = 4;
+      ctx.shadowBlur = 16;
+      ctx.shadowColor = '#d946ef';
+      ctx.beginPath();
+      ctx.moveTo(0, GROUND_Y);
+      ctx.lineTo(CW, GROUND_Y);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // Moving Ground Grid Lines
+      ctx.strokeStyle = 'rgba(168, 85, 247, 0.35)';
+      ctx.lineWidth = 2;
+      const gridOffset = (g.frame * g.speed) % 50;
+      for (let gx = -gridOffset; gx < CW + 50; gx += 50) {
+        ctx.beginPath();
+        ctx.moveTo(gx, GROUND_Y);
+        ctx.lineTo(gx - 60, CH);
+        ctx.stroke();
+      }
+
+      // 5. Draw Obstacles
+      g.obstacles.forEach(o => {
         ctx.save();
-        ctx.shadowBlur = 18;
-        ctx.shadowColor = ob.color;
-
-        if (ob.type === 'drone') {
-          // Cyber Flying Drone
-          ctx.fillStyle = '#db2777';
-          ctx.strokeStyle = '#f472b6';
-          ctx.lineWidth = 2.5;
-          ctx.beginPath();
-          ctx.ellipse(ob.x + ob.w / 2, ob.y + ob.h / 2, ob.w / 2, ob.h / 2, 0, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.stroke();
-
-          // Laser eye
+        ctx.shadowBlur = 12;
+        if (o.type === 'drone') {
+          ctx.shadowColor = '#f43f5e';
+          ctx.fillStyle = '#e11d48';
+          ctx.fillRect(o.x, o.y, o.w, o.h);
           ctx.fillStyle = '#ffffff';
           ctx.beginPath();
-          ctx.arc(ob.x + ob.w / 2, ob.y + ob.h / 2, 6, 0, Math.PI * 2);
+          ctx.arc(o.x + o.w / 2, o.y + o.h / 2, 6, 0, Math.PI * 2);
           ctx.fill();
         } else {
-          // Cyber Ground Hazard
-          ctx.fillStyle = '#f59e0b';
-          ctx.strokeStyle = '#fde047';
-          ctx.lineWidth = 2.5;
-          roundRect(ctx, ob.x, ob.y, ob.w, ob.h, 8, true, true);
-
-          // Diagonal Hazard Stripes
-          ctx.strokeStyle = '#78350f';
-          ctx.lineWidth = 3;
+          ctx.shadowColor = '#ec4899';
+          ctx.fillStyle = '#db2777';
           ctx.beginPath();
-          ctx.moveTo(ob.x + 8, ob.y + ob.h);
-          ctx.lineTo(ob.x + ob.w - 8, ob.y);
-          ctx.stroke();
+          ctx.moveTo(o.x, o.y + o.h);
+          ctx.lineTo(o.x + o.w / 2, o.y);
+          ctx.lineTo(o.x + o.w, o.y + o.h);
+          ctx.closePath();
+          ctx.fill();
         }
         ctx.restore();
       });
 
-      // 5. Draw Particles
-      g.particles.forEach(pt => {
-        ctx.fillStyle = pt.color;
+      // 6. Draw Gold Coins / Stars ⭐
+      g.coins.forEach(c => {
+        if (c.collected) return;
+        ctx.save();
+        ctx.translate(c.x, c.y);
+        ctx.shadowBlur = 14;
+        ctx.shadowColor = '#facc15';
+        ctx.fillStyle = '#fbbf24';
         ctx.beginPath();
-        ctx.arc(pt.x, pt.y, pt.r, 0, Math.PI * 2);
+        ctx.arc(0, 0, c.r, 0, Math.PI * 2);
         ctx.fill();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 13px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('★', 0, 1);
+        ctx.restore();
       });
 
-      // 6. Draw Stickman Hero
-      drawStickmanHero(
-        ctx,
-        PLAYER_X,
-        g.player.y,
-        g.frame,
-        g.player.ducking,
-        g.player.invincible > 0,
-        g.player.isDoubleJump
-      );
+      // 7. Draw Hero (Stickman Cyber Runner)
+      const hero = g.hero;
+      if (!(hero.invulnerable > 0 && Math.floor(g.frame * 0.2) % 2 === 1)) {
+        ctx.save();
+        ctx.translate(hero.x, hero.y);
+
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+        ctx.shadowBlur = 14;
+        ctx.shadowColor = '#0284c7';
+
+        if (hero.isDucking) {
+          // Ducking Hero
+          ctx.beginPath();
+          ctx.arc(0, 42, 10, 0, Math.PI * 2); // Head
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(0, 52);
+          ctx.lineTo(24, 60); // Torso sliding
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(24, 60);
+          ctx.lineTo(38, 68); // Legs sliding
+          ctx.stroke();
+        } else {
+          // Running / Jumping Hero
+          const legPhase = Math.sin(g.frame * 0.35) * 16;
+
+          // Head
+          ctx.beginPath();
+          ctx.arc(0, 12, 12, 0, Math.PI * 2);
+          ctx.stroke();
+
+          // Body Torso
+          ctx.beginPath();
+          ctx.moveTo(0, 24);
+          ctx.lineTo(0, 48);
+          ctx.stroke();
+
+          // Legs
+          if (hero.isGrounded) {
+            ctx.beginPath();
+            ctx.moveTo(0, 48);
+            ctx.lineTo(-legPhase, 70);
+            ctx.moveTo(0, 48);
+            ctx.lineTo(legPhase, 70);
+            ctx.stroke();
+          } else {
+            ctx.beginPath();
+            ctx.moveTo(0, 48);
+            ctx.lineTo(-12, 64);
+            ctx.moveTo(0, 48);
+            ctx.lineTo(14, 62);
+            ctx.stroke();
+          }
+
+          // Arms
+          ctx.beginPath();
+          ctx.moveTo(0, 32);
+          ctx.lineTo(legPhase * 0.8, 44);
+          ctx.moveTo(0, 32);
+          ctx.lineTo(-legPhase * 0.8, 44);
+          ctx.stroke();
+        }
+
+        ctx.restore();
+      }
+
+      // 8. Draw Boss Monster 👾
+      if (g.boss) {
+        ctx.save();
+        ctx.translate(g.boss.x, g.boss.y);
+        ctx.shadowBlur = 24;
+        ctx.shadowColor = '#f59e0b';
+
+        const bossPulse = Math.sin(g.boss.pulse) * 6;
+
+        // Dark Cyber Shadow Robe
+        ctx.fillStyle = '#1e1b4b';
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(0, 140);
+        ctx.lineTo(25, 25);
+        ctx.lineTo(60, 0 + bossPulse);
+        ctx.lineTo(95, 25);
+        ctx.lineTo(120, 140);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // Glowing Monster Eyes
+        ctx.fillStyle = '#fbbf24';
+        ctx.beginPath();
+        ctx.ellipse(44, 45, 8, 5, 0.2, 0, Math.PI * 2);
+        ctx.ellipse(76, 45, 8, 5, -0.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Horns / Spikes
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(25, 25);
+        ctx.lineTo(10, -15);
+        ctx.moveTo(95, 25);
+        ctx.lineTo(110, -15);
+        ctx.stroke();
+
+        ctx.restore();
+      }
+
+      // 9. Draw Particles
+      g.particles.forEach(p => {
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fill();
+      });
 
       animRef.current = requestAnimationFrame(loop);
     };
@@ -655,7 +543,7 @@ export default function StickmanRun({ onClose }) {
     return () => cancelAnimationFrame(animRef.current);
   }, [gameState]);
 
-  // 4. Handle Boss Question Answer
+  // 4. Handle Boss Question Submission
   const handleAnswerSubmit = (result) => {
     const newAnswers = [...answersLog, result];
     setAnswersLog(newAnswers);
@@ -669,27 +557,25 @@ export default function StickmanRun({ onClose }) {
       } catch (_) {}
 
       const g = gameRef.current;
-      g.score += 1000;
+      g.score += 800;
       setScore(g.score);
-      g.bossDefeatedCount++;
+      g.boss = null;
       g.bossIndex++;
-      g.bossActive = false;
+      g.nextBossScore = g.score + 1200;
 
-      // Particle explosion for boss defeat
-      for (let i = 0; i < 40; i++) {
+      for (let p = 0; p < 40; p++) {
         g.particles.push({
-          x: CW - 240 + (Math.random() - 0.5) * 80,
-          y: CH / 2 + (Math.random() - 0.5) * 80,
-          vx: (Math.random() - 0.5) * 18,
-          vy: (Math.random() - 0.5) * 18,
-          r: 4 + Math.random() * 6,
-          color: ['#00ffcc', '#f59e0b', '#ec4899', '#ffffff'][Math.floor(Math.random() * 4)],
-          life: 35
+          x: CW - 200 + (Math.random() - 0.5) * 80,
+          y: GROUND_Y - 80 + (Math.random() - 0.5) * 80,
+          vx: (Math.random() - 0.5) * 16,
+          vy: (Math.random() - 0.5) * 16,
+          r: 3 + Math.random() * 5,
+          color: ['#8b5cf6', '#f59e0b', '#10b981', '#ffffff'][Math.floor(Math.random() * 4)],
+          life: 30
         });
       }
 
       if (g.bossIndex >= questions.length) {
-        // Victory!
         handleGameOver(true, newAnswers);
       } else {
         g.isPaused = false;
@@ -704,15 +590,16 @@ export default function StickmanRun({ onClose }) {
         handleGameOver(false, newAnswers);
       } else {
         const g = gameRef.current;
+        g.boss = null;
         g.bossIndex++;
-        g.bossActive = false;
+        g.nextBossScore = g.score + 1000;
         g.isPaused = false;
         setGameState('playing');
       }
     }
   };
 
-  // 5. Finish Game
+  // 5. Finish Game & Award Verified Points
   const handleGameOver = (isVictory, finalAnswers = answersLog) => {
     if (animRef.current) cancelAnimationFrame(animRef.current);
     const g = gameRef.current;
@@ -731,7 +618,7 @@ export default function StickmanRun({ onClose }) {
         }
       })
       .catch(err => {
-        console.error('[finish game error]', err);
+        console.error('[stickman finish error]', err);
         setGameState(isVictory ? 'victory' : 'gameOver');
       });
   };
@@ -741,15 +628,17 @@ export default function StickmanRun({ onClose }) {
     setMuted(isMuted);
   };
 
+  const totalBosses = questions.length || 3;
+
   return (
-    <div className="fixed inset-0 z-50 bg-[#040112] w-screen h-screen flex flex-col justify-between select-none overflow-hidden touch-none" dir="rtl">
-      {/* HUD spanning full width */}
+    <div className="fixed inset-0 z-50 bg-[#06010f] w-screen h-screen flex flex-col justify-between select-none overflow-hidden touch-none" dir="rtl">
+      {/* Game HUD Bar spanning full width */}
       <GameHUD
-        title="مغامرة الستيكمان"
+        title="سباق الستيكمان المطور"
         lives={lives}
         score={score}
-        currentQuestion={Math.min(currentQIndex + 1, questions.length)}
-        totalQuestions={questions.length || 3}
+        currentQuestion={Math.min(currentQIndex + 1, totalBosses)}
+        totalQuestions={totalBosses}
         muted={muted}
         onToggleMute={handleToggleMute}
         onExit={onClose}
@@ -761,73 +650,79 @@ export default function StickmanRun({ onClose }) {
         ref={canvasRef}
         width={CW}
         height={CH}
-        className="absolute inset-0 w-full h-full object-cover block bg-[#040112]"
+        className="absolute inset-0 w-full h-full object-cover block bg-[#06010f]"
       />
 
-      {/* ── ON-CANVAS MOBILE TOUCH CONTROLS (TWO-THUMB CORNERS) ── */}
+      {/* ── ON-SCREEN MOBILE TOUCH CONTROLS (LARGE DUAL-THUMB CORNERS) ── */}
       <div className="absolute inset-x-0 bottom-4 sm:bottom-6 px-4 sm:px-8 flex items-center justify-between pointer-events-none z-20">
-        {/* Left Thumb: Duck Button */}
+        {/* Left Thumb: Extra Large Duck Button */}
         <div className="pointer-events-auto">
           <button
             type="button"
             onPointerDown={(e) => {
               e.preventDefault();
-              gameRef.current.player.ducking = true;
-              try { gameAudio.playDuck(); } catch (_) {}
+              e.stopPropagation();
+              handleDuck(true);
             }}
             onPointerUp={(e) => {
               e.preventDefault();
-              gameRef.current.player.ducking = false;
+              e.stopPropagation();
+              handleDuck(false);
             }}
-            onPointerCancel={() => {
-              gameRef.current.player.ducking = false;
+            onPointerCancel={(e) => {
+              e.stopPropagation();
+              handleDuck(false);
             }}
-            className="w-18 h-18 sm:w-22 sm:h-22 rounded-3xl bg-gradient-to-tr from-pink-600 via-purple-700 to-indigo-800 border-2 border-pink-300 shadow-2xl shadow-pink-600/60 flex flex-col items-center justify-center text-white active:scale-90 transition-transform font-black select-none cursor-pointer"
+            onPointerLeave={(e) => {
+              e.stopPropagation();
+              handleDuck(false);
+            }}
+            className="w-22 h-22 sm:w-26 sm:h-26 rounded-3xl bg-gradient-to-tr from-purple-700 via-pink-600 to-rose-500 border-3 border-pink-300 shadow-2xl shadow-pink-500/60 flex flex-col items-center justify-center text-white active:scale-90 transition-transform font-black select-none cursor-pointer"
           >
-            <span className="text-2xl sm:text-3xl">⬇️</span>
-            <span className="text-[11px] sm:text-xs font-black mt-0.5">انحناء</span>
+            <span className="text-3xl sm:text-4xl drop-shadow">⬇️</span>
+            <span className="text-xs sm:text-sm font-black mt-0.5 drop-shadow">انحناء</span>
           </button>
         </div>
 
-        {/* Desktop Keyboard Helper Badge */}
-        <div className="hidden md:flex items-center gap-2 bg-black/60 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/15 text-white/80 text-xs font-bold pointer-events-auto shadow-xl">
-          <span>⌨️ التحكم بالكيبورد:</span>
-          <span className="bg-white/10 px-2 py-0.5 rounded text-purple-300 font-mono">Space / ↑</span> قفز
-          <span className="bg-white/10 px-2 py-0.5 rounded text-indigo-300 font-mono">↓ / S</span> انحناء
+        {/* Keyboard helper for desktop */}
+        <div className="hidden lg:flex items-center gap-2 bg-black/60 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/15 text-white/80 text-xs font-bold pointer-events-auto shadow-xl">
+          <span>⌨️ الكيبورد:</span>
+          <span className="bg-white/10 px-2 py-0.5 rounded text-purple-300 font-mono">W / Space</span> للقفز
+          <span className="bg-white/10 px-2 py-0.5 rounded text-pink-300 font-mono">S / ↓</span> للانحناء
         </div>
 
-        {/* Right Thumb: Jump Button */}
+        {/* Right Thumb: Extra Large Jump Button */}
         <div className="pointer-events-auto">
           <button
             type="button"
             onPointerDown={(e) => {
               e.preventDefault();
-              triggerJump();
+              e.stopPropagation();
+              handleJump();
             }}
-            className="w-18 h-18 sm:w-22 sm:h-22 rounded-3xl bg-gradient-to-tr from-purple-600 via-indigo-600 to-cyan-500 border-2 border-cyan-300 shadow-2xl shadow-purple-600/60 flex flex-col items-center justify-center text-white active:scale-90 transition-transform font-black select-none cursor-pointer"
+            className="w-22 h-22 sm:w-26 sm:h-26 rounded-3xl bg-gradient-to-tr from-cyan-600 via-blue-600 to-purple-600 border-3 border-cyan-300 shadow-2xl shadow-cyan-500/60 flex flex-col items-center justify-center text-white active:scale-90 transition-transform font-black select-none cursor-pointer"
           >
-            <span className="text-2xl sm:text-3xl">⬆️</span>
-            <span className="text-[11px] sm:text-xs font-black mt-0.5">قفز</span>
+            <span className="text-3xl sm:text-4xl drop-shadow">⬆️</span>
+            <span className="text-xs sm:text-sm font-black mt-0.5 drop-shadow">قفز</span>
           </button>
         </div>
       </div>
 
-      {/* Loading Spinner */}
       {gameState === 'loading' && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 backdrop-blur-md gap-3 z-30">
           <div className="animate-spin w-14 h-14 border-4 border-purple-500 border-t-transparent rounded-full" />
-          <p className="text-white font-bold text-base animate-pulse">جاري تجهيز مضمار السباق والتحديات...</p>
+          <p className="text-white font-bold text-base animate-pulse">جاري تحميل مضمار السباق والأسئلة...</p>
         </div>
       )}
 
-      {/* Question Dialog Overlay */}
+      {/* Boss Question Overlay */}
       {gameState === 'question' && activeQuestion && (
         <QuestionOverlay
           question={activeQuestion}
           questionIndex={currentQIndex}
-          totalQuestions={questions.length}
+          totalQuestions={totalBosses}
           timeLimit={activeQuestion.timeLimit || 45}
-          enemyLabel={activeQuestion.enemyLabel || `الزعيم ${currentQIndex + 1}`}
+          enemyLabel={activeQuestion.enemyLabel || `زعيم المعرفة ${currentQIndex + 1} 👾`}
           onAnswer={handleAnswerSubmit}
         />
       )}
@@ -839,8 +734,8 @@ export default function StickmanRun({ onClose }) {
           score={score}
           pointsEarned={pointsEarned}
           correctCount={answersLog.filter(a => a.selectedIndex === 0 || a.selectedIndex === (questions[a.questionIndex]?.correctIndex ?? 0)).length}
-          totalQuestions={questions.length}
-          gameTitle="مغامرة الستيكمان"
+          totalQuestions={totalBosses}
+          gameTitle="سباق الستيكمان المطور"
           onReplay={() => window.location.reload()}
           onExit={onClose}
         />

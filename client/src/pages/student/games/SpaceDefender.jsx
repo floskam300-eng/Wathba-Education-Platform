@@ -25,7 +25,7 @@ export default function SpaceDefender({ onClose }) {
   const [pointsEarned, setPointsEarned] = useState(0);
   const [muted, setMuted] = useState(() => gameAudio.isMuted());
 
-  // Mutable Game Engine Ref
+  // Mutable Game Engine Ref with Multi-Touch Tracking
   const gameRef = useRef({
     frame: 0,
     score: 0,
@@ -43,7 +43,8 @@ export default function SpaceDefender({ onClose }) {
     isFiring: false,
     lastFireTime: 0,
     keys: {},
-    touchStart: null,
+    // Multi-Touch tracking per identifier
+    moveTouchId: null,
     touchPos: null
   });
 
@@ -84,7 +85,7 @@ export default function SpaceDefender({ onClose }) {
     };
   }, []);
 
-  // 2. Keyboard Handlers (Strictly manual firing on Spacebar / KeyC / KeyX)
+  // 2. Keyboard Handlers
   useEffect(() => {
     const handleKeyDown = (e) => {
       gameRef.current.keys[e.code] = true;
@@ -239,7 +240,6 @@ export default function SpaceDefender({ onClose }) {
               d.hp--;
               laserHit = true;
 
-              // Spark particles
               for (let p = 0; p < 7; p++) {
                 g.particles.push({
                   x: l.x,
@@ -258,7 +258,6 @@ export default function SpaceDefender({ onClose }) {
                 setScore(g.score);
                 try { gameAudio.playExplosion(); } catch (_) {}
 
-                // Feather particles
                 for (let f = 0; f < 16; f++) {
                   g.particles.push({
                     x: d.x,
@@ -310,7 +309,6 @@ export default function SpaceDefender({ onClose }) {
 
         // ── SHIP VS EGGS & DUCKS COLLISION ───────────────────────────
         if (g.ship.inv <= 0) {
-          // Ship vs Eggs
           for (let e = g.eggs.length - 1; e >= 0; e--) {
             const egg = g.eggs[e];
             const dist = Math.hypot(g.ship.x - egg.x, g.ship.y - egg.y);
@@ -329,7 +327,6 @@ export default function SpaceDefender({ onClose }) {
             }
           }
 
-          // Ship vs Ducks
           for (const d of g.ducks) {
             const dist = Math.hypot(g.ship.x - d.x, g.ship.y - d.y);
             if (dist < 40) {
@@ -367,7 +364,6 @@ export default function SpaceDefender({ onClose }) {
           if (g.boss.x > g.boss.targetX) {
             g.boss.x -= 4;
           } else {
-            // Trigger Boss Question Challenge!
             g.isPaused = true;
             g.isFiring = false;
             setActiveQuestion(questions[g.bossIndex]);
@@ -416,25 +412,21 @@ export default function SpaceDefender({ onClose }) {
 
         const wingWing = Math.sin(g.frame * 0.28 + d.phase) * 14;
 
-        // Duck Body
         ctx.fillStyle = d.isArmored ? '#ec4899' : '#facc15';
         ctx.beginPath();
         ctx.ellipse(0, 5, 22, 16, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Wing
         ctx.fillStyle = d.isArmored ? '#db2777' : '#eab308';
         ctx.beginPath();
         ctx.ellipse(-5, 2 + wingWing * 0.35, 14, 8, -0.3, 0, Math.PI * 2);
         ctx.fill();
 
-        // Duck Head
         ctx.fillStyle = d.isArmored ? '#ec4899' : '#facc15';
         ctx.beginPath();
         ctx.arc(-14, -7, 13, 0, Math.PI * 2);
         ctx.fill();
 
-        // Orange Beak
         ctx.fillStyle = '#f97316';
         ctx.beginPath();
         ctx.moveTo(-26, -7);
@@ -443,7 +435,6 @@ export default function SpaceDefender({ onClose }) {
         ctx.closePath();
         ctx.fill();
 
-        // Cyber Goggles
         ctx.fillStyle = '#06b6d4';
         ctx.shadowBlur = 10;
         ctx.shadowColor = '#06b6d4';
@@ -452,7 +443,6 @@ export default function SpaceDefender({ onClose }) {
         ctx.fill();
         ctx.shadowBlur = 0;
 
-        // Helmet Dome
         ctx.strokeStyle = 'rgba(103, 232, 249, 0.65)';
         ctx.lineWidth = 2.5;
         ctx.beginPath();
@@ -475,7 +465,6 @@ export default function SpaceDefender({ onClose }) {
         ctx.ellipse(0, 0, egg.r, egg.r * 1.35, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Egg shine
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
         ctx.arc(-2.5, -3.5, 3, 0, Math.PI * 2);
@@ -489,7 +478,6 @@ export default function SpaceDefender({ onClose }) {
         ctx.save();
         ctx.translate(g.ship.x, g.ship.y);
 
-        // Engine Thruster Flame
         const thrusterLen = 20 + Math.random() * 16;
         const thrusterGrad = ctx.createLinearGradient(-20, 0, -20 - thrusterLen, 0);
         thrusterGrad.addColorStop(0, '#00ffff');
@@ -503,7 +491,6 @@ export default function SpaceDefender({ onClose }) {
         ctx.closePath();
         ctx.fill();
 
-        // Ship Hull
         ctx.shadowBlur = 18;
         ctx.shadowColor = '#00ffff';
         ctx.fillStyle = '#0f172a';
@@ -511,18 +498,17 @@ export default function SpaceDefender({ onClose }) {
         ctx.lineWidth = 3;
 
         ctx.beginPath();
-        ctx.moveTo(30, 0);       // Nose
-        ctx.lineTo(-14, -22);    // Left Wing
+        ctx.moveTo(30, 0);
+        ctx.lineTo(-14, -22);
         ctx.lineTo(-8, -8);
-        ctx.lineTo(-22, -8);     // Left Engine
-        ctx.lineTo(-22, 8);      // Right Engine
+        ctx.lineTo(-22, -8);
+        ctx.lineTo(-22, 8);
         ctx.lineTo(-8, 8);
-        ctx.lineTo(-14, 22);     // Right Wing
+        ctx.lineTo(-14, 22);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
 
-        // Glowing Cockpit
         ctx.fillStyle = '#38bdf8';
         ctx.beginPath();
         ctx.ellipse(6, 0, 10, 5, 0, 0, Math.PI * 2);
@@ -539,26 +525,22 @@ export default function SpaceDefender({ onClose }) {
         ctx.shadowBlur = 30;
         ctx.shadowColor = '#f59e0b';
 
-        // Boss Body
         ctx.fillStyle = '#eab308';
         ctx.beginPath();
         ctx.ellipse(0, 12, 58, 46, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Giant Wing
         const bossWing = Math.sin(g.boss.pulse) * 18;
         ctx.fillStyle = '#ca8a04';
         ctx.beginPath();
         ctx.ellipse(-12, 10 + bossWing * 0.35, 36, 20, -0.2, 0, Math.PI * 2);
         ctx.fill();
 
-        // Giant Head
         ctx.fillStyle = '#facc15';
         ctx.beginPath();
         ctx.arc(-30, -22, 34, 0, Math.PI * 2);
         ctx.fill();
 
-        // Giant Beak
         ctx.fillStyle = '#ea580c';
         ctx.beginPath();
         ctx.moveTo(-60, -22);
@@ -567,7 +549,6 @@ export default function SpaceDefender({ onClose }) {
         ctx.closePath();
         ctx.fill();
 
-        // Glowing Cyber Crown 👑
         ctx.fillStyle = '#fbbf24';
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 2.5;
@@ -583,7 +564,6 @@ export default function SpaceDefender({ onClose }) {
         ctx.fill();
         ctx.stroke();
 
-        // Helmet Dome
         ctx.strokeStyle = '#38bdf8';
         ctx.lineWidth = 3.5;
         ctx.beginPath();
@@ -695,41 +675,65 @@ export default function SpaceDefender({ onClose }) {
 
   const totalBosses = questions.length || 3;
 
-  // Touch Movement Handlers
-  const handleTouchStart = (e) => {
+  // ── MULTI-TOUCH STEERING HANDLERS (Independent Touch Tracking) ──
+  const handleContainerTouchStart = (e) => {
     if (gameState !== 'playing') return;
-    const t = e.touches[0];
-    gameRef.current.touchStart = { x: t.clientX, y: t.clientY };
-    gameRef.current.touchPos = { x: t.clientX, y: t.clientY };
-  };
-
-  const handleTouchMove = (e) => {
-    if (gameState !== 'playing') return;
-    const t = e.touches[0];
     const g = gameRef.current;
-    if (!g.touchPos) return;
 
-    const dx = (t.clientX - g.touchPos.x) * 1.8;
-    const dy = (t.clientY - g.touchPos.y) * 1.8;
-
-    g.ship.x = Math.max(50, Math.min(CW - 100, g.ship.x + dx));
-    g.ship.y = Math.max(50, Math.min(CH - 50, g.ship.y + dy));
-
-    g.touchPos = { x: t.clientX, y: t.clientY };
+    // Iterate all new touches
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const touch = e.changedTouches[i];
+      // If we don't have an active steering finger and touch is in steering area (left 75% of screen)
+      if (g.moveTouchId === null && touch.clientX < window.innerWidth * 0.78) {
+        g.moveTouchId = touch.identifier;
+        g.touchPos = { x: touch.clientX, y: touch.clientY };
+        break;
+      }
+    }
   };
 
-  const handleTouchEnd = () => {
-    gameRef.current.touchPos = null;
-    gameRef.current.touchStart = null;
+  const handleContainerTouchMove = (e) => {
+    if (gameState !== 'playing') return;
+    const g = gameRef.current;
+    if (g.moveTouchId === null || !g.touchPos) return;
+
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const touch = e.changedTouches[i];
+      if (touch.identifier === g.moveTouchId) {
+        const dx = (touch.clientX - g.touchPos.x) * 1.8;
+        const dy = (touch.clientY - g.touchPos.y) * 1.8;
+
+        g.ship.x = Math.max(50, Math.min(CW - 100, g.ship.x + dx));
+        g.ship.y = Math.max(50, Math.min(CH - 50, g.ship.y + dy));
+
+        g.touchPos = { x: touch.clientX, y: touch.clientY };
+        break;
+      }
+    }
+  };
+
+  const handleContainerTouchEnd = (e) => {
+    const g = gameRef.current;
+    if (g.moveTouchId === null) return;
+
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const touch = e.changedTouches[i];
+      if (touch.identifier === g.moveTouchId) {
+        g.moveTouchId = null;
+        g.touchPos = null;
+        break;
+      }
+    }
   };
 
   return (
     <div
       className="fixed inset-0 z-50 bg-[#03010a] w-screen h-screen flex flex-col justify-between select-none overflow-hidden touch-none"
       dir="rtl"
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
+      onTouchStart={handleContainerTouchStart}
+      onTouchMove={handleContainerTouchMove}
+      onTouchEnd={handleContainerTouchEnd}
+      onTouchCancel={handleContainerTouchEnd}
     >
       <GameHUD
         title="حرب البط الفضائي 🦆"
@@ -743,7 +747,7 @@ export default function SpaceDefender({ onClose }) {
         accentColor="#06b6d4"
       />
 
-      {/* Fullscreen Canvas filling 100vw x 100vh */}
+      {/* Fullscreen Canvas */}
       <canvas
         ref={canvasRef}
         width={CW}
@@ -751,35 +755,56 @@ export default function SpaceDefender({ onClose }) {
         className="absolute inset-0 w-full h-full object-cover block bg-[#03010a]"
       />
 
-      {/* ── ON-SCREEN MOBILE TOUCH CONTROLS (TWO-THUMB CORNERS) ── */}
+      {/* ── ON-SCREEN CONTROLS: LARGE TOUCH BUTTONS WITH ISOLATED MULTI-TOUCH ── */}
       <div className="absolute inset-x-0 bottom-4 sm:bottom-6 px-4 sm:px-8 flex items-center justify-between pointer-events-none z-20">
-        {/* Left Thumb Touch Zone Indicator */}
-        <div className="bg-black/60 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/15 text-white/80 text-xs font-bold pointer-events-auto hidden md:flex items-center gap-2 shadow-xl">
-          <span>⌨️ التحكم:</span>
-          <span className="bg-white/10 px-2 py-0.5 rounded text-cyan-300 font-mono">WASD / الأسهم</span>
-          <span className="bg-white/10 px-2 py-0.5 rounded text-cyan-300 font-mono">Space</span> إطلاق الليزر
+        {/* Left Thumb Virtual Steer Indicator (Helps user know they can steer anywhere on left) */}
+        <div className="pointer-events-auto">
+          <div className="bg-black/60 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-cyan-500/30 text-cyan-200 text-xs font-bold shadow-2xl flex items-center gap-2">
+            <span className="text-base animate-pulse">🕹️</span>
+            <span>اسحب بإصبعك هنا للتحليق</span>
+          </div>
         </div>
 
-        {/* Right Thumb Large Fire Button */}
-        <div className="mr-auto pointer-events-auto flex items-center gap-2">
+        {/* Keyboard helper for desktop */}
+        <div className="hidden lg:flex items-center gap-2 bg-black/60 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/15 text-white/80 text-xs font-bold pointer-events-auto shadow-xl">
+          <span>⌨️ التحكم:</span>
+          <span className="bg-white/10 px-2 py-0.5 rounded text-cyan-300 font-mono">WASD / الأسهم</span>
+          <span className="bg-white/10 px-2 py-0.5 rounded text-cyan-300 font-mono">Space</span> إطلاق
+        </div>
+
+        {/* Right Thumb: Extra Large Fire Button (92px x 92px) with isolated touch tracking */}
+        <div className="pointer-events-auto">
           <button
             type="button"
             onPointerDown={(e) => {
               e.preventDefault();
+              e.stopPropagation();
               gameRef.current.isFiring = true;
               tryManualFire();
             }}
             onPointerUp={(e) => {
               e.preventDefault();
+              e.stopPropagation();
               gameRef.current.isFiring = false;
             }}
-            onPointerCancel={() => {
+            onPointerCancel={(e) => {
+              e.stopPropagation();
               gameRef.current.isFiring = false;
             }}
-            className="w-18 h-18 sm:w-22 sm:h-22 rounded-3xl bg-gradient-to-tr from-cyan-600 via-blue-600 to-indigo-600 border-2 border-cyan-300 shadow-2xl shadow-cyan-500/60 flex flex-col items-center justify-center text-white active:scale-90 transition-transform font-black select-none cursor-pointer"
+            onPointerLeave={(e) => {
+              e.stopPropagation();
+              gameRef.current.isFiring = false;
+            }}
+            onTouchStart={(e) => {
+              e.stopPropagation();
+            }}
+            onTouchEnd={(e) => {
+              e.stopPropagation();
+            }}
+            className="w-22 h-22 sm:w-26 sm:h-26 rounded-3xl bg-gradient-to-tr from-cyan-500 via-blue-600 to-indigo-600 border-3 border-cyan-300 shadow-2xl shadow-cyan-500/70 flex flex-col items-center justify-center text-white active:scale-90 transition-transform font-black select-none cursor-pointer"
           >
-            <span className="text-2xl sm:text-3xl">🔥</span>
-            <span className="text-[11px] sm:text-xs font-black mt-0.5">إطلاق</span>
+            <span className="text-3xl sm:text-4xl drop-shadow">🔥</span>
+            <span className="text-xs sm:text-sm font-black mt-0.5 drop-shadow">إطلاق</span>
           </button>
         </div>
       </div>

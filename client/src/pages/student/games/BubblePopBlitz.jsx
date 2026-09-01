@@ -409,32 +409,34 @@ export default function BubblePopBlitz({ onClose }) {
         height={CH}
         onClick={(e) => handleTouchOrClick(e.clientX, e.clientY)}
         onTouchStart={(e) => {
-          if (e.touches[0]) {
-            handleTouchOrClick(e.touches[0].clientX, e.touches[0].clientY);
+          e.preventDefault();
+          for (let i = 0; i < e.changedTouches.length; i++) {
+            const touch = e.changedTouches[i];
+            handleTouchOrClick(touch.clientX, touch.clientY);
           }
         }}
         className="absolute inset-0 w-full h-full object-cover block bg-[#021815] cursor-pointer"
       />
 
       {/* ── SLIM QUESTION HEADER (NO BLOCKING TOAST) ── */}
-      <div className="absolute top-14 sm:top-18 inset-x-4 sm:inset-x-8 z-20 bg-black/60 backdrop-blur-md border border-emerald-500/30 rounded-2xl px-5 py-2.5 sm:py-3 flex items-center justify-between gap-4 pointer-events-none shadow-xl">
-        <div className="flex items-center gap-3">
-          <span className="px-3 py-1 rounded-xl bg-emerald-500/25 border border-emerald-400/40 text-emerald-300 font-black text-xs sm:text-sm">
+      <div className="absolute top-11 sm:top-16 inset-x-3 sm:inset-x-8 z-20 bg-black/65 backdrop-blur-md border border-emerald-500/30 rounded-xl sm:rounded-2xl px-3 sm:px-5 py-1.5 sm:py-3 flex items-center justify-between gap-2 sm:gap-4 pointer-events-none shadow-xl">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <span className="px-2 sm:px-3 py-0.5 sm:py-1 rounded-lg sm:rounded-xl bg-emerald-500/25 border border-emerald-400/40 text-emerald-300 font-black text-[10px] sm:text-sm">
             سؤال {currentQIndex + 1}/{totalQ}
           </span>
-          <h3 className="text-sm sm:text-lg font-black text-white truncate max-w-[70vw]">
+          <h3 className="text-xs sm:text-lg font-black text-white truncate max-w-[65vw]">
             {currentQ?.questionText || currentQ?.question_text}
           </h3>
         </div>
 
         {/* Feedback badge */}
         {feedback && (
-          <div className={`px-4 py-1.5 rounded-xl text-xs sm:text-sm font-black flex items-center gap-2 shadow-lg animate-bounce ${
+          <div className={`px-2.5 sm:px-4 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[10px] sm:text-sm font-black flex items-center gap-1.5 shadow-lg animate-bounce ${
             feedback.type === 'correct'
               ? 'bg-emerald-500 text-white shadow-emerald-500/50'
               : 'bg-red-500 text-white shadow-red-500/50'
           }`}>
-            {feedback.type === 'correct' ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
+            {feedback.type === 'correct' ? <CheckCircle size={14} /> : <AlertCircle size={14} />}
             <span>{feedback.text}</span>
           </div>
         )}
