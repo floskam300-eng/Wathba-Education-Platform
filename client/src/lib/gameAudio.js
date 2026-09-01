@@ -237,6 +237,30 @@ class GameAudioEngine {
     osc.stop(t + 0.45);
   }
 
+  // ── Coin / Star Collect Sound (Bright ping) ──
+  playCoin() {
+    if (this.muted) return;
+    this.init();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(987.77, t); // B5
+    osc.frequency.setValueAtTime(1318.51, t + 0.08); // E6
+
+    gain.gain.setValueAtTime(0.18, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start(t);
+    osc.stop(t + 0.28);
+  }
+
   // ── Powerup / Chest Open Sound ──
   playPowerup() {
     if (this.muted) return;
@@ -299,5 +323,14 @@ class GameAudioEngine {
   }
 }
 
-export const gameAudio = new GameAudioEngine();
+const rawEngine = new GameAudioEngine();
+export const gameAudio = new Proxy(rawEngine, {
+  get(target, prop) {
+    if (prop in target) {
+      const val = target[prop];
+      return typeof val === 'function' ? val.bind(target) : val;
+    }
+    return () => {}; // Safe no-op for any missing audio method
+  }
+});
 export default gameAudio;

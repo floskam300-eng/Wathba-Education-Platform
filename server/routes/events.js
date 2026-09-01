@@ -69,7 +69,7 @@ const GAME_CATALOG = [
     id: 'bubble_blitz',
     title: 'فرقعة الفقاعات العبقرية',
     subtitle: 'فرقع الفقاعات الطائرة بالإجابات الصحيحة بأسرع وقت واجمع الكومبو!',
-    icon: '🫧',
+    icon: '🔮',
     category: 'action',
     badge: 'سرعة وتدريب',
     gradient: 'from-emerald-600 via-teal-600 to-emerald-800',

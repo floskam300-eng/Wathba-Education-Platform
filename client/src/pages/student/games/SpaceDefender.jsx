@@ -7,8 +7,8 @@ import GameResultModal from '../../../components/games/GameResultModal';
 import api from '../../../lib/api';
 import toast from 'react-hot-toast';
 
-const CW = 960;
-const CH = 540;
+const CW = 1280;
+const CH = 720;
 
 export default function SpaceDefender({ onClose }) {
   const canvasRef = useRef(null);
@@ -30,7 +30,7 @@ export default function SpaceDefender({ onClose }) {
     frame: 0,
     score: 0,
     lives: 3,
-    ship: { x: 120, y: CH / 2, vx: 0, vy: 0, speed: 6.5, inv: 0, w: 48, h: 36 },
+    ship: { x: 160, y: CH / 2, vx: 0, vy: 0, speed: 7.5, inv: 0, w: 56, h: 42 },
     lasers: [],
     ducks: [],
     eggs: [],
@@ -58,12 +58,12 @@ export default function SpaceDefender({ onClose }) {
           setQuestions(res.data.questions || []);
           setGameState('playing');
 
-          // Initialize space stars
-          const stars = Array.from({ length: 80 }, () => ({
+          // Initialize space stars across full 1280x720 canvas
+          const stars = Array.from({ length: 110 }, () => ({
             x: Math.random() * CW,
             y: Math.random() * CH,
-            r: 1 + Math.random() * 2.2,
-            speed: 0.8 + Math.random() * 2.5,
+            r: 1 + Math.random() * 2.4,
+            speed: 0.8 + Math.random() * 2.8,
             color: ['#ffffff', '#67e8f9', '#c084fc', '#fde047', '#a7f3d0'][Math.floor(Math.random() * 5)]
           }));
           gameRef.current.stars = stars;
@@ -114,15 +114,15 @@ export default function SpaceDefender({ onClose }) {
     const g = gameRef.current;
     if (g.isPaused) return;
     const now = Date.now();
-    if (now - g.lastFireTime < 160) return; // 160ms cooldown between shots
+    if (now - g.lastFireTime < 160) return;
     g.lastFireTime = now;
 
-    // Dual Plasma Lasers from spaceship wings
+    // Dual Plasma Lasers
     g.lasers.push(
-      { x: g.ship.x + 28, y: g.ship.y - 10, vx: 14, w: 18, h: 4, color: '#22d3ee' },
-      { x: g.ship.x + 28, y: g.ship.y + 10, vx: 14, w: 18, h: 4, color: '#22d3ee' }
+      { x: g.ship.x + 32, y: g.ship.y - 12, vx: 16, w: 22, h: 5, color: '#22d3ee' },
+      { x: g.ship.x + 32, y: g.ship.y + 12, vx: 16, w: 22, h: 5, color: '#22d3ee' }
     );
-    gameAudio.playLaser();
+    try { gameAudio.playLaser(); } catch (_) {}
   };
 
   // 3. Main Game Loop
@@ -147,7 +147,6 @@ export default function SpaceDefender({ onClose }) {
         if (k['ArrowLeft'] || k['KeyA']) dx -= 1;
         if (k['ArrowRight'] || k['KeyD']) dx += 1;
 
-        // Continuous firing if holding Space or Fire button
         if (g.isFiring) {
           tryManualFire();
         }
@@ -155,9 +154,9 @@ export default function SpaceDefender({ onClose }) {
         g.ship.x += dx * g.ship.speed;
         g.ship.y += dy * g.ship.speed;
 
-        // Keep inside bounds
-        g.ship.x = Math.max(40, Math.min(CW - 80, g.ship.x));
-        g.ship.y = Math.max(40, Math.min(CH - 40, g.ship.y));
+        // Keep inside full canvas bounds
+        g.ship.x = Math.max(50, Math.min(CW - 100, g.ship.x));
+        g.ship.y = Math.max(50, Math.min(CH - 50, g.ship.y));
 
         if (g.ship.inv > 0) g.ship.inv--;
 
@@ -172,19 +171,19 @@ export default function SpaceDefender({ onClose }) {
         g.lasers = g.lasers.filter(l => l.x < CW + 30);
 
         // ── SPAWN SPACE DUCKS ─────────────────────────────────────────
-        if (!g.boss && g.frame % 55 === 0) {
+        if (!g.boss && g.frame % 50 === 0) {
           const isArmored = Math.random() > 0.65;
           g.ducks.push({
-            x: CW + 50,
-            baseY: 60 + Math.random() * (CH - 140),
+            x: CW + 60,
+            baseY: 80 + Math.random() * (CH - 180),
             y: 0,
-            vx: 2.5 + Math.random() * 2.2,
+            vx: 3.0 + Math.random() * 2.5,
             phase: Math.random() * Math.PI * 2,
             hp: isArmored ? 2 : 1,
             maxHp: isArmored ? 2 : 1,
             isArmored,
-            w: 44,
-            h: 38,
+            w: 52,
+            h: 44,
             eggTimer: Math.floor(Math.random() * 40)
           });
         }
@@ -192,31 +191,31 @@ export default function SpaceDefender({ onClose }) {
         // Update Ducks & Drop Egg Bombs
         g.ducks.forEach(d => {
           d.x -= d.vx;
-          d.y = d.baseY + Math.sin(g.frame * 0.05 + d.phase) * 35;
+          d.y = d.baseY + Math.sin(g.frame * 0.045 + d.phase) * 45;
           d.eggTimer++;
 
-          // Ducks drop glowing cosmic eggs 🥚
-          if (d.eggTimer > 80 && d.x > 180 && d.x < CW - 100 && Math.random() < 0.035) {
+          // Ducks drop glowing eggs 🥚
+          if (d.eggTimer > 75 && d.x > 220 && d.x < CW - 120 && Math.random() < 0.04) {
             d.eggTimer = 0;
             g.eggs.push({
-              x: d.x - 10,
-              y: d.y + 14,
-              vx: -3.5 - Math.random() * 2,
-              vy: 1.5 + (Math.random() - 0.5) * 2,
-              r: 8,
+              x: d.x - 12,
+              y: d.y + 16,
+              vx: -4.0 - Math.random() * 2,
+              vy: 1.8 + (Math.random() - 0.5) * 2,
+              r: 10,
               rot: 0,
               color: d.isArmored ? '#ec4899' : '#facc15'
             });
-            gameAudio.playPop();
+            try { gameAudio.playPop(); } catch (_) {}
           }
         });
-        g.ducks = g.ducks.filter(d => d.x > -60);
+        g.ducks = g.ducks.filter(d => d.x > -70);
 
         // Update Eggs
         g.eggs.forEach(egg => {
           egg.x += egg.vx;
           egg.y += egg.vy;
-          egg.rot += 0.12;
+          egg.rot += 0.14;
         });
         g.eggs = g.eggs.filter(egg => egg.x > -30 && egg.y > -30 && egg.y < CH + 30);
 
@@ -236,17 +235,17 @@ export default function SpaceDefender({ onClose }) {
           for (let j = g.ducks.length - 1; j >= 0; j--) {
             const d = g.ducks[j];
             const dist = Math.hypot(l.x - d.x, l.y - d.y);
-            if (dist < 32) {
+            if (dist < 38) {
               d.hp--;
               laserHit = true;
 
-              // Spark hit particles
-              for (let p = 0; p < 6; p++) {
+              // Spark particles
+              for (let p = 0; p < 7; p++) {
                 g.particles.push({
                   x: l.x,
                   y: l.y,
-                  vx: (Math.random() - 0.5) * 6,
-                  vy: (Math.random() - 0.5) * 6,
+                  vx: (Math.random() - 0.5) * 7,
+                  vy: (Math.random() - 0.5) * 7,
                   r: 2 + Math.random() * 3,
                   color: '#22d3ee',
                   life: 15
@@ -257,16 +256,16 @@ export default function SpaceDefender({ onClose }) {
                 g.ducks.splice(j, 1);
                 g.score += d.isArmored ? 150 : 100;
                 setScore(g.score);
-                gameAudio.playExplosion();
+                try { gameAudio.playExplosion(); } catch (_) {}
 
-                // Feather burst particles
-                for (let f = 0; f < 14; f++) {
+                // Feather particles
+                for (let f = 0; f < 16; f++) {
                   g.particles.push({
                     x: d.x,
                     y: d.y,
-                    vx: (Math.random() - 0.5) * 8,
-                    vy: (Math.random() - 0.5) * 8,
-                    r: 3 + Math.random() * 4,
+                    vx: (Math.random() - 0.5) * 9,
+                    vy: (Math.random() - 0.5) * 9,
+                    r: 3 + Math.random() * 5,
                     color: d.isArmored ? '#f472b6' : '#fde047',
                     life: 25
                   });
@@ -276,26 +275,25 @@ export default function SpaceDefender({ onClose }) {
             }
           }
 
-          // Lasers vs Eggs Collision (Shoot down eggs!)
+          // Lasers vs Eggs
           if (!laserHit) {
             for (let e = g.eggs.length - 1; e >= 0; e--) {
               const egg = g.eggs[e];
               const dist = Math.hypot(l.x - egg.x, l.y - egg.y);
-              if (dist < egg.r + 10) {
+              if (dist < egg.r + 12) {
                 laserHit = true;
                 g.eggs.splice(e, 1);
                 g.score += 50;
                 setScore(g.score);
-                gameAudio.playPop();
+                try { gameAudio.playPop(); } catch (_) {}
 
-                // Egg yolk burst
-                for (let p = 0; p < 8; p++) {
+                for (let p = 0; p < 9; p++) {
                   g.particles.push({
                     x: egg.x,
                     y: egg.y,
                     vx: (Math.random() - 0.5) * 7,
                     vy: (Math.random() - 0.5) * 7,
-                    r: 2 + Math.random() * 3,
+                    r: 2 + Math.random() * 4,
                     color: '#f59e0b',
                     life: 20
                   });
@@ -316,12 +314,12 @@ export default function SpaceDefender({ onClose }) {
           for (let e = g.eggs.length - 1; e >= 0; e--) {
             const egg = g.eggs[e];
             const dist = Math.hypot(g.ship.x - egg.x, g.ship.y - egg.y);
-            if (dist < egg.r + 20) {
+            if (dist < egg.r + 24) {
               g.eggs.splice(e, 1);
               g.lives--;
               setLives(g.lives);
               g.ship.inv = 70;
-              gameAudio.playExplosion();
+              try { gameAudio.playExplosion(); } catch (_) {}
 
               if (g.lives <= 0) {
                 handleGameOver(false);
@@ -334,11 +332,11 @@ export default function SpaceDefender({ onClose }) {
           // Ship vs Ducks
           for (const d of g.ducks) {
             const dist = Math.hypot(g.ship.x - d.x, g.ship.y - d.y);
-            if (dist < 34) {
+            if (dist < 40) {
               g.lives--;
               setLives(g.lives);
               g.ship.inv = 70;
-              gameAudio.playExplosion();
+              try { gameAudio.playExplosion(); } catch (_) {}
 
               if (g.lives <= 0) {
                 handleGameOver(false);
@@ -349,19 +347,19 @@ export default function SpaceDefender({ onClose }) {
           }
         }
 
-        // ── BOSS ENCOUNTER (Giant Space Duck King 👑🦆) ───────────────
+        // ── BOSS ENCOUNTER ───────────────────────────────────────────
         if (!g.boss && g.bossIndex < questions.length && g.score >= g.nextBossScore) {
           g.boss = {
-            x: CW + 120,
-            targetX: CW - 180,
+            x: CW + 140,
+            targetX: CW - 220,
             y: CH / 2,
-            w: 130,
-            h: 120,
+            w: 150,
+            h: 140,
             hp: 3,
             num: g.bossIndex + 1,
             pulse: 0
           };
-          gameAudio.playBossAlert();
+          try { gameAudio.playBossAlert(); } catch (_) {}
         }
 
         if (g.boss) {
@@ -402,7 +400,7 @@ export default function SpaceDefender({ onClose }) {
       // 3. Laser Beams
       g.lasers.forEach(l => {
         ctx.save();
-        ctx.shadowBlur = 14;
+        ctx.shadowBlur = 16;
         ctx.shadowColor = '#06b6d4';
         ctx.fillStyle = '#67e8f9';
         ctx.fillRect(l.x, l.y - l.h / 2, l.w, l.h);
@@ -416,50 +414,49 @@ export default function SpaceDefender({ onClose }) {
         ctx.save();
         ctx.translate(d.x, d.y);
 
-        // Flapping Wing Animation
-        const wingWing = Math.sin(g.frame * 0.28 + d.phase) * 12;
+        const wingWing = Math.sin(g.frame * 0.28 + d.phase) * 14;
 
-        // Duck Body (Golden Yellow or Cyber Pink)
+        // Duck Body
         ctx.fillStyle = d.isArmored ? '#ec4899' : '#facc15';
         ctx.beginPath();
-        ctx.ellipse(0, 4, 18, 14, 0, 0, Math.PI * 2);
+        ctx.ellipse(0, 5, 22, 16, 0, 0, Math.PI * 2);
         ctx.fill();
 
         // Wing
         ctx.fillStyle = d.isArmored ? '#db2777' : '#eab308';
         ctx.beginPath();
-        ctx.ellipse(-4, 2 + wingWing * 0.3, 12, 7, -0.3, 0, Math.PI * 2);
+        ctx.ellipse(-5, 2 + wingWing * 0.35, 14, 8, -0.3, 0, Math.PI * 2);
         ctx.fill();
 
         // Duck Head
         ctx.fillStyle = d.isArmored ? '#ec4899' : '#facc15';
         ctx.beginPath();
-        ctx.arc(-12, -6, 11, 0, Math.PI * 2);
+        ctx.arc(-14, -7, 13, 0, Math.PI * 2);
         ctx.fill();
 
         // Orange Beak
         ctx.fillStyle = '#f97316';
         ctx.beginPath();
-        ctx.moveTo(-22, -6);
-        ctx.lineTo(-32, -3);
-        ctx.lineTo(-22, 0);
+        ctx.moveTo(-26, -7);
+        ctx.lineTo(-38, -4);
+        ctx.lineTo(-26, 0);
         ctx.closePath();
         ctx.fill();
 
-        // Duck Eye / Cyber Goggles
+        // Cyber Goggles
         ctx.fillStyle = '#06b6d4';
-        ctx.shadowBlur = 8;
+        ctx.shadowBlur = 10;
         ctx.shadowColor = '#06b6d4';
         ctx.beginPath();
-        ctx.arc(-15, -7, 4, 0, Math.PI * 2);
+        ctx.arc(-18, -8, 5, 0, Math.PI * 2);
         ctx.fill();
         ctx.shadowBlur = 0;
 
-        // Space Helmet Glass Dome
-        ctx.strokeStyle = 'rgba(103, 232, 249, 0.6)';
-        ctx.lineWidth = 2;
+        // Helmet Dome
+        ctx.strokeStyle = 'rgba(103, 232, 249, 0.65)';
+        ctx.lineWidth = 2.5;
         ctx.beginPath();
-        ctx.arc(-11, -5, 14, 0, Math.PI * 2);
+        ctx.arc(-13, -6, 17, 0, Math.PI * 2);
         ctx.stroke();
 
         ctx.restore();
@@ -470,7 +467,7 @@ export default function SpaceDefender({ onClose }) {
         ctx.save();
         ctx.translate(egg.x, egg.y);
         ctx.rotate(egg.rot);
-        ctx.shadowBlur = 12;
+        ctx.shadowBlur = 14;
         ctx.shadowColor = egg.color;
 
         ctx.fillStyle = egg.color;
@@ -481,7 +478,7 @@ export default function SpaceDefender({ onClose }) {
         // Egg shine
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
-        ctx.arc(-2, -3, 2.5, 0, Math.PI * 2);
+        ctx.arc(-2.5, -3.5, 3, 0, Math.PI * 2);
         ctx.fill();
 
         ctx.restore();
@@ -493,34 +490,34 @@ export default function SpaceDefender({ onClose }) {
         ctx.translate(g.ship.x, g.ship.y);
 
         // Engine Thruster Flame
-        const thrusterLen = 16 + Math.random() * 12;
-        const thrusterGrad = ctx.createLinearGradient(-18, 0, -18 - thrusterLen, 0);
+        const thrusterLen = 20 + Math.random() * 16;
+        const thrusterGrad = ctx.createLinearGradient(-20, 0, -20 - thrusterLen, 0);
         thrusterGrad.addColorStop(0, '#00ffff');
         thrusterGrad.addColorStop(0.5, '#3b82f6');
         thrusterGrad.addColorStop(1, 'transparent');
         ctx.fillStyle = thrusterGrad;
         ctx.beginPath();
-        ctx.moveTo(-16, -7);
-        ctx.lineTo(-16 - thrusterLen, 0);
-        ctx.lineTo(-16, 7);
+        ctx.moveTo(-18, -8);
+        ctx.lineTo(-18 - thrusterLen, 0);
+        ctx.lineTo(-18, 8);
         ctx.closePath();
         ctx.fill();
 
         // Ship Hull
-        ctx.shadowBlur = 15;
+        ctx.shadowBlur = 18;
         ctx.shadowColor = '#00ffff';
         ctx.fillStyle = '#0f172a';
         ctx.strokeStyle = '#38bdf8';
-        ctx.lineWidth = 2.5;
+        ctx.lineWidth = 3;
 
         ctx.beginPath();
-        ctx.moveTo(24, 0);       // Nose
-        ctx.lineTo(-12, -18);    // Left Wing
-        ctx.lineTo(-6, -6);
-        ctx.lineTo(-18, -6);     // Left Engine
-        ctx.lineTo(-18, 6);      // Right Engine
-        ctx.lineTo(-6, 6);
-        ctx.lineTo(-12, 18);     // Right Wing
+        ctx.moveTo(30, 0);       // Nose
+        ctx.lineTo(-14, -22);    // Left Wing
+        ctx.lineTo(-8, -8);
+        ctx.lineTo(-22, -8);     // Left Engine
+        ctx.lineTo(-22, 8);      // Right Engine
+        ctx.lineTo(-8, 8);
+        ctx.lineTo(-14, 22);     // Right Wing
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
@@ -528,7 +525,7 @@ export default function SpaceDefender({ onClose }) {
         // Glowing Cockpit
         ctx.fillStyle = '#38bdf8';
         ctx.beginPath();
-        ctx.ellipse(4, 0, 8, 4, 0, 0, Math.PI * 2);
+        ctx.ellipse(6, 0, 10, 5, 0, 0, Math.PI * 2);
         ctx.fill();
 
         ctx.restore();
@@ -539,59 +536,58 @@ export default function SpaceDefender({ onClose }) {
         ctx.save();
         ctx.translate(g.boss.x, g.boss.y);
 
-        // Pulsing Boss Aura
-        ctx.shadowBlur = 25;
+        ctx.shadowBlur = 30;
         ctx.shadowColor = '#f59e0b';
 
         // Boss Body
         ctx.fillStyle = '#eab308';
         ctx.beginPath();
-        ctx.ellipse(0, 10, 48, 38, 0, 0, Math.PI * 2);
+        ctx.ellipse(0, 12, 58, 46, 0, 0, Math.PI * 2);
         ctx.fill();
 
         // Giant Wing
-        const bossWing = Math.sin(g.boss.pulse) * 16;
+        const bossWing = Math.sin(g.boss.pulse) * 18;
         ctx.fillStyle = '#ca8a04';
         ctx.beginPath();
-        ctx.ellipse(-10, 8 + bossWing * 0.3, 30, 16, -0.2, 0, Math.PI * 2);
+        ctx.ellipse(-12, 10 + bossWing * 0.35, 36, 20, -0.2, 0, Math.PI * 2);
         ctx.fill();
 
         // Giant Head
         ctx.fillStyle = '#facc15';
         ctx.beginPath();
-        ctx.arc(-26, -18, 28, 0, Math.PI * 2);
+        ctx.arc(-30, -22, 34, 0, Math.PI * 2);
         ctx.fill();
 
         // Giant Beak
         ctx.fillStyle = '#ea580c';
         ctx.beginPath();
-        ctx.moveTo(-50, -18);
-        ctx.lineTo(-76, -10);
-        ctx.lineTo(-50, -2);
+        ctx.moveTo(-60, -22);
+        ctx.lineTo(-92, -12);
+        ctx.lineTo(-60, -2);
         ctx.closePath();
         ctx.fill();
 
         // Glowing Cyber Crown 👑
         ctx.fillStyle = '#fbbf24';
         ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2.5;
         ctx.beginPath();
-        ctx.moveTo(-38, -44);
-        ctx.lineTo(-44, -58);
-        ctx.lineTo(-32, -48);
-        ctx.lineTo(-24, -62);
-        ctx.lineTo(-16, -48);
-        ctx.lineTo(-4, -58);
-        ctx.lineTo(-10, -44);
+        ctx.moveTo(-45, -54);
+        ctx.lineTo(-52, -70);
+        ctx.lineTo(-38, -58);
+        ctx.lineTo(-28, -75);
+        ctx.lineTo(-18, -58);
+        ctx.lineTo(-4, -70);
+        ctx.lineTo(-12, -54);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
 
-        // Cyber Helmet Glass Dome
+        // Helmet Dome
         ctx.strokeStyle = '#38bdf8';
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 3.5;
         ctx.beginPath();
-        ctx.arc(-24, -16, 36, 0, Math.PI * 2);
+        ctx.arc(-28, -20, 44, 0, Math.PI * 2);
         ctx.stroke();
 
         ctx.restore();
@@ -620,8 +616,10 @@ export default function SpaceDefender({ onClose }) {
     const isCorrect = result.selectedIndex === 0 || result.selectedIndex === (activeQuestion?.correctIndex ?? 0);
 
     if (isCorrect) {
-      gameAudio.playCorrect();
-      gameAudio.playExplosion();
+      try {
+        gameAudio.playCorrect();
+        gameAudio.playExplosion();
+      } catch (_) {}
 
       const g = gameRef.current;
       g.score += 800;
@@ -630,28 +628,26 @@ export default function SpaceDefender({ onClose }) {
       g.bossIndex++;
       g.nextBossScore = g.score + 1200;
 
-      // Mega Overcharged Laser Blast effect
-      for (let p = 0; p < 40; p++) {
+      for (let p = 0; p < 45; p++) {
         g.particles.push({
-          x: CW - 160 + (Math.random() - 0.5) * 80,
-          y: CH / 2 + (Math.random() - 0.5) * 80,
-          vx: (Math.random() - 0.5) * 18,
-          vy: (Math.random() - 0.5) * 18,
-          r: 4 + Math.random() * 6,
+          x: CW - 200 + (Math.random() - 0.5) * 100,
+          y: CH / 2 + (Math.random() - 0.5) * 100,
+          vx: (Math.random() - 0.5) * 20,
+          vy: (Math.random() - 0.5) * 20,
+          r: 4 + Math.random() * 7,
           color: ['#00ffff', '#f59e0b', '#ec4899', '#ffffff'][Math.floor(Math.random() * 4)],
           life: 35
         });
       }
 
       if (g.bossIndex >= questions.length) {
-        // Victory!
         handleGameOver(true, newAnswers);
       } else {
         g.isPaused = false;
         setGameState('playing');
       }
     } else {
-      gameAudio.playWrong();
+      try { gameAudio.playWrong(); } catch (_) {}
       const newLives = lives - 1;
       setLives(newLives);
 
@@ -699,7 +695,7 @@ export default function SpaceDefender({ onClose }) {
 
   const totalBosses = questions.length || 3;
 
-  // Touch Movement Handlers for Phone / Tablet
+  // Touch Movement Handlers
   const handleTouchStart = (e) => {
     if (gameState !== 'playing') return;
     const t = e.touches[0];
@@ -713,11 +709,11 @@ export default function SpaceDefender({ onClose }) {
     const g = gameRef.current;
     if (!g.touchPos) return;
 
-    const dx = (t.clientX - g.touchPos.x) * 1.6;
-    const dy = (t.clientY - g.touchPos.y) * 1.6;
+    const dx = (t.clientX - g.touchPos.x) * 1.8;
+    const dy = (t.clientY - g.touchPos.y) * 1.8;
 
-    g.ship.x = Math.max(40, Math.min(CW - 80, g.ship.x + dx));
-    g.ship.y = Math.max(40, Math.min(CH - 40, g.ship.y + dy));
+    g.ship.x = Math.max(50, Math.min(CW - 100, g.ship.x + dx));
+    g.ship.y = Math.max(50, Math.min(CH - 50, g.ship.y + dy));
 
     g.touchPos = { x: t.clientX, y: t.clientY };
   };
@@ -728,7 +724,13 @@ export default function SpaceDefender({ onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#03010a] flex flex-col items-center justify-center select-none overflow-hidden touch-none" dir="rtl">
+    <div
+      className="fixed inset-0 z-50 bg-[#03010a] w-screen h-screen flex flex-col justify-between select-none overflow-hidden touch-none"
+      dir="rtl"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
       <GameHUD
         title="حرب البط الفضائي 🦆"
         lives={lives}
@@ -741,60 +743,53 @@ export default function SpaceDefender({ onClose }) {
         accentColor="#06b6d4"
       />
 
-      {/* Main Game Container */}
-      <div
-        className="relative w-full h-full max-w-[960px] max-h-[540px] aspect-[16/9] rounded-2xl sm:rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(6,182,212,0.35)] border border-cyan-500/30 flex flex-col touch-none select-none bg-black"
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-      >
-        <canvas
-          ref={canvasRef}
-          width={CW}
-          height={CH}
-          className="w-full h-full object-contain block bg-[#03010a]"
-        />
+      {/* Fullscreen Canvas filling 100vw x 100vh */}
+      <canvas
+        ref={canvasRef}
+        width={CW}
+        height={CH}
+        className="absolute inset-0 w-full h-full object-cover block bg-[#03010a]"
+      />
 
-        {/* ── ON-SCREEN MOBILE TOUCH CONTROLS (LANDSCAPE OPTIMIZED) ── */}
-        <div className="absolute inset-x-0 bottom-3 px-4 flex items-center justify-between pointer-events-none z-20">
-          {/* Left Thumb Touch Zone Indicator */}
-          <div className="bg-black/50 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-white/10 text-white/70 text-xs font-bold pointer-events-auto hidden sm:flex items-center gap-2">
-            <span>⌨️ التحكم:</span>
-            <span className="bg-white/10 px-1.5 py-0.5 rounded text-cyan-300 font-mono">WASD / الأسهم</span>
-            <span className="bg-white/10 px-1.5 py-0.5 rounded text-cyan-300 font-mono">Space</span> إطلاق
-          </div>
-
-          {/* Right Thumb Large Fire Button (Touchscreen) */}
-          <div className="mr-auto pointer-events-auto flex items-center gap-2">
-            <button
-              type="button"
-              onPointerDown={(e) => {
-                e.preventDefault();
-                gameRef.current.isFiring = true;
-                tryManualFire();
-              }}
-              onPointerUp={(e) => {
-                e.preventDefault();
-                gameRef.current.isFiring = false;
-              }}
-              onPointerCancel={() => {
-                gameRef.current.isFiring = false;
-              }}
-              className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-tr from-cyan-600 via-blue-600 to-indigo-600 border-2 border-cyan-300 shadow-xl shadow-cyan-500/50 flex flex-col items-center justify-center text-white active:scale-90 transition-transform font-black select-none cursor-pointer"
-            >
-              <span className="text-xl sm:text-2xl">🔥</span>
-              <span className="text-[10px] sm:text-xs font-bold mt-0.5">إطلاق</span>
-            </button>
-          </div>
+      {/* ── ON-SCREEN MOBILE TOUCH CONTROLS (TWO-THUMB CORNERS) ── */}
+      <div className="absolute inset-x-0 bottom-4 sm:bottom-6 px-4 sm:px-8 flex items-center justify-between pointer-events-none z-20">
+        {/* Left Thumb Touch Zone Indicator */}
+        <div className="bg-black/60 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/15 text-white/80 text-xs font-bold pointer-events-auto hidden md:flex items-center gap-2 shadow-xl">
+          <span>⌨️ التحكم:</span>
+          <span className="bg-white/10 px-2 py-0.5 rounded text-cyan-300 font-mono">WASD / الأسهم</span>
+          <span className="bg-white/10 px-2 py-0.5 rounded text-cyan-300 font-mono">Space</span> إطلاق الليزر
         </div>
 
-        {gameState === 'loading' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm gap-3 z-30">
-            <div className="animate-spin w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full" />
-            <p className="text-white font-bold text-sm animate-pulse">جاري تجهيز مقاتلة الفضاء وتتبع سرب البط...</p>
-          </div>
-        )}
+        {/* Right Thumb Large Fire Button */}
+        <div className="mr-auto pointer-events-auto flex items-center gap-2">
+          <button
+            type="button"
+            onPointerDown={(e) => {
+              e.preventDefault();
+              gameRef.current.isFiring = true;
+              tryManualFire();
+            }}
+            onPointerUp={(e) => {
+              e.preventDefault();
+              gameRef.current.isFiring = false;
+            }}
+            onPointerCancel={() => {
+              gameRef.current.isFiring = false;
+            }}
+            className="w-18 h-18 sm:w-22 sm:h-22 rounded-3xl bg-gradient-to-tr from-cyan-600 via-blue-600 to-indigo-600 border-2 border-cyan-300 shadow-2xl shadow-cyan-500/60 flex flex-col items-center justify-center text-white active:scale-90 transition-transform font-black select-none cursor-pointer"
+          >
+            <span className="text-2xl sm:text-3xl">🔥</span>
+            <span className="text-[11px] sm:text-xs font-black mt-0.5">إطلاق</span>
+          </button>
+        </div>
       </div>
+
+      {gameState === 'loading' && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 backdrop-blur-md gap-3 z-30">
+          <div className="animate-spin w-14 h-14 border-4 border-cyan-500 border-t-transparent rounded-full" />
+          <p className="text-white font-bold text-base animate-pulse">جاري تجهيز مقاتلة الفضاء وتتبع سرب البط...</p>
+        </div>
+      )}
 
       {/* Boss Question Overlay */}
       {gameState === 'question' && activeQuestion && (

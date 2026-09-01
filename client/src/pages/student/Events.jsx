@@ -97,7 +97,7 @@ export default function StudentEvents() {
     { id: 'runner', label: 'مغامرة الستيكمان 🏃' },
     { id: 'arcade', label: 'حرب البط الفضائي 🦆' },
     { id: 'puzzle', label: 'برج الفوازير 🏰' },
-    { id: 'action', label: 'فرقعة الفقاعات 🫧' }
+    { id: 'action', label: 'فرقعة الفقاعات 🔮' }
   ];
 
   return (
@@ -190,8 +190,15 @@ export default function StudentEvents() {
                     {/* Top Row: Icon + Badges */}
                     <div className="flex items-start justify-between gap-3 mb-4">
                       <div className="flex items-center gap-3.5">
-                        <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${theme.iconBg} border flex items-center justify-center text-3xl shadow-xl flex-shrink-0 group-hover:scale-110 transition-transform`}>
-                          {game.icon}
+                        <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${theme.iconBg} border flex items-center justify-center text-3xl shadow-xl flex-shrink-0 group-hover:scale-110 transition-transform overflow-hidden`}>
+                          {game.id === 'bubble_blitz' ? (
+                            <div className="relative w-9 h-9 rounded-full bg-gradient-to-tr from-emerald-500 via-teal-400 to-cyan-300 flex items-center justify-center shadow-lg shadow-emerald-500/50">
+                              <Sparkles size={18} className="text-white drop-shadow" />
+                              <div className="absolute top-1.5 left-2 w-2.5 h-2.5 rounded-full bg-white/70" />
+                            </div>
+                          ) : (
+                            game.icon
+                          )}
                         </div>
                         <div>
                           <span className={`inline-block px-2.5 py-0.5 rounded-md ${theme.badgeBg} border text-[11px] font-black mb-1`}>

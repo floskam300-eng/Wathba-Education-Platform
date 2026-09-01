@@ -7,8 +7,8 @@ import { Sparkles, Zap, Timer, Star, CheckCircle, AlertCircle } from 'lucide-rea
 import api from '../../../lib/api';
 import toast from 'react-hot-toast';
 
-const CW = 960;
-const CH = 540;
+const CW = 1280;
+const CH = 720;
 
 const BUBBLE_COLORS = [
   { bg: 'rgba(59, 130, 246, 0.45)', stroke: '#38bdf8', glow: '#0ea5e9', textBg: '#0284c7' },
@@ -31,7 +31,7 @@ export default function BubblePopBlitz({ onClose }) {
   const [pointsEarned, setPointsEarned] = useState(0);
   const [answersLog, setAnswersLog] = useState([]);
   const [muted, setMuted] = useState(() => gameAudio.isMuted());
-  const [feedback, setFeedback] = useState(null); // { type: 'correct'|'wrong', text: string }
+  const [feedback, setFeedback] = useState(null);
 
   // Mutable Engine Ref
   const gameRef = useRef({
@@ -84,16 +84,16 @@ export default function BubblePopBlitz({ onClose }) {
 
     const newBubbles = choices.map((choice, idx) => {
       const col = BUBBLE_COLORS[idx % BUBBLE_COLORS.length];
-      const radius = 54 + Math.min(22, choice.length * 1.5);
+      const radius = 64 + Math.min(26, choice.length * 1.8);
       return {
         id: idx,
         text: choice,
         choiceIndex: idx,
         isCorrect: idx === 0 || idx === (currentQ.correctIndex ?? 0),
-        x: spacing * (idx + 1) + (Math.random() * 30 - 15),
-        y: CH + 70 + Math.random() * 100,
-        vx: (Math.random() - 0.5) * 1.0,
-        vy: -1.7 - Math.random() * 0.6,
+        x: spacing * (idx + 1) + (Math.random() * 40 - 20),
+        y: CH + 80 + Math.random() * 120,
+        vx: (Math.random() - 0.5) * 1.2,
+        vy: -2.0 - Math.random() * 0.7,
         r: radius,
         col,
         wobble: Math.random() * Math.PI * 2
@@ -139,7 +139,7 @@ export default function BubblePopBlitz({ onClose }) {
       const b = g.bubbles[i];
       const dist = Math.hypot(clickX - b.x, clickY - b.y);
 
-      if (dist < b.r + 8) {
+      if (dist < b.r + 10) {
         popBubble(b, i);
         break;
       }
@@ -151,20 +151,20 @@ export default function BubblePopBlitz({ onClose }) {
     g.bubbles.splice(index, 1);
 
     // Spawn Burst Particles
-    for (let p = 0; p < 22; p++) {
+    for (let p = 0; p < 26; p++) {
       g.particles.push({
         x: bubble.x,
         y: bubble.y,
-        vx: (Math.random() - 0.5) * 9,
-        vy: (Math.random() - 0.5) * 9,
-        r: 3 + Math.random() * 5,
+        vx: (Math.random() - 0.5) * 11,
+        vy: (Math.random() - 0.5) * 11,
+        r: 3 + Math.random() * 6,
         color: bubble.col.stroke,
         life: 25
       });
     }
 
     if (bubble.isCorrect) {
-      gameAudio.playCorrect();
+      try { gameAudio.playCorrect(); } catch (_) {}
       g.combo++;
       const bonus = g.combo * 150;
       g.score += 500 + bonus;
@@ -177,7 +177,7 @@ export default function BubblePopBlitz({ onClose }) {
         y: bubble.y,
         text: `+${500 + bonus} 🎉`,
         color: '#34d399',
-        life: 40
+        life: 45
       });
 
       setFeedback({ type: 'correct', text: 'إجابة صحيحة وفرقعة عبقرية! 🎯' });
@@ -188,7 +188,6 @@ export default function BubblePopBlitz({ onClose }) {
       setAnswersLog(newAnswers);
 
       if (nextQ >= questions.length) {
-        // Complete the quiz!
         handleFinishGame(true, newAnswers);
       } else {
         setTimeout(() => {
@@ -196,7 +195,7 @@ export default function BubblePopBlitz({ onClose }) {
         }, 500);
       }
     } else {
-      gameAudio.playWrong();
+      try { gameAudio.playWrong(); } catch (_) {}
       g.combo = 0;
       g.lives--;
       setCombo(0);
@@ -207,7 +206,7 @@ export default function BubblePopBlitz({ onClose }) {
         y: bubble.y,
         text: 'خطأ ❌',
         color: '#ef4444',
-        life: 40
+        life: 45
       });
 
       setFeedback({ type: 'wrong', text: 'فقاعة خاطئة! انتبه ⚠️' });
@@ -238,16 +237,14 @@ export default function BubblePopBlitz({ onClose }) {
         // Update Bubbles Motion
         g.bubbles.forEach(b => {
           b.wobble += 0.04;
-          b.x += b.vx + Math.sin(b.wobble) * 0.8;
+          b.x += b.vx + Math.sin(b.wobble) * 0.9;
           b.y += b.vy;
 
-          // Wrap horizontally inside bounds
-          if (b.x < b.r + 20) b.vx = Math.abs(b.vx);
-          if (b.x > CW - b.r - 20) b.vx = -Math.abs(b.vx);
+          if (b.x < b.r + 30) b.vx = Math.abs(b.vx);
+          if (b.x > CW - b.r - 30) b.vx = -Math.abs(b.vx);
 
-          // If bubble floats off top, wrap to bottom so student never loses it
-          if (b.y < -b.r - 20) {
-            b.y = CH + b.r + Math.random() * 60;
+          if (b.y < -b.r - 30) {
+            b.y = CH + b.r + Math.random() * 80;
           }
         });
 
@@ -261,13 +258,13 @@ export default function BubblePopBlitz({ onClose }) {
 
         // Update Floating Text
         g.floatTexts.forEach(f => {
-          f.y -= 1.5;
+          f.y -= 1.6;
           f.life--;
         });
         g.floatTexts = g.floatTexts.filter(f => f.life > 0);
       }
 
-      // Render Canvas
+      // Render Canvas across full 1280x720
       ctx.clearRect(0, 0, CW, CH);
 
       // 1. Ambient Background Underwater / Nebula Glow
@@ -280,11 +277,11 @@ export default function BubblePopBlitz({ onClose }) {
 
       // Ambient bubbles in background
       ctx.fillStyle = 'rgba(52, 211, 153, 0.08)';
-      for (let i = 0; i < 12; i++) {
-        const ax = ((i * 80 + g.frame * 0.4) % CW);
-        const ay = ((i * 120 - g.frame * 0.8) % CH + CH) % CH;
+      for (let i = 0; i < 18; i++) {
+        const ax = ((i * 100 + g.frame * 0.4) % CW);
+        const ay = ((i * 140 - g.frame * 0.8) % CH + CH) % CH;
         ctx.beginPath();
-        ctx.arc(ax, ay, 8 + (i % 5) * 4, 0, Math.PI * 2);
+        ctx.arc(ax, ay, 10 + (i % 6) * 5, 0, Math.PI * 2);
         ctx.fill();
       }
 
@@ -299,11 +296,11 @@ export default function BubblePopBlitz({ onClose }) {
       // 3. Render Interactive Floating Bubbles
       g.bubbles.forEach(b => {
         ctx.save();
-        ctx.shadowBlur = 20;
+        ctx.shadowBlur = 24;
         ctx.shadowColor = b.col.glow;
         ctx.fillStyle = b.col.bg;
         ctx.strokeStyle = b.col.stroke;
-        ctx.lineWidth = 3.5;
+        ctx.lineWidth = 4;
 
         // Main Bubble Sphere
         ctx.beginPath();
@@ -320,10 +317,10 @@ export default function BubblePopBlitz({ onClose }) {
         // Choice Number Badge (1, 2, 3, 4)
         ctx.fillStyle = b.col.textBg;
         ctx.beginPath();
-        ctx.arc(b.x, b.y - b.r * 0.45, 14, 0, Math.PI * 2);
+        ctx.arc(b.x, b.y - b.r * 0.45, 16, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = '#ffffff';
-        ctx.font = 'black 12px Tajawal, sans-serif';
+        ctx.font = 'black 14px Tajawal, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(`${b.choiceIndex + 1}`, b.x, b.y - b.r * 0.45);
@@ -331,10 +328,10 @@ export default function BubblePopBlitz({ onClose }) {
         // Choice Text inside bubble
         ctx.shadowBlur = 0;
         ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 17px Tajawal, sans-serif';
+        ctx.font = 'bold 20px Tajawal, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(b.text, b.x, b.y + 8);
+        ctx.fillText(b.text, b.x, b.y + 10);
 
         ctx.restore();
       });
@@ -343,9 +340,9 @@ export default function BubblePopBlitz({ onClose }) {
       g.floatTexts.forEach(f => {
         ctx.save();
         ctx.fillStyle = f.color;
-        ctx.font = 'black 22px Tajawal, sans-serif';
+        ctx.font = 'black 26px Tajawal, sans-serif';
         ctx.textAlign = 'center';
-        ctx.shadowBlur = 10;
+        ctx.shadowBlur = 12;
         ctx.shadowColor = f.color;
         ctx.fillText(f.text, f.x, f.y);
         ctx.restore();
@@ -390,8 +387,8 @@ export default function BubblePopBlitz({ onClose }) {
   const totalQ = questions.length || 5;
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#01110e] flex flex-col items-center justify-between select-none overflow-hidden touch-none" dir="rtl">
-      {/* Game HUD Bar */}
+    <div className="fixed inset-0 z-50 bg-[#01110e] w-screen h-screen flex flex-col justify-between select-none overflow-hidden touch-none" dir="rtl">
+      {/* Game HUD Bar spanning full width */}
       <GameHUD
         title="فرقعة الفقاعات العبقرية"
         lives={lives}
@@ -405,66 +402,62 @@ export default function BubblePopBlitz({ onClose }) {
         accentColor="#10b981"
       />
 
-      {/* Main Game Container */}
-      <div className="relative w-full h-full max-w-[960px] max-h-[540px] my-auto aspect-[16/9] rounded-2xl sm:rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(16,185,129,0.3)] border border-emerald-500/30 flex flex-col touch-none select-none bg-[#021815]">
-        
-        {/* ── SLIM QUESTION HEADER (NO BLOCKING TOAST) ── */}
-        <div className="absolute top-0 inset-x-0 z-20 bg-black/60 backdrop-blur-md border-b border-emerald-500/30 px-4 py-2 sm:py-2.5 flex items-center justify-between gap-3 pointer-events-none shadow-md">
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded-lg bg-emerald-500/25 border border-emerald-400/40 text-emerald-300 font-black text-xs">
-              سؤال {currentQIndex + 1}/{totalQ}
-            </span>
-            <h3 className="text-xs sm:text-base font-black text-white truncate max-w-[65vw]">
-              {currentQ?.questionText || currentQ?.question_text}
-            </h3>
-          </div>
+      {/* Fullscreen Canvas filling 100vw x 100vh */}
+      <canvas
+        ref={canvasRef}
+        width={CW}
+        height={CH}
+        onClick={(e) => handleTouchOrClick(e.clientX, e.clientY)}
+        onTouchStart={(e) => {
+          if (e.touches[0]) {
+            handleTouchOrClick(e.touches[0].clientX, e.touches[0].clientY);
+          }
+        }}
+        className="absolute inset-0 w-full h-full object-cover block bg-[#021815] cursor-pointer"
+      />
 
-          {/* Feedback badge */}
-          {feedback && (
-            <div className={`px-3 py-1 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-lg animate-bounce ${
-              feedback.type === 'correct'
-                ? 'bg-emerald-500 text-white shadow-emerald-500/50'
-                : 'bg-red-500 text-white shadow-red-500/50'
-            }`}>
-              {feedback.type === 'correct' ? <CheckCircle size={14} /> : <AlertCircle size={14} />}
-              <span>{feedback.text}</span>
-            </div>
-          )}
+      {/* ── SLIM QUESTION HEADER (NO BLOCKING TOAST) ── */}
+      <div className="absolute top-14 sm:top-18 inset-x-4 sm:inset-x-8 z-20 bg-black/60 backdrop-blur-md border border-emerald-500/30 rounded-2xl px-5 py-2.5 sm:py-3 flex items-center justify-between gap-4 pointer-events-none shadow-xl">
+        <div className="flex items-center gap-3">
+          <span className="px-3 py-1 rounded-xl bg-emerald-500/25 border border-emerald-400/40 text-emerald-300 font-black text-xs sm:text-sm">
+            سؤال {currentQIndex + 1}/{totalQ}
+          </span>
+          <h3 className="text-sm sm:text-lg font-black text-white truncate max-w-[70vw]">
+            {currentQ?.questionText || currentQ?.question_text}
+          </h3>
         </div>
 
-        {/* Canvas for Floating Bubbles (Full viewport visible!) */}
-        <canvas
-          ref={canvasRef}
-          width={CW}
-          height={CH}
-          onClick={(e) => handleTouchOrClick(e.clientX, e.clientY)}
-          onTouchStart={(e) => {
-            if (e.touches[0]) {
-              handleTouchOrClick(e.touches[0].clientX, e.touches[0].clientY);
-            }
-          }}
-          className="w-full h-full object-contain block bg-[#021815] cursor-pointer"
-        />
-
-        {/* Bottom Helper Bar */}
-        <div className="absolute bottom-2 inset-x-4 flex items-center justify-between pointer-events-none z-20">
-          <div className="text-[11px] text-emerald-200/80 font-bold bg-black/40 px-3 py-1 rounded-xl border border-white/10 backdrop-blur-sm">
-            ✨ المس أو اضغط على الفقاعة التي تحمل الإجابة الصحيحة!
-          </div>
-
-          <div className="hidden sm:flex items-center gap-1.5 bg-black/40 px-3 py-1 rounded-xl border border-white/10 text-[11px] text-white/70">
-            <span>⌨️ كيبورد:</span>
-            <span className="bg-white/10 px-1.5 py-0.5 rounded text-emerald-300 font-mono font-bold">1 - 4</span>
-          </div>
-        </div>
-
-        {gameState === 'loading' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm gap-3 z-30">
-            <div className="animate-spin w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full" />
-            <p className="text-white font-bold text-sm animate-pulse">جاري تحضير الفقاعات السحرية...</p>
+        {/* Feedback badge */}
+        {feedback && (
+          <div className={`px-4 py-1.5 rounded-xl text-xs sm:text-sm font-black flex items-center gap-2 shadow-lg animate-bounce ${
+            feedback.type === 'correct'
+              ? 'bg-emerald-500 text-white shadow-emerald-500/50'
+              : 'bg-red-500 text-white shadow-red-500/50'
+          }`}>
+            {feedback.type === 'correct' ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
+            <span>{feedback.text}</span>
           </div>
         )}
       </div>
+
+      {/* Bottom Helper Bar */}
+      <div className="absolute bottom-4 sm:bottom-6 inset-x-4 sm:inset-x-8 flex items-center justify-between pointer-events-none z-20">
+        <div className="text-xs sm:text-sm text-emerald-200/90 font-bold bg-black/50 px-4 py-2 rounded-2xl border border-white/10 backdrop-blur-md shadow-xl">
+          ✨ المس أو اضغط على الفقاعة التي تحمل الإجابة الصحيحة!
+        </div>
+
+        <div className="hidden sm:flex items-center gap-2 bg-black/50 px-4 py-2 rounded-2xl border border-white/10 text-xs text-white/80 backdrop-blur-md shadow-xl">
+          <span>⌨️ كيبورد:</span>
+          <span className="bg-white/10 px-2 py-0.5 rounded text-emerald-300 font-mono font-bold">1 - 4</span>
+        </div>
+      </div>
+
+      {gameState === 'loading' && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 backdrop-blur-md gap-3 z-30">
+          <div className="animate-spin w-14 h-14 border-4 border-emerald-500 border-t-transparent rounded-full" />
+          <p className="text-white font-bold text-base animate-pulse">جاري تحضير الفقاعات السحرية...</p>
+        </div>
+      )}
 
       {/* Result Modal */}
       {(gameState === 'victory' || gameState === 'gameOver') && (

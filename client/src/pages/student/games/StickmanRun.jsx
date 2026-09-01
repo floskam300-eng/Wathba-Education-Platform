@@ -7,17 +7,17 @@ import GameResultModal from '../../../components/games/GameResultModal';
 import api from '../../../lib/api';
 import toast from 'react-hot-toast';
 
-// ── Game Constants ────────────────────────────────────────────────────────────
-const CW = 960;
-const CH = 540;
-const GROUND = CH - 80;
-const PLAYER_X = 140;
-const GRAVITY = 0.72;
-const JUMP_V = -16.0;
-const DUCK_H = 28;
-const STAND_H = 56;
-const BASE_SPD = 3.8;
-const MAX_SPD = 9.0;
+// ── Game Constants (Full Screen 1280x720 Native Canvas Resolution) ───────────
+const CW = 1280;
+const CH = 720;
+const GROUND = CH - 100;
+const PLAYER_X = 180;
+const GRAVITY = 0.76;
+const JUMP_V = -17.5;
+const DUCK_H = 34;
+const STAND_H = 68;
+const BASE_SPD = 4.5;
+const MAX_SPD = 10.5;
 
 // Boss Timings (in frames at ~60fps)
 const BOSS1_FRAME = 15 * 60; // Boss 1 at ~15s
@@ -41,40 +41,40 @@ function roundRect(ctx, x, y, w, h, r, fill, stroke) {
 }
 
 function drawBackground(ctx, offset, stars, frame) {
-  // 1. Deep synthwave cyberpunk sky gradient
+  // 1. Deep synthwave cyberpunk sky gradient (spans full 100% viewport)
   const grad = ctx.createLinearGradient(0, 0, 0, GROUND);
   grad.addColorStop(0, '#040112');
-  grad.addColorStop(0.4, '#14042c');
-  grad.addColorStop(0.8, '#2b074a');
-  grad.addColorStop(1, '#0e031c');
+  grad.addColorStop(0.35, '#120328');
+  grad.addColorStop(0.75, '#280645');
+  grad.addColorStop(1, '#0a0216');
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, CW, CH);
 
   // 2. Glowing Giant Cyber Moon with Rings
-  const moonX = CW - 180;
-  const moonY = 110;
-  const moonGrad = ctx.createRadialGradient(moonX, moonY, 10, moonX, moonY, 65);
+  const moonX = CW - 240;
+  const moonY = 130;
+  const moonGrad = ctx.createRadialGradient(moonX, moonY, 12, moonX, moonY, 80);
   moonGrad.addColorStop(0, '#fef08a');
-  moonGrad.addColorStop(0.4, '#f59e0b');
-  moonGrad.addColorStop(0.8, '#ec4899');
+  moonGrad.addColorStop(0.35, '#f59e0b');
+  moonGrad.addColorStop(0.75, '#ec4899');
   moonGrad.addColorStop(1, 'transparent');
   ctx.fillStyle = moonGrad;
   ctx.beginPath();
-  ctx.arc(moonX, moonY, 65, 0, Math.PI * 2);
+  ctx.arc(moonX, moonY, 80, 0, Math.PI * 2);
   ctx.fill();
 
   // Moon core
   ctx.fillStyle = '#fde68a';
   ctx.beginPath();
-  ctx.arc(moonX, moonY, 36, 0, Math.PI * 2);
+  ctx.arc(moonX, moonY, 44, 0, Math.PI * 2);
   ctx.fill();
 
   // Moon craters
   ctx.fillStyle = 'rgba(217, 119, 6, 0.35)';
   ctx.beginPath();
-  ctx.arc(moonX - 10, moonY - 8, 8, 0, Math.PI * 2);
-  ctx.arc(moonX + 12, moonY + 10, 11, 0, Math.PI * 2);
-  ctx.arc(moonX - 8, moonY + 16, 6, 0, Math.PI * 2);
+  ctx.arc(moonX - 12, moonY - 10, 10, 0, Math.PI * 2);
+  ctx.arc(moonX + 15, moonY + 12, 13, 0, Math.PI * 2);
+  ctx.arc(moonX - 10, moonY + 20, 8, 0, Math.PI * 2);
   ctx.fill();
 
   // Moon Ring
@@ -82,13 +82,13 @@ function drawBackground(ctx, offset, stars, frame) {
   ctx.translate(moonX, moonY);
   ctx.rotate(-0.35);
   ctx.strokeStyle = 'rgba(244, 114, 182, 0.45)';
-  ctx.lineWidth = 4;
+  ctx.lineWidth = 5;
   ctx.beginPath();
-  ctx.ellipse(0, 0, 85, 20, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 0, 110, 26, 0, 0, Math.PI * 2);
   ctx.stroke();
   ctx.restore();
 
-  // 3. Twinkling Stars
+  // 3. Twinkling Stars across wide sky
   stars.forEach(s => {
     ctx.globalAlpha = 0.3 + 0.7 * Math.abs(Math.sin(frame * 0.02 * s.speed + s.phase));
     ctx.fillStyle = s.color || '#fff';
@@ -98,39 +98,39 @@ function drawBackground(ctx, offset, stars, frame) {
   });
   ctx.globalAlpha = 1;
 
-  // 4. Distant Parallax Neon Mountains (Layer 1 - Slow)
-  ctx.fillStyle = 'rgba(49, 10, 82, 0.45)';
+  // 4. Distant Parallax Neon Mountains
+  ctx.fillStyle = 'rgba(45, 9, 76, 0.5)';
   ctx.beginPath();
   ctx.moveTo(0, GROUND);
-  for (let x = 0; x <= CW; x += 60) {
-    const mx = ((x - offset * 0.08) % (CW + 120) + CW + 120) % (CW + 120);
-    const my = GROUND - 90 - Math.sin(mx * 0.015) * 50;
+  for (let x = 0; x <= CW + 80; x += 80) {
+    const mx = ((x - offset * 0.08) % (CW + 160) + CW + 160) % (CW + 160);
+    const my = GROUND - 110 - Math.sin(mx * 0.012) * 65;
     ctx.lineTo(x, my);
   }
   ctx.lineTo(CW, GROUND);
   ctx.closePath();
   ctx.fill();
 
-  // 5. Futuristic Cyber Skyline (Layer 2 - Midground)
-  for (let i = 0; i < 18; i++) {
-    const bx = ((i * 75 - offset * 0.22) % (CW + 150) + CW + 150) % (CW + 150) - 75;
-    const bh = 90 + ((i * 47) % 130);
+  // 5. Futuristic Cyber Skyline (Wide Screen Panoramic)
+  for (let i = 0; i < 24; i++) {
+    const bx = ((i * 70 - offset * 0.22) % (CW + 160) + CW + 160) % (CW + 160) - 70;
+    const bh = 110 + ((i * 47) % 160);
     const bw = 55;
 
     // Building body
-    ctx.fillStyle = 'rgba(23, 7, 46, 0.75)';
+    ctx.fillStyle = 'rgba(20, 6, 40, 0.85)';
     ctx.fillRect(bx, GROUND - bh, bw, bh);
 
     // Neon edge highlight
-    ctx.fillStyle = i % 2 === 0 ? 'rgba(139, 92, 246, 0.6)' : 'rgba(236, 72, 153, 0.6)';
+    ctx.fillStyle = i % 2 === 0 ? 'rgba(139, 92, 246, 0.65)' : 'rgba(236, 72, 153, 0.65)';
     ctx.fillRect(bx + bw - 2, GROUND - bh, 2, bh);
 
     // Illuminated window matrix
     ctx.fillStyle = i % 3 === 0 ? '#38bdf8' : (i % 3 === 1 ? '#facc15' : '#c084fc');
     ctx.globalAlpha = 0.5 + 0.3 * Math.sin(frame * 0.03 + i);
-    for (let wy = GROUND - bh + 12; wy < GROUND - 10; wy += 14) {
+    for (let wy = GROUND - bh + 14; wy < GROUND - 12; wy += 16) {
       for (let wx = bx + 8; wx < bx + bw - 10; wx += 12) {
-        ctx.fillRect(wx, wy, 4, 6);
+        ctx.fillRect(wx, wy, 4, 7);
       }
     }
     ctx.globalAlpha = 1;
@@ -138,19 +138,19 @@ function drawBackground(ctx, offset, stars, frame) {
 }
 
 function drawGround(ctx, offset) {
-  // Ground body with synthwave gradient
+  // Ground body
   const gGrad = ctx.createLinearGradient(0, GROUND, 0, CH);
   gGrad.addColorStop(0, '#0c031d');
-  gGrad.addColorStop(1, '#05010b');
+  gGrad.addColorStop(1, '#04010a');
   ctx.fillStyle = gGrad;
   ctx.fillRect(0, GROUND, CW, CH - GROUND);
 
-  // Glowing Neon Laser Horizon on Ground
+  // Glowing Neon Laser Line
   ctx.save();
-  ctx.shadowBlur = 18;
+  ctx.shadowBlur = 20;
   ctx.shadowColor = '#8b5cf6';
   ctx.strokeStyle = '#c084fc';
-  ctx.lineWidth = 3.5;
+  ctx.lineWidth = 4;
   ctx.beginPath();
   ctx.moveTo(0, GROUND);
   ctx.lineTo(CW, GROUND);
@@ -159,28 +159,28 @@ function drawGround(ctx, offset) {
   // Secondary Cyan Accent line
   ctx.shadowColor = '#06b6d4';
   ctx.strokeStyle = '#22d3ee';
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(0, GROUND + 4);
-  ctx.lineTo(CW, GROUND + 4);
+  ctx.moveTo(0, GROUND + 5);
+  ctx.lineTo(CW, GROUND + 5);
   ctx.stroke();
   ctx.restore();
 
   // High-Speed Animated Perspective Grid
-  ctx.strokeStyle = 'rgba(168, 85, 247, 0.22)';
-  ctx.lineWidth = 1.5;
-  const sp = 45;
+  ctx.strokeStyle = 'rgba(168, 85, 247, 0.24)';
+  ctx.lineWidth = 2;
+  const sp = 55;
   const sx = -(offset % sp);
-  for (let x = sx; x < CW + 60; x += sp) {
+  for (let x = sx; x < CW + 80; x += sp) {
     ctx.beginPath();
     ctx.moveTo(x, GROUND);
-    ctx.lineTo(x - 45, CH);
+    ctx.lineTo(x - 60, CH);
     ctx.stroke();
   }
 
   // Horizontal road depth lines
-  for (let dy = 16; dy < CH - GROUND; dy += 18) {
-    ctx.strokeStyle = `rgba(139, 92, 246, ${0.08 + (dy / (CH - GROUND)) * 0.18})`;
+  for (let dy = 20; dy < CH - GROUND; dy += 22) {
+    ctx.strokeStyle = `rgba(139, 92, 246, ${0.1 + (dy / (CH - GROUND)) * 0.22})`;
     ctx.beginPath();
     ctx.moveTo(0, GROUND + dy);
     ctx.lineTo(CW, GROUND + dy);
@@ -193,46 +193,46 @@ function drawStickmanHero(ctx, px, py, frame, ducking, invincible, isDoubleJump)
 
   const heroColor = isDoubleJump ? '#f59e0b' : '#00ffcc';
   ctx.strokeStyle = heroColor;
-  ctx.lineWidth = 3.5;
+  ctx.lineWidth = 4;
   ctx.lineCap = 'round';
-  ctx.shadowBlur = 15;
+  ctx.shadowBlur = 18;
   ctx.shadowColor = heroColor;
 
   if (ducking) {
-    // Sliding duck pose with energy spark trail
-    const hy = py - 26;
+    // Sliding duck pose
+    const hy = py - 30;
     ctx.beginPath();
-    ctx.arc(px + 4, hy, 8, 0, Math.PI * 2);
+    ctx.arc(px + 4, hy, 10, 0, Math.PI * 2);
     ctx.stroke();
     // Torso
     ctx.beginPath();
-    ctx.moveTo(px + 4, hy + 8);
-    ctx.lineTo(px - 16, hy + 22);
+    ctx.moveTo(px + 4, hy + 10);
+    ctx.lineTo(px - 20, hy + 26);
     ctx.stroke();
     // Arms forward
     ctx.beginPath();
-    ctx.moveTo(px, hy + 14);
-    ctx.lineTo(px + 20, hy + 12);
+    ctx.moveTo(px, hy + 16);
+    ctx.lineTo(px + 24, hy + 14);
     ctx.stroke();
     // Legs back sliding
     ctx.beginPath();
-    ctx.moveTo(px - 16, hy + 22);
-    ctx.lineTo(px - 28, hy + 26);
-    ctx.lineTo(-12 + px - 16, hy + 26);
+    ctx.moveTo(px - 20, hy + 26);
+    ctx.lineTo(px - 34, hy + 30);
+    ctx.lineTo(-14 + px - 20, hy + 30);
     ctx.stroke();
   } else {
-    const headY = py - 52;
-    const shouldY = headY + 16;
-    const hipY = headY + 34;
+    const headY = py - 64;
+    const shouldY = headY + 19;
+    const hipY = headY + 41;
 
     // Glowing head
     ctx.beginPath();
-    ctx.arc(px, headY, 8, 0, Math.PI * 2);
+    ctx.arc(px, headY, 10, 0, Math.PI * 2);
     ctx.stroke();
 
     // Spine
     ctx.beginPath();
-    ctx.moveTo(px, headY + 8);
+    ctx.moveTo(px, headY + 10);
     ctx.lineTo(px, hipY);
     ctx.stroke();
 
@@ -241,22 +241,22 @@ function drawStickmanHero(ctx, px, py, frame, ducking, invincible, isDoubleJump)
       // Dynamic Jump Pose
       ctx.beginPath();
       ctx.moveTo(px, shouldY);
-      ctx.lineTo(px - 18, shouldY - 14);
+      ctx.lineTo(px - 22, shouldY - 16);
       ctx.stroke();
       ctx.beginPath();
       ctx.moveTo(px, shouldY);
-      ctx.lineTo(px + 18, shouldY - 14);
+      ctx.lineTo(px + 22, shouldY - 16);
       ctx.stroke();
 
       ctx.beginPath();
       ctx.moveTo(px, hipY);
-      ctx.lineTo(px - 14, hipY + 16);
-      ctx.lineTo(px - 18, hipY + 30);
+      ctx.lineTo(px - 16, hipY + 19);
+      ctx.lineTo(px - 22, hipY + 36);
       ctx.stroke();
       ctx.beginPath();
       ctx.moveTo(px, hipY);
-      ctx.lineTo(px + 12, hipY + 14);
-      ctx.lineTo(px + 16, hipY + 28);
+      ctx.lineTo(px + 14, hipY + 17);
+      ctx.lineTo(px + 19, hipY + 34);
       ctx.stroke();
     } else {
       // Running Animation
@@ -267,23 +267,23 @@ function drawStickmanHero(ctx, px, py, frame, ducking, invincible, isDoubleJump)
       // Arms
       ctx.beginPath();
       ctx.moveTo(px, shouldY);
-      ctx.lineTo(px - sw * 16, shouldY + 14);
+      ctx.lineTo(px - sw * 20, shouldY + 17);
       ctx.stroke();
       ctx.beginPath();
       ctx.moveTo(px, shouldY);
-      ctx.lineTo(px + sw * 16, shouldY + 14);
+      ctx.lineTo(px + sw * 20, shouldY + 17);
       ctx.stroke();
 
       // Legs
       ctx.beginPath();
       ctx.moveTo(px, hipY);
-      ctx.lineTo(px + sw * 18, hipY + 16);
-      ctx.lineTo(px + sw * 18 + cw * 8, py);
+      ctx.lineTo(px + sw * 22, hipY + 20);
+      ctx.lineTo(px + sw * 22 + cw * 10, py);
       ctx.stroke();
       ctx.beginPath();
       ctx.moveTo(px, hipY);
-      ctx.lineTo(px - sw * 18, hipY + 16);
-      ctx.lineTo(px - sw * 18 - cw * 8, py);
+      ctx.lineTo(px - sw * 22, hipY + 20);
+      ctx.lineTo(px - sw * 22 - cw * 10, py);
       ctx.stroke();
     }
   }
@@ -343,14 +343,14 @@ export default function StickmanRun({ onClose }) {
           setQuestions(res.data.questions || []);
           setGameState('playing');
 
-          // Initialize background stars
-          const stars = Array.from({ length: 65 }, () => ({
+          // Initialize background stars across wide screen
+          const stars = Array.from({ length: 90 }, () => ({
             x: Math.random() * CW,
             y: Math.random() * (GROUND - 40),
-            r: 1 + Math.random() * 2.2,
+            r: 1 + Math.random() * 2.5,
             speed: 0.5 + Math.random() * 2,
             phase: Math.random() * Math.PI * 2,
-            color: ['#fff', '#a78bfa', '#fbcfe8', '#fed7aa'][Math.floor(Math.random() * 4)]
+            color: ['#fff', '#a78bfa', '#fbcfe8', '#fed7aa', '#38bdf8'][Math.floor(Math.random() * 5)]
           }));
           gameRef.current.stars = stars;
         } else {
@@ -381,7 +381,7 @@ export default function StickmanRun({ onClose }) {
       if ((e.code === 'ArrowDown' || e.code === 'KeyS') && gameState === 'playing') {
         e.preventDefault();
         gameRef.current.player.ducking = true;
-        gameAudio.playDuck();
+        try { gameAudio.playDuck(); } catch (_) {}
       }
     };
     const handleKeyUp = (e) => {
@@ -407,11 +407,11 @@ export default function StickmanRun({ onClose }) {
       g.player.vy = JUMP_V;
       g.player.jumping = true;
       g.player.isDoubleJump = false;
-      gameAudio.playJump();
+      try { gameAudio.playJump(); } catch (_) {}
     } else if (g.player.jumping && !g.player.isDoubleJump) {
       g.player.vy = JUMP_V * 0.85;
       g.player.isDoubleJump = true;
-      gameAudio.playJump();
+      try { gameAudio.playJump(); } catch (_) {}
     }
   };
 
@@ -447,25 +447,25 @@ export default function StickmanRun({ onClose }) {
 
         // Spawn Obstacles (Ground Crates & Aerial Drones)
         if (!g.bossActive) {
-          if (g.frame % 110 === 0 && Math.random() > 0.35) {
+          if (g.frame % 105 === 0 && Math.random() > 0.35) {
             const isFlying = Math.random() > 0.55;
             g.obstacles.push({
-              x: CW + 40,
-              y: isFlying ? GROUND - 58 : GROUND - 36,
-              w: isFlying ? 40 : 34,
-              h: isFlying ? 28 : 36,
+              x: CW + 50,
+              y: isFlying ? GROUND - 75 : GROUND - 46,
+              w: isFlying ? 50 : 44,
+              h: isFlying ? 36 : 46,
               isFlying,
               type: isFlying ? 'drone' : 'spike',
               color: isFlying ? '#ec4899' : '#f59e0b'
             });
           }
 
-          // Spawn Coins
-          if (g.frame % 75 === 0) {
+          // Spawn Star Coins
+          if (g.frame % 70 === 0) {
             g.coins.push({
-              x: CW + 40,
-              y: GROUND - 35 - (Math.random() > 0.5 ? 55 : 0),
-              r: 12,
+              x: CW + 50,
+              y: GROUND - 45 - (Math.random() > 0.5 ? 70 : 0),
+              r: 16,
               collected: false
             });
           }
@@ -473,11 +473,11 @@ export default function StickmanRun({ onClose }) {
 
         // Update Obstacles
         g.obstacles.forEach(ob => { ob.x -= g.speed; });
-        g.obstacles = g.obstacles.filter(ob => ob.x > -60);
+        g.obstacles = g.obstacles.filter(ob => ob.x > -80);
 
         // Update Coins
         g.coins.forEach(c => { c.x -= g.speed; });
-        g.coins = g.coins.filter(c => c.x > -30 && !c.collected);
+        g.coins = g.coins.filter(c => c.x > -40 && !c.collected);
 
         // Update Particles
         g.particles.forEach(pt => {
@@ -487,28 +487,31 @@ export default function StickmanRun({ onClose }) {
         });
         g.particles = g.particles.filter(pt => pt.life > 0);
 
-        // Coin Collection Collision
+        // Coin Collection Collision (Protected with try/catch)
         g.coins.forEach(c => {
           if (!c.collected) {
             const playerH = p.ducking ? DUCK_H : STAND_H;
             const playerTop = p.y - playerH;
-            if (PLAYER_X + 16 > c.x - c.r && PLAYER_X - 16 < c.x + c.r &&
+            if (PLAYER_X + 22 > c.x - c.r && PLAYER_X - 22 < c.x + c.r &&
                 p.y > c.y - c.r && playerTop < c.y + c.r) {
               c.collected = true;
               g.score += 50;
               setScore(g.score);
-              gameAudio.playCoin();
+
+              try {
+                gameAudio.playCoin();
+              } catch (_) {}
 
               // Sparkle particles
-              for (let i = 0; i < 8; i++) {
+              for (let i = 0; i < 10; i++) {
                 g.particles.push({
                   x: c.x,
                   y: c.y,
-                  vx: (Math.random() - 0.5) * 6,
-                  vy: (Math.random() - 0.5) * 6,
-                  r: 2 + Math.random() * 3,
+                  vx: (Math.random() - 0.5) * 8,
+                  vy: (Math.random() - 0.5) * 8,
+                  r: 3 + Math.random() * 4,
                   color: '#facc15',
-                  life: 20
+                  life: 22
                 });
               }
             }
@@ -521,14 +524,14 @@ export default function StickmanRun({ onClose }) {
             const playerH = p.ducking ? DUCK_H : STAND_H;
             const playerTop = p.y - playerH;
 
-            // Simple AABB Box Collision
-            if (PLAYER_X + 14 > ob.x && PLAYER_X - 14 < ob.x + ob.w &&
+            // Box Collision
+            if (PLAYER_X + 18 > ob.x && PLAYER_X - 18 < ob.x + ob.w &&
                 p.y > ob.y && playerTop < ob.y + ob.h) {
               // Hit obstacle!
               g.lives--;
               setLives(g.lives);
-              p.invincible = 65; // Invincibility frames
-              gameAudio.playExplosion();
+              p.invincible = 65;
+              try { gameAudio.playExplosion(); } catch (_) {}
 
               if (g.lives <= 0) {
                 handleGameOver(false);
@@ -545,7 +548,7 @@ export default function StickmanRun({ onClose }) {
           if (g.frame >= targetFrame) {
             g.bossActive = true;
             g.isPaused = true;
-            gameAudio.playBossAlert();
+            try { gameAudio.playBossAlert(); } catch (_) {}
             setActiveQuestion(questions[g.bossIndex]);
             setCurrentQIndex(g.bossIndex);
             setGameState('question');
@@ -554,7 +557,7 @@ export default function StickmanRun({ onClose }) {
         }
       }
 
-      // ── RENDER CANVAS ──────────────────────────────────────────────
+      // ── RENDER CANVAS (Spans 100% full screen) ────────────────────
       ctx.clearRect(0, 0, CW, CH);
 
       // 1. Synthwave Cyber Parallax Background
@@ -563,26 +566,26 @@ export default function StickmanRun({ onClose }) {
       // 2. High-Speed Ground Grid
       drawGround(ctx, g.offset);
 
-      // 3. Draw Coins
+      // 3. Draw Star Coins ⭐
       g.coins.forEach(c => {
         if (!c.collected) {
           ctx.save();
-          ctx.shadowBlur = 12;
+          ctx.shadowBlur = 16;
           ctx.shadowColor = '#f59e0b';
           ctx.fillStyle = '#facc15';
           ctx.strokeStyle = '#ffffff';
-          ctx.lineWidth = 2;
+          ctx.lineWidth = 2.5;
           ctx.beginPath();
           ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
           ctx.fill();
           ctx.stroke();
 
-          // Coin Core Star
-          ctx.fillStyle = '#b45309';
-          ctx.font = 'bold 11px sans-serif';
+          // Star Symbol inside coin
+          ctx.fillStyle = '#92400e';
+          ctx.font = 'bold 15px sans-serif';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText('★', c.x, c.y);
+          ctx.fillText('★', c.x, c.y + 1);
           ctx.restore();
         }
       });
@@ -590,37 +593,37 @@ export default function StickmanRun({ onClose }) {
       // 4. Draw Obstacles
       g.obstacles.forEach(ob => {
         ctx.save();
-        ctx.shadowBlur = 14;
+        ctx.shadowBlur = 18;
         ctx.shadowColor = ob.color;
 
         if (ob.type === 'drone') {
-          // Cyber Flying Drone Obstacle
+          // Cyber Flying Drone
           ctx.fillStyle = '#db2777';
           ctx.strokeStyle = '#f472b6';
-          ctx.lineWidth = 2;
+          ctx.lineWidth = 2.5;
           ctx.beginPath();
           ctx.ellipse(ob.x + ob.w / 2, ob.y + ob.h / 2, ob.w / 2, ob.h / 2, 0, 0, Math.PI * 2);
           ctx.fill();
           ctx.stroke();
 
-          // Drone laser eye
+          // Laser eye
           ctx.fillStyle = '#ffffff';
           ctx.beginPath();
-          ctx.arc(ob.x + ob.w / 2, ob.y + ob.h / 2, 5, 0, Math.PI * 2);
+          ctx.arc(ob.x + ob.w / 2, ob.y + ob.h / 2, 6, 0, Math.PI * 2);
           ctx.fill();
         } else {
-          // Cyber Ground Energy Barrier / Spike
+          // Cyber Ground Hazard
           ctx.fillStyle = '#f59e0b';
           ctx.strokeStyle = '#fde047';
-          ctx.lineWidth = 2;
-          roundRect(ctx, ob.x, ob.y, ob.w, ob.h, 6, true, true);
+          ctx.lineWidth = 2.5;
+          roundRect(ctx, ob.x, ob.y, ob.w, ob.h, 8, true, true);
 
           // Diagonal Hazard Stripes
           ctx.strokeStyle = '#78350f';
-          ctx.lineWidth = 2.5;
+          ctx.lineWidth = 3;
           ctx.beginPath();
-          ctx.moveTo(ob.x + 6, ob.y + ob.h);
-          ctx.lineTo(ob.x + ob.w - 6, ob.y);
+          ctx.moveTo(ob.x + 8, ob.y + ob.h);
+          ctx.lineTo(ob.x + ob.w - 8, ob.y);
           ctx.stroke();
         }
         ctx.restore();
@@ -660,8 +663,10 @@ export default function StickmanRun({ onClose }) {
     const isCorrect = result.selectedIndex === 0 || result.selectedIndex === (activeQuestion?.correctIndex ?? 0);
 
     if (isCorrect) {
-      gameAudio.playCorrect();
-      gameAudio.playExplosion();
+      try {
+        gameAudio.playCorrect();
+        gameAudio.playExplosion();
+      } catch (_) {}
 
       const g = gameRef.current;
       g.score += 1000;
@@ -671,15 +676,15 @@ export default function StickmanRun({ onClose }) {
       g.bossActive = false;
 
       // Particle explosion for boss defeat
-      for (let i = 0; i < 30; i++) {
+      for (let i = 0; i < 40; i++) {
         g.particles.push({
-          x: CW - 160 + (Math.random() - 0.5) * 60,
-          y: CH / 2 + (Math.random() - 0.5) * 60,
-          vx: (Math.random() - 0.5) * 16,
-          vy: (Math.random() - 0.5) * 16,
-          r: 3 + Math.random() * 5,
+          x: CW - 240 + (Math.random() - 0.5) * 80,
+          y: CH / 2 + (Math.random() - 0.5) * 80,
+          vx: (Math.random() - 0.5) * 18,
+          vy: (Math.random() - 0.5) * 18,
+          r: 4 + Math.random() * 6,
           color: ['#00ffcc', '#f59e0b', '#ec4899', '#ffffff'][Math.floor(Math.random() * 4)],
-          life: 30
+          life: 35
         });
       }
 
@@ -691,7 +696,7 @@ export default function StickmanRun({ onClose }) {
         setGameState('playing');
       }
     } else {
-      gameAudio.playWrong();
+      try { gameAudio.playWrong(); } catch (_) {}
       const newLives = lives - 1;
       setLives(newLives);
 
@@ -737,7 +742,8 @@ export default function StickmanRun({ onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#060212] flex flex-col items-center justify-center select-none overflow-hidden touch-none" dir="rtl">
+    <div className="fixed inset-0 z-50 bg-[#040112] w-screen h-screen flex flex-col justify-between select-none overflow-hidden touch-none" dir="rtl">
+      {/* HUD spanning full width */}
       <GameHUD
         title="مغامرة الستيكمان"
         lives={lives}
@@ -750,71 +756,69 @@ export default function StickmanRun({ onClose }) {
         accentColor="#8b5cf6"
       />
 
-      {/* Main Canvas Container */}
-      <div className="relative w-full h-full max-w-[960px] max-h-[540px] aspect-[16/9] rounded-2xl sm:rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(139,92,246,0.35)] border border-purple-500/30 flex flex-col touch-none select-none bg-black">
-        <canvas
-          ref={canvasRef}
-          width={CW}
-          height={CH}
-          className="w-full h-full object-contain block bg-[#040112]"
-        />
+      {/* Fullscreen Canvas filling 100vw x 100vh */}
+      <canvas
+        ref={canvasRef}
+        width={CW}
+        height={CH}
+        className="absolute inset-0 w-full h-full object-cover block bg-[#040112]"
+      />
 
-        {/* ── ON-CANVAS MOBILE TOUCH CONTROLS (TWO-THUMB CORNERS) ── */}
-        <div className="absolute inset-x-0 bottom-3 px-4 flex items-center justify-between pointer-events-none z-20">
-          {/* Left Thumb: Duck Button */}
-          <div className="pointer-events-auto">
-            <button
-              type="button"
-              onPointerDown={(e) => {
-                e.preventDefault();
-                gameRef.current.player.ducking = true;
-                gameAudio.playDuck();
-              }}
-              onPointerUp={(e) => {
-                e.preventDefault();
-                gameRef.current.player.ducking = false;
-              }}
-              onPointerCancel={() => {
-                gameRef.current.player.ducking = false;
-              }}
-              className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-tr from-pink-600 to-purple-700 border-2 border-pink-300 shadow-xl shadow-pink-600/50 flex flex-col items-center justify-center text-white active:scale-90 transition-transform font-black select-none cursor-pointer"
-            >
-              <span className="text-xl sm:text-2xl">⬇️</span>
-              <span className="text-[10px] sm:text-xs font-bold mt-0.5">انحناء</span>
-            </button>
-          </div>
-
-          {/* Desktop Keyboard Helper Badge */}
-          <div className="hidden sm:flex items-center gap-2 bg-black/60 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-white/10 text-white/70 text-xs font-bold pointer-events-auto">
-            <span>⌨️ تحكم:</span>
-            <span className="bg-white/10 px-1.5 py-0.5 rounded text-purple-300 font-mono">Space / ↑</span> قفز
-            <span className="bg-white/10 px-1.5 py-0.5 rounded text-indigo-300 font-mono">↓ / S</span> انحناء
-          </div>
-
-          {/* Right Thumb: Jump Button */}
-          <div className="pointer-events-auto">
-            <button
-              type="button"
-              onPointerDown={(e) => {
-                e.preventDefault();
-                triggerJump();
-              }}
-              className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-tr from-purple-600 via-indigo-600 to-cyan-500 border-2 border-cyan-300 shadow-xl shadow-purple-600/50 flex flex-col items-center justify-center text-white active:scale-90 transition-transform font-black select-none cursor-pointer"
-            >
-              <span className="text-xl sm:text-2xl">⬆️</span>
-              <span className="text-[10px] sm:text-xs font-bold mt-0.5">قفز</span>
-            </button>
-          </div>
+      {/* ── ON-CANVAS MOBILE TOUCH CONTROLS (TWO-THUMB CORNERS) ── */}
+      <div className="absolute inset-x-0 bottom-4 sm:bottom-6 px-4 sm:px-8 flex items-center justify-between pointer-events-none z-20">
+        {/* Left Thumb: Duck Button */}
+        <div className="pointer-events-auto">
+          <button
+            type="button"
+            onPointerDown={(e) => {
+              e.preventDefault();
+              gameRef.current.player.ducking = true;
+              try { gameAudio.playDuck(); } catch (_) {}
+            }}
+            onPointerUp={(e) => {
+              e.preventDefault();
+              gameRef.current.player.ducking = false;
+            }}
+            onPointerCancel={() => {
+              gameRef.current.player.ducking = false;
+            }}
+            className="w-18 h-18 sm:w-22 sm:h-22 rounded-3xl bg-gradient-to-tr from-pink-600 via-purple-700 to-indigo-800 border-2 border-pink-300 shadow-2xl shadow-pink-600/60 flex flex-col items-center justify-center text-white active:scale-90 transition-transform font-black select-none cursor-pointer"
+          >
+            <span className="text-2xl sm:text-3xl">⬇️</span>
+            <span className="text-[11px] sm:text-xs font-black mt-0.5">انحناء</span>
+          </button>
         </div>
 
-        {/* Loading Spinner */}
-        {gameState === 'loading' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm gap-3 z-30">
-            <div className="animate-spin w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full" />
-            <p className="text-white font-bold text-sm animate-pulse">جاري تجهيز مضمار السباق والتحديات...</p>
-          </div>
-        )}
+        {/* Desktop Keyboard Helper Badge */}
+        <div className="hidden md:flex items-center gap-2 bg-black/60 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/15 text-white/80 text-xs font-bold pointer-events-auto shadow-xl">
+          <span>⌨️ التحكم بالكيبورد:</span>
+          <span className="bg-white/10 px-2 py-0.5 rounded text-purple-300 font-mono">Space / ↑</span> قفز
+          <span className="bg-white/10 px-2 py-0.5 rounded text-indigo-300 font-mono">↓ / S</span> انحناء
+        </div>
+
+        {/* Right Thumb: Jump Button */}
+        <div className="pointer-events-auto">
+          <button
+            type="button"
+            onPointerDown={(e) => {
+              e.preventDefault();
+              triggerJump();
+            }}
+            className="w-18 h-18 sm:w-22 sm:h-22 rounded-3xl bg-gradient-to-tr from-purple-600 via-indigo-600 to-cyan-500 border-2 border-cyan-300 shadow-2xl shadow-purple-600/60 flex flex-col items-center justify-center text-white active:scale-90 transition-transform font-black select-none cursor-pointer"
+          >
+            <span className="text-2xl sm:text-3xl">⬆️</span>
+            <span className="text-[11px] sm:text-xs font-black mt-0.5">قفز</span>
+          </button>
+        </div>
       </div>
+
+      {/* Loading Spinner */}
+      {gameState === 'loading' && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 backdrop-blur-md gap-3 z-30">
+          <div className="animate-spin w-14 h-14 border-4 border-purple-500 border-t-transparent rounded-full" />
+          <p className="text-white font-bold text-base animate-pulse">جاري تجهيز مضمار السباق والتحديات...</p>
+        </div>
+      )}
 
       {/* Question Dialog Overlay */}
       {gameState === 'question' && activeQuestion && (
