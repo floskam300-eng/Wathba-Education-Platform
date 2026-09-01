@@ -43,7 +43,6 @@ export default function SpaceDefender({ onClose }) {
     isFiring: false,
     lastFireTime: 0,
     keys: {},
-    // Multi-Touch tracking per identifier
     moveTouchId: null,
     touchPos: null
   });
@@ -59,7 +58,6 @@ export default function SpaceDefender({ onClose }) {
           setQuestions(res.data.questions || []);
           setGameState('playing');
 
-          // Initialize space stars across full 1280x720 canvas
           const stars = Array.from({ length: 110 }, () => ({
             x: Math.random() * CW,
             y: Math.random() * CH,
@@ -155,7 +153,6 @@ export default function SpaceDefender({ onClose }) {
         g.ship.x += dx * g.ship.speed;
         g.ship.y += dy * g.ship.speed;
 
-        // Keep inside full canvas bounds
         g.ship.x = Math.max(50, Math.min(CW - 100, g.ship.x));
         g.ship.y = Math.max(50, Math.min(CH - 50, g.ship.y));
 
@@ -195,7 +192,6 @@ export default function SpaceDefender({ onClose }) {
           d.y = d.baseY + Math.sin(g.frame * 0.045 + d.phase) * 45;
           d.eggTimer++;
 
-          // Ducks drop glowing eggs 🥚
           if (d.eggTimer > 75 && d.x > 220 && d.x < CW - 120 && Math.random() < 0.04) {
             d.eggTimer = 0;
             g.eggs.push({
@@ -274,7 +270,6 @@ export default function SpaceDefender({ onClose }) {
             }
           }
 
-          // Lasers vs Eggs
           if (!laserHit) {
             for (let e = g.eggs.length - 1; e >= 0; e--) {
               const egg = g.eggs[e];
@@ -675,15 +670,13 @@ export default function SpaceDefender({ onClose }) {
 
   const totalBosses = questions.length || 3;
 
-  // ── MULTI-TOUCH STEERING HANDLERS (Independent Touch Tracking) ──
+  // ── MULTI-TOUCH STEERING HANDLERS ──
   const handleContainerTouchStart = (e) => {
     if (gameState !== 'playing') return;
     const g = gameRef.current;
 
-    // Iterate all new touches
     for (let i = 0; i < e.changedTouches.length; i++) {
       const touch = e.changedTouches[i];
-      // If we don't have an active steering finger and touch is in steering area (left 75% of screen)
       if (g.moveTouchId === null && touch.clientX < window.innerWidth * 0.78) {
         g.moveTouchId = touch.identifier;
         g.touchPos = { x: touch.clientX, y: touch.clientY };
@@ -755,13 +748,13 @@ export default function SpaceDefender({ onClose }) {
         className="absolute inset-0 w-full h-full object-cover block bg-[#03010a]"
       />
 
-      {/* ── ON-SCREEN CONTROLS: LARGE TOUCH BUTTONS WITH ISOLATED MULTI-TOUCH ── */}
+      {/* ── ON-SCREEN CONTROLS: EXTRA LARGE CLEAN FIRE BUTTON ── */}
       <div className="absolute inset-x-0 bottom-4 sm:bottom-6 px-4 sm:px-8 flex items-center justify-between pointer-events-none z-20">
-        {/* Left Thumb Virtual Steer Indicator (Helps user know they can steer anywhere on left) */}
+        {/* Left Thumb Virtual Steer Indicator */}
         <div className="pointer-events-auto">
-          <div className="bg-black/60 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-cyan-500/30 text-cyan-200 text-xs font-bold shadow-2xl flex items-center gap-2">
+          <div className="bg-black/60 backdrop-blur-md px-4 py-2 rounded-2xl border border-cyan-500/30 text-cyan-200 text-xs font-bold shadow-2xl flex items-center gap-2">
             <span className="text-base animate-pulse">🕹️</span>
-            <span>اسحب بإصبعك هنا للتحليق</span>
+            <span>اسحب للتحليق</span>
           </div>
         </div>
 
@@ -772,7 +765,7 @@ export default function SpaceDefender({ onClose }) {
           <span className="bg-white/10 px-2 py-0.5 rounded text-cyan-300 font-mono">Space</span> إطلاق
         </div>
 
-        {/* Right Thumb: Extra Large Fire Button (92px x 92px) with isolated touch tracking */}
+        {/* Right Thumb: Huge Circular Fire Button (No text, pure large clear icon) */}
         <div className="pointer-events-auto">
           <button
             type="button"
@@ -801,10 +794,9 @@ export default function SpaceDefender({ onClose }) {
             onTouchEnd={(e) => {
               e.stopPropagation();
             }}
-            className="w-22 h-22 sm:w-26 sm:h-26 rounded-3xl bg-gradient-to-tr from-cyan-500 via-blue-600 to-indigo-600 border-3 border-cyan-300 shadow-2xl shadow-cyan-500/70 flex flex-col items-center justify-center text-white active:scale-90 transition-transform font-black select-none cursor-pointer"
+            className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-gradient-to-tr from-cyan-500 via-blue-600 to-indigo-600 border-4 border-cyan-300/80 shadow-[0_0_35px_rgba(6,182,212,0.6)] flex items-center justify-center text-white active:scale-90 transition-transform select-none cursor-pointer"
           >
-            <span className="text-3xl sm:text-4xl drop-shadow">🔥</span>
-            <span className="text-xs sm:text-sm font-black mt-0.5 drop-shadow">إطلاق</span>
+            <span className="text-4xl sm:text-5xl drop-shadow-[0_0_12px_rgba(34,211,238,0.9)]">🔥</span>
           </button>
         </div>
       </div>

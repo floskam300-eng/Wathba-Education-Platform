@@ -11,6 +11,26 @@ const CW = 1280;
 const CH = 720;
 const GROUND_Y = 560;
 
+// Fixed static skyline architecture to prevent height oscillations during parallax scrolling
+const SKYLINE_BUILDINGS = [
+  { width: 85, height: 160 },
+  { width: 65, height: 210 },
+  { width: 95, height: 130 },
+  { width: 75, height: 240 },
+  { width: 110, height: 170 },
+  { width: 80, height: 195 },
+  { width: 70, height: 140 },
+  { width: 100, height: 225 },
+  { width: 90, height: 155 },
+  { width: 85, height: 200 },
+  { width: 105, height: 180 },
+  { width: 75, height: 230 },
+  { width: 95, height: 145 },
+  { width: 80, height: 215 },
+  { width: 115, height: 165 }
+];
+const TOTAL_SKYLINE_WIDTH = SKYLINE_BUILDINGS.reduce((sum, b) => sum + b.width + 15, 0);
+
 export default function StickmanRun({ onClose }) {
   const canvasRef = useRef(null);
   const animRef = useRef(null);
@@ -164,7 +184,7 @@ export default function StickmanRun({ onClose }) {
         // Update Hero Physics
         const hero = g.hero;
         if (!hero.isGrounded) {
-          hero.vy += 0.78; // Gravity
+          hero.vy += 0.78;
           hero.y += hero.vy;
 
           if (hero.y >= GROUND_Y - 70) {
@@ -258,7 +278,7 @@ export default function StickmanRun({ onClose }) {
             if (hitX && hitY) {
               g.lives--;
               setLives(g.lives);
-              hero.invulnerable = 60; // 1 second invulnerability
+              hero.invulnerable = 60;
               try { gameAudio.playExplosion(); } catch (_) {}
 
               for (let i = 0; i < 14; i++) {
@@ -335,12 +355,20 @@ export default function StickmanRun({ onClose }) {
       ctx.fill();
       ctx.restore();
 
-      // 3. Parallax Skyline
+      // 3. Stable Parallax Skyline (Smooth loop with fixed building heights)
       ctx.fillStyle = 'rgba(23, 7, 45, 0.9)';
-      const skylineOffset = (g.frame * 0.4) % 180;
-      for (let bx = -skylineOffset; bx < CW + 180; bx += 100) {
-        const bHeight = 110 + ((bx * 37) % 130);
-        ctx.fillRect(bx, GROUND_Y - bHeight, 75, bHeight);
+      const skylineOffset = (g.frame * 0.8) % TOTAL_SKYLINE_WIDTH;
+
+      // Render 2 cycles to ensure continuous seamless wrap-around
+      for (let cycle = 0; cycle < 2; cycle++) {
+        let currentX = cycle * TOTAL_SKYLINE_WIDTH - skylineOffset;
+        for (let i = 0; i < SKYLINE_BUILDINGS.length; i++) {
+          const b = SKYLINE_BUILDINGS[i];
+          if (currentX + b.width > -50 && currentX < CW + 50) {
+            ctx.fillRect(currentX, GROUND_Y - b.height, b.width, b.height);
+          }
+          currentX += b.width + 15;
+        }
       }
 
       // 4. Ground Grid & Cyber Glow
@@ -427,22 +455,20 @@ export default function StickmanRun({ onClose }) {
         ctx.shadowColor = '#0284c7';
 
         if (hero.isDucking) {
-          // Ducking Hero
           ctx.beginPath();
-          ctx.arc(0, 42, 10, 0, Math.PI * 2); // Head
+          ctx.arc(0, 42, 10, 0, Math.PI * 2);
           ctx.stroke();
 
           ctx.beginPath();
           ctx.moveTo(0, 52);
-          ctx.lineTo(24, 60); // Torso sliding
+          ctx.lineTo(24, 60);
           ctx.stroke();
 
           ctx.beginPath();
           ctx.moveTo(24, 60);
-          ctx.lineTo(38, 68); // Legs sliding
+          ctx.lineTo(38, 68);
           ctx.stroke();
         } else {
-          // Running / Jumping Hero
           const legPhase = Math.sin(g.frame * 0.35) * 16;
 
           // Head
@@ -494,7 +520,6 @@ export default function StickmanRun({ onClose }) {
 
         const bossPulse = Math.sin(g.boss.pulse) * 6;
 
-        // Dark Cyber Shadow Robe
         ctx.fillStyle = '#1e1b4b';
         ctx.strokeStyle = '#f59e0b';
         ctx.lineWidth = 3;
@@ -508,14 +533,12 @@ export default function StickmanRun({ onClose }) {
         ctx.fill();
         ctx.stroke();
 
-        // Glowing Monster Eyes
         ctx.fillStyle = '#fbbf24';
         ctx.beginPath();
         ctx.ellipse(44, 45, 8, 5, 0.2, 0, Math.PI * 2);
         ctx.ellipse(76, 45, 8, 5, -0.2, 0, Math.PI * 2);
         ctx.fill();
 
-        // Horns / Spikes
         ctx.strokeStyle = '#f59e0b';
         ctx.lineWidth = 4;
         ctx.beginPath();
@@ -653,9 +676,9 @@ export default function StickmanRun({ onClose }) {
         className="absolute inset-0 w-full h-full object-cover block bg-[#06010f]"
       />
 
-      {/* ── ON-SCREEN MOBILE TOUCH CONTROLS (LARGE DUAL-THUMB CORNERS) ── */}
+      {/* ── ON-SCREEN MOBILE TOUCH CONTROLS (EXTRA LARGE CLEAN ICONIC BUTTONS) ── */}
       <div className="absolute inset-x-0 bottom-4 sm:bottom-6 px-4 sm:px-8 flex items-center justify-between pointer-events-none z-20">
-        {/* Left Thumb: Extra Large Duck Button */}
+        {/* Left Thumb: Huge Duck Button (No text, pure large clear icon) */}
         <div className="pointer-events-auto">
           <button
             type="button"
@@ -677,10 +700,9 @@ export default function StickmanRun({ onClose }) {
               e.stopPropagation();
               handleDuck(false);
             }}
-            className="w-22 h-22 sm:w-26 sm:h-26 rounded-3xl bg-gradient-to-tr from-purple-700 via-pink-600 to-rose-500 border-3 border-pink-300 shadow-2xl shadow-pink-500/60 flex flex-col items-center justify-center text-white active:scale-90 transition-transform font-black select-none cursor-pointer"
+            className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-gradient-to-tr from-purple-700 via-pink-600 to-rose-500 border-4 border-pink-300/80 shadow-[0_0_35px_rgba(244,114,182,0.6)] flex items-center justify-center text-white active:scale-90 transition-transform select-none cursor-pointer"
           >
-            <span className="text-3xl sm:text-4xl drop-shadow">⬇️</span>
-            <span className="text-xs sm:text-sm font-black mt-0.5 drop-shadow">انحناء</span>
+            <span className="text-4xl sm:text-5xl drop-shadow-[0_0_12px_rgba(244,114,182,0.9)]">⬇️</span>
           </button>
         </div>
 
@@ -691,7 +713,7 @@ export default function StickmanRun({ onClose }) {
           <span className="bg-white/10 px-2 py-0.5 rounded text-pink-300 font-mono">S / ↓</span> للانحناء
         </div>
 
-        {/* Right Thumb: Extra Large Jump Button */}
+        {/* Right Thumb: Huge Jump Button (No text, pure large clear icon) */}
         <div className="pointer-events-auto">
           <button
             type="button"
@@ -700,10 +722,9 @@ export default function StickmanRun({ onClose }) {
               e.stopPropagation();
               handleJump();
             }}
-            className="w-22 h-22 sm:w-26 sm:h-26 rounded-3xl bg-gradient-to-tr from-cyan-600 via-blue-600 to-purple-600 border-3 border-cyan-300 shadow-2xl shadow-cyan-500/60 flex flex-col items-center justify-center text-white active:scale-90 transition-transform font-black select-none cursor-pointer"
+            className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-gradient-to-tr from-cyan-600 via-blue-600 to-purple-600 border-4 border-cyan-300/80 shadow-[0_0_35px_rgba(56,189,248,0.6)] flex items-center justify-center text-white active:scale-90 transition-transform select-none cursor-pointer"
           >
-            <span className="text-3xl sm:text-4xl drop-shadow">⬆️</span>
-            <span className="text-xs sm:text-sm font-black mt-0.5 drop-shadow">قفز</span>
+            <span className="text-4xl sm:text-5xl drop-shadow-[0_0_12px_rgba(56,189,248,0.9)]">⬆️</span>
           </button>
         </div>
       </div>
