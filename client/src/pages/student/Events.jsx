@@ -95,7 +95,7 @@ export default function StudentEvents() {
   const filterTabs = [
     { id: 'all', label: 'جميع الألعاب 🎯' },
     { id: 'runner', label: 'مغامرة الستيكمان 🏃' },
-    { id: 'arcade', label: 'صائد الفضاء 🚀' },
+    { id: 'arcade', label: 'حرب البط الفضائي 🦆' },
     { id: 'puzzle', label: 'برج الفوازير 🏰' },
     { id: 'action', label: 'فرقعة الفقاعات 🫧' }
   ];

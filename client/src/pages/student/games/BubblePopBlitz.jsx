@@ -3,18 +3,18 @@ import { useAuth } from '../../../context/AuthContext';
 import gameAudio from '../../../lib/gameAudio';
 import GameHUD from '../../../components/games/GameHUD';
 import GameResultModal from '../../../components/games/GameResultModal';
-import { Sparkles, Zap, Timer, Star } from 'lucide-react';
+import { Sparkles, Zap, Timer, Star, CheckCircle, AlertCircle } from 'lucide-react';
 import api from '../../../lib/api';
 import toast from 'react-hot-toast';
 
-const CW = 920;
-const CH = 500;
+const CW = 960;
+const CH = 540;
 
 const BUBBLE_COLORS = [
-  { bg: 'rgba(59, 130, 246, 0.45)', stroke: '#60a5fa', glow: '#3b82f6' },
-  { bg: 'rgba(236, 72, 153, 0.45)', stroke: '#f472b6', glow: '#ec4899' },
-  { bg: 'rgba(245, 158, 11, 0.45)', stroke: '#fbbf24', glow: '#f59e0b' },
-  { bg: 'rgba(16, 185, 129, 0.45)', stroke: '#34d399', glow: '#10b981' }
+  { bg: 'rgba(59, 130, 246, 0.45)', stroke: '#38bdf8', glow: '#0ea5e9', textBg: '#0284c7' },
+  { bg: 'rgba(236, 72, 153, 0.45)', stroke: '#f472b6', glow: '#ec4899', textBg: '#db2777' },
+  { bg: 'rgba(245, 158, 11, 0.45)', stroke: '#fbbf24', glow: '#f59e0b', textBg: '#d97706' },
+  { bg: 'rgba(16, 185, 129, 0.45)', stroke: '#34d399', glow: '#10b981', textBg: '#059669' }
 ];
 
 export default function BubblePopBlitz({ onClose }) {
@@ -31,6 +31,7 @@ export default function BubblePopBlitz({ onClose }) {
   const [pointsEarned, setPointsEarned] = useState(0);
   const [answersLog, setAnswersLog] = useState([]);
   const [muted, setMuted] = useState(() => gameAudio.isMuted());
+  const [feedback, setFeedback] = useState(null); // { type: 'correct'|'wrong', text: string }
 
   // Mutable Engine Ref
   const gameRef = useRef({
@@ -40,6 +41,7 @@ export default function BubblePopBlitz({ onClose }) {
     combo: 0,
     bubbles: [],
     particles: [],
+    floatTexts: [],
     isPaused: false
   });
 
@@ -77,18 +79,21 @@ export default function BubblePopBlitz({ onClose }) {
     if (gameState !== 'playing' || !currentQ) return;
 
     const choices = Array.isArray(currentQ.choices) ? currentQ.choices : [];
+    const count = choices.length;
+    const spacing = CW / (count + 1);
+
     const newBubbles = choices.map((choice, idx) => {
       const col = BUBBLE_COLORS[idx % BUBBLE_COLORS.length];
-      const radius = 48 + Math.min(20, choice.length * 2);
+      const radius = 54 + Math.min(22, choice.length * 1.5);
       return {
         id: idx,
         text: choice,
         choiceIndex: idx,
         isCorrect: idx === 0 || idx === (currentQ.correctIndex ?? 0),
-        x: 140 + idx * 190 + (Math.random() * 40 - 20),
-        y: CH + 60 + Math.random() * 120,
-        vx: (Math.random() - 0.5) * 1.2,
-        vy: -1.8 - Math.random() * 0.8,
+        x: spacing * (idx + 1) + (Math.random() * 30 - 15),
+        y: CH + 70 + Math.random() * 100,
+        vx: (Math.random() - 0.5) * 1.0,
+        vy: -1.7 - Math.random() * 0.6,
         r: radius,
         col,
         wobble: Math.random() * Math.PI * 2
@@ -98,7 +103,7 @@ export default function BubblePopBlitz({ onClose }) {
     gameRef.current.bubbles = newBubbles;
   }, [gameState, currentQIndex, currentQ]);
 
-  // 2. Keyboard Handlers (1, 2, 3, 4 to pop bubbles directly)
+  // 3. Keyboard Handlers (1, 2, 3, 4 to pop bubbles directly)
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (gameState !== 'playing') return;
@@ -117,7 +122,7 @@ export default function BubblePopBlitz({ onClose }) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [gameState, currentQIndex]);
 
-  // 3. Canvas Click / Touch Handler for Bubble Popping
+  // 4. Canvas Click / Multi-Touch Handler for Bubble Popping
   const handleTouchOrClick = (clientX, clientY) => {
     if (gameState !== 'playing') return;
     const canvas = canvasRef.current;
@@ -134,7 +139,7 @@ export default function BubblePopBlitz({ onClose }) {
       const b = g.bubbles[i];
       const dist = Math.hypot(clickX - b.x, clickY - b.y);
 
-      if (dist < b.r) {
+      if (dist < b.r + 8) {
         popBubble(b, i);
         break;
       }
@@ -146,55 +151,77 @@ export default function BubblePopBlitz({ onClose }) {
     g.bubbles.splice(index, 1);
 
     // Spawn Burst Particles
-    for (let p = 0; p < 18; p++) {
+    for (let p = 0; p < 22; p++) {
       g.particles.push({
         x: bubble.x,
         y: bubble.y,
-        vx: (Math.random() - 0.5) * 8,
-        vy: (Math.random() - 0.5) * 8,
-        r: 3 + Math.random() * 4,
+        vx: (Math.random() - 0.5) * 9,
+        vy: (Math.random() - 0.5) * 9,
+        r: 3 + Math.random() * 5,
         color: bubble.col.stroke,
         life: 25
       });
     }
 
-    const isCorrect = bubble.isCorrect;
-    const newAnswers = [...answersLog, {
-      questionIndex: currentQIndex,
-      questionId: currentQ.id,
-      selectedIndex: bubble.choiceIndex
-    }];
-    setAnswersLog(newAnswers);
-
-    if (isCorrect) {
-      gameAudio.playPop();
+    if (bubble.isCorrect) {
       gameAudio.playCorrect();
       g.combo++;
-      const bonus = g.combo * 200;
+      const bonus = g.combo * 150;
       g.score += 500 + bonus;
       setScore(g.score);
       setCombo(g.combo);
 
+      // Floating Score text
+      g.floatTexts.push({
+        x: bubble.x,
+        y: bubble.y,
+        text: `+${500 + bonus} 🎉`,
+        color: '#34d399',
+        life: 40
+      });
+
+      setFeedback({ type: 'correct', text: 'إجابة صحيحة وفرقعة عبقرية! 🎯' });
+      setTimeout(() => setFeedback(null), 1200);
+
       const nextQ = currentQIndex + 1;
+      const newAnswers = [...answersLog, { questionIndex: currentQIndex, selectedIndex: bubble.choiceIndex }];
+      setAnswersLog(newAnswers);
+
       if (nextQ >= questions.length) {
+        // Complete the quiz!
         handleFinishGame(true, newAnswers);
       } else {
-        setCurrentQIndex(nextQ);
+        setTimeout(() => {
+          setCurrentQIndex(nextQ);
+        }, 500);
       }
     } else {
       gameAudio.playWrong();
       g.combo = 0;
-      setCombo(0);
       g.lives--;
+      setCombo(0);
       setLives(g.lives);
 
+      g.floatTexts.push({
+        x: bubble.x,
+        y: bubble.y,
+        text: 'خطأ ❌',
+        color: '#ef4444',
+        life: 40
+      });
+
+      setFeedback({ type: 'wrong', text: 'فقاعة خاطئة! انتبه ⚠️' });
+      setTimeout(() => setFeedback(null), 1200);
+
       if (g.lives <= 0) {
+        const newAnswers = [...answersLog, { questionIndex: currentQIndex, selectedIndex: bubble.choiceIndex }];
+        setAnswersLog(newAnswers);
         handleFinishGame(false, newAnswers);
       }
     }
   };
 
-  // 4. Main Game Loop
+  // 5. Game Animation Loop
   useEffect(() => {
     if (gameState !== 'playing') return;
 
@@ -208,15 +235,19 @@ export default function BubblePopBlitz({ onClose }) {
       if (!g.isPaused) {
         g.frame++;
 
-        // Update Bubbles
+        // Update Bubbles Motion
         g.bubbles.forEach(b => {
-          b.x += b.vx + Math.sin(g.frame * 0.04 + b.wobble) * 0.8;
+          b.wobble += 0.04;
+          b.x += b.vx + Math.sin(b.wobble) * 0.8;
           b.y += b.vy;
 
-          // Wrap top to bottom if missed
+          // Wrap horizontally inside bounds
+          if (b.x < b.r + 20) b.vx = Math.abs(b.vx);
+          if (b.x > CW - b.r - 20) b.vx = -Math.abs(b.vx);
+
+          // If bubble floats off top, wrap to bottom so student never loses it
           if (b.y < -b.r - 20) {
-            b.y = CH + b.r + 20;
-            b.x = 100 + Math.random() * (CW - 200);
+            b.y = CH + b.r + Math.random() * 60;
           }
         });
 
@@ -224,22 +255,40 @@ export default function BubblePopBlitz({ onClose }) {
         g.particles.forEach(p => {
           p.x += p.vx;
           p.y += p.vy;
-          p.r = Math.max(0, p.r - 0.12);
           p.life--;
         });
-        g.particles = g.particles.filter(p => p.life > 0 && p.r > 0);
+        g.particles = g.particles.filter(p => p.life > 0);
+
+        // Update Floating Text
+        g.floatTexts.forEach(f => {
+          f.y -= 1.5;
+          f.life--;
+        });
+        g.floatTexts = g.floatTexts.filter(f => f.life > 0);
       }
 
-      // Render
-      // Gradient background
-      const grad = ctx.createLinearGradient(0, 0, 0, CH);
-      grad.addColorStop(0, '#041e1b');
-      grad.addColorStop(0.5, '#062d27');
-      grad.addColorStop(1, '#021311');
-      ctx.fillStyle = grad;
+      // Render Canvas
+      ctx.clearRect(0, 0, CW, CH);
+
+      // 1. Ambient Background Underwater / Nebula Glow
+      const bgGrad = ctx.createLinearGradient(0, 0, 0, CH);
+      bgGrad.addColorStop(0, '#021815');
+      bgGrad.addColorStop(0.5, '#042721');
+      bgGrad.addColorStop(1, '#01120e');
+      ctx.fillStyle = bgGrad;
       ctx.fillRect(0, 0, CW, CH);
 
-      // Render Particles
+      // Ambient bubbles in background
+      ctx.fillStyle = 'rgba(52, 211, 153, 0.08)';
+      for (let i = 0; i < 12; i++) {
+        const ax = ((i * 80 + g.frame * 0.4) % CW);
+        const ay = ((i * 120 - g.frame * 0.8) % CH + CH) % CH;
+        ctx.beginPath();
+        ctx.arc(ax, ay, 8 + (i % 5) * 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // 2. Render Burst Particles
       g.particles.forEach(p => {
         ctx.fillStyle = p.color;
         ctx.beginPath();
@@ -247,33 +296,58 @@ export default function BubblePopBlitz({ onClose }) {
         ctx.fill();
       });
 
-      // Render Bubbles
+      // 3. Render Interactive Floating Bubbles
       g.bubbles.forEach(b => {
         ctx.save();
-        ctx.shadowBlur = 18;
+        ctx.shadowBlur = 20;
         ctx.shadowColor = b.col.glow;
         ctx.fillStyle = b.col.bg;
         ctx.strokeStyle = b.col.stroke;
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 3.5;
 
+        // Main Bubble Sphere
         ctx.beginPath();
         ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
 
-        // Bubble Highlight reflection
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+        // Shiny Glass Reflection
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
         ctx.beginPath();
         ctx.arc(b.x - b.r * 0.35, b.y - b.r * 0.35, b.r * 0.22, 0, Math.PI * 2);
         ctx.fill();
 
-        // Bubble Text
-        ctx.shadowBlur = 0;
+        // Choice Number Badge (1, 2, 3, 4)
+        ctx.fillStyle = b.col.textBg;
+        ctx.beginPath();
+        ctx.arc(b.x, b.y - b.r * 0.45, 14, 0, Math.PI * 2);
+        ctx.fill();
         ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 16px Tajawal, sans-serif';
+        ctx.font = 'black 12px Tajawal, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(b.text, b.x, b.y);
+        ctx.fillText(`${b.choiceIndex + 1}`, b.x, b.y - b.r * 0.45);
+
+        // Choice Text inside bubble
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 17px Tajawal, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(b.text, b.x, b.y + 8);
+
+        ctx.restore();
+      });
+
+      // 4. Render Floating Feedback Texts (+500, etc.)
+      g.floatTexts.forEach(f => {
+        ctx.save();
+        ctx.fillStyle = f.color;
+        ctx.font = 'black 22px Tajawal, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = f.color;
+        ctx.fillText(f.text, f.x, f.y);
         ctx.restore();
       });
 
@@ -284,7 +358,7 @@ export default function BubblePopBlitz({ onClose }) {
     return () => cancelAnimationFrame(animRef.current);
   }, [gameState]);
 
-  // 5. Finish Game
+  // 6. Finish Game
   const handleFinishGame = (isVictory, finalAnswers = answersLog) => {
     if (animRef.current) cancelAnimationFrame(animRef.current);
     const g = gameRef.current;
@@ -316,7 +390,8 @@ export default function BubblePopBlitz({ onClose }) {
   const totalQ = questions.length || 5;
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#02110f] flex flex-col items-center justify-center select-none overflow-hidden" dir="rtl">
+    <div className="fixed inset-0 z-50 bg-[#01110e] flex flex-col items-center justify-between select-none overflow-hidden touch-none" dir="rtl">
+      {/* Game HUD Bar */}
       <GameHUD
         title="فرقعة الفقاعات العبقرية"
         lives={lives}
@@ -331,18 +406,33 @@ export default function BubblePopBlitz({ onClose }) {
       />
 
       {/* Main Game Container */}
-      <div className="relative w-full max-w-[920px] aspect-[920/500] max-h-[78vh] rounded-2xl sm:rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(16,185,129,0.35)] border border-emerald-500/25 flex flex-col touch-none select-none">
-        {/* Question Bar at Top */}
-        <div className="absolute top-14 sm:top-16 left-3 right-3 sm:left-4 sm:right-4 z-20 bg-black/70 backdrop-blur-md border border-emerald-500/30 rounded-2xl p-3 sm:p-4 text-center shadow-lg pointer-events-none">
-          <div className="text-[10px] sm:text-xs font-bold text-emerald-400 mb-0.5">
-            سؤال {currentQIndex + 1} من {totalQ}:
+      <div className="relative w-full h-full max-w-[960px] max-h-[540px] my-auto aspect-[16/9] rounded-2xl sm:rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(16,185,129,0.3)] border border-emerald-500/30 flex flex-col touch-none select-none bg-[#021815]">
+        
+        {/* ── SLIM QUESTION HEADER (NO BLOCKING TOAST) ── */}
+        <div className="absolute top-0 inset-x-0 z-20 bg-black/60 backdrop-blur-md border-b border-emerald-500/30 px-4 py-2 sm:py-2.5 flex items-center justify-between gap-3 pointer-events-none shadow-md">
+          <div className="flex items-center gap-2">
+            <span className="px-2.5 py-0.5 rounded-lg bg-emerald-500/25 border border-emerald-400/40 text-emerald-300 font-black text-xs">
+              سؤال {currentQIndex + 1}/{totalQ}
+            </span>
+            <h3 className="text-xs sm:text-base font-black text-white truncate max-w-[65vw]">
+              {currentQ?.questionText || currentQ?.question_text}
+            </h3>
           </div>
-          <h3 className="text-sm sm:text-lg font-black text-white">
-            {currentQ?.questionText || currentQ?.question_text}
-          </h3>
+
+          {/* Feedback badge */}
+          {feedback && (
+            <div className={`px-3 py-1 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-lg animate-bounce ${
+              feedback.type === 'correct'
+                ? 'bg-emerald-500 text-white shadow-emerald-500/50'
+                : 'bg-red-500 text-white shadow-red-500/50'
+            }`}>
+              {feedback.type === 'correct' ? <CheckCircle size={14} /> : <AlertCircle size={14} />}
+              <span>{feedback.text}</span>
+            </div>
+          )}
         </div>
 
-        {/* Canvas for Floating Bubbles */}
+        {/* Canvas for Floating Bubbles (Full viewport visible!) */}
         <canvas
           ref={canvasRef}
           width={CW}
@@ -353,13 +443,19 @@ export default function BubblePopBlitz({ onClose }) {
               handleTouchOrClick(e.touches[0].clientX, e.touches[0].clientY);
             }
           }}
-          className="w-full h-full object-contain block bg-[#031a17] cursor-pointer"
+          className="w-full h-full object-contain block bg-[#021815] cursor-pointer"
         />
 
-        {/* Desktop Keyboard Helper Badge */}
-        <div className="hidden sm:flex absolute bottom-3 left-4 items-center gap-2 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 text-[11px] text-white/70 pointer-events-none">
-          <span>⌨️ تحكم الكيبورد:</span>
-          <span className="bg-white/10 px-1.5 py-0.5 rounded text-emerald-300 font-mono font-bold">1 - 4</span> فرقعة الفقاعة بالاختيار
+        {/* Bottom Helper Bar */}
+        <div className="absolute bottom-2 inset-x-4 flex items-center justify-between pointer-events-none z-20">
+          <div className="text-[11px] text-emerald-200/80 font-bold bg-black/40 px-3 py-1 rounded-xl border border-white/10 backdrop-blur-sm">
+            ✨ المس أو اضغط على الفقاعة التي تحمل الإجابة الصحيحة!
+          </div>
+
+          <div className="hidden sm:flex items-center gap-1.5 bg-black/40 px-3 py-1 rounded-xl border border-white/10 text-[11px] text-white/70">
+            <span>⌨️ كيبورد:</span>
+            <span className="bg-white/10 px-1.5 py-0.5 rounded text-emerald-300 font-mono font-bold">1 - 4</span>
+          </div>
         </div>
 
         {gameState === 'loading' && (
@@ -370,6 +466,7 @@ export default function BubblePopBlitz({ onClose }) {
         )}
       </div>
 
+      {/* Result Modal */}
       {(gameState === 'victory' || gameState === 'gameOver') && (
         <GameResultModal
           isVictory={gameState === 'victory'}
