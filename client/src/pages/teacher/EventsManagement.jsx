@@ -590,7 +590,7 @@ export default function EventsManagement() {
                 onChange={e => setQuestionForm({ ...questionForm, game_id: e.target.value })}
                 className="input-field text-xs"
               >
-                <option value="all">متاح لكل الألعاب</option>
+                <option value="all">متاح لكل الألعاب 🎯</option>
                 {gameConfigs.map(g => (
                   <option key={g.id} value={g.id}>{g.title}</option>
                 ))}
@@ -625,6 +625,41 @@ export default function EventsManagement() {
                 <option value={2}>المستوى 2 (متوسط / زعيم 2)</option>
                 <option value={3}>المستوى 3 (صعب / زعيم 3)</option>
               </select>
+            </div>
+          </div>
+
+          {/* Question Timer & Challenge Title */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-gray-700 dark:text-slate-300 mb-1">
+                وقت الإجابة على السؤال ⏱️
+              </label>
+              <select
+                value={questionForm.time_limit_sec || 45}
+                onChange={e => setQuestionForm({ ...questionForm, time_limit_sec: parseInt(e.target.value, 10) })}
+                className="input-field text-xs font-bold"
+              >
+                <option value={15}>⚡ 15 ثانية (سريع جداً)</option>
+                <option value={30}>⏱️ 30 ثانية (سريع)</option>
+                <option value={45}>⏱️ 45 ثانية (افتراضي متوازن)</option>
+                <option value={60}>⏳ 60 ثانية (دقيقة كاملة)</option>
+                <option value={90}>⏳ 90 ثانية (دقيقة ونصف)</option>
+                <option value={120}>⌛ 120 ثانية (دقيقتان - للمسائل والرياضيات)</option>
+                <option value={180}>⌛ 180 ثانية (3 دقائق - أسئلة مركبة)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-700 dark:text-slate-300 mb-1">
+                عنوان التحدي / لقب الزعيم (اختياري)
+              </label>
+              <input
+                type="text"
+                value={questionForm.enemy_label || ''}
+                onChange={e => setQuestionForm({ ...questionForm, enemy_label: e.target.value })}
+                placeholder="مثال: تحدي النجوم، لغز البوابة السحرية..."
+                className="input-field text-xs"
+              />
             </div>
           </div>
 
