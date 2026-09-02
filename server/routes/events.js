@@ -814,6 +814,21 @@ router.post('/:gameId/start', requireRole('student'), async (req, res) => {
       return res.status(403).json({ error: 'انتهت فترة هذه الفعالية' });
     }
 
+    // Check target_stages restriction
+    let targetStages = [];
+    if (Array.isArray(cfg.target_stages)) {
+      targetStages = cfg.target_stages;
+    } else if (typeof cfg.target_stages === 'string' && cfg.target_stages.trim()) {
+      try { targetStages = JSON.parse(cfg.target_stages); } catch (_) { targetStages = []; }
+    }
+
+    if (Array.isArray(targetStages) && targetStages.length > 0 && studentStage) {
+      const isAllowed = targetStages.some(st => st === studentStage || studentStage.includes(st) || st.includes(studentStage));
+      if (!isAllowed) {
+        return res.status(403).json({ error: 'هذه الفعالية غير مخصصة لمرحلتك الدراسية' });
+      }
+    }
+
     // Check attempts
     const allowed = parseInt(cfg.allowed_attempts, 10) || 0;
     if (allowed > 0) {
@@ -1007,7 +1022,10 @@ router.post('/:gameId/finish', requireRole('student'), async (req, res) => {
 
     // 2. Retrieve session from memory or DB payload
     const memSession = _activeGameSessions.get(sessionToken);
-    const dbSession = tokenCheck.rows[0].session_data || {};
+    let dbSession = tokenCheck.rows[0].session_data || {};
+    if (typeof dbSession === 'string') {
+      try { dbSession = JSON.parse(dbSession); } catch (_) { dbSession = {}; }
+    }
     const sessionData = memSession || dbSession;
 
     let calculatedPoints = 0;

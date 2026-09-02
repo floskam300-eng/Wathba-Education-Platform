@@ -1,6 +1,6 @@
 const defaultPool = require('../db/connection');
 const _permCache = new Map();
-const PERM_TTL = 5 * 60 * 1000;
+const PERM_TTL = 5000; // 5s cache for fast permission updates propagation
 
 // Periodic cleanup: actively remove expired entries every 10 minutes to prevent memory leak
 setInterval(() => {
