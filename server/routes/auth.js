@@ -720,6 +720,9 @@ router.post('/login', loginLimiter, async (req, res) => {
         payload.teacher_slug = user.slug || slugTeacherSlug;
       } else {
         payload.teacher_id = user.teacher_id;
+        if (r === 'student') {
+          payload.academic_stage = user.academic_stage || null;
+        }
         const teacherRes = await pool.query('SELECT slug FROM teachers WHERE id = $1', [user.teacher_id]);
         payload.teacher_slug = teacherRes.rows[0]?.slug || null;
       }

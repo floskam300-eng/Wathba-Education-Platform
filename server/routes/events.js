@@ -122,8 +122,468 @@ const DEFAULT_STAGE_QUESTIONS = {
       enemy_label: 'سيد الحكمة',
       level_number: 5
     }
+  ],
+  'الصف الأول الابتدائي': [
+    {
+      question_text: 'ناتج جمع: 5 + 4 = ؟',
+      choices: ['9', '8', '10', '7'],
+      correct_index: 0,
+      enemy_label: 'تحدي الأرقام',
+      level_number: 1
+    },
+    {
+      question_text: 'الحرف الذي تبدأ به كلمة "شمس" هو:',
+      choices: ['ش', 'س', 'ص', 'م'],
+      correct_index: 0,
+      enemy_label: 'تحدي الحروف',
+      level_number: 2
+    },
+    {
+      question_text: 'حيوان أليف يعيش معنا في المنزل ويقول مواء:',
+      choices: ['القطة', 'الأسد', 'الفيل', 'التمساح'],
+      correct_index: 0,
+      enemy_label: 'تحدي الكائنات',
+      level_number: 3
+    },
+    {
+      question_text: 'ناتج طرح: 8 - 3 = ؟',
+      choices: ['5', '4', '6', '3'],
+      correct_index: 0,
+      enemy_label: 'تحدي الحساب',
+      level_number: 4
+    },
+    {
+      question_text: 'لون السماء الصافية في النهار هو:',
+      choices: ['أزرق', 'أحمر', 'أصفر', 'أخضر'],
+      correct_index: 0,
+      enemy_label: 'زعيم الألوان',
+      level_number: 5
+    }
+  ],
+  'الصف الثاني الابتدائي': [
+    {
+      question_text: 'ناتج جمع: 25 + 15 = ؟',
+      choices: ['40', '35', '50', '30'],
+      correct_index: 0,
+      enemy_label: 'تحدي الجمع',
+      level_number: 1
+    },
+    {
+      question_text: 'اسم الإشارة المناسب لـ (طالب مجتهد):',
+      choices: ['هذا', 'هذه', 'هؤلاء', 'هاتان'],
+      correct_index: 0,
+      enemy_label: 'تحدي القواعد',
+      level_number: 2
+    },
+    {
+      question_text: 'الشكل الهندسي الذي له 3 أضلاع و 3 رؤوس هو:',
+      choices: ['المثلث', 'المربع', 'الدائرة', 'المستطيل'],
+      correct_index: 0,
+      enemy_label: 'تحدي الأشكال',
+      level_number: 3
+    },
+    {
+      question_text: 'العدد السابق للعدد 100 مباشرة هو:',
+      choices: ['99', '98', '101', '90'],
+      correct_index: 0,
+      enemy_label: 'تحدي الأعداد',
+      level_number: 4
+    },
+    {
+      question_text: 'النبات يحتاج إلى ضوء الشمس و....... لينمو:',
+      choices: ['الماء والتربة', 'العصير', 'الملح فقط', 'الظلام'],
+      correct_index: 0,
+      enemy_label: 'تحدي العلوم',
+      level_number: 5
+    }
+  ],
+  'الصف الثالث الابتدائي': [
+    {
+      question_text: 'ناتج ضرب: 7 × 8 = ؟',
+      choices: ['56', '54', '48', '64'],
+      correct_index: 0,
+      enemy_label: 'تحدي الضرب',
+      level_number: 1
+    },
+    {
+      question_text: 'الكلمة التي تدل على فعل ماضٍ فيما يلي:',
+      choices: ['كتبَ', 'يكتبُ', 'اكتبْ', 'كتابة'],
+      correct_index: 0,
+      enemy_label: 'تحدي الأفعال',
+      level_number: 2
+    },
+    {
+      question_text: 'المادة التي لها شكل ثابت وحجم ثابت هي المادة:',
+      choices: ['الصلبة', 'السائلة', 'الغازية', 'المنصهرة'],
+      correct_index: 0,
+      enemy_label: 'تحدي حالات المادة',
+      level_number: 3
+    },
+    {
+      question_text: 'الكسر الذي يمثل نصف الشيء يكتب على صورة:',
+      choices: ['1/2', '1/4', '1/3', '2/1'],
+      correct_index: 0,
+      enemy_label: 'تحدي الكسور',
+      level_number: 4
+    },
+    {
+      question_text: 'مفرد كلمة (أشجار) هو:',
+      choices: ['شجرة', 'شجرتان', 'شجر', 'أشجار'],
+      correct_index: 0,
+      enemy_label: 'تحدي المفرد والجمع',
+      level_number: 5
+    }
+  ],
+  'الصف الرابع الابتدائي': [
+    {
+      question_text: 'محيط المربع الذي طول ضلعه 6 سم يساوي:',
+      choices: ['24 سم', '36 سم', '12 سم', '18 سم'],
+      correct_index: 0,
+      enemy_label: 'تحدي الهندسة',
+      level_number: 1
+    },
+    {
+      question_text: 'الجهاز المسؤول عن هضم الطعام وامتصاصه في جسم الإنسان هو:',
+      choices: ['الجهاز الهضمي', 'الجهاز التنفسي', 'الجهاز العصبي', 'الجهاز الدوري'],
+      correct_index: 0,
+      enemy_label: 'تحدي العلوم الحيوية',
+      level_number: 2
+    },
+    {
+      question_text: 'تقع جمهورية مصر العربية في قارة:',
+      choices: ['أفريقيا', 'آسيا', 'أوروبا', 'أمريكا الجنوبية'],
+      correct_index: 0,
+      enemy_label: 'تحدي الجغرافيا',
+      level_number: 3
+    },
+    {
+      question_text: 'في جملة (الشمسُ مشرقةٌ)، كلمة "الشمس" تُعرب:',
+      choices: ['مبتدأ مرفوع', 'خبر مرفوع', 'فاعل مرفوع', 'مفعول به'],
+      correct_index: 0,
+      enemy_label: 'تحدي النحو',
+      level_number: 4
+    },
+    {
+      question_text: 'القيمة المكانية للرقم 7 في العدد 754,320 هي:',
+      choices: ['مئات الألوف', 'عشرات الألوف', 'ألوف', 'ملايين'],
+      correct_index: 0,
+      enemy_label: 'تحدي الأعداد الكبيرة',
+      level_number: 5
+    }
+  ],
+  'الصف الخامس الابتدائي': [
+    {
+      question_text: 'ناتج قسمة: 450 ÷ 9 = ؟',
+      choices: ['50', '5', '45', '90'],
+      correct_index: 0,
+      enemy_label: 'تحدي القسمة',
+      level_number: 1
+    },
+    {
+      question_text: 'المصدر الرئيسي للطاقة لجميع الكائنات الحية على سطح الأرض هو:',
+      choices: ['الشمس', 'القمر', 'الرياح', 'النفط'],
+      correct_index: 0,
+      enemy_label: 'تحدي سلاسل الطاقة',
+      level_number: 2
+    },
+    {
+      question_text: 'علامة رفع جمع المذكر السالم هي:',
+      choices: ['الواو', 'الألف', 'الضمة', 'الياء'],
+      correct_index: 0,
+      enemy_label: 'تحدي قواعد الإعراب',
+      level_number: 3
+    },
+    {
+      question_text: 'أكبر بحيرة صناعية في العالم توجد في مصر هي بحيرة:',
+      choices: ['ناصر', 'القارون', 'البرلس', 'المنزلة'],
+      correct_index: 0,
+      enemy_label: 'تحدي المعالم الجغرافية',
+      level_number: 4
+    },
+    {
+      question_text: 'إذا كانت مساحة المستطيل 40 سم² وطوله 8 سم، فإن عرضه يساوي:',
+      choices: ['5 سم', '6 سم', '4 سم', '10 سم'],
+      correct_index: 0,
+      enemy_label: 'تحدي المساحات',
+      level_number: 5
+    }
+  ],
+  'الصف السادس الابتدائي': [
+    {
+      question_text: 'النسبة بين 250 جرام إلى 1 كيلوجرام في أبسط صورة هي:',
+      choices: ['1 : 4', '1 : 2', '1 : 5', '2 : 5'],
+      correct_index: 0,
+      enemy_label: 'تحدي النسبة والتناسب',
+      level_number: 1
+    },
+    {
+      question_text: 'العتلة تعتبر من روافع النوع:',
+      choices: ['الأول', 'الثاني', 'الثالث', 'الرابع'],
+      correct_index: 0,
+      enemy_label: 'تحدي الروافع والفيزياء',
+      level_number: 2
+    },
+    {
+      question_text: 'الأفعال الخمسة تُرفع بـ:',
+      choices: ['ثبوت النون', 'الضمة المقدرة', 'الواو', 'الألف'],
+      correct_index: 0,
+      enemy_label: 'تحدي النحو العربي',
+      level_number: 3
+    },
+    {
+      question_text: 'الغاز الذي يستهلكه النبات أثناء عملية البناء الضوئي هو:',
+      choices: ['ثاني أكسيد الكربون', 'الأكسجين', 'النيتروجين', 'الهيدروجين'],
+      correct_index: 0,
+      enemy_label: 'تحدي العلوم والتنفس',
+      level_number: 4
+    },
+    {
+      question_text: 'مساحة الدائرة تُحسب من القانون:',
+      choices: ['π نق²', '2 π نق', 'π نق', '4 π نق'],
+      correct_index: 0,
+      enemy_label: 'تحدي الهندسة الدائرية',
+      level_number: 5
+    }
+  ],
+  'الصف الأول الإعدادي': [
+    {
+      question_text: 'العدد المحايد الجمعي في مجموعة الأعداد النسبية هو:',
+      choices: ['الصفر', 'الواحد', '-1', 'ليس له وجود'],
+      correct_index: 0,
+      enemy_label: 'تحدي الجبر النسبي',
+      level_number: 1
+    },
+    {
+      question_text: 'مجموع قياسات الزوايا الداخلة لأي مثلث يساوي:',
+      choices: ['180°', '360°', '90°', '270°'],
+      correct_index: 0,
+      enemy_label: 'تحدي الهندسة الإقليدية',
+      level_number: 2
+    },
+    {
+      question_text: 'الجسيمات سالبة الشحنة التي تدور حول نواة الذرة هي:',
+      choices: ['الإلكترونات', 'البروتونات', 'النيوترونات', 'الفوتونات'],
+      correct_index: 0,
+      enemy_label: 'تحدي التركيب الذري',
+      level_number: 3
+    },
+    {
+      question_text: 'الفعل الذي ينصب مفعولين ليس أصلهما المبتدأ والخبر:',
+      choices: ['أعطى', 'ظنّ', 'علمَ', 'وجدَ'],
+      correct_index: 0,
+      enemy_label: 'تحدي قواعد اللغة',
+      level_number: 4
+    },
+    {
+      question_text: 'أقرب كواكب المجموعة الشمسية إلى الشمس هو:',
+      choices: ['عطارد', 'الزهرة', 'المريخ', 'الأرض'],
+      correct_index: 0,
+      enemy_label: 'تحدي علم الفلك',
+      level_number: 5
+    }
+  ],
+  'الصف الثاني الإعدادي': [
+    {
+      question_text: 'الجذر التكعيبي للعدد 64 يساوي:',
+      choices: ['4', '8', '16', '2'],
+      correct_index: 0,
+      enemy_label: 'تحدي الجذور التكعيبية',
+      level_number: 1
+    },
+    {
+      question_text: 'في المثلث القائم الزاوية، مربع طول الوتر يساوي مجموع مربعي ضلعي القائمة حسب نظرية:',
+      choices: ['فيثاغورس', 'إقليدس', 'طاليس', 'أرشميدس'],
+      correct_index: 0,
+      enemy_label: 'تحدي نظريات الهندسة',
+      level_number: 2
+    },
+    {
+      question_text: 'طبقة الغلاف الجوي التي تحدث بها كافة الظواهر الجوية وتقلبات الطقس هي:',
+      choices: ['التروبوسفير', 'الستراتوسفير', 'الميزوسفير', 'الثرموسفير'],
+      correct_index: 0,
+      enemy_label: 'تحدي علوم الأرض والجو',
+      level_number: 3
+    },
+    {
+      question_text: 'الكلمة الممنوعة من الصرف لعلمية وزيادة الألف والنون:',
+      choices: ['عثمان', 'أحمد', 'مساجد', 'فاطمة'],
+      correct_index: 0,
+      enemy_label: 'تحدي الصرف والنحو',
+      level_number: 4
+    },
+    {
+      question_text: 'رتب مندليف العناصر في جدوله الدوري تصاعدياً حسب:',
+      choices: ['أوزانها الذرية', 'أعدادها الذرية', 'كثافتها', 'أحجامها'],
+      correct_index: 0,
+      enemy_label: 'تحدي الجدول الدوري',
+      level_number: 5
+    }
+  ],
+  'الصف الثالث الإعدادي': [
+    {
+      question_text: 'إذا كانت النقطة (3, 5) تقع على المستقيم ص = 2س + جـ، فإن جـ = ؟',
+      choices: ['-1', '1', '11', '-11'],
+      correct_index: 0,
+      enemy_label: 'تحدي الهندسة التحليلية',
+      level_number: 1
+    },
+    {
+      question_text: 'السرعة المتجهة تُعرّف بأنها:',
+      choices: ['الإزاحة المقطوعة في وحدة الزمن', 'المسافة الكلية ÷ الزمن', 'معدل تغير الكتلة', 'معدل تغير الطاقة'],
+      correct_index: 0,
+      enemy_label: 'تحدي الفيزياء والحركة',
+      level_number: 2
+    },
+    {
+      question_text: 'تتكون الصور التقديرية المعتدلة المكبرة لجسم موضوع أمام مرآة مقعرة عندما يقع الجسم:',
+      choices: ['قبل البؤرة (على بعد أقل من البعد البؤري)', 'عند مركز التكور', 'بين البؤرة والمركز', 'خلف مركز التكور'],
+      correct_index: 0,
+      enemy_label: 'تحدي البصريات والمرايا',
+      level_number: 3
+    },
+    {
+      question_text: 'نوع المنادى في جملة: (يا طالباً العلمَ اجتهد) هو:',
+      choices: ['شبيه بالمضاف', 'مضاف', 'نكرة غير مقصودة', 'علم مفرد'],
+      correct_index: 0,
+      enemy_label: 'تحدي المنادى والنحو',
+      level_number: 4
+    },
+    {
+      question_text: 'مؤسس علم الوراثة الذي أجرى تجاربه الشهيرة على نبات بسلة الخضر هو:',
+      choices: ['جريجور مندل', 'توماس مورجان', 'واطسون وكريك', 'لويس باستور'],
+      correct_index: 0,
+      enemy_label: 'تحدي علم الوراثة',
+      level_number: 5
+    }
+  ],
+  'الصف الأول الثانوي عام': [
+    {
+      question_text: 'المعادلة الأولى للحركة بعجلة منتظمة هي:',
+      choices: ['v_f = v_i + a t', 'd = v_i t + 1/2 a t²', 'v_f² = v_i² + 2 a d', 'd = (v_i + v_f) t'],
+      correct_index: 0,
+      enemy_label: 'تحدي الميكانيكا الكلاسيكية',
+      level_number: 1
+    },
+    {
+      question_text: 'عدد الذرات أو الجزيئات الموجودة في مول واحد من أي مادة يساوي عدد أفوكادرو وهو:',
+      choices: ['6.02 × 10²³', '6.02 × 10²⁴', '3.14 × 10²³', '9.8 × 10²³'],
+      correct_index: 0,
+      enemy_label: 'تحدي الحساب الكيميائي',
+      level_number: 2
+    },
+    {
+      question_text: 'قيمة محدد المصفوفة 2×2: | 3  2 | / | 1  4 | تساوي:',
+      choices: ['10', '14', '6', '12'],
+      correct_index: 0,
+      enemy_label: 'تحدي الجبر والمحددات',
+      level_number: 3
+    },
+    {
+      question_text: 'الجزيئات البيولوجية الكبيرة المسؤولة عن نقل المعلومات الوراثية وتخزينها هي:',
+      choices: ['الأحماض النووية (DNA & RNA)', 'البروتينات', 'الليبيدات', 'الكربوهيدرات'],
+      correct_index: 0,
+      enemy_label: 'تحدي الكيمياء الحيوية',
+      level_number: 4
+    },
+    {
+      question_text: 'المتطابقة المثلثية الأساسية الشهيرة لجميع الزوايا θ هي:',
+      choices: ['جا² θ + جتا² θ = 1', 'ظا² θ + 1 = جا² θ', 'جا θ × جتا θ = 1', 'جا² θ - جتا² θ = 1'],
+      correct_index: 0,
+      enemy_label: 'تحدي حساب المثلثات',
+      level_number: 5
+    }
+  ],
+  'الصف الثاني الثانوي عام': [
+    {
+      question_text: 'نهاية الدالة: نهــــا (س² - 9) / (س - 3) عندما س تؤول إلى 3 تساوي:',
+      choices: ['6', '0', '3', 'غير معرفة'],
+      correct_index: 0,
+      enemy_label: 'تحدي التفاضل والنهايات',
+      level_number: 1
+    },
+    {
+      question_text: 'النسبة بين سرعة الضوء في الفراغ إلى سرعته في الوسط المادي تُعرف بـ:',
+      choices: ['معامل الانكسار المطلق للوسط', 'الزاوية الحرجة', 'معامل التشتت', 'قوة التكبير'],
+      correct_index: 0,
+      enemy_label: 'تحدي البصريات الفيزيائية',
+      level_number: 2
+    },
+    {
+      question_text: 'مبدأ البناء التصاعدي ينص على أن الإلكترونات تملأ:',
+      choices: ['مستويات الطاقة الفرعية الأقل طاقة أولاً', 'المستويات الأعلى طاقة أولاً', 'المستويات الرئيسية عشوائياً', 'المستوى الأخير فقط'],
+      correct_index: 0,
+      enemy_label: 'تحدي البنية الذرية',
+      level_number: 3
+    },
+    {
+      question_text: 'الوعاء الدموي الذي يحمل دماً مؤكسجاً من الرئتين إلى الأذين الأيسر في القلب هو:',
+      choices: ['الأوردة الرئوية الأربعة', 'الشريان الرئوي', 'الشريان الأورطي', 'الوريد الأجوف'],
+      correct_index: 0,
+      enemy_label: 'تحدي فسيولوجيا الجهاز الدوري',
+      level_number: 4
+    },
+    {
+      question_text: 'حاصل جمع قوى متزنة تؤثر في نقطة مادية واحدة يساوي:',
+      choices: ['الصفر (متجه معدوم)', 'مجموع أطوالها', 'القوة الأكبر', 'ما لا نهاية'],
+      correct_index: 0,
+      enemy_label: 'تحدي الاستاتيكا والتوازن',
+      level_number: 5
+    }
+  ],
+  'الصف الثالث الثانوي': [
+    {
+      question_text: 'مشتقة الدالة د(س) = هـ^(3س) بالنسبة لـ س هي:',
+      choices: ['3 هـ^(3س)', 'هـ^(3س)', '3س هـ^(3س-1)', '1/3 هـ^(3س)'],
+      correct_index: 0,
+      enemy_label: 'تحدي التفاضل المتقدم',
+      level_number: 1
+    },
+    {
+      question_text: 'القوة الدافعة الكهربية المستحثة المتولدة في ملف بالحث الكهرومغناطيسي تُحسب من قانون:',
+      choices: ['فاراداي (emf = -N ΔΦ/Δt)', 'أوم (V = I R)', 'كيرشوف الأول (ΣI = 0)', 'كولوم'],
+      correct_index: 0,
+      enemy_label: 'تحدي الكهرومغناطيسية والفيزياء الحديثة',
+      level_number: 2
+    },
+    {
+      question_text: 'المركب العضوي الناتج من هيدرة الإيثاين (الأسيتيلين) الحفزية هو:',
+      choices: ['الأسيتالدهيد (الإيثانال)', 'حمض الأسيتيك', 'الإيثانول', 'الأسيتون'],
+      correct_index: 0,
+      enemy_label: 'تحدي الكيمياء العضوية',
+      level_number: 3
+    },
+    {
+      question_text: 'الوحدة البنائية للبروتين والتي ترتبط معاً بروابط ببتيدية هي:',
+      choices: ['الأحماض الأمينية', 'النيوكليوتيدات', 'الأحماض الدهنية', 'الجلوكوز'],
+      correct_index: 0,
+      enemy_label: 'تحدي البيولوجيا الجزيئية وDNA',
+      level_number: 4
+    },
+    {
+      question_text: 'في جملة: (إنما المؤمنون إخوة)، كلمة "المؤمنون" تُعرب:',
+      choices: ['مبتدأ مرفوع بالواو (لكفّ "ما" لـ "إنّ")', 'اسم إنّ منصوب بالياء', 'خبر إنّ مرفوع', 'مضاف إليه مجرور'],
+      correct_index: 0,
+      enemy_label: 'تحدي قمة النحو والبلاغة',
+      level_number: 5
+    }
   ]
 };
+
+DEFAULT_STAGE_QUESTIONS['الصف الأول الثانوي بكالوريا'] = DEFAULT_STAGE_QUESTIONS['الصف الأول الثانوي عام'];
+DEFAULT_STAGE_QUESTIONS['الصف الثاني الثانوي بكالوريا'] = DEFAULT_STAGE_QUESTIONS['الصف الثاني الثانوي عام'];
+
+// Helper to resolve stage-specific question bank
+function getStageQuestions(stage) {
+  if (!stage || stage === 'جميع المراحل') return DEFAULT_STAGE_QUESTIONS['general'];
+  if (DEFAULT_STAGE_QUESTIONS[stage]) return DEFAULT_STAGE_QUESTIONS[stage];
+
+  for (const [key, questions] of Object.entries(DEFAULT_STAGE_QUESTIONS)) {
+    if (key !== 'general' && (stage.includes(key) || key.includes(stage))) {
+      return questions;
+    }
+  }
+  return DEFAULT_STAGE_QUESTIONS['general'];
+}
 
 // ── Helper to resolve teacher ID for multi-tenant isolation ───────────────────
 function getTeacherId(req) {
@@ -189,7 +649,11 @@ router.get('/list', requireRole('student'), async (req, res) => {
   try {
     const studentId = req.user.id;
     const teacherId = req.user.teacher_id;
-    const studentStage = req.user.academic_stage || '';
+    let studentStage = req.user.academic_stage;
+    if (!studentStage) {
+      const { rows: stRows } = await pool.query('SELECT academic_stage FROM students WHERE id = $1', [studentId]);
+      studentStage = stRows[0]?.academic_stage || '';
+    }
 
     // Fetch teacher's custom game settings
     const { rows: customConfigs } = await pool.query(
@@ -220,75 +684,74 @@ router.get('/list', requireRole('student'), async (req, res) => {
         is_enabled: true,
         points_per_question: 20,
         completion_bonus_points: 50,
-        allowed_attempts: 0, // 0 = unlimited
+        allowed_attempts: 0,
         reset_frequency: 'weekly',
         question_pull_mode: 'unseen_first',
         questions_per_play: game.defaultQuestionsCount,
         start_time: null,
-        end_time: null,
-        target_stages: []
+        end_time: null
       };
 
-      // Stage restriction check
-      if (Array.isArray(cfg.target_stages) && cfg.target_stages.length > 0) {
-        if (!cfg.target_stages.includes(studentStage)) {
-          return {
-            ...game,
-            ...cfg,
-            isAvailable: false,
-            unavailableReason: 'غير متاح لمرحلتك الدراسية'
-          };
-        }
-      }
-
-      // Schedule window check (Cairo timezone aware)
-      let isScheduleActive = true;
-      let scheduleNotice = null;
-      if (cfg.start_time && new Date(cfg.start_time) > now) {
-        isScheduleActive = false;
-        scheduleNotice = `يفتح في: ${formatEgyptDateTime(cfg.start_time)}`;
-      } else if (cfg.end_time && new Date(cfg.end_time) < now) {
-        isScheduleActive = false;
-        scheduleNotice = 'انتهت فترة الفعالية';
-      }
-
-      // Attempts in current period check (Egypt Cairo Anchor)
-      const periodStart = getPeriodStart(cfg.reset_frequency, now);
-      const { rows: periodPlays } = await pool.query(
-        `SELECT COUNT(*)::int AS count FROM game_plays_history
-         WHERE student_id = $1 AND game_id = $2 AND played_at >= $3`,
-        [studentId, game.id, periodStart.toISOString()]
-      );
-      const playsInPeriod = periodPlays[0]?.count || 0;
-      const allowed = parseInt(cfg.allowed_attempts, 10) || 0;
-      const remainingAttempts = allowed > 0 ? Math.max(0, allowed - playsInPeriod) : null;
-      const isPlayable = cfg.is_enabled && isScheduleActive && (allowed === 0 || remainingAttempts > 0);
-
-      const playStats = playsMap.get(game.id) || {
+      const playInfo = playsMap.get(game.id) || {
         total_plays: 0,
         high_score: 0,
         total_points_earned: 0,
         last_played_at: null
       };
 
+      const allowed = parseInt(cfg.allowed_attempts, 10) || 0;
+      let periodPlays = 0;
+      let isAvailable = cfg.is_enabled !== false;
+      let unavailableReason = null;
+
+      // Check schedule window
+      if (cfg.start_time && new Date(cfg.start_time) > now) {
+        isAvailable = false;
+        unavailableReason = `تفتح اللعبة في ${new Date(cfg.start_time).toLocaleString('ar-EG', { timeZone: 'Africa/Cairo' })}`;
+      } else if (cfg.end_time && new Date(cfg.end_time) < now) {
+        isAvailable = false;
+        unavailableReason = 'انتهت فترة هذه الفعالية';
+      }
+
+      // Check attempts limit in current reset period
+      if (allowed > 0 && isAvailable) {
+        const periodStart = getPeriodStart(cfg.reset_frequency, now);
+        const { rows: pRows } = await pool.query(
+          `SELECT COUNT(*)::int AS count FROM game_plays_history
+           WHERE student_id = $1 AND game_id = $2 AND played_at >= $3`,
+          [studentId, game.id, periodStart.toISOString()]
+        );
+        periodPlays = pRows[0]?.count || 0;
+        if (periodPlays >= allowed) {
+          isAvailable = false;
+          unavailableReason = `استنفدت محاولاتك لهذه الفترة (${periodPlays}/${allowed})`;
+        }
+      }
+
       return {
-        ...game,
+        id: game.id,
         title: cfg.title || game.title,
-        subtitle: cfg.description || game.subtitle,
-        isEnabled: cfg.is_enabled !== false,
-        isPlayable,
-        isScheduleActive,
-        scheduleNotice,
-        startTime: cfg.start_time,
-        endTime: cfg.end_time,
-        allowedAttempts: allowed,
-        remainingAttempts,
-        resetFrequency: cfg.reset_frequency,
-        questionsPerPlay: cfg.questions_per_play || game.defaultQuestionsCount,
-        pointsPerQuestion: cfg.points_per_question || 20,
-        completionBonusPoints: cfg.completion_bonus_points || 50,
-        maxPossiblePoints: (cfg.questions_per_play || game.defaultQuestionsCount) * (cfg.points_per_question || 20) + (cfg.completion_bonus_points || 50),
-        stats: playStats
+        description: cfg.description || game.description,
+        icon: game.icon,
+        category: game.category,
+        badge: game.badge,
+        accentColor: game.accentColor,
+        is_enabled: cfg.is_enabled !== false,
+        is_available: isAvailable,
+        unavailable_reason: unavailableReason,
+        points_per_question: parseInt(cfg.points_per_question, 10) || 20,
+        completion_bonus_points: parseInt(cfg.completion_bonus_points, 10) || 50,
+        allowed_attempts: allowed,
+        remaining_attempts: allowed > 0 ? Math.max(0, allowed - periodPlays) : null,
+        reset_frequency: cfg.reset_frequency || 'weekly',
+        questions_count: parseInt(cfg.questions_per_play, 10) || game.defaultQuestionsCount,
+        student_stats: {
+          total_plays: playInfo.total_plays,
+          high_score: playInfo.high_score,
+          total_points_earned: playInfo.total_points_earned,
+          last_played_at: playInfo.last_played_at
+        },
+        rules: game.rules
       };
     }));
 
@@ -308,9 +771,14 @@ router.post('/:gameId/start', requireRole('student'), async (req, res) => {
   const { gameId } = req.params;
   const studentId = req.user.id;
   const teacherId = req.user.teacher_id;
-  const studentStage = req.user.academic_stage || '';
 
   try {
+    let studentStage = req.user.academic_stage;
+    if (!studentStage) {
+      const { rows: stRows } = await pool.query('SELECT academic_stage FROM students WHERE id = $1', [studentId]);
+      studentStage = stRows[0]?.academic_stage || '';
+    }
+
     const normalizedGameId = gameId === 'weekly-run' ? 'stickman_run' : gameId;
     const gameDef = GAME_CATALOG.find(g => g.id === normalizedGameId);
     if (!gameDef) {
@@ -360,27 +828,42 @@ router.post('/:gameId/start', requireRole('student'), async (req, res) => {
       }
     }
 
-    // Question Selection Engine
+    // Question Selection Engine with Stage Prioritization
     const questionsCount = Math.max(1, Math.min(20, parseInt(cfg.questions_per_play, 10) || gameDef.defaultQuestionsCount));
     const pullMode = cfg.question_pull_mode || 'unseen_first';
 
-    // Fetch teacher questions for this game and stage
-    const { rows: teacherQuestions } = await pool.query(
+    // 1. Fetch teacher questions specifically matching the student's academic stage
+    let stageQuestions = [];
+    if (studentStage && studentStage !== 'جميع المراحل') {
+      const { rows } = await pool.query(
+        `SELECT id, question_text, question_image, choices, correct_index, time_limit_sec, explanation, enemy_label, level_number
+         FROM game_questions
+         WHERE teacher_id = $1
+           AND is_active = true
+           AND (game_id = $2 OR game_id IS NULL)
+           AND (academic_stage = $3 OR academic_stage ILIKE '%' || $3 || '%')
+         ORDER BY level_number ASC, RANDOM()`,
+        [teacherId, normalizedGameId, studentStage]
+      );
+      stageQuestions = rows;
+    }
+
+    // 2. Fetch teacher questions marked as 'جميع المراحل' (general pool for all stages)
+    const { rows: generalQuestions } = await pool.query(
       `SELECT id, question_text, question_image, choices, correct_index, time_limit_sec, explanation, enemy_label, level_number
        FROM game_questions
        WHERE teacher_id = $1
          AND is_active = true
          AND (game_id = $2 OR game_id IS NULL)
-         AND (academic_stage = $3 OR academic_stage = 'جميع المراحل' OR academic_stage IS NULL)
+         AND (academic_stage = 'جميع المراحل' OR academic_stage IS NULL OR academic_stage = '')
        ORDER BY level_number ASC, RANDOM()`,
-      [teacherId, normalizedGameId, studentStage]
+      [teacherId, normalizedGameId]
     );
 
     let selectedQuestions = [];
 
-    if (teacherQuestions.length > 0) {
+    if (stageQuestions.length > 0 || generalQuestions.length > 0) {
       if (pullMode === 'unseen_first' && allowed > 0) {
-        // Find seen questions in past history
         const periodStart = getPeriodStart(cfg.reset_frequency, now);
         const { rows: history } = await pool.query(
           `SELECT seen_question_ids FROM game_plays_history
@@ -395,17 +878,21 @@ router.post('/:gameId/start', requireRole('student'), async (req, res) => {
           }
         });
 
-        const unseen = teacherQuestions.filter(q => !seenSet.has(q.id));
-        const seen = teacherQuestions.filter(q => seenSet.has(q.id));
-        selectedQuestions = [...unseen, ...seen].slice(0, questionsCount);
+        const unseenStage = stageQuestions.filter(q => !seenSet.has(q.id));
+        const seenStage = stageQuestions.filter(q => seenSet.has(q.id));
+        const unseenGen = generalQuestions.filter(q => !seenSet.has(q.id));
+        const seenGen = generalQuestions.filter(q => seenSet.has(q.id));
+
+        // Prioritize stage unseen -> stage seen -> general unseen -> general seen
+        selectedQuestions = [...unseenStage, ...seenStage, ...unseenGen, ...seenGen].slice(0, questionsCount);
       } else {
-        selectedQuestions = [...teacherQuestions].sort(() => Math.random() - 0.5).slice(0, questionsCount);
+        selectedQuestions = [...stageQuestions, ...generalQuestions].slice(0, questionsCount);
       }
     }
 
-    // Fallback enrichment with default questions if needed
+    // Fallback enrichment with stage-specific default questions
     if (selectedQuestions.length < questionsCount) {
-      const fallbackPool = DEFAULT_STAGE_QUESTIONS[studentStage] || DEFAULT_STAGE_QUESTIONS['general'];
+      const fallbackPool = getStageQuestions(studentStage);
       const needed = questionsCount - selectedQuestions.length;
       const shuffledFallback = [...fallbackPool].sort(() => Math.random() - 0.5).slice(0, needed);
       shuffledFallback.forEach((fq, idx) => {
@@ -916,19 +1403,20 @@ router.delete('/teacher/questions/:id', requireRole('teacher', 'assistant'), che
 // ── 11. POST /api/events/teacher/questions/seed-defaults — Populate default questions
 router.post('/teacher/questions/seed-defaults', requireRole('teacher', 'assistant'), checkManageEventsPerm, async (req, res) => {
   const teacherId = getTeacherId(req);
-  const { academic_stage = 'جميع المراحل' } = req.body;
+  const { academic_stage = 'جميع المراحل', game_id = null } = req.body;
 
   try {
-    const poolQuestions = DEFAULT_STAGE_QUESTIONS[academic_stage] || DEFAULT_STAGE_QUESTIONS['general'];
+    const poolQuestions = getStageQuestions(academic_stage);
     let insertedCount = 0;
 
     for (const q of poolQuestions) {
       await pool.query(
         `INSERT INTO game_questions
            (teacher_id, game_id, academic_stage, level_number, question_text, choices, correct_index, time_limit_sec, enemy_label)
-         VALUES ($1, NULL, $2, $3, $4, $5, $6, 45, $7)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 45, $8)`,
         [
           teacherId,
+          game_id && game_id !== 'all' ? game_id : null,
           academic_stage,
           q.level_number || 1,
           q.question_text,
@@ -940,7 +1428,7 @@ router.post('/teacher/questions/seed-defaults', requireRole('teacher', 'assistan
       insertedCount++;
     }
 
-    res.json({ success: true, insertedCount });
+    res.json({ success: true, insertedCount, academic_stage });
   } catch (err) {
     console.error('[events /teacher/questions/seed-defaults]', err.message);
     res.status(500).json({ error: 'Server error' });

@@ -120,10 +120,13 @@ export default function EventsManagement() {
   });
 
   const seedDefaultsMut = useMutation({
-    mutationFn: (stage) => api.post('/events/teacher/questions/seed-defaults', { academic_stage: stage }),
+    mutationFn: ({ stage, gameId }) => api.post('/events/teacher/questions/seed-defaults', {
+      academic_stage: stage || 'جميع المراحل',
+      game_id: gameId || null
+    }),
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ['teacher-game-questions'] });
-      toast.success(`تم استيراد ${res.data.insertedCount} سؤال بنجاح`);
+      toast.success(`تم استيراد ${res.data.insertedCount} سؤال لمرحلة (${res.data.academic_stage}) بنجاح`);
     },
     onError: () => toast.error('حدث خطأ في استيراد الأسئلة الافتراضية')
   });
@@ -294,7 +297,11 @@ export default function EventsManagement() {
                   type="button"
                   onClick={() => {
                     setEditingQuestion(null);
-                    setQuestionForm(emptyQuestionForm);
+                    setQuestionForm({
+                      ...emptyQuestionForm,
+                      game_id: filterGame !== 'all' ? filterGame : 'all',
+                      academic_stage: filterStage !== 'all' ? filterStage : 'جميع المراحل'
+                    });
                     setQuestionModal(true);
                   }}
                   className="btn-primary py-2 px-4 text-xs flex items-center gap-1.5"
@@ -305,12 +312,16 @@ export default function EventsManagement() {
 
                 <button
                   type="button"
-                  onClick={() => seedDefaultsMut.mutate('جميع المراحل')}
+                  onClick={() => seedDefaultsMut.mutate({
+                    stage: filterStage !== 'all' ? filterStage : 'جميع المراحل',
+                    gameId: filterGame !== 'all' ? filterGame : null
+                  })}
                   disabled={seedDefaultsMut.isPending}
                   className="px-3.5 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 text-xs font-bold hover:bg-amber-100 transition-all flex items-center gap-1.5"
+                  title="استيراد بنك أسئلة جاهزة للمرحلة المحددة في الفلتر"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>استيراد أسئلة عامة جاهزة</span>
+                  <span>{filterStage !== 'all' ? `استيراد أسئلة (${filterStage}) جاهزة` : 'استيراد أسئلة جاهزة للمرحلة'}</span>
                 </button>
               </div>
 

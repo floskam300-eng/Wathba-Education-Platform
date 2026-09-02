@@ -321,6 +321,71 @@ async function runDeepAudit() {
     failed++;
   }
 
+  // ── SECTION 6: ACADEMIC STAGE SEPARATION ──────────────────────────────────
+  console.log('\n── [SECTION 6] Academic Stage Question Separation & Isolation ──');
+
+  try {
+    // 1. Create a question specifically for Grade 1 ('الصف الأول الابتدائي')
+    const q1Res = await request('POST', '/teacher/questions', {
+      academic_stage: 'الصف الأول الابتدائي',
+      game_id: 'tower_of_riddles',
+      level_number: 1,
+      question_text: '[TEST-STAGE-1] ناتج 2 + 2 = ؟',
+      choices: ['4', '5', '6', '7'],
+      correct_index: 0,
+      time_limit_sec: 30
+    }, tokenTeacherA);
+    assert.strictEqual(q1Res.status, 201);
+    const q1Id = q1Res.body.id;
+    createdTestQuestionIds.push(q1Id);
+
+    // 2. Create a question specifically for Grade 12 ('الصف الثالث الثانوي')
+    const q12Res = await request('POST', '/teacher/questions', {
+      academic_stage: 'الصف الثالث الثانوي',
+      game_id: 'tower_of_riddles',
+      level_number: 1,
+      question_text: '[TEST-STAGE-12] مشتقة هـ^س بالنسبة لـ س هي:',
+      choices: ['هـ^س', 'س هـ^س', '1/س', '0'],
+      correct_index: 0,
+      time_limit_sec: 60
+    }, tokenTeacherA);
+    assert.strictEqual(q12Res.status, 201);
+    const q12Id = q12Res.body.id;
+    createdTestQuestionIds.push(q12Id);
+
+    // 3. Test Student Grade 1 receives ONLY Grade 1 question
+    const tokenStudentG1 = createToken({
+      id: studentA.id,
+      role: 'student',
+      teacher_id: teacherA.id,
+      academic_stage: 'الصف الأول الابتدائي'
+    });
+    const g1PlayRes = await request('POST', '/tower_of_riddles/start', {}, tokenStudentG1);
+    assert.strictEqual(g1PlayRes.status, 200);
+    const g1QuestionTexts = g1PlayRes.body.questions.map(q => q.questionText);
+    assert.ok(g1QuestionTexts.some(txt => txt.includes('[TEST-STAGE-1]')), 'Grade 1 student must receive Grade 1 question');
+    assert.ok(!g1QuestionTexts.some(txt => txt.includes('[TEST-STAGE-12]')), 'Grade 1 student must NEVER receive Grade 12 question');
+
+    // 4. Test Student Grade 12 receives ONLY Grade 12 question
+    const tokenStudentG12 = createToken({
+      id: studentA.id,
+      role: 'student',
+      teacher_id: teacherA.id,
+      academic_stage: 'الصف الثالث الثانوي'
+    });
+    const g12PlayRes = await request('POST', '/tower_of_riddles/start', {}, tokenStudentG12);
+    assert.strictEqual(g12PlayRes.status, 200);
+    const g12QuestionTexts = g12PlayRes.body.questions.map(q => q.questionText);
+    assert.ok(g12QuestionTexts.some(txt => txt.includes('[TEST-STAGE-12]')), 'Grade 12 student must receive Grade 12 question');
+    assert.ok(!g12QuestionTexts.some(txt => txt.includes('[TEST-STAGE-1]')), 'Grade 12 student must NEVER receive Grade 1 question');
+
+    console.log('  ✅ 6.1: Strict academic stage question separation verified across grades');
+    passed++;
+  } catch (err) {
+    console.error('  ❌ 6.1 Failed:', err.message);
+    failed++;
+  }
+
   // Cleanup test questions
   for (const qid of createdTestQuestionIds) {
     await pool.query('DELETE FROM game_questions WHERE id = $1', [qid]).catch(() => {});
