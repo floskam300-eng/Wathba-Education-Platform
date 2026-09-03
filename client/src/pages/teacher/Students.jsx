@@ -208,10 +208,10 @@ function DeviceAlertsPanel({ canEdit }) {
   const availableStages = ['الكل', ...Array.from(new Set(alerts.map(a => a.academic_stage).filter(Boolean)))];
 
   const statusLabel = (s) => {
-    if (s === 'pending') return { text: 'معلّق', cls: 'bg-red-100 text-red-700' };
-    if (s === 'reactivated') return { text: 'تمت الموافقة والسماح', cls: 'bg-green-100 text-green-700' };
-    if (s === 'dismissed') return { text: 'تم إبقاء القديم ورفض الجديد', cls: 'bg-gray-100 text-gray-600' };
-    return { text: s, cls: 'bg-gray-100 text-gray-600' };
+    if (s === 'pending') return { text: 'معلّق', cls: 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300' };
+    if (s === 'reactivated') return { text: 'تمت الموافقة والسماح', cls: 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-300' };
+    if (s === 'dismissed') return { text: 'تم إبقاء القديم ورفض الجديد', cls: 'bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-[var(--dk-text-2)]' };
+    return { text: s, cls: 'bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-[var(--dk-text-2)]' };
   };
 
   // Short hardware identifiers that survive random device_id changes — helps
@@ -229,38 +229,38 @@ function DeviceAlertsPanel({ canEdit }) {
   const hasActiveFilters = alertSearch.trim() || stageFilterA !== 'الكل' || statusFilter !== 'all';
 
   if (isLoading) return (
-    <div className="card flex items-center justify-center py-16">
+    <div className="card flex items-center justify-center py-16 bg-white dark:bg-[var(--dk-surface)] border border-gray-200/80 dark:border-[var(--dk-border)]">
       <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
     </div>
   );
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 max-w-full overflow-hidden">
       {/* Device Limit Policy Box */}
-      <div className="card !p-5 bg-gradient-to-br from-white to-orange-50/40 border border-orange-200/80 rounded-2xl shadow-sm">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-start gap-3.5">
-            <div className="w-11 h-11 rounded-2xl bg-orange-100/80 border border-orange-200 flex items-center justify-center flex-shrink-0 text-orange-600 mt-0.5">
+      <div className="card !p-4 sm:!p-5 bg-gradient-to-br from-white to-orange-50/40 dark:from-[var(--dk-surface)] dark:to-[var(--dk-elevated)] border border-orange-200/80 dark:border-orange-500/20 rounded-2xl shadow-xs max-w-full overflow-hidden">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="flex items-start gap-3 min-w-0 flex-1">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-orange-100/80 dark:bg-orange-500/15 border border-orange-200 dark:border-orange-500/30 flex items-center justify-center flex-shrink-0 text-orange-600 dark:text-orange-400 mt-0.5">
               <Smartphone className="w-5 h-5" />
             </div>
-            <div>
+            <div className="min-w-0 flex-1 overflow-hidden">
               <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="font-black text-navy-800 text-base">
+                <h3 className="font-black text-navy-800 dark:text-[var(--dk-text-1)] text-sm sm:text-base leading-tight break-words">
                   الحد الأقصى للأجهزة المسموح بها لكل طالب
                 </h3>
-                <span className="bg-orange-100 text-orange-700 text-xs font-black px-2.5 py-0.5 rounded-full border border-orange-200">
+                <span className="bg-orange-100 dark:bg-orange-500/15 text-orange-700 dark:text-orange-300 text-[11px] sm:text-xs font-black px-2.5 py-0.5 rounded-full border border-orange-200 dark:border-orange-500/30 whitespace-nowrap flex-shrink-0">
                   الحالي: {limitData?.max_allowed_devices || 1} {(limitData?.max_allowed_devices || 1) === 1 ? 'جهاز واحد' : (limitData?.max_allowed_devices || 1) === 2 ? 'جهازان' : 'أجهزة'}
                 </span>
               </div>
-              <p className="text-xs text-gray-500 mt-1 leading-relaxed max-w-2xl">
+              <p className="text-xs text-gray-500 dark:text-[var(--dk-text-2)] mt-1.5 leading-relaxed break-words">
                 حدد عدد الأجهزة التي يمكن لكل طالب تسجيل الدخول منها تلقائياً بدون حظر. إذا حاول الطالب تسجيل الدخول من جهاز جديد بعد استهلاك هذا العدد، سيتم حظره وإرسال تحذير أمني هنا للمراجعة والموافقة.
               </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3 flex-shrink-0">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-shrink-0 w-full lg:w-auto">
             {/* Options pills: 1, 2, 3, 4, 5 */}
-            <div className="inline-flex p-1 bg-gray-100/90 rounded-xl border border-gray-200/70">
+            <div className="grid grid-cols-5 sm:flex sm:items-center p-1 bg-gray-100/90 dark:bg-[var(--dk-elevated)] rounded-xl border border-gray-200/70 dark:border-[var(--dk-border-md)] gap-1 w-full sm:w-auto">
               {[1, 2, 3, 4, 5].map((num) => {
                 const isSelected = activeLimit === num;
                 return (
@@ -269,14 +269,15 @@ function DeviceAlertsPanel({ canEdit }) {
                     type="button"
                     disabled={!canEdit || updateLimitMut.isPending}
                     onClick={() => setSelectedLimit(num)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                    className={`px-2 sm:px-3 py-1.5 rounded-lg text-xs font-black transition-all text-center flex items-center justify-center ${
                       isSelected
-                        ? 'bg-white text-orange-600 shadow-sm'
-                        : 'text-gray-600 hover:text-navy-800'
+                        ? 'bg-white dark:bg-orange-600 text-orange-600 dark:text-white shadow-xs'
+                        : 'text-gray-600 dark:text-[var(--dk-text-2)] hover:text-navy-800 dark:hover:text-white hover:bg-white/60 dark:hover:bg-white/5'
                     } disabled:opacity-50 disabled:cursor-not-allowed`}
                     title={`${num} ${num === 1 ? 'جهاز واحد' : num === 2 ? 'جهازان' : 'أجهزة'}`}
                   >
-                    {num === 1 ? '1 جهاز (افتراضي)' : `${num} أجهزة`}
+                    <span className="sm:hidden">{num}</span>
+                    <span className="hidden sm:inline">{num === 1 ? '1 جهاز (افتراضي)' : `${num} أجهزة`}</span>
                   </button>
                 );
               })}
@@ -287,10 +288,10 @@ function DeviceAlertsPanel({ canEdit }) {
                 type="button"
                 disabled={!isDirty || updateLimitMut.isPending}
                 onClick={() => updateLimitMut.mutate(activeLimit)}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm ${
+                className={`flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-xs w-full sm:w-auto ${
                   isDirty
                     ? 'bg-orange-600 hover:bg-orange-700 text-white cursor-pointer ring-2 ring-orange-400/30'
-                    : 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
+                    : 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-500 cursor-not-allowed border border-gray-200 dark:border-white/10'
                 }`}
               >
                 {updateLimitMut.isPending ? (
@@ -306,56 +307,56 @@ function DeviceAlertsPanel({ canEdit }) {
       </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="card !p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center">
-            <ShieldAlert className="w-5 h-5 text-red-600" />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+        <div className="card !p-4 flex items-center gap-3 bg-white dark:bg-[var(--dk-surface)] border border-gray-200/80 dark:border-[var(--dk-border)]">
+          <div className="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-500/15 flex items-center justify-center flex-shrink-0">
+            <ShieldAlert className="w-5 h-5 text-red-600 dark:text-red-400" />
           </div>
-          <div>
-            <p className="text-2xl font-black text-red-600">{pendingByStudent.length}</p>
-            <p className="text-xs text-gray-500 font-semibold">محاولات دخول من جهاز جديد</p>
+          <div className="min-w-0 flex-1 overflow-hidden">
+            <p className="text-2xl font-black text-red-600 dark:text-red-400 leading-none">{pendingByStudent.length}</p>
+            <p className="text-xs text-gray-500 dark:text-[var(--dk-text-2)] font-semibold mt-1 truncate">محاولات دخول من جهاز جديد</p>
           </div>
         </div>
-        <div className="card !p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
-            <Smartphone className="w-5 h-5 text-blue-600" />
+        <div className="card !p-4 flex items-center gap-3 bg-white dark:bg-[var(--dk-surface)] border border-gray-200/80 dark:border-[var(--dk-border)]">
+          <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-500/15 flex items-center justify-center flex-shrink-0">
+            <Smartphone className="w-5 h-5 text-blue-600 dark:text-blue-400" />
           </div>
-          <div>
-            <p className="text-2xl font-black text-blue-600">
+          <div className="min-w-0 flex-1 overflow-hidden">
+            <p className="text-2xl font-black text-blue-600 dark:text-blue-400 leading-none">
               {alerts.filter(a => a.is_suspended).length}
             </p>
-            <p className="text-xs text-gray-500 font-semibold">حسابات موقوفة يدوياً</p>
+            <p className="text-xs text-gray-500 dark:text-[var(--dk-text-2)] font-semibold mt-1 truncate">حسابات موقوفة يدوياً</p>
           </div>
         </div>
-        <div className="card !p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
-            <CheckCircle className="w-5 h-5 text-green-600" />
+        <div className="card !p-4 flex items-center gap-3 bg-white dark:bg-[var(--dk-surface)] border border-gray-200/80 dark:border-[var(--dk-border)]">
+          <div className="w-10 h-10 rounded-xl bg-green-100 dark:bg-green-500/15 flex items-center justify-center flex-shrink-0">
+            <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
           </div>
-          <div>
-            <p className="text-2xl font-black text-green-600">{resolved.length}</p>
-            <p className="text-xs text-gray-500 font-semibold">تم معالجتها</p>
+          <div className="min-w-0 flex-1 overflow-hidden">
+            <p className="text-2xl font-black text-green-600 dark:text-green-400 leading-none">{resolved.length}</p>
+            <p className="text-xs text-gray-500 dark:text-[var(--dk-text-2)] font-semibold mt-1 truncate">تم معالجتها</p>
           </div>
         </div>
       </div>
 
       {/* Search & Filters */}
       {alerts.length > 0 && (
-        <div className="card !p-4 space-y-3">
+        <div className="card !p-4 space-y-3 bg-white dark:bg-[var(--dk-surface)] border border-gray-200/80 dark:border-[var(--dk-border)]">
           {/* Search */}
           <div className="relative">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-[var(--dk-text-3)] pointer-events-none" />
             <input
               type="text"
               value={alertSearch}
               onChange={e => setAlertSearch(e.target.value)}
               placeholder="ابحث باسم الطالب أو اليوزر أو الجهاز أو IP..."
-              className="w-full pr-9 pl-9 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
+              className="w-full pr-9 pl-9 py-2.5 rounded-xl border border-gray-200 dark:border-[var(--dk-border-md)] bg-gray-50 dark:bg-[var(--dk-elevated)] text-gray-900 dark:text-[var(--dk-text-1)] text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all placeholder:text-gray-400 dark:placeholder:text-[var(--dk-text-3)]"
               dir="rtl"
             />
             {alertSearch && (
               <button
                 onClick={() => setAlertSearch('')}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -365,7 +366,7 @@ function DeviceAlertsPanel({ canEdit }) {
           {/* Filter pills */}
           <div className="flex flex-wrap gap-2 items-center">
             {/* Status filter */}
-            <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+            <div className="flex items-center gap-1 bg-gray-100 dark:bg-[var(--dk-elevated)] rounded-xl p-1 border border-transparent dark:border-[var(--dk-border)]">
               {[
                 { value: 'all', label: 'الكل' },
                 { value: 'pending', label: 'معلّقة' },
@@ -375,8 +376,8 @@ function DeviceAlertsPanel({ canEdit }) {
                   key={opt.value}
                   onClick={() => setStatusFilter(opt.value)}
                   className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${statusFilter === opt.value
-                    ? 'bg-white text-orange-600 shadow-sm'
-                    : 'text-gray-500 hover:text-gray-700'
+                    ? 'bg-white dark:bg-orange-600 text-orange-600 dark:text-white shadow-xs'
+                    : 'text-gray-500 dark:text-[var(--dk-text-2)] hover:text-gray-700 dark:hover:text-white'
                     }`}
                 >
                   {opt.label}
@@ -389,7 +390,7 @@ function DeviceAlertsPanel({ canEdit }) {
               <select
                 value={stageFilterA}
                 onChange={e => setStageFilterA(e.target.value)}
-                className="text-xs font-bold border border-gray-200 rounded-xl px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-orange-400 cursor-pointer"
+                className="text-xs font-bold border border-gray-200 dark:border-[var(--dk-border-md)] rounded-xl px-3 py-1.5 bg-white dark:bg-[var(--dk-elevated)] text-gray-800 dark:text-[var(--dk-text-1)] focus:outline-none focus:ring-2 focus:ring-orange-400 cursor-pointer"
                 dir="rtl"
               >
                 {availableStages.map(s => (
@@ -402,7 +403,7 @@ function DeviceAlertsPanel({ canEdit }) {
             {hasActiveFilters && (
               <button
                 onClick={() => { setAlertSearch(''); setStatusFilter('all'); setStageFilterA('الكل'); }}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 transition-colors"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors"
               >
                 <X className="w-3.5 h-3.5" /> مسح الفلاتر
               </button>
@@ -413,98 +414,96 @@ function DeviceAlertsPanel({ canEdit }) {
 
       {/* Pending Alerts */}
       {(statusFilter === 'all' || statusFilter === 'pending') && filteredPending.length > 0 && (
-        <div className="card !p-0 overflow-visible relative">
-          <div className="p-4 border-b border-red-100 bg-red-50 flex items-center gap-2 rounded-t-2xl">
-            <ShieldAlert className="w-4 h-4 text-red-600" />
-            <span className="font-black text-red-700 text-sm">محاولات دخول من جهاز جديد</span>
+        <div className="card !p-0 overflow-hidden bg-white dark:bg-[var(--dk-surface)] border border-gray-200/80 dark:border-[var(--dk-border)]">
+          <div className="p-3.5 sm:p-4 border-b border-red-100 dark:border-red-900/40 bg-red-50/90 dark:bg-red-950/30 flex items-center gap-2 rounded-t-2xl flex-wrap">
+            <ShieldAlert className="w-4 h-4 text-red-600 dark:text-red-400 flex-shrink-0" />
+            <span className="font-black text-red-700 dark:text-red-300 text-sm">محاولات دخول من جهاز جديد</span>
             <span className="bg-red-600 text-white text-xs font-black px-2 py-0.5 rounded-full">{filteredPending.length}</span>
             {hasActiveFilters && filteredPending.length !== pendingByStudent.length && (
-              <span className="text-red-400 text-xs font-semibold">من أصل {pendingByStudent.length}</span>
+              <span className="text-red-400 dark:text-red-400/70 text-xs font-semibold">من أصل {pendingByStudent.length}</span>
             )}
           </div>
-          <div className="divide-y divide-gray-100">
+          <div className="divide-y divide-gray-100 dark:divide-[var(--dk-border)]">
             {filteredPending.map(alert => (
-              <div key={alert.student_id} className="p-4 hover:bg-orange-50/30 transition-colors">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-start gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <AlertTriangle className="w-4 h-4 text-red-600" />
+              <div key={alert.student_id} className="p-3.5 sm:p-4 hover:bg-orange-50/30 dark:hover:bg-white/[0.02] transition-colors">
+                <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3.5">
+                  <div className="flex items-start gap-3 min-w-0 flex-1">
+                    <div className="w-9 h-9 rounded-xl bg-red-100 dark:bg-red-500/15 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400" />
                     </div>
-                    <div>
-                      <p className="font-black text-navy-700 text-sm">
-                        {alert.student_name}
-                        <span className="font-mono text-xs text-gray-500 mr-2">({alert.student_username})</span>
+                    <div className="min-w-0 flex-1 overflow-hidden">
+                      <p className="font-black text-navy-700 dark:text-[var(--dk-text-1)] text-sm flex items-center flex-wrap gap-1.5 break-words">
+                        <span>{alert.student_name}</span>
+                        <span className="font-mono text-xs text-gray-500 dark:text-[var(--dk-text-3)]" dir="ltr">({alert.student_username})</span>
                         {alert.count > 1 && (
-                          <span className="mr-2 bg-red-100 text-red-700 text-[10px] font-black px-1.5 py-0.5 rounded-full">
+                          <span className="bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300 text-[10px] font-black px-1.5 py-0.5 rounded-full">
                             {alert.count} محاولة
                           </span>
                         )}
                       </p>
-                      <p className="text-xs text-gray-500 mt-0.5">{alert.academic_stage}</p>
-                      <p className="text-xs text-orange-700 font-semibold mt-1 flex items-center flex-wrap gap-1">
-                        {alert.count > 1
-                          ? `أجهزة جديدة: ${[...new Set(alert.devices)].join(' · ')}`
-                          : `محاولة دخول من جهاز جديد: ${alert.device_name}`}
+                      <p className="text-xs text-gray-500 dark:text-[var(--dk-text-2)] mt-0.5">{alert.academic_stage}</p>
+                      <div className="text-xs text-orange-700 dark:text-orange-400 font-semibold mt-1 flex items-center flex-wrap gap-1.5 break-words">
+                        <span>
+                          {alert.count > 1
+                            ? `أجهزة جديدة: ${[...new Set(alert.devices)].join(' · ')}`
+                            : `محاولة دخول من جهاز جديد: ${alert.device_name}`}
+                        </span>
                         {typeof alert.similarity_score === 'number' && alert.similarity_score > 0 && (
-                          <span className="bg-purple-100 text-purple-800 text-[10px] font-bold px-2 py-0.5 rounded-full mr-2">
+                          <span className="bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 text-[10px] font-bold px-2 py-0.5 rounded-full">
                             تطابق عتادي: {alert.similarity_score}%
                           </span>
                         )}
-                      </p>
-                      <p className="text-[10px] text-blue-600 font-medium mt-0.5">
+                      </div>
+                      <p className="text-[10px] text-blue-600 dark:text-blue-400 font-medium mt-0.5">
                         ✓ جهازه الأصلي لا يزال يعمل بشكل طبيعي
                       </p>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        {new Date(alert.created_at).toLocaleString('ar-EG')}
-                        {alert.ip_address && <span className="mr-2 font-mono">IP: {alert.ip_address}</span>}
+                      <p className="text-xs text-gray-400 dark:text-[var(--dk-text-3)] mt-0.5 flex items-center flex-wrap gap-2">
+                        <span>{new Date(alert.created_at).toLocaleString('ar-EG')}</span>
+                        {alert.ip_address && <span className="font-mono" dir="ltr">IP: {alert.ip_address}</span>}
                       </p>
                       {hwTag(alert) && (
-                        <p className="text-[10px] font-mono text-gray-500 mt-0.5 truncate" dir="ltr" title="بصمة العتاد — نفس القيمة تعني نفس الجهاز الفعلي">
+                        <p className="text-[10px] font-mono text-gray-400 dark:text-[var(--dk-text-3)] mt-0.5 truncate max-w-full block" dir="ltr" title="بصمة العتاد — نفس القيمة تعني نفس الجهاز الفعلي">
                           {hwTag(alert)}
                         </p>
                       )}
                     </div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
+                  <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 flex-shrink-0 w-full xl:w-auto pt-2.5 xl:pt-0 border-t xl:border-t-0 border-gray-100 dark:border-[var(--dk-border)]">
                     <button
                       onClick={() => setDevicesModal({ id: alert.student_id, student_id: alert.student_id, name: alert.student_name })}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 text-xs font-bold hover:bg-blue-100 transition-colors"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 text-xs font-bold hover:bg-blue-100 dark:hover:bg-blue-500/20 border border-blue-100 dark:border-blue-500/20 transition-colors"
                       title="عرض الأجهزة المسجّلة للطالب حالياً"
                     >
                       <Smartphone className="w-3.5 h-3.5" /> الأجهزة
                     </button>
                     {canEdit && (
                       <>
-                        {/* Option 3: Add new device alongside old device (Allow both) */}
                         <button
                           onClick={() => actionMut.mutate({ alertId: alert.id, action: 'add_new_device' })}
                           disabled={actionMut.isPending}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-50 text-green-700 text-xs font-bold hover:bg-green-100 border border-green-200 transition-colors"
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-300 text-xs font-bold hover:bg-green-100 dark:hover:bg-green-500/20 border border-green-200 dark:border-green-500/30 transition-colors"
                           title="إضافة الجهاز الجديد كجهاز مصرّح به مع الاحتفاظ بالأجهزة القديمة"
                         >
-                          <PlusCircle className="w-3.5 h-3.5 text-green-600" /> إضافة جهاز إضافي
+                          <PlusCircle className="w-3.5 h-3.5 text-green-600 dark:text-green-400" /> إضافة جهاز إضافي
                         </button>
 
-                        {/* Option 1: Switch to new device (Delete old, set new) */}
                         <button
                           onClick={() => actionMut.mutate({ alertId: alert.id, action: 'switch_to_new_device' })}
                           disabled={actionMut.isPending}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-50 text-orange-700 text-xs font-bold hover:bg-orange-100 border border-orange-200 transition-colors"
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-50 dark:bg-orange-500/10 text-orange-700 dark:text-orange-300 text-xs font-bold hover:bg-orange-100 dark:hover:bg-orange-500/20 border border-orange-200 dark:border-orange-500/30 transition-colors"
                           title="مسح الأجهزة القديمة وتعيين الجهاز الجديد فقط كجهاز وحيد للطالب"
                         >
-                          <RefreshCw className="w-3.5 h-3.5 text-orange-600" /> استبدال بالجديد
+                          <RefreshCw className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" /> استبدال بالجديد
                         </button>
 
-                        {/* Option 2: Keep original device only (Reject new) */}
                         <button
                           onClick={() => actionMut.mutate({ alertId: alert.id, action: 'keep_original_device' })}
                           disabled={actionMut.isPending}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-50 text-gray-700 text-xs font-bold hover:bg-gray-100 border border-gray-200 transition-colors"
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-white/5 text-gray-700 dark:text-[var(--dk-text-2)] text-xs font-bold hover:bg-gray-100 dark:hover:bg-white/10 border border-gray-200 dark:border-white/10 transition-colors"
                           title="رفض محاولة الدخول من الجهاز الجديد وإبقاء الجهاز القديم فقط"
                         >
-                          <ShieldCheck className="w-3.5 h-3.5 text-gray-500" /> إبقاء القديم فقط
+                          <ShieldCheck className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400" /> إبقاء القديم فقط
                         </button>
-
                       </>
                     )}
                   </div>
@@ -517,32 +516,36 @@ function DeviceAlertsPanel({ canEdit }) {
 
       {/* Resolved History */}
       {(statusFilter === 'all' || statusFilter === 'resolved') && filteredResolved.length > 0 && (
-        <div className="card !p-0 overflow-visible">
-          <div className="p-4 border-b border-gray-100 flex items-center gap-2 rounded-t-2xl">
-            <CheckCircle className="w-4 h-4 text-gray-500" />
-            <span className="font-black text-gray-600 text-sm">السجل السابق</span>
-            <span className="bg-gray-200 text-gray-600 text-xs font-black px-2 py-0.5 rounded-full">{filteredResolved.length}</span>
+        <div className="card !p-0 overflow-hidden bg-white dark:bg-[var(--dk-surface)] border border-gray-200/80 dark:border-[var(--dk-border)]">
+          <div className="p-3.5 sm:p-4 border-b border-gray-100 dark:border-[var(--dk-border)] bg-gray-50/60 dark:bg-[var(--dk-elevated)]/40 flex items-center gap-2 rounded-t-2xl flex-wrap">
+            <CheckCircle className="w-4 h-4 text-gray-500 dark:text-[var(--dk-text-3)] flex-shrink-0" />
+            <span className="font-black text-gray-600 dark:text-[var(--dk-text-2)] text-sm">السجل السابق</span>
+            <span className="bg-gray-200 dark:bg-white/10 text-gray-600 dark:text-[var(--dk-text-2)] text-xs font-black px-2 py-0.5 rounded-full">{filteredResolved.length}</span>
             {hasActiveFilters && filteredResolved.length !== resolved.length && (
-              <span className="text-gray-400 text-xs font-semibold">من أصل {resolved.length}</span>
+              <span className="text-gray-400 dark:text-[var(--dk-text-3)] text-xs font-semibold">من أصل {resolved.length}</span>
             )}
           </div>
-          <div className="divide-y divide-gray-100">
+          <div className="divide-y divide-gray-100 dark:divide-[var(--dk-border)]">
             {filteredResolved.slice(0, 20).map(alert => {
               const st = statusLabel(alert.status);
               return (
-                <div key={alert.id} className="p-4 flex items-center justify-between gap-3 opacity-75">
-                  <div>
-                    <p className="font-bold text-navy-700 text-sm">{alert.student_name}
-                      <span className="font-mono text-xs text-gray-500 mr-2">({alert.student_username})</span>
+                <div key={alert.id} className="p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 opacity-80 hover:opacity-100 transition-opacity">
+                  <div className="min-w-0 flex-1 overflow-hidden">
+                    <p className="font-bold text-navy-700 dark:text-[var(--dk-text-1)] text-sm flex items-center flex-wrap gap-1.5 break-words">
+                      <span>{alert.student_name}</span>
+                      <span className="font-mono text-xs text-gray-500 dark:text-[var(--dk-text-3)]" dir="ltr">({alert.student_username})</span>
                     </p>
-                    <p className="text-xs text-gray-400 mt-0.5">{alert.academic_stage && <span className="ml-2">{alert.academic_stage}</span>}{new Date(alert.created_at).toLocaleString('ar-EG')} — {alert.device_name}</p>
+                    <p className="text-xs text-gray-400 dark:text-[var(--dk-text-3)] mt-0.5 break-words">
+                      {alert.academic_stage && <span className="ml-2 text-gray-500 dark:text-[var(--dk-text-2)]">{alert.academic_stage}</span>}
+                      {new Date(alert.created_at).toLocaleString('ar-EG')} — {alert.device_name}
+                    </p>
                     {hwTag(alert) && (
-                      <p className="text-[10px] font-mono text-gray-400 mt-0.5 truncate" dir="ltr" title="بصمة العتاد — نفس القيمة تعني نفس الجهاز الفعلي">
+                      <p className="text-[10px] font-mono text-gray-400 dark:text-[var(--dk-text-3)] mt-0.5 truncate max-w-full block" dir="ltr" title="بصمة العتاد — نفس القيمة تعني نفس الجهاز الفعلي">
                         {hwTag(alert)}
                       </p>
                     )}
                   </div>
-                  <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${st.cls}`}>{st.text}</span>
+                  <span className={`text-xs font-bold px-2.5 py-1 rounded-full flex-shrink-0 self-start sm:self-center ${st.cls}`}>{st.text}</span>
                 </div>
               );
             })}
@@ -552,15 +555,15 @@ function DeviceAlertsPanel({ canEdit }) {
 
       {/* No results from filters */}
       {alerts.length > 0 && hasActiveFilters && filteredPending.length === 0 && filteredResolved.length === 0 && (
-        <div className="card flex flex-col items-center justify-center py-14 gap-3">
-          <div className="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center">
-            <Search className="w-7 h-7 text-gray-400" />
+        <div className="card flex flex-col items-center justify-center py-14 gap-3 bg-white dark:bg-[var(--dk-surface)] border border-gray-200/80 dark:border-[var(--dk-border)]">
+          <div className="w-14 h-14 rounded-2xl bg-gray-50 dark:bg-white/5 flex items-center justify-center">
+            <Search className="w-7 h-7 text-gray-400 dark:text-[var(--dk-text-3)]" />
           </div>
-          <p className="font-bold text-gray-600">لا توجد نتائج مطابقة</p>
-          <p className="text-xs text-gray-400">جرّب تغيير كلمة البحث أو الفلاتر</p>
+          <p className="font-bold text-gray-600 dark:text-[var(--dk-text-1)]">لا توجد نتائج مطابقة</p>
+          <p className="text-xs text-gray-400 dark:text-[var(--dk-text-3)]">جرّب تغيير كلمة البحث أو الفلاتر</p>
           <button
             onClick={() => { setAlertSearch(''); setStatusFilter('all'); setStageFilterA('الكل'); }}
-            className="mt-1 text-xs font-bold text-orange-600 hover:underline"
+            className="mt-1 text-xs font-bold text-orange-600 dark:text-orange-400 hover:underline"
           >
             مسح الفلاتر
           </button>
@@ -568,12 +571,12 @@ function DeviceAlertsPanel({ canEdit }) {
       )}
 
       {alerts.length === 0 && (
-        <div className="card flex flex-col items-center justify-center py-16 gap-3">
-          <div className="w-14 h-14 rounded-2xl bg-green-50 flex items-center justify-center">
-            <CheckCircle className="w-7 h-7 text-green-500" />
+        <div className="card flex flex-col items-center justify-center py-16 gap-3 bg-white dark:bg-[var(--dk-surface)] border border-gray-200/80 dark:border-[var(--dk-border)]">
+          <div className="w-14 h-14 rounded-2xl bg-green-50 dark:bg-green-500/10 flex items-center justify-center">
+            <CheckCircle className="w-7 h-7 text-green-500 dark:text-green-400" />
           </div>
-          <p className="font-bold text-gray-600">لا توجد تحذيرات حتى الآن</p>
-          <p className="text-xs text-gray-400">ستظهر هنا أي محاولات تسجيل دخول مشبوهة</p>
+          <p className="font-bold text-gray-600 dark:text-[var(--dk-text-1)]">لا توجد تحذيرات حتى الآن</p>
+          <p className="text-xs text-gray-400 dark:text-[var(--dk-text-3)]">ستظهر هنا أي محاولات تسجيل دخول مشبوهة</p>
         </div>
       )}
 
@@ -581,35 +584,40 @@ function DeviceAlertsPanel({ canEdit }) {
       <Modal open={!!devicesModal} onClose={() => setDevicesModal(null)} title={`الأجهزة المسجّلة — ${devicesModal?.name}`}>
         <div className="space-y-3">
           {devices.length === 0 ? (
-            <p className="text-center text-gray-500 py-6 text-sm">لم يُسجَّل أي جهاز بعد</p>
+            <p className="text-center text-gray-500 dark:text-[var(--dk-text-3)] py-6 text-sm">لم يُسجَّل أي جهاز بعد</p>
           ) : devices.map((d, i) => (
-            <div key={d.id || d.device_id} className="flex items-center justify-between gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
+            <div key={d.id || d.device_id} className="flex items-center justify-between gap-3 p-3 bg-gray-50 dark:bg-white/[0.03] rounded-xl border border-gray-100 dark:border-white/10">
               <div className="flex items-start gap-3 flex-1 min-w-0">
-                <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                <div className="w-9 h-9 rounded-lg bg-blue-100 dark:bg-blue-500/20 flex items-center justify-center flex-shrink-0">
                   {/iPad|Tab|Tablet/i.test(d.device_name || '') ? (
-                    <Tablet className="w-4 h-4 text-blue-600" />
+                    <Tablet className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                   ) : /Android|iOS|iPhone|Samsung|Xiaomi|Redmi|POCO|Oppo|Realme|Infinix|Tecno|Vivo|Huawei|Honor|Pixel/i.test(d.device_name || '') ? (
-                    <Smartphone className="w-4 h-4 text-blue-600" />
+                    <Smartphone className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                   ) : (
-                    <Monitor className="w-4 h-4 text-blue-600" />
+                    <Monitor className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                   )}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-bold text-sm text-navy-700">{d.device_name || 'جهاز غير معروف'}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">
+                <div className="flex-1 min-w-0 overflow-hidden">
+                  <p className="font-bold text-sm text-navy-700 dark:text-[var(--dk-text-1)] break-words">{d.device_name || 'جهاز غير معروف'}</p>
+                  <p className="text-xs text-gray-500 dark:text-[var(--dk-text-2)] mt-0.5 break-words">
                     أول دخول: {new Date(d.first_seen).toLocaleDateString('ar-EG')}
                     &nbsp;·&nbsp;آخر دخول: {new Date(d.last_seen).toLocaleDateString('ar-EG')}
                   </p>
-                  {d.ip_address && <p className="text-xs text-gray-400 font-mono mt-0.5">IP: {d.ip_address}</p>}
+                  {d.ip_address && <p className="text-xs text-gray-400 dark:text-[var(--dk-text-3)] font-mono mt-0.5" dir="ltr">IP: {d.ip_address}</p>}
+                  {hwTag(d) && (
+                    <p className="text-[10px] font-mono text-gray-400 dark:text-[var(--dk-text-3)] mt-0.5 truncate max-w-full block" dir="ltr" title="بصمة العتاد">
+                      {hwTag(d)}
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
-                <span className="text-xs bg-navy-100 text-navy-700 font-black px-2 py-0.5 rounded-full">جهاز {i + 1}</span>
+                <span className="text-xs bg-navy-100 dark:bg-white/10 text-navy-700 dark:text-[var(--dk-text-1)] font-black px-2 py-0.5 rounded-full">جهاز {i + 1}</span>
                 {canEdit && (
                   <button
                     onClick={() => deleteDeviceMut.mutate({ studentId: devicesModal.student_id || devicesModal.id, deviceId: d.device_id || d.id })}
                     disabled={deleteDeviceMut.isPending}
-                    className="p-1.5 text-red-500 hover:bg-red-50 hover:text-red-700 rounded-lg transition-colors"
+                    className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/20 hover:text-red-700 dark:hover:text-red-300 rounded-lg transition-colors"
                     title="حذف هذا الجهاز من حساب الطالب"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -1263,18 +1271,18 @@ export default function TeacherStudents() {
     <div className="space-y-5">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <h1 className="text-2xl font-black text-navy-600 flex items-center gap-2">
+        <h1 className="text-2xl font-black text-navy-600 dark:text-[var(--dk-text-1)] flex items-center gap-2">
           <Users className="w-7 h-7 text-orange-500" /> الطلاب
-          <span className="text-sm font-semibold text-gray-600">({totalCount})</span>
+          <span className="text-sm font-semibold text-gray-600 dark:text-[var(--dk-text-3)]">({totalCount})</span>
         </h1>
         <div className="flex gap-2 flex-wrap items-center">
           {canPrint && (
-            <button onClick={handlePrint} disabled={reportLoading} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-slate-100">
+            <button onClick={handlePrint} disabled={reportLoading} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-600 dark:text-[var(--dk-text-2)] text-sm font-semibold transition-all border border-transparent dark:border-[var(--dk-border)] disabled:opacity-50 disabled:cursor-not-allowed">
               <Printer className="w-4 h-4" /> طباعة
             </button>
           )}
           {canPrint && (
-            <button onClick={handleExportExcel} disabled={reportLoading} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-50">
+            <button onClick={handleExportExcel} disabled={reportLoading} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/20 text-blue-700 dark:text-blue-300 text-sm font-semibold transition-all border border-transparent dark:border-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed">
               <Download className="w-4 h-4" /> تصدير
             </button>
           )}
@@ -1284,13 +1292,13 @@ export default function TeacherStudents() {
               <input ref={modelFileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleModelFile} />
 
               {/* Divider */}
-              <div className="w-px h-6 bg-slate-200 mx-1" />
+              <div className="w-px h-6 bg-slate-200 dark:bg-[var(--dk-border)] mx-1" />
 
               <button onClick={openModelModal} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-navy-600 hover:bg-navy-700 text-white text-sm font-semibold transition-all relative shadow-sm">
                 <Layers className="w-4 h-4" />
                 نموذج
                 {activeModel && (
-                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-orange-400 rounded-full border-2 border-white shadow" />
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-orange-400 rounded-full border-2 border-white dark:border-[var(--dk-surface)] shadow" />
                 )}
               </button>
               <button onClick={() => importFileRef.current?.click()} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-all shadow-sm">
@@ -1308,7 +1316,7 @@ export default function TeacherStudents() {
                 setBulkDeleteConfirm('');
                 setBulkDeleteOpen(true);
               }}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 text-sm font-semibold transition-all border border-red-200"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 text-red-700 dark:text-red-300 text-sm font-semibold transition-all border border-red-200 dark:border-red-500/20"
               title="حذف كل طلاب مرحلة دراسية واحدة"
             >
               <Trash2 className="w-4 h-4" /> حذف دفعة
@@ -1322,8 +1330,8 @@ export default function TeacherStudents() {
         <button
           onClick={() => setMainView('students')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${mainView === 'students'
-            ? 'bg-navy-600 text-white shadow-sm'
-            : 'bg-white border border-slate-200 text-gray-600 hover:bg-gray-50'
+            ? 'bg-navy-600 dark:bg-orange-600 text-white shadow-sm'
+            : 'bg-white dark:bg-[var(--dk-surface)] border border-slate-200 dark:border-[var(--dk-border-md)] text-gray-600 dark:text-[var(--dk-text-2)] hover:bg-gray-50 dark:hover:bg-[var(--dk-hover)] hover:text-navy-900 dark:hover:text-white'
             }`}
         >
           <Users className="w-4 h-4" /> قائمة الطلاب
@@ -1332,7 +1340,7 @@ export default function TeacherStudents() {
           onClick={() => setMainView('alerts')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all relative ${mainView === 'alerts'
             ? 'bg-red-600 text-white shadow-sm'
-            : 'bg-white border border-slate-200 text-gray-600 hover:bg-red-50'
+            : 'bg-white dark:bg-[var(--dk-surface)] border border-slate-200 dark:border-[var(--dk-border-md)] text-gray-600 dark:text-[var(--dk-text-2)] hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 dark:hover:text-red-400'
             }`}
         >
           <ShieldAlert className="w-4 h-4" />
