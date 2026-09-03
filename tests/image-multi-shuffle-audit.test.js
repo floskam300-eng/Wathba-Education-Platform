@@ -644,7 +644,14 @@ async function runTests() {
     const r = await request('GET', `/api/exams/results/${bankResultId}/review`, null, T.teacherToken);
     assert(r.status === 200);
     const correctCount = r.body.result?.correct_count;
-    const correctFromQs = (r.body.questions || []).filter(q => q.is_correct === true).length;
+    let correctFromQs = 0;
+    for (const q of (r.body.questions || [])) {
+      if (q.question_type === 'image_multi' && Array.isArray(q.sub_results)) {
+        correctFromQs += q.sub_results.filter(sr => sr.is_correct).length;
+      } else if (q.is_correct) {
+        correctFromQs++;
+      }
+    }
     // DB-stored count should match derived count from questions array
     assert(
       correctCount === correctFromQs,
@@ -747,7 +754,14 @@ async function runTests() {
     const result = r.body.result;
     const review = r.body.review || [];
     // Recompute correct count
-    const correctQs = review.filter(q => q.is_correct).length;
+    let correctQs = 0;
+    for (const q of review) {
+      if (q.question_type === 'image_multi' && Array.isArray(q.sub_results)) {
+        correctQs += q.sub_results.filter(sr => sr.is_correct).length;
+      } else if (q.is_correct) {
+        correctQs++;
+      }
+    }
     assert(
       result.correct_count == null || result.correct_count === correctQs,
       `correct_count mismatch: result.correct_count=${result.correct_count}, derived=${correctQs}`

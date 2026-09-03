@@ -1202,6 +1202,7 @@ CREATE INDEX IF NOT EXISTS idx_recitation_results_rec_student_created
   ON recitation_results(recitation_id, student_id, created_at DESC, id DESC);
 -- [SH-1] Store shuffled questions snapshot so review endpoint uses correct correct_answer_letter
 ALTER TABLE recitation_results ADD COLUMN IF NOT EXISTS questions_snapshot JSONB DEFAULT NULL;
+ALTER TABLE exam_results ADD COLUMN IF NOT EXISTS questions_snapshot JSONB DEFAULT NULL;
 
 -- image_multi support for bank_questions
 ALTER TABLE bank_questions ADD COLUMN IF NOT EXISTS sub_questions JSONB DEFAULT '[]';

@@ -4,6 +4,36 @@ const pool = require('../db/connection');
 
 const VALID_ANSWER_LETTERS = new Set(['A', 'B', 'C', 'D']);
 
+function seededShuffle(arr, seed) {
+  const a = [...arr];
+  let s = seed >>> 0;
+  for (let i = a.length - 1; i > 0; i--) {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    const j = s % (i + 1);
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function shuffleImgMultiSubQs(subQs, baseSeed, questionId) {
+  const LETTERS = ['A', 'B', 'C', 'D'];
+  return subQs.map((sub, subIdx) => {
+    if (sub.type === 'true_false') return sub;
+    const optCount = sub.option_labels ? Math.min(sub.option_labels.length, 4) : 4;
+    if (optCount < 2) return sub;
+    const origPositions = Array.from({ length: optCount }, (_, i) => i);
+    const subSeed = ((baseSeed >>> 0) ^ ((questionId * 1000003) >>> 0) ^ ((subIdx * 31337) >>> 0)) >>> 0;
+    const shuffled = seededShuffle(origPositions, subSeed || 1);
+    const origCorrectIdx = LETTERS.indexOf(String(sub.correct || '').toUpperCase());
+    const newCorrectIdx = shuffled.indexOf(origCorrectIdx);
+    const newCorrect = (origCorrectIdx >= 0 && newCorrectIdx >= 0) ? LETTERS[newCorrectIdx] : sub.correct;
+    const newOptionLabels = sub.option_labels
+      ? shuffled.map(origIdx => sub.option_labels[origIdx] !== undefined ? sub.option_labels[origIdx] : null)
+      : null;
+    return { ...sub, option_labels: newOptionLabels, correct: newCorrect };
+  });
+}
+
 /**
  * Pure function to calculate score, counts, and detailed answers
  * for a given list of recitation questions and the student's answers.
@@ -233,7 +263,47 @@ async function autoSubmitExpiredRecitationSession(poolOrClient, session, recitat
       return null;
     }
 
-    const snapshot = Array.isArray(sess.questions_snapshot) ? sess.questions_snapshot : [];
+    let snapshot = Array.isArray(sess.questions_snapshot)
+      ? sess.questions_snapshot
+      : (typeof sess.questions_snapshot === 'string' ? (() => { try { return JSON.parse(sess.questions_snapshot); } catch { return []; } })() : []);
+
+    if (!snapshot.length) {
+      const { rows: questions } = await client.query(
+        'SELECT * FROM recitation_questions WHERE recitation_id=$1 ORDER BY sort_order ASC, id ASC',
+        [recitationId]
+      );
+      const seed = (studentId * 73856093) ^ (recitationId * 19349663);
+      snapshot = fullRec?.shuffle_questions ? seededShuffle(questions, seed) : [...questions];
+      if (fullRec?.shuffle_options) {
+        snapshot = snapshot.map(q => {
+          if (q.question_type === 'mcq') {
+            const opts = [
+              { letter: 'A', text: q.option_a },
+              { letter: 'B', text: q.option_b },
+              q.option_c ? { letter: 'C', text: q.option_c } : null,
+              q.option_d ? { letter: 'D', text: q.option_d } : null,
+            ].filter(Boolean);
+            const shuffledOpts = seededShuffle(opts, seed ^ q.id);
+            const letterMap = {};
+            ['A', 'B', 'C', 'D'].forEach((l, i) => {
+              if (shuffledOpts[i]) letterMap[shuffledOpts[i].letter] = l;
+            });
+            return {
+              ...q,
+              option_a: shuffledOpts[0]?.text || null,
+              option_b: shuffledOpts[1]?.text || null,
+              option_c: shuffledOpts[2]?.text || null,
+              option_d: shuffledOpts[3]?.text || null,
+              correct_answer_letter: letterMap[q.correct_answer_letter] || q.correct_answer_letter,
+            };
+          }
+          if (q.question_type === 'image_multi' && Array.isArray(q.sub_questions) && q.sub_questions.length > 0) {
+            return { ...q, sub_questions: shuffleImgMultiSubQs(q.sub_questions, seed, q.id) };
+          }
+          return q;
+        });
+      }
+    }
 
     const {
       finalScore,

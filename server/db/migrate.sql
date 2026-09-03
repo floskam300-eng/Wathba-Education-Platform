@@ -584,6 +584,7 @@ CREATE INDEX IF NOT EXISTS idx_recitation_results_student ON recitation_results(
 CREATE INDEX IF NOT EXISTS idx_recitation_results_recitation ON recitation_results(recitation_id);
 
 ALTER TABLE recitation_results ADD COLUMN IF NOT EXISTS questions_snapshot JSONB DEFAULT NULL;
+ALTER TABLE exam_results ADD COLUMN IF NOT EXISTS questions_snapshot JSONB DEFAULT NULL;
 
 ALTER TABLE bank_questions ADD COLUMN IF NOT EXISTS sub_questions JSONB DEFAULT '[]';
 

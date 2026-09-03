@@ -29,9 +29,14 @@ function seededShuffle(arr, seed) {
 }
 
 function getShuffledOpts(q, studentId, shuffleOptions) {
+  if (Array.isArray(q?.shuffled_options) && q.shuffled_options.length > 0) {
+    return q.shuffled_options;
+  }
   const allOpts = ['A', 'B', 'C', 'D'].filter(o => q[`option_${o.toLowerCase()}`]);
   if (!shuffleOptions) return allOpts;
-  const seed = (((studentId || 1) * 1000003) ^ ((q.id || 1) * 999983)) >>> 0;
+  const sId = parseInt(studentId, 10) || 1;
+  const qId = parseInt(q.id, 10) || 1;
+  const seed = ((sId * 1000003) ^ (qId * 999983)) >>> 0;
   return seededShuffle(allOpts, seed || 1);
 }
 
@@ -826,7 +831,7 @@ export default function StudentExams() {
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                     {(() => {
-                       const shuffledOpts = q._displayOpts || shuffledQuestionsOpts[q.id] || getShuffledOpts(q, studentId, exam.shuffle_options);
+                       const shuffledOpts = q.shuffled_options || q._displayOpts || shuffledQuestionsOpts[q.id] || getShuffledOpts(q, studentId, exam.shuffle_options);
                        const defaultArabic = ['أ', 'ب', 'ج', 'د'];
                        const displayLabels = Array.isArray(q.option_labels) && q.option_labels.length > 0 ? q.option_labels : defaultArabic;
                        return shuffledOpts.map((origOpt, idx) => (

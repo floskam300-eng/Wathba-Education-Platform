@@ -147,15 +147,16 @@ async function autoSubmitExpiredExamSession(pool, sess, examRow, studentId, exam
           'SELECT id, question_type, correct_answer_letter, points, sub_questions FROM questions WHERE exam_id=$1 AND id = ANY($2)',
           [examId, snapshotIds]
         );
-        const snapSubQsMap = {};
-        snapshot.forEach(sq => {
-          if (sq.question_type === 'image_multi') snapSubQsMap[sq.id] = sq.sub_questions;
+        const qrMap = new Map(qr.rows.map(q => [q.id, q]));
+        questionsData = snapshot.map(sq => {
+          const dbQ = qrMap.get(sq.id) || sq;
+          return {
+            ...sq,
+            correct_answer_letter: dbQ.correct_answer_letter,
+            points: dbQ.points,
+            ...(sq.question_type === 'image_multi' && sq.sub_questions ? { sub_questions: sq.sub_questions } : (dbQ.question_type ? { question_type: dbQ.question_type } : {}))
+          };
         });
-        questionsData = qr.rows.map(q =>
-          (q.question_type === 'image_multi' && snapSubQsMap[q.id])
-            ? { ...q, sub_questions: snapSubQsMap[q.id] }
-            : q
-        );
       } else {
         const qr = await client.query(
           'SELECT id, question_type, correct_answer_letter, points, sub_questions FROM questions WHERE exam_id=$1 ORDER BY id',
@@ -182,10 +183,10 @@ async function autoSubmitExpiredExamSession(pool, sess, examRow, studentId, exam
 
     const insertRes = await client.query(
       `INSERT INTO exam_results
-         (student_id, exam_id, score, correct_count, wrong_count, unanswered_count, start_time, end_time, answers, points_earned, attempt_number, is_latest, is_absent)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8, $9, $10, true, false)
+         (student_id, exam_id, score, correct_count, wrong_count, unanswered_count, start_time, end_time, answers, points_earned, attempt_number, is_latest, is_absent, questions_snapshot)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8, $9, $10, true, false, $11)
        RETURNING *`,
-      [studentId, examId, normalizedScore, correct, wrong, unanswered, startedAt, JSON.stringify(detailedAnswers), pointsEarned, nextAttemptNumber]
+      [studentId, examId, normalizedScore, correct, wrong, unanswered, startedAt, JSON.stringify(detailedAnswers), pointsEarned, nextAttemptNumber, JSON.stringify(snapshot)]
     );
 
     if (pointsEarned > 0) {

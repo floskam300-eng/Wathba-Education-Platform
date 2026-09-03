@@ -29,9 +29,14 @@ function seededShuffle(arr, seed) {
 }
 
 function getShuffledOpts(q, studentId, shuffleOptions) {
+  if (Array.isArray(q?.shuffled_options) && q.shuffled_options.length > 0) {
+    return q.shuffled_options;
+  }
   const allOpts = ['A', 'B', 'C', 'D'].filter(o => q[`option_${o.toLowerCase()}`]);
   if (!shuffleOptions) return allOpts;
-  const seed = (((studentId || 1) * 1000003) ^ ((q.id || 1) * 999983)) >>> 0;
+  const sId = parseInt(studentId, 10) || 1;
+  const qId = parseInt(q.id, 10) || 1;
+  const seed = ((sId * 1000003) ^ (qId * 999983)) >>> 0;
   return seededShuffle(allOpts, seed || 1);
 }
 
@@ -90,7 +95,7 @@ export default function ExamReviewPage() {
   const pct    = result && result.total_score > 0 ? Math.round((result.score / result.total_score) * 100) : 0;
 
   const shuffleOptions = result?.shuffle_options || false;
-  const studentId      = result?.student_id || 0;
+  const studentId      = parseInt(result?.student_id, 10) || 0;
   const [lightboxSrc, setLightboxSrc] = useState(null);
 
   // Use the authoritative DB-stored counts (computed at submission time).

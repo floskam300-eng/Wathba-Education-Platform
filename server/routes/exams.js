@@ -1585,6 +1585,25 @@ function shuffleImgMultiSubQs(subQs, baseSeed, questionId) {
   });
 }
 
+// Deterministic MCQ option shuffler — matches client getShuffledOpts and tests exactly.
+function getShuffledMcqOpts(q, studentId) {
+  const allOpts = ['A', 'B', 'C', 'D'].filter(o => q[`option_${o.toLowerCase()}`]);
+  const sId = parseInt(studentId, 10) || 1;
+  const qId = parseInt(q.id, 10) || 1;
+  const seed = ((sId * 1000003) ^ (qId * 999983)) >>> 0;
+  const result = [...allOpts];
+  let s = seed >>> 0;
+  const rand = () => {
+    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+    return s / 0x100000000;
+  };
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
 // ── Student: take exam ──
 router.get('/:id/take', requireRole('student'), async (req, res) => {
   const examId = parseParamId(req.params.id);
@@ -1692,15 +1711,24 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
       }
     }
 
-    // ── Shuffle image_multi sub-question options server-side (bank AND manual exams) ──
+    // ── Shuffle image_multi sub-question options and MCQ options server-side (bank AND manual exams) ──
     // Must happen AFTER question selection so the shuffled order is captured in the
     // snapshot. Scoring and review both read from the snapshot, so they stay consistent.
-    // Seed formula must match the one used in GET /results/:resultId/review.
     if (exam.shuffle_options) {
       const imgMultiSeed = ((studentId * 31 + examId * 17) >>> 0);
       questions = questions.map(q => {
-        if (q.question_type !== 'image_multi' || !Array.isArray(q.sub_questions) || !q.sub_questions.length) return q;
-        return { ...q, sub_questions: shuffleImgMultiSubQs(q.sub_questions, imgMultiSeed, q.id) };
+        if (q.question_type === 'image_multi') {
+          return (Array.isArray(q.sub_questions) && q.sub_questions.length)
+            ? { ...q, sub_questions: shuffleImgMultiSubQs(q.sub_questions, imgMultiSeed, q.id) }
+            : q;
+        }
+        if (q.question_type !== 'true_false') {
+          return {
+            ...q,
+            shuffled_options: getShuffledMcqOpts(q, studentId),
+          };
+        }
+        return q;
       });
     }
 
@@ -1973,13 +2001,16 @@ router.post('/:id/submit', submitLimiter, requireRole('student'), async (req, re
         // correct letters — we MUST use the snapshot version, not the original DB version.
         const snapshotIds = serverSession.questions_snapshot.map(q => q.id);
         const qr = await pool.query('SELECT id, question_type, correct_answer_letter, points, sub_questions FROM questions WHERE exam_id=$1 AND id = ANY($2)', [examId, snapshotIds]);
-        const snapSubQsMap = {};
-        serverSession.questions_snapshot.forEach(sq => { if (sq.question_type === 'image_multi') snapSubQsMap[sq.id] = sq.sub_questions; });
-        questionsData = qr.rows.map(q =>
-          (q.question_type === 'image_multi' && snapSubQsMap[q.id])
-            ? { ...q, sub_questions: snapSubQsMap[q.id] }
-            : q
-        );
+        const qrMap = new Map(qr.rows.map(q => [q.id, q]));
+        questionsData = serverSession.questions_snapshot.map(sq => {
+          const dbQ = qrMap.get(sq.id) || sq;
+          return {
+            ...sq,
+            correct_answer_letter: dbQ.correct_answer_letter,
+            points: dbQ.points,
+            ...(sq.question_type === 'image_multi' && sq.sub_questions ? { sub_questions: sq.sub_questions } : (dbQ.question_type ? { question_type: dbQ.question_type } : {}))
+          };
+        });
       } else {
         return res.status(409).json({
           error: 'جلسة الاختبار غير موجودة أو انتهت — يرجى الدخول للاختبار مجدداً ثم التسليم',
@@ -2065,8 +2096,8 @@ router.post('/:id/submit', submitLimiter, requireRole('student'), async (req, re
     // the 409 check above counts absent rows as "students who took this exam", which is misleading.
     // The 409 prompt is handled earlier in the publish flow — this comment is just for context.
     const resultRow = await client.query(
-      'INSERT INTO exam_results (student_id,exam_id,score,correct_count,wrong_count,unanswered_count,start_time,end_time,answers,points_earned,attempt_number,is_latest) VALUES($1,$2,$3,$4,$5,$6,$7,NOW(),$8,$9,$10,true) RETURNING *',
-      [studentId, examId, normalizedScore, correct, wrong, unanswered, safeStartTime, JSON.stringify(detailedAnswers), pointsEarned, nextAttemptNumber]
+      'INSERT INTO exam_results (student_id,exam_id,score,correct_count,wrong_count,unanswered_count,start_time,end_time,answers,points_earned,attempt_number,is_latest,questions_snapshot) VALUES($1,$2,$3,$4,$5,$6,$7,NOW(),$8,$9,$10,true,$11) RETURNING *',
+      [studentId, examId, normalizedScore, correct, wrong, unanswered, safeStartTime, JSON.stringify(detailedAnswers), pointsEarned, nextAttemptNumber, JSON.stringify(serverSession?.questions_snapshot || questionsData)]
     );
 
     if (pointsEarned > 0)
@@ -2246,10 +2277,10 @@ router.get('/results/:resultId/review', requireRole('teacher', 'assistant', 'stu
     const resultRes = await pool.query(
       `SELECT er.id, er.student_id, er.exam_id, er.score, er.correct_count, er.wrong_count,
               er.unanswered_count, er.points_earned, er.start_time, er.end_time, er.created_at,
-              er.answers, er.attempt_number, er.is_latest, er.is_absent,
+              er.answers, er.attempt_number, er.is_latest, er.is_absent, er.questions_snapshot,
               s.name  AS student_name,
               e.title AS exam_title, e.total_score, e.pass_score, e.teacher_id AS exam_teacher_id,
-              e.question_source, e.bank_id, e.shuffle_options
+              e.question_source, e.bank_id, e.shuffle_questions, e.shuffle_options
        FROM exam_results er
        JOIN students s ON er.student_id = s.id
        JOIN exams e    ON er.exam_id    = e.id
@@ -2275,28 +2306,59 @@ router.get('/results/:resultId/review', requireRole('teacher', 'assistant', 'stu
     }
 
     const isBank = row.question_source === 'bank' && row.bank_id;
-    let questionsRes;
-    if (isBank) {
-      let answeredIds = [];
-      let isOldBankFormat = false;
-      try {
-        const raw = typeof row.answers === 'string' ? JSON.parse(row.answers) : row.answers;
-        if (Array.isArray(raw)) {
-          answeredIds = raw.map(a => a.question_id).filter(Boolean);
-        } else if (raw && typeof raw === 'object') {
-          // Old sequential format — fall back to fetching all bank questions by position
-          isOldBankFormat = true;
-        }
-      } catch (_) {}
-      if (answeredIds.length > 0) {
-        questionsRes = await pool.query('SELECT id, question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, option_labels, question_type, sub_questions FROM bank_questions WHERE id = ANY($1) ORDER BY id', [answeredIds]);
-      } else if (isOldBankFormat) {
-        questionsRes = await pool.query('SELECT id, question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, option_labels, question_type, sub_questions FROM bank_questions WHERE bank_id = $1 ORDER BY id', [row.bank_id]);
-      } else {
-        questionsRes = { rows: [] };
-      }
+    let questionsResRows = [];
+
+    const resultSnapshot = Array.isArray(row.questions_snapshot)
+      ? row.questions_snapshot
+      : (row.questions_snapshot ? (() => { try { return JSON.parse(row.questions_snapshot); } catch { return null; } })() : null);
+
+    if (resultSnapshot && resultSnapshot.length > 0) {
+      // Authoritative questions snapshot recorded when the student took the exam.
+      // Guarantees exact question order, option order, and labels as seen during the exam.
+      const snapIds = resultSnapshot.map(sq => sq.id);
+      const dbTable = isBank ? 'bank_questions' : 'questions';
+      const dbRes = await pool.query(
+        `SELECT id, question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, option_labels, question_type, sub_questions FROM ${dbTable} WHERE id = ANY($1)`,
+        [snapIds]
+      );
+      const dbMap = new Map(dbRes.rows.map(r => [r.id, r]));
+      questionsResRows = resultSnapshot.map(sq => {
+        const dbQ = dbMap.get(sq.id);
+        return {
+          ...(dbQ || sq),
+          ...sq,
+          correct_answer_letter: dbQ?.correct_answer_letter || sq.correct_answer_letter,
+          points: dbQ?.points !== undefined ? dbQ.points : sq.points,
+        };
+      });
     } else {
-      questionsRes = await pool.query('SELECT id, question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, option_labels, question_type, sub_questions FROM questions WHERE exam_id=$1 ORDER BY id', [row.exam_id]);
+      // Fallback for legacy attempts without stored snapshot
+      if (isBank) {
+        let answeredIds = [];
+        let isOldBankFormat = false;
+        try {
+          const raw = typeof row.answers === 'string' ? JSON.parse(row.answers) : row.answers;
+          if (Array.isArray(raw)) {
+            answeredIds = raw.map(a => a.question_id).filter(Boolean);
+          } else if (raw && typeof raw === 'object') {
+            isOldBankFormat = true;
+          }
+        } catch (_) {}
+        if (answeredIds.length > 0) {
+          const qR = await pool.query('SELECT id, question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, option_labels, question_type, sub_questions FROM bank_questions WHERE id = ANY($1) ORDER BY id', [answeredIds]);
+          questionsResRows = qR.rows;
+        } else if (isOldBankFormat) {
+          const qR = await pool.query('SELECT id, question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, option_labels, question_type, sub_questions FROM bank_questions WHERE bank_id = $1 ORDER BY id', [row.bank_id]);
+          questionsResRows = qR.rows;
+        }
+      } else {
+        const qR = await pool.query('SELECT id, question_text, question_image_url, option_a, option_b, option_c, option_d, correct_answer_letter, points, option_labels, question_type, sub_questions FROM questions WHERE exam_id=$1 ORDER BY id', [row.exam_id]);
+        questionsResRows = qR.rows;
+        if (row.shuffle_questions) {
+          const seed = (parseInt(row.student_id) * 31 + parseInt(row.exam_id) * 17) >>> 0;
+          questionsResRows = seededShuffle(questionsResRows, seed);
+        }
+      }
     }
 
     // ── Parse stored answers — handles two formats: ──────────────────────────
@@ -2327,7 +2389,7 @@ router.get('/results/:resultId/review', requireRole('teacher', 'assistant', 'stu
       storedAnswers.forEach(a => { seqMap[a.seq] = a; });
 
       // Check if any key matches an actual question ID
-      const questionIds = new Set(questionsRes.rows.map(q => String(q.id)));
+      const questionIds = new Set(questionsResRows.map(q => String(q.id)));
       const keysAreIds = storedAnswers.some(a => questionIds.has(String(a.seq)));
 
       if (keysAreIds) {
@@ -2335,17 +2397,17 @@ router.get('/results/:resultId/review', requireRole('teacher', 'assistant', 'stu
         storedAnswers.forEach(a => { answerMap[String(a.seq)] = a; });
       } else {
         // Keys are 1-based sequential positions — map by position
-        questionsRes.rows.forEach((q, i) => {
+        questionsResRows.forEach((q, i) => {
           const entry = seqMap[i + 1];
           if (entry) answerMap[String(q.id)] = entry;
         });
       }
     } else {
       storedAnswers.forEach(a => { answerMap[String(a.question_id)] = a; });
-      // Sort questions to match the exact sequence recorded in the student's submission snapshot
-      if (Array.isArray(storedAnswers) && storedAnswers.length > 0) {
+      // For legacy records without snapshot, sort questions by storedAnswers sequence
+      if (!resultSnapshot && Array.isArray(storedAnswers) && storedAnswers.length > 0) {
         const idOrderMap = new Map(storedAnswers.map((a, i) => [String(a.question_id), i]));
-        questionsRes.rows.sort((a, b) => {
+        questionsResRows.sort((a, b) => {
           const orderA = idOrderMap.has(String(a.id)) ? idOrderMap.get(String(a.id)) : 9999;
           const orderB = idOrderMap.has(String(b.id)) ? idOrderMap.get(String(b.id)) : 9999;
           return orderA - orderB;
@@ -2353,14 +2415,14 @@ router.get('/results/:resultId/review', requireRole('teacher', 'assistant', 'stu
       }
     }
 
-    const questions = questionsRes.rows.map(q => {
+    const questions = questionsResRows.map(q => {
       const stored = answerMap[String(q.id)];
       const qType  = q.question_type || 'mcq';
 
       if (qType === 'image_multi') {
-        // Re-derive the same shuffle applied in GET /take — deterministic, no session needed.
+        // Re-derive the same shuffle applied in GET /take only when snapshot is missing
         let subQs = Array.isArray(q.sub_questions) ? [...q.sub_questions] : [];
-        if (row.shuffle_options && subQs.length > 0) {
+        if (!resultSnapshot && row.shuffle_options && subQs.length > 0) {
           const shuffleSeed = ((parseInt(row.student_id) * 31 + parseInt(row.exam_id) * 17) >>> 0);
           subQs = shuffleImgMultiSubQs(subQs, shuffleSeed, q.id);
         }
@@ -2424,8 +2486,11 @@ router.get('/results/:resultId/review', requireRole('teacher', 'assistant', 'stu
         ? !!stored.is_correct
         : (!studentAnswer ? false : studentAnswer === correctAnswer);
 
+      const shuffledOptions = q.shuffled_options || (row.shuffle_options && qType !== 'true_false' && qType !== 'image_multi' ? getShuffledMcqOpts(q, row.student_id) : null);
+
       return {
         ...q,
+        shuffled_options: shuffledOptions,
         correct_answer_letter: correctAnswer,
         student_answer: studentAnswer,
         correct_answer: correctAnswer,

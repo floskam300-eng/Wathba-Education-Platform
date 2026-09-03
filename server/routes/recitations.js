@@ -1803,17 +1803,23 @@ router.get('/:id/take', requireRole('student'), async (req, res) => {
         // Fall through to retry/start check below
       } else {
         // Resume existing active session within time window
-        const clientSnapshot = (sess.questions_snapshot || []).map(stripClientQuestion);
-        const remainingSeconds = Math.max(0, Math.floor(((durationMinutes * 60 * 1000) - elapsedMs) / 1000));
-        return res.json({
-          recitation: { ...rec, duration_minutes: durationMinutes },
-          questions: clientSnapshot,
-          server_started_at: startedAtStr,
-          server_now: serverNow.toISOString(),
-          remaining_seconds: remainingSeconds,
-          resumed: true,
-          saved_answers: sess.answers || {},
-        });
+        const rawSnap = Array.isArray(sess.questions_snapshot) ? sess.questions_snapshot
+          : (typeof sess.questions_snapshot === 'string' ? (() => { try { return JSON.parse(sess.questions_snapshot); } catch { return []; } })() : []);
+        if (rawSnap.length > 0) {
+          const clientSnapshot = rawSnap.map(stripClientQuestion);
+          const remainingSeconds = Math.max(0, Math.floor(((durationMinutes * 60 * 1000) - elapsedMs) / 1000));
+          return res.json({
+            recitation: { ...rec, duration_minutes: durationMinutes },
+            questions: clientSnapshot,
+            server_started_at: startedAtStr,
+            server_now: serverNow.toISOString(),
+            remaining_seconds: remainingSeconds,
+            resumed: true,
+            saved_answers: sess.answers || {},
+          });
+        }
+        // Stale session without questions — delete and fall through to recreate
+        await pool.query('DELETE FROM recitation_sessions WHERE student_id=$1 AND recitation_id=$2', [studentId, id]);
       }
     }
 
@@ -2099,7 +2105,48 @@ router.post('/:id/submit', recitationSubmitLimiter, requireRole('student'), asyn
     const durationMinutes = Math.max(1, parseInt(rec.duration_minutes, 10) || 10);
 
     // Build raw answer map — image_multi answers are JSON strings; others are letters
-    const snapshot = session.questions_snapshot;
+    let snapshot = Array.isArray(session.questions_snapshot)
+      ? session.questions_snapshot
+      : (typeof session.questions_snapshot === 'string' ? (() => { try { return JSON.parse(session.questions_snapshot); } catch { return []; } })() : []);
+
+    if (!snapshot.length) {
+      const { rows: questions } = await pool.query(
+        'SELECT * FROM recitation_questions WHERE recitation_id=$1 ORDER BY sort_order ASC, id ASC',
+        [id]
+      );
+      const seed = (studentId * 73856093) ^ (id * 19349663);
+      snapshot = rec.shuffle_questions ? seededShuffle(questions, seed) : [...questions];
+      if (rec.shuffle_options) {
+        snapshot = snapshot.map(q => {
+          if (q.question_type === 'mcq') {
+            const opts = [
+              { letter: 'A', text: q.option_a },
+              { letter: 'B', text: q.option_b },
+              q.option_c ? { letter: 'C', text: q.option_c } : null,
+              q.option_d ? { letter: 'D', text: q.option_d } : null,
+            ].filter(Boolean);
+            const shuffledOpts = seededShuffle(opts, seed ^ q.id);
+            const letterMap = {};
+            ['A', 'B', 'C', 'D'].forEach((l, i) => {
+              if (shuffledOpts[i]) letterMap[shuffledOpts[i].letter] = l;
+            });
+            return {
+              ...q,
+              option_a: shuffledOpts[0]?.text || null,
+              option_b: shuffledOpts[1]?.text || null,
+              option_c: shuffledOpts[2]?.text || null,
+              option_d: shuffledOpts[3]?.text || null,
+              correct_answer_letter: letterMap[q.correct_answer_letter] || q.correct_answer_letter,
+            };
+          }
+          if (q.question_type === 'image_multi' && Array.isArray(q.sub_questions) && q.sub_questions.length > 0) {
+            return { ...q, sub_questions: shuffleImgMultiSubQs(q.sub_questions, seed, q.id) };
+          }
+          return q;
+        });
+      }
+    }
+
     const answerMap = {};
     // [A2-FIX] Cap image_multi answer string length to 10KB to prevent abuse.
     // Each sub-question answer is a single letter, so a 10KB JSON string could
@@ -2329,7 +2376,7 @@ router.get('/results/:resultId/review', authenticate, async (req, res) => {
 
     const resultRes = await pool.query(`
       SELECT rr.*, r.title as recitation_title, r.total_score, r.pass_score,
-             r.teacher_id,
+             r.teacher_id, r.shuffle_questions, r.shuffle_options,
              s.name as student_name, s.id as student_id_check
       FROM recitation_results rr
       JOIN recitations r ON rr.recitation_id = r.id
@@ -2369,7 +2416,7 @@ router.get('/results/:resultId/review', authenticate, async (req, res) => {
 
     // [SH-1] Priority: 1) snapshot stored in result row (since session is deleted post-submit)
     //                  2) active session snapshot (edge case: re-take after retry)
-    //                  3) DB fallback (original questions — correct_answer_letter may differ when shuffle was on)
+    //                  3) DB fallback with deterministic question + option shuffle reconstruction
     let snapshot = [];
     const resultSnapshot = Array.isArray(row.questions_snapshot)
       ? row.questions_snapshot
@@ -2382,14 +2429,72 @@ router.get('/results/:resultId/review', authenticate, async (req, res) => {
         'SELECT questions_snapshot FROM recitation_sessions WHERE student_id=$1 AND recitation_id=$2 ORDER BY started_at DESC LIMIT 1',
         [row.student_id, row.recitation_id]
       );
-      if (sessionRes.rows.length && Array.isArray(sessionRes.rows[0].questions_snapshot)) {
+      if (sessionRes.rows.length && Array.isArray(sessionRes.rows[0].questions_snapshot) && sessionRes.rows[0].questions_snapshot.length > 0) {
         snapshot = sessionRes.rows[0].questions_snapshot;
       } else {
         const qRes = await pool.query(
           'SELECT * FROM recitation_questions WHERE recitation_id=$1 ORDER BY sort_order, id',
           [row.recitation_id]
         );
-        snapshot = qRes.rows;
+        let questions = qRes.rows;
+
+        // Fallback reconstruction: maintain deterministic shuffle identical to take time
+        const studentId = parseInt(row.student_id, 10) || 1;
+        const recitationId = parseInt(row.recitation_id, 10) || 1;
+        const seed = (studentId * 73856093) ^ (recitationId * 19349663);
+
+        const storedAnswersList = Array.isArray(row.answers) ? row.answers
+          : (typeof row.answers === 'string' ? (() => { try { return JSON.parse(row.answers); } catch { return []; } })() : []);
+        const hasQuestionIds = storedAnswersList.some(a => a && a.question_id != null);
+
+        if (hasQuestionIds) {
+          const idOrderMap = new Map(storedAnswersList.map((a, i) => [String(a.question_id), i]));
+          questions.sort((a, b) => {
+            const orderA = idOrderMap.has(String(a.id)) ? idOrderMap.get(String(a.id)) : 9999;
+            const orderB = idOrderMap.has(String(b.id)) ? idOrderMap.get(String(b.id)) : 9999;
+            return orderA - orderB;
+          });
+        } else if (row.shuffle_questions) {
+          questions = seededShuffle(questions, seed);
+        }
+
+        if (row.shuffle_options) {
+          questions = questions.map(q => {
+            if (q.question_type === 'mcq') {
+              const opts = [
+                { letter: 'A', text: q.option_a },
+                { letter: 'B', text: q.option_b },
+                q.option_c ? { letter: 'C', text: q.option_c } : null,
+                q.option_d ? { letter: 'D', text: q.option_d } : null,
+              ].filter(Boolean);
+              const shuffledOpts = seededShuffle(opts, seed ^ q.id);
+              const letterMap = {};
+              ['A', 'B', 'C', 'D'].forEach((l, i) => {
+                if (shuffledOpts[i]) letterMap[shuffledOpts[i].letter] = l;
+              });
+              return {
+                ...q,
+                option_a: shuffledOpts[0]?.text || null,
+                option_b: shuffledOpts[1]?.text || null,
+                option_c: shuffledOpts[2]?.text || null,
+                option_d: shuffledOpts[3]?.text || null,
+                correct_answer_letter: letterMap[q.correct_answer_letter] || q.correct_answer_letter,
+              };
+            }
+            if (q.question_type === 'image_multi' && Array.isArray(q.sub_questions) && q.sub_questions.length > 0) {
+              return { ...q, sub_questions: shuffleImgMultiSubQs(q.sub_questions, seed, q.id) };
+            }
+            return q;
+          });
+        }
+
+        snapshot = questions;
+        if (snapshot.length > 0) {
+          pool.query(
+            "UPDATE recitation_results SET questions_snapshot = $1 WHERE id = $2 AND (questions_snapshot IS NULL OR questions_snapshot = '[]'::jsonb)",
+            [JSON.stringify(snapshot), row.id]
+          ).catch(() => {});
+        }
       }
     }
 
@@ -2451,6 +2556,7 @@ router.get('/results/:resultId/review', authenticate, async (req, res) => {
         question_type: q.question_type,
         option_a: q.option_a, option_b: q.option_b, option_c: q.option_c, option_d: q.option_d,
         correct_answer_letter: correctLetterNormalized,
+        correct_answer: correctLetterNormalized,
         student_answer: studentAnsNormalized,
         is_correct: isCorrect,
         points: q.points,
