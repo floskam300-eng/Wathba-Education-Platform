@@ -112,6 +112,24 @@ function DeviceAlertsPanel({ canEdit }) {
     enabled: !!devicesModal,
   });
 
+  const { data: limitData } = useQuery({
+    queryKey: ['teacher-device-limit'],
+    queryFn: () => api.get('/students/device-limit').then(r => r.data),
+  });
+  const [selectedLimit, setSelectedLimit] = useState(null);
+  const activeLimit = selectedLimit !== null ? selectedLimit : (limitData?.max_allowed_devices ?? 1);
+  const isDirty = limitData?.max_allowed_devices !== undefined && activeLimit !== limitData.max_allowed_devices;
+
+  const updateLimitMut = useMutation({
+    mutationFn: (newLimit) => api.put('/students/device-limit', { max_allowed_devices: newLimit }),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['teacher-device-limit'] });
+      setSelectedLimit(res.data.max_allowed_devices);
+      toast.success(`تم حفظ الحد الأقصى للأجهزة: ${res.data.max_allowed_devices} ${res.data.max_allowed_devices === 1 ? 'جهاز' : res.data.max_allowed_devices === 2 ? 'جهازان' : 'أجهزة'}`);
+    },
+    onError: (e) => toast.error(e.response?.data?.error || 'حدث خطأ أثناء تحديث الحد الأقصى للأجهزة'),
+  });
+
   const actionMut = useMutation({
     mutationFn: ({ alertId, action }) => api.post(`/students/device-alerts/${alertId}/action`, { action }),
     onSuccess: () => {
@@ -218,6 +236,75 @@ function DeviceAlertsPanel({ canEdit }) {
 
   return (
     <div className="space-y-5">
+      {/* Device Limit Policy Box */}
+      <div className="card !p-5 bg-gradient-to-br from-white to-orange-50/40 border border-orange-200/80 rounded-2xl shadow-sm">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-orange-100/80 border border-orange-200 flex items-center justify-center flex-shrink-0 text-orange-600 mt-0.5">
+              <Smartphone className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="font-black text-navy-800 text-base">
+                  الحد الأقصى للأجهزة المسموح بها لكل طالب
+                </h3>
+                <span className="bg-orange-100 text-orange-700 text-xs font-black px-2.5 py-0.5 rounded-full border border-orange-200">
+                  الحالي: {limitData?.max_allowed_devices || 1} {(limitData?.max_allowed_devices || 1) === 1 ? 'جهاز واحد' : (limitData?.max_allowed_devices || 1) === 2 ? 'جهازان' : 'أجهزة'}
+                </span>
+              </div>
+              <p className="text-xs text-gray-500 mt-1 leading-relaxed max-w-2xl">
+                حدد عدد الأجهزة التي يمكن لكل طالب تسجيل الدخول منها تلقائياً بدون حظر. إذا حاول الطالب تسجيل الدخول من جهاز جديد بعد استهلاك هذا العدد، سيتم حظره وإرسال تحذير أمني هنا للمراجعة والموافقة.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 flex-shrink-0">
+            {/* Options pills: 1, 2, 3, 4, 5 */}
+            <div className="inline-flex p-1 bg-gray-100/90 rounded-xl border border-gray-200/70">
+              {[1, 2, 3, 4, 5].map((num) => {
+                const isSelected = activeLimit === num;
+                return (
+                  <button
+                    key={num}
+                    type="button"
+                    disabled={!canEdit || updateLimitMut.isPending}
+                    onClick={() => setSelectedLimit(num)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                      isSelected
+                        ? 'bg-white text-orange-600 shadow-sm'
+                        : 'text-gray-600 hover:text-navy-800'
+                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    title={`${num} ${num === 1 ? 'جهاز واحد' : num === 2 ? 'جهازان' : 'أجهزة'}`}
+                  >
+                    {num === 1 ? '1 جهاز (افتراضي)' : `${num} أجهزة`}
+                  </button>
+                );
+              })}
+            </div>
+
+            {canEdit && (
+              <button
+                type="button"
+                disabled={!isDirty || updateLimitMut.isPending}
+                onClick={() => updateLimitMut.mutate(activeLimit)}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm ${
+                  isDirty
+                    ? 'bg-orange-600 hover:bg-orange-700 text-white cursor-pointer ring-2 ring-orange-400/30'
+                    : 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
+                }`}
+              >
+                {updateLimitMut.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-white" />
+                ) : (
+                  <ShieldCheck className="w-4 h-4" />
+                )}
+                <span>{updateLimitMut.isPending ? 'جارٍ الحفظ...' : 'حفظ التعديل'}</span>
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Summary */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="card !p-4 flex items-center gap-3">

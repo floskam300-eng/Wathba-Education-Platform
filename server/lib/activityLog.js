@@ -48,6 +48,7 @@ const ACTION_LABELS = {
   edit_assistant:            'تعديل مساعد',
   suspend_student:           'إيقاف تعليق طالب',
   device_alert_review:       'مراجعة تنبيه جهاز',
+  update_device_limit:       'تعديل الحد الأقصى للأجهزة',
   send_whatsapp_broadcast:   'إرسال رسالة واتساب جماعية',
   create_whatsapp_schedule:  'إنشاء جدولة واتساب',
   enroll_student:            'تسجيل طالب في كورس',

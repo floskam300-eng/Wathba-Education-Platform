@@ -139,6 +139,59 @@ router.get('/stage-counts', requireRole('teacher', 'assistant'), async (req, res
   }
 });
 
+// ── GET /students/device-limit ───────────────────────────────────────────────
+router.get('/device-limit', requireRole('teacher', 'assistant'), async (req, res) => {
+  const teacherId = getTeacherId(req);
+  try {
+    const result = await pool.query(
+      'SELECT max_allowed_devices FROM teachers WHERE id = $1',
+      [teacherId]
+    );
+    const max_allowed_devices = Math.max(1, parseInt(result.rows[0]?.max_allowed_devices, 10) || 1);
+    res.json({ max_allowed_devices });
+  } catch (err) {
+    console.error('[GET_DEVICE_LIMIT_ERROR]', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── PUT /students/device-limit ───────────────────────────────────────────────
+router.put('/device-limit', requireRole('teacher', 'assistant'), async (req, res) => {
+  const teacherId = getTeacherId(req);
+  if (req.user.role === 'assistant') {
+    const perms = await getPermissions(req.user.id, pool);
+    if (!perms?.can_edit_students) return res.status(403).json({ error: 'Access denied: missing permission' });
+  }
+
+  const limit = parseInt(req.body.max_allowed_devices, 10);
+  if (isNaN(limit) || limit < 1 || limit > 10) {
+    return res.status(400).json({ error: 'الحد المسموح به يجب أن يكون رقماً بين 1 و 10 أجهزة' });
+  }
+
+  try {
+    await pool.query(
+      'UPDATE teachers SET max_allowed_devices = $1 WHERE id = $2',
+      [limit, teacherId]
+    );
+
+    try {
+      logActivity({
+        teacherId,
+        actor: getActor(req),
+        ip: getIp(req),
+        action: 'update_device_limit',
+        entity: { type: 'teacher', id: teacherId },
+        details: { max_allowed_devices: limit },
+      });
+    } catch (_) {}
+
+    res.json({ success: true, max_allowed_devices: limit });
+  } catch (err) {
+    console.error('[PUT_DEVICE_LIMIT_ERROR]', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 router.get('/next-username', requireRole('teacher', 'assistant'), async (req, res) => {
   const teacherId = getTeacherId(req);
   const { stage } = req.query;

@@ -523,10 +523,24 @@ router.post('/login', loginLimiter, async (req, res) => {
             const safeOrigin = ['browser','pwa_ios','pwa_android','twa','unknown'].includes(device_origin)
               ? device_origin : 'browser';
 
+            // Query teacher's allowed device limit (defaults to 1)
+            let maxAllowedDevices = 1;
+            try {
+              const teacherLimitRes = await client.query(
+                'SELECT max_allowed_devices FROM teachers WHERE id = $1',
+                [user.teacher_id]
+              );
+              if (teacherLimitRes.rows.length > 0 && teacherLimitRes.rows[0].max_allowed_devices) {
+                maxAllowedDevices = Math.max(1, parseInt(teacherLimitRes.rows[0].max_allowed_devices, 10) || 1);
+              }
+            } catch (limitErr) {
+              console.warn('[LOGIN] Failed to fetch teacher device limit, defaulting to 1:', limitErr.message);
+            }
+
             if (!isKnown) {
-              // 1-device policy with hardware verification
-              if (registeredDevices.length >= 1) {
-                console.log(`[LOGIN] NEW_DEVICE_BLOCKED for student id=${user.id} (maxSimilarity=${maxSimilarityScore}%): inserting device_alert`);
+              // Device policy with hardware verification (configurable per teacher, default 1)
+              if (registeredDevices.length >= maxAllowedDevices) {
+                console.log(`[LOGIN] NEW_DEVICE_BLOCKED for student id=${user.id} (registered=${registeredDevices.length}, maxAllowed=${maxAllowedDevices}, maxSimilarity=${maxSimilarityScore}%): inserting device_alert`);
 
                 // Dedup by machine identity (hardware_hash) so the same
                 // physical computer never spawns multiple pending alerts when
@@ -599,15 +613,18 @@ router.post('/login', loginLimiter, async (req, res) => {
                 return res.status(403).json({
                   error: autoSuspended
                     ? 'تم رصد محاولات متكررة من أجهزة مختلفة. تم إيقاف حسابك تلقائياً — يرجى التواصل مع المدرس لإعادة التفعيل.'
-                    : 'تم رصد محاولة دخول من جهاز جديد. تم إشعار المدرس — يمكنك الاستمرار من جهازك الأصلي، أو تواصل مع المدرس للسماح لك بتسجيل جهاز جديد.',
+                    : maxAllowedDevices === 1
+                      ? 'تم رصد محاولة دخول من جهاز جديد. تم إشعار المدرس — يمكنك الاستمرار من جهازك الأصلي، أو تواصل مع المدرس للسماح لك بتسجيل جهاز جديد.'
+                      : `تم رصد محاولة دخول من جهاز جديد وتجاوز الحد الأقصى المسموح به (${maxAllowedDevices} أجهزة). تم إشعار المدرس — يمكنك الاستمرار من أجهزتك المعتمدة، أو تواصل مع المدرس.`,
                   code: autoSuspended ? 'STUDENT_AUTO_SUSPENDED' : 'NEW_DEVICE_BLOCKED',
                   failed_device_attempts: attemptCount,
                   auto_suspended: autoSuspended,
+                  max_allowed_devices: maxAllowedDevices,
                 });
               }
 
-              // No registered device yet → register this one as the primary device
-              console.log(`[LOGIN] registering first device for student id=${user.id}`);
+              // Device slot available (registeredDevices.length < maxAllowedDevices) → register this device
+              console.log(`[LOGIN] registering device for student id=${user.id} (${registeredDevices.length + 1}/${maxAllowedDevices})`);
               await client.query(
                 `INSERT INTO student_devices (student_id, device_id, device_name, user_agent, ip_address, device_origin, hardware_profile, hardware_hash)
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8)

@@ -1031,6 +1031,7 @@ const initDB = async () => {
     await pool.query('CREATE INDEX IF NOT EXISTS idx_students_teacher_sim ON students(teacher_id, is_simulation)');
     await pool.query("ALTER TABLE exam_sessions ADD COLUMN IF NOT EXISTS answers JSONB DEFAULT '{}'::jsonb");
     await pool.query("ALTER TABLE recitation_sessions ADD COLUMN IF NOT EXISTS answers JSONB DEFAULT '{}'::jsonb");
+    await pool.query('ALTER TABLE teachers ADD COLUMN IF NOT EXISTS max_allowed_devices INT DEFAULT 1');
 
     // [recitation_locks] Drop the dead `ever_passed` column from
     // recitation_results and exam_results. The column was added in migrate.sql

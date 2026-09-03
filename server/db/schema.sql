@@ -1434,6 +1434,7 @@ ALTER TABLE teachers ADD COLUMN IF NOT EXISTS logo_wide_url VARCHAR(500);
 
 -- PWA short name: the label shown under the app icon on phone home screen
 ALTER TABLE teachers ADD COLUMN IF NOT EXISTS pwa_name VARCHAR(50);
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS max_allowed_devices INT DEFAULT 1;
 
 -- ── Class Attendance (Offline / In-Person Daily Attendance) ──────────────────
 

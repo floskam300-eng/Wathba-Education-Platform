@@ -677,3 +677,6 @@ CREATE INDEX IF NOT EXISTS idx_questions_img ON questions(question_image_url) WH
 CREATE INDEX IF NOT EXISTS idx_bank_questions_img ON bank_questions(question_image_url) WHERE question_image_url IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_recitation_questions_img ON recitation_questions(question_image_url) WHERE question_image_url IS NOT NULL;
 
+-- Max allowed devices per student (configured per teacher)
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS max_allowed_devices INT DEFAULT 1;
+
