@@ -1,12 +1,13 @@
 import React, { useEffect, useId, useRef } from 'react';
 import { X } from 'lucide-react';
 
-export default function Modal({ open, onClose, title, children, size = 'md' }) {
+export default function Modal({ open, isOpen, onClose, title, children, size = 'md' }) {
+  const isModalOpen = Boolean(open ?? isOpen);
   const titleId = useId();
   const firstFocusRef = useRef(null);
 
   useEffect(() => {
-    if (open) {
+    if (isModalOpen) {
       document.body.style.overflow = 'hidden';
       requestAnimationFrame(() => {
         if (firstFocusRef.current) firstFocusRef.current.focus();
@@ -15,9 +16,9 @@ export default function Modal({ open, onClose, title, children, size = 'md' }) {
       document.body.style.overflow = '';
     }
     return () => { document.body.style.overflow = ''; };
-  }, [open]);
+  }, [isModalOpen]);
 
-  if (!open) return null;
+  if (!isModalOpen) return null;
 
   const sizes = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-4xl' };
 

@@ -1125,7 +1125,7 @@ export default function TeacherExams() {
       {/* Duplicate Exam Modal */}
       {duplicateModal && (
         <Modal
-          isOpen={true}
+          open={true}
           onClose={() => setDuplicateModal(null)}
           title="تكرار الاختبار (نسخ الأسئلة إلى اختبار جديد)"
         >
@@ -1254,7 +1254,7 @@ export default function TeacherExams() {
       {/* Convert to Recitation Modal */}
       {convertModal && (
         <Modal
-          isOpen={true}
+          open={true}
           onClose={() => setConvertModal(null)}
           title="تحويل الاختبار إلى تسميع"
         >

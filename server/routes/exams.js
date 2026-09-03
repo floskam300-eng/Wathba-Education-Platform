@@ -403,6 +403,11 @@ router.post('/:id/duplicate', requireRole('teacher', 'assistant'), checkManageEx
         [examId]
       );
       for (const q of origQuestions.rows) {
+        const subQs = q.sub_questions ? (typeof q.sub_questions === 'object' ? JSON.stringify(q.sub_questions) : q.sub_questions) : '[]';
+        const optLabels = q.option_labels ? (typeof q.option_labels === 'object' ? JSON.stringify(q.option_labels) : q.option_labels) : null;
+        let correctLetter = q.correct_answer_letter ? String(q.correct_answer_letter).toUpperCase().trim() : 'A';
+        if (!['A', 'B', 'C', 'D', 'T', 'F'].includes(correctLetter)) correctLetter = 'A';
+
         await client.query(
           `INSERT INTO questions (
             question_text, question_image_url, option_a, option_b, option_c, option_d,
@@ -410,10 +415,10 @@ router.post('/:id/duplicate', requireRole('teacher', 'assistant'), checkManageEx
           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
           [
             q.question_text || '', q.question_image_url, q.option_a || 'A', q.option_b || 'B', q.option_c || null, q.option_d || null,
-            q.correct_answer_letter || 'A', q.points || 1, newExam.id,
-            q.option_labels ? JSON.stringify(q.option_labels) : null,
+            correctLetter, q.points || 1, newExam.id,
+            optLabels,
             q.question_type || 'mcq',
-            q.sub_questions ? JSON.stringify(q.sub_questions) : '[]'
+            subQs
           ]
         );
       }
@@ -545,6 +550,11 @@ router.post('/:id/convert-to-recitation', requireRole('teacher', 'assistant'), a
     for (const q of questionsToCopy) {
       const qType = q.question_type || 'mcq';
       const safeType = ['mcq', 'true_false', 'image_multi'].includes(qType) ? qType : 'mcq';
+      const subQs = q.sub_questions ? (typeof q.sub_questions === 'object' ? JSON.stringify(q.sub_questions) : q.sub_questions) : '[]';
+      const optLabels = q.option_labels ? (typeof q.option_labels === 'object' ? JSON.stringify(q.option_labels) : q.option_labels) : null;
+      let correctLetter = q.correct_answer_letter ? String(q.correct_answer_letter).toUpperCase().trim() : 'A';
+      if (!['A', 'B', 'C', 'D', 'T', 'F'].includes(correctLetter)) correctLetter = 'A';
+
       await client.query(
         `INSERT INTO recitation_questions (
           recitation_id, question_text, question_image_url, question_type,
@@ -554,9 +564,9 @@ router.post('/:id/convert-to-recitation', requireRole('teacher', 'assistant'), a
         [
           newRec.id, q.question_text || null, q.question_image_url || null, safeType,
           q.option_a || null, q.option_b || null, q.option_c || null, q.option_d || null,
-          q.correct_answer_letter, q.points || 1, sortOrder++,
-          q.option_labels ? JSON.stringify(q.option_labels) : null,
-          q.sub_questions ? JSON.stringify(q.sub_questions) : '[]'
+          correctLetter, q.points || 1, sortOrder++,
+          optLabels,
+          subQs
         ]
       );
     }
