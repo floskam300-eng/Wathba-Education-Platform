@@ -617,9 +617,15 @@ export default function StudentExams() {
         setStartingId(null);
       }
     } catch (err) {
-      clearExamKeys(exam.id);
-      qc.invalidateQueries({ queryKey: ['student-exams'] });
-      qc.invalidateQueries({ queryKey: ['student-my-results'] });
+      const isExpiredOrSubmitted =
+        err.response?.status === 403 &&
+        (err.response?.data?.timer_expired || err.response?.data?.already_submitted);
+
+      if (isExpiredOrSubmitted) {
+        clearExamKeys(exam.id);
+        qc.invalidateQueries({ queryKey: ['student-exams'] });
+        qc.invalidateQueries({ queryKey: ['student-my-results'] });
+      }
       setStartingId(null);
       const errMsg = err.response?.data?.error || 'تعذر فتح الاختبار';
       toast.error(errMsg);
@@ -792,7 +798,7 @@ export default function StudentExams() {
                 {qType === 'true_false' ? (
                   <div className="flex gap-3">
                     {[{ opt: 'A', label: '✅ صح' }, { opt: 'B', label: '❌ خطأ' }].map(({ opt, label }) => (
-                      <button key={opt} onClick={() => setAnswers({ ...answers, [q.id]: opt })}
+                      <button key={opt} onClick={() => setAnswers(prev => ({ ...prev, [q.id]: opt }))}
                         className={`flex-1 py-2.5 rounded-xl text-sm font-bold border-2 transition-all ${answers[q.id] === opt ? 'border-orange-500 bg-orange-50 text-orange-850' : 'border-gray-200 hover:border-gray-400 text-gray-700'}`}>
                         {label}
                       </button>
@@ -813,9 +819,11 @@ export default function StudentExams() {
                             {(sub.type === 'true_false' ? ['A', 'B'] : ['A', 'B', 'C', 'D'].slice(0, sub.option_labels?.length || 4)).map(letter => (
                               <button key={letter} type="button"
                                 onClick={() => {
-                                  let current = {};
-                                  try { const raw = answers[q.id]; current = raw && typeof raw === 'object' ? raw : JSON.parse(raw || '{}'); } catch {}
-                                  setAnswers({ ...answers, [q.id]: { ...current, [sub.label]: letter } });
+                                  setAnswers(prev => {
+                                    let current = {};
+                                    try { const raw = prev[q.id]; current = raw && typeof raw === 'object' ? raw : JSON.parse(raw || '{}'); } catch {}
+                                    return { ...prev, [q.id]: { ...current, [sub.label]: letter } };
+                                  });
                                 }}
                                 className={`flex-1 py-1.5 rounded-lg text-xs font-bold border-2 transition-all ${
                                   subSel === letter ? 'border-orange-500 bg-orange-50 text-orange-850' : 'border-gray-200 hover:border-gray-400 text-gray-655'
@@ -835,7 +843,7 @@ export default function StudentExams() {
                        const defaultArabic = ['أ', 'ب', 'ج', 'د'];
                        const displayLabels = Array.isArray(q.option_labels) && q.option_labels.length > 0 ? q.option_labels : defaultArabic;
                        return shuffledOpts.map((origOpt, idx) => (
-                        <button key={origOpt} onClick={() => setAnswers({ ...answers, [q.id]: origOpt })}
+                        <button key={origOpt} onClick={() => setAnswers(prev => ({ ...prev, [q.id]: origOpt }))}
                           className={`flex items-center gap-2 p-2.5 sm:p-3 rounded-xl text-sm font-semibold text-right transition-all border-2 ${answers[q.id] === origOpt ? 'border-orange-500 bg-orange-50 text-orange-800' : 'border-gray-200 hover:border-navy-300 hover:bg-navy-50 text-navy-700'}`}>
                           <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 ${answers[q.id] === origOpt ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600'}`}>{displayLabels[idx] || defaultArabic[idx] || origOpt}</span>
                           <span className="flex-1 leading-snug"><MathText text={q[`option_${origOpt.toLowerCase()}`]} /></span>

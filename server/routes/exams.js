@@ -1578,9 +1578,10 @@ function shuffleImgMultiSubQs(subQs, baseSeed, questionId) {
     const origCorrectIdx = LETTERS.indexOf(String(sub.correct || '').toUpperCase());
     const newCorrectIdx  = shuffled.indexOf(origCorrectIdx);
     const newCorrect     = (origCorrectIdx >= 0 && newCorrectIdx >= 0) ? LETTERS[newCorrectIdx] : sub.correct;
-    const newOptionLabels = sub.option_labels
-      ? shuffled.map(origIdx => sub.option_labels[origIdx] !== undefined ? sub.option_labels[origIdx] : null)
-      : null;
+    const baseLabels = (Array.isArray(sub.option_labels) && sub.option_labels.length >= optCount)
+      ? sub.option_labels
+      : ['أ', 'ب', 'ج', 'د'].slice(0, optCount);
+    const newOptionLabels = shuffled.map(origIdx => baseLabels[origIdx] !== undefined ? baseLabels[origIdx] : null);
     return { ...sub, option_labels: newOptionLabels, correct: newCorrect };
   });
 }
