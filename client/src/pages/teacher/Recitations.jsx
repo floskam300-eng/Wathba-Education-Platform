@@ -225,6 +225,15 @@ export default function Recitations() {
     enabled: !!form.course_id,
   });
 
+  const duplicateCourseId = duplicateModal?.course_id;
+  const { data: duplicateCourseSections = [] } = useQuery({
+    queryKey: ['course-sections-for-rec', duplicateCourseId],
+    queryFn: () => duplicateCourseId
+      ? api.get(`/courses/${duplicateCourseId}/content`).then(r => r.data.sections || [])
+      : Promise.resolve([]),
+    enabled: !!duplicateCourseId,
+  });
+
   const { data: analytics } = useQuery({
     queryKey: ['recitations-analytics'],
     queryFn: () => api.get('/recitations/analytics').then(r => r.data),
@@ -402,9 +411,9 @@ export default function Recitations() {
       {tab === 'analytics' && <AnalyticsTab analytics={analytics} dark={dark} cardCls={cardCls} />}
 
       {tab === 'list' && (
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-          {/* Left: list */}
-          <div className="lg:col-span-2 space-y-3">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 min-w-0">
+          {/* Left: list (on right in RTL) */}
+          <div className="lg:col-span-5 xl:col-span-4 space-y-3 min-w-0">
             {/* Filters */}
             <div className="flex flex-col sm:flex-row gap-2">
               <input value={search} onChange={e => setSearch(e.target.value)}
@@ -427,7 +436,7 @@ export default function Recitations() {
                 : filtered.map(rec => (
                   <div key={rec.id}
                     onClick={() => setSelectedId(rec.id)}
-                    className={`${cardCls} cursor-pointer transition-all border-2 ${selectedId === rec.id ? 'border-orange-500' : dark ? 'border-transparent' : 'border-transparent hover:border-orange-200'}`}>
+                    className={`${cardCls} cursor-pointer transition-all border-2 min-w-0 overflow-hidden ${selectedId === rec.id ? 'border-orange-500' : dark ? 'border-transparent' : 'border-transparent hover:border-orange-200'}`}>
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -482,7 +491,8 @@ export default function Recitations() {
                               title: `${rec.title} (نسخة)`,
                               description: rec.description || '',
                               academic_stage: rec.academic_stage || '',
-                              course_id: rec.course_id || '',
+                              course_id: rec.course_id ? String(rec.course_id) : '',
+                              section_id: rec.section_id ? String(rec.section_id) : '',
                               duration_minutes: rec.duration_minutes || 10,
                               total_score: rec.total_score || 10,
                               pass_score: rec.pass_score || 5,
@@ -502,7 +512,8 @@ export default function Recitations() {
                             setConvertModal({
                               id: rec.id,
                               title: `اختبار: ${rec.title}`,
-                              course_id: rec.course_id || '',
+                              academic_stage: rec.academic_stage || '',
+                              course_id: rec.course_id ? String(rec.course_id) : '',
                               duration_minutes: 60,
                               total_score: rec.total_score || 100,
                               pass_score: rec.pass_score || 50,
@@ -534,19 +545,19 @@ export default function Recitations() {
             }
           </div>
 
-          {/* Right: detail panel */}
-          <div className="lg:col-span-3">
+          {/* Right: detail panel (on left in RTL) */}
+          <div className="lg:col-span-7 xl:col-span-8 min-w-0">
             {!selectedRec ? (
               <div className={`${cardCls} text-center py-20`}>
                 <BookOpen className={`w-16 h-16 mx-auto mb-3 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-300'}`} />
                 <p className={`font-semibold ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>اختر تسميعاً لعرض تفاصيله</p>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-4 min-w-0">
                 {/* Detail header */}
-                <div className={cardCls}>
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <div>
+                <div className={`${cardCls} min-w-0 overflow-hidden`}>
+                  <div className="flex items-start justify-between gap-3 mb-3 flex-wrap sm:flex-nowrap">
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
                         <StatusBadge rec={selectedRec} />
                         {selectedRec.academic_stage && (
@@ -558,9 +569,9 @@ export default function Recitations() {
                           </span>
                         )}
                       </div>
-                      <h2 className={`text-lg font-black ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>{selectedRec.title}</h2>
+                      <h2 className={`text-base sm:text-lg font-black break-words ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>{selectedRec.title}</h2>
                       {selectedRec.description && (
-                        <p className={`text-sm mt-1 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-500'}`}>{selectedRec.description}</p>
+                        <p className={`text-sm mt-1 break-words ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-500'}`}>{selectedRec.description}</p>
                       )}
                     </div>
                     <button
@@ -575,7 +586,7 @@ export default function Recitations() {
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {[
                       { label: 'المدة', value: `${selectedRec.duration_minutes} د` },
                       { label: 'الدرجة', value: selectedRec.total_score },
@@ -615,7 +626,8 @@ export default function Recitations() {
                       title: `${selectedRec.title} (نسخة)`,
                       description: selectedRec.description || '',
                       academic_stage: selectedRec.academic_stage || '',
-                      course_id: selectedRec.course_id || '',
+                      course_id: selectedRec.course_id ? String(selectedRec.course_id) : '',
+                      section_id: selectedRec.section_id ? String(selectedRec.section_id) : '',
                       duration_minutes: selectedRec.duration_minutes || 10,
                       total_score: selectedRec.total_score || 10,
                       pass_score: selectedRec.pass_score || 5,
@@ -632,7 +644,8 @@ export default function Recitations() {
                     onClick={() => setConvertModal({
                       id: selectedRec.id,
                       title: `اختبار: ${selectedRec.title}`,
-                      course_id: selectedRec.course_id || '',
+                      academic_stage: selectedRec.academic_stage || '',
+                      course_id: selectedRec.course_id ? String(selectedRec.course_id) : '',
                       duration_minutes: 60,
                       total_score: selectedRec.total_score || 100,
                       pass_score: selectedRec.pass_score || 50,
@@ -1118,8 +1131,15 @@ export default function Recitations() {
                   toast.error('عنوان التسميع مطلوب');
                   return;
                 }
+                const rawSection = parseInt(duplicateModal.section_id, 10);
+                const isSectionValid = duplicateModal.course_id &&
+                  !isNaN(rawSection) &&
+                  duplicateCourseSections.some(s => s.id === rawSection);
+
                 const payload = {
                   ...duplicateModal,
+                  course_id: duplicateModal.course_id ? parseInt(duplicateModal.course_id, 10) : null,
+                  section_id: isSectionValid ? rawSection : null,
                   start_date: parseEgyptDateTimeToUTC(duplicateModal.start_date),
                   end_date: parseEgyptDateTimeToUTC(duplicateModal.end_date),
                 };
@@ -1142,8 +1162,18 @@ export default function Recitations() {
                 <div>
                   <label className={`block text-xs font-bold mb-1 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>المرحلة الدراسية</label>
                   <select
-                    value={duplicateModal.academic_stage}
-                    onChange={(e) => setDuplicateModal({ ...duplicateModal, academic_stage: e.target.value })}
+                    value={duplicateModal.academic_stage || ''}
+                    onChange={(e) => {
+                      const newStage = e.target.value;
+                      const currentCourse = courses.find((c) => String(c.id) === String(duplicateModal.course_id));
+                      const isCourseValid = !newStage || !currentCourse || !currentCourse.target_stage || currentCourse.target_stage === newStage;
+                      setDuplicateModal({
+                        ...duplicateModal,
+                        academic_stage: newStage,
+                        course_id: isCourseValid ? duplicateModal.course_id : '',
+                        section_id: isCourseValid ? duplicateModal.section_id : '',
+                      });
+                    }}
                     className={`w-full rounded-xl px-3 py-2 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`}
                   >
                     <option value="">بدون مرحلة</option>
@@ -1155,26 +1185,61 @@ export default function Recitations() {
                 <div>
                   <label className={`block text-xs font-bold mb-1 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>الكورس (اختياري)</label>
                   <select
-                    value={duplicateModal.course_id}
+                    value={duplicateModal.course_id || ''}
                     onChange={(e) => {
                       const selCourse = courses.find((c) => String(c.id) === String(e.target.value));
                       setDuplicateModal({
                         ...duplicateModal,
                         course_id: e.target.value,
+                        section_id: '',
                         academic_stage: selCourse?.target_stage || duplicateModal.academic_stage,
                       });
                     }}
                     className={`w-full rounded-xl px-3 py-2 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`}
                   >
                     <option value="">بدون كورس</option>
-                    {courses.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} {c.target_stage ? `(${c.target_stage})` : ''}
-                      </option>
-                    ))}
+                    {courses
+                      .filter((c) => !duplicateModal.academic_stage || c.target_stage === duplicateModal.academic_stage)
+                      .map((c) => (
+                        <option key={c.id} value={String(c.id)}>
+                          {c.name} {c.target_stage ? `(${c.target_stage})` : ''}
+                        </option>
+                      ))}
                   </select>
                 </div>
               </div>
+
+              {duplicateModal.course_id && (
+                <div>
+                  <label className={`block text-xs font-bold mb-1.5 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-600'}`}>
+                    الفصل الذي سيفتح عند اجتياز هذا التسميع (اختياري)
+                    <span className={`mr-1.5 font-normal text-[11px] ${dark ? 'text-[var(--dk-text-2)]' : 'text-orange-600'}`}>
+                      (التسميعات في الفصل الأول عادةً تكون مربوطة بالفصل الثاني)
+                    </span>
+                  </label>
+                  {duplicateCourseSections.length === 0 ? (
+                    <p className={`text-xs ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>
+                      لا توجد فصول في هذا الكورس
+                    </p>
+                  ) : (
+                    <select
+                      value={duplicateModal.section_id || ''}
+                      onChange={e => setDuplicateModal({ ...duplicateModal, section_id: e.target.value })}
+                      className={`w-full rounded-xl px-3 py-2 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`}
+                    >
+                      <option value="">بدون ربط بفصل</option>
+                      {duplicateCourseSections.map(s => (
+                        <option key={s.id} value={String(s.id)}>
+                          {s.title}{s.id === duplicateCourseSections[0]?.id ? '  (الفصل الأول — مفتوح تلقائياً)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  <p className={`text-[11px] mt-1 leading-relaxed ${dark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    💡 <strong>توضيح:</strong> اجتياز التسميع يفتح محتوى هذا الفصل (فيديوهاته + ملفاته + تسميعاته).
+                  </p>
+                </div>
+              )}
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
@@ -1289,20 +1354,53 @@ export default function Recitations() {
                 />
               </div>
 
-              <div>
-                <label className={`block text-xs font-bold mb-1 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>الكورس المرتبط (اختياري)</label>
-                <select
-                  value={convertModal.course_id}
-                  onChange={(e) => setConvertModal({ ...convertModal, course_id: e.target.value })}
-                  className={`w-full rounded-xl px-3 py-2 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`}
-                >
-                  <option value="">عام (بدون كورس)</option>
-                  {courses.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} {c.target_stage ? `(${c.target_stage})` : ''}
-                    </option>
-                  ))}
-                </select>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={`block text-xs font-bold mb-1 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>المرحلة الدراسية</label>
+                  <select
+                    value={convertModal.academic_stage || ''}
+                    onChange={(e) => {
+                      const newStage = e.target.value;
+                      const currentCourse = courses.find((c) => String(c.id) === String(convertModal.course_id));
+                      const isCourseValid = !newStage || !currentCourse || !currentCourse.target_stage || currentCourse.target_stage === newStage;
+                      setConvertModal({
+                        ...convertModal,
+                        academic_stage: newStage,
+                        course_id: isCourseValid ? convertModal.course_id : '',
+                      });
+                    }}
+                    className={`w-full rounded-xl px-3 py-2 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`}
+                  >
+                    <option value="">كل المراحل</option>
+                    {PG_STAGES.map((st) => (
+                      <option key={st} value={st}>{st}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className={`block text-xs font-bold mb-1 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>الكورس المرتبط (اختياري)</label>
+                  <select
+                    value={convertModal.course_id || ''}
+                    onChange={(e) => {
+                      const selCourse = courses.find((c) => String(c.id) === String(e.target.value));
+                      setConvertModal({
+                        ...convertModal,
+                        course_id: e.target.value,
+                        academic_stage: selCourse?.target_stage || convertModal.academic_stage,
+                      });
+                    }}
+                    className={`w-full rounded-xl px-3 py-2 border text-sm ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-gray-200'}`}
+                  >
+                    <option value="">عام (بدون كورس)</option>
+                    {courses
+                      .filter((c) => !convertModal.academic_stage || c.target_stage === convertModal.academic_stage)
+                      .map((c) => (
+                        <option key={c.id} value={String(c.id)}>
+                          {c.name} {c.target_stage ? `(${c.target_stage})` : ''}
+                        </option>
+                      ))}
+                  </select>
+                </div>
               </div>
 
               <div className="grid grid-cols-3 gap-3">
@@ -1858,16 +1956,16 @@ function ResultsPanel({ rec, dark, cardCls, navigate, baseRole = 'teacher', gran
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 min-w-0">
       {searchInput}
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
         {[
           { label: 'شاركوا', value: stats.participated, color: 'orange' },
           { label: 'متوسط الدرجة', value: stats.participated > 0 ? `${stats.avg_score}/${rec.total_score}` : '-', color: 'blue' },
           { label: 'نسبة النجاح', value: stats.participated > 0 ? `${Math.round(stats.passed_count / stats.participated * 100)}%` : '-', color: 'green' },
         ].map(({ label, value, color }) => (
-          <div key={label} className={`rounded-xl p-3 text-center ${dark ? 'bg-[var(--dk-elevated)]' : `bg-${color}-50`}`}>
-            <div className={`text-xl font-black text-${color}-600`}>{value}</div>
+          <div key={label} className={`rounded-xl p-2.5 sm:p-3 text-center min-w-0 ${dark ? 'bg-[var(--dk-elevated)]' : `bg-${color}-50`}`}>
+            <div className={`text-lg sm:text-xl font-black text-${color}-600`}>{value}</div>
             <div className={`text-xs mt-0.5 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-500'}`}>{label}</div>
           </div>
         ))}
@@ -1888,38 +1986,38 @@ function ResultsPanel({ rec, dark, cardCls, navigate, baseRole = 'teacher', gran
         const isAbsent = r.is_absent === true || r.is_absent === 'true';
 
         return (
-          <div key={r.student_id} className={`${cardCls} space-y-2`}>
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3 min-w-0 flex-1">
+          <div key={r.student_id} className={`${cardCls} space-y-2 min-w-0 overflow-hidden`}>
+            <div className="flex items-center justify-between gap-2.5 flex-wrap sm:flex-nowrap">
+              <div className="flex items-center gap-2.5 min-w-0 flex-1">
                 <div className={`w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center font-bold text-sm text-white ${isAbsent ? 'bg-gray-400' : r.passed ? 'bg-green-500' : 'bg-red-400'}`}>
                   {r.student_name?.charAt(0)}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className={`font-bold text-sm ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>{r.student_name}</p>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <p className={`font-bold text-sm truncate max-w-[140px] sm:max-w-[200px] ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>{r.student_name}</p>
                     {isAbsent && (
-                      <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600">غائب</span>
+                      <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600 flex-shrink-0">غائب</span>
                     )}
                     {hasMultiple && (
-                      <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">
+                      <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 flex-shrink-0">
                         {attemptCount} محاولات
                       </span>
                     )}
                     {unusedGrants > 0 && (
-                      <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 inline-flex items-center gap-1"
+                      <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 inline-flex items-center gap-1 flex-shrink-0"
                             title={`منحت ${unusedGrants} محاولة إضافية لم تستخدم بعد`}>
                         🎁 {unusedGrants > 1 ? `${unusedGrants} منح` : 'منحة'}
                       </span>
                     )}
                   </div>
-                  <p className={`text-xs ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>
+                  <p className={`text-xs truncate ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>
                     {r.academic_stage} · {new Date(r.created_at).toLocaleDateString('ar-EG')}
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="flex items-center gap-2 flex-shrink-0 mr-auto">
                 <div className="text-left">
-                  <span className={`font-black text-lg ${isAbsent ? 'text-gray-400' : r.passed ? 'text-green-600' : 'text-red-500'}`}>
+                  <span className={`font-black text-base sm:text-lg ${isAbsent ? 'text-gray-400' : r.passed ? 'text-green-600' : 'text-red-500'}`}>
                     {latestScore}/{rec.total_score}
                   </span>
                   {hasMultiple && !isNaN(firstScore) && firstScore !== latestScore && (

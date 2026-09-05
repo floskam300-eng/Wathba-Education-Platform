@@ -469,7 +469,8 @@ export default function TeacherExams() {
                               duration_minutes: ex.duration_minutes || 60,
                               total_score: ex.total_score || 100,
                               pass_score: ex.pass_score || 50,
-                              course_id: ex.course_id || '',
+                              academic_stage: ex.course_id ? (courseStageMap[ex.course_id] || '') : (ex.target_stage || ex.academic_stage || ''),
+                              course_id: ex.course_id ? String(ex.course_id) : '',
                               start_date: fmtDateLocal(ex.start_date) || '',
                               end_date: fmtDateLocal(ex.end_date) || '',
                               shuffle_questions: !!ex.shuffle_questions,
@@ -1138,6 +1139,7 @@ export default function TeacherExams() {
               }
               const payload = {
                 ...duplicateModal,
+                course_id: duplicateModal.course_id ? parseInt(duplicateModal.course_id, 10) : null,
                 start_date: parseEgyptDateTimeToUTC(duplicateModal.start_date),
                 end_date: parseEgyptDateTimeToUTC(duplicateModal.end_date),
               };
@@ -1160,20 +1162,54 @@ export default function TeacherExams() {
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-bold text-navy-700 mb-1">الكورس المرتبط (اختياري)</label>
-              <select
-                value={duplicateModal.course_id}
-                onChange={(e) => setDuplicateModal({ ...duplicateModal, course_id: e.target.value })}
-                className="input-field"
-              >
-                <option value="">عام (بدون كورس)</option>
-                {courses.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} {c.target_stage ? `(${c.target_stage})` : ''}
-                  </option>
-                ))}
-              </select>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-bold text-navy-700 mb-1">المرحلة الدراسية</label>
+                <select
+                  value={duplicateModal.academic_stage || ''}
+                  onChange={(e) => {
+                    const newStage = e.target.value;
+                    const currentCourse = courses.find((c) => String(c.id) === String(duplicateModal.course_id));
+                    const isCourseValid = !newStage || !currentCourse || !currentCourse.target_stage || currentCourse.target_stage === newStage;
+                    setDuplicateModal({
+                      ...duplicateModal,
+                      academic_stage: newStage,
+                      course_id: isCourseValid ? duplicateModal.course_id : '',
+                    });
+                  }}
+                  className="input-field"
+                >
+                  <option value="">كل المراحل الدراسية</option>
+                  {STAGES.map((st) => (
+                    <option key={st} value={st}>{st}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-navy-700 mb-1">الكورس المرتبط (اختياري)</label>
+                <select
+                  value={duplicateModal.course_id || ''}
+                  onChange={(e) => {
+                    const selCourse = courses.find((c) => String(c.id) === String(e.target.value));
+                    setDuplicateModal({
+                      ...duplicateModal,
+                      course_id: e.target.value,
+                      academic_stage: selCourse?.target_stage || duplicateModal.academic_stage || '',
+                    });
+                  }}
+                  className="input-field"
+                >
+                  <option value="">عام (بدون كورس)</option>
+                  {courses
+                    .filter((c) => !duplicateModal.academic_stage || c.target_stage === duplicateModal.academic_stage)
+                    .map((c) => (
+                      <option key={c.id} value={String(c.id)}>
+                        {c.name} {c.target_stage ? `(${c.target_stage})` : ''}
+                      </option>
+                    ))}
+                </select>
+              </div>
             </div>
 
             <div className="grid grid-cols-3 gap-3">
@@ -1293,8 +1329,17 @@ export default function TeacherExams() {
               <div>
                 <label className="block text-sm font-bold text-navy-700 mb-1">المرحلة الدراسية</label>
                 <select
-                  value={convertModal.academic_stage}
-                  onChange={(e) => setConvertModal({ ...convertModal, academic_stage: e.target.value })}
+                  value={convertModal.academic_stage || ''}
+                  onChange={(e) => {
+                    const newStage = e.target.value;
+                    const currentCourse = courses.find((c) => String(c.id) === String(convertModal.course_id));
+                    const isCourseValid = !newStage || !currentCourse || !currentCourse.target_stage || currentCourse.target_stage === newStage;
+                    setConvertModal({
+                      ...convertModal,
+                      academic_stage: newStage,
+                      course_id: isCourseValid ? convertModal.course_id : '',
+                    });
+                  }}
                   className="input-field text-sm"
                 >
                   <option value="">بدون تحديد مرحلة</option>
@@ -1307,7 +1352,7 @@ export default function TeacherExams() {
               <div>
                 <label className="block text-sm font-bold text-navy-700 mb-1">الكورس (اختياري)</label>
                 <select
-                  value={convertModal.course_id}
+                  value={convertModal.course_id || ''}
                   onChange={(e) => {
                     const selectedC = courses.find((c) => String(c.id) === String(e.target.value));
                     setConvertModal({
@@ -1319,11 +1364,13 @@ export default function TeacherExams() {
                   className="input-field text-sm"
                 >
                   <option value="">بدون كورس</option>
-                  {courses.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} {c.target_stage ? `(${c.target_stage})` : ''}
-                    </option>
-                  ))}
+                  {courses
+                    .filter((c) => !convertModal.academic_stage || c.target_stage === convertModal.academic_stage)
+                    .map((c) => (
+                      <option key={c.id} value={String(c.id)}>
+                        {c.name} {c.target_stage ? `(${c.target_stage})` : ''}
+                      </option>
+                    ))}
                 </select>
               </div>
             </div>
