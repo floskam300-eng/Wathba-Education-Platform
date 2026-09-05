@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import Sidebar from './Sidebar';
@@ -6,7 +6,58 @@ import { Menu } from 'lucide-react';
 
 export default function AdminLayout() {
   const { admin, loading } = useAuth();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(() => {
+    try {
+      const saved = localStorage.getItem('wathba_admin_desktop_sidebar_open');
+      if (saved !== null) return saved === 'true';
+    } catch (e) {}
+    return true;
+  });
+  const [isDesktop, setIsDesktop] = useState(() => typeof window !== 'undefined' ? window.innerWidth >= 1024 : true);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const desktop = window.innerWidth >= 1024;
+      setIsDesktop(desktop);
+      if (desktop) setMobileSidebarOpen(false);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && !isDesktop && mobileSidebarOpen) {
+        setMobileSidebarOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isDesktop, mobileSidebarOpen]);
+
+  const handleToggleSidebar = () => {
+    if (isDesktop) {
+      setDesktopSidebarOpen(prev => {
+        const next = !prev;
+        try { localStorage.setItem('wathba_admin_desktop_sidebar_open', String(next)); } catch (e) {}
+        return next;
+      });
+    } else {
+      setMobileSidebarOpen(prev => !prev);
+    }
+  };
+
+  const handleCloseSidebar = () => {
+    if (isDesktop) {
+      setDesktopSidebarOpen(false);
+      try { localStorage.setItem('wathba_admin_desktop_sidebar_open', 'false'); } catch (e) {}
+    } else {
+      setMobileSidebarOpen(false);
+    }
+  };
+
+  const isSidebarOpen = isDesktop ? desktopSidebarOpen : mobileSidebarOpen;
 
   if (loading) {
     return (
@@ -25,16 +76,21 @@ export default function AdminLayout() {
 
   return (
     <div className="flex bg-slate-950 min-h-screen text-slate-100">
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar
+        isOpen={mobileSidebarOpen}
+        onClose={handleCloseSidebar}
+        desktopOpen={desktopSidebarOpen}
+      />
 
       <div className="flex flex-col flex-1 min-w-0">
-        {/* Mobile top bar */}
-        <header className="lg:hidden sticky top-0 z-30 flex items-center gap-3 bg-slate-900/95 backdrop-blur-sm border-b border-slate-800 px-4 py-3">
+        {/* Top bar */}
+        <header className="sticky top-0 z-30 flex items-center gap-3 bg-slate-900/95 backdrop-blur-sm border-b border-slate-800 px-4 py-3">
           <button
             type="button"
-            onClick={() => setSidebarOpen(true)}
+            onClick={handleToggleSidebar}
             className="p-2 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-white transition"
-            aria-label="فتح القائمة"
+            aria-label={isSidebarOpen ? "إغلاق القائمة" : "فتح القائمة"}
+            title={isSidebarOpen ? "إغلاق القائمة" : "فتح القائمة"}
           >
             <Menu size={22} />
           </button>

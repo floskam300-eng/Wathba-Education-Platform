@@ -1,9 +1,9 @@
 import React, { useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { LayoutDashboard, Users, CreditCard, ShieldAlert, BadgeDollarSign, LogOut, X } from 'lucide-react';
+import { LayoutDashboard, Users, CreditCard, ShieldAlert, BadgeDollarSign, LogOut, X, PanelRightClose } from 'lucide-react';
 
-export default function Sidebar({ isOpen, onClose }) {
+export default function Sidebar({ isOpen, onClose, desktopOpen = true }) {
   const { logout, admin } = useAuth();
 
   const links = [
@@ -33,14 +33,16 @@ export default function Sidebar({ isOpen, onClose }) {
 
   const sidebarContent = (
     <aside className="w-64 bg-slate-900 border-l border-slate-800 flex flex-col h-full select-none">
-      {/* Mobile close button */}
+      {/* Close button */}
       <button
         type="button"
         onClick={onClose}
-        className="lg:hidden absolute top-3 left-3 p-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition z-10"
+        className="absolute top-3 left-3 p-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition z-10"
         aria-label="إغلاق القائمة"
+        title="إغلاق القائمة"
       >
-        <X size={18} />
+        <PanelRightClose size={18} className="hidden lg:block" />
+        <X size={18} className="lg:hidden" />
       </button>
 
       <div className="p-6 border-b border-slate-800">
@@ -94,9 +96,13 @@ export default function Sidebar({ isOpen, onClose }) {
 
   return (
     <>
-      {/* Desktop sidebar — always visible */}
-      <div className="hidden lg:flex lg:flex-col lg:w-64 lg:sticky lg:top-0 lg:h-screen flex-shrink-0">
-        {sidebarContent}
+      {/* Desktop sidebar */}
+      <div className={`hidden lg:flex lg:flex-col lg:sticky lg:top-0 lg:h-screen flex-shrink-0 transition-[width,opacity] duration-300 ease-in-out overflow-hidden ${
+        desktopOpen ? 'w-64 opacity-100' : 'w-0 opacity-0 pointer-events-none'
+      }`}>
+        <div className="w-64 min-w-[16rem] h-full flex flex-col">
+          {sidebarContent}
+        </div>
       </div>
 
       {/* Mobile drawer overlay */}
