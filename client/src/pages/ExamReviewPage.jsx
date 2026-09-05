@@ -177,7 +177,7 @@ export default function ExamReviewPage() {
             <XCircle className="w-14 h-14 text-red-300 mx-auto mb-3" />
             <p className={`font-bold text-lg ${dark ? 'text-[var(--dk-text)]' : 'text-gray-700'}`}>تعذّر تحميل المراجعة</p>
             <p className={`text-sm mt-1 mb-4 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`}>تحقق من الاتصال أو حاول مجدداً</p>
-            <button onClick={goBack} className="btn-primary px-6 py-2">رجوع</button>
+            <button onClick={goBack} className="btn-primary">رجوع</button>
           </div>
         )}
 

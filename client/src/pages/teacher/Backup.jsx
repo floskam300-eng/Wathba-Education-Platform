@@ -298,7 +298,7 @@ export default function Backup() {
               <button
                 onClick={handleExport}
                 disabled={exporting}
-                className="btn-primary flex items-center gap-2 px-6 py-3 disabled:opacity-50"
+                className="btn-primary flex items-center gap-2 disabled:opacity-50"
               >
                 {exporting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
                 {exporting ? 'جاري التصدير...' : 'تنزيل النسخة الاحتياطية'}
@@ -372,7 +372,7 @@ export default function Backup() {
                   <button
                     onClick={handleImport}
                     disabled={importing}
-                    className="btn-primary flex items-center gap-2 px-6 disabled:opacity-50"
+                    className="btn-primary flex items-center gap-2 disabled:opacity-50"
                   >
                     {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
                     {importing ? 'جاري الاستيراد...' : 'بدء الاستيراد'}

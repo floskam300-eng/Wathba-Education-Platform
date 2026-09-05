@@ -393,7 +393,7 @@ export default function Recitations() {
           </button>
           <button
             onClick={() => { setEditRec(null); setForm(emptyForm); setModal(true); }}
-            className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-navy-900 px-4 py-2 rounded-xl text-sm font-bold transition-all shadow active:scale-95">
+            className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-navy-900 px-4 py-2 rounded-xl text-sm font-bold transition-all active:scale-95">
             <Plus className="w-4 h-4" /> تسميع جديد
           </button>
         </div>
@@ -595,7 +595,7 @@ export default function Recitations() {
                   {!selectedRec.is_published && (
                     <button
                       onClick={() => navigate(`/${baseRole}/recitations/${selectedRec.id}/questions`)}
-                      className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-navy-900 px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm active:scale-95">
+                      className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-navy-900 px-4 py-2 rounded-xl text-sm font-bold transition-all active:scale-95">
                       <FileText className="w-4 h-4" />
                       إدارة الأسئلة ({selectedRec.question_count})
                     </button>
@@ -1044,19 +1044,22 @@ export default function Recitations() {
                   const payload = {
                     ...form,
                     course_id: form.course_id ? parseInt(form.course_id, 10) || null : null,
-                    section_id: Number.isFinite(rawSection) && rawSection > 0 ? rawSection : null,
+                    section_id: parseInt(form.section_id, 10) || null,
                     start_date: parseEgyptDateTimeToUTC(form.start_date),
                     end_date: parseEgyptDateTimeToUTC(form.end_date),
+                    group_ids: form.group_ids,
+                    is_active: true,
+                    allow_retry: !!form.allow_retry,
                     max_retry_attempts: form.allow_retry && !isNaN(rawMax) && rawMax >= 1 ? rawMax : null,
                     is_gate_required: !!form.is_gate_required,
                   };
                   createMut.mutate(payload);
                 }} disabled={createMut.isPending || !form.title.trim()}
-                  className="flex-1 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-navy-900 py-2.5 rounded-xl font-bold text-sm transition-all shadow-sm active:scale-95">
+                  className="flex-1 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-navy-900 py-2 rounded-xl font-bold text-sm transition-all active:scale-95">
                   {createMut.isPending ? 'جاري الحفظ...' : editRec ? 'حفظ التعديلات' : 'إنشاء التسميع'}
                 </button>
                 <button onClick={() => { setModal(false); setEditRec(null); setForm(emptyForm); setFormErrors({}); }}
-                  className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-colors ${dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-600'}`}>
+                  className={`px-4 py-2 rounded-xl font-bold text-sm transition-colors ${dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-600'}`}>
                   إلغاء
                 </button>
               </div>
@@ -1232,14 +1235,14 @@ export default function Recitations() {
                 <button
                   type="button"
                   onClick={() => setDuplicateModal(null)}
-                  className={`flex-1 py-2.5 rounded-xl text-sm font-bold ${dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-600'}`}
+                  className={`flex-1 py-2 rounded-xl text-sm font-bold ${dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-600'}`}
                 >
                   إلغاء
                 </button>
                 <button
                   type="submit"
                   disabled={duplicateMut.isPending}
-                  className="flex-1 bg-amber-500 hover:bg-amber-600 text-navy-900 font-bold py-2.5 rounded-xl text-sm transition-all shadow-sm active:scale-95"
+                  className="flex-1 bg-amber-500 hover:bg-amber-600 text-navy-900 font-bold py-2 rounded-xl text-sm transition-all active:scale-95"
                 >
                   {duplicateMut.isPending ? 'جاري الإنشاء...' : 'تأكيد إنشاء النسخة'}
                 </button>
@@ -1361,14 +1364,14 @@ export default function Recitations() {
                 <button
                   type="button"
                   onClick={() => setConvertModal(null)}
-                  className={`flex-1 py-2.5 rounded-xl text-sm font-bold ${dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-600'}`}
+                  className={`flex-1 py-2 rounded-xl text-sm font-bold ${dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-600'}`}
                 >
                   إلغاء
                 </button>
                 <button
                   type="submit"
                   disabled={convertMut.isPending}
-                  className="flex-1 bg-amber-500 hover:bg-amber-600 text-navy-900 font-bold py-2.5 rounded-xl text-sm transition-all shadow-sm active:scale-95"
+                  className="flex-1 bg-amber-500 hover:bg-amber-600 text-navy-900 font-bold py-2 rounded-xl text-sm transition-all active:scale-95"
                 >
                   {convertMut.isPending ? 'جاري التحويل...' : 'تأكيد التحويل إلى اختبار'}
                 </button>
@@ -1527,7 +1530,7 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
                       }));
                       updateSubQuestions(subs);
                     }}
-                    className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-navy-900 rounded-xl text-sm font-bold flex items-center gap-1.5 transition-all shadow-sm">
+                    className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-navy-900 rounded-xl text-sm font-bold flex items-center gap-1.5 transition-all">
                     <RefreshCw className="w-3.5 h-3.5" /> توليد
                   </button>
                   {(qForm.sub_questions || []).length > 0 && (
@@ -1633,7 +1636,7 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
                   disabled={isImgMulti} />
               </div>
               <button onClick={() => { addQMut.mutate(qForm); if (imgPreviewBlob) { URL.revokeObjectURL(imgPreviewBlob); setImgPreviewBlob(null); } }} disabled={addQMut.isPending || !canSubmit()}
-                className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-navy-900 px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm active:scale-95">
+                className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-navy-900 px-4 py-2 rounded-xl text-sm font-bold transition-all active:scale-95">
                 {addQMut.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                 {editQId ? 'حفظ' : 'إضافة'}
               </button>

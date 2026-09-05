@@ -137,12 +137,14 @@
 ═══════════════════════════════════════════════════════ */
 @layer components {
   .btn-primary {
-    @apply bg-amber-500 hover:bg-amber-600 text-navy-900 font-bold px-6 py-2.5 rounded-xl transition-all duration-200 active:scale-95 shadow-sm;
+    @apply bg-amber-500 hover:bg-amber-600 text-navy-900 font-bold px-4 py-2 text-sm rounded-xl transition-all duration-200 active:scale-95;
+    box-shadow: none !important;
   }
 
   .btn-secondary {
-    @apply border-2 border-navy-600 text-navy-600 font-semibold px-6 py-2.5 rounded-lg transition-all duration-200;
+    @apply border-2 border-navy-600 text-navy-600 font-semibold px-4 py-2 text-sm rounded-xl transition-all duration-200;
     background-color: #ffffff;
+    box-shadow: none !important;
   }
   .btn-secondary:hover {
     background-color: #152540 !important;
@@ -247,12 +249,12 @@ html.dark .dark\:text-gray-500 { color: #9CA6B5 !important; }
 html.dark .btn-primary {
   background-color: #F5A623 !important;
   color: #0A1628 !important;
-  box-shadow: 0 0 16px rgba(245, 166, 35, 0.28);
+  box-shadow: none !important;
   transition: all 0.2s;
 }
 html.dark .btn-primary:hover {
   background-color: #D97706 !important;
-  box-shadow: 0 0 24px rgba(245, 166, 35, 0.45);
+  box-shadow: none !important;
 }
 
 html.dark .sidebar-link.active {
@@ -1086,6 +1088,24 @@ html:not(.dark) .shadow-md {
 html:not(.dark) .shadow-lg {
   box-shadow: 0 8px 32px rgba(26, 46, 74, 0.28),
               0 4px 12px rgba(26, 46, 74, 0.16) !important;
+}
+
+/* ── الأزرار تظل دائماً مسطحة ونظيفة بدون أي ظلال أو توهج عند hover ── */
+button,
+button.shadow-sm,
+button.shadow-md,
+button.shadow-lg,
+button.shadow,
+.btn-primary,
+.btn-secondary,
+.btn-danger {
+  box-shadow: none !important;
+}
+button:hover,
+.btn-primary:hover,
+.btn-secondary:hover,
+.btn-danger:hover {
+  box-shadow: none !important;
 }
 
 /* ── Header في الـ layouts (bg-white) يحتاج shadow أقوى ── */

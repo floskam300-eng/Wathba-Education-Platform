@@ -488,7 +488,7 @@ export default function RecitationQuestions() {
                             }));
                             updateSubQuestions(subs);
                           }}
-                          className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-navy-900 rounded-xl text-sm font-bold flex items-center gap-1.5 transition-all shadow-sm active:scale-95">
+                          className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-navy-900 rounded-xl text-sm font-bold flex items-center gap-1.5 transition-all active:scale-95">
                           <RefreshCw className="w-3.5 h-3.5" /> توليد
                         </button>
                         {(qForm.sub_questions || []).length > 0 && (
@@ -637,13 +637,13 @@ export default function RecitationQuestions() {
                   <div className="flex gap-2 pt-1 border-t border-gray-100 dark:border-[var(--dk-border)]">
                     {editQ && (
                       <button type="button" onClick={resetForm}
-                        className="px-4 py-2.5 rounded-xl text-sm font-bold bg-gray-100 dark:bg-[var(--dk-elevated)] text-gray-600 dark:text-[var(--dk-text-2)] hover:bg-gray-200 dark:hover:bg-[var(--dk-hover)] transition-colors flex-shrink-0">
+                        className="px-4 py-2 rounded-xl text-sm font-bold bg-gray-100 dark:bg-[var(--dk-elevated)] text-gray-600 dark:text-[var(--dk-text-2)] hover:bg-gray-200 dark:hover:bg-[var(--dk-hover)] transition-colors flex-shrink-0">
                         إلغاء
                       </button>
                     )}
                     <button type="submit"
                       disabled={addQMut.isPending}
-                      className="flex-1 flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-navy-900 py-2.5 rounded-xl font-bold text-sm transition-all shadow-sm active:scale-95">
+                      className="flex-1 flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-navy-900 py-2 rounded-xl font-bold text-sm transition-all active:scale-95">
                       {addQMut.isPending
                         ? <RefreshCw className="w-4 h-4 animate-spin" />
                         : <Plus className="w-4 h-4" />

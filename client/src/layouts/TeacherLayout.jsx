@@ -260,7 +260,7 @@ export default function TeacherLayout() {
             <button
               type="button"
               onClick={() => setSimulatorOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-navy-900 text-xs font-black transition-all shadow-sm shadow-amber-500/20"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-navy-900 text-xs font-bold transition-all"
               title="معاينة المنصة كطالب"
             >
               <Eye className="w-4 h-4 text-navy-900" />

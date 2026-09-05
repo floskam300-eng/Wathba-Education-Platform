@@ -249,7 +249,7 @@ function VideoPreviewModal({ video, onClose }) {
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 gap-4">
               <p className="text-gray-400 text-sm text-center px-6">لا يمكن تشغيل هذا الرابط مباشرة — افتحه في نافذة جديدة</p>
               <a href={url} target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-navy-900 font-bold px-5 py-2.5 rounded-xl transition-all shadow-sm active:scale-95">
+                className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-navy-900 font-bold px-4 py-2 rounded-xl text-sm transition-all active:scale-95">
                 <ExternalLink className="w-4 h-4" /> فتح الرابط
               </a>
             </div>

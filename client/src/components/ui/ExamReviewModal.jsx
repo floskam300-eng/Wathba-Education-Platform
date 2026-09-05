@@ -359,7 +359,7 @@ export default function ExamReviewModal({ resultId, onClose }) {
 
         {/* Footer */}
         <div className="px-5 py-3 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/30 flex justify-end">
-          <button onClick={onClose} className="btn-primary px-6 py-2 text-sm">إغلاق</button>
+          <button onClick={onClose} className="btn-primary">إغلاق</button>
         </div>
       </div>
 

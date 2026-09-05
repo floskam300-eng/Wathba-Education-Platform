@@ -354,9 +354,9 @@ export default function Notifications() {
             )}
 
             <button onClick={sendPlatform} disabled={platformMut.isPending}
-              className="w-full btn-primary flex items-center justify-center gap-2 py-3 disabled:opacity-60">
+              className="w-full btn-primary flex items-center justify-center gap-2 py-2.5 disabled:opacity-60">
               {platformMut.isPending ? (
-                <span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                <span className="w-5 h-5 border-2 border-navy-900/30 border-t-navy-900 rounded-full animate-spin" />
               ) : (
                 <Bell className="w-5 h-5" />
               )}

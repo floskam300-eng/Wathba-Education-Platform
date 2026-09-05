@@ -1065,7 +1065,7 @@ export default function TeacherExams() {
               <button
                 onClick={() => publishMut.mutate({ id: forceResetConfirm.id, force_reset: true })}
                 disabled={publishMut.isPending}
-                className="flex-1 font-bold py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white transition-all active:scale-95">
+                className="flex-1 font-bold py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-navy-900 transition-all active:scale-95">
                 {publishMut.isPending ? 'جاري...' : 'نعم، أرشف النتائج وأعد النشر'}
               </button>
             </div>
@@ -1103,7 +1103,7 @@ export default function TeacherExams() {
               <button
                 onClick={() => { publishMut.mutate({ id: unpublishConfirm.id }); setUnpublishConfirm(null); }}
                 disabled={publishMut.isPending}
-                className="flex-1 font-bold py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-navy-900 transition-all active:scale-95 shadow-sm">
+                className="flex-1 font-bold py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-navy-900 transition-all active:scale-95">
                 {publishMut.isPending ? 'جاري...' : 'نعم، إلغاء النشر'}
               </button>
             </div>
@@ -1394,7 +1394,7 @@ export default function TeacherExams() {
               <button
                 type="submit"
                 disabled={convertMut.isPending}
-                className="flex-1 bg-amber-500 hover:bg-amber-600 text-navy-900 font-bold py-2.5 rounded-xl transition-all shadow-sm active:scale-95"
+                className="flex-1 bg-amber-500 hover:bg-amber-600 text-navy-900 font-bold py-2 rounded-xl transition-all active:scale-95"
               >
                 {convertMut.isPending ? 'جاري التحويل...' : 'تأكيد التحويل إلى تسميع'}
               </button>

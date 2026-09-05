@@ -788,7 +788,7 @@ function StreamForm({ onBack, onStarted, dark }) {
           </div>
         </div>
         <button type="submit" disabled={loading}
-          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-black text-white text-base bg-red-600 hover:bg-red-700 disabled:opacity-60 transition-all shadow-lg active:scale-[0.98]">
+          className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl font-bold text-white text-sm bg-red-600 hover:bg-red-700 disabled:opacity-60 transition-all active:scale-[0.98]">
           {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Radio className="w-5 h-5" />}
           {loading ? 'جارٍ البدء...' : 'ابدأ البث الآن'}
         </button>
@@ -890,7 +890,7 @@ function ScheduleForm({ onBack, onScheduled, dark }) {
           </div>
         </div>
         <button type="submit" disabled={loading}
-          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-black text-navy-900 text-base bg-amber-500 hover:bg-amber-600 disabled:opacity-60 transition-all shadow-lg shadow-amber-500/20 active:scale-[0.98]">
+          className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl font-bold text-navy-900 text-sm bg-amber-500 hover:bg-amber-600 disabled:opacity-60 transition-all active:scale-[0.98]">
           {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Calendar className="w-5 h-5" />}
           {loading ? 'جارٍ الجدولة...' : 'جدول البث'}
         </button>
@@ -946,11 +946,11 @@ function IdleView({ onGoToForm, onSchedule, onStarted, dark }) {
         </p>
         <div className="flex gap-3 flex-wrap justify-center">
           <button onClick={onGoToForm}
-            className="flex items-center gap-2 px-6 py-3 rounded-2xl font-black text-white text-sm bg-red-600 hover:bg-red-700 transition-all shadow-lg hover:shadow-red-500/25 active:scale-95">
+            className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-white text-sm bg-red-600 hover:bg-red-700 transition-all active:scale-95">
             <Radio className="w-4 h-4" /> ابدأ بثاً الآن
           </button>
           <button onClick={onSchedule}
-            className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black text-sm border-2 transition-all active:scale-95 ${dark ? 'border-amber-500 text-amber-400 hover:bg-amber-500 hover:text-navy-900' : 'border-amber-500 text-amber-700 hover:bg-amber-500 hover:text-navy-900'}`}>
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm border-2 transition-all active:scale-95 ${dark ? 'border-amber-500 text-amber-400 hover:bg-amber-500 hover:text-navy-900' : 'border-amber-500 text-amber-700 hover:bg-amber-500 hover:text-navy-900'}`}>
             <Calendar className="w-4 h-4" /> جدول موعداً
           </button>
         </div>

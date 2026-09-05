@@ -234,7 +234,7 @@ export default function StudentSimulatorModal({ isOpen, onClose, defaultStage = 
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 py-3 px-5 rounded-2xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-navy-900 font-black text-sm transition-all shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 cursor-pointer"
+              className="flex-1 py-2 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-navy-900 font-bold text-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               {loading ? (
                 <span className="w-5 h-5 border-2 border-navy-900/30 border-t-navy-900 rounded-full animate-spin" />
@@ -249,7 +249,7 @@ export default function StudentSimulatorModal({ isOpen, onClose, defaultStage = 
               type="button"
               onClick={onClose}
               disabled={loading}
-              className={`py-3 px-5 rounded-2xl font-bold text-sm transition-colors ${
+              className={`py-2 px-4 rounded-xl font-bold text-sm transition-colors ${
                 dark ? 'bg-slate-800 text-gray-300 hover:bg-slate-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >

@@ -535,7 +535,7 @@ export default function AddStudent() {
                   <button
                     type="submit"
                     disabled={createMut.isPending}
-                    className="btn-primary w-full sm:flex-1 py-3 px-5 rounded-xl font-black text-sm flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all disabled:opacity-50"
+                    className="btn-primary w-full sm:flex-1 py-2.5 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
                   >
                     {createMut.isPending ? (
                       <>
@@ -557,7 +557,7 @@ export default function AddStudent() {
                       setFormErrors({});
                       nameInputRef.current?.focus();
                     }}
-                    className="btn-secondary w-full sm:w-auto px-4 py-3 rounded-xl text-xs font-bold transition-colors"
+                    className="btn-secondary w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold transition-colors"
                   >
                     مسح الحقول
                   </button>

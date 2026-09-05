@@ -213,7 +213,7 @@ function SubjectModal({ stages, onClose, dark }) {
               </div>
             </div>
             <button onClick={addSubject} disabled={saving || !newName.trim()}
-              className="btn-primary text-sm flex items-center justify-center gap-2 w-full sm:w-auto disabled:opacity-50 px-6">
+              className="btn-primary text-sm flex items-center justify-center gap-2 w-full sm:w-auto disabled:opacity-50">
               <Plus className="w-4 h-4" />{saving ? 'جارٍ الحفظ...' : 'إضافة المادة'}
             </button>
           </div>
