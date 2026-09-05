@@ -350,12 +350,12 @@ export default function WrongQuestionsPage() {
             <button onClick={() => setShowFilters(f => !f)}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-bold transition-all
                 ${showFilters || hasActiveFilter
-                  ? 'bg-orange-500 border-orange-500 text-white'
-                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-orange-300'
+                  ? 'bg-amber-500 border-amber-500 text-navy-900 font-bold shadow-sm'
+                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-amber-300'
                 }`}>
               <SlidersHorizontal className="w-4 h-4" />
               <span className="hidden sm:inline">فلاتر</span>
-              {hasActiveFilter && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+              {hasActiveFilter && <span className="w-1.5 h-1.5 rounded-full bg-navy-900" />}
             </button>
           </div>
         </div>

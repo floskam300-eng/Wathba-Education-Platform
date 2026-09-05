@@ -365,14 +365,14 @@ export default function Recitations() {
           <button
             onClick={() => { setTab('list'); setSelectedId(null); }}
             className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${tab === 'list'
-              ? 'bg-orange-500 text-white'
+              ? 'bg-amber-500 text-navy-900 font-black shadow-sm'
               : dark ? 'text-[var(--dk-text-2)] hover:bg-[var(--dk-elevated)]' : 'text-gray-600 hover:bg-gray-100'}`}>
             القائمة
           </button>
           <button
             onClick={() => setTab('analytics')}
             className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${tab === 'analytics'
-              ? 'bg-orange-500 text-white'
+              ? 'bg-amber-500 text-navy-900 font-black shadow-sm'
               : dark ? 'text-[var(--dk-text-2)] hover:bg-[var(--dk-elevated)]' : 'text-gray-600 hover:bg-gray-100'}`}>
             <BarChart2 className="w-4 h-4 inline ml-1" />التحليلات
           </button>
@@ -385,15 +385,15 @@ export default function Recitations() {
                 destination: '/student/recitations',
               });
             }}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold border border-orange-200 dark:border-orange-800/50 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950/40 transition-colors shadow-sm"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold border border-amber-300 dark:border-amber-800/50 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition-colors shadow-sm"
             title="معاينة وتجربة صفحة التسميع كطالب"
           >
-            <Eye className="w-4 h-4 text-orange-500" />
+            <Eye className="w-4 h-4 text-amber-500" />
             <span className="hidden sm:inline">تجربة التسميع كطالب</span>
           </button>
           <button
             onClick={() => { setEditRec(null); setForm(emptyForm); setModal(true); }}
-            className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-xl text-sm font-bold transition-colors shadow">
+            className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-navy-900 px-4 py-2 rounded-xl text-sm font-bold transition-all shadow active:scale-95">
             <Plus className="w-4 h-4" /> تسميع جديد
           </button>
         </div>
@@ -595,7 +595,7 @@ export default function Recitations() {
                   {!selectedRec.is_published && (
                     <button
                       onClick={() => navigate(`/${baseRole}/recitations/${selectedRec.id}/questions`)}
-                      className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-xl text-sm font-bold transition-colors shadow-sm">
+                      className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-navy-900 px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm active:scale-95">
                       <FileText className="w-4 h-4" />
                       إدارة الأسئلة ({selectedRec.question_count})
                     </button>
@@ -1052,7 +1052,7 @@ export default function Recitations() {
                   };
                   createMut.mutate(payload);
                 }} disabled={createMut.isPending || !form.title.trim()}
-                  className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white py-2.5 rounded-xl font-bold text-sm transition-colors shadow-sm">
+                  className="flex-1 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-navy-900 py-2.5 rounded-xl font-bold text-sm transition-all shadow-sm active:scale-95">
                   {createMut.isPending ? 'جاري الحفظ...' : editRec ? 'حفظ التعديلات' : 'إنشاء التسميع'}
                 </button>
                 <button onClick={() => { setModal(false); setEditRec(null); setForm(emptyForm); setFormErrors({}); }}
@@ -1239,7 +1239,7 @@ export default function Recitations() {
                 <button
                   type="submit"
                   disabled={duplicateMut.isPending}
-                  className="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-bold py-2.5 rounded-xl text-sm transition-colors shadow-sm"
+                  className="flex-1 bg-amber-500 hover:bg-amber-600 text-navy-900 font-bold py-2.5 rounded-xl text-sm transition-all shadow-sm active:scale-95"
                 >
                   {duplicateMut.isPending ? 'جاري الإنشاء...' : 'تأكيد إنشاء النسخة'}
                 </button>
@@ -1368,7 +1368,7 @@ export default function Recitations() {
                 <button
                   type="submit"
                   disabled={convertMut.isPending}
-                  className="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-bold py-2.5 rounded-xl text-sm transition-colors"
+                  className="flex-1 bg-amber-500 hover:bg-amber-600 text-navy-900 font-bold py-2.5 rounded-xl text-sm transition-all shadow-sm active:scale-95"
                 >
                   {convertMut.isPending ? 'جاري التحويل...' : 'تأكيد التحويل إلى اختبار'}
                 </button>
@@ -1449,7 +1449,7 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
                       setQForm(f => ({ ...f, question_type: 'mcq', option_a: f.option_a === 'صح' ? '' : f.option_a, option_b: f.option_b === 'خطأ' ? '' : f.option_b, correct_answer_letter: 'A', sub_questions: [] }));
                     }
                   }}
-                  className={`py-2 rounded-xl text-sm font-bold transition-colors ${qForm.question_type === t.key ? 'bg-orange-500 text-white' : dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-600'}`}>
+                  className={`py-2 rounded-xl text-sm font-bold transition-colors ${qForm.question_type === t.key ? 'bg-amber-500 text-navy-900 font-bold shadow-sm' : dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-600'}`}>
                   {t.label}
                 </button>
               ))}
@@ -1527,7 +1527,7 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
                       }));
                       updateSubQuestions(subs);
                     }}
-                    className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-bold flex items-center gap-1.5">
+                    className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-navy-900 rounded-xl text-sm font-bold flex items-center gap-1.5 transition-all shadow-sm">
                     <RefreshCw className="w-3.5 h-3.5" /> توليد
                   </button>
                   {(qForm.sub_questions || []).length > 0 && (
@@ -1589,10 +1589,10 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
                               }}
                               className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all ${
                                 sub.correct === letter
-                                  ? 'bg-orange-500 text-white border-orange-500 shadow-sm'
+                                  ? 'bg-amber-500 text-navy-900 border-amber-500 shadow-sm font-black'
                                   : dark
-                                    ? 'bg-[var(--dk-surface)] border-[var(--dk-border)] text-[var(--dk-text-2)] hover:border-orange-400'
-                                    : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-orange-300 hover:bg-orange-50'
+                                    ? 'bg-[var(--dk-surface)] border-[var(--dk-border)] text-[var(--dk-text-2)] hover:border-amber-400'
+                                    : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-amber-300 hover:bg-amber-50'
                               }`}>
                               {sub.type === 'true_false' ? (letter === 'A' ? 'صح' : 'خطأ') : letter}
                             </button>
@@ -1633,7 +1633,7 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
                   disabled={isImgMulti} />
               </div>
               <button onClick={() => { addQMut.mutate(qForm); if (imgPreviewBlob) { URL.revokeObjectURL(imgPreviewBlob); setImgPreviewBlob(null); } }} disabled={addQMut.isPending || !canSubmit()}
-                className="flex items-center gap-1.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white px-4 py-2 rounded-xl text-sm font-bold">
+                className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-navy-900 px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm active:scale-95">
                 {addQMut.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                 {editQId ? 'حفظ' : 'إضافة'}
               </button>

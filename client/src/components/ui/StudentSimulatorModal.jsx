@@ -234,13 +234,13 @@ export default function StudentSimulatorModal({ isOpen, onClose, defaultStage = 
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 py-3 px-5 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 active:scale-95 text-white font-black text-sm transition-all shadow-lg shadow-orange-500/25 flex items-center justify-center gap-2 cursor-pointer"
+              className="flex-1 py-3 px-5 rounded-2xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-navy-900 font-black text-sm transition-all shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 cursor-pointer"
             >
               {loading ? (
-                <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span className="w-5 h-5 border-2 border-navy-900/30 border-t-navy-900 rounded-full animate-spin" />
               ) : (
                 <>
-                  <Eye className="w-4 h-4" />
+                  <Eye className="w-4 h-4 text-navy-900" />
                   <span>بدء المعاينة الآن 🚀</span>
                 </>
               )}

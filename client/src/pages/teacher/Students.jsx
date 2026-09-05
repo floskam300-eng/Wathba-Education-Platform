@@ -290,7 +290,7 @@ function DeviceAlertsPanel({ canEdit }) {
                 onClick={() => updateLimitMut.mutate(activeLimit)}
                 className={`flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-xs w-full sm:w-auto ${
                   isDirty
-                    ? 'bg-orange-600 hover:bg-orange-700 text-white cursor-pointer ring-2 ring-orange-400/30'
+                    ? 'bg-amber-500 hover:bg-amber-600 text-navy-900 font-bold cursor-pointer ring-2 ring-amber-400/30'
                     : 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-500 cursor-not-allowed border border-gray-200 dark:border-white/10'
                 }`}
               >
@@ -1304,7 +1304,7 @@ export default function TeacherStudents() {
               <button onClick={() => importFileRef.current?.click()} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-all shadow-sm">
                 <FileSpreadsheet className="w-4 h-4" /> استيراد Excel
               </button>
-              <button onClick={() => navigate(`/${baseRole}/students/add`)} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold transition-all shadow-sm">
+              <button onClick={() => navigate(`/${baseRole}/students/add`)} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-navy-900 text-sm font-bold transition-all shadow-sm active:scale-95">
                 <Plus className="w-4 h-4" /> إضافة طالب
               </button>
             </>
@@ -1739,7 +1739,7 @@ export default function TeacherStudents() {
                   type="button"
                   onClick={() => { setCredMode('auto'); setFormErrors(prev => { const n = { ...prev }; delete n.manualUsername; delete n.manualPassword; return n; }); }}
                   className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-bold transition-colors ${credMode === 'auto'
-                    ? 'bg-orange-500 text-white'
+                    ? 'bg-amber-500 text-navy-900 font-bold shadow-sm'
                     : 'bg-white text-gray-500 hover:bg-gray-50'
                     }`}
                 >

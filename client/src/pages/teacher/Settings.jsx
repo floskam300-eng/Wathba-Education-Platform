@@ -94,8 +94,8 @@ function PasswordTab() {
       </div>
 
       <button type="submit" disabled={loading}
-        className="w-full py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white font-bold text-sm transition-colors flex items-center justify-center gap-2">
-        {loading ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Lock size={16} />}
+        className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-navy-900 font-bold text-sm transition-all shadow-sm flex items-center justify-center gap-2 active:scale-95">
+        {loading ? <span className="w-4 h-4 border-2 border-navy-900/30 border-t-navy-900 rounded-full animate-spin" /> : <Lock size={16} />}
         {loading ? 'جارٍ الحفظ...' : 'حفظ كلمة المرور الجديدة'}
       </button>
     </form>
@@ -181,7 +181,7 @@ function SupportContactsTab() {
           جهات الاتصال دي بتظهر في قسم «فريق الدعم» في الـ landing page — مستقلة عن حسابات المساعدين.
         </p>
         <button onClick={openAdd}
-          className="flex items-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold px-4 py-2 rounded-xl transition-colors shrink-0">
+          className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-navy-900 text-sm font-bold px-4 py-2 rounded-xl transition-all shadow-sm shrink-0 active:scale-95">
           <Plus size={15} /> إضافة
         </button>
       </div>
@@ -276,8 +276,8 @@ function SupportContactsTab() {
 
               <div className="flex gap-2 mt-1">
                 <button type="submit" disabled={saving}
-                  className="flex-1 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white font-bold text-sm transition-colors flex items-center justify-center gap-2">
-                  {saving ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : null}
+                  className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-navy-900 font-bold text-sm transition-all shadow-sm flex items-center justify-center gap-2 active:scale-95">
+                  {saving ? <span className="w-4 h-4 border-2 border-navy-900/30 border-t-navy-900 rounded-full animate-spin" /> : null}
                   {saving ? 'جارٍ الحفظ...' : 'حفظ'}
                 </button>
                 <button type="button" onClick={closeForm}

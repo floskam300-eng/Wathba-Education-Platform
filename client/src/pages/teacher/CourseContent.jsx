@@ -249,7 +249,7 @@ function VideoPreviewModal({ video, onClose }) {
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 gap-4">
               <p className="text-gray-400 text-sm text-center px-6">لا يمكن تشغيل هذا الرابط مباشرة — افتحه في نافذة جديدة</p>
               <a href={url} target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-bold px-5 py-2.5 rounded-xl transition-all">
+                className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-navy-900 font-bold px-5 py-2.5 rounded-xl transition-all shadow-sm active:scale-95">
                 <ExternalLink className="w-4 h-4" /> فتح الرابط
               </a>
             </div>
@@ -855,10 +855,10 @@ export default function CourseContent() {
                   toast.error('فشل بدء المعاينة');
                 }
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 active:scale-95 text-white text-xs font-black transition-all shadow-sm shadow-orange-500/20 flex-shrink-0"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-navy-900 text-xs font-black transition-all shadow-sm flex-shrink-0"
               title="معاينة هذا الكورس كطالب"
             >
-              <Eye className="w-3.5 h-3.5 text-amber-300" />
+              <Eye className="w-3.5 h-3.5 text-navy-900" />
               <span className="hidden sm:inline">معاينة الكورس كطالب</span>
             </button>
             <span className="text-xs text-gray-500 font-bold hidden sm:flex items-center gap-1">
@@ -1216,7 +1216,7 @@ export default function CourseContent() {
                       اجتيازها يفتح محتوى الفصل الثاني. اسحب أي تسميع لتغيير الفصل الذي يفتحه.
                     </p>
                     <button onClick={() => navigate(`/${baseRole}/recitations`)}
-                      className="mt-3 inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-xl text-xs font-bold transition-colors shadow-sm">
+                      className="mt-3 inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-navy-900 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95">
                       <Plus className="w-3.5 h-3.5" /> تسميع جديد
                     </button>
                   </div>

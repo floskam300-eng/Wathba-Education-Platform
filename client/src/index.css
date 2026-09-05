@@ -137,8 +137,7 @@
 ═══════════════════════════════════════════════════════ */
 @layer components {
   .btn-primary {
-    /* orange-700 (#c2410c) gives 5.17:1 contrast with white — passes WCAG AA */
-    @apply bg-orange-700 hover:bg-orange-800 text-white font-semibold px-6 py-2.5 rounded-lg transition-all duration-200 active:scale-95;
+    @apply bg-amber-500 hover:bg-amber-600 text-navy-900 font-bold px-6 py-2.5 rounded-xl transition-all duration-200 active:scale-95 shadow-sm;
   }
 
   .btn-secondary {
@@ -173,7 +172,7 @@
   }
 
   .sidebar-link.active {
-    @apply bg-orange-500 text-white;
+    @apply bg-amber-500 text-navy-900 font-bold shadow-sm;
   }
 
   .badge {
@@ -244,16 +243,22 @@ html.dark .dark\:text-gray-500 { color: #9CA6B5 !important; }
    DARK MODE — COMPONENT OVERRIDES
 ═══════════════════════════════════════════════════════ */
 
-/* ── btn-primary: warm orange glow ── */
+/* ── btn-primary: warm golden amber ── */
 html.dark .btn-primary {
-  /* #c2410c (orange-700) passes WCAG AA (5.17:1) with white text in dark mode too */
-  background-color: #c2410c;
-  box-shadow: 0 0 0 0 transparent;
+  background-color: #F5A623 !important;
+  color: #0A1628 !important;
+  box-shadow: 0 0 16px rgba(245, 166, 35, 0.28);
   transition: all 0.2s;
 }
 html.dark .btn-primary:hover {
-  background-color: #9a3412;
-  box-shadow: var(--dk-orange-glow);
+  background-color: #D97706 !important;
+  box-shadow: 0 0 24px rgba(245, 166, 35, 0.45);
+}
+
+html.dark .sidebar-link.active {
+  background-color: #F5A623 !important;
+  color: #0A1628 !important;
+  font-weight: 700 !important;
 }
 
 /* ── btn-secondary ── */
@@ -487,17 +492,17 @@ html.dark input[type="tel"]:focus {
   background-color: var(--dk-surface);
 }
 
-/* Navy gradient cards → orange brand gradient in dark mode */
+/* Navy gradient cards in dark mode (deep elegant navy instead of muddy brown) */
 html.dark .from-navy-600.to-navy-700,
 html.dark .from-navy-700.to-navy-600 {
-  background-image: linear-gradient(to left, #7A3200, var(--dk-orange)) !important;
+  background-image: linear-gradient(to left, #0D1B2A, #1B2D45) !important;
 }
 html.dark .from-navy-600.to-navy-800 {
-  background-image: linear-gradient(to left, #5A2500, var(--dk-orange)) !important;
+  background-image: linear-gradient(to left, #0A1628, #152540) !important;
 }
 html.dark .from-navy-500.to-navy-700,
 html.dark .from-navy-600.to-navy-400 {
-  background-image: linear-gradient(135deg, var(--dk-orange), #C88010) !important;
+  background-image: linear-gradient(135deg, #10233B, #1B3557) !important;
 }
 
 /* ── Hardcoded navy active-state pills → orange accent in dark ── */
@@ -507,7 +512,8 @@ html.dark [class*="#1A2E4A"] {
 }
 html.dark [class*="#1A2E4A"]:hover {
   background-color: var(--dk-orange) !important;
-  color: #fff !important;
+  color: #0A1628 !important;
+  font-weight: 700 !important;
 }
 
 /* ── Hover state overrides for common patterns ── */

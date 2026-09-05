@@ -319,7 +319,7 @@ export default function RecitationQuestions() {
                           }}
                           className={`px-3 py-1.5 rounded-lg text-xs font-bold border-2 transition-all ${
                             qForm.question_type === t.value
-                              ? 'border-orange-500 bg-orange-50 dark:bg-orange-950/30 text-orange-800 dark:text-orange-300'
+                              ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-300 font-black'
                               : 'border-gray-200 dark:border-[var(--dk-border)] text-gray-600 dark:text-[var(--dk-text-2)] hover:border-gray-300 dark:hover:border-[var(--dk-border-md)] dark:bg-[var(--dk-elevated)]'
                           }`}>
                           {t.label}
@@ -414,8 +414,8 @@ export default function RecitationQuestions() {
                             <button type="button" onClick={() => setQForm(f => ({ ...f, correct_answer_letter: opt }))}
                               className={`w-7 h-7 rounded-full border-2 flex items-center justify-center text-xs font-black flex-shrink-0 transition-all ${
                                 qForm.correct_answer_letter === opt
-                                  ? 'border-orange-500 bg-orange-500 text-white shadow-sm'
-                                  : 'border-gray-300 dark:border-[var(--dk-border)] hover:border-orange-400 dark:hover:border-orange-500/50 dark:bg-[var(--dk-elevated)] text-gray-600 dark:text-[var(--dk-text-2)]'
+                                  ? 'border-amber-500 bg-amber-500 text-navy-900 shadow-sm font-black'
+                                  : 'border-gray-300 dark:border-[var(--dk-border)] hover:border-amber-400 dark:hover:border-amber-500/50 dark:bg-[var(--dk-elevated)] text-gray-600 dark:text-[var(--dk-text-2)]'
                               }`}>
                               {displayLabel}
                             </button>
@@ -488,7 +488,7 @@ export default function RecitationQuestions() {
                             }));
                             updateSubQuestions(subs);
                           }}
-                          className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-bold flex items-center gap-1.5 transition-colors">
+                          className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-navy-900 rounded-xl text-sm font-bold flex items-center gap-1.5 transition-all shadow-sm active:scale-95">
                           <RefreshCw className="w-3.5 h-3.5" /> توليد
                         </button>
                         {(qForm.sub_questions || []).length > 0 && (
@@ -604,8 +604,8 @@ export default function RecitationQuestions() {
                                       }}
                                       className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all ${
                                         sub.correct === letter
-                                          ? 'bg-orange-500 text-white border-orange-500 shadow-sm'
-                                          : 'bg-white dark:bg-[var(--dk-elevated)] text-gray-600 dark:text-[var(--dk-text-2)] border-gray-200 dark:border-[var(--dk-border)] hover:border-orange-300 dark:hover:border-orange-600/50 hover:bg-orange-50 dark:hover:bg-orange-950/20'
+                                          ? 'bg-amber-500 text-navy-900 border-amber-500 shadow-sm font-black'
+                                          : 'bg-white dark:bg-[var(--dk-elevated)] text-gray-600 dark:text-[var(--dk-text-2)] border-gray-200 dark:border-[var(--dk-border)] hover:border-amber-400 dark:hover:border-amber-500/50 hover:bg-amber-50 dark:hover:bg-amber-950/20'
                                       }`}>
                                       {displayLetter}
                                     </button>
@@ -643,7 +643,7 @@ export default function RecitationQuestions() {
                     )}
                     <button type="submit"
                       disabled={addQMut.isPending}
-                      className="flex-1 flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white py-2.5 rounded-xl font-bold text-sm transition-colors shadow-sm">
+                      className="flex-1 flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-navy-900 py-2.5 rounded-xl font-bold text-sm transition-all shadow-sm active:scale-95">
                       {addQMut.isPending
                         ? <RefreshCw className="w-4 h-4 animate-spin" />
                         : <Plus className="w-4 h-4" />

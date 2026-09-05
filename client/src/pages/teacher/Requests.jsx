@@ -90,13 +90,13 @@ function FilterChips({ label, icon: Icon, options, value, onChange }) {
           onClick={() => onChange(opt.value)}
           className={`px-2.5 py-1 rounded-full text-[11px] font-bold transition-all border ${
             value === opt.value
-              ? 'bg-orange-500 text-white border-orange-500 shadow-sm'
-              : 'bg-white border-gray-200 text-gray-600 hover:border-orange-300 hover:text-orange-600'
+              ? 'bg-amber-500 text-navy-900 border-amber-500 font-black shadow-sm'
+              : 'bg-white border-gray-200 text-gray-600 hover:border-amber-300 hover:text-amber-700'
           }`}
         >
           {opt.label}
           {opt.count != null && (
-            <span className={`mr-1 text-[10px] ${value === opt.value ? 'opacity-80' : 'opacity-50'}`}>
+            <span className={`mr-1 text-[10px] ${value === opt.value ? 'text-navy-900 font-black' : 'opacity-50'}`}>
               ({opt.count})
             </span>
           )}

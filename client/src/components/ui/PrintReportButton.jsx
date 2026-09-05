@@ -158,7 +158,7 @@ const PrintReportButton = ({
   return (
     <button
       onClick={handlePrintPDF}
-      className={`flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors ${className}`}
+      className={`flex items-center gap-2 px-4 py-2 bg-amber-500 text-navy-900 font-bold rounded-xl hover:bg-amber-600 transition-all shadow-sm active:scale-95 ${className}`}
     >
       <Printer className="w-4 h-4" />
       طباعة التقرير

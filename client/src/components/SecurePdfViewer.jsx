@@ -828,7 +828,7 @@ export default function SecurePdfViewer({ pdf }) {
             <p className="text-sm font-bold text-red-500">{error}</p>
             <button
               onClick={retry}
-              className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold rounded-xl transition-colors active:scale-95 shadow-md"
+              className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-navy-900 text-sm font-bold rounded-xl transition-all active:scale-95 shadow-md"
             >
               <RefreshCw className="w-4 h-4" /> إعادة المحاولة
             </button>

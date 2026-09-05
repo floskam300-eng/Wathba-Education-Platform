@@ -362,10 +362,10 @@ export default function TeacherExams() {
           {availableStages.map(stage => (
             <button key={stage} onClick={() => setStageFilter(stage)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
-                stageFilter === stage ? 'bg-orange-500 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                stageFilter === stage ? 'bg-amber-500 text-navy-900 font-bold shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}>
               {stage}
-              <span className={`text-xs rounded-full px-1.5 font-black ${stageFilter === stage ? 'bg-white/20 text-white' : 'bg-white text-gray-600'}`}>
+              <span className={`text-xs rounded-full px-1.5 font-black ${stageFilter === stage ? 'bg-navy-900/15 text-navy-900' : 'bg-white text-gray-600'}`}>
                 {stageCounts[stage] || 0}
               </span>
             </button>
@@ -1103,7 +1103,7 @@ export default function TeacherExams() {
               <button
                 onClick={() => { publishMut.mutate({ id: unpublishConfirm.id }); setUnpublishConfirm(null); }}
                 disabled={publishMut.isPending}
-                className="flex-1 font-bold py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white transition-all active:scale-95">
+                className="flex-1 font-bold py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-navy-900 transition-all active:scale-95 shadow-sm">
                 {publishMut.isPending ? 'جاري...' : 'نعم، إلغاء النشر'}
               </button>
             </div>
@@ -1394,7 +1394,7 @@ export default function TeacherExams() {
               <button
                 type="submit"
                 disabled={convertMut.isPending}
-                className="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-bold py-2.5 rounded-xl transition-colors shadow-sm"
+                className="flex-1 bg-amber-500 hover:bg-amber-600 text-navy-900 font-bold py-2.5 rounded-xl transition-all shadow-sm active:scale-95"
               >
                 {convertMut.isPending ? 'جاري التحويل...' : 'تأكيد التحويل إلى تسميع'}
               </button>

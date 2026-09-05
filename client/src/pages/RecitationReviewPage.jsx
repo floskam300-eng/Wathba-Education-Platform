@@ -388,7 +388,7 @@ export default function RecitationReviewPage() {
               {currentIdx < questions.length - 1 ? (
                 <button
                   onClick={goNext}
-                  className="flex items-center gap-2 px-5 py-3 rounded-2xl font-bold text-sm bg-orange-500 hover:bg-orange-600 text-white shadow-sm transition-all"
+                  className="flex items-center gap-2 px-5 py-3 rounded-2xl font-bold text-sm bg-amber-500 hover:bg-amber-600 text-navy-900 shadow-sm transition-all active:scale-95"
                 >
                   التالي
                   <ArrowLeft className="w-4 h-4" />

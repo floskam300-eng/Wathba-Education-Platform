@@ -339,7 +339,7 @@ export default function PlatformHome() {
             <a href="#faq"       className="hover:text-[#0B3C5D] transition-colors">الأسئلة الشائعة</a>
           </div>
           <a href={WHATSAPP} target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold px-4 py-2 rounded-xl transition-colors">
+            className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-navy-900 text-sm font-bold px-4 py-2 rounded-xl transition-all shadow-sm active:scale-95">
             <MessageCircle className="w-4 h-4" />
             تواصل معنا
           </a>
@@ -370,7 +370,7 @@ export default function PlatformHome() {
           <Reveal delay={0.3}>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <a href={WHATSAPP} target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-2.5 bg-orange-500 hover:bg-orange-600 text-white font-bold px-7 py-3.5 rounded-2xl text-base transition-all hover:scale-105 hover:shadow-lg hover:shadow-orange-500/25">
+                className="flex items-center gap-2.5 bg-amber-500 hover:bg-amber-600 text-navy-900 font-black px-7 py-3.5 rounded-2xl text-base transition-all hover:scale-105 hover:shadow-lg hover:shadow-amber-500/25 active:scale-95">
                 <MessageCircle className="w-5 h-5" />
                 احجز منصتك الآن
               </a>
@@ -493,7 +493,7 @@ export default function PlatformHome() {
                 كلمنا دلوقتي وهنجهّزلك كل حاجة خلال 24 ساعة.
               </p>
               <a href={WHATSAPP} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-2.5 bg-orange-500 hover:bg-orange-600 text-white font-bold px-8 py-4 rounded-2xl text-base transition-all hover:scale-105 hover:shadow-xl hover:shadow-orange-500/25">
+                className="inline-flex items-center gap-2.5 bg-amber-500 hover:bg-amber-600 text-navy-900 font-black px-8 py-4 rounded-2xl text-base transition-all hover:scale-105 hover:shadow-xl hover:shadow-amber-500/25 active:scale-95">
                 <MessageCircle className="w-5 h-5" />
                 تواصل معنا عبر واتساب
               </a>

@@ -513,8 +513,8 @@ export default function Login() {
                 fontSize:'.95rem', fontWeight:700, fontFamily:"'Tajawal', sans-serif",
                 cursor: loading || teacherLoading ? 'not-allowed' : 'pointer',
                 display:'flex', alignItems:'center', justifyContent:'center', gap:'.5rem',
-                background: loading || teacherLoading ? 'rgba(249,115,22,.5)' : 'linear-gradient(135deg,#f97316,#ea6c0a)',
-                color:'#fff', boxShadow:'0 4px 22px rgba(249,115,22,.35)',
+                background: loading || teacherLoading ? 'rgba(245,166,35,.5)' : 'linear-gradient(135deg,#F5A623,#D97706)',
+                color:'#0A1628', fontWeight:800, boxShadow:'0 4px 22px rgba(245,166,35,.35)',
                 transition:'all .25s', marginBottom:'1.25rem',
                 opacity: loading || teacherLoading ? .7 : 1,
               }}

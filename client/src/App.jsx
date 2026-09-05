@@ -107,7 +107,7 @@ class ErrorBoundary extends React.Component {
               </details>
             )}
             <button onClick={() => { this.setState({ hasError: false, error: null, info: null }); }}
-              className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-5 py-2.5 rounded-xl font-semibold mx-auto transition-colors">
+              className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-navy-900 px-5 py-2.5 rounded-xl font-bold mx-auto transition-all shadow-sm active:scale-95">
               <RefreshCw className="w-4 h-4" /> محاولة مرة أخرى
             </button>
           </div>

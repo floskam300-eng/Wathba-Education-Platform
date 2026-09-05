@@ -1321,13 +1321,13 @@ export default function AssistantAnalytics() {
           <button onClick={() => setShowFilters(f => !f)}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-bold transition-all ${
               showFilters || activeFiltersCount > 0
-                ? 'bg-orange-500 border-orange-500 text-white shadow-md'
-                : 'border-gray-200 text-gray-600 hover:border-orange-300 hover:text-orange-500'
+                ? 'bg-amber-500 border-amber-500 text-navy-900 font-bold shadow-md'
+                : 'border-gray-200 text-gray-600 hover:border-amber-300 hover:text-amber-700'
             }`}>
             <Filter className="w-4 h-4" />
             فلاتر
             {activeFiltersCount > 0 && (
-              <span className="bg-white text-orange-500 text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+              <span className="bg-navy-900 text-amber-400 text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center">
                 {activeFiltersCount}
               </span>
             )}

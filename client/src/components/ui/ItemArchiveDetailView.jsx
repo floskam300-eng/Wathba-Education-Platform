@@ -307,7 +307,7 @@ export default function ItemArchiveDetailView({ item, onBack, onOpenStudent }) {
           <button
             onClick={handlePrintReport}
             disabled={isLoading || students.length === 0}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black bg-orange-500 hover:bg-orange-600 text-white transition disabled:opacity-40 shadow-sm cursor-pointer"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black bg-amber-500 hover:bg-amber-600 text-navy-900 transition-all disabled:opacity-40 shadow-sm cursor-pointer active:scale-95"
             title="طباعة التقرير بصيغة PDF"
           >
             <Printer className="w-4 h-4" />
@@ -424,9 +424,9 @@ export default function ItemArchiveDetailView({ item, onBack, onOpenStudent }) {
               let label = tab.label;
 
               if (isAllActive) {
-                style = 'bg-orange-500 text-white border-orange-500 shadow-sm font-black';
+                style = 'bg-amber-500 text-navy-900 border-amber-500 shadow-sm font-black';
               } else if (isIncluded) {
-                style = 'bg-orange-500 text-white border-orange-500 shadow-sm ring-2 ring-orange-400/30 font-black';
+                style = 'bg-amber-500 text-navy-900 border-amber-500 shadow-sm ring-2 ring-amber-400/30 font-black';
               } else if (isExcluded) {
                 style = 'bg-red-600 text-white border-red-600 shadow-sm ring-2 ring-red-400/30 font-black';
                 const excludedCount =

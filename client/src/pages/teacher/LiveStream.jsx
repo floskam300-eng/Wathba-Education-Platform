@@ -442,7 +442,7 @@ function ChatPanel({ stream, teacherName, dark }) {
             placeholder="اكتب رسالة..."
             className={`flex-1 text-sm border rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500 ${dark ? 'bg-[#1F1C2C] border-[rgba(230,175,80,0.18)] text-white placeholder-[#8A7E72]' : 'bg-white border-slate-300 text-slate-800'}`} />
           <button onClick={sendMsg} disabled={!text.trim() || sending}
-            className="p-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl disabled:opacity-50 transition-colors shadow-sm">
+            className="p-2.5 bg-amber-500 hover:bg-amber-600 text-navy-900 rounded-xl disabled:opacity-50 transition-all shadow-sm active:scale-95">
             {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
           </button>
         </div>
@@ -543,7 +543,7 @@ function LiveView({ stream, user, dark, onEnd }) {
         <div className="flex items-center gap-1.5 flex-shrink-0">
           {recording ? (
             <button onClick={stopRecording}
-              className="flex items-center gap-1 text-xs font-black px-2.5 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-700 text-white transition-colors animate-pulse">
+              className="flex items-center gap-1 text-xs font-black px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-navy-900 transition-colors animate-pulse">
               <Circle className="w-3 h-3 fill-current" />
               <span className="hidden sm:inline">إيقاف وتنزيل</span>
             </button>
@@ -868,7 +868,7 @@ function ScheduleForm({ onBack, onScheduled, dark }) {
           <div className="grid grid-cols-2 gap-2">
             {[{ v: 'all', l: '📢 كل الطلاب' }, { v: 'stages', l: '📚 مراحل محددة' }].map(({ v, l }) => (
               <button key={v} type="button" onClick={() => setAccess(v)}
-                className={`py-2.5 rounded-xl text-sm font-bold border transition-all ${access === v ? 'bg-orange-500 text-white border-orange-500' : dark ? 'border-[rgba(230,175,80,0.18)] text-[#F2EDE5] hover:border-orange-400' : 'border-slate-300 text-slate-600 hover:border-orange-400'}`}>
+                className={`py-2.5 rounded-xl text-sm font-bold border transition-all ${access === v ? 'bg-amber-500 text-navy-900 border-amber-500 font-black shadow-sm' : dark ? 'border-[rgba(230,175,80,0.18)] text-[#F2EDE5] hover:border-amber-400' : 'border-slate-300 text-slate-600 hover:border-amber-400'}`}>
                 {l}
               </button>
             ))}
@@ -890,7 +890,7 @@ function ScheduleForm({ onBack, onScheduled, dark }) {
           </div>
         </div>
         <button type="submit" disabled={loading}
-          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-black text-white text-base bg-orange-500 hover:bg-orange-600 disabled:opacity-60 transition-all shadow-lg shadow-orange-500/20 active:scale-[0.98]">
+          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-black text-navy-900 text-base bg-amber-500 hover:bg-amber-600 disabled:opacity-60 transition-all shadow-lg shadow-amber-500/20 active:scale-[0.98]">
           {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Calendar className="w-5 h-5" />}
           {loading ? 'جارٍ الجدولة...' : 'جدول البث'}
         </button>
@@ -950,7 +950,7 @@ function IdleView({ onGoToForm, onSchedule, onStarted, dark }) {
             <Radio className="w-4 h-4" /> ابدأ بثاً الآن
           </button>
           <button onClick={onSchedule}
-            className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black text-sm border-2 transition-all active:scale-95 ${dark ? 'border-orange-500 text-orange-400 hover:bg-orange-600 hover:text-white' : 'border-orange-500 text-orange-600 hover:bg-orange-600 hover:text-white'}`}>
+            className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black text-sm border-2 transition-all active:scale-95 ${dark ? 'border-amber-500 text-amber-400 hover:bg-amber-500 hover:text-navy-900' : 'border-amber-500 text-amber-700 hover:bg-amber-500 hover:text-navy-900'}`}>
             <Calendar className="w-4 h-4" /> جدول موعداً
           </button>
         </div>

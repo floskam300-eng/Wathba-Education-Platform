@@ -621,7 +621,7 @@ export default function Attendance() {
                     onClick={() => { setSortBy('most_watched'); setStatusFilter('all'); }}
                     className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors ${
                       sortBy === 'most_watched' && statusFilter === 'all'
-                        ? 'bg-orange-500 text-white shadow-sm'
+                        ? 'bg-amber-500 text-navy-900 font-bold shadow-sm'
                         : 'bg-gray-100 dark:bg-navy-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
                     }`}
                   >
@@ -631,7 +631,7 @@ export default function Attendance() {
                     onClick={() => { setSortBy('least_watched'); setStatusFilter('all'); }}
                     className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors ${
                       sortBy === 'least_watched' && statusFilter === 'all'
-                        ? 'bg-orange-500 text-white shadow-sm'
+                        ? 'bg-amber-500 text-navy-900 font-bold shadow-sm'
                         : 'bg-gray-100 dark:bg-navy-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
                     }`}
                   >
@@ -641,7 +641,7 @@ export default function Attendance() {
                     onClick={() => { setSortBy('name_asc'); }}
                     className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors ${
                       sortBy === 'name_asc'
-                        ? 'bg-orange-500 text-white shadow-sm'
+                        ? 'bg-amber-500 text-navy-900 font-bold shadow-sm'
                         : 'bg-gray-100 dark:bg-navy-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
                     }`}
                   >
@@ -797,7 +797,7 @@ export default function Attendance() {
                         <th
                           key={v.id}
                           className={`py-3 px-3 text-center font-semibold min-w-[100px] max-w-[140px] transition-colors ${
-                            selectedVideoFilter === String(v.id) ? 'bg-orange-600 text-white shadow-inner' : ''
+                            selectedVideoFilter === String(v.id) ? 'bg-amber-500 text-navy-900 font-bold shadow-inner' : ''
                           }`}
                         >
                           <div className="truncate text-xs" title={v.title}>
@@ -955,7 +955,7 @@ export default function Attendance() {
                           onClick={() => setPage(pg)}
                           className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
                             pg === currentPage
-                              ? 'bg-orange-500 text-white shadow-sm scale-105'
+                              ? 'bg-amber-500 text-navy-900 font-bold shadow-sm scale-105'
                               : (dark ? 'hover:bg-[var(--dk-elevated)] text-[var(--dk-text-1)]' : 'hover:bg-gray-100 text-gray-600')
                           }`}
                         >

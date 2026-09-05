@@ -362,14 +362,14 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
               <button
                 onClick={() => setTab('exams')}
                 className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${tab === 'exams'
-                  ? 'bg-orange-500 text-white shadow-sm'
+                  ? 'bg-amber-500 text-navy-900 font-bold shadow-sm'
                   : (dark ? 'text-[var(--dk-text-2)] hover:text-[var(--dk-text-1)]' : 'text-gray-500 hover:text-gray-700')
                 }`}
               >
                 <FileText className="w-3.5 h-3.5" />
                 الاختبارات
                 {examResults && (
-                  <span className={`text-[10px] px-1 rounded font-black ${tab === 'exams' ? 'bg-white/25' : (dark ? 'bg-[var(--dk-surface)]' : 'bg-white')}`}>
+                  <span className={`text-[10px] px-1 rounded font-black ${tab === 'exams' ? 'bg-navy-900/15 text-navy-900' : (dark ? 'bg-[var(--dk-surface)]' : 'bg-white')}`}>
                     {examResults.length}
                   </span>
                 )}
@@ -433,7 +433,7 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
               </button>
               <button
                 onClick={handlePrintFull}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-orange-500 hover:bg-orange-600 text-white transition-all shadow-sm cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-navy-900 transition-all shadow-sm cursor-pointer active:scale-95"
                 title="طباعة التقرير الشامل للطالب بصيغة PDF"
               >
                 <Printer className="w-3.5 h-3.5" />
@@ -453,7 +453,7 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
               <button
                 onClick={tab === 'exams' ? handlePrintExams : handlePrintRecs}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${tab === 'exams'
-                  ? 'bg-orange-500 hover:bg-orange-600 text-white'
+                  ? 'bg-amber-500 hover:bg-amber-600 text-navy-900 shadow-sm active:scale-95'
                   : 'bg-navy-700 hover:bg-navy-800 text-white'
                 }`}
                 title="طباعة التقرير بصيغة PDF"
@@ -568,7 +568,7 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
                           <div className="pt-2 flex justify-end">
                             <button
                               onClick={() => setReviewResultId(r.id)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-orange-500 hover:bg-orange-600 text-white transition-colors cursor-pointer"
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-600 text-navy-900 transition-all shadow-sm cursor-pointer active:scale-95"
                             >
                               <Eye className="w-3.5 h-3.5" />
                               مراجعة الإجابات
@@ -669,7 +669,7 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
                           <div className="pt-2 flex justify-end">
                             <button
                               onClick={() => setRecReviewResultId(r.id)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-orange-500 hover:bg-orange-600 text-white transition-colors cursor-pointer"
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-600 text-navy-900 transition-all shadow-sm cursor-pointer active:scale-95"
                             >
                               <Eye className="w-3.5 h-3.5" />
                               مراجعة الإجابات

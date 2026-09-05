@@ -23,7 +23,7 @@ export default function NotFoundPage() {
           </button>
           <button
             onClick={() => navigate('/')}
-            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-sm transition-all"
+            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-navy-900 font-bold text-sm transition-all shadow-sm active:scale-95"
           >
             <Home className="w-4 h-4" />
             الصفحة الرئيسية

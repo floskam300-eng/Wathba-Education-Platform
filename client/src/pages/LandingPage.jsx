@@ -201,7 +201,7 @@ export default function LandingPage() {
               بوابة الأهل
             </Link>
             <Link to="/login"
-              className="flex items-center gap-1.5 sm:gap-2 bg-orange-500 hover:bg-orange-600 text-white font-black text-xs sm:text-sm px-3 sm:px-5 py-2.5 rounded-xl transition-all duration-200 hover:shadow-lg hover:shadow-orange-500/25 active:scale-95 whitespace-nowrap">
+              className="flex items-center gap-1.5 sm:gap-2 bg-amber-500 hover:bg-amber-600 text-navy-900 font-black text-xs sm:text-sm px-3 sm:px-5 py-2.5 rounded-xl transition-all duration-200 hover:shadow-lg hover:shadow-amber-500/25 active:scale-95 whitespace-nowrap">
               دخول
               <ArrowLeft className="w-4 h-4" />
             </Link>
@@ -305,7 +305,7 @@ export default function LandingPage() {
 
             <div className="lp-fade-3 flex items-center justify-center lg:justify-start gap-3 flex-wrap">
               <Link to="/login"
-                className="flex items-center gap-2.5 bg-orange-500 hover:bg-orange-600 text-white font-black text-sm px-7 py-3.5 rounded-xl transition-all duration-200 hover:shadow-xl hover:shadow-orange-500/30 hover:-translate-y-0.5 active:scale-95">
+                className="flex items-center gap-2.5 bg-amber-500 hover:bg-amber-600 text-navy-900 font-black text-sm px-7 py-3.5 rounded-xl transition-all duration-200 hover:shadow-xl hover:shadow-amber-500/30 hover:-translate-y-0.5 active:scale-95">
                 ابدأ الآن
                 <ArrowLeft className="w-4 h-4" />
               </Link>

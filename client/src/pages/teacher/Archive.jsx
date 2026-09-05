@@ -100,9 +100,9 @@ const PillGroup = ({ options, value, onChange, dark, defaultVal = '' }) => {
         let label = o.label;
 
         if (isAllActive) {
-          style = 'bg-orange-500 text-white border-orange-500 shadow-sm font-black';
+          style = 'bg-amber-500 text-navy-900 border-amber-500 shadow-sm font-black';
         } else if (isIncluded) {
-          style = 'bg-orange-500 text-white border-orange-500 shadow-sm ring-2 ring-orange-400/30 font-black';
+          style = 'bg-amber-500 text-navy-900 border-amber-500 shadow-sm ring-2 ring-amber-400/30 font-black';
         } else if (isExcluded) {
           style = 'bg-red-600 text-white border-red-600 shadow-sm ring-2 ring-red-400/30 font-black';
           const cleanText = o.label.replace(/^[📄📚✅❌⚠️🔄●○\s]+/, '');
@@ -110,7 +110,7 @@ const PillGroup = ({ options, value, onChange, dark, defaultVal = '' }) => {
         } else {
           style = dark
             ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text-2)] hover:text-[var(--dk-text-1)]'
-            : 'bg-white border-gray-200 text-gray-600 hover:border-orange-300 hover:text-orange-600';
+            : 'bg-white border-gray-200 text-gray-600 hover:border-amber-300 hover:text-amber-600';
         }
 
         return (
@@ -781,7 +781,7 @@ export default function ArchivePage() {
                   <button
                     onClick={handleGroupPrint}
                     disabled={isLoading || students.length === 0}
-                    className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-orange-500 hover:bg-orange-600 text-white transition disabled:opacity-40 shadow-sm cursor-pointer"
+                    className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-navy-900 transition-all disabled:opacity-40 shadow-sm cursor-pointer"
                     title="طباعة تقرير سجل الطلاب بصيغة PDF"
                   >
                     <Printer className="w-4 h-4" />
@@ -802,7 +802,7 @@ export default function ArchivePage() {
                   <button
                     onClick={handleItemsPrint}
                     disabled={itemsLoading || itemsList.length === 0}
-                    className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-orange-500 hover:bg-orange-600 text-white transition disabled:opacity-40 shadow-sm cursor-pointer"
+                    className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-navy-900 transition-all disabled:opacity-40 shadow-sm cursor-pointer"
                     title="طباعة قائمة الاختبارات والتسميعات بصيغة PDF"
                   >
                     <Printer className="w-4 h-4" />
@@ -819,7 +819,7 @@ export default function ArchivePage() {
               onClick={() => setActiveTab('students')}
               className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-black transition-all cursor-pointer ${
                 activeTab === 'students'
-                  ? 'bg-orange-500 text-white shadow-sm'
+                  ? 'bg-amber-500 text-navy-900 font-black shadow-sm'
                   : dark
                     ? 'text-gray-400 hover:text-white hover:bg-[var(--dk-elevated)]'
                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
@@ -829,7 +829,7 @@ export default function ArchivePage() {
               <span>أرشيف الطلاب (سجل كل طالب)</span>
               {totalCount > 0 && (
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${
-                  activeTab === 'students' ? 'bg-white/20 text-white' : (dark ? 'bg-gray-800 text-gray-300' : 'bg-gray-200 text-gray-700')
+                  activeTab === 'students' ? 'bg-navy-900/15 text-navy-900' : (dark ? 'bg-gray-800 text-gray-300' : 'bg-gray-200 text-gray-700')
                 }`}>
                   {totalCount}
                 </span>
@@ -840,7 +840,7 @@ export default function ArchivePage() {
               onClick={() => setActiveTab('items')}
               className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-black transition-all cursor-pointer ${
                 activeTab === 'items'
-                  ? 'bg-orange-500 text-white shadow-sm'
+                  ? 'bg-amber-500 text-navy-900 font-black shadow-sm'
                   : dark
                     ? 'text-gray-400 hover:text-white hover:bg-[var(--dk-elevated)]'
                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
@@ -1162,7 +1162,7 @@ export default function ArchivePage() {
                         key={pg}
                         onClick={() => setF('page', pg)}
                         className={`w-8 h-8 rounded-lg text-xs font-bold transition-colors cursor-pointer ${pg === filters.page
-                          ? 'bg-orange-500 text-white shadow-sm'
+                          ? 'bg-amber-500 text-navy-900 font-bold shadow-sm'
                           : (dark ? 'hover:bg-[var(--dk-elevated)] text-[var(--dk-text-1)]' : 'hover:bg-gray-100 text-gray-600')
                         }`}
                       >
