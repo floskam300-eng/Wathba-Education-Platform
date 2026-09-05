@@ -55,3 +55,4 @@ whatsapp-sessions/
 
 # Device data backups — contain IPs/user-agents, must never be committed
 scratch/
+*.sql
