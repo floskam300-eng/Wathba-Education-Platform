@@ -232,7 +232,7 @@ export default function Backup() {
 
   const statCards = [
     { icon: Users,       label: 'الطلاب',            value: stats?.totalStudents,              color: 'text-blue-600 bg-blue-50'    },
-    { icon: BookOpen,    label: 'الكورسات',           value: stats?.totalCourses,               color: 'text-purple-600 bg-purple-50' },
+    { icon: BookOpen,    label: 'الكورسات',           value: stats?.totalCourses,               color: 'text-navy-600 bg-navy-50' },
     { icon: FileText,    label: 'الاختبارات',         value: stats?.totalExams,                 color: 'text-orange-600 bg-orange-50' },
     { icon: CreditCard,  label: 'الإيرادات (جنيه)',   value: stats?.totalRevenue?.toLocaleString(), color: 'text-green-600 bg-green-50' },
   ];

@@ -307,7 +307,7 @@ export default function ItemArchiveDetailView({ item, onBack, onOpenStudent }) {
           <button
             onClick={handlePrintReport}
             disabled={isLoading || students.length === 0}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black bg-gradient-to-r from-orange-500 to-purple-600 text-white hover:opacity-90 transition disabled:opacity-40 shadow-sm cursor-pointer"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black bg-orange-500 hover:bg-orange-600 text-white transition disabled:opacity-40 shadow-sm cursor-pointer"
             title="طباعة التقرير بصيغة PDF"
           >
             <Printer className="w-4 h-4" />
@@ -321,14 +321,14 @@ export default function ItemArchiveDetailView({ item, onBack, onOpenStudent }) {
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3.5">
             <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white flex-shrink-0 ${
-              isExam ? 'bg-gradient-to-br from-orange-500 to-amber-600' : 'bg-gradient-to-br from-purple-500 to-indigo-600'
+              isExam ? 'bg-gradient-to-br from-orange-500 to-amber-600' : 'bg-gradient-to-br from-navy-600 to-navy-800'
             }`}>
               {isExam ? <FileText className="w-6 h-6" /> : <GraduationCap className="w-6 h-6" />}
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap mb-1">
                 <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black ${
-                  isExam ? 'bg-orange-100 text-orange-700 dark:bg-orange-950/50 dark:text-orange-300' : 'bg-purple-100 text-purple-700 dark:bg-purple-950/50 dark:text-purple-300'
+                  isExam ? 'bg-orange-100 text-orange-700 dark:bg-orange-950/50 dark:text-orange-300' : 'bg-navy-100 text-navy-700 dark:bg-navy-950/50 dark:text-navy-300'
                 }`}>
                   {isExam ? '📄 اختبار' : '📚 تسميع'}
                 </span>
@@ -374,7 +374,7 @@ export default function ItemArchiveDetailView({ item, onBack, onOpenStudent }) {
           { label: 'الناجحون', value: fullItem.passed_count ?? '…', icon: CheckCircle, color: 'from-green-500 to-green-600', text: 'text-green-600', sub: fullItem.total_targeted > 0 ? `${Math.round(((fullItem.passed_count || 0) / fullItem.total_targeted) * 100)}% من المستهدفين` : '—' },
           { label: 'الراسبون', value: fullItem.failed_count ?? '…', icon: XCircle, color: 'from-red-500 to-red-600', text: 'text-red-600', sub: fullItem.total_targeted > 0 ? `${Math.round(((fullItem.failed_count || 0) / fullItem.total_targeted) * 100)}% من المستهدفين` : '—' },
           { label: 'الغائبون', value: fullItem.absent_count ?? '…', icon: AlertTriangle, color: 'from-amber-500 to-amber-600', text: 'text-amber-600', sub: fullItem.total_targeted > 0 ? `${Math.round(((fullItem.absent_count || 0) / fullItem.total_targeted) * 100)}% من المستهدفين` : '—' },
-          { label: 'متوسط الدرجات', value: `${fullItem.avg_pct ?? 0}%`, icon: Award, color: 'from-purple-500 to-purple-600', text: 'text-purple-600', sub: `المتوسط: ${fullItem.avg_score ?? 0} / ${fullItem.total_score}` },
+          { label: 'متوسط الدرجات', value: `${fullItem.avg_pct ?? 0}%`, icon: Award, color: 'from-orange-500 to-amber-600', text: 'text-orange-600', sub: `المتوسط: ${fullItem.avg_score ?? 0} / ${fullItem.total_score}` },
         ].map(({ label, value, icon: Icon, color, text, sub }) => (
           <div key={label} className={`relative overflow-hidden rounded-2xl border p-4 ${card} shadow-sm`}>
             <div className={`absolute -top-4 -left-4 w-12 h-12 rounded-full opacity-10 bg-gradient-to-br ${color}`} />
@@ -575,7 +575,7 @@ export default function ItemArchiveDetailView({ item, onBack, onOpenStudent }) {
                         <td className={`px-4 py-3 font-mono text-[11px] ${textSec}`}>{idx + 1}</td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-400 to-purple-500 flex items-center justify-center text-white text-xs font-black flex-shrink-0">
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-400 to-amber-600 flex items-center justify-center text-white text-xs font-black flex-shrink-0">
                               {st.student_name?.charAt(0) || 'ط'}
                             </div>
                             <div>
@@ -637,12 +637,12 @@ export default function ItemArchiveDetailView({ item, onBack, onOpenStudent }) {
                                 onClick={() => setViewingAttemptsStudent(st)}
                                 className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black border transition cursor-pointer ${
                                   dark
-                                    ? 'bg-purple-950/40 border-purple-800 text-purple-300 hover:bg-purple-900/40'
-                                    : 'bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100'
+                                    ? 'bg-orange-950/40 border-orange-800 text-orange-300 hover:bg-orange-900/40'
+                                    : 'bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100'
                                 }`}
                                 title="عرض تفاصيل المحاولات"
                               >
-                                <History className="w-3 h-3 text-purple-500" />
+                                <History className="w-3 h-3 text-orange-500" />
                                 أعاد ({st.attempts_count} محاولات)
                               </button>
                             ) : (
@@ -708,7 +708,7 @@ export default function ItemArchiveDetailView({ item, onBack, onOpenStudent }) {
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-400 to-purple-500 flex items-center justify-center text-white text-xs font-black flex-shrink-0">
+                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-400 to-amber-600 flex items-center justify-center text-white text-xs font-black flex-shrink-0">
                           {st.student_name?.charAt(0) || 'ط'}
                         </div>
                         <div>
@@ -756,7 +756,7 @@ export default function ItemArchiveDetailView({ item, onBack, onOpenStudent }) {
                                 e.stopPropagation();
                                 setViewingAttemptsStudent(st);
                               }}
-                              className="text-[10px] font-black text-purple-600 hover:underline flex items-center gap-1 cursor-pointer"
+                              className="text-[10px] font-black text-orange-600 hover:underline flex items-center gap-1 cursor-pointer"
                             >
                               <History className="w-2.5 h-2.5" />
                               أعاد ({st.attempts_count} مرات)
@@ -814,7 +814,7 @@ export default function ItemArchiveDetailView({ item, onBack, onOpenStudent }) {
           <div className={`w-full max-w-md rounded-2xl border shadow-2xl p-5 ${card} space-y-4`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <History className="w-5 h-5 text-purple-500" />
+                <History className="w-5 h-5 text-orange-500" />
                 <div>
                   <h3 className={`text-sm font-black ${textPrimary}`}>سجل محاولات الطالب</h3>
                   <p className={`text-xs font-semibold ${textSec}`}>{viewingAttemptsStudent.student_name}</p>

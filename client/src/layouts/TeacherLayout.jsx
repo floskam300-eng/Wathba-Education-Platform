@@ -190,9 +190,9 @@ export default function TeacherLayout() {
             if (!isDesktop) setMobileSidebarOpen(false);
             setSimulatorOpen(true);
           }}
-          className="sidebar-link w-full text-indigo-200 hover:bg-indigo-500/20 hover:text-white"
+          className="sidebar-link w-full text-orange-200 hover:bg-white/10 hover:text-white"
         >
-          <Eye className="w-5 h-5 text-indigo-300" />
+          <Eye className="w-5 h-5 text-orange-400" />
           <span>معاينة كطالب</span>
         </button>
         {(user?.support_form_url || user?.whatsapp_phone) && (
@@ -221,8 +221,8 @@ export default function TeacherLayout() {
           desktopSidebarOpen ? 'w-64 opacity-100' : 'w-0 opacity-0 pointer-events-none'
         } ${dark ? 'dk-sidebar' : 'bg-navy-500'}`}
         style={dark ? {
-          background: 'linear-gradient(180deg, #161422 0%, #100E1A 100%)',
-          borderLeft: desktopSidebarOpen ? '1px solid rgba(230,175,80,0.12)' : 'none',
+          background: 'linear-gradient(180deg, #0d1522 0%, #080d14 100%)',
+          borderLeft: desktopSidebarOpen ? '1px solid rgba(245,166,35,0.15)' : 'none',
         } : {}}
       >
         <div className="w-64 min-w-[16rem] h-full flex flex-col">
@@ -233,7 +233,7 @@ export default function TeacherLayout() {
       {mobileSidebarOpen && (
         <div className="lg:hidden fixed inset-0 z-50 flex">
           <div className={`app-sidebar-panel w-64 flex flex-col ${dark ? '' : 'bg-navy-500'}`}
-               style={dark ? { background: 'linear-gradient(180deg, #161422 0%, #100E1A 100%)' } : {}}>
+               style={dark ? { background: 'linear-gradient(180deg, #0d1522 0%, #080d14 100%)' } : {}}>
             <Sidebar />
           </div>
           <div className="flex-1 bg-black/60 backdrop-blur-sm" onClick={() => setMobileSidebarOpen(false)} />
@@ -260,10 +260,10 @@ export default function TeacherLayout() {
             <button
               type="button"
               onClick={() => setSimulatorOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 active:scale-95 text-white text-xs font-black transition-all shadow-sm shadow-indigo-500/20"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-orange-500 hover:bg-orange-600 active:scale-95 text-white text-xs font-black transition-all shadow-sm shadow-orange-500/20"
               title="معاينة المنصة كطالب"
             >
-              <Eye className="w-4 h-4 text-amber-300" />
+              <Eye className="w-4 h-4 text-white" />
               <span className="hidden sm:inline">معاينة كطالب</span>
             </button>
 

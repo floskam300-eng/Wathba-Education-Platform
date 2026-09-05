@@ -71,7 +71,7 @@ export default function RecitationReviewModal({ resultId, onClose }) {
             </div>
             <div className="min-w-0 text-right">
               <div className="flex items-center gap-2">
-                <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-purple-100 text-purple-700 dark:bg-purple-950/50 dark:text-purple-300">
+                <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-orange-100 text-orange-700 dark:bg-orange-950/50 dark:text-orange-300">
                   📚 مراجعة التسميع
                 </span>
               </div>
@@ -222,7 +222,7 @@ export default function RecitationReviewModal({ resultId, onClose }) {
                         </span>
                       )}
                       {isImgMulti && (
-                        <span className="text-xs text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/30 px-2 py-0.5 rounded-full font-bold">
+                        <span className="text-xs text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/30 px-2 py-0.5 rounded-full font-bold">
                           صورة مع أسئلة
                         </span>
                       )}
@@ -383,7 +383,7 @@ export default function RecitationReviewModal({ resultId, onClose }) {
         <div className="px-5 py-3 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/30 flex justify-end">
           <button
             onClick={onClose}
-            className="px-6 py-2 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white transition-colors cursor-pointer"
+            className="px-6 py-2 rounded-xl text-xs font-bold bg-navy-700 hover:bg-navy-800 text-white transition-colors cursor-pointer"
           >
             إغلاق
           </button>

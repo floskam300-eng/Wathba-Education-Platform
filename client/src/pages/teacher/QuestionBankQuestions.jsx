@@ -240,7 +240,7 @@ export default function QuestionBankQuestions() {
           </button>
           <div className="h-5 w-px bg-gray-200 dark:bg-[var(--dk-border)] flex-shrink-0" />
           <div className="flex items-center gap-2 min-w-0 flex-1">
-            <BookMarked className="w-4 h-4 sm:w-5 sm:h-5 text-purple-500 flex-shrink-0" />
+            <BookMarked className="w-4 h-4 sm:w-5 sm:h-5 text-orange-500 flex-shrink-0" />
             <div className="min-w-0">
               <p className="text-[10px] sm:text-xs text-gray-400 dark:text-[var(--dk-text-3)] font-medium">إدارة أسئلة بنك الأسئلة</p>
               <h1 className="font-black text-navy-700 dark:text-[var(--dk-text-1)] text-xs sm:text-sm truncate">{bank?.title || '...'}</h1>
@@ -262,7 +262,7 @@ export default function QuestionBankQuestions() {
           {/* Questions List */}
           <div className="lg:col-span-3 space-y-3 order-2 lg:order-1">
             <div className="flex items-center gap-2">
-              <HelpCircle className="w-5 h-5 text-purple-500" />
+              <HelpCircle className="w-5 h-5 text-orange-500" />
               <h2 className="font-black text-navy-700 dark:text-[var(--dk-text-1)] text-base">
                 الأسئلة
                 <span className="mr-2 text-sm font-semibold text-gray-500 dark:text-[var(--dk-text-2)]">({bankQuestions.length})</span>
@@ -281,11 +281,11 @@ export default function QuestionBankQuestions() {
                 const d = difficultyBadge(q.difficulty);
                 const num = idx + 1;
                 return (
-                  <div key={q.id} className={`bg-white dark:bg-[var(--dk-surface)] rounded-xl p-4 shadow-sm border transition-all ${editQ?.id === q.id ? 'border-purple-400 ring-2 ring-purple-100 dark:ring-purple-900/40' : 'border-gray-100 dark:border-[var(--dk-border)] hover:border-gray-200 dark:hover:border-[var(--dk-border-md)]'}`}>
+                  <div key={q.id} className={`bg-white dark:bg-[var(--dk-surface)] rounded-xl p-4 shadow-sm border transition-all ${editQ?.id === q.id ? 'border-orange-400 ring-2 ring-orange-100 dark:ring-orange-950/40' : 'border-gray-100 dark:border-[var(--dk-border)] hover:border-gray-200 dark:hover:border-[var(--dk-border-md)]'}`}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-2 flex-wrap">
-                          <span className="text-xs font-black bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 px-2 py-0.5 rounded-full">{num}</span>
+                          <span className="text-xs font-black bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 px-2 py-0.5 rounded-full">{num}</span>
                           <span className="text-xs text-gray-500 dark:text-[var(--dk-text-2)] font-medium">{qTypeLabel(q.question_type)} · {q.points} نقطة</span>
                           <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${d.cls}`}>{d.label}</span>
                         </div>
@@ -297,7 +297,7 @@ export default function QuestionBankQuestions() {
                         )}
                         {q.question_type === 'image_multi' ? (
                           <div className="space-y-1.5 w-full">
-                            <div className="inline-flex items-center gap-1 text-[11px] font-bold bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border border-purple-200 dark:border-purple-800 rounded-lg px-2 py-1">
+                            <div className="inline-flex items-center gap-1 text-[11px] font-bold bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-800 rounded-lg px-2 py-1">
                               🖼 {Array.isArray(q.sub_questions) ? q.sub_questions.length : 0} سؤال فرعي
                             </div>
                             <div className="flex flex-wrap gap-1">
@@ -332,17 +332,17 @@ export default function QuestionBankQuestions() {
 
           {/* Add/Edit Question Form */}
           <div ref={formScrollRef} className="lg:col-span-2 order-1 lg:order-2 lg:sticky lg:top-4 lg:max-h-[calc(100vh-9.5rem)] lg:overflow-y-auto lg:overscroll-contain lg:pl-1">
-            <div className="bg-white dark:bg-[var(--dk-surface)] rounded-2xl border-2 border-dashed border-purple-300 dark:border-[var(--dk-border-md)] p-5 shadow-sm">
+            <div className="bg-white dark:bg-[var(--dk-surface)] rounded-2xl border-2 border-dashed border-orange-300 dark:border-[var(--dk-border-md)] p-5 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-black text-navy-700 dark:text-[var(--dk-text-1)] flex items-center gap-2">
-                  <Plus className="w-4 h-4 text-purple-500" />
+                  <Plus className="w-4 h-4 text-orange-500" />
                   {editQ ? 'تعديل السؤال' : 'إضافة سؤال جديد'}
                 </h3>
                 {!editQ && (
                   <button
                     type="button"
                     onClick={() => setShowImport(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border-2 border-purple-300 text-purple-700 bg-purple-50 hover:bg-purple-100 hover:border-purple-400 transition-all dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border-2 border-orange-300 text-orange-700 bg-orange-50 hover:bg-orange-100 hover:border-orange-400 transition-all dark:bg-orange-950/30 dark:text-orange-300 dark:border-orange-800"
                   >
                     <FileDown className="w-3.5 h-3.5" />
                     استيراد CSV
@@ -379,7 +379,7 @@ export default function QuestionBankQuestions() {
                     onChange={v => setQForm({ ...qForm, question_text: v })}
                     placeholder="اكتب نص السؤال هنا... (حدد أي جزء من النص لتغيير لونه أو تنسيقه)"
                     minHeight={70}
-                    accentColor="purple"
+                    accentColor="orange"
                   />
                 </div>
 
@@ -403,7 +403,7 @@ export default function QuestionBankQuestions() {
                         className="input-field text-sm" />
                       {uploadProgress > 0 && uploadProgress < 100 && (
                         <div className="w-full bg-gray-200 rounded-full h-1.5">
-                          <div className="bg-purple-500 h-1.5 rounded-full transition-all" style={{ width: `${uploadProgress}%` }} />
+                          <div className="bg-orange-500 h-1.5 rounded-full transition-all" style={{ width: `${uploadProgress}%` }} />
                         </div>
                       )}
                     </div>
@@ -548,7 +548,7 @@ export default function QuestionBankQuestions() {
                                     }}
                                     className={`flex-1 py-1 rounded text-xs font-bold border transition-all ${
                                       sub.correct === letter
-                                        ? 'bg-purple-600 text-white border-purple-600'
+                                        ? 'bg-orange-500 text-white border-orange-500'
                                         : 'bg-white dark:bg-[var(--dk-surface)] text-gray-600 dark:text-[var(--dk-text-2)] border-gray-300 dark:border-[var(--dk-border)] hover:border-gray-400'
                                     }`}>
                                     {displayLetter}
@@ -616,7 +616,7 @@ export default function QuestionBankQuestions() {
                                 newLabels[idx] = e.target.value;
                                 handleOptionLabelsChange(newLabels);
                               }}
-                              className="w-full text-center text-xs rounded border border-gray-300 dark:border-[var(--dk-border)] py-1 bg-white dark:bg-[var(--dk-elevated)] dark:text-[var(--dk-text-1)] focus:outline-none focus:ring-1 focus:ring-purple-500"
+                              className="w-full text-center text-xs rounded border border-gray-300 dark:border-[var(--dk-border)] py-1 bg-white dark:bg-[var(--dk-elevated)] dark:text-[var(--dk-text-1)] focus:outline-none focus:ring-1 focus:ring-orange-500"
                               maxLength={20}
                             />
                           </div>

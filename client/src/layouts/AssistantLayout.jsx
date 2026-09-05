@@ -175,8 +175,8 @@ export default function AssistantLayout() {
           desktopSidebarOpen ? 'w-64 opacity-100' : 'w-0 opacity-0 pointer-events-none'
         } ${dark ? '' : 'bg-navy-500'}`}
         style={dark ? {
-          background: 'linear-gradient(180deg, #161422 0%, #100E1A 100%)',
-          borderLeft: desktopSidebarOpen ? '1px solid rgba(230,175,80,0.12)' : 'none',
+          background: 'linear-gradient(180deg, #0d1522 0%, #080d14 100%)',
+          borderLeft: desktopSidebarOpen ? '1px solid rgba(245,166,35,0.15)' : 'none',
         } : {}}
       >
         <div className="w-64 min-w-[16rem] h-full flex flex-col">
@@ -186,7 +186,7 @@ export default function AssistantLayout() {
       {mobileSidebarOpen && (
         <div className="lg:hidden fixed inset-0 z-50 flex">
           <div className={`app-sidebar-panel w-64 flex flex-col ${dark ? '' : 'bg-navy-500'}`}
-               style={dark ? { background: 'linear-gradient(180deg, #161422 0%, #100E1A 100%)' } : {}}>
+               style={dark ? { background: 'linear-gradient(180deg, #0d1522 0%, #080d14 100%)' } : {}}>
             <Sidebar />
           </div>
           <div className="flex-1 bg-black/60 backdrop-blur-sm" onClick={() => setMobileSidebarOpen(false)} />

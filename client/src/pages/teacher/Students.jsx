@@ -449,7 +449,7 @@ function DeviceAlertsPanel({ canEdit }) {
                             : `محاولة دخول من جهاز جديد: ${alert.device_name}`}
                         </span>
                         {typeof alert.similarity_score === 'number' && alert.similarity_score > 0 && (
-                          <span className="bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                          <span className="bg-navy-100 dark:bg-navy-900/40 text-navy-800 dark:text-navy-300 text-[10px] font-bold px-2 py-0.5 rounded-full">
                             تطابق عتادي: {alert.similarity_score}%
                           </span>
                         )}

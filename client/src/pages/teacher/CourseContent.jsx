@@ -572,8 +572,8 @@ function RecitationItem({ r, onDragStart, onDragEnd, isDragging, onOpen, onDelet
       <div className="flex items-center self-stretch text-gray-300 hover:text-gray-400 cursor-grab active:cursor-grabbing flex-shrink-0 -mr-1">
         <GripVertical className="w-4 h-4" />
       </div>
-      <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
-        <BookMarked className="w-5 h-5 text-purple-600" />
+      <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+        <BookMarked className="w-5 h-5 text-orange-600" />
       </div>
       <div className="flex-1 min-w-0">
         <p className="font-semibold text-navy-600 text-sm truncate">{r.title}</p>
@@ -585,7 +585,7 @@ function RecitationItem({ r, onDragStart, onDragEnd, isDragging, onOpen, onDelet
             </span>
           ) : (
             <span className="text-[10px] bg-amber-50 text-amber-700 font-bold px-1.5 py-0.5 rounded-full flex items-center gap-1">
-              � مسودة
+              ✎ مسودة
             </span>
           )}
           {r.result_count > 0 && (
@@ -594,7 +594,7 @@ function RecitationItem({ r, onDragStart, onDragEnd, isDragging, onOpen, onDelet
             </span>
           )}
           {r.is_gate_required && (
-            <span className="text-[10px] bg-purple-50 text-purple-700 font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+            <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5 border border-amber-300">
               🔒 إلزامي لفتح الفصل التالي
             </span>
           )}
@@ -855,7 +855,7 @@ export default function CourseContent() {
                   toast.error('فشل بدء المعاينة');
                 }
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 active:scale-95 text-white text-xs font-black transition-all shadow-sm shadow-indigo-500/20 flex-shrink-0"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 active:scale-95 text-white text-xs font-black transition-all shadow-sm shadow-orange-500/20 flex-shrink-0"
               title="معاينة هذا الكورس كطالب"
             >
               <Eye className="w-3.5 h-3.5 text-amber-300" />
@@ -963,11 +963,11 @@ export default function CourseContent() {
                               </div>
                               {/* Recitations inside this section */}
                               {(recitationsBySection.get(Number(s.id)) || []).length > 0 && (
-                                <div className="mt-3 pt-3 border-t border-dashed border-indigo-200">
-                                  <p className="text-[10px] font-black text-purple-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                                <div className="mt-3 pt-3 border-t border-dashed border-orange-200">
+                                  <p className="text-[10px] font-black text-orange-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
                                     <BookMarked className="w-3 h-3" /> تسميعات هذا الفصل ({(recitationsBySection.get(Number(s.id)) || []).length})
                                   </p>
-                                  <div className="space-y-2 pr-4 border-r-2 border-purple-100">
+                                  <div className="space-y-2 pr-4 border-r-2 border-orange-100">
                                     {(recitationsBySection.get(Number(s.id)) || []).map(r => (
                                       <RecitationItem
                                         key={r.id}
@@ -985,13 +985,13 @@ export default function CourseContent() {
                             </div>
                           ) : (
                             <div className="space-y-3">
-                              <div className={`pr-4 border-r-2 border-indigo-50 py-3 text-center text-xs text-gray-400 rounded-lg transition-all ${
+                              <div className={`pr-4 border-r-2 border-navy-100 py-3 text-center text-xs text-gray-400 rounded-lg transition-all ${
                                 dragOverKey === s.id ? 'bg-orange-50 text-orange-500 border-r-orange-300' : ''
                               }`}>
                                 {dragOverKey === s.id ? '↓ أفلت هنا' : 'فارغ'}
                               </div>
                               {(recitationsBySection.get(Number(s.id)) || []).length > 0 && (
-                                <div className="space-y-2 pr-4 border-r-2 border-purple-100">
+                                <div className="space-y-2 pr-4 border-r-2 border-orange-100">
                                   {(recitationsBySection.get(Number(s.id)) || []).map(r => (
                                     <RecitationItem
                                       key={r.id}
@@ -1105,10 +1105,10 @@ export default function CourseContent() {
                               </div>
                               {(recitationsBySection.get(Number(s.id)) || []).length > 0 && (
                                 <div className="mt-3 pt-3 border-t border-dashed border-orange-200">
-                                  <p className="text-[10px] font-black text-purple-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                                  <p className="text-[10px] font-black text-orange-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
                                     <BookMarked className="w-3 h-3" /> تسميعات هذا الفصل ({(recitationsBySection.get(Number(s.id)) || []).length})
                                   </p>
-                                  <div className="space-y-2 pr-4 border-r-2 border-purple-100">
+                                  <div className="space-y-2 pr-4 border-r-2 border-orange-100">
                                     {(recitationsBySection.get(Number(s.id)) || []).map(r => (
                                       <RecitationItem
                                         key={r.id}
@@ -1132,7 +1132,7 @@ export default function CourseContent() {
                                 {dragOverKey === s.id ? '↓ أفلت هنا' : 'فارغ'}
                               </div>
                               {(recitationsBySection.get(Number(s.id)) || []).length > 0 && (
-                                <div className="space-y-2 pr-4 border-r-2 border-purple-100">
+                                <div className="space-y-2 pr-4 border-r-2 border-orange-100">
                                   {(recitationsBySection.get(Number(s.id)) || []).map(r => (
                                     <RecitationItem
                                       key={r.id}
@@ -1206,17 +1206,17 @@ export default function CourseContent() {
               const grouped = buildGrouped(recitations);
               return (
                 <div className="space-y-6">
-                  <div className="bg-purple-50/50 border border-purple-100 rounded-2xl p-4">
-                    <p className="text-sm font-black text-purple-800 mb-2 flex items-center gap-2">
-                      <BookMarked className="w-4 h-4 text-purple-500" /> عن التسميعات والفصول
+                  <div className="bg-orange-50/50 border border-orange-100 rounded-2xl p-4">
+                    <p className="text-sm font-black text-orange-800 mb-2 flex items-center gap-2">
+                      <BookMarked className="w-4 h-4 text-orange-500" /> عن التسميعات والفصول
                     </p>
-                    <p className="text-xs text-purple-700/80 leading-relaxed">
+                    <p className="text-xs text-orange-700/80 leading-relaxed">
                       التسميعات هنا مرتبة بالفصل الذي <strong>تفتحه عند اجتيازها</strong>.
                       مثلاً: التسميعات في "الفصل الأول" عادةً تكون مربوطة بـ "الفصل الثاني" —
                       اجتيازها يفتح محتوى الفصل الثاني. اسحب أي تسميع لتغيير الفصل الذي يفتحه.
                     </p>
                     <button onClick={() => navigate(`/${baseRole}/recitations`)}
-                      className="mt-3 inline-flex items-center gap-2 bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-xl text-xs font-bold transition-colors">
+                      className="mt-3 inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-xl text-xs font-bold transition-colors shadow-sm">
                       <Plus className="w-3.5 h-3.5" /> تسميع جديد
                     </button>
                   </div>
@@ -1233,13 +1233,13 @@ export default function CourseContent() {
                           key={s.id}
                           sectionKey={s.id}
                           label={s.title}
-                          icon={<BookMarked className="w-4 h-4 text-purple-500" />}
-                          labelColor="text-purple-600"
+                          icon={<BookMarked className="w-4 h-4 text-orange-500" />}
+                          labelColor="text-orange-600"
                           isDraggingAny={isDraggingAny}
                           {...dropZoneProps}
                         >
                           {(grouped[s.id] || []).length > 0 ? (
-                            <div className="space-y-2 pr-4 border-r-2 border-purple-100">
+                            <div className="space-y-2 pr-4 border-r-2 border-orange-100">
                               {grouped[s.id].map(r => (
                                 <RecitationItem
                                   key={r.id}
@@ -1253,7 +1253,7 @@ export default function CourseContent() {
                               ))}
                             </div>
                           ) : (
-                            <div className={`pr-4 border-r-2 border-purple-50 py-3 text-center text-xs text-gray-400 rounded-lg transition-all ${
+                            <div className={`pr-4 border-r-2 border-orange-50 py-3 text-center text-xs text-gray-400 rounded-lg transition-all ${
                               dragOverKey === s.id ? 'bg-orange-50 text-orange-500 border-r-orange-300' : ''
                             }`}>
                               {dragOverKey === s.id ? '↓ أفلت هنا' : 'فارغ'}
@@ -1381,7 +1381,7 @@ export default function CourseContent() {
                                   <span className="text-xs text-gray-400 font-medium whitespace-nowrap flex-shrink-0 flex items-center gap-1">
                                     {sectionVideos.length > 0 && <span>{sectionVideos.length} 🎬</span>}
                                     {sectionPdfs.length > 0 && <span>{sectionPdfs.length} 📄</span>}
-                                    {sectionRecs.length > 0 && <span className="text-purple-600">{sectionRecs.length} 📖</span>}
+                                    {sectionRecs.length > 0 && <span className="text-orange-600">{sectionRecs.length} 📖</span>}
                                     {totalItems === 0 && <span className="text-gray-300">فارغ</span>}
                                   </span>
                                   {totalItems > 0 && (
@@ -1446,7 +1446,7 @@ export default function CourseContent() {
                               )}
                               {sectionRecs.length > 0 && (
                                 <div>
-                                  <p className="text-[11px] font-black text-purple-600 uppercase tracking-wide mb-2 flex items-center gap-1">
+                                  <p className="text-[11px] font-black text-orange-600 uppercase tracking-wide mb-2 flex items-center gap-1">
                                     <BookMarked className="w-3 h-3" /> التسميعات
                                   </p>
                                   <div className="space-y-2">

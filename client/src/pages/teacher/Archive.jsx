@@ -754,7 +754,7 @@ export default function ArchivePage() {
           {/* ── Header ── */}
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-orange-500 flex items-center justify-center flex-shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center flex-shrink-0 shadow-sm">
                 <Archive className="w-5 h-5 text-white" />
               </div>
               <div>
@@ -781,7 +781,7 @@ export default function ArchivePage() {
                   <button
                     onClick={handleGroupPrint}
                     disabled={isLoading || students.length === 0}
-                    className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-purple-600 to-orange-500 text-white hover:opacity-90 transition disabled:opacity-40 shadow-sm cursor-pointer"
+                    className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-orange-500 hover:bg-orange-600 text-white transition disabled:opacity-40 shadow-sm cursor-pointer"
                     title="طباعة تقرير سجل الطلاب بصيغة PDF"
                   >
                     <Printer className="w-4 h-4" />
@@ -802,7 +802,7 @@ export default function ArchivePage() {
                   <button
                     onClick={handleItemsPrint}
                     disabled={itemsLoading || itemsList.length === 0}
-                    className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-purple-600 to-orange-500 text-white hover:opacity-90 transition disabled:opacity-40 shadow-sm cursor-pointer"
+                    className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-orange-500 hover:bg-orange-600 text-white transition disabled:opacity-40 shadow-sm cursor-pointer"
                     title="طباعة قائمة الاختبارات والتسميعات بصيغة PDF"
                   >
                     <Printer className="w-4 h-4" />
@@ -840,7 +840,7 @@ export default function ArchivePage() {
               onClick={() => setActiveTab('items')}
               className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-black transition-all cursor-pointer ${
                 activeTab === 'items'
-                  ? 'bg-gradient-to-r from-orange-500 to-purple-600 text-white shadow-sm'
+                  ? 'bg-orange-500 text-white shadow-sm'
                   : dark
                     ? 'text-gray-400 hover:text-white hover:bg-[var(--dk-elevated)]'
                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
@@ -868,7 +868,7 @@ export default function ArchivePage() {
             {[
               { label: 'طالب لديه نتائج', value: totalCount, icon: Users,        color: 'from-blue-500 to-blue-600',   text: 'text-blue-600' },
               { label: 'اختبار مؤدّى',    value: totalExams, icon: FileText,      color: 'from-orange-500 to-orange-600', text: 'text-orange-600' },
-              { label: 'تسميع مؤدّى',     value: totalRecs,  icon: GraduationCap, color: 'from-purple-500 to-purple-600', text: 'text-purple-600' },
+              { label: 'تسميع مؤدّى',     value: totalRecs,  icon: GraduationCap, color: 'from-amber-500 to-amber-600',   text: 'text-amber-600' },
             ].map(({ label, value, icon: Icon, color, text }) => (
               <div key={label} className={`relative overflow-hidden rounded-2xl border p-4 ${card} shadow-sm`}>
                 <div className={`absolute -top-4 -left-4 w-14 h-14 rounded-full opacity-10 bg-gradient-to-br ${color}`} />
@@ -1041,7 +1041,7 @@ export default function ArchivePage() {
                           >
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-2.5">
-                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-400 to-purple-500 flex items-center justify-center text-white text-xs font-black flex-shrink-0">
+                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-400 to-amber-600 flex items-center justify-center text-white text-xs font-black flex-shrink-0">
                                   {st.name?.charAt(0)}
                                 </div>
                                 <p className={`font-bold group-hover:text-orange-500 transition-colors ${textPrimary}`}>{st.name}</p>
@@ -1105,7 +1105,7 @@ export default function ArchivePage() {
                         onClick={() => setSelectedStudent({ id: st.id, name: st.name })}
                         className={`w-full px-4 py-4 text-right flex items-center gap-3 transition-colors cursor-pointer ${dark ? 'hover:bg-[var(--dk-elevated)]' : 'hover:bg-orange-50/30'}`}
                       >
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-400 to-purple-500 flex items-center justify-center text-white text-sm font-black flex-shrink-0">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-400 to-amber-600 flex items-center justify-center text-white text-sm font-black flex-shrink-0">
                           {st.name?.charAt(0)}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -1126,7 +1126,7 @@ export default function ArchivePage() {
                             )}
                             {Number(st.total_recitations) > 0 && (
                               <div className="flex items-center gap-1">
-                                <GraduationCap className="w-3 h-3 text-purple-400 flex-shrink-0" />
+                                <GraduationCap className="w-3 h-3 text-amber-500 flex-shrink-0" />
                                 <span className={`text-[10px] font-bold ${recPct >= 60 ? 'text-green-600' : 'text-red-500'}`}>
                                   {st.passed_recitations}/{st.total_recitations} تسميع ({recPct}%)
                                 </span>
@@ -1193,7 +1193,7 @@ export default function ArchivePage() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
               { label: 'إجمالي الاختبارات', value: totalItemsExamsCount, icon: FileText, color: 'from-orange-500 to-amber-500', text: 'text-orange-500' },
-              { label: 'إجمالي التسميعات', value: totalItemsRecsCount,  icon: GraduationCap, color: 'from-purple-500 to-indigo-500', text: 'text-purple-500' },
+              { label: 'إجمالي التسميعات', value: totalItemsRecsCount,  icon: GraduationCap, color: 'from-amber-500 to-amber-600', text: 'text-amber-500' },
               { label: 'الطلاب المستهدفون', value: totalItemsTargeted,   icon: Users, color: 'from-blue-500 to-blue-600', text: 'text-blue-500' },
               { label: 'الطلاب المؤدون', value: totalItemsAttended,   icon: Award, color: 'from-green-500 to-emerald-600', text: 'text-green-500' },
             ].map(({ label, value, icon: Icon, color, text }) => (
@@ -1392,7 +1392,7 @@ export default function ArchivePage() {
                       <div className="flex items-center justify-between gap-2 mb-3">
                         <div className="flex items-center gap-2">
                           <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black ${
-                            isExam ? 'bg-orange-100 text-orange-700 dark:bg-orange-950/50 dark:text-orange-300' : 'bg-purple-100 text-purple-700 dark:bg-purple-950/50 dark:text-purple-300'
+                            isExam ? 'bg-orange-100 text-orange-700 dark:bg-orange-950/50 dark:text-orange-300' : 'bg-navy-100 text-navy-700 dark:bg-navy-950/50 dark:text-navy-300'
                           }`}>
                             {isExam ? '📄 اختبار' : '📚 تسميع'}
                           </span>

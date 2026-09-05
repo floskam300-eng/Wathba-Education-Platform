@@ -557,13 +557,13 @@ export default function Attendance() {
               {/* فلتر حسب فيديو محدد */}
               <div>
                 <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1">
-                  <Video className="w-3 h-3 inline ml-1 text-purple-600" />
+                  <Video className="w-3 h-3 inline ml-1 text-orange-500" />
                   فلترة حسب فيديو محدد:
                 </label>
                 <select
                   value={selectedVideoFilter}
                   onChange={e => { setSelectedVideoFilter(e.target.value); setPage(1); }}
-                  className="w-full py-2 px-3 text-xs font-bold rounded-xl border border-gray-200 dark:border-navy-700 bg-white dark:bg-navy-900 text-navy-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-400 cursor-pointer"
+                  className="w-full py-2 px-3 text-xs font-bold rounded-xl border border-gray-200 dark:border-navy-700 bg-white dark:bg-navy-900 text-navy-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-orange-400 cursor-pointer"
                   dir="rtl"
                 >
                   <option value="all">جميع فيديوهات الكورس</option>
@@ -584,7 +584,7 @@ export default function Attendance() {
                   <select
                     value={videoStatusFilter}
                     onChange={e => { setVideoStatusFilter(e.target.value); setPage(1); }}
-                    className="w-full py-2 px-3 text-xs font-bold rounded-xl border border-purple-200 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-950/30 text-purple-900 dark:text-purple-200 focus:outline-none focus:ring-2 focus:ring-purple-400 cursor-pointer"
+                    className="w-full py-2 px-3 text-xs font-bold rounded-xl border border-orange-200 dark:border-orange-800/50 bg-orange-50/40 dark:bg-orange-950/20 text-orange-900 dark:text-orange-200 focus:outline-none focus:ring-2 focus:ring-orange-400 cursor-pointer"
                     dir="rtl"
                   >
                     <option value="all">الكل لهذا الفيديو</option>
@@ -693,13 +693,13 @@ export default function Attendance() {
                   </span>
                 )}
                 {stageFilter !== 'الكل' && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 font-bold">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-orange-50 dark:bg-orange-950/50 text-orange-700 dark:text-orange-300 font-bold border border-orange-200 dark:border-orange-800/50">
                     المرحلة: {stageFilter}
                     <X className="w-3 h-3 cursor-pointer" onClick={() => setStageFilter('الكل')} />
                   </span>
                 )}
                 {selectedVideoFilter !== 'all' && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 font-bold">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 font-bold border border-blue-200 dark:border-blue-800/50">
                     فيديو محدد: {attendance.videos?.find(v => v.id === parseInt(selectedVideoFilter, 10))?.title || selectedVideoFilter}
                     <X className="w-3 h-3 cursor-pointer" onClick={() => { setSelectedVideoFilter('all'); setVideoStatusFilter('all'); }} />
                   </span>
@@ -797,7 +797,7 @@ export default function Attendance() {
                         <th
                           key={v.id}
                           className={`py-3 px-3 text-center font-semibold min-w-[100px] max-w-[140px] transition-colors ${
-                            selectedVideoFilter === String(v.id) ? 'bg-purple-700 text-yellow-200' : ''
+                            selectedVideoFilter === String(v.id) ? 'bg-orange-600 text-white shadow-inner' : ''
                           }`}
                         >
                           <div className="truncate text-xs" title={v.title}>
@@ -866,7 +866,7 @@ export default function Attendance() {
                               <td
                                 key={v.id}
                                 className={`py-3 px-3 text-center transition-colors ${
-                                  isHighlighted ? 'bg-purple-50/60 dark:bg-purple-950/20' : ''
+                                  isHighlighted ? 'bg-orange-50/60 dark:bg-orange-950/20' : ''
                                 }`}
                                 title={p
                                   ? `مشاهدة فعلية: ${pct}%${p.actual_watched_seconds > 0 ? ` (${Math.round(p.actual_watched_seconds / 60)} دقيقة فعلية)` : ''} · مرات التشغيل: ${p.watch_count || 1}`

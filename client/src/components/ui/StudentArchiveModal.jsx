@@ -334,20 +334,20 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
                   {Number(exE?.absent_exams) > 0 && (
                     <StatPill label="غائب" value={exE.absent_exams} color={dark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-500'} />
                   )}
-                  <StatPill label="متوسط" value={`${exE?.avg_score || 0}%`} color={dark ? 'bg-purple-900/40 text-purple-300' : 'bg-purple-50 text-purple-700'} />
+                  <StatPill label="متوسط" value={`${exE?.avg_score || 0}%`} color={dark ? 'bg-orange-950/40 text-orange-300' : 'bg-orange-50 text-orange-700'} />
                 </div>
               </div>
             ) : (
               <div>
                 <div className="flex items-center gap-1.5 mb-2">
-                  <GraduationCap className="w-3.5 h-3.5 text-purple-500" />
+                  <GraduationCap className="w-3.5 h-3.5 text-orange-500" />
                   <p className={`text-xs font-black ${textPrimary}`}>إحصائيات التسميع</p>
                 </div>
                 <div className="flex gap-2 flex-wrap">
                   <StatPill label="إجمالي" value={exR?.total_recitations || 0} color={dark ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-50 text-blue-700'} />
                   <StatPill label="ناجح" value={exR?.passed_recitations || 0} color={dark ? 'bg-green-900/40 text-green-300' : 'bg-green-50 text-green-700'} />
                   <StatPill label="راسب" value={exR?.failed_recitations || 0} color={dark ? 'bg-red-900/40 text-red-300' : 'bg-red-50 text-red-700'} />
-                  <StatPill label="متوسط" value={`${exR?.avg_score || 0}%`} color={dark ? 'bg-purple-900/40 text-purple-300' : 'bg-purple-50 text-purple-700'} />
+                  <StatPill label="متوسط" value={`${exR?.avg_score || 0}%`} color={dark ? 'bg-orange-950/40 text-orange-300' : 'bg-orange-50 text-orange-700'} />
                 </div>
               </div>
             )}
@@ -377,7 +377,7 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
               <button
                 onClick={() => setTab('recitations')}
                 className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${tab === 'recitations'
-                  ? 'bg-purple-600 text-white shadow-sm'
+                  ? 'bg-navy-700 text-white shadow-sm'
                   : (dark ? 'text-[var(--dk-text-2)] hover:text-[var(--dk-text-1)]' : 'text-gray-500 hover:text-gray-700')
                 }`}
               >
@@ -391,7 +391,7 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
               </button>
             </div>
           ) : (
-            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold ${mode === 'exams' ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-300' : 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-300'}`}>
+            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold ${mode === 'exams' ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-300' : 'bg-navy-100 text-navy-600 dark:bg-navy-900/30 dark:text-navy-300'}`}>
               {mode === 'exams'
                 ? <><FileText className="w-3.5 h-3.5" />نتائج الاختبارات{examResults && <span className="font-black">({examResults.length})</span>}</>
                 : <><GraduationCap className="w-3.5 h-3.5" />نتائج التسميع{recResults && <span className="font-black">({recResults.length})</span>}</>
@@ -414,7 +414,7 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
                 className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all border cursor-pointer ${
                   tab === 'exams'
                     ? (dark ? 'border-orange-700 text-orange-300 hover:bg-orange-900/30' : 'border-orange-200 text-orange-600 hover:bg-orange-50')
-                    : (dark ? 'border-purple-700 text-purple-300 hover:bg-purple-900/30' : 'border-purple-200 text-purple-600 hover:bg-purple-50')
+                    : (dark ? 'border-navy-700 text-navy-300 hover:bg-navy-900/30' : 'border-navy-200 text-navy-600 hover:bg-navy-50')
                 }`}
                 title={tab === 'exams' ? 'طباعة تقرير الاختبارات بصيغة PDF' : 'طباعة تقرير التسميع بصيغة PDF'}
               >
@@ -433,7 +433,7 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
               </button>
               <button
                 onClick={handlePrintFull}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-l from-orange-500 to-purple-600 text-white hover:opacity-90 transition-all shadow-sm cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-orange-500 hover:bg-orange-600 text-white transition-all shadow-sm cursor-pointer"
                 title="طباعة التقرير الشامل للطالب بصيغة PDF"
               >
                 <Printer className="w-3.5 h-3.5" />
@@ -454,7 +454,7 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
                 onClick={tab === 'exams' ? handlePrintExams : handlePrintRecs}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${tab === 'exams'
                   ? 'bg-orange-500 hover:bg-orange-600 text-white'
-                  : 'bg-purple-600 hover:bg-purple-700 text-white'
+                  : 'bg-navy-700 hover:bg-navy-800 text-white'
                 }`}
                 title="طباعة التقرير بصيغة PDF"
               >
@@ -586,7 +586,7 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
           {tab === 'recitations' && (
             recLoading ? (
               <div className="flex items-center justify-center py-16">
-                <div className="animate-spin w-6 h-6 border-4 border-purple-500 border-t-transparent rounded-full" />
+                <div className="animate-spin w-6 h-6 border-4 border-orange-500 border-t-transparent rounded-full" />
               </div>
             ) : !recResults?.length ? (
               <div className="flex flex-col items-center justify-center py-16 gap-2">
@@ -609,7 +609,7 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
                     >
                       <button
                         onClick={() => setExpandedRec(isExpanded ? null : r.id)}
-                        className={`w-full flex items-center gap-3 px-4 py-3 text-right transition-colors ${dark ? 'hover:bg-[var(--dk-elevated)]' : 'hover:bg-purple-50/30'} cursor-pointer`}
+                        className={`w-full flex items-center gap-3 px-4 py-3 text-right transition-colors ${dark ? 'hover:bg-[var(--dk-elevated)]' : 'hover:bg-orange-50/30'} cursor-pointer`}
                       >
                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-black ${r.passed ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
                           {r.passed ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
@@ -626,7 +626,7 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
                               </span>
                             )}
                             {Number(r.attempt_number) > 1 && (
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${dark ? 'bg-purple-900/40 text-purple-300' : 'bg-purple-50 text-purple-600'}`}>
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${dark ? 'bg-orange-950/40 text-orange-300' : 'bg-orange-50 text-orange-600'}`}>
                                 إعادة {r.attempt_number}
                               </span>
                             )}
@@ -669,7 +669,7 @@ export default function StudentArchiveModal({ student, onClose, mode = 'both' })
                           <div className="pt-2 flex justify-end">
                             <button
                               onClick={() => setRecReviewResultId(r.id)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white transition-colors cursor-pointer"
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-orange-500 hover:bg-orange-600 text-white transition-colors cursor-pointer"
                             >
                               <Eye className="w-3.5 h-3.5" />
                               مراجعة الإجابات

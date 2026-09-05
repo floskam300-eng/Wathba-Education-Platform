@@ -10,16 +10,16 @@
    تتناسق مع الـ orange brand accent
 ═══════════════════════════════════════════════════════ */
 :root {
-  /* ── Backgrounds (warm-dark, not cold-blue) ── */
-  --dk-bg:            #0F0E15;   /* near-black, warm-neutral */
-  --dk-surface:       #17151F;   /* card surfaces */
-  --dk-elevated:      #1F1C2C;   /* modals, inputs */
-  --dk-hover:         #272439;   /* hover/active states */
+  /* ── Backgrounds (modern navy-dark surfaces matching brand) ── */
+  --dk-bg:            #0A0E17;   /* deep rich navy-black */
+  --dk-surface:       #111A29;   /* card surfaces */
+  --dk-elevated:      #18253A;   /* modals, inputs */
+  --dk-hover:         #1F304A;   /* hover/active states */
 
-  /* ── Borders (warm orange-tinted, not blue) ── */
-  --dk-border:        rgba(230, 175, 80, 0.10);
-  --dk-border-md:     rgba(230, 175, 80, 0.20);
-  --dk-border-strong: rgba(230, 175, 80, 0.32);
+  /* ── Borders (warm amber-orange brand tint, subtle and elegant) ── */
+  --dk-border:        rgba(245, 166, 35, 0.12);
+  --dk-border-md:     rgba(245, 166, 35, 0.22);
+  --dk-border-strong: rgba(245, 166, 35, 0.35);
 
   /* ── Text (warm whites — WCAG AA compliant on dark bg) ── */
   --dk-text-1:        #F2EDE5;   /* primary — warm white */
@@ -118,7 +118,7 @@
   }
 
   html.dark body::after {
-    background: radial-gradient(circle, rgba(124,58,237,0.09) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(26,46,74,0.3) 0%, transparent 70%);
     animation: wathba-orb-dark 24s ease-in-out 4s infinite alternate-reverse;
   }
 
@@ -336,8 +336,8 @@ html.dark .modal-overlay {
 
 /* ── table ── */
 html.dark .table-header {
-  background: linear-gradient(135deg, #1D1A2E, #251F38);
-  color: #C4A870;
+  background: linear-gradient(135deg, #131E2E, #18263A);
+  color: var(--dk-text-1);
   border-bottom: 1px solid var(--dk-border-strong);
 }
 html.dark .table-row {

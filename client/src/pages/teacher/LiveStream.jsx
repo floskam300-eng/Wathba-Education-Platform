@@ -107,7 +107,7 @@ function StudentRow({ viewer, streamId, onRefresh }) {
   return (
     <div className={`rounded-xl p-3 border transition-all mb-2 ${viewer.hand_raised ? 'border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20' : 'border-slate-200 dark:border-[rgba(230,175,80,0.12)] bg-white dark:bg-[#17151F]/80'}`}>
       <div className="flex items-center gap-2 mb-2">
-        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0 ${viewer.hand_raised ? 'bg-yellow-500' : 'bg-purple-600'}`}>
+        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0 ${viewer.hand_raised ? 'bg-yellow-500' : 'bg-orange-600'}`}>
           {viewer.name?.charAt(0)}
         </div>
         <div className="flex-1 min-w-0">
@@ -266,9 +266,9 @@ function ViewersPanel({ streamId, dark }) {
       <div className={`px-3 py-2 border-b flex-shrink-0 ${dark ? 'border-[rgba(230,175,80,0.12)]' : 'border-slate-200'}`}>
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
-            <Users className="w-4 h-4 text-purple-500" />
+            <Users className="w-4 h-4 text-orange-500" />
             <span className={`text-sm font-bold ${dark ? 'text-white' : 'text-slate-700'}`}>الحضور</span>
-            <span className="text-xs bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 px-1.5 py-0.5 rounded-full font-black">{viewers.length}</span>
+            <span className="text-xs bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 px-1.5 py-0.5 rounded-full font-black">{viewers.length}</span>
           </div>
           {raised > 0 && (
             <span className="text-xs bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300 px-2 py-0.5 rounded-full font-black animate-pulse">
@@ -428,7 +428,7 @@ function ChatPanel({ stream, teacherName, dark }) {
             <span className="text-[10px] text-[#C4B8AC] px-1">{msg.sender_name}</span>
             <div className={`text-sm px-3 py-2 rounded-2xl max-w-[90%] leading-relaxed ${
               msg.sender_type === 'teacher'
-                ? 'bg-purple-600 text-white rounded-bl-sm'
+                ? 'bg-orange-600 text-white rounded-bl-sm'
                 : dark ? 'bg-[#1F1C2C] text-white rounded-br-sm' : 'bg-slate-100 text-slate-800 rounded-br-sm'
             }`}>{msg.message}</div>
           </div>
@@ -440,9 +440,9 @@ function ChatPanel({ stream, teacherName, dark }) {
           <input value={text} onChange={e => setText(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); } }}
             placeholder="اكتب رسالة..."
-            className={`flex-1 text-sm border rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 ${dark ? 'bg-[#1F1C2C] border-[rgba(230,175,80,0.18)] text-white placeholder-[#8A7E72]' : 'bg-white border-slate-300 text-slate-800'}`} />
+            className={`flex-1 text-sm border rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500 ${dark ? 'bg-[#1F1C2C] border-[rgba(230,175,80,0.18)] text-white placeholder-[#8A7E72]' : 'bg-white border-slate-300 text-slate-800'}`} />
           <button onClick={sendMsg} disabled={!text.trim() || sending}
-            className="p-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl disabled:opacity-50 transition-colors">
+            className="p-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl disabled:opacity-50 transition-colors shadow-sm">
             {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
           </button>
         </div>
@@ -673,15 +673,15 @@ function ScheduledStreamCard({ stream, dark, onStart, onCancel, starting }) {
     <div className={`rounded-2xl border p-4 ${dark ? 'bg-[#17151F] border-[rgba(230,175,80,0.12)]' : 'bg-white border-slate-200'}`}>
       <div className="flex items-start gap-3">
         <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-             style={{ background: 'rgba(139,92,246,0.12)', border: '2px solid rgba(139,92,246,0.25)' }}>
-          <Calendar className="w-5 h-5 text-purple-500" />
+             style={{ background: 'rgba(255,140,0,0.12)', border: '2px solid rgba(255,140,0,0.25)' }}>
+          <Calendar className="w-5 h-5 text-orange-500" />
         </div>
         <div className="flex-1 min-w-0">
           <h4 className={`font-black text-sm truncate ${dark ? 'text-white' : 'text-slate-800'}`}>{stream.title}</h4>
           <p className={`text-xs mt-0.5 ${dark ? 'text-[#C4B8AC]' : 'text-[#8A7E72]'}`}>{dateStr}</p>
           <div className="flex items-center gap-1.5 mt-1.5">
-            <Clock className="w-3.5 h-3.5 text-purple-500 flex-shrink-0" />
-            <span className="text-xs font-black text-purple-500 font-mono">{timeLabel}</span>
+            <Clock className="w-3.5 h-3.5 text-orange-500 flex-shrink-0" />
+            <span className="text-xs font-black text-orange-500 font-mono">{timeLabel}</span>
           </div>
         </div>
         <div className="flex flex-col gap-1.5 flex-shrink-0">
@@ -837,7 +837,7 @@ function ScheduleForm({ onBack, onScheduled, dark }) {
     }
   };
 
-  const inp = `w-full rounded-xl border px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 transition-shadow ${dark ? 'bg-[#17151F] border-[rgba(230,175,80,0.18)] text-white placeholder-[#8A7E72]' : 'bg-white border-slate-300 text-slate-800 placeholder-[#8A7E72]'}`;
+  const inp = `w-full rounded-xl border px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 transition-shadow ${dark ? 'bg-[#17151F] border-[rgba(230,175,80,0.18)] text-white placeholder-[#8A7E72]' : 'bg-white border-slate-300 text-slate-800 placeholder-[#8A7E72]'}`;
 
   return (
     <div className="max-w-xl mx-auto py-8 px-4">
@@ -868,7 +868,7 @@ function ScheduleForm({ onBack, onScheduled, dark }) {
           <div className="grid grid-cols-2 gap-2">
             {[{ v: 'all', l: '📢 كل الطلاب' }, { v: 'stages', l: '📚 مراحل محددة' }].map(({ v, l }) => (
               <button key={v} type="button" onClick={() => setAccess(v)}
-                className={`py-2.5 rounded-xl text-sm font-bold border transition-all ${access === v ? 'bg-purple-600 text-white border-purple-600' : dark ? 'border-[rgba(230,175,80,0.18)] text-[#F2EDE5] hover:border-purple-400' : 'border-slate-300 text-slate-600 hover:border-purple-400'}`}>
+                className={`py-2.5 rounded-xl text-sm font-bold border transition-all ${access === v ? 'bg-orange-500 text-white border-orange-500' : dark ? 'border-[rgba(230,175,80,0.18)] text-[#F2EDE5] hover:border-orange-400' : 'border-slate-300 text-slate-600 hover:border-orange-400'}`}>
                 {l}
               </button>
             ))}
@@ -890,7 +890,7 @@ function ScheduleForm({ onBack, onScheduled, dark }) {
           </div>
         </div>
         <button type="submit" disabled={loading}
-          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-black text-white text-base bg-purple-600 hover:bg-purple-700 disabled:opacity-60 transition-all shadow-lg active:scale-[0.98]">
+          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-black text-white text-base bg-orange-500 hover:bg-orange-600 disabled:opacity-60 transition-all shadow-lg shadow-orange-500/20 active:scale-[0.98]">
           {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Calendar className="w-5 h-5" />}
           {loading ? 'جارٍ الجدولة...' : 'جدول البث'}
         </button>
@@ -950,7 +950,7 @@ function IdleView({ onGoToForm, onSchedule, onStarted, dark }) {
             <Radio className="w-4 h-4" /> ابدأ بثاً الآن
           </button>
           <button onClick={onSchedule}
-            className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black text-sm border-2 transition-all active:scale-95 ${dark ? 'border-purple-500 text-purple-400 hover:bg-purple-600 hover:text-white' : 'border-purple-500 text-purple-600 hover:bg-purple-600 hover:text-white'}`}>
+            className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black text-sm border-2 transition-all active:scale-95 ${dark ? 'border-orange-500 text-orange-400 hover:bg-orange-600 hover:text-white' : 'border-orange-500 text-orange-600 hover:bg-orange-600 hover:text-white'}`}>
             <Calendar className="w-4 h-4" /> جدول موعداً
           </button>
         </div>
@@ -960,7 +960,7 @@ function IdleView({ onGoToForm, onSchedule, onStarted, dark }) {
         <div className="flex items-center justify-between mb-4">
           <h3 className={`text-base font-black ${dark ? 'text-white' : 'text-slate-700'}`}>
             البثوث المجدولة
-            {scheduled.length > 0 && <span className="mr-2 text-sm font-bold text-purple-500">({scheduled.length})</span>}
+            {scheduled.length > 0 && <span className="mr-2 text-sm font-bold text-orange-500">({scheduled.length})</span>}
           </h3>
           <button onClick={() => refetch()} disabled={isLoading}
             className={`p-1.5 rounded-lg transition-colors ${dark ? 'text-[#C4B8AC] hover:bg-[#1F1C2C]' : 'text-[#C4B8AC] hover:bg-slate-100'}`}>
@@ -969,7 +969,7 @@ function IdleView({ onGoToForm, onSchedule, onStarted, dark }) {
         </div>
 
         {isLoading ? (
-          <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 text-purple-500 animate-spin" /></div>
+          <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 text-orange-500 animate-spin" /></div>
         ) : scheduled.length === 0 ? (
           <div className={`text-center py-10 rounded-2xl border border-dashed ${dark ? 'border-[rgba(230,175,80,0.12)] text-[#8A7E72]' : 'border-slate-300 text-[#C4B8AC]'}`}>
             <Calendar className="w-8 h-8 mx-auto mb-2 opacity-40" />

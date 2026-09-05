@@ -283,7 +283,7 @@ export default function RecitationReviewPage() {
       {/* ── Loading / Error states ─────────────────────────────────────────── */}
       {isLoading && (
         <div className="flex items-center justify-center py-20">
-          <div className="w-10 h-10 border-4 border-gray-200 dark:border-[var(--dk-border)] border-t-purple-500 rounded-full animate-spin" />
+          <div className="w-10 h-10 border-4 border-gray-200 dark:border-[var(--dk-border)] border-t-orange-500 rounded-full animate-spin" />
         </div>
       )}
       {isError && (
@@ -330,7 +330,7 @@ export default function RecitationReviewPage() {
                       ? (Array.isArray(qq.sub_results) && qq.sub_results.some(s => !!s.student_answer))
                       : !!qq.student_answer;
                     const dotColor = i === currentIdx
-                      ? 'bg-purple-500 scale-125'
+                      ? 'bg-orange-500 scale-125'
                       : !qAnswered
                         ? 'bg-gray-300 dark:bg-gray-600'
                         : qq.is_correct
@@ -350,7 +350,7 @@ export default function RecitationReviewPage() {
               {/* Progress bar */}
               <div className="h-1.5 rounded-full bg-gray-100 dark:bg-[var(--dk-elevated)] overflow-hidden">
                 <div
-                  className="h-full rounded-full bg-gradient-to-l from-purple-400 to-purple-600 transition-all duration-300"
+                  className="h-full rounded-full bg-gradient-to-l from-orange-400 to-amber-500 transition-all duration-300"
                   style={{ width: `${((currentIdx + 1) / questions.length) * 100}%` }}
                 />
               </div>
@@ -388,7 +388,7 @@ export default function RecitationReviewPage() {
               {currentIdx < questions.length - 1 ? (
                 <button
                   onClick={goNext}
-                  className="flex items-center gap-2 px-5 py-3 rounded-2xl font-bold text-sm bg-purple-500 hover:bg-purple-600 text-white shadow-sm transition-all"
+                  className="flex items-center gap-2 px-5 py-3 rounded-2xl font-bold text-sm bg-orange-500 hover:bg-orange-600 text-white shadow-sm transition-all"
                 >
                   التالي
                   <ArrowLeft className="w-4 h-4" />

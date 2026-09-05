@@ -289,21 +289,21 @@ export default function Notifications() {
           />
 
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
-            <h2 className="font-black text-navy-600 flex items-center gap-2">
-              <Bell className="w-4 h-4 text-indigo-500" /> إشعار داخلي للمنصة
+            <h2 className="font-black text-navy-600 dark:text-[var(--dk-text-1)] flex items-center gap-2">
+              <Bell className="w-4 h-4 text-orange-500" /> إشعار داخلي للمنصة
             </h2>
 
-            <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-xs text-indigo-800 font-medium">
+            <div className="bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800/40 rounded-xl p-3 text-xs text-orange-800 dark:text-orange-300 font-medium">
               <p className="font-bold mb-1">🔔 ما هو الإشعار الداخلي؟</p>
               <p>يصل الإشعار لجرس الإشعارات في حساب الطالب على المنصة مباشرةً.</p>
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-navy-700 mb-2">نوع الإشعار</label>
+              <label className="block text-sm font-bold text-navy-700 dark:text-[var(--dk-text-1)] mb-2">نوع الإشعار</label>
               <div className="grid grid-cols-2 gap-2">
                 {PLATFORM_TYPES.map(t => (
                   <button key={t.value} onClick={() => setPlatformType(t.value)}
-                    className={`py-2 px-3 rounded-xl text-xs font-bold transition-all border-2 text-right ${platformType === t.value ? 'border-indigo-500 bg-indigo-50 text-indigo-800' : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'}`}>
+                    className={`py-2 px-3 rounded-xl text-xs font-bold transition-all border-2 text-right ${platformType === t.value ? 'border-orange-500 bg-orange-50 text-orange-800 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-600' : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'}`}>
                     {t.label}
                   </button>
                 ))}
@@ -312,18 +312,18 @@ export default function Notifications() {
 
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-sm font-bold text-navy-700">نص الإشعار</label>
+                <label className="text-sm font-bold text-navy-700 dark:text-[var(--dk-text-1)]">نص الإشعار</label>
                 <div className="relative">
                   <button onClick={() => setPlatformTemplateOpen(!platformTemplateOpen)}
-                    className="text-xs font-bold text-indigo-600 hover:underline flex items-center gap-1">
+                    className="text-xs font-bold text-orange-600 dark:text-orange-400 hover:underline flex items-center gap-1">
                     قوالب جاهزة <ChevronDown className="w-3 h-3" />
                   </button>
                   {platformTemplateOpen && (
-                    <div className="absolute left-0 top-6 w-72 bg-white border border-slate-200 rounded-xl shadow-lg z-10 overflow-hidden">
+                    <div className="absolute left-0 top-6 w-72 bg-white dark:bg-[var(--dk-elevated)] border border-slate-200 dark:border-[var(--dk-border)] rounded-xl shadow-lg z-10 overflow-hidden">
                       {PLATFORM_TEMPLATES.map(t => (
                         <button key={t.title} onClick={() => { setMessage(t.text); setPlatformType(t.type); setPlatformTemplateOpen(false); }}
-                          className="w-full text-right px-3 py-2.5 hover:bg-indigo-50 transition-colors border-b border-slate-100 last:border-0">
-                          <p className="text-xs font-bold text-navy-700">{t.title}</p>
+                          className="w-full text-right px-3 py-2.5 hover:bg-orange-50 dark:hover:bg-[var(--dk-hover)] transition-colors border-b border-slate-100 dark:border-[var(--dk-border)] last:border-0">
+                          <p className="text-xs font-bold text-navy-700 dark:text-[var(--dk-text-1)]">{t.title}</p>
                           <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{t.text}</p>
                         </button>
                       ))}
@@ -336,9 +336,9 @@ export default function Notifications() {
                 placeholder="اكتب نص الإشعار هنا... استخدم {name} لإدراج اسم الطالب" />
               <p className="text-xs text-gray-400 mt-1">استخدم &#123;name&#125; لإدراج اسم الطالب تلقائياً</p>
               {message && selectedStudents.length > 0 && (
-                <div className="mt-2 bg-gray-50 border border-gray-200 rounded-xl p-3">
+                <div className="mt-2 bg-gray-50 dark:bg-[var(--dk-surface)] border border-gray-200 dark:border-[var(--dk-border)] rounded-xl p-3">
                   <p className="text-xs font-bold text-gray-500 mb-1.5">👁 معاينة (أول طالب مختار):</p>
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                  <p className="text-sm text-gray-700 dark:text-[var(--dk-text-1)] whitespace-pre-wrap leading-relaxed">
                     {message.replace(/\{name\}/g, students.find(s => s.id === selectedStudents[0])?.name || 'الطالب')}
                   </p>
                 </div>
@@ -347,14 +347,14 @@ export default function Notifications() {
 
             {/* Delay notice for large sends */}
             {selectedStudents.length > 50 && (
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800">
+              <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 rounded-xl p-3 text-xs text-amber-800 dark:text-amber-300">
                 <p className="font-bold mb-0.5 flex items-center gap-1">⏱ إرسال تدريجي وآمن</p>
                 <p>سيتم معالجة الإشعارات لـ {selectedStudents.length} طالب عبر دفعات خفيفة ومجعدة لضمان سرعة الإرسال واستقرار السيرفر دون أي تعليق للمنصة.</p>
               </div>
             )}
 
             <button onClick={sendPlatform} disabled={platformMut.isPending}
-              className="w-full btn-primary flex items-center justify-center gap-2 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60">
+              className="w-full btn-primary flex items-center justify-center gap-2 py-3 disabled:opacity-60">
               {platformMut.isPending ? (
                 <span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
               ) : (
@@ -392,15 +392,15 @@ export default function Notifications() {
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1 flex-wrap">
-                          <span className="font-bold text-navy-700 text-sm">{log.student_name || 'طالب'}</span>
-                          <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-indigo-100 text-indigo-700">
+                          <span className="font-bold text-navy-700 dark:text-[var(--dk-text-1)] text-sm">{log.student_name || 'طالب'}</span>
+                          <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-orange-100 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300">
                             🔔 إشعار داخلي
                           </span>
                           {log.title && (
-                            <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-purple-100 text-purple-700">{log.title}</span>
+                            <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300">{log.title}</span>
                           )}
                         </div>
-                        <p className="text-sm text-gray-600 line-clamp-2">{log.message}</p>
+                        <p className="text-sm text-gray-600 dark:text-[var(--dk-text-2)] line-clamp-2">{log.message}</p>
                       </div>
                       <p className="text-xs text-gray-400 flex-shrink-0 whitespace-nowrap">{fmtDate(log.sent_at)}</p>
                     </div>
@@ -410,15 +410,15 @@ export default function Notifications() {
 
               {/* Log Pagination */}
               {logPages > 1 && (
-                <div className="border-t border-slate-100 px-5 py-3 flex items-center justify-between">
+                <div className="border-t border-slate-100 dark:border-[var(--dk-border)] px-5 py-3 flex items-center justify-between">
                   <p className="text-xs text-gray-400">صفحة {logPage} من {logPages}</p>
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => setLogPage(p => Math.max(1, p - 1))}
                       disabled={logPage <= 1}
-                      className="p-1.5 rounded-lg disabled:opacity-30 hover:bg-gray-100 transition-colors"
+                      className="p-1.5 rounded-lg disabled:opacity-30 hover:bg-gray-100 dark:hover:bg-[var(--dk-hover)] transition-colors"
                     >
-                      <ChevronRight className="w-4 h-4 text-gray-600" />
+                      <ChevronRight className="w-4 h-4 text-gray-600 dark:text-gray-300" />
                     </button>
                     {Array.from({ length: Math.min(5, logPages) }, (_, i) => {
                       const pg = logPage <= 3 ? i + 1 : logPage + i - 2;
@@ -428,7 +428,7 @@ export default function Notifications() {
                           key={pg}
                           onClick={() => setLogPage(pg)}
                           className={`w-8 h-8 rounded-lg text-xs font-bold transition-colors ${
-                            pg === logPage ? 'bg-indigo-500 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'
+                            pg === logPage ? 'bg-orange-500 text-white shadow-sm' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[var(--dk-hover)]'
                           }`}
                         >
                           {pg}

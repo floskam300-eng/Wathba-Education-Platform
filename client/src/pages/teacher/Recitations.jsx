@@ -357,7 +357,7 @@ export default function Recitations() {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className={`text-xl sm:text-2xl font-black flex items-center gap-2 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>
-          <BookOpen className="w-7 h-7 text-purple-500 flex-shrink-0" />
+          <BookOpen className="w-7 h-7 text-orange-500 flex-shrink-0" />
           التسميع
           <span className={`text-sm font-semibold ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-500'}`}>({recitations.length})</span>
         </h1>
@@ -365,14 +365,14 @@ export default function Recitations() {
           <button
             onClick={() => { setTab('list'); setSelectedId(null); }}
             className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${tab === 'list'
-              ? 'bg-purple-500 text-white'
+              ? 'bg-orange-500 text-white'
               : dark ? 'text-[var(--dk-text-2)] hover:bg-[var(--dk-elevated)]' : 'text-gray-600 hover:bg-gray-100'}`}>
             القائمة
           </button>
           <button
             onClick={() => setTab('analytics')}
             className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${tab === 'analytics'
-              ? 'bg-purple-500 text-white'
+              ? 'bg-orange-500 text-white'
               : dark ? 'text-[var(--dk-text-2)] hover:bg-[var(--dk-elevated)]' : 'text-gray-600 hover:bg-gray-100'}`}>
             <BarChart2 className="w-4 h-4 inline ml-1" />التحليلات
           </button>
@@ -385,15 +385,15 @@ export default function Recitations() {
                 destination: '/student/recitations',
               });
             }}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold border border-purple-200 dark:border-purple-800/50 text-purple-600 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/40 transition-colors shadow-sm"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold border border-orange-200 dark:border-orange-800/50 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950/40 transition-colors shadow-sm"
             title="معاينة وتجربة صفحة التسميع كطالب"
           >
-            <Eye className="w-4 h-4 text-purple-500" />
+            <Eye className="w-4 h-4 text-orange-500" />
             <span className="hidden sm:inline">تجربة التسميع كطالب</span>
           </button>
           <button
             onClick={() => { setEditRec(null); setForm(emptyForm); setModal(true); }}
-            className="flex items-center gap-2 bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-xl text-sm font-bold transition-colors shadow">
+            className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-xl text-sm font-bold transition-colors shadow">
             <Plus className="w-4 h-4" /> تسميع جديد
           </button>
         </div>
@@ -427,13 +427,13 @@ export default function Recitations() {
                 : filtered.map(rec => (
                   <div key={rec.id}
                     onClick={() => setSelectedId(rec.id)}
-                    className={`${cardCls} cursor-pointer transition-all border-2 ${selectedId === rec.id ? 'border-purple-400' : dark ? 'border-transparent' : 'border-transparent hover:border-purple-200'}`}>
+                    className={`${cardCls} cursor-pointer transition-all border-2 ${selectedId === rec.id ? 'border-orange-500' : dark ? 'border-transparent' : 'border-transparent hover:border-orange-200'}`}>
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap mb-1">
                           <StatusBadge rec={rec} />
                           {rec.academic_stage && (
-                            <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-semibold">
+                            <span className="text-xs bg-navy-100 text-navy-700 dark:bg-navy-900/40 dark:text-navy-200 px-2 py-0.5 rounded-full font-semibold">
                               {rec.academic_stage}
                             </span>
                           )}
@@ -442,12 +442,12 @@ export default function Recitations() {
                           </span>
                           {/* [L2-FIX] Show indicator when recitation is linked to a course as a gatekeeper */}
                           {rec.course_id && (
-                            <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-semibold flex items-center gap-0.5">
+                            <span className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 px-2 py-0.5 rounded-full font-semibold flex items-center gap-0.5">
                               🔗 مرتبط بكورس
                             </span>
                           )}
                           {rec.is_gate_required && (
-                            <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-semibold flex items-center gap-0.5">
+                            <span className="text-xs bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 px-2 py-0.5 rounded-full font-semibold flex items-center gap-0.5">
                               🔒 إلزامي لفتح الفصل التالي
                             </span>
                           )}
@@ -463,7 +463,7 @@ export default function Recitations() {
                         <button
                           onClick={e => { e.stopPropagation(); navigate(`/${baseRole}/recitations/${rec.id}/questions`); }}
                           title="إدارة الأسئلة"
-                          className={`p-1.5 rounded-lg transition-colors ${dark ? 'text-purple-400 hover:bg-[var(--dk-elevated)]' : 'text-purple-500 hover:bg-purple-50'}`}>
+                          className={`p-1.5 rounded-lg transition-colors ${dark ? 'text-orange-400 hover:bg-[var(--dk-elevated)]' : 'text-orange-500 hover:bg-orange-50'}`}>
                           <FileText className="w-3.5 h-3.5" />
                         </button>
                         {/* [retake-grant] Opens the modal that lists every student
@@ -492,7 +492,7 @@ export default function Recitations() {
                             });
                           }}
                           title="تكرار التسميع (نسخة جديدة)"
-                          className={`p-1.5 rounded-lg transition-colors ${dark ? 'text-indigo-400 hover:bg-[var(--dk-elevated)]' : 'text-indigo-500 hover:bg-indigo-50'}`}>
+                          className={`p-1.5 rounded-lg transition-colors ${dark ? 'text-blue-400 hover:bg-[var(--dk-elevated)]' : 'text-blue-500 hover:bg-blue-50'}`}>
                           <Copy className="w-3.5 h-3.5" />
                         </button>
                         {/* Convert to exam */}
@@ -550,10 +550,10 @@ export default function Recitations() {
                       <div className="flex items-center gap-2 flex-wrap mb-1">
                         <StatusBadge rec={selectedRec} />
                         {selectedRec.academic_stage && (
-                          <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-semibold">{selectedRec.academic_stage}</span>
+                          <span className="text-xs bg-navy-100 text-navy-700 dark:bg-navy-900/40 dark:text-navy-200 px-2 py-0.5 rounded-full font-semibold">{selectedRec.academic_stage}</span>
                         )}
                         {selectedRec.is_gate_required && (
-                          <span className="text-xs bg-purple-100 text-purple-700 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1">
+                          <span className="text-xs bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1">
                             🔒 إلزامي لفتح الفصل التالي
                           </span>
                         )}
@@ -595,7 +595,7 @@ export default function Recitations() {
                   {!selectedRec.is_published && (
                     <button
                       onClick={() => navigate(`/${baseRole}/recitations/${selectedRec.id}/questions`)}
-                      className="flex items-center gap-2 bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-xl text-sm font-bold transition-colors shadow-sm">
+                      className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-xl text-sm font-bold transition-colors shadow-sm">
                       <FileText className="w-4 h-4" />
                       إدارة الأسئلة ({selectedRec.question_count})
                     </button>
@@ -623,7 +623,7 @@ export default function Recitations() {
                       start_date: fmtDateLocal(selectedRec.start_date) || '',
                       end_date: fmtDateLocal(selectedRec.end_date) || '',
                     })}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${dark ? 'bg-[var(--dk-elevated)] text-indigo-300 hover:bg-[var(--dk-surface)]' : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'}`}>
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${dark ? 'bg-[var(--dk-elevated)] text-orange-300 hover:bg-[var(--dk-surface)]' : 'bg-orange-50 text-orange-700 hover:bg-orange-100'}`}>
                     <Copy className="w-4 h-4" />
                     تكرار التسميع
                   </button>
@@ -689,8 +689,8 @@ export default function Recitations() {
               </div>
 
               {/* Target Stage + Course + Video linking */}
-              <div className={`rounded-2xl border p-4 space-y-3 ${dark ? 'border-[var(--dk-border)] bg-[var(--dk-elevated)]' : 'border-purple-100 bg-purple-50/40'}`}>
-                <p className={`text-xs font-black uppercase tracking-wide ${dark ? 'text-purple-400' : 'text-purple-600'}`}>🎯 النطاق الموجه له التسميع والربط الكورسي</p>
+              <div className={`rounded-2xl border p-4 space-y-3 ${dark ? 'border-[var(--dk-border)] bg-[var(--dk-elevated)]' : 'border-orange-100 bg-orange-50/40'}`}>
+                <p className={`text-xs font-black uppercase tracking-wide ${dark ? 'text-orange-400' : 'text-orange-600'}`}>🎯 النطاق الموجه له التسميع والربط الكورسي</p>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
@@ -747,7 +747,7 @@ export default function Recitations() {
                   <div>
                     <label className={`block text-xs font-bold mb-1.5 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-600'}`}>
                       الفصل الذي سيفتح عند اجتياز هذا التسميع
-                      <span className={`mr-1.5 font-normal text-[11px] ${dark ? 'text-[var(--dk-text-2)]' : 'text-purple-600'}`}>
+                      <span className={`mr-1.5 font-normal text-[11px] ${dark ? 'text-[var(--dk-text-2)]' : 'text-orange-600'}`}>
                         (التسميعات في الفصل الأول عادةً تكون مربوطة بالفصل الثاني)
                       </span>
                     </label>
@@ -896,7 +896,7 @@ export default function Recitations() {
                     className={`flex items-start gap-3 p-3 rounded-2xl border-2 text-right transition-all ${
                       form.shuffle_questions
                         ? 'border-orange-400 bg-orange-50 shadow-sm shadow-orange-100'
-                        : dark ? 'border-[var(--dk-border)] bg-[var(--dk-elevated)] hover:border-purple-400' : 'border-gray-200 bg-white hover:border-gray-300'
+                        : dark ? 'border-[var(--dk-border)] bg-[var(--dk-elevated)] hover:border-orange-400' : 'border-gray-200 bg-white hover:border-gray-300'
                     }`}>
                     <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0 transition-all ${
                       form.shuffle_questions ? 'bg-orange-500' : dark ? 'bg-gray-700' : 'bg-gray-100'
@@ -922,19 +922,19 @@ export default function Recitations() {
                     onClick={() => setForm(f => ({ ...f, shuffle_options: !f.shuffle_options }))}
                     className={`flex items-start gap-3 p-3 rounded-2xl border-2 text-right transition-all ${
                       form.shuffle_options
-                        ? 'border-indigo-400 bg-indigo-50 shadow-sm shadow-indigo-100'
-                        : dark ? 'border-[var(--dk-border)] bg-[var(--dk-elevated)] hover:border-purple-400' : 'border-gray-200 bg-white hover:border-gray-300'
+                        ? 'border-orange-400 bg-orange-50 shadow-sm shadow-orange-100'
+                        : dark ? 'border-[var(--dk-border)] bg-[var(--dk-elevated)] hover:border-orange-400' : 'border-gray-200 bg-white hover:border-gray-300'
                     }`}>
                     <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0 transition-all ${
-                      form.shuffle_options ? 'bg-indigo-500' : dark ? 'bg-gray-700' : 'bg-gray-100'
+                      form.shuffle_options ? 'bg-orange-500' : dark ? 'bg-gray-700' : 'bg-gray-100'
                     }`}>🎲</div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
-                        <span className={`font-black text-xs sm:text-sm leading-tight ${form.shuffle_options ? 'text-indigo-800' : dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>
+                        <span className={`font-black text-xs sm:text-sm leading-tight ${form.shuffle_options ? 'text-orange-800' : dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>
                           خلط الخيارات
                         </span>
                         <span className={`text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-full leading-none ${
-                          form.shuffle_options ? 'bg-indigo-500 text-white' : dark ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'
+                          form.shuffle_options ? 'bg-orange-500 text-white' : dark ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'
                         }`}>
                           {form.shuffle_options ? 'مفعّل' : 'معطّل'}
                         </span>
@@ -952,7 +952,7 @@ export default function Recitations() {
                 className={`flex items-start gap-3 p-3 rounded-2xl border-2 text-right transition-all ${
                   form.allow_retry
                     ? 'border-green-400 bg-green-50 shadow-sm shadow-green-100'
-                    : dark ? 'border-[var(--dk-border)] bg-[var(--dk-elevated)] hover:border-purple-400' : 'border-gray-200 bg-white hover:border-gray-300'
+                    : dark ? 'border-[var(--dk-border)] bg-[var(--dk-elevated)] hover:border-orange-400' : 'border-gray-200 bg-white hover:border-gray-300'
                 }`}>
                 <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0 transition-all ${
                   form.allow_retry ? 'bg-green-500' : dark ? 'bg-gray-700' : 'bg-gray-100'
@@ -1004,19 +1004,19 @@ export default function Recitations() {
                   onClick={() => setForm(f => ({ ...f, is_gate_required: !f.is_gate_required }))}
                   className={`flex items-start gap-3 p-3 rounded-2xl border-2 text-right transition-all ${
                     form.is_gate_required
-                      ? 'border-purple-400 bg-purple-50 shadow-sm shadow-purple-100'
-                      : dark ? 'border-[var(--dk-border)] bg-[var(--dk-elevated)] hover:border-purple-400' : 'border-gray-200 bg-white hover:border-gray-300'
+                      ? 'border-amber-400 bg-amber-50 shadow-sm shadow-amber-100'
+                      : dark ? 'border-[var(--dk-border)] bg-[var(--dk-elevated)] hover:border-amber-400' : 'border-gray-200 bg-white hover:border-gray-300'
                   }`}>
                   <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0 transition-all ${
-                    form.is_gate_required ? 'bg-purple-500 text-white' : dark ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'
+                    form.is_gate_required ? 'bg-amber-500 text-white' : dark ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'
                   }`}>🔒</div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
-                      <span className={`font-black text-xs sm:text-sm leading-tight ${form.is_gate_required ? 'text-purple-800' : dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>
+                      <span className={`font-black text-xs sm:text-sm leading-tight ${form.is_gate_required ? 'text-amber-800' : dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>
                         إلزامي لفتح الفصل التالي (Gate)
                       </span>
                       <span className={`text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-full leading-none ${
-                        form.is_gate_required ? 'bg-purple-500 text-white' : dark ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'
+                        form.is_gate_required ? 'bg-amber-500 text-white' : dark ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'
                       }`}>
                         {form.is_gate_required ? 'مفعّل' : 'معطّل'}
                       </span>
@@ -1052,7 +1052,7 @@ export default function Recitations() {
                   };
                   createMut.mutate(payload);
                 }} disabled={createMut.isPending || !form.title.trim()}
-                  className="flex-1 bg-purple-500 hover:bg-purple-600 disabled:opacity-50 text-white py-2.5 rounded-xl font-bold text-sm transition-colors">
+                  className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white py-2.5 rounded-xl font-bold text-sm transition-colors shadow-sm">
                   {createMut.isPending ? 'جاري الحفظ...' : editRec ? 'حفظ التعديلات' : 'إنشاء التسميع'}
                 </button>
                 <button onClick={() => { setModal(false); setEditRec(null); setForm(emptyForm); setFormErrors({}); }}
@@ -1105,7 +1105,7 @@ export default function Recitations() {
             <h3 className={`font-black text-lg mb-2 ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>
               تكرار التسميع (نسخ الأسئلة لتسميع جديد)
             </h3>
-            <p className={`text-xs mb-4 ${dark ? 'text-indigo-300 bg-indigo-950/40 border-indigo-800' : 'text-indigo-800 bg-indigo-50 border-indigo-200'} p-3 rounded-xl border`}>
+            <p className={`text-xs mb-4 ${dark ? 'text-orange-300 bg-orange-950/40 border-orange-800/40' : 'text-orange-800 bg-orange-50 border-orange-200'} p-3 rounded-xl border`}>
               💡 سيتم نسخ جميع أسئلة هذا التسميع إلى تسميع جديد كمسودة، مع إمكانية تعديل الاسم، المرحلة، والمواعيد أدناه.
             </p>
             <form
@@ -1239,7 +1239,7 @@ export default function Recitations() {
                 <button
                   type="submit"
                   disabled={duplicateMut.isPending}
-                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl text-sm transition-colors"
+                  className="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-bold py-2.5 rounded-xl text-sm transition-colors shadow-sm"
                 >
                   {duplicateMut.isPending ? 'جاري الإنشاء...' : 'تأكيد إنشاء النسخة'}
                 </button>
@@ -1449,7 +1449,7 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
                       setQForm(f => ({ ...f, question_type: 'mcq', option_a: f.option_a === 'صح' ? '' : f.option_a, option_b: f.option_b === 'خطأ' ? '' : f.option_b, correct_answer_letter: 'A', sub_questions: [] }));
                     }
                   }}
-                  className={`py-2 rounded-xl text-sm font-bold transition-colors ${qForm.question_type === t.key ? 'bg-purple-500 text-white' : dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-600'}`}>
+                  className={`py-2 rounded-xl text-sm font-bold transition-colors ${qForm.question_type === t.key ? 'bg-orange-500 text-white' : dark ? 'bg-[var(--dk-elevated)] text-[var(--dk-text-2)]' : 'bg-gray-100 text-gray-600'}`}>
                   {t.label}
                 </button>
               ))}
@@ -1461,7 +1461,7 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
               onChange={v => setQForm(f => ({ ...f, question_text: v }))}
               placeholder={isImgMulti ? 'تعليمات / وصف (اختياري)' : 'نص السؤال * (حدد النص لتنسيقه)'}
               minHeight={60}
-              accentColor="purple"
+              accentColor="orange"
             />
 
             {/* Image upload (all types) */}
@@ -1483,7 +1483,7 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
                 </div>
               ) : (
                 <button onClick={() => imgInputRef.current?.click()} disabled={imgUploading}
-                  className={`w-full border-2 border-dashed rounded-xl py-3.5 text-sm font-semibold flex items-center justify-center gap-2 transition-colors ${dark ? 'border-[var(--dk-border)] text-[var(--dk-text-2)] hover:border-purple-400 hover:text-purple-400' : 'border-gray-200 text-gray-400 hover:border-purple-300 hover:text-purple-500'}`}>
+                  className={`w-full border-2 border-dashed rounded-xl py-3.5 text-sm font-semibold flex items-center justify-center gap-2 transition-colors ${dark ? 'border-[var(--dk-border)] text-[var(--dk-text-2)] hover:border-orange-400 hover:text-orange-400' : 'border-gray-200 text-gray-400 hover:border-orange-300 hover:text-orange-500'}`}>
                   {imgUploading ? <><RefreshCw className="w-4 h-4 animate-spin" />جاري الرفع...</> : <><ImageIcon className="w-4 h-4" />إضافة صورة (اختياري)</>}
                 </button>
               )}
@@ -1494,7 +1494,7 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
               <div className="grid grid-cols-2 gap-2">
                 {['A','B','C','D'].map((letter, i) => (
                   <div key={letter} className="flex items-center gap-1.5">
-                    <span className="w-6 h-6 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 flex items-center justify-center text-xs font-black flex-shrink-0">{letter}</span>
+                    <span className="w-6 h-6 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 flex items-center justify-center text-xs font-black flex-shrink-0">{letter}</span>
                     <CompactOptionFormatter
                       value={[qForm.option_a, qForm.option_b, qForm.option_c, qForm.option_d][i]}
                       onChange={v => { const keys = ['option_a','option_b','option_c','option_d']; setQForm(f => ({ ...f, [keys[i]]: v })); }}
@@ -1507,15 +1507,15 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
 
             {/* image_multi: count-based auto-generate sub-questions */}
             {isImgMulti && (
-              <div className={`rounded-xl p-3 border space-y-3 ${dark ? 'border-[var(--dk-border)]' : 'border-purple-100 bg-purple-50/40'}`}>
-                <p className={`text-xs font-black ${dark ? 'text-purple-400' : 'text-purple-600'}`}>الأسئلة الفرعية — اختر الإجابة الصحيحة لكل بند</p>
+              <div className={`rounded-xl p-3 border space-y-3 ${dark ? 'border-[var(--dk-border)]' : 'border-orange-100 bg-orange-50/40'}`}>
+                <p className={`text-xs font-black ${dark ? 'text-orange-400' : 'text-orange-600'}`}>الأسئلة الفرعية — اختر الإجابة الصحيحة لكل بند</p>
 
                 {/* Count + Generate */}
                 <div className="flex items-center gap-2">
                   <input type="number" min={1} max={50}
                     value={imgMultiCount}
                     onChange={e => setImgMultiCount(Math.max(1, Math.min(50, parseInt(e.target.value) || 1)))}
-                    className={`w-20 rounded-xl px-3 py-2 border text-sm text-center ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-purple-200'}`} />
+                    className={`w-20 rounded-xl px-3 py-2 border text-sm text-center ${dark ? 'bg-[var(--dk-elevated)] border-[var(--dk-border)] text-[var(--dk-text)]' : 'bg-white border-orange-200'}`} />
                   <button type="button"
                     onClick={() => {
                       const count = Math.max(1, Math.min(50, parseInt(imgMultiCount) || 1));
@@ -1527,11 +1527,11 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
                       }));
                       updateSubQuestions(subs);
                     }}
-                    className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-xl text-sm font-bold flex items-center gap-1.5">
+                    className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-bold flex items-center gap-1.5">
                     <RefreshCw className="w-3.5 h-3.5" /> توليد
                   </button>
                   {(qForm.sub_questions || []).length > 0 && (
-                    <span className={`text-xs font-semibold ${dark ? 'text-[var(--dk-text-2)]' : 'text-purple-600'}`}>
+                    <span className={`text-xs font-semibold ${dark ? 'text-[var(--dk-text-2)]' : 'text-orange-600'}`}>
                       {(qForm.sub_questions || []).length} سؤال
                     </span>
                   )}
@@ -1541,7 +1541,7 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
                 {(qForm.sub_questions || []).length > 0 && (
                   <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
                     {(qForm.sub_questions || []).map((sub, i) => (
-                      <div key={i} className={`flex flex-col gap-2 rounded-xl p-3 ${dark ? 'bg-[var(--dk-elevated)]' : 'bg-white border border-purple-100'}`}>
+                      <div key={i} className={`flex flex-col gap-2 rounded-xl p-3 ${dark ? 'bg-[var(--dk-elevated)]' : 'bg-white border border-orange-100'}`}>
                         <div className="flex items-center justify-between gap-2">
                           <span className={`text-xs font-black flex-shrink-0 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-500'}`}>فرع {sub.label}</span>
                           <div className="flex items-center gap-2">
@@ -1589,10 +1589,10 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
                               }}
                               className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all ${
                                 sub.correct === letter
-                                  ? 'bg-purple-500 text-white border-purple-500 shadow-sm'
+                                  ? 'bg-orange-500 text-white border-orange-500 shadow-sm'
                                   : dark
-                                    ? 'bg-[var(--dk-surface)] border-[var(--dk-border)] text-[var(--dk-text-2)] hover:border-purple-400'
-                                    : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-purple-300 hover:bg-purple-50'
+                                    ? 'bg-[var(--dk-surface)] border-[var(--dk-border)] text-[var(--dk-text-2)] hover:border-orange-400'
+                                    : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-orange-300 hover:bg-orange-50'
                               }`}>
                               {sub.type === 'true_false' ? (letter === 'A' ? 'صح' : 'خطأ') : letter}
                             </button>
@@ -1633,7 +1633,7 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
                   disabled={isImgMulti} />
               </div>
               <button onClick={() => { addQMut.mutate(qForm); if (imgPreviewBlob) { URL.revokeObjectURL(imgPreviewBlob); setImgPreviewBlob(null); } }} disabled={addQMut.isPending || !canSubmit()}
-                className="flex items-center gap-1.5 bg-purple-500 hover:bg-purple-600 disabled:opacity-50 text-white px-4 py-2 rounded-xl text-sm font-bold">
+                className="flex items-center gap-1.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white px-4 py-2 rounded-xl text-sm font-bold">
                 {addQMut.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                 {editQId ? 'حفظ' : 'إضافة'}
               </button>
@@ -1659,7 +1659,7 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1.5">
-                <span className="w-6 h-6 rounded-full bg-purple-100 text-purple-700 text-xs font-black flex items-center justify-center flex-shrink-0">{idx + 1}</span>
+                <span className="w-6 h-6 rounded-full bg-orange-100 text-orange-700 text-xs font-black flex items-center justify-center flex-shrink-0">{idx + 1}</span>
                 <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
                   q.question_type === 'mcq' ? 'bg-blue-100 text-blue-700' :
                   q.question_type === 'image_multi' ? 'bg-orange-100 text-orange-700' :
@@ -1695,7 +1695,7 @@ function QuestionsPanel({ rec, questions, qForm, setQForm, editQId, setEditQId, 
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {(q.sub_questions || []).map(sub => (
-                      <span key={sub.label} className="text-xs px-2 py-1 rounded-lg bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 font-bold">
+                      <span key={sub.label} className="text-xs px-2 py-1 rounded-lg bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 font-bold">
                         {sub.label}: {sub.type === 'true_false' ? (sub.correct === 'A' ? 'صح' : 'خطأ') : sub.correct} ({sub.points || 1} د)
                       </span>
                     ))}
@@ -1773,7 +1773,7 @@ function ParticipantAttemptHistory({ recitationId, studentId, rec, dark, onRevie
             </span>
             <button
               onClick={() => onReview ? onReview(attempt.id) : (navigate && navigate(`/${baseRole}/recitation-review/${attempt.id}`))}
-              className="p-1 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-600 transition-colors"
+              className="p-1 rounded bg-orange-50 hover:bg-orange-100 text-orange-600 transition-colors"
               title="مراجعة">
               <Eye className="w-3 h-3" />
             </button>
@@ -1807,7 +1807,7 @@ function ResultsPanel({ rec, dark, cardCls, navigate, baseRole = 'teacher', gran
     <div className="relative">
       <Search className={`absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-400'}`} />
       {isFetching && !isFetchingNextPage && (
-        <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-500 animate-spin" />
+        <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-orange-500 animate-spin" />
       )}
       <input
         value={studentSearch}
@@ -1859,7 +1859,7 @@ function ResultsPanel({ rec, dark, cardCls, navigate, baseRole = 'teacher', gran
       {searchInput}
       <div className="grid grid-cols-3 gap-2">
         {[
-          { label: 'شاركوا', value: stats.participated, color: 'purple' },
+          { label: 'شاركوا', value: stats.participated, color: 'orange' },
           { label: 'متوسط الدرجة', value: stats.participated > 0 ? `${stats.avg_score}/${rec.total_score}` : '-', color: 'blue' },
           { label: 'نسبة النجاح', value: stats.participated > 0 ? `${Math.round(stats.passed_count / stats.participated * 100)}%` : '-', color: 'green' },
         ].map(({ label, value, color }) => (
@@ -1946,7 +1946,7 @@ function ResultsPanel({ rec, dark, cardCls, navigate, baseRole = 'teacher', gran
                   </button>
                 )}
                 <button onClick={() => setReviewResultId(r.id)}
-                  className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 transition-colors"
+                  className="p-1.5 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-600 transition-colors"
                   title="مراجعة مفصّلة">
                   <Eye className="w-4 h-4" />
                 </button>
@@ -2004,7 +2004,7 @@ function AnalyticsTab({ analytics, dark, cardCls }) {
     <div className="space-y-6">
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
         {[
-          { label: 'إجمالي التسميعات', value: summary.total_recitations, icon: BookOpen, color: 'purple' },
+          { label: 'إجمالي التسميعات', value: summary.total_recitations, icon: BookOpen, color: 'orange' },
           { label: 'إجمالي النتائج', value: summary.total_results, icon: FileText, color: 'blue' },
           { label: 'متوسط الدرجات', value: `${summary.avg_score}%`, icon: BarChart2, color: 'green' },
         ].map(({ label, value, icon: Icon, color }) => (
@@ -2029,7 +2029,7 @@ function AnalyticsTab({ analytics, dark, cardCls }) {
               <span className={`text-sm font-semibold ${dark ? 'text-[var(--dk-text)]' : 'text-navy-700'}`}>{s.stage}</span>
               <div className={`text-xs flex items-center gap-3 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-500'}`}>
                 <span><Users className="w-3 h-3 inline ml-1" />{s.participants}</span>
-                <span className="font-black text-purple-600">{s.avg_score}%</span>
+                <span className="font-black text-orange-600">{s.avg_score}%</span>
               </div>
             </div>
           ))}
@@ -2051,7 +2051,7 @@ function AnalyticsTab({ analytics, dark, cardCls }) {
               </div>
               <div className={`text-xs flex items-center gap-2 ${dark ? 'text-[var(--dk-text-2)]' : 'text-gray-500'}`}>
                 <span>{s.total_completed} تسميع</span>
-                <span className="font-black text-purple-600">{s.avg_score}%</span>
+                <span className="font-black text-orange-600">{s.avg_score}%</span>
               </div>
             </div>
           ))}
@@ -2074,7 +2074,7 @@ function AnalyticsTab({ analytics, dark, cardCls }) {
                     <Users className="w-3 h-3 inline ml-0.5" />{r.participant_count}
                   </span>
                   <span className="font-black text-green-600">نجاح {r.pass_rate}%</span>
-                  <span className="font-black text-purple-600">متوسط {r.avg_score}%</span>
+                  <span className="font-black text-orange-600">متوسط {r.avg_score}%</span>
                 </div>
               </div>
             ))}

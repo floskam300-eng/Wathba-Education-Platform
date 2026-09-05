@@ -494,7 +494,7 @@ export default function TeacherExams() {
                               start_date: fmtDateLocal(ex.start_date) || '',
                               end_date: fmtDateLocal(ex.end_date) || '',
                             })}
-                            className="p-1.5 text-purple-600 hover:bg-purple-50 rounded-lg"
+                            className="p-1.5 text-orange-500 hover:bg-orange-50 rounded-lg"
                             title="تحويل إلى تسميع">
                             <ArrowRightLeft className="w-4 h-4" />
                           </button>
@@ -520,7 +520,7 @@ export default function TeacherExams() {
                     <div className="flex flex-wrap gap-1.5 mt-1.5">
                       {ex.course_name && <Badge variant="info">{ex.course_name}</Badge>}
                       {courseStageMap[ex.course_id] && (
-                        <span className="text-xs bg-purple-50 text-purple-700 font-bold px-2 py-0.5 rounded-full">{courseStageMap[ex.course_id]}</span>
+                        <span className="text-xs bg-navy-50 text-navy-700 font-bold px-2 py-0.5 rounded-full">{courseStageMap[ex.course_id]}</span>
                       )}
                       <Badge variant="navy">⏱ {ex.duration_minutes} د</Badge>
                       <Badge variant="warning">📝 {ex.question_count} س</Badge>
@@ -1274,7 +1274,7 @@ export default function TeacherExams() {
             }}
             className="space-y-4"
           >
-            <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 text-xs text-purple-800 font-medium">
+            <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 text-xs text-orange-800 font-medium">
               🔄 سيتم إنشاء تسميع جديد يحتوي على نفس أسئلة الاختبار الأصلية كمسودة، مع بقاء هذا الاختبار كما هو دون تعديل أو حذف.
             </div>
 
@@ -1394,7 +1394,7 @@ export default function TeacherExams() {
               <button
                 type="submit"
                 disabled={convertMut.isPending}
-                className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 rounded-xl transition-colors"
+                className="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-bold py-2.5 rounded-xl transition-colors shadow-sm"
               >
                 {convertMut.isPending ? 'جاري التحويل...' : 'تأكيد التحويل إلى تسميع'}
               </button>

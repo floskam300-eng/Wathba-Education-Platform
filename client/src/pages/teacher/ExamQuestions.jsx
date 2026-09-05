@@ -318,7 +318,7 @@ export default function ExamQuestions() {
                   <button
                     type="button"
                     onClick={() => setShowImport(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border-2 border-purple-300 text-purple-700 bg-purple-50 hover:bg-purple-100 hover:border-purple-400 transition-all dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border-2 border-orange-300 text-orange-700 bg-orange-50 hover:bg-orange-100 hover:border-orange-400 transition-all dark:bg-orange-950/30 dark:text-orange-300 dark:border-orange-800"
                   >
                     <FileDown className="w-3.5 h-3.5" />
                     استيراد CSV
@@ -699,7 +699,7 @@ function SingleQuestionCard({ q, qNum, editQ, onEdit, onDelete }) {
           <div className="flex items-center gap-2 mb-2 flex-wrap">
             <span className="text-xs font-black text-gray-500 dark:text-[var(--dk-text-2)]">س{qNum}</span>
             <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-              q.question_type === 'true_false' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' : 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
+              q.question_type === 'true_false' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
             }`}>{qTypeLabel(q.question_type)}</span>
             <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
               {q.points} درجة
@@ -715,7 +715,7 @@ function SingleQuestionCard({ q, qNum, editQ, onEdit, onDelete }) {
           )}
           {q.question_type === 'image_multi' ? (
             <div className="space-y-1.5 w-full">
-              <div className="inline-flex items-center gap-1 text-[11px] font-bold bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border border-purple-200 dark:border-purple-800 rounded-lg px-2 py-1">
+              <div className="inline-flex items-center gap-1 text-[11px] font-bold bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-800 rounded-lg px-2 py-1">
                 🖼 {Array.isArray(q.sub_questions) ? q.sub_questions.length : 0} سؤال فرعي
               </div>
               <div className="flex flex-wrap gap-1">

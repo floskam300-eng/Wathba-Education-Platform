@@ -169,7 +169,7 @@ export default function EventsManagement() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-black text-navy-700 dark:text-white flex items-center gap-2.5">
-            <Gamepad2 className="w-7 h-7 text-purple-600 dark:text-purple-400" />
+            <Gamepad2 className="w-7 h-7 text-orange-500" />
             إدارة الفعاليات والألعاب التعليمية
           </h1>
           <p className="text-xs sm:text-sm text-gray-500 dark:text-slate-400 mt-1">
@@ -190,8 +190,8 @@ export default function EventsManagement() {
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
                 activeTab === tab.id
-                  ? 'bg-purple-600 text-white shadow-md'
-                  : 'text-gray-600 dark:text-slate-300 hover:text-purple-600 dark:hover:text-purple-400'
+                  ? 'bg-orange-500 text-white shadow-md'
+                  : 'text-gray-600 dark:text-slate-300 hover:text-orange-600 dark:hover:text-orange-400'
               }`}
             >
               <tab.icon className="w-4 h-4" />
@@ -219,7 +219,7 @@ export default function EventsManagement() {
                     {/* Header */}
                     <div className="flex items-start justify-between gap-3 mb-4">
                       <div className="flex items-center gap-3.5">
-                        <div className="w-12 h-12 rounded-2xl bg-purple-50 dark:bg-purple-950/50 border border-purple-200 dark:border-purple-800 flex items-center justify-center text-2xl">
+                        <div className="w-12 h-12 rounded-2xl bg-orange-50 dark:bg-orange-950/50 border border-orange-200 dark:border-orange-800 flex items-center justify-center text-2xl">
                           {game.icon}
                         </div>
                         <div>
@@ -227,7 +227,7 @@ export default function EventsManagement() {
                             <h3 className="text-base sm:text-lg font-black text-navy-700 dark:text-white">
                               {game.title}
                             </h3>
-                            <span className="text-[10px] px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 font-extrabold">
+                            <span className="text-[10px] px-2 py-0.5 rounded-md bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300 font-extrabold">
                               {game.badge}
                             </span>
                           </div>
@@ -251,7 +251,7 @@ export default function EventsManagement() {
                     <div className="grid grid-cols-3 gap-2 bg-gray-50 dark:bg-slate-800/50 p-3 rounded-2xl border border-gray-100 dark:border-slate-800 text-center text-xs mb-5">
                       <div>
                         <div className="text-gray-400 dark:text-slate-500 text-[10px]">النقاط لكل سؤال</div>
-                        <div className="font-mono font-black text-purple-600 dark:text-purple-400">+{game.points_per_question}</div>
+                        <div className="font-mono font-black text-orange-600 dark:text-orange-400">+{game.points_per_question}</div>
                       </div>
                       <div>
                         <div className="text-gray-400 dark:text-slate-500 text-[10px]">بونص الإكمال</div>
@@ -271,7 +271,7 @@ export default function EventsManagement() {
                     <button
                       type="button"
                       onClick={() => handleOpenConfig(game)}
-                      className="flex-1 py-2.5 px-4 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all"
+                      className="flex-1 py-2.5 px-4 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all"
                     >
                       <Settings className="w-4 h-4" />
                       <span>تعديل القواعد والنقاط والجدول</span>
@@ -400,11 +400,11 @@ export default function EventsManagement() {
                 return (
                   <div
                     key={q.id}
-                    className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm hover:border-purple-300 dark:hover:border-purple-700 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+                    className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm hover:border-orange-300 dark:hover:border-orange-700 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
                   >
                     <div className="space-y-2 flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 font-bold">
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-orange-100 dark:bg-orange-950 text-orange-700 dark:text-orange-300 font-bold">
                           {q.academic_stage || 'جميع المراحل'}
                         </span>
                         <span className="text-[10px] px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 font-bold">
@@ -448,7 +448,7 @@ export default function EventsManagement() {
                       <button
                         type="button"
                         onClick={() => handleOpenEditQuestion(q)}
-                        className="p-2 rounded-lg text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/50 transition-colors"
+                        className="p-2 rounded-lg text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/50 transition-colors"
                         title="تعديل السؤال"
                       >
                         <Edit3 className="w-4 h-4" />
@@ -478,7 +478,7 @@ export default function EventsManagement() {
           {/* KPI Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {[
-              { label: 'إجمالي مرات اللعب', val: analytics.overall?.total_plays || 0, icon: Play, col: 'text-purple-600' },
+              { label: 'إجمالي مرات اللعب', val: analytics.overall?.total_plays || 0, icon: Play, col: 'text-orange-500' },
               { label: 'الطلاب المشاركون', val: analytics.overall?.unique_students || 0, icon: BarChart3, col: 'text-blue-600' },
               { label: 'إجمالي النقاط الموزعة', val: `+${analytics.overall?.total_points_awarded || 0}`, icon: Zap, col: 'text-amber-500' },
               { label: 'نسبة إكمال الألعاب', val: `${analytics.overall?.completion_rate || 0}%`, icon: CheckCircle, col: 'text-emerald-500' }
@@ -571,7 +571,7 @@ export default function EventsManagement() {
                     name="correct_choice"
                     checked={questionForm.correct_index === idx}
                     onChange={() => setQuestionForm({ ...questionForm, correct_index: idx })}
-                    className="w-4 h-4 text-purple-600 cursor-pointer"
+                    className="w-4 h-4 text-orange-500 focus:ring-orange-400 cursor-pointer"
                   />
                   <input
                     type="text"
@@ -719,7 +719,7 @@ export default function EventsManagement() {
               type="checkbox"
               checked={configForm.is_enabled !== false}
               onChange={e => setConfigForm({ ...configForm, is_enabled: e.target.checked })}
-              className="w-5 h-5 text-purple-600 rounded cursor-pointer"
+              className="w-5 h-5 text-orange-500 rounded focus:ring-orange-400 cursor-pointer"
             />
           </div>
 
@@ -804,18 +804,18 @@ export default function EventsManagement() {
           </div>
 
           {/* Question Pull Mode Strategy */}
-          <div className="p-3 rounded-2xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 space-y-2">
-            <div className="text-xs font-bold text-purple-900 dark:text-purple-300">
+          <div className="p-3 rounded-2xl bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-800 space-y-2">
+            <div className="text-xs font-bold text-orange-900 dark:text-orange-300">
               آلية سحب الأسئلة من البنك:
             </div>
-            <div className="space-y-1.5 text-xs text-purple-800 dark:text-purple-200">
+            <div className="space-y-1.5 text-xs text-orange-800 dark:text-orange-200">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="radio"
                   name="pull_mode"
                   checked={configForm.question_pull_mode === 'unseen_first'}
                   onChange={() => setConfigForm({ ...configForm, question_pull_mode: 'unseen_first' })}
-                  className="text-purple-600"
+                  className="text-orange-600 focus:ring-orange-400"
                 />
                 <span><strong>ذكي (Unseen First):</strong> يسحب أسئلة لم يرها الطالب في محاولاته السابقة لضمان عدم التكرار.</span>
               </label>
@@ -825,7 +825,7 @@ export default function EventsManagement() {
                   name="pull_mode"
                   checked={configForm.question_pull_mode === 'pure_random'}
                   onChange={() => setConfigForm({ ...configForm, question_pull_mode: 'pure_random' })}
-                  className="text-purple-600"
+                  className="text-orange-600 focus:ring-orange-400"
                 />
                 <span><strong>عشوائي تماماً:</strong> سحب عشوائي من بنك الأسئلة في كل مرة.</span>
               </label>

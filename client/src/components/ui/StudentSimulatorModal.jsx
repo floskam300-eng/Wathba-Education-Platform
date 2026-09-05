@@ -94,7 +94,7 @@ export default function StudentSimulatorModal({ isOpen, onClose, defaultStage = 
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-gray-100 dark:border-slate-800 mb-5">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-orange-500 to-amber-600 flex items-center justify-center text-white shadow-md shadow-orange-500/20">
               <Eye className="w-6 h-6" />
             </div>
             <div>
@@ -113,10 +113,10 @@ export default function StudentSimulatorModal({ isOpen, onClose, defaultStage = 
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleStartSimulation} className="space-y-4">
           {/* Stage selection */}
           <div>
-            <label className="block text-xs font-black text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-xs font-black text-gray-700 dark:text-gray-300 mb-1.5">
               اختر المرحلة الدراسية للمعاينة:
             </label>
             <div className="relative">
@@ -125,8 +125,8 @@ export default function StudentSimulatorModal({ isOpen, onClose, defaultStage = 
                 onChange={(e) => setStage(e.target.value)}
                 className={`w-full py-3 px-4 rounded-2xl border font-bold text-sm outline-none transition-all ${
                   dark
-                    ? 'bg-slate-800 border-slate-700 text-white focus:border-indigo-500'
-                    : 'bg-gray-50 border-gray-200 text-gray-800 focus:bg-white focus:border-indigo-500'
+                    ? 'bg-slate-800 border-slate-700 text-white focus:border-orange-500'
+                    : 'bg-gray-50 border-gray-200 text-gray-800 focus:bg-white focus:border-orange-500'
                 }`}
               >
                 {teacherStages.length > 0 && (
@@ -172,7 +172,7 @@ export default function StudentSimulatorModal({ isOpen, onClose, defaultStage = 
                     onClick={() => setDestination(dest.id)}
                     className={`p-3 rounded-2xl border text-right flex items-center gap-2 transition-all ${
                       active
-                        ? 'border-indigo-500 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 shadow-sm font-black'
+                        ? 'border-orange-500 bg-orange-500/10 text-orange-600 dark:text-orange-400 shadow-sm font-black'
                         : dark
                         ? 'border-slate-800 bg-slate-800/60 text-gray-400 hover:border-slate-700'
                         : 'border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100'
@@ -193,7 +193,7 @@ export default function StudentSimulatorModal({ isOpen, onClose, defaultStage = 
                 type="checkbox"
                 checked={autoEnroll}
                 onChange={(e) => setAutoEnroll(e.target.checked)}
-                className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 cursor-pointer"
+                className="w-4 h-4 text-orange-600 rounded border-gray-300 focus:ring-orange-500 cursor-pointer"
               />
               <div className="text-right">
                 <p className="text-xs font-black text-gray-800 dark:text-gray-200">
@@ -210,7 +210,7 @@ export default function StudentSimulatorModal({ isOpen, onClose, defaultStage = 
                 type="checkbox"
                 checked={resetData}
                 onChange={(e) => setResetData(e.target.checked)}
-                className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 cursor-pointer"
+                className="w-4 h-4 text-orange-600 rounded border-gray-300 focus:ring-orange-500 cursor-pointer"
               />
               <div className="text-right">
                 <p className="text-xs font-black text-gray-800 dark:text-gray-200">
@@ -224,8 +224,8 @@ export default function StudentSimulatorModal({ isOpen, onClose, defaultStage = 
           </div>
 
           {/* Security & Sandbox notice */}
-          <div className="flex items-center gap-2 p-3 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/40 text-[11px] text-indigo-700 dark:text-indigo-300">
-            <ShieldCheck className="w-4 h-4 flex-shrink-0 text-indigo-600 dark:text-indigo-400" />
+          <div className="flex items-center gap-2 p-3 rounded-2xl bg-orange-50/70 dark:bg-orange-950/30 border border-orange-100 dark:border-orange-900/40 text-[11px] text-orange-700 dark:text-orange-300">
+            <ShieldCheck className="w-4 h-4 flex-shrink-0 text-orange-600 dark:text-orange-400" />
             <span>بيانات المعاينة معزولة تماماً ولا تؤثر على إحصائياتك أو قوائم طلابك الحقيقية.</span>
           </div>
 
@@ -234,7 +234,7 @@ export default function StudentSimulatorModal({ isOpen, onClose, defaultStage = 
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 py-3 px-5 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 active:scale-95 text-white font-black text-sm transition-all shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2"
+              className="flex-1 py-3 px-5 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 active:scale-95 text-white font-black text-sm transition-all shadow-lg shadow-orange-500/25 flex items-center justify-center gap-2 cursor-pointer"
             >
               {loading ? (
                 <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
